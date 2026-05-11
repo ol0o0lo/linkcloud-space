@@ -1,0 +1,127 @@
+# ------------------------------------------------------------
+# STAGE 1: Build Python requirements layer
+# ------------------------------------------------------------
+FROM python:3.14-bookworm AS python-requirements
+
+ARG ENV_NAME=dev
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV \
+    # This prevents Python from writing out pyc files \
+    PYTHONDONTWRITEBYTECODE=1 \
+    # This keeps Python from buffering stdin/stdout \
+    PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT=$VIRTUAL_ENV
+
+RUN --mount=type=cache,target=/root/.cache/pip,id=linkcloud-space-pip \
+    set -ex \
+    && python3 -m venv $VIRTUAL_ENV \
+    && $VIRTUAL_ENV/bin/pip install -U setuptools wheel pip uv
+
+# Install Python packages
+COPY uv.lock pyproject.toml ./
+
+RUN --mount=type=cache,target=/root/.cache/uv,id=linkcloud-space-uv \
+    set -ex \
+    && if [ "$ENV_NAME" = "prod" ]; then \
+        $VIRTUAL_ENV/bin/uv sync --no-dev; \
+    else \
+        $VIRTUAL_ENV/bin/uv sync; \
+    fi
+
+
+# ------------------------------------------------------------
+# STAGE 2: Base runtime (shared by dev and prod). libjpeg-dev + zlib1g-dev
+# are needed for Pillow (avatar uploads). mime-support gives gunicorn the
+# correct mime types when serving static files.
+# ------------------------------------------------------------
+FROM python:3.14-slim-bookworm AS base
+
+RUN --mount=type=cache,target=/var/cache/apt,id=linkcloud-space-apt \
+    --mount=type=cache,target=/var/lib/apt,id=linkcloud-space-apt \
+    apt update \
+    && apt install -yqq --no-install-recommends locales mime-support libjpeg-dev zlib1g-dev \
+    && echo "LC_ALL=en_US.UTF-8" >> /etc/environment \
+    && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
+    && echo "LANG=en_US.UTF-8" > /etc/locale.conf \
+    && locale-gen en_US.UTF-8 \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "\nsource /opt/venv/bin/activate" >> /root/.bashrc
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8 \
+    DJANGO_SETTINGS_MODULE=config.settings \
+    PYTHONPATH=/srv/app \
+    TERM=xterm-color \
+    PATH=$VIRTUAL_ENV/bin:${PATH}
+
+WORKDIR /srv/app
+
+COPY --from=python-requirements --chown=app:app $VIRTUAL_ENV $VIRTUAL_ENV
+
+
+# ------------------------------------------------------------
+# STAGE 2b: Dev layer (adds Playwright for e2e tests)
+# ------------------------------------------------------------
+FROM base AS dev
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+RUN playwright install chromium --with-deps \
+    && chmod -R a+rX /ms-playwright
+
+# Pre-compile site-packages to .pyc so imports don't recompile at runtime —
+# `PYTHONDONTWRITEBYTECODE=1` blocks runtime caching, which means SyntaxWarnings
+# (e.g. pluggy 1.5.0 on Python 3.14) re-fire on every import. `compileall -q`
+# bakes the .pyc cache in once so those warnings stay quiet.
+RUN python -W ignore -m compileall -q /opt/venv/lib
+
+EXPOSE 8000/tcp 8001/tcp
+
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+
+
+# ------------------------------------------------------------
+# STAGE 3: Javascript assets layer (built with bun, not npm)
+# ------------------------------------------------------------
+FROM oven/bun:1 AS js_assets
+
+WORKDIR /srv/app
+
+COPY package.json bun.lock ./
+COPY frontend frontend
+COPY apps apps
+
+# Install JS packages and build the Vite bundle. --frozen-lockfile guarantees
+# CI/prod builds resolve to exactly what's committed in bun.lock.
+RUN --mount=type=cache,target=/root/.bun/install/cache,id=linkcloud-space-bun \
+    bun install --frozen-lockfile \
+    && bun run build \
+    && ls -la public/static/dist/
+
+
+# ------------------------------------------------------------
+# STAGE 4: Prod
+# ------------------------------------------------------------
+
+FROM base AS prod
+
+WORKDIR /srv/app
+
+RUN set -ex \
+    && groupadd -r app --gid=1000 && useradd --uid=1000 --create-home --home-dir=/home/app --no-log-init -r -g app app \
+    && echo "\nsource /opt/venv/bin/activate" >> /home/app/.bashrc
+
+COPY --chown=app:app . .
+
+RUN mkdir -p /srv/app/collected_static && chown -R app:app /srv/app/collected_static
+
+USER app
+
+COPY --from=js_assets --chown=app:app /srv/app/public/static/ ./public/static
+
+RUN DJANGO_SETTINGS_MODULE=config.settings SECRET_KEY=build-only python manage.py collectstatic --noinput --no-default-ignore
+
+CMD ["gunicorn", "--config=gunicorn.conf.py", "config.wsgi:application"]

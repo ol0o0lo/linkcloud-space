@@ -1,0 +1,62 @@
+# Python
+**/.venv
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.mypy_cache/**/*
+.pytest_cache/**/*
+.ruff_cache/**/*
+*.egg-info/
+dist/
+build/
+
+# Environment & Secrets
+.env*
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Celery
+celerybeat-schedule*
+
+# Django
+collected_static/
+db.sqlite
+db.sqlite3
+*.dump
+latest.dump
+
+# Frontend / Node
+node_modules/
+bun.lockb
+public/static/dist/
+frontend/dist/
+
+# Media uploads
+public/media/*
+!public/media/.keep
+
+# Logs
+*console.log
+*.log
+
+# Docs
+docs_site/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code settings
+.claude/
+CLAUDE.local.md
+.playwright-mcp/
