@@ -32,6 +32,20 @@ services:
       retries: 3
       start_period: 10s
 
+  # mailpit:
+  #   container_name: mailpit
+  #   image: axllent/mailpit
+  #   init: true
+  #   ports:
+  #     - "127.0.0.1:8025:8025"
+  #     - "127.0.0.1:1025:1025"
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--spider", "-q", "http://localhost:8025/livez"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 10s
+
   minio:
     container_name: minio
     image: minio/minio:latest
@@ -93,6 +107,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      # mailpit:
+      #   condition: service_healthy
 
     environment:
       USE_DOCKER: 'on'
@@ -116,6 +132,8 @@ services:
     depends_on:
       web:
         condition: service_started
+      # mailpit:
+      #   condition: service_healthy
 
     environment:
       DJANGO_SETTINGS_MODULE: config.settings
