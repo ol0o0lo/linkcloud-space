@@ -19,7 +19,7 @@ def avatar_thumbnail_path(instance, filename):
 
 
 class User(AbstractUser):
-    timezone = models.CharField(max_length=63, default="America/Chicago")
+    timezone = models.CharField(max_length=63, default="Asia/Shanghai")
     avatar_original = models.ImageField(upload_to=avatar_original_path, blank=True)
     avatar_thumbnail = models.ImageField(upload_to=avatar_thumbnail_path, blank=True)
     avatar_crop_data = models.JSONField(blank=True, null=True)
