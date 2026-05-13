@@ -378,7 +378,14 @@ EMAIL_PORT = email.get("EMAIL_PORT", 465)
 EMAIL_HOST_PASSWORD = email.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_HOST_USER = email.get("EMAIL_HOST_USER", "")
 EMAIL_USE_TLS = email.get("EMAIL_USE_TLS", False)
-EMAIL_USE_SSL = email.get("EMAIL_USE_SSL", False)
+# dj_email_url 不能正确识别 smtp+ssl:// scheme，根据端口自动判断：
+# 465 → SSL，587 → TLS，其他端口以 URL 解析结果为准
+_email_url_raw = env("EMAIL_URL", default="")
+if EMAIL_PORT == 465 or _email_url_raw.startswith("smtp+ssl://"):
+    EMAIL_USE_SSL = True
+    EMAIL_USE_TLS = False
+else:
+    EMAIL_USE_SSL = email.get("EMAIL_USE_SSL", False)
 
 
 def log_format() -> str:
