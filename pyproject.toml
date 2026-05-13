@@ -13,7 +13,6 @@ dependencies = [
     "django-hijack~=3.7",
     "django-maintenance-mode~=0.19",
     "django-ninja~=1.4",
-    "django-ses~=4.3",
     "django-storages~=1.8",
     "epicenv[django]~=1.2",
     "fido2~=2.2",
