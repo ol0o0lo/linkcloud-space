@@ -213,8 +213,8 @@ SECURE_PROXY_SSL_HEADER = { type = "bool", default = false, help_text = "Trust X
 ACCOUNT_SIGNUP_OPEN = { type = "bool", default = false, help_text = "Allow new account signups" }
 
 # Email Settings
-DEFAULT_FROM_EMAIL = { type = "str", default = "", help_text = "Default email address for sending emails, required when using Django SES for sending emails on the production instance." }
-EMAIL_URL = { type = "str", default="smtp://mailpit:1025", help_text = "Email server connection URL (Mailpit for local development)" }
+DEFAULT_FROM_EMAIL = { type = "str", default = "", help_text = "发件人邮箱地址，如 your@163.com，需与 EMAIL_URL 中的用户名一致。" }
+EMAIL_URL = { type = "str", default = "", help_text = "SMTP connection URL，格式示例：smtp+ssl://your@163.com:授权码@smtp.163.com:465" }
 
 # Instance Settings
 INSTANCE = { type = "str", default = "dev", help_text = "Instance name (e.g., dev, staging, prod)" }
