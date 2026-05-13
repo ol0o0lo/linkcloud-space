@@ -367,22 +367,18 @@ SPA_URLS = {
     "impersonate": "/impersonate/",
 }
 
-if INSTANCE != "prod":
-    # See https://github.com/migonzalvar/dj-email-url for more examples on how to set the EMAIL_URL
-    email = env.dj_email_url(
-        "EMAIL_URL",
-        default="smtp://mailpit:1025",
-    )
-    DEFAULT_FROM_EMAIL = email.get("DEFAULT_FROM_EMAIL", "webmaster@localhost")
-    EMAIL_HOST = email["EMAIL_HOST"]
-    EMAIL_PORT = email["EMAIL_PORT"]
-    EMAIL_HOST_PASSWORD = email["EMAIL_HOST_PASSWORD"]
-    EMAIL_HOST_USER = email["EMAIL_HOST_USER"]
-    EMAIL_USE_TLS = email["EMAIL_USE_TLS"]
-else:
-    # Use Django SES as the email backend for the production instance
-    DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="")
-    EMAIL_BACKEND = "django_ses.SESBackend"
+# Email — unified SMTP config for all environments.
+# Set EMAIL_URL in .env, e.g.:
+#   smtp+ssl://your@163.com:授权码@smtp.163.com:465
+# See https://github.com/migonzalvar/dj-email-url for URL format examples.
+email = env.dj_email_url("EMAIL_URL", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="")
+EMAIL_HOST = email.get("EMAIL_HOST", "")
+EMAIL_PORT = email.get("EMAIL_PORT", 465)
+EMAIL_HOST_PASSWORD = email.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_HOST_USER = email.get("EMAIL_HOST_USER", "")
+EMAIL_USE_TLS = email.get("EMAIL_USE_TLS", False)
+EMAIL_USE_SSL = email.get("EMAIL_USE_SSL", False)
 
 
 def log_format() -> str:
