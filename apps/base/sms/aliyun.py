@@ -22,15 +22,19 @@ class AliyunSMSBackend(SMSBackend):
         return Client(config)
 
     def send(self, phone: str, code: str) -> None:
-        client = self._get_client()
-        request = sms_models.SendSmsRequest(
-            phone_numbers=phone,
-            sign_name=settings.ALIYUN_SMS_SIGN_NAME,
-            template_code=settings.ALIYUN_SMS_TEMPLATE_CODE,
-            template_param=f'{{"code":"{code}"}}',
-        )
-        response = client.send_sms(request)
-        if response.body.code != "OK":
-            logger.error("Aliyun SMS failed: %s - %s", response.body.code, response.body.message)
-            raise RuntimeError(f"Aliyun SMS error: {response.body.code} {response.body.message}")
-        logger.info("Aliyun SMS sent to %s", phone)
+        try:
+            client = self._get_client()
+            request = sms_models.SendSmsRequest(
+                phone_numbers=phone,
+                sign_name=settings.ALIYUN_SMS_SIGN_NAME,
+                template_code=settings.ALIYUN_SMS_TEMPLATE_CODE,
+                template_param=f'{{"code":"{code}"}}',
+            )
+            response = client.send_sms(request)
+            if response.body.code != "OK":
+                logger.error("Aliyun SMS failed: %s - %s", response.body.code, response.body.message)
+                raise RuntimeError(f"Aliyun SMS error: {response.body.code} {response.body.message}")
+            logger.info("Aliyun SMS sent to %s", phone)
+        except Exception as e:
+            logger.error("Aliyun SMS SDK exception: %s", str(e))
+            raise RuntimeError(f"Aliyun SMS SDK error: {e}") from e
