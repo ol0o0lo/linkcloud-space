@@ -23,6 +23,8 @@ class User(AbstractUser):
     avatar_original = models.ImageField(upload_to=avatar_original_path, blank=True)
     avatar_thumbnail = models.ImageField(upload_to=avatar_thumbnail_path, blank=True)
     avatar_crop_data = models.JSONField(blank=True, null=True)
+    phone = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    phone_verified = models.BooleanField(default=False)
 
     def clean(self):
         super().clean()
