@@ -318,9 +318,11 @@ if DEBUG is True:
 AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
 LOGIN_REDIRECT_URL = "/"
 ACCOUNT_LOGOUT_ON_GET = True
-ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_LOGIN_METHODS = {"phone", "email"}
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
-ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
+ACCOUNT_SIGNUP_FIELDS = ["phone*", "email", "password1*"]
+ACCOUNT_PHONE_VERIFICATION_ENABLED = True
+ACCOUNT_PHONE_VERIFICATION_SUPPORTS_RESEND = True
 # Set to "optional" so users can verify their email. Mailpit captures emails locally during development.
 # For production, consider changing to "mandatory".
 ACCOUNT_EMAIL_VERIFICATION = "optional"
@@ -369,7 +371,8 @@ SPA_URLS = {
 
 # Email — unified SMTP config for all environments.
 # Set EMAIL_URL in .env, e.g.:
-#   smtp+ssl://your@163.com:授权码@smtp.163.com:465
+#   smtp://your@163.com:授权码@smtp.163.com:465  (SSL, 465)
+#   smtp://your@qq.com:授权码@smtp.qq.com:587    (TLS, 587)
 # See https://github.com/migonzalvar/dj-email-url for URL format examples.
 email = env.dj_email_url("EMAIL_URL", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="")
@@ -377,15 +380,24 @@ EMAIL_HOST = email.get("EMAIL_HOST", "")
 EMAIL_PORT = email.get("EMAIL_PORT", 465)
 EMAIL_HOST_PASSWORD = email.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_HOST_USER = email.get("EMAIL_HOST_USER", "")
-EMAIL_USE_TLS = email.get("EMAIL_USE_TLS", False)
-# dj_email_url 不能正确识别 smtp+ssl:// scheme，根据端口自动判断：
-# 465 → SSL，587 → TLS，其他端口以 URL 解析结果为准
-_email_url_raw = env("EMAIL_URL", default="")
-if EMAIL_PORT == 465 or _email_url_raw.startswith("smtp+ssl://"):
-    EMAIL_USE_SSL = True
-    EMAIL_USE_TLS = False
-else:
-    EMAIL_USE_SSL = email.get("EMAIL_USE_SSL", False)
+EMAIL_USE_SSL = True
+EMAIL_USE_TLS = False
+
+# SMS Backend
+SMS_BACKEND = env("SMS_BACKEND", default="apps.base.sms.aliyun.AliyunSMSBackend")
+
+# 阿里云 SMS（默认）
+ALIYUN_SMS_ACCESS_KEY_ID = env("ALIYUN_SMS_ACCESS_KEY_ID", default="")
+ALIYUN_SMS_ACCESS_KEY_SECRET = env("ALIYUN_SMS_ACCESS_KEY_SECRET", default="")
+ALIYUN_SMS_SIGN_NAME = env("ALIYUN_SMS_SIGN_NAME", default="")
+ALIYUN_SMS_TEMPLATE_CODE = env("ALIYUN_SMS_TEMPLATE_CODE", default="")
+
+# 腾讯云 SMS（备用，切换方式：SMS_BACKEND=apps.base.sms.tencent.TencentSMSBackend）
+TENCENT_SMS_SECRET_ID = env("TENCENT_SMS_SECRET_ID", default="")
+TENCENT_SMS_SECRET_KEY = env("TENCENT_SMS_SECRET_KEY", default="")
+TENCENT_SMS_APP_ID = env("TENCENT_SMS_APP_ID", default="")
+TENCENT_SMS_SIGN_NAME = env("TENCENT_SMS_SIGN_NAME", default="")
+TENCENT_SMS_TEMPLATE_ID = env("TENCENT_SMS_TEMPLATE_ID", default="")
 
 
 def log_format() -> str:

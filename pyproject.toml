@@ -218,6 +218,18 @@ ACCOUNT_SIGNUP_OPEN = { type = "bool", default = false, help_text = "Allow new a
 DEFAULT_FROM_EMAIL = { type = "str", default = "", help_text = "发件人邮箱地址，如 your@163.com，需与 EMAIL_URL 中的用户名一致。" }
 EMAIL_URL = { type = "str", default = "", help_text = "SMTP connection URL，格式示例：smtp+ssl://your@163.com:授权码@smtp.163.com:465" }
 
+# SMS Settings
+SMS_BACKEND = { type = "str", default = "apps.base.sms.aliyun.AliyunSMSBackend", help_text = "短信后端，切换腾讯云：apps.base.sms.tencent.TencentSMSBackend" }
+ALIYUN_SMS_ACCESS_KEY_ID = { type = "str", default = "", help_text = "阿里云 AccessKey ID" }
+ALIYUN_SMS_ACCESS_KEY_SECRET = { type = "str", default = "", help_text = "阿里云 AccessKey Secret" }
+ALIYUN_SMS_SIGN_NAME = { type = "str", default = "", help_text = "阿里云短信签名" }
+ALIYUN_SMS_TEMPLATE_CODE = { type = "str", default = "", help_text = "阿里云短信模板 CODE，模板变量为 ${code}" }
+TENCENT_SMS_SECRET_ID = { type = "str", default = "", help_text = "腾讯云 SecretId（备用）" }
+TENCENT_SMS_SECRET_KEY = { type = "str", default = "", help_text = "腾讯云 SecretKey（备用）" }
+TENCENT_SMS_APP_ID = { type = "str", default = "", help_text = "腾讯云 SMS SdkAppId（备用）" }
+TENCENT_SMS_SIGN_NAME = { type = "str", default = "", help_text = "腾讯云短信签名（备用）" }
+TENCENT_SMS_TEMPLATE_ID = { type = "str", default = "", help_text = "腾讯云短信模板 ID（备用）" }
+
 # Instance Settings
 INSTANCE = { type = "str", default = "dev", help_text = "Instance name (e.g., dev, staging, prod)" }
 
