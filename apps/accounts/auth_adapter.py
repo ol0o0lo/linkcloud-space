@@ -34,3 +34,43 @@ class AccountAdapter(DefaultAccountAdapter):
             )
 
         return response
+
+    # --- Phone number support (django-allauth) ---
+
+    def get_phone(self, user):
+        """Return (phone, verified) tuple or None if no phone set."""
+        if not user.phone:
+            return None
+        return (user.phone, user.phone_verified)
+
+    def set_phone(self, user, phone, verified):
+        """Store phone number and verification status on the user."""
+        user.phone = phone
+        user.phone_verified = verified
+        user.save(update_fields=["phone", "phone_verified"])
+
+    def set_phone_verified(self, user, phone):
+        """Mark the phone number as verified."""
+        user.phone_verified = True
+        user.save(update_fields=["phone_verified"])
+
+    def get_user_by_phone(self, phone):
+        """Look up a user by phone number. Returns None if not found."""
+        from apps.accounts.models import User
+
+        try:
+            return User.objects.get(phone=phone)
+        except User.DoesNotExist:
+            return None
+
+    def send_verification_code_sms(self, user, phone, code, **kwargs):
+        """Send SMS verification code via configured SMS backend."""
+        from apps.base.sms import send_sms
+
+        send_sms(phone, code)
+
+    def send_unknown_account_sms(self, phone, **kwargs):
+        """Send an SMS to an unregistered number (enumeration prevention)."""
+        from apps.base.sms import send_sms
+
+        send_sms(phone, "该手机号未注册，请检查后重试")
