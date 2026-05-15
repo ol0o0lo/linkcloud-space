@@ -35,6 +35,8 @@ class AliyunSMSBackend(SMSBackend):
                 logger.error("Aliyun SMS failed: %s - %s", response.body.code, response.body.message)
                 raise RuntimeError(f"Aliyun SMS error: {response.body.code} {response.body.message}")
             logger.info("Aliyun SMS sent to %s", phone)
+        except RuntimeError:
+            raise  # re-raise our own error as-is
         except Exception as e:
             logger.error("Aliyun SMS SDK exception: %s", str(e))
             raise RuntimeError(f"Aliyun SMS SDK error: {e}") from e

@@ -70,7 +70,5 @@ class AccountAdapter(DefaultAccountAdapter):
         send_sms(phone, code)
 
     def send_unknown_account_sms(self, phone, **kwargs):
-        """Send an SMS to an unregistered number (enumeration prevention)."""
-        from apps.base.sms import send_sms
-
-        send_sms(phone, "该手机号未注册，请检查后重试")
+        """Silently skip SMS for unregistered numbers (enumeration prevention)."""
+        pass

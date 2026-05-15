@@ -380,11 +380,17 @@ EMAIL_HOST = email.get("EMAIL_HOST", "")
 EMAIL_PORT = email.get("EMAIL_PORT", 465)
 EMAIL_HOST_PASSWORD = email.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_HOST_USER = email.get("EMAIL_HOST_USER", "")
-EMAIL_USE_SSL = True
-EMAIL_USE_TLS = False
+# dj_email_url does not correctly detect smtp+ssl:// scheme, so we detect by port or URL prefix.
+_email_url_raw = env("EMAIL_URL", default="")
+if EMAIL_PORT == 465 or _email_url_raw.startswith("smtp+ssl://"):
+    EMAIL_USE_SSL = True
+    EMAIL_USE_TLS = False
+else:
+    EMAIL_USE_SSL = email.get("EMAIL_USE_SSL", False)
 
 # SMS Backend
-SMS_BACKEND = env("SMS_BACKEND", default="apps.base.sms.aliyun.AliyunSMSBackend")
+_default_sms_backend = "apps.base.sms.console.ConsoleSMSBackend" if DEBUG else "apps.base.sms.aliyun.AliyunSMSBackend"
+SMS_BACKEND = env("SMS_BACKEND", default=_default_sms_backend)
 
 # 阿里云 SMS（默认）
 ALIYUN_SMS_ACCESS_KEY_ID = env("ALIYUN_SMS_ACCESS_KEY_ID", default="")
