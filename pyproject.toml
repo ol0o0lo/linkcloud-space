@@ -22,6 +22,8 @@ dependencies = [
     "python-json-logger~=4.1",
     "redis~=7.1",  # needed for celery
     "whitenoise~=6.7",
+    "alibabacloud-dysmsapi20170525>=2.0.0",
+    "tencentcloud-sdk-python-sms>=3.0.0",
 ]
 
 [dependency-groups]
