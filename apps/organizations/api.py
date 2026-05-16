@@ -30,6 +30,7 @@ from apps.organizations.schemas import (
     SuccessOut,
     SwitchListItemOut,
 )
+from apps.organizations.hooks import post_create_organization, pre_create_organization
 from apps.organizations.session import remove_org, save_counts, save_org_data
 
 orgs_router = Router(tags=["organizations"])
@@ -47,9 +48,11 @@ settings_router = Router(tags=["organization-settings"])
 @orgs_router.post("/", response={201: OrganizationCreateOut})
 def create_organization(request, payload: OrganizationCreateIn):
     require_authenticated(request)
+    pre_create_organization(request)
     with transaction.atomic():
         org = Organization.objects.create(name=payload.name, slug=payload.slug)
         OrganizationMember.objects.create(organization=org, user=request.user, is_owner=True, is_primary=True)
+        post_create_organization(request, org)
     save_org_data(request, org)
     return Status(201, {"id": org.pk, "name": org.name, "slug": org.slug})
 
