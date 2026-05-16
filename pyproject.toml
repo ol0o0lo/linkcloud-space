@@ -26,7 +26,7 @@ dependencies = [
     "alibabacloud-sts20150401>=1.0.0",
     "tencentcloud-sdk-python-sms>=3.0.0",
     "djangorestframework>=3.16,<4",
-    "djangorestframework-simplejwt>=5.4,<6",
+    "PyJWT>=2.8,<3",
 ]
 
 [dependency-groups]

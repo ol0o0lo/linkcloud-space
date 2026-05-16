@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import contextlib
 import re
 import socket
-from datetime import timedelta
 from pathlib import Path
 
 from botocore.config import Config
@@ -78,8 +77,6 @@ INSTALLED_APPS = [
     "storages",
     "hijack",
     "rest_framework",
-    "rest_framework_simplejwt",
-    "rest_framework_simplejwt.token_blacklist",
 ]
 
 # DJANGO HIJACK SETTINGS
@@ -495,7 +492,6 @@ VITE_DEV_MODE = env.bool("VITE_DEV_MODE", default=DEBUG)
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
@@ -505,15 +501,12 @@ REST_FRAMEWORK = {
 }
 
 # ---------------------------------------------------------------------------
-# SimpleJWT
+# Allauth Headless JWT
 # ---------------------------------------------------------------------------
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
-    "UPDATE_LAST_LOGIN": True,
-    "AUTH_HEADER_TYPES": ("Bearer",),
-    "USER_ID_FIELD": "id",
-    "USER_ID_CLAIM": "user_id",
-}
+HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.strategy.JWTTokenStrategy"
+HEADLESS_JWT_ALGORITHM = "HS256"
+# HS256 自动使用 Django SECRET_KEY，无需额外配置 HEADLESS_JWT_PRIVATE_KEY
+HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = 1800    # 30 分钟
+HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = 604800  # 7 天
+HEADLESS_JWT_ROTATE_REFRESH_TOKEN = True
+HEADLESS_JWT_STATEFUL_VALIDATION_ENABLED = False  # 无状态验证，小程序端不依赖 session
