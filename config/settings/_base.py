@@ -74,6 +74,8 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.headless",
     "allauth.mfa",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.github",
     "storages",
     "hijack",
     "rest_framework",
@@ -356,7 +358,28 @@ HEADLESS_FRONTEND_URLS = {
     "account_signup": "/accounts/signup/",
     "account_login": "/accounts/login/",
     "account_reauthenticate": "/accounts/reauthenticate/",
+    "socialaccount_login_error": "/accounts/social/error/",
 }
+
+# ---------------------------------------------------------------------------
+# Allauth Social Account — GitHub
+# ---------------------------------------------------------------------------
+SOCIALACCOUNT_PROVIDERS = {
+    "github": {
+        "APP": {
+            "client_id": env("GITHUB_CLIENT_ID", default=""),
+            "secret": env("GITHUB_CLIENT_SECRET", default=""),
+        },
+        "SCOPE": ["user:email"],
+        # 同邮箱的已有账号自动合并，不强制要求重新注册
+        "EMAIL_AUTHENTICATION": True,
+    }
+}
+
+# 关闭 socialaccount 自动注册弹窗（headless 模式下用 provider/signup 端点处理）
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"  # GitHub email 已经过 GitHub 验证
 
 # ALLAUTH MFA SETTINGS
 MFA_SUPPORTED_TYPES = ["totp", "recovery_codes", "webauthn"]

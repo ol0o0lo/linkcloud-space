@@ -9,7 +9,7 @@ dependencies = [
     "boto3~=1.34",
     "celery~=5.5",
     "django-alive~=2.0",
-    "django-allauth[mfa]~=65.16",
+    "django-allauth[mfa,socialaccount]~=65.16",
     "django-hijack~=3.7",
     "django-maintenance-mode~=0.19",
     "django-ninja~=1.4",
@@ -217,6 +217,10 @@ SECURE_PROXY_SSL_HEADER = { type = "bool", default = false, help_text = "Trust X
 
 # Allauth
 ACCOUNT_SIGNUP_OPEN = { type = "bool", default = false, help_text = "Allow new account signups" }
+
+# GitHub OAuth
+GITHUB_CLIENT_ID = { type = "str", default = "", help_text = "GitHub OAuth App client ID" }
+GITHUB_CLIENT_SECRET = { type = "str", default = "", help_text = "GitHub OAuth App client secret" }
 
 # Email Settings
 DEFAULT_FROM_EMAIL = { type = "str", default = "", help_text = "发件人邮箱地址，如 your@163.com，需与 EMAIL_URL 中的用户名一致。" }
