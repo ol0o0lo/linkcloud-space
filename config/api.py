@@ -3,7 +3,7 @@
 from django.conf import settings
 
 from ninja import NinjaAPI
-from ninja.security import django_auth
+from config.ninja_auth import JWTOrSessionAuth
 
 from apps.accounts.api import avatar_router, users_router
 from apps.base.api import router as base_router
@@ -30,7 +30,7 @@ from apps.teams.api import router as teams_router
 api = NinjaAPI(
     title="Django Base Site API",
     version="1.0.0",
-    auth=django_auth,  # django_auth is a SessionAuth — CSRF enforcement is built in.
+    auth=JWTOrSessionAuth(),  # JWT Bearer 优先，fallback 到 Django session。
     docs_url="/docs" if settings.DEBUG else None,
     openapi_url="/openapi.json" if settings.DEBUG else None,
 )
