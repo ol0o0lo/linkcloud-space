@@ -5,6 +5,14 @@ X-Org-Slug header 测试（使用 allauth headless JWT）。
 """
 
 import pytest
+from django.test import override_settings
+
+# 测试专用：关闭 phone 相关功能，只用 email 登录
+JWT_TEST_SETTINGS = {
+    "ACCOUNT_LOGIN_METHODS": {"email"},
+    "ACCOUNT_PHONE_VERIFICATION_ENABLED": False,
+    "ACCOUNT_SIGNUP_FIELDS": ["email*", "password1*"],
+}
 
 
 @pytest.fixture
@@ -34,15 +42,17 @@ def jwt_client():
 
 
 def _get_access_token(client, email="orgtest@example.com", password="testpass123"):
+    """allauth JWT tokens 在 meta 中，不在 data 中。"""
     resp = client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/_allauth/app/v1/auth/login",
         {"email": email, "password": password},
         content_type="application/json",
     )
     assert resp.status_code == 200, f"Login failed: {resp.json()}"
-    return resp.json()["data"]["access_token"]
+    return resp.json()["meta"]["access_token"]
 
 
+@override_settings(**JWT_TEST_SETTINGS)
 def test_org_resolved_from_header(jwt_client, org_with_member, user_with_password):
     """JWT + X-Org-Slug header 可正确访问需要 org 的接口。"""
     token = _get_access_token(jwt_client)
@@ -54,6 +64,7 @@ def test_org_resolved_from_header(jwt_client, org_with_member, user_with_passwor
     assert resp.status_code == 200
 
 
+@override_settings(**JWT_TEST_SETTINGS)
 def test_wrong_org_slug_returns_403(jwt_client, org_with_member, user_with_password):
     """不存在的 org slug 应返回 403。"""
     token = _get_access_token(jwt_client)
@@ -65,6 +76,7 @@ def test_wrong_org_slug_returns_403(jwt_client, org_with_member, user_with_passw
     assert resp.status_code == 403
 
 
+@override_settings(**JWT_TEST_SETTINGS)
 def test_not_member_org_returns_403(jwt_client, db, user_with_password):
     """不是成员的 org 应返回 403。"""
     from model_bakery import baker
@@ -78,6 +90,7 @@ def test_not_member_org_returns_403(jwt_client, db, user_with_password):
     assert resp.status_code == 403
 
 
+@override_settings(**JWT_TEST_SETTINGS)
 def test_no_org_header_returns_403(jwt_client, org_with_member, user_with_password):
     """JWT 认证通过但无 X-Org-Slug header，需要 org 的接口返回 403。"""
     token = _get_access_token(jwt_client)

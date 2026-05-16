@@ -10,6 +10,15 @@ JWT 认证集成测试（使用 allauth headless JWT）。
 """
 
 import pytest
+from django.test import override_settings
+
+# 测试专用：关闭 phone 相关功能，只用 email 登录
+# 避免 phone verification stage 因测试用户无 phone 而 abort 登录
+JWT_TEST_SETTINGS = {
+    "ACCOUNT_LOGIN_METHODS": {"email"},
+    "ACCOUNT_PHONE_VERIFICATION_ENABLED": False,
+    "ACCOUNT_SIGNUP_FIELDS": ["email*", "password1*"],
+}
 
 
 @pytest.fixture
@@ -31,17 +40,23 @@ def jwt_client():
 
 
 def _allauth_login(client, email, password):
-    """通过 allauth headless 登录，返回 (access_token, refresh_token)。"""
+    """通过 allauth headless 登录，返回 (access_token, refresh_token)。
+
+    allauth JWT 响应结构：
+    - data.user / data.methods — 用户信息
+    - meta.access_token / meta.refresh_token — JWT tokens（由 JWTTokenStrategy 注入 meta）
+    """
     resp = client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/_allauth/app/v1/auth/login",
         {"email": email, "password": password},
         content_type="application/json",
     )
     assert resp.status_code == 200, f"Login failed: {resp.json()}"
-    data = resp.json()["data"]
-    return data["access_token"], data["refresh_token"]
+    meta = resp.json()["meta"]
+    return meta["access_token"], meta["refresh_token"]
 
 
+@override_settings(**JWT_TEST_SETTINGS)
 def test_login_returns_jwt(jwt_client, user_with_password):
     """allauth 登录接口颁发 access_token 和 refresh_token。"""
     access, refresh = _allauth_login(jwt_client, "jwtuser@example.com", "testpass123")
@@ -49,16 +64,18 @@ def test_login_returns_jwt(jwt_client, user_with_password):
     assert refresh
 
 
+@override_settings(**JWT_TEST_SETTINGS)
 def test_login_wrong_password(jwt_client, user_with_password):
-    """错误密码返回 401。"""
+    """错误密码返回 400（allauth 对凭据错误的标准响应）。"""
     resp = jwt_client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/_allauth/app/v1/auth/login",
         {"email": "jwtuser@example.com", "password": "wrong"},
         content_type="application/json",
     )
-    assert resp.status_code == 401
+    assert resp.status_code == 400
 
 
+@override_settings(**JWT_TEST_SETTINGS)
 def test_access_ninja_endpoint_with_jwt(jwt_client, user_with_password):
     """用 access_token 可访问 Ninja 保护接口（认证通过即可，权限不足是 403 不是 401）。"""
     access, _ = _allauth_login(jwt_client, "jwtuser@example.com", "testpass123")
@@ -86,16 +103,18 @@ def test_no_auth_returns_401(jwt_client, db):
     assert resp.status_code == 401
 
 
+@override_settings(**JWT_TEST_SETTINGS)
 def test_refresh_token(jwt_client, user_with_password):
     """refresh_token 可换取新 access_token。"""
     _, refresh = _allauth_login(jwt_client, "jwtuser@example.com", "testpass123")
 
     resp = jwt_client.post(
-        "/_allauth/browser/v1/auth/tokens/refresh",
+        "/_allauth/app/v1/tokens/refresh",
         {"refresh_token": refresh},
         content_type="application/json",
     )
     assert resp.status_code == 200
+    # refresh 响应的 access_token 在 data 里（与登录响应的 meta 不同）
     data = resp.json()["data"]
     assert "access_token" in data
 
