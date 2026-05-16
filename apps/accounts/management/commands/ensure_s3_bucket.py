@@ -16,6 +16,13 @@ class Command(BaseCommand):
             return
 
         endpoint_url = storage_opts.get("endpoint_url")
+
+        # 只有配置了自定义 endpoint（MinIO）才自动创建 Bucket。
+        # 阿里云 OSS / AWS S3 等托管服务的 Bucket 需在控制台手动创建。
+        if not endpoint_url:
+            self.stdout.write("No custom endpoint configured, skipping bucket creation.")
+            return
+
         s3 = boto3.client(
             "s3",
             endpoint_url=endpoint_url,
