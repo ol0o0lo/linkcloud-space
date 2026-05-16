@@ -1,9 +1,7 @@
 """
-X-Org-Slug header 测试。
+X-Org-Slug header 测试（使用 allauth headless JWT）。
 
 验证小程序通过 JWT + X-Org-Slug header 可正确解析 request.org。
-
-注意：allauth backend 不支持 username 登录，token 端点的 username 字段填 email。
 """
 
 import pytest
@@ -31,24 +29,23 @@ def org_with_member(db, user_with_password):
 
 @pytest.fixture
 def jwt_client():
-    """使用 localhost SERVER_NAME 的测试客户端。"""
     from django.test import Client
     return Client(SERVER_NAME="localhost")
 
 
 def _get_access_token(client, email="orgtest@example.com", password="testpass123"):
     resp = client.post(
-        "/api/v1/auth/token/",
-        {"username": email, "password": password},
+        "/_allauth/browser/v1/auth/login",
+        {"email": email, "password": password},
         content_type="application/json",
     )
-    return resp.json()["access"]
+    assert resp.status_code == 200, f"Login failed: {resp.json()}"
+    return resp.json()["data"]["access_token"]
 
 
 def test_org_resolved_from_header(jwt_client, org_with_member, user_with_password):
     """JWT + X-Org-Slug header 可正确访问需要 org 的接口。"""
     token = _get_access_token(jwt_client)
-
     resp = jwt_client.get(
         "/api/teams/",
         HTTP_AUTHORIZATION=f"Bearer {token}",
@@ -60,7 +57,6 @@ def test_org_resolved_from_header(jwt_client, org_with_member, user_with_passwor
 def test_wrong_org_slug_returns_403(jwt_client, org_with_member, user_with_password):
     """不存在的 org slug 应返回 403。"""
     token = _get_access_token(jwt_client)
-
     resp = jwt_client.get(
         "/api/teams/",
         HTTP_AUTHORIZATION=f"Bearer {token}",
@@ -73,9 +69,7 @@ def test_not_member_org_returns_403(jwt_client, db, user_with_password):
     """不是成员的 org 应返回 403。"""
     from model_bakery import baker
     baker.make("organizations.Organization", slug="other-org")
-
     token = _get_access_token(jwt_client)
-
     resp = jwt_client.get(
         "/api/teams/",
         HTTP_AUTHORIZATION=f"Bearer {token}",
@@ -87,7 +81,6 @@ def test_not_member_org_returns_403(jwt_client, db, user_with_password):
 def test_no_org_header_returns_403(jwt_client, org_with_member, user_with_password):
     """JWT 认证通过但无 X-Org-Slug header，需要 org 的接口返回 403。"""
     token = _get_access_token(jwt_client)
-
     resp = jwt_client.get(
         "/api/teams/",
         HTTP_AUTHORIZATION=f"Bearer {token}",
