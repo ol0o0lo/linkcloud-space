@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from ninja import Query, Router, Status
@@ -6,6 +7,7 @@ from ninja.pagination import paginate
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_org_owner
 from apps.organizations.models import OrganizationMember
+from apps.teams.hooks import post_create_team, pre_create_team
 from apps.teams.models import Team
 from apps.teams.schemas import TeamIn, TeamOut, TeamPatchIn
 
@@ -42,9 +44,12 @@ def list_teams(request, q: str | None = Query(None)):
 def create_team(request, payload: TeamIn):
     org = require_org_owner(request)
     member_ids = _validate_members(payload.members, org)
-    team = Team.objects.create(organization=org, name=payload.name)
-    if member_ids:
-        team.members.set(member_ids)
+    pre_create_team(request)
+    with transaction.atomic():
+        team = Team.objects.create(organization=org, name=payload.name)
+        if member_ids:
+            team.members.set(member_ids)
+        post_create_team(request, team)
     return Status(201, team)
 
 
