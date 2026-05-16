@@ -99,9 +99,8 @@ def get_organization_from_header(request) -> MockedOrg:
         return MockedOrg()
 
     # 验证成员身份（防止越权访问其他 org）
-    from apps.organizations.models import OrganizationMember
-
-    membership = OrganizationMember.objects.filter(organization=org, user=request.user).first()
+    member_model = apps.get_model("organizations.OrganizationMember")
+    membership = member_model.objects.filter(organization=org, user=request.user).first()
     if membership is None:
         return MockedOrg()
 
