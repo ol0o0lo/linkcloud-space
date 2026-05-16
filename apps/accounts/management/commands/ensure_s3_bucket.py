@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 
@@ -28,6 +29,7 @@ class Command(BaseCommand):
             endpoint_url=endpoint_url,
             aws_access_key_id=storage_opts.get("access_key"),
             aws_secret_access_key=storage_opts.get("secret_key"),
+            config=Config(s3={"addressing_style": "virtual"}),
         )
         try:
             s3.head_bucket(Bucket=bucket_name)
