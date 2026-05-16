@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import contextlib
 import re
 import socket
+from datetime import timedelta
 from pathlib import Path
 
 from botocore.config import Config
@@ -506,8 +507,6 @@ REST_FRAMEWORK = {
 # ---------------------------------------------------------------------------
 # SimpleJWT
 # ---------------------------------------------------------------------------
-from datetime import timedelta  # noqa: E402
-
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
