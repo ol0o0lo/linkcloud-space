@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.http import HttpResponseNotFound
 from django.urls import URLPattern, URLResolver, include, path, re_path
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.base.views import SPAView, http_404, http_500, qr_svg
 from config.api import api as ninja_api
@@ -19,6 +20,8 @@ def _public_not_found(request, path=""):
 
 urlpatterns: list[URLResolver | URLPattern] = [
     path("_allauth/", include("allauth.headless.urls")),
+    path("api/v1/auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/v1/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/", ninja_api.urls),
     path("-/", include("django_alive.urls")),
     path("admin/", admin.site.urls),
