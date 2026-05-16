@@ -9,7 +9,6 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 import contextlib
-import os
 import re
 import socket
 from pathlib import Path
@@ -202,8 +201,7 @@ if "s3boto3" in DEFAULT_FILE_STORAGE_BACKEND.lower():
         "bucket_name": MEDIA_S3_BUCKET_NAME,
         "default_acl": "private",
         "querystring_auth": True,
-        # 头像等文件名使用 uuid4，不会重名，无需检查文件是否已存在（可省掉一次 HeadObject 请求）
-        "file_overwrite": True,
+        "file_overwrite": False,
         "region_name": env("MEDIA_S3_REGION", default="oss-cn-shenzhen"),
         # 阿里云 OSS 不支持 aws-chunked 编码，使用 s3v4 签名
         "signature_version": "s3v4",
