@@ -204,15 +204,15 @@ if "s3boto3" in DEFAULT_FILE_STORAGE_BACKEND.lower():
         "querystring_auth": True,
         # 头像等文件名使用 uuid4，不会重名，无需检查文件是否已存在（可省掉一次 HeadObject 请求）
         "file_overwrite": True,
-        # 阿里云 OSS 要求 virtual hosted style，boto3 默认是 path style
-        "addressing_style": "virtual",
         "region_name": env("MEDIA_S3_REGION", default="oss-cn-shenzhen"),
-        # 阿里云 OSS 不支持 aws-chunked 编码，使用 s3v4 签名并禁用分块传输
+        # 阿里云 OSS 不支持 aws-chunked 编码，使用 s3v4 签名
         "signature_version": "s3v4",
     }
     # 阿里云 OSS 不支持 aws-chunked 编码（STREAMING-AWS4-HMAC-SHA256-PAYLOAD），
     # 通过 botocore Config 禁用，仅在有效载荷需要时才计算校验和。
+    # 注意：AWS_S3_CLIENT_CONFIG 会覆盖 addressing_style 选项，需在此一并声明 virtual hosted style。
     AWS_S3_CLIENT_CONFIG = Config(
+        s3={"addressing_style": "virtual"},
         request_checksum_calculation="when_required",
         response_checksum_validation="when_required",
     )
