@@ -202,7 +202,8 @@ if "s3boto3" in DEFAULT_FILE_STORAGE_BACKEND.lower():
         "bucket_name": MEDIA_S3_BUCKET_NAME,
         "default_acl": "private",
         "querystring_auth": True,
-        "file_overwrite": False,
+        # 头像等文件名使用 uuid4，不会重名，无需检查文件是否已存在（可省掉一次 HeadObject 请求）
+        "file_overwrite": True,
         # 阿里云 OSS 要求 virtual hosted style，boto3 默认是 path style
         "addressing_style": "virtual",
         "region_name": env("MEDIA_S3_REGION", default="oss-cn-shenzhen"),
