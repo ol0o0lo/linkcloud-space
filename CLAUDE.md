@@ -1,5 +1,8 @@
 # CLAUDE.md
 
+## git
+git commit 提交的message用中文
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
@@ -50,6 +53,7 @@ Use Just for all development tasks. Common ones:
 ## Testing
 
 - pytest with pytest-django.
+- **Run tests with `uv run pytest`** (local venv, always in sync with pyproject.toml). Do NOT use `docker compose exec web pytest` — the container image may be stale after dependency changes and would require a rebuild.
 - Test settings in `config.settings.test_runner`; e2e settings in `config.settings.e2e`.
 - Model Bakery for fixtures.
 - Django Test Plus for additional helpers.
