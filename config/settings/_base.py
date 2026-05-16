@@ -63,10 +63,12 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "apps.base",
+    "apps.media",
     "apps.accounts",
     "apps.organizations",
     "apps.teams",
     "apps.notifications",
+    "apps.settings",
     "maintenance_mode",
     "allauth",
     "allauth.account",
@@ -407,6 +409,12 @@ ALIYUN_SMS_ACCESS_KEY_ID = env("ALIYUN_SMS_ACCESS_KEY_ID", default="")
 ALIYUN_SMS_ACCESS_KEY_SECRET = env("ALIYUN_SMS_ACCESS_KEY_SECRET", default="")
 ALIYUN_SMS_SIGN_NAME = env("ALIYUN_SMS_SIGN_NAME", default="")
 ALIYUN_SMS_TEMPLATE_CODE = env("ALIYUN_SMS_TEMPLATE_CODE", default="")
+
+# 阿里云 STS（OSS 前端直传临时凭证）
+ALIYUN_STS_ACCESS_KEY_ID = env("ALIYUN_STS_ACCESS_KEY_ID", default="")
+ALIYUN_STS_ACCESS_KEY_SECRET = env("ALIYUN_STS_ACCESS_KEY_SECRET", default="")
+ALIYUN_STS_ROLE_ARN = env("ALIYUN_STS_ROLE_ARN", default="")
+ALIYUN_STS_ROLE_SESSION_NAME = env("ALIYUN_STS_ROLE_SESSION_NAME", default="oss-upload")
 
 # 腾讯云 SMS（备用，切换方式：SMS_BACKEND=apps.base.sms.tencent.TencentSMSBackend）
 TENCENT_SMS_SECRET_ID = env("TENCENT_SMS_SECRET_ID", default="")
