@@ -25,7 +25,7 @@ class JWTOrSessionAuth(HttpBearer):
         if token:
             jwt_auth = JWTAuthentication()
             try:
-                validated_token = jwt_auth.get_validated_token(token.encode())
+                validated_token = jwt_auth.get_validated_token(token)
                 user = jwt_auth.get_user(validated_token)
                 request.user = user
                 return user
@@ -34,6 +34,7 @@ class JWTOrSessionAuth(HttpBearer):
 
         return None
 
+    # intentionally overrides HttpBearer.__call__ to support session fallback
     def __call__(self, request):
         # Bearer token 存在时走 JWT
         auth_header = request.META.get("HTTP_AUTHORIZATION", "")
