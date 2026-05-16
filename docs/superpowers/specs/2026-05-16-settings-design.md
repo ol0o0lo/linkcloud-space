@@ -37,10 +37,21 @@ User 取值： user_setting（无 fallback）
 |------|------|------|
 | id | AutoField | PK |
 | key | CharField(100), unique | 设置项 key，如 `sms_provider` |
-| value | JSONField | 设置值，支持任意 JSON 类型 |
+| value | JSONField | 默认值，支持任意 JSON 类型 |
+| value_type | CharField(20) | 值类型：`text` / `password` / `json` / `boolean` / `integer` |
 | description | TextField, blank | 说明，方便超管理解用途 |
 | updated_at | DateTimeField | 最后更新时间 |
 | updated_by | FK → User, null | 最后修改人 |
+
+**`value_type` 处理规则：**
+
+| 类型 | 存储 | API 返回 | 写入校验 |
+|------|------|---------|---------|
+| `text` | 原始字符串 | 原样返回 | 无 |
+| `password` | Fernet 加密存储 | 返回 `"********"` | 非空字符串 |
+| `json` | JSON 对象/数组 | 反序列化后返回 | 合法 JSON |
+| `boolean` | `true` / `false` | bool 类型 | 只接受 true/false |
+| `integer` | 数字 | int 类型 | 合法整数 |
 
 ### `settings_organization`（租户设置，稀疏存储）
 
@@ -48,11 +59,11 @@ User 取值： user_setting（无 fallback）
 |------|------|------|
 | id | AutoField | PK |
 | organization | FK → Organization, CASCADE | 所属租户 |
-| key | CharField(100) | 设置项 key |
+| setting | FK → DefaultSetting, PROTECT | 关联默认设置项，类型由此继承 |
 | value | JSONField | 覆盖值 |
 | updated_at | DateTimeField | |
 
-unique_together: `(organization, key)`
+unique_together: `(organization, setting)`
 
 ### `settings_team`（Team 设置，稀疏存储）
 
@@ -60,11 +71,11 @@ unique_together: `(organization, key)`
 |------|------|------|
 | id | AutoField | PK |
 | team | FK → Team, CASCADE | 所属 Team |
-| key | CharField(100) | 设置项 key |
+| setting | FK → DefaultSetting, PROTECT | 关联默认设置项，类型由此继承 |
 | value | JSONField | 覆盖值 |
 | updated_at | DateTimeField | |
 
-unique_together: `(team, key)`
+unique_together: `(team, setting)`
 
 ### `settings_user`（用户偏好）
 
@@ -72,11 +83,13 @@ unique_together: `(team, key)`
 |------|------|------|
 | id | AutoField | PK |
 | user | FK → User, CASCADE | 所属用户 |
-| key | CharField(100) | 偏好项 key |
+| key | CharField(100) | 偏好项 key（不关联 DefaultSetting，用户偏好独立） |
 | value | JSONField | 偏好值 |
 | updated_at | DateTimeField | |
 
 unique_together: `(user, key)`
+
+> 用户偏好（如新手引导已读状态、UI 折叠状态等）与系统设置项无关，key 不需要预先在 `settings_default` 中定义，直接存取即可。
 
 ---
 
@@ -87,7 +100,7 @@ apps/settings/
   __init__.py
   apps.py
   models.py        # 4 张表的 Model 定义
-  service.py       # 业务逻辑：get_setting / set_setting
+  service.py       # 业务逻辑：get_setting / set_setting / serialize_value
   serializers.py   # DRF Serializer
   views.py         # DRF ViewSet
   urls.py          # URL 路由
@@ -103,30 +116,55 @@ apps/settings/
 
 `apps/settings/service.py` 是唯一操作设置的入口，views 不直接查 model。
 
+### 类型序列化
+
 ```python
-def get_org_setting(org, key) -> dict:
-    """获取 org 某个 key 的值，fallback 到 default。"""
+def serialize_value(value, value_type: str):
+    """根据 value_type 处理返回值。"""
+    if value_type == "password":
+        return "********"
+    if value_type == "boolean":
+        return bool(value)
+    if value_type == "integer":
+        return int(value)
+    # text / json 原样返回
+    return value
+```
+
+### Org 设置
+
+```python
+def get_org_setting(org, key: str) -> dict:
+    """获取 org 某个 key 的值，fallback 到 default。
+    返回 {"key": ..., "value": ..., "is_customized": bool}
+    """
 
 def get_all_org_settings(org) -> list[dict]:
-    """获取 org 所有设置项（全量 default key 列表，标注是否已覆盖）。"""
+    """获取 org 所有设置项（全量 default 列表，标注是否已覆盖）。"""
 
-def set_org_setting(org, key, value) -> OrgSetting:
-    """覆盖 org 的某个 key（upsert）。"""
+def set_org_setting(org, key: str, value) -> OrgSetting:
+    """覆盖 org 的某个 key（upsert）。写入前按 value_type 校验。"""
 
-def delete_org_setting(org, key) -> None:
+def delete_org_setting(org, key: str) -> None:
     """删除 org 的覆盖，恢复使用默认值。"""
+```
 
-# Team 同理
-def get_team_setting(team, key) -> dict: ...
+### Team 设置（同 Org）
+
+```python
+def get_team_setting(team, key: str) -> dict: ...
 def get_all_team_settings(team) -> list[dict]: ...
-def set_team_setting(team, key, value) -> TeamSetting: ...
-def delete_team_setting(team, key) -> None: ...
+def set_team_setting(team, key: str, value) -> TeamSetting: ...
+def delete_team_setting(team, key: str) -> None: ...
+```
 
-# 用户偏好（无 fallback）
-def get_user_setting(user, key, default=None): ...
+### 用户偏好（无 fallback，无类型约束）
+
+```python
+def get_user_setting(user, key: str, default=None): ...
 def get_all_user_settings(user) -> list[dict]: ...
-def set_user_setting(user, key, value) -> UserSetting: ...
-def delete_user_setting(user, key) -> None: ...
+def set_user_setting(user, key: str, value) -> UserSetting: ...
+def delete_user_setting(user, key: str) -> None: ...
 ```
 
 ---
@@ -141,11 +179,14 @@ def delete_user_setting(user, key) -> None: ...
 {
   "key": "sms_provider",
   "value": "aliyun",
+  "value_type": "text",
   "is_customized": false
 }
 ```
 
-`is_customized: false` 表示当前值来自平台默认，`true` 表示该 scope 已自行覆盖。
+- `is_customized: false`：当前值来自平台默认
+- `is_customized: true`：该 scope 已自行覆盖
+- `password` 类型的 `value` 固定返回 `"********"`
 
 ---
 
@@ -189,15 +230,15 @@ def delete_user_setting(user, key) -> None: ...
 |------|-------------|
 | key 不存在于 default 设置表 | 404 |
 | 无权限操作 | 403 |
-| value 格式非法（非 JSON） | 400 |
+| value 与 value_type 不匹配 | 400 |
 | 删除不存在的覆盖 | 404 |
 
 ---
 
 ## 测试策略
 
-- `test_service.py`：单元测试 service 层，覆盖 fallback 逻辑、upsert、delete
-- `test_api.py`：API 集成测试，覆盖权限校验、正常 CRUD 流程
+- `test_service.py`：单元测试 service 层，覆盖 fallback 逻辑、upsert、delete、各类型序列化
+- `test_api.py`：API 集成测试，覆盖权限校验、正常 CRUD 流程、password 脱敏
 - 使用 Model Bakery 生成测试数据
 
 ---
