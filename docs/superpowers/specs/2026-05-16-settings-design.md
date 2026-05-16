@@ -187,6 +187,7 @@ def delete_user_setting(user, key: str) -> None: ...
 - `is_customized: false`：当前值来自平台默认
 - `is_customized: true`：该 scope 已自行覆盖
 - `password` 类型的 `value` 固定返回 `"********"`
+- `description` 和 `value_type` 始终来自 `DefaultSetting`，列表接口一并返回，前端可直接渲染设置页面
 
 ---
 
