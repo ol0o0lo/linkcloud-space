@@ -23,7 +23,10 @@ dependencies = [
     "redis~=7.1",  # needed for celery
     "whitenoise~=6.7",
     "alibabacloud-dysmsapi20170525>=2.0.0",
+    "alibabacloud-sts20150401>=1.0.0",
     "tencentcloud-sdk-python-sms>=3.0.0",
+    "djangorestframework>=3.16,<4",
+    "djangorestframework-simplejwt>=5.4,<6",
 ]
 
 [dependency-groups]
@@ -132,7 +135,7 @@ select = [
 ignore = ["D100", "D101", "D102", "D103", "D104", "D106", "D107", "D203", "D212", ]
 
 [tool.ruff.lint.per-file-ignores]
-"**/{tests}/*" = ["S101"]
+"**/{tests}/*" = ["S101", "S105", "S106"]
 "e2e/*" = ["S101"]
 
 [tool.ruff.lint.flake8-bugbear]
@@ -225,6 +228,10 @@ ALIYUN_SMS_ACCESS_KEY_ID = { type = "str", default = "", help_text = "阿里云 
 ALIYUN_SMS_ACCESS_KEY_SECRET = { type = "str", default = "", help_text = "阿里云 AccessKey Secret" }
 ALIYUN_SMS_SIGN_NAME = { type = "str", default = "", help_text = "阿里云短信签名" }
 ALIYUN_SMS_TEMPLATE_CODE = { type = "str", default = "", help_text = "阿里云短信模板 CODE，模板变量为 ${code}" }
+ALIYUN_STS_ACCESS_KEY_ID = { type = "str", default = "", help_text = "阿里云 STS RAM 用户 AccessKey ID（需要 AliyunSTSAssumeRoleAccess 权限）" }
+ALIYUN_STS_ACCESS_KEY_SECRET = { type = "str", default = "", help_text = "阿里云 STS RAM 用户 AccessKey Secret" }
+ALIYUN_STS_ROLE_ARN = { type = "str", default = "", help_text = "STS 角色 ARN，格式：acs:ram::{account_id}:role/{role_name}" }
+ALIYUN_STS_ROLE_SESSION_NAME = { type = "str", default = "oss-upload", help_text = "STS 会话名称，用于审计日志" }
 TENCENT_SMS_SECRET_ID = { type = "str", default = "", help_text = "腾讯云 SecretId（备用）" }
 TENCENT_SMS_SECRET_KEY = { type = "str", default = "", help_text = "腾讯云 SecretKey（备用）" }
 TENCENT_SMS_APP_ID = { type = "str", default = "", help_text = "腾讯云 SMS SdkAppId（备用）" }
