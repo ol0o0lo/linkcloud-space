@@ -198,6 +198,7 @@ MEDIA_S3_SECRET_KEY = { type = "str", default = "", initial = "minioadmin", help
 MEDIA_S3_ENDPOINT_URL = { type = "str", default = "", initial = "http://minio:9000", help_text = "Internal S3 endpoint URL (Docker-internal hostname for MinIO)" }
 MEDIA_S3_URL_ENDPOINT_URL = { type = "str", default = "", initial = "http://localhost:9000", help_text = "Browser-facing S3 endpoint URL (used in generated URLs)" }
 MEDIA_S3_BUCKET_NAME = { type = "str", default = "", initial = "media", help_text = "S3 bucket name for media uploads" }
+MEDIA_S3_REGION = { type = "str", default = "us-east-1", help_text = "S3 region（AWS 用 us-east-1，阿里云 OSS 用 oss-cn-shenzhen 等）" }
 MINIO_ROOT_USER = { type = "str", default = "minioadmin", help_text = "MinIO root username (local dev only)" }
 MINIO_ROOT_PASSWORD = { type = "str", default = "minioadmin", help_text = "MinIO root password (local dev only)" }
 

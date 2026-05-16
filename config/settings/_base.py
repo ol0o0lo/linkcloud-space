@@ -13,6 +13,8 @@ import re
 import socket
 from pathlib import Path
 
+from botocore.config import Config
+
 from celery.schedules import crontab
 from epicenv import Env
 
@@ -200,7 +202,15 @@ if "s3boto3" in DEFAULT_FILE_STORAGE_BACKEND.lower():
         "default_acl": "private",
         "querystring_auth": True,
         "file_overwrite": False,
+        "region_name": env("MEDIA_S3_REGION", default="us-east-1"),
+        "signature_version": "s3v4",
     }
+    # virtual hosted style + 禁用 aws-chunked，兼容 MinIO / AWS S3 / 阿里云 OSS
+    AWS_S3_CLIENT_CONFIG = Config(
+        s3={"addressing_style": "virtual"},
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_required",
+    )
     if MEDIA_S3_ENDPOINT_URL:
         STORAGES["default"]["OPTIONS"]["endpoint_url"] = MEDIA_S3_ENDPOINT_URL
     if MEDIA_S3_URL_ENDPOINT_URL:
