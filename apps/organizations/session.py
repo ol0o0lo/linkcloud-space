@@ -77,36 +77,3 @@ def remove_org(request):
 
     if "organization_data" in request.session:
         del request.session["organization_data"]
-
-
-def get_organization_from_header(request) -> MockedOrg:
-    """
-    从 X-Org-Slug 请求头解析 org，用于无 session 的端（小程序、移动端等）。
-
-    如果 slug 无效或 user 不是成员，返回空 MockedOrg（后续 require_org_* 会报 403）。
-    """
-    slug = request.headers.get("X-Org-Slug", "").strip()
-    if not slug:
-        return MockedOrg()
-
-    if not (hasattr(request, "user") and request.user.is_authenticated):
-        return MockedOrg()
-
-    org_model = apps.get_model("organizations.Organization")
-    org = org_model.objects.filter(slug=slug).first()
-    if org is None:
-        return MockedOrg()
-
-    # 验证成员身份（防止越权访问其他 org）
-    member_model = apps.get_model("organizations.OrganizationMember")
-    membership = member_model.objects.filter(organization=org, user=request.user).first()
-    if membership is None:
-        return MockedOrg()
-
-    return MockedOrg(
-        pk=org.pk,
-        id=org.pk,
-        name=org.name,
-        slug=org.slug,
-        is_owner=membership.is_owner,
-    )
