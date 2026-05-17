@@ -73,7 +73,7 @@ services:
     build:
       context: .
       dockerfile: config/docker/Dockerfile.web
-      target: dev
+      target: base
 
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
 

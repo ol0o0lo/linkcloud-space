@@ -3,7 +3,7 @@ GitHub 登录集成测试。
 
 测试策略：
 - browser 端：验证 redirect 端点返回 302 到 GitHub
-- app 端：mock GitHub API，用 access_token 直接换 allauth JWT
+- app 端：mock GitHub API，用 access_token 直接换 allauth session
 - provider 列表：GitHub 出现在未认证时的 flows 中
 
 注意：allauth 65.x 中，如果 settings.SOCIALACCOUNT_PROVIDERS 包含 APP 块，
@@ -102,6 +102,3 @@ def test_github_app_token_login_flow(app_client, db):
         )
     # 任何非 5xx 都说明端点正常工作
     assert resp.status_code < 500, f"Server error: {resp.status_code} {resp.content[:300]}"
-    # 若登录成功，meta 里应有 access_token（allauth JWT）
-    if resp.status_code == 200:
-        assert "access_token" in resp.json().get("meta", {}), "No JWT in successful login response"

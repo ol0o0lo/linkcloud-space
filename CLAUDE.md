@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 ## git
-git commit 提交的message用中文
+- git commit 提交的message用中文
+- 尽量保证每次提交都可以完整可用的
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -140,3 +141,9 @@ Key variables:
 - **Backend**: Django 5, django-allauth[mfa] (with fido2 for WebAuthn), django-ninja, django-hijack, Pillow, Celery, Redis, PostgreSQL 17, gunicorn, WhiteNoise, django-storages + boto3, django-ses, django-alive, django-maintenance-mode.
 - **Frontend**: Vue 3, Vue Router 5, Tailwind v4, Vite 8, bun, @heroicons/vue, vue-advanced-cropper, reka-ui (modal/toast primitives).
 - **Development**: Docker, pytest, pytest-playwright, pyotp, Ruff, Ty, ESLint, djLint, model-bakery.
+
+## 🛑 绝对禁止的危险操作 (CRITICAL RESTRICTIONS)
+1. **禁止物理删除：** 无论在任何情况下，绝对禁止执行带有删除、销毁性质的命令，包括但不限于：`rm`、`rm -rf`、`docker rm`、`docker rmi`、`drop database`。
+2. **拒绝危险覆盖：** 禁止使用 `>` 或强制覆盖命令去清空核心配置文件或日志文件。
+3. **安全替代方案：** 如果需要清理或重置文件，必须先停止操作，转为**弹窗询问人工授权**；或者优先选择将文件移动到本地的 `~/.trash`（垃圾桶）或备份目录，绝不允许直接销毁。
+4. **Git 限制：** 禁止执行 `git push --force` 或任何会破坏远程仓库历史记录的命令。

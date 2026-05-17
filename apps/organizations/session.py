@@ -83,7 +83,6 @@ def get_organization_from_header(request) -> MockedOrg:
     """
     从 X-Org-Slug 请求头解析 org，用于无 session 的端（小程序、移动端等）。
 
-    要求 request.user 已经通过 JWT 认证（AuthenticationMiddleware 之后调用）。
     如果 slug 无效或 user 不是成员，返回空 MockedOrg（后续 require_org_* 会报 403）。
     """
     slug = request.headers.get("X-Org-Slug", "").strip()

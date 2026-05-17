@@ -523,16 +523,3 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "config.drf_exceptions.custom_exception_handler",
 }
 
-# ---------------------------------------------------------------------------
-# Allauth Headless JWT
-# ---------------------------------------------------------------------------
-HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.strategy.JWTTokenStrategy"
-HEADLESS_JWT_ALGORITHM = "HS256"
-# HS256 自动使用 Django SECRET_KEY，无需额外配置 HEADLESS_JWT_PRIVATE_KEY
-HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = 1800    # 30 分钟
-HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = 604800  # 7 天
-HEADLESS_JWT_ROTATE_REFRESH_TOKEN = True
-# 无状态验证，小程序端不依赖 session。
-# 注意：False 意味着 access token 在有效期内无法服务端撤销；
-# 如需支持主动吊销（如"退出所有设备"），需改为 True。
-HEADLESS_JWT_STATEFUL_VALIDATION_ENABLED = False
