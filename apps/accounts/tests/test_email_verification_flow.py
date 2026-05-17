@@ -37,6 +37,9 @@ def _extract_key_from_email(body: str) -> str:
 def test_login_triggers_verification_email_with_usable_key(mailoutbox, client, unverified_user, settings):
     settings.AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
     settings.ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+    settings.ACCOUNT_LOGIN_METHODS = {"email"}
+    settings.ACCOUNT_PHONE_VERIFICATION_ENABLED = False
+    settings.ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
 
     login_response = client.post(
         "/_allauth/browser/v1/auth/login",
@@ -66,6 +69,9 @@ def test_verify_endpoint_accepts_decoded_key(mailoutbox, client, unverified_user
     """
     settings.AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
     settings.ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+    settings.ACCOUNT_LOGIN_METHODS = {"email"}
+    settings.ACCOUNT_PHONE_VERIFICATION_ENABLED = False
+    settings.ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
 
     client.post(
         "/_allauth/browser/v1/auth/login",

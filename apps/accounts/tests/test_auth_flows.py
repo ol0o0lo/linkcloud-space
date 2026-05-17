@@ -27,6 +27,10 @@ def _use_allauth_backend(settings):
     # ACCOUNT_SIGNUP_OPEN reads from env and defaults False in CI, which makes
     # the signup endpoint 403. Force it on for this test module.
     settings.ACCOUNT_SIGNUP_OPEN = True
+    # 关闭 phone 登录和验证阶段，否则 phone verification stage 会中断登录流程
+    settings.ACCOUNT_LOGIN_METHODS = {"email"}
+    settings.ACCOUNT_PHONE_VERIFICATION_ENABLED = False
+    settings.ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
 
 
 @pytest.mark.django_db

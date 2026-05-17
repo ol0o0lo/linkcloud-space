@@ -22,6 +22,10 @@ def verified_user(db):
 @pytest.fixture(autouse=True)
 def _use_allauth_backend(settings):
     settings.AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
+    # 关闭 phone 验证阶段，否则 phone verification stage 会中断登录流程
+    settings.ACCOUNT_LOGIN_METHODS = {"email"}
+    settings.ACCOUNT_PHONE_VERIFICATION_ENABLED = False
+    settings.ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
 
 
 def _login(client, user):
