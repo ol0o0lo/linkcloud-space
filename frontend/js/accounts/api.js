@@ -19,6 +19,24 @@ export function parseAllauthErrors(responseData) {
 
 const BASE = '/_allauth/browser/v1',
 
+  // GitHub OAuth 需要浏览器直接跟随 302，用隐藏表单 POST 实现
+  _githubRedirect = (callbackUrl, process) => {
+    const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `${BASE}/auth/provider/redirect`;
+    const fields = { provider: 'github', callback_url: callbackUrl, process, csrfmiddlewaretoken: csrf };
+    Object.entries(fields).forEach(([k, v]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = k;
+      input.value = v;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  },
+
   authApi = {
     getSession: () => get(`${BASE}/auth/session`),
 
@@ -48,28 +66,9 @@ const BASE = '/_allauth/browser/v1',
       body: JSON.stringify({ provider, account_uid }),
     }),
 
-    githubLogin: async (callbackUrl) => {
-      const resp = await fetch(`${BASE}/auth/provider/redirect`, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' },
-        body: JSON.stringify({ provider: 'github', callback_url: callbackUrl, process: 'login' }),
-      });
-      // 302 → opaque redirect，从 Location header 取 URL
-      const location = resp.headers.get('Location') || resp.url;
-      if (location) window.location.href = location;
-    },
+    githubLogin: (callbackUrl) => _githubRedirect(callbackUrl, 'login'),
 
-    githubConnect: async (callbackUrl) => {
-      const resp = await fetch(`${BASE}/auth/provider/redirect`, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' },
-        body: JSON.stringify({ provider: 'github', callback_url: callbackUrl, process: 'connect' }),
-      });
-      const location = resp.headers.get('Location') || resp.url;
-      if (location) window.location.href = location;
-    },
+    githubConnect: (callbackUrl) => _githubRedirect(callbackUrl, 'connect'),
 
     listEmails: () => get(`${BASE}/account/email`),
 
