@@ -115,6 +115,11 @@ export function createRouter(appStore) {
         component: () => import('./accounts/views/SocialErrorView.vue'),
       },
       {
+        path: '/accounts/social/callback/',
+        name: 'social-callback',
+        component: () => import('./accounts/views/SocialCallbackView.vue'),
+      },
+      {
         path: '/accounts/logout/',
         name: 'logout',
         component: () => import('./accounts/views/LogoutView.vue'),
