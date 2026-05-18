@@ -48,17 +48,28 @@ const BASE = '/_allauth/browser/v1',
       body: JSON.stringify({ provider, account_uid }),
     }),
 
-    githubLogin: (callbackUrl) => post(`${BASE}/auth/provider/redirect`, {
-      provider: 'github',
-      callback_url: callbackUrl,
-      process: 'login',
-    }),
+    githubLogin: async (callbackUrl) => {
+      const resp = await fetch(`${BASE}/auth/provider/redirect`, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' },
+        body: JSON.stringify({ provider: 'github', callback_url: callbackUrl, process: 'login' }),
+      });
+      // 302 → opaque redirect，从 Location header 取 URL
+      const location = resp.headers.get('Location') || resp.url;
+      if (location) window.location.href = location;
+    },
 
-    githubConnect: (callbackUrl) => post(`${BASE}/auth/provider/redirect`, {
-      provider: 'github',
-      callback_url: callbackUrl,
-      process: 'connect',
-    }),
+    githubConnect: async (callbackUrl) => {
+      const resp = await fetch(`${BASE}/auth/provider/redirect`, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' },
+        body: JSON.stringify({ provider: 'github', callback_url: callbackUrl, process: 'connect' }),
+      });
+      const location = resp.headers.get('Location') || resp.url;
+      if (location) window.location.href = location;
+    },
 
     listEmails: () => get(`${BASE}/account/email`),
 

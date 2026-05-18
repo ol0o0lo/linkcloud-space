@@ -22,12 +22,8 @@ async function githubSignup() {
   githubLoading.value = true;
   errors.value = {};
   try {
-    const resp = await authApi.githubLogin(window.location.origin + '/accounts/social/callback/');
-    const redirectUrl = resp?.data?.url || resp?.location;
-    if (redirectUrl) {
-      window.location.href = redirectUrl;
-    }
-  } catch (err) {
+    await authApi.githubLogin(window.location.origin + '/accounts/social/callback/');
+  } catch {
     errors.value = { non_field_errors: ['GitHub sign up failed. Please try again.'] };
     githubLoading.value = false;
   }

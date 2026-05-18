@@ -101,13 +101,8 @@ async function githubLogin() {
   githubLoading.value = true;
   errors.value = {};
   try {
-    // allauth 返回重定向 URL，前端跳转到 GitHub 授权页
-    const resp = await authApi.githubLogin(window.location.origin + '/accounts/social/callback/');
-    const redirectUrl = resp?.data?.url || resp?.location;
-    if (redirectUrl) {
-      window.location.href = redirectUrl;
-    }
-  } catch (err) {
+    await authApi.githubLogin(window.location.origin + '/accounts/social/callback/');
+  } catch {
     errors.value = { non_field_errors: ['GitHub login failed. Please try again.'] };
     githubLoading.value = false;
   }

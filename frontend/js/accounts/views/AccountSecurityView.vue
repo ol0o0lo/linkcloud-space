@@ -32,9 +32,7 @@ async function load() {
 async function connectGithub() {
   githubLoading.value = true;
   try {
-    const resp = await authApi.githubConnect(window.location.origin + '/accounts/social/callback/');
-    const redirectUrl = resp?.data?.url || resp?.location;
-    if (redirectUrl) window.location.href = redirectUrl;
+    await authApi.githubConnect(window.location.origin + '/accounts/social/callback/');
   } catch {
     githubLoading.value = false;
   }
