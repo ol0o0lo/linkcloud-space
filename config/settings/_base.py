@@ -335,7 +335,7 @@ LOGIN_REDIRECT_URL = "/"
 ACCOUNT_LOGOUT_ON_GET = True
 ACCOUNT_LOGIN_METHODS = {"phone", "email"}
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
-ACCOUNT_SIGNUP_FIELDS = ["phone*", "email", "password1*"]
+ACCOUNT_SIGNUP_FIELDS = ["phone", "email*", "password1*"]
 ACCOUNT_PHONE_VERIFICATION_ENABLED = True
 ACCOUNT_PHONE_VERIFICATION_SUPPORTS_RESEND = True
 # Set to "optional" so users can verify their email. Mailpit captures emails locally during development.

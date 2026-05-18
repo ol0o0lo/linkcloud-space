@@ -19,7 +19,7 @@ def _settings(settings):
     settings.ACCOUNT_LOGIN_METHODS = {"phone", "email"}
     settings.ACCOUNT_PHONE_VERIFICATION_ENABLED = True
     settings.ACCOUNT_PHONE_VERIFICATION_SUPPORTS_RESEND = True
-    settings.ACCOUNT_SIGNUP_FIELDS = ["phone*", "email", "password1*"]
+    settings.ACCOUNT_SIGNUP_FIELDS = ["phone", "email*", "password1*"]
 
 
 @pytest.mark.django_db

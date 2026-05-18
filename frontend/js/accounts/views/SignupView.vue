@@ -95,7 +95,7 @@ async function onSubmit() {
         <FormErrors :errors="errors.non_field_errors || []" />
         <FormField
           v-model="phone"
-          label="Phone"
+          label="Phone (optional)"
           type="tel"
           placeholder="+86 13800138000"
           autocomplete="tel"
