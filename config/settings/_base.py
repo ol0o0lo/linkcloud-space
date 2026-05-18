@@ -358,6 +358,7 @@ HEADLESS_FRONTEND_URLS = {
     "account_signup": "/accounts/signup/",
     "account_login": "/accounts/login/",
     "account_reauthenticate": "/accounts/reauthenticate/",
+    "account_verify_phone": "/accounts/verify-phone/",
     "socialaccount_login_error": "/accounts/social/error/",
 }
 

@@ -36,6 +36,10 @@ const BASE = '/_allauth/browser/v1',
 
     verifyEmail: (key) => post(`${BASE}/auth/email/verify`, { key }),
 
+    verifyPhone: (code) => post(`${BASE}/auth/phone/verify`, { code }),
+
+    resendPhoneCode: () => post(`${BASE}/auth/phone/verify/resend`, {}),
+
     listEmails: () => get(`${BASE}/account/email`),
 
     addEmail: (email) => post(`${BASE}/account/email`, { email }),

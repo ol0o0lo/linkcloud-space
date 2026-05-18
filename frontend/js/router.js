@@ -104,6 +104,12 @@ export function createRouter(appStore) {
         component: () => import('./accounts/views/VerificationSentView.vue'),
       },
       {
+        path: '/accounts/verify-phone/',
+        name: 'verify-phone',
+        component: () => import('./accounts/views/PhoneVerifyView.vue'),
+        meta: { guest: true },
+      },
+      {
         path: '/accounts/logout/',
         name: 'logout',
         component: () => import('./accounts/views/LogoutView.vue'),

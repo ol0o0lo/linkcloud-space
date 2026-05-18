@@ -12,6 +12,7 @@ const router = useRouter();
 const appStore = inject('appStore');
 
 const email = ref('');
+const phone = ref('');
 const password1 = ref('');
 const errors = ref({});
 const loading = ref(false);
@@ -20,11 +21,19 @@ async function onSubmit() {
   loading.value = true;
   errors.value = {};
   try {
-    await authApi.signup({
+    const resp = await authApi.signup({
       email: email.value,
+      phone: phone.value,
       password: password1.value,
     });
-    // If allauth signed the user in (verification not mandatory), honor ?next.
+    // 检查是否有 pending 的 verify_phone stage
+    const flows = resp?.data?.flows || [];
+    const phoneStage = flows.find((f) => f.id === 'verify_phone' && f.is_pending);
+    if (phoneStage) {
+      router.push({ name: 'verify-phone', query: { next: route.query.next } });
+      return;
+    }
+    // 注册直接完成（无需验证）
     await appStore.fetchContext();
     if (appStore.isAuthenticated) {
       router.push(safeNextUrl(route.query.next));
@@ -72,6 +81,14 @@ async function onSubmit() {
         @submit.prevent="onSubmit"
       >
         <FormErrors :errors="errors.non_field_errors || []" />
+        <FormField
+          v-model="phone"
+          label="Phone"
+          type="tel"
+          placeholder="+86 13800138000"
+          autocomplete="tel"
+          :errors="errors.phone || []"
+        />
         <FormField
           v-model="email"
           label="Email"
