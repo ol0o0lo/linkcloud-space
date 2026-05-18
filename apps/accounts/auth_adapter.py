@@ -67,6 +67,7 @@ class AccountAdapter(DefaultAccountAdapter):
         """Send SMS verification code via configured SMS backend."""
         from apps.base.sms import send_sms
 
+        print(f"\n[DEBUG] send_verification_code_sms called: phone={phone} code={code}\n")
         send_sms(phone, code)
 
     def send_unknown_account_sms(self, phone, **kwargs):
