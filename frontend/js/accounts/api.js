@@ -40,6 +40,26 @@ const BASE = '/_allauth/browser/v1',
 
     resendPhoneCode: () => post(`${BASE}/auth/phone/verify/resend`, {}),
 
+    // Social / GitHub
+    getSocialAccounts: () => get(`${BASE}/account/providers`),
+
+    disconnectSocial: (provider, account_uid) => request(`${BASE}/account/providers`, {
+      method: 'DELETE',
+      body: JSON.stringify({ provider, account_uid }),
+    }),
+
+    githubLogin: (callbackUrl) => post(`${BASE}/auth/provider/redirect`, {
+      provider: 'github',
+      callback_url: callbackUrl,
+      process: 'login',
+    }),
+
+    githubConnect: (callbackUrl) => post(`${BASE}/auth/provider/redirect`, {
+      provider: 'github',
+      callback_url: callbackUrl,
+      process: 'connect',
+    }),
+
     listEmails: () => get(`${BASE}/account/email`),
 
     addEmail: (email) => post(`${BASE}/account/email`, { email }),

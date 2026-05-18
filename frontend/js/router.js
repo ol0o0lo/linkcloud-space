@@ -110,6 +110,11 @@ export function createRouter(appStore) {
         meta: { guest: true },
       },
       {
+        path: '/accounts/social/error/',
+        name: 'social-error',
+        component: () => import('./accounts/views/SocialErrorView.vue'),
+      },
+      {
         path: '/accounts/logout/',
         name: 'logout',
         component: () => import('./accounts/views/LogoutView.vue'),
