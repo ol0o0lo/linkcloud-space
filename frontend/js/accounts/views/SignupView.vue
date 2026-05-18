@@ -26,13 +26,6 @@ async function onSubmit() {
       phone: phone.value,
       password: password1.value,
     });
-    // 检查是否有 pending 的 verify_phone stage
-    const flows = resp?.data?.flows || [];
-    const phoneStage = flows.find((f) => f.id === 'verify_phone' && f.is_pending);
-    if (phoneStage) {
-      router.push({ name: 'verify-phone', query: { next: route.query.next } });
-      return;
-    }
     // 注册直接完成（无需验证）
     await appStore.fetchContext();
     if (appStore.isAuthenticated) {
@@ -41,6 +34,13 @@ async function onSubmit() {
       router.push({ name: 'verification-sent' });
     }
   } catch (err) {
+    // allauth 注册成功但需要 phone verification 时返回 401
+    const flows = err.data?.data?.flows || [];
+    const phoneStage = flows.find((f) => f.id === 'verify_phone' && f.is_pending);
+    if (phoneStage) {
+      router.push({ name: 'verify-phone', query: { next: route.query.next } });
+      return;
+    }
     if (err.data) {
       errors.value = parseAllauthErrors(err.data);
     } else {
