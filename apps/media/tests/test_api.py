@@ -33,8 +33,8 @@ class TestOssTokenAPI:
         resp = self._get({"scope": "user", "filename": "photo.jpg"})
         assert resp.status_code == 403
 
-    @patch("apps.media.api.generate_sts_token")
-    @patch("apps.media.api.generate_upload_path", return_value="uploads/users/1/abc.jpg")
+    @patch("apps.media.views.generate_sts_token")
+    @patch("apps.media.views.generate_upload_path", return_value="uploads/users/1/abc.jpg")
     def test_user_scope_returns_token(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
         self._login()
@@ -46,16 +46,16 @@ class TestOssTokenAPI:
         assert "bucket" in data
         assert "endpoint" in data
 
-    @patch("apps.media.api.generate_sts_token")
-    @patch("apps.media.api.generate_upload_path", return_value="uploads/users/1/abc.jpg")
+    @patch("apps.media.views.generate_sts_token")
+    @patch("apps.media.views.generate_upload_path", return_value="uploads/users/1/abc.jpg")
     def test_invalid_scope_returns_400(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
         self._login()
         resp = self._get({"scope": "admin", "filename": "photo.jpg"})
         assert resp.status_code == 400
 
-    @patch("apps.media.api.generate_sts_token")
-    @patch("apps.media.api.generate_upload_path")
+    @patch("apps.media.views.generate_sts_token")
+    @patch("apps.media.views.generate_upload_path")
     def test_invalid_extension_returns_400(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
         mock_path.side_effect = ValueError("Invalid extension")
@@ -63,8 +63,8 @@ class TestOssTokenAPI:
         resp = self._get({"scope": "user", "filename": "file.exe"})
         assert resp.status_code == 400
 
-    @patch("apps.media.api.generate_sts_token")
-    @patch("apps.media.api.generate_upload_path", return_value="uploads/orgs/5/abc.jpg")
+    @patch("apps.media.views.generate_sts_token")
+    @patch("apps.media.views.generate_upload_path", return_value="uploads/orgs/5/abc.jpg")
     def test_org_scope_requires_active_org(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
         self._login()
