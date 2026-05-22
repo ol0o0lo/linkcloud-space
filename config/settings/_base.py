@@ -14,7 +14,6 @@ import socket
 from pathlib import Path
 
 from botocore.config import Config
-
 from celery.schedules import crontab
 from epicenv import Env
 
