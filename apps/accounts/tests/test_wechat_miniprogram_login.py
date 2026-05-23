@@ -210,3 +210,118 @@ def test_miniprogram_invalid_code_returns_error(client, db):
         )
 
     assert resp.status_code < 500, f"不应返回 5xx: {resp.status_code} {resp.content[:200]}"
+
+
+MINIPROGRAM_AND_WEIXIN_SETTINGS = {
+    **MINIPROGRAM_TEST_SETTINGS,
+    "SOCIALACCOUNT_PROVIDERS": {
+        **MINIPROGRAM_TEST_SETTINGS["SOCIALACCOUNT_PROVIDERS"],
+        "weixin": {
+            "APP": {
+                "client_id": "test-weixin-appid",
+                "secret": "test-weixin-secret",
+            },
+            "SCOPE": ["snsapi_login"],
+        },
+    },
+}
+
+
+@override_settings(**MINIPROGRAM_AND_WEIXIN_SETTINGS)
+def test_unionid_merge_miniprogram_then_weixin(db):
+    """先小程序登录建立账号，再用相同 unionid 的 weixin provider 登录，应合并为同一 User。"""
+    from django.contrib.auth import get_user_model
+    from allauth.socialaccount.models import SocialAccount, SocialLogin, SocialToken
+    from model_bakery import baker
+    from django.test import RequestFactory
+
+    User = get_user_model()
+
+    mp_user = baker.make(User, username="wx_mp_user", email="")
+    baker.make(
+        SocialAccount,
+        user=mp_user,
+        provider="wechat_miniprogram",
+        uid="mp_openid_001",
+        extra_data={"openid": "mp_openid_001", "unionid": "shared_unionid_xyz"},
+    )
+
+    from apps.accounts.auth_adapter import AccountAdapter
+
+    weixin_account = SocialAccount(
+        provider="weixin",
+        uid="shared_unionid_xyz",
+        extra_data={"unionid": "shared_unionid_xyz"},
+    )
+    weixin_login = SocialLogin(account=weixin_account)
+    weixin_login.token = SocialToken(token="fake_access_token")
+
+    request = RequestFactory().get("/")
+    request.session = {}
+
+    adapter = AccountAdapter()
+    adapter.pre_social_login(request, weixin_login)
+
+    assert weixin_login.user == mp_user, f"应合并到 mp_user，实际: {weixin_login.user}"
+
+
+@override_settings(**MINIPROGRAM_AND_WEIXIN_SETTINGS)
+def test_unionid_merge_weixin_then_miniprogram(db):
+    """先网页扫码登录建立账号，再用相同 unionid 的小程序登录，应合并为同一 User。"""
+    from django.contrib.auth import get_user_model
+    from allauth.socialaccount.models import SocialAccount, SocialLogin, SocialToken
+    from model_bakery import baker
+    from django.test import RequestFactory
+
+    User = get_user_model()
+
+    wx_user = baker.make(User, username="weixin_user", email="")
+    baker.make(
+        SocialAccount,
+        user=wx_user,
+        provider="weixin",
+        uid="shared_unionid_abc",
+        extra_data={},
+    )
+
+    from apps.accounts.auth_adapter import AccountAdapter
+
+    mp_account = SocialAccount(
+        provider="wechat_miniprogram",
+        uid="mp_openid_002",
+        extra_data={"openid": "mp_openid_002", "unionid": "shared_unionid_abc"},
+    )
+    mp_login = SocialLogin(account=mp_account)
+    mp_login.token = SocialToken(token="fake_code")
+
+    request = RequestFactory().get("/")
+    request.session = {}
+
+    adapter = AccountAdapter()
+    adapter.pre_social_login(request, mp_login)
+
+    assert mp_login.user == wx_user, f"应合并到 wx_user，实际: {mp_login.user}"
+
+
+@override_settings(**MINIPROGRAM_TEST_SETTINGS)
+def test_no_unionid_creates_independent_accounts(client, db):
+    """小程序登录没有 unionid 时，不合并，独立创建账号。"""
+    from django.contrib.auth import get_user_model
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    User = get_user_model()
+
+    existing = baker.make(User, username="wx_other", email="")
+    baker.make(
+        SocialAccount,
+        user=existing,
+        provider="wechat_miniprogram",
+        uid="other_openid",
+        extra_data={"openid": "other_openid", "unionid": "some_unionid"},
+    )
+
+    resp = _mock_wx_login(client, "no_unionid_openid")  # 无 unionid
+
+    assert resp.status_code == 200
+    assert User.objects.count() == 2, f"应有 2 个 User，实际: {User.objects.count()}"

@@ -72,3 +72,32 @@ class AccountAdapter(DefaultAccountAdapter):
     def send_unknown_account_sms(self, phone, **kwargs):
         """Silently skip SMS for unregistered numbers (enumeration prevention)."""
         pass
+
+    def pre_social_login(self, request, sociallogin):
+        from allauth.socialaccount.models import SocialAccount
+
+        # 已关联 User 的登录无需合并
+        if sociallogin.is_existing:
+            return
+
+        # 提取 unionid
+        unionid = sociallogin.account.extra_data.get("unionid")
+        if not unionid:
+            return
+
+        # weixin provider 的 uid 就是 unionid
+        existing = SocialAccount.objects.filter(provider="weixin", uid=unionid).first()
+
+        if not existing:
+            # wechat_miniprogram 的 unionid 存在 extra_data 里
+            existing = (
+                SocialAccount.objects.filter(
+                    provider="wechat_miniprogram",
+                    extra_data__unionid=unionid,
+                )
+                .exclude(uid=sociallogin.account.uid)
+                .first()
+            )
+
+        if existing and existing.user_id:
+            sociallogin.connect(request, existing.user)
