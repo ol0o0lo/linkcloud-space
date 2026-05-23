@@ -11,10 +11,12 @@ code 由 MRO 链上各层的 code 拼接而成：
 
 from typing import ClassVar
 
+from django.utils.translation import gettext_lazy as _
+
 
 class AppException(Exception):
     code: ClassVar[str] = ""
-    message: ClassVar[str] = "服务异常"
+    message: ClassVar[str] = _("服务异常")
 
     def __init__(self, message: str | None = None):
         self.message: str = message if message is not None else self.__class__.message
@@ -34,34 +36,34 @@ class AppException(Exception):
 class BadRequestException(AppException):
     """参数或业务校验失败。"""
     code = "01"
-    message = "请求参数错误"
+    message = _("请求参数错误")
 
 
 class AuthException(AppException):
     """未认证。"""
     code = "02"
-    message = "请先登录"
+    message = _("请先登录")
 
 
 class ForbiddenException(AppException):
     """无权限。"""
     code = "03"
-    message = "无操作权限"
+    message = _("无操作权限")
 
 
 class NotFoundException(AppException):
     """资源不存在。"""
     code = "04"
-    message = "资源不存在"
+    message = _("资源不存在")
 
 
 class ConflictException(AppException):
     """资源冲突（重复创建等）。"""
     code = "05"
-    message = "资源已存在"
+    message = _("资源已存在")
 
 
 class QuotaExceededException(AppException):
     """超出配额限制。"""
     code = "06"
-    message = "已达到创建上限"
+    message = _("已达到创建上限")
