@@ -117,3 +117,19 @@ def test_get_phone_number_raises_on_errcode(db):
         with pytest.raises(ValueError, match="微信手机号换取失败"):
             get_phone_number(app, "bad_code")
     cache.clear()
+
+
+@pytest.fixture
+def client():
+    from django.test import Client
+    return Client(SERVER_NAME="localhost")
+
+
+def test_wechat_phone_requires_auth(client, db):
+    """未登录请求 /api/auth/wechat-phone/ 返回 401。"""
+    resp = client.post(
+        "/api/auth/wechat-phone/",
+        {"phone_code": "some_code"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 401, f"Expected 401, got {resp.status_code}: {resp.content[:200]}"

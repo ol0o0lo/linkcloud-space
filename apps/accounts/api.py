@@ -13,7 +13,7 @@ from ninja.files import UploadedFile
 from ninja.pagination import paginate
 from PIL import Image
 
-from apps.accounts.schemas import AvatarOut, ImpersonateUserOut, UserOut, UserPatchIn
+from apps.accounts.schemas import AvatarOut, ImpersonateUserOut, UserOut, UserPatchIn, WechatPhoneIn, WechatPhoneOut
 from apps.base.ninja_pagination import make_pagination
 from apps.base.permissions import require_authenticated
 
@@ -198,3 +198,30 @@ def delete_avatar(request):
     user.avatar_crop_data = None
     user.save(update_fields=["avatar_original", "avatar_thumbnail", "avatar_crop_data"])
     return Status(204, None)
+
+
+auth_router = Router(tags=["auth"])
+
+
+@auth_router.post("/wechat-phone/", response=WechatPhoneOut)
+def bind_wechat_phone(request, payload: WechatPhoneIn):
+    require_authenticated(request)
+    from allauth.socialaccount.models import SocialApp
+
+    from apps.accounts.wechat_phone import bind_phone_to_user, get_phone_number
+
+    try:
+        app = SocialApp.objects.get(provider="wechat_miniprogram")
+    except SocialApp.DoesNotExist:
+        from allauth.socialaccount.adapter import get_adapter as get_social_adapter
+
+        provider = get_social_adapter().get_provider(request, "wechat_miniprogram")
+        app = provider.app
+
+    try:
+        phone = get_phone_number(app, payload.phone_code)
+    except ValueError as e:
+        raise HttpError(400, str(e)) from e
+
+    user, merged = bind_phone_to_user(request, request.user, phone)
+    return {"phone": phone, "merged": merged}

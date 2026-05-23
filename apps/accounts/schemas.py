@@ -28,3 +28,12 @@ class ImpersonateUserOut(Schema):
 
 class AvatarOut(Schema):
     avatar_url: str | None
+
+
+class WechatPhoneIn(Schema):
+    phone_code: str
+
+
+class WechatPhoneOut(Schema):
+    phone: str
+    merged: bool
