@@ -40,11 +40,7 @@ def _users_qs(request):
         filter_kwargs["pk"] = request.user.pk
     else:
         filter_kwargs["organizationmember__organization"] = request.org.pk
-    return (
-        User.objects.filter(**filter_kwargs)
-        .only("id", "username", "first_name", "last_name", "timezone")
-        .order_by("first_name")
-    )
+    return User.objects.filter(**filter_kwargs).only("id", "username", "first_name", "last_name", "timezone").order_by("first_name")
 
 
 @users_router.get("/", response=list[UserOut])
@@ -66,9 +62,7 @@ def impersonate_search(request, q: str = Query("")):
     qs = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
     q = q.strip()
     if q:
-        qs = qs.filter(
-            Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q) | Q(email__icontains=q)
-        )
+        qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q) | Q(email__icontains=q))
     qs = qs.order_by("first_name", "last_name")[:20]
     return [
         {
