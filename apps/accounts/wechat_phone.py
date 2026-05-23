@@ -42,9 +42,13 @@ def get_phone_number(app, phone_code: str) -> str:
     data = resp.json()
     if data.get("errcode") and data["errcode"] != 0:
         raise ValueError(f"微信手机号换取失败: {data.get('errmsg', data['errcode'])}")
-    phone_info = data["phone_info"]
+    phone_info = data.get("phone_info")
+    if not phone_info:
+        raise ValueError(f"微信返回数据缺少 phone_info: {data}")
     country_code = phone_info.get("countryCode", "86")
-    number = phone_info["purePhoneNumber"]
+    number = phone_info.get("purePhoneNumber")
+    if not number:
+        raise ValueError(f"微信返回数据缺少 purePhoneNumber: {phone_info}")
     return f"+{country_code}{number}"
 
 
