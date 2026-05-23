@@ -75,6 +75,8 @@ INSTALLED_APPS = [
     "allauth.mfa",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",
+    "allauth.socialaccount.providers.weixin",
+    "apps.accounts.providers.wechat_miniprogram",
     "storages",
     "hijack",
 ]
@@ -373,7 +375,20 @@ SOCIALACCOUNT_PROVIDERS = {
         "SCOPE": ["user:email"],
         # 同邮箱的已有账号自动合并，不强制要求重新注册
         "EMAIL_AUTHENTICATION": True,
-    }
+    },
+    "weixin": {
+        "APP": {
+            "client_id": env("WECHAT_APP_ID", default=""),
+            "secret": env("WECHAT_APP_SECRET", default=""),
+        },
+        "SCOPE": ["snsapi_login"],
+    },
+    "wechat_miniprogram": {
+        "APP": {
+            "client_id": env("WECHAT_MINIPROGRAM_APP_ID", default=""),
+            "secret": env("WECHAT_MINIPROGRAM_APP_SECRET", default=""),
+        },
+    },
 }
 
 # 关闭 socialaccount 自动注册弹窗（headless 模式下用 provider/signup 端点处理）

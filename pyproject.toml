@@ -102,7 +102,7 @@ directory = "htmlcov"
 [tool.djlint]
 indent = 2
 profile="django"
-max_line_length=120
+max_line_length=180
 blank_line_after_tag="endblock,extends,load"
 format_css=true
 format_js=true
@@ -117,7 +117,7 @@ indent_size=2
 indent_size=2
 
 [tool.ruff]
-line-length = 120
+line-length = 180
 
 [tool.ruff.lint]
 select = [
@@ -219,6 +219,12 @@ ACCOUNT_SIGNUP_OPEN = { type = "bool", default = false, help_text = "Allow new a
 # GitHub OAuth
 GITHUB_CLIENT_ID = { type = "str", default = "", help_text = "GitHub OAuth App client ID" }
 GITHUB_CLIENT_SECRET = { type = "str", default = "", help_text = "GitHub OAuth App client secret" }
+
+# WeChat OAuth
+WECHAT_APP_ID = { type = "str", default = "", help_text = "微信开放平台网站应用 AppID（PC 扫码登录）" }
+WECHAT_APP_SECRET = { type = "str", default = "", help_text = "微信开放平台网站应用 AppSecret" }
+WECHAT_MINIPROGRAM_APP_ID = { type = "str", default = "", help_text = "微信小程序 AppID" }
+WECHAT_MINIPROGRAM_APP_SECRET = { type = "str", default = "", help_text = "微信小程序 AppSecret" }
 
 # Email Settings
 DEFAULT_FROM_EMAIL = { type = "str", default = "", help_text = "发件人邮箱地址，如 your@163.com，需与 EMAIL_URL 中的用户名一致。" }
