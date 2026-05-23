@@ -2,13 +2,13 @@ from django.core.cache import cache
 
 import requests
 
-ACCESS_TOKEN_CACHE_KEY = "wechat_miniprogram_access_token"  # noqa: S105
 ACCESS_TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token"  # noqa: S105
 GET_PHONE_URL = "https://api.weixin.qq.com/wxa/business/getuserphonenumber"
 
 
 def get_miniprogram_access_token(app) -> str:
-    token = cache.get(ACCESS_TOKEN_CACHE_KEY)
+    cache_key = f"wechat_miniprogram_access_token:{app.client_id}"  # noqa: S105
+    token = cache.get(cache_key)
     if token:
         return token
     resp = requests.post(
@@ -22,8 +22,10 @@ def get_miniprogram_access_token(app) -> str:
     )
     resp.raise_for_status()
     data = resp.json()
+    if "access_token" not in data:
+        raise ValueError(f"获取 access_token 失败: {data.get('errmsg', data)}")
     token = data["access_token"]
-    cache.set(ACCESS_TOKEN_CACHE_KEY, token, timeout=7000)
+    cache.set(cache_key, token, timeout=7000)
     return token
 
 
@@ -49,6 +51,7 @@ def get_phone_number(app, phone_code: str) -> str:
 def bind_phone_to_user(request, user, phone: str):
     """绑定手机号到 user。若已有其他账号使用此手机号，执行合并。"""
     from django.contrib.auth import get_user_model
+    from django.db import transaction
 
     from allauth.account.internal.flows.login import login as allauth_login
     from allauth.socialaccount.models import SocialAccount
@@ -61,12 +64,13 @@ def bind_phone_to_user(request, user, phone: str):
 
     existing = User.objects.filter(phone=phone).exclude(pk=user.pk).first()
     if existing:
-        # 迁移当前 user 的所有 SocialAccount 到 existing
-        SocialAccount.objects.filter(user=user).update(user=existing)
-        # 软删除当前空白账号
-        user.is_active = False
-        user.save(update_fields=["is_active"])
-        # 重新登录 existing（allauth 65.x 需要 signup=False）
+        with transaction.atomic():
+            # 迁移当前 user 的所有 SocialAccount 到 existing
+            SocialAccount.objects.filter(user=user).update(user=existing)
+            # 软删除当前空白账号
+            user.is_active = False
+            user.save(update_fields=["is_active"])
+        # 重新登录 existing（allauth 65.x 需要 signup=False，在事务外执行）
         allauth_login(request, existing, signup=False)
         return existing, True
     else:
