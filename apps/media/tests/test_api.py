@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from apps.accounts.models import User
+from apps.media.exceptions import InvalidExtensionException
 
 OSS_TOKEN_URL = "/api/media/oss-token/"
 
@@ -55,7 +56,7 @@ class TestOssTokenAPI:
     @patch("apps.media.services.generate_upload_path")
     def test_invalid_extension_returns_400(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
-        mock_path.side_effect = ValueError("Invalid extension")
+        mock_path.side_effect = InvalidExtensionException()
         self._login()
         resp = self._get({"scope": "user", "filename": "file.exe"})
         assert resp.status_code == 400

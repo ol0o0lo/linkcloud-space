@@ -8,20 +8,22 @@ from alibabacloud_sts20150401.client import Client as StsClient
 from alibabacloud_sts20150401.models import AssumeRoleRequest
 from alibabacloud_tea_openapi.models import Config as TeaConfig
 
+from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
+
 ALLOWED_SCOPES = {"user", "org"}
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 
 
 def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
     if scope not in ALLOWED_SCOPES:
-        raise ValueError(f"Invalid scope '{scope}'. Allowed: {ALLOWED_SCOPES}")
+        raise InvalidScopeException()
 
     parts = filename.rsplit(".", 1)
     if len(parts) != 2 or not parts[1]:
-        raise ValueError("Invalid extension: filename must have a valid extension.")
+        raise InvalidExtensionException("文件名必须包含有效扩展名")
     ext = parts[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise ValueError(f"Invalid extension '.{ext}'. Allowed: {ALLOWED_EXTENSIONS}")
+        raise InvalidExtensionException(f"不支持的扩展名 '.{ext}'，允许：{ALLOWED_EXTENSIONS}")
 
     uid = uuid4().hex
     if scope == "user":

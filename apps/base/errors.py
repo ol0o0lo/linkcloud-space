@@ -15,6 +15,8 @@ from django.http import Http404, JsonResponse
 from ninja.errors import HttpError
 from ninja.errors import ValidationError as NinjaValidationError
 
+from apps.base.exceptions import AppException
+
 
 def _wrap_field_errors(field_errors: dict[str, list[str]]) -> dict[str, list[str]]:
     return {field: list(messages) for field, messages in field_errors.items() if messages}
@@ -63,6 +65,10 @@ class QuotaExceededError(Exception):
 
 
 def register_error_handlers(api) -> None:
+    @api.exception_handler(AppException)
+    def _app_exception(request, exc: AppException):
+        return JsonResponse({"detail": exc.message, "code": exc.__class__.code()}, status=exc.status_code)
+
     @api.exception_handler(NinjaValidationError)
     def _ninja_validation(request, exc):
         return JsonResponse(_ninja_validation_to_field_errors(exc), status=400)
