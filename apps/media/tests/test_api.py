@@ -33,7 +33,7 @@ class TestOssTokenAPI:
         resp = self._get({"scope": "user", "filename": "photo.jpg"})
         assert resp.status_code == 403
 
-    @patch("apps.media.services.generate_sts_token")
+    @patch("apps.media.services._generate_sts_token")
     @patch("apps.media.services.generate_upload_path", return_value="uploads/users/1/abc.jpg")
     def test_user_scope_returns_token(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
@@ -51,7 +51,7 @@ class TestOssTokenAPI:
         resp = self._get({"scope": "admin", "filename": "photo.jpg"})
         assert resp.status_code == 400
 
-    @patch("apps.media.services.generate_sts_token")
+    @patch("apps.media.services._generate_sts_token")
     @patch("apps.media.services.generate_upload_path")
     def test_invalid_extension_returns_400(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
@@ -60,7 +60,7 @@ class TestOssTokenAPI:
         resp = self._get({"scope": "user", "filename": "file.exe"})
         assert resp.status_code == 400
 
-    @patch("apps.media.services.generate_sts_token")
+    @patch("apps.media.services._generate_sts_token")
     @patch("apps.media.services.generate_upload_path", return_value="uploads/orgs/5/abc.jpg")
     def test_org_scope_requires_active_org(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
