@@ -236,9 +236,8 @@ def test_bind_phone_merges_existing_account(client, db):
     assert user_a.is_active is False
 
     # session 已切换到 user_b
-    from django.contrib.auth import get_user as get_session_user
-    session_user = get_session_user(client)
-    assert session_user == user_b
+    from django.contrib.auth import SESSION_KEY
+    assert int(client.session[SESSION_KEY]) == user_b.pk
 
 
 @override_settings(**WECHAT_PHONE_SETTINGS)

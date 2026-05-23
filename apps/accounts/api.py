@@ -212,9 +212,10 @@ def bind_wechat_phone(request, payload: WechatPhoneIn):
         provider = get_social_adapter().get_provider(request, "wechat_miniprogram")
         app = provider.app
 
+    import requests as http_requests
     try:
         phone = get_phone_number(app, payload.phone_code)
-    except ValueError as e:
+    except (ValueError, http_requests.RequestException) as e:
         raise HttpError(400, str(e)) from e
 
     user, merged = bind_phone_to_user(request, request.user, phone)
