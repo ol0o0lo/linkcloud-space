@@ -75,3 +75,45 @@ def test_access_token_cached_on_second_call(db):
     assert token2 == "fake_access_token"
     mock_post.assert_called_once()  # 只调用了一次微信 API
     cache.clear()
+
+
+import pytest
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_get_phone_number_returns_normalized(db):
+    """换取手机号返回 +86XXXXXXXXXX 格式。"""
+    from django.core.cache import cache
+    from apps.accounts.wechat_phone import get_phone_number
+    from allauth.socialaccount.models import SocialApp
+
+    cache.delete("wechat_miniprogram_access_token:test-miniprogram-appid")
+    app = SocialApp(provider="wechat_miniprogram", client_id="test-miniprogram-appid", secret="test-miniprogram-secret")
+
+    with patch("apps.accounts.wechat_phone.requests.post") as mock_post:
+        mock_post.side_effect = [_make_access_token_mock(), _make_phone_mock("13912345678", "86")]
+        phone = get_phone_number(app, "test_phone_code")
+
+    assert phone == "+8613912345678"
+    cache.clear()
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_get_phone_number_raises_on_errcode(db):
+    """微信返回 errcode 时抛出 ValueError。"""
+    from django.core.cache import cache
+    from apps.accounts.wechat_phone import get_phone_number
+    from allauth.socialaccount.models import SocialApp
+
+    cache.delete("wechat_miniprogram_access_token:test-miniprogram-appid")
+    app = SocialApp(provider="wechat_miniprogram", client_id="test-miniprogram-appid", secret="test-miniprogram-secret")
+
+    error_mock = MagicMock()
+    error_mock.json.return_value = {"errcode": 40029, "errmsg": "invalid code"}
+    error_mock.raise_for_status = MagicMock()
+
+    with patch("apps.accounts.wechat_phone.requests.post") as mock_post:
+        mock_post.side_effect = [_make_access_token_mock(), error_mock]
+        with pytest.raises(ValueError, match="微信手机号换取失败"):
+            get_phone_number(app, "bad_code")
+    cache.clear()
