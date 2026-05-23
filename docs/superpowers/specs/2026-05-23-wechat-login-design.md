@@ -173,9 +173,134 @@ SOCIALACCOUNT_PROVIDERS = {
 - 与网页端完全一致，无需额外机制
 - `SOCIALACCOUNT_AUTO_SIGNUP = True`，`SOCIALACCOUNT_EMAIL_REQUIRED = False`（微信无邮箱）
 
-## 测试策略
+## 测试策略（TDD）
 
-- 小程序 provider：mock `jscode2session` API，测试 code → openid 流程、自动注册、已有账号登录
-- unionid 合并：测试先小程序后扫码、先扫码后小程序两个场景
-- weixin provider：配置验证，无需完整 OAuth2 测试（allauth 内置已有覆盖）
-- `SOCIALACCOUNT_EMAIL_REQUIRED = False` 需在测试 settings 中覆盖
+遵循项目现有模式（参考 `test_github_login.py`），先写测试再实现。
+
+### 测试 settings 基础配置
+
+```python
+WECHAT_MINIPROGRAM_TEST_SETTINGS = {
+    "SOCIALACCOUNT_PROVIDERS": {
+        "wechat_miniprogram": {
+            "APP": {
+                "client_id": "test-miniprogram-appid",
+                "secret": "test-miniprogram-secret",
+            },
+        },
+        "weixin": {
+            "APP": {
+                "client_id": "test-weixin-appid",
+                "secret": "test-weixin-secret",
+            },
+            "SCOPE": ["snsapi_login"],
+        },
+    },
+    "SOCIALACCOUNT_AUTO_SIGNUP": True,
+    "SOCIALACCOUNT_EMAIL_REQUIRED": False,  # 微信无邮箱
+    "SOCIALACCOUNT_EMAIL_VERIFICATION": "none",
+    "ACCOUNT_LOGIN_METHODS": {"email"},
+    "ACCOUNT_PHONE_VERIFICATION_ENABLED": False,
+    "ALLOWED_HOSTS": ["localhost", "localhost:5173"],
+}
+```
+
+### 测试文件：`apps/accounts/tests/test_wechat_miniprogram_login.py`
+
+**写测试的顺序即实现顺序（TDD red → green）：**
+
+#### 1. Provider 注册测试（最先写，驱动 provider 骨架）
+
+```python
+def test_wechat_miniprogram_provider_in_flows(client, db):
+    """wechat_miniprogram 出现在未认证时的 provider flows 中。"""
+    # 驱动：provider.py 注册、INSTALLED_APPS 配置
+```
+
+#### 2. jscode2session 调用测试（驱动 complete_login 实现）
+
+```python
+def test_miniprogram_login_calls_jscode2session(client, db):
+    """provider/token 端点收到 code 后调用微信 jscode2session API。"""
+    # mock requests.get，验证调用了正确的微信 API URL
+    # 驱动：complete_login 中的 HTTP 调用逻辑
+```
+
+#### 3. 自动注册测试（驱动 extract_uid / extract_common_fields）
+
+```python
+def test_miniprogram_new_user_auto_registers(client, db):
+    """新 openid 首次登录自动创建 User 和 SocialAccount。"""
+    # mock jscode2session 返回 { openid: "test_openid", session_key: "sk" }
+    # 验证：User 被创建，username 以 wx_ 开头，email 为空
+    # 验证：SocialAccount(provider="wechat_miniprogram", uid="test_openid") 存在
+    # 验证：响应 status=200，session cookie 已设置
+```
+
+#### 4. 已有账号登录测试
+
+```python
+def test_miniprogram_existing_user_logs_in(client, db):
+    """已有 SocialAccount 的 openid 再次登录，直接返回已有 User session。"""
+    # 预建 User + SocialAccount
+    # mock 同一 openid，验证没有新建 User
+```
+
+#### 5. unionid 合并测试（驱动 pre_social_login adapter hook）
+
+```python
+def test_unionid_merge_miniprogram_then_weixin(client, db):
+    """先小程序登录，再网页扫码登录，unionid 相同时合并为同一 User。"""
+    # Step1: 小程序登录，建立 SocialAccount(wechat_miniprogram, openid, extra_data={unionid: "uid_123"})
+    # Step2: 模拟 weixin provider pre_social_login，uid=unionid
+    # 验证：weixin SocialAccount 关联到同一 User
+
+def test_unionid_merge_weixin_then_miniprogram(client, db):
+    """先网页扫码登录，再小程序登录，unionid 相同时合并为同一 User。"""
+    # Step1: 建立 SocialAccount(weixin, uid="uid_123")
+    # Step2: 小程序登录，extra_data={unionid: "uid_123"}
+    # 验证：小程序 SocialAccount 关联到同一 User
+
+def test_no_unionid_creates_independent_accounts(client, db):
+    """小程序登录没有 unionid 时，不合并，独立创建账号。"""
+    # mock jscode2session 返回无 unionid
+    # 验证：新建独立 User，不关联任何已有账号
+```
+
+#### 6. username 随机生成测试
+
+```python
+def test_miniprogram_username_format(client, db):
+    """自动注册的 username 以 wx_ 开头且不重复。"""
+    # 两次新 openid 登录，验证两个不同的 wx_xxx username
+```
+
+#### 7. jscode2session 错误处理测试
+
+```python
+def test_miniprogram_invalid_code_returns_error(client, db):
+    """微信返回 errcode 时，登录端点返回 4xx 而非 500。"""
+    # mock 返回 { errcode: 40029, errmsg: "invalid code" }
+    # 验证响应非 5xx
+```
+
+### 测试文件：`apps/accounts/tests/test_weixin_provider.py`
+
+```python
+def test_weixin_provider_in_flows(client, db):
+    """weixin 出现在未认证时的 provider flows 中。"""
+
+def test_weixin_redirect_returns_302(browser_client, db):
+    """发起 weixin 登录返回重定向到微信授权页。"""
+    # 验证 redirect URL 包含 open.weixin.qq.com
+```
+
+### 实现顺序（TDD 节奏）
+
+1. 写 `test_wechat_miniprogram_provider_in_flows` → 实现 provider 骨架 → 测试通过
+2. 写 `test_miniprogram_login_calls_jscode2session` → 实现 `complete_login` → 通过
+3. 写 `test_miniprogram_new_user_auto_registers` → 实现 `extract_uid` / `extract_common_fields` / 自动注册 → 通过
+4. 写 `test_miniprogram_existing_user_logs_in` → 验证已有账号流程 → 通过
+5. 写三个 unionid 合并测试 → 实现 `pre_social_login` hook → 通过
+6. 写 username 格式和错误处理测试 → 补全边界逻辑 → 通过
+7. 写 weixin provider 测试 → 补配置 → 通过
