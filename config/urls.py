@@ -22,7 +22,6 @@ urlpatterns: list[URLResolver | URLPattern] = [
     # GitHub OAuth 回调端点（allauth socialaccount 需要）
     path("accounts/", include("allauth.socialaccount.providers.github.urls")),
     path("api/", ninja_api.urls),
-    path("api/media/", include("apps.media.urls")),
     path("-/", include("django_alive.urls")),
     path("admin/", admin.site.urls),
     path("hijack/", include("hijack.urls")),

@@ -65,6 +65,5 @@ class TestOssTokenAPI:
     def test_org_scope_requires_active_org(self, mock_path, mock_sts):
         mock_sts.return_value = _make_sts_response()
         self._login()
-        # 未设置 org session，应返回 403
         resp = self._get({"scope": "org", "filename": "room.jpg"})
         assert resp.status_code == 403
