@@ -57,7 +57,7 @@ def bind_phone_to_user(request, user, phone: str):
     from django.contrib.auth import get_user_model
     from django.db import transaction
 
-    from allauth.account.internal.flows.login import login as allauth_login
+    from allauth.account.internal.flows.login import Login, perform_login
     from allauth.socialaccount.models import SocialAccount
 
     User = get_user_model()
@@ -74,8 +74,8 @@ def bind_phone_to_user(request, user, phone: str):
             # 软删除当前空白账号
             user.is_active = False
             user.save(update_fields=["is_active"])
-        # 重新登录 existing（allauth 65.x 需要 signup=False，在事务外执行）
-        allauth_login(request, existing, signup=False)
+        # 重新登录 existing（allauth 65.x API：perform_login(request, Login(user=...))）
+        perform_login(request, Login(user=existing))
         return existing, True
     else:
         user.phone = phone
