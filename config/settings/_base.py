@@ -338,6 +338,8 @@ ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 ACCOUNT_SIGNUP_FIELDS = ["phone", "email*", "password1*"]
 ACCOUNT_PHONE_VERIFICATION_ENABLED = True
 ACCOUNT_PHONE_VERIFICATION_SUPPORTS_RESEND = True
+ACCOUNT_PHONE_VERIFICATION_CODE_FORMAT = {"length": 4, "numeric": True, "dashed": False}
+ACCOUNT_LOGIN_BY_CODE_ENABLED = True
 # Set to "optional" so users can verify their email. Mailpit captures emails locally during development.
 # For production, consider changing to "mandatory".
 ACCOUNT_EMAIL_VERIFICATION = "optional"
