@@ -1,8 +1,6 @@
 import requests as http_requests
-
 from allauth.socialaccount.adapter import get_adapter
 from allauth.socialaccount.providers.base import Provider, ProviderAccount
-
 
 JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session"
 
@@ -34,11 +32,12 @@ class WechatMiniprogramProvider(Provider):
         import random
         import string
         import uuid
+
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
         for _ in range(10):
-            suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))  # noqa: S311
             username = f"wx_{suffix}"
             if not User.objects.filter(username=username).exists():
                 return username
