@@ -2,7 +2,7 @@
 """
 Team 创建 Hook。
 
-pre_create_team  — 创建前调用，可 raise QuotaExceededError 阻止创建。
+pre_create_team  — 创建前调用，可 raise QuotaExceededException 阻止创建。
 post_create_team — 创建后调用（在 transaction.atomic 内），用于后续初始化。
 
 当前逻辑留空，后续根据用户付费等级填充配额检查及初始化逻辑。
@@ -23,7 +23,7 @@ def pre_create_team(request: "HttpRequest") -> None:
     创建团队前调用。
 
     后续在此处根据 request.user / request.org 的付费等级检查可创建团队数量上限，
-    超限时 raise QuotaExceededError("团队数量已达上限，请升级套餐。")
+    超限时 raise QuotaExceededException("团队数量已达上限，请升级套餐。")
     """
     pass  # TODO: 付费等级配额检查
 
