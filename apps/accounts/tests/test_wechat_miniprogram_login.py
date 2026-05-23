@@ -97,3 +97,67 @@ def test_miniprogram_login_calls_jscode2session(client, db):
         assert "jscode2session" in call_kwargs[0][0]
         assert call_kwargs[1]["params"]["js_code"] == "test_code_abc"
         assert call_kwargs[1]["params"]["appid"] == "test-miniprogram-appid"
+
+
+def _mock_wx_login(client, openid, *, unionid=None):
+    """辅助函数：mock 微信登录，返回 response。"""
+    from unittest.mock import MagicMock, patch
+
+    wx_data = {"openid": openid, "session_key": "sk"}
+    if unionid:
+        wx_data["unionid"] = unionid
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = wx_data
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch(
+        "apps.accounts.providers.wechat_miniprogram.provider.http_requests.get",
+        return_value=mock_resp,
+    ):
+        return client.post(
+            "/_allauth/app/v1/auth/provider/token",
+            {
+                "provider": "wechat_miniprogram",
+                "process": "login",
+                "token": {"client_id": "test-miniprogram-appid", "id_token": "code"},
+            },
+            content_type="application/json",
+        )
+
+
+@override_settings(**MINIPROGRAM_TEST_SETTINGS)
+def test_miniprogram_new_user_auto_registers(client, db):
+    """新 openid 首次登录自动创建 User 和 SocialAccount。"""
+    from django.contrib.auth import get_user_model
+    from allauth.socialaccount.models import SocialAccount
+
+    User = get_user_model()
+
+    resp = _mock_wx_login(client, "new_openid_001")
+
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.content[:300]}"
+
+    assert User.objects.filter(socialaccount__uid="new_openid_001").exists()
+    user = User.objects.get(socialaccount__uid="new_openid_001")
+    assert user.username.startswith("wx_"), f"username 应以 wx_ 开头: {user.username}"
+    assert user.email == "", f"email 应为空: {user.email}"
+
+    sa = SocialAccount.objects.get(provider="wechat_miniprogram", uid="new_openid_001")
+    assert sa.extra_data.get("openid") == "new_openid_001"
+
+
+@override_settings(**MINIPROGRAM_TEST_SETTINGS)
+def test_miniprogram_username_format(client, db):
+    """两次不同 openid 登录，username 各自以 wx_ 开头且互不重复。"""
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    _mock_wx_login(client, "openid_aaa")
+    client2 = __import__("django.test", fromlist=["Client"]).Client(SERVER_NAME="localhost")
+    _mock_wx_login(client2, "openid_bbb")
+
+    usernames = list(User.objects.filter(username__startswith="wx_").values_list("username", flat=True))
+    assert len(usernames) == 2, f"应有 2 个 wx_ 用户: {usernames}"
+    assert len(set(usernames)) == 2, f"username 不应重复: {usernames}"
