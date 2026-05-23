@@ -61,10 +61,9 @@ class WechatMiniprogramProvider(Provider):
         data = resp.json()
 
         if data.get("errcode"):
-            raise get_adapter().validation_error(
-                "invalid_token",
-                f"微信登录失败: {data.get('errmsg', data['errcode'])}",
-            )
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError(f"微信登录失败: {data.get('errmsg', data['errcode'])}")
 
         return self.sociallogin_from_response(request, data)
 

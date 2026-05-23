@@ -161,3 +161,52 @@ def test_miniprogram_username_format(client, db):
     usernames = list(User.objects.filter(username__startswith="wx_").values_list("username", flat=True))
     assert len(usernames) == 2, f"应有 2 个 wx_ 用户: {usernames}"
     assert len(set(usernames)) == 2, f"username 不应重复: {usernames}"
+
+
+@override_settings(**MINIPROGRAM_TEST_SETTINGS)
+def test_miniprogram_existing_user_logs_in(client, db):
+    """已有 SocialAccount 的 openid 再次登录，直接返回已有 User，不重复创建。"""
+    from django.contrib.auth import get_user_model
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    User = get_user_model()
+    existing_user = baker.make(User, username="wx_existing", email="")
+    baker.make(
+        SocialAccount,
+        user=existing_user,
+        provider="wechat_miniprogram",
+        uid="existing_openid_999",
+        extra_data={"openid": "existing_openid_999"},
+    )
+
+    resp = _mock_wx_login(client, "existing_openid_999")
+
+    assert resp.status_code == 200
+    assert User.objects.filter(username="wx_existing").count() == 1, "不应重复创建 User"
+
+
+@override_settings(**MINIPROGRAM_TEST_SETTINGS)
+def test_miniprogram_invalid_code_returns_error(client, db):
+    """微信返回 errcode 时，响应为 4xx 而非 500。"""
+    from unittest.mock import MagicMock, patch
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"errcode": 40029, "errmsg": "invalid code"}
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch(
+        "apps.accounts.providers.wechat_miniprogram.provider.http_requests.get",
+        return_value=mock_resp,
+    ):
+        resp = client.post(
+            "/_allauth/app/v1/auth/provider/token",
+            {
+                "provider": "wechat_miniprogram",
+                "process": "login",
+                "token": {"client_id": "test-miniprogram-appid", "id_token": "bad_code"},
+            },
+            content_type="application/json",
+        )
+
+    assert resp.status_code < 500, f"不应返回 5xx: {resp.status_code} {resp.content[:200]}"
