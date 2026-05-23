@@ -5,6 +5,7 @@ from django.conf import settings
 from ninja import NinjaAPI
 from ninja.security import django_auth
 
+from allauth.headless.contrib.ninja.security import jwt_token_auth
 from apps.accounts.api import auth_router, avatar_router, users_router
 from apps.base.api import router as base_router
 from apps.base.errors import register_error_handlers
@@ -31,7 +32,7 @@ from apps.teams.api import router as teams_router
 api = NinjaAPI(
     title="Django Base Site API",
     version="1.0.0",
-    auth=django_auth,
+    auth=[django_auth, jwt_token_auth],  # 同时支持 session cookie 和 JWT Bearer token
     docs_url="/docs" if settings.DEBUG else None,
     openapi_url="/openapi.json" if settings.DEBUG else None,
 )

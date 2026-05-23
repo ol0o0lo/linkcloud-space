@@ -352,7 +352,13 @@ ACCOUNT_SHOW_POST_LOGIN_MESSAGE = False
 # instead of rendering templates, and email/redirect links are mapped through
 # HEADLESS_FRONTEND_URLS to SPA routes.
 HEADLESS_ONLY = True
-HEADLESS_CLIENTS = ["browser", "app"]  # app client 供移动端使用，通过 X-Session-Token 鉴权
+HEADLESS_CLIENTS = ["browser", "app"]  # app client 供移动端使用，通过 JWT 鉴权
+HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.strategy.JWTTokenStrategy"
+HEADLESS_JWT_ALGORITHM = "HS256"  # 使用 SECRET_KEY 签名，无需额外密钥管理
+HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = 60 * 60 * 2  # 访问 token 2小时
+HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = 60 * 60 * 24 * 30  # 刷新 token 30天
+HEADLESS_JWT_ROTATE_REFRESH_TOKEN = True  # 刷新时轮换 refresh token
+HEADLESS_JWT_STATEFUL_VALIDATION_ENABLED = True  # 注销立即失效（依赖 Redis session）
 HEADLESS_FRONTEND_URLS = {
     "account_confirm_email": "/accounts/confirm-email/{key}",
     "account_reset_password_from_key": "/accounts/password/reset/key/{key}",
