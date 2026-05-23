@@ -851,7 +851,6 @@ dependencies = [
     { name = "django-maintenance-mode" },
     { name = "django-ninja" },
     { name = "django-storages" },
-    { name = "djangorestframework" },
     { name = "epicenv", extra = ["django"] },
     { name = "fido2" },
     { name = "gunicorn" },
@@ -901,7 +900,6 @@ requires-dist = [
     { name = "django-maintenance-mode", specifier = "~=0.19" },
     { name = "django-ninja", specifier = "~=1.4" },
     { name = "django-storages", specifier = "~=1.8" },
-    { name = "djangorestframework", specifier = ">=3.16,<4" },
     { name = "epicenv", extras = ["django"], specifier = "~=1.2" },
     { name = "fido2", specifier = "~=2.2" },
     { name = "gunicorn", specifier = "~=25.0" },
@@ -1047,18 +1045,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7d/ee/78030380389311ab967281d98ac2a7dd96d4005592149d7049f624b52275/django_test_plus-2.4.1.tar.gz", hash = "sha256:5bc0e2248c25020f7056056c4173250213f93464b4ceb6a53ab79804a1968d0d", size = 18333, upload-time = "2025-12-19T18:34:26.263Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fe/25/e7615f147c441738d3b0f39bf4547f79d52f32c46fa8ad1b64ba764438f4/django_test_plus-2.4.1-py3-none-any.whl", hash = "sha256:f2f14e4ece824dde29c6c52ce915ca38d8a6d1f6800e7076d708a47f02e02283", size = 17432, upload-time = "2025-12-19T18:34:25.426Z" },
-]
-
-[[package]]
-name = "djangorestframework"
-version = "3.17.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ca/d7/c016e69fac19ff8afdc89db9d31d9ae43ae031e4d1993b20aca179b8301a/djangorestframework-3.17.1.tar.gz", hash = "sha256:a6def5f447fe78ff853bff1d47a3c59bf38f5434b031780b351b0c73a62db1a5", size = 905742, upload-time = "2026-03-24T16:58:33.705Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5a/e1/2c516bdc83652b1a60c6119366ac2c0607b479ed05cd6093f916ca8928f8/djangorestframework-3.17.1-py3-none-any.whl", hash = "sha256:c3c74dd3e83a5a3efc37b3c18d92bd6f86a6791c7b7d4dff62bb068500e76457", size = 898844, upload-time = "2026-03-24T16:58:31.845Z" },
 ]
 
 [[package]]

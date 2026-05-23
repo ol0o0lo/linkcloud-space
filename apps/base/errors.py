@@ -51,23 +51,10 @@ def _django_validation_to_field_errors(exc: DjangoValidationError) -> dict[str, 
     return _wrap_field_errors({"non_field_errors": [str(exc)]})
 
 
-class QuotaExceededError(Exception):
-    """
-    创建资源时超出配额限制。
-
-    留空供后续付费等级逻辑填充——在 pre_create_* hook 中 raise 此异常。
-    默认返回 HTTP 402 Payment Required。
-    """
-
-    def __init__(self, message: str = "已达到创建上限。"):
-        self.message = message
-        super().__init__(message)
-
-
 def register_error_handlers(api) -> None:
     @api.exception_handler(AppException)
     def _app_exception(request, exc: AppException):
-        return JsonResponse({"detail": exc.message, "code": exc.__class__.code()}, status=exc.status_code)
+        return JsonResponse({"detail": exc.message, "code": exc.__class__.full_code()}, status=200)
 
     @api.exception_handler(NinjaValidationError)
     def _ninja_validation(request, exc):
@@ -84,10 +71,6 @@ def register_error_handlers(api) -> None:
     @api.exception_handler(Http404)
     def _not_found(request, exc):
         return JsonResponse({"detail": "Not found."}, status=404)
-
-    @api.exception_handler(QuotaExceededError)
-    def _quota_exceeded(request, exc):
-        return JsonResponse({"detail": exc.message}, status=402)
 
     @api.exception_handler(HttpError)
     def _http_error(request, exc):

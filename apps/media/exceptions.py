@@ -10,17 +10,17 @@ from apps.base.exceptions import BadRequestException
 
 class MediaException(BadRequestException):
     """Media app 异常基类。"""
-    _code_segment = "20"
-    default_message = "媒体操作失败"
+    code = "20"
+    message = "媒体操作失败"
 
 
 class InvalidExtensionException(MediaException):
     """不支持的文件扩展名。"""
-    _code_segment = "01"
-    default_message = "不支持的文件扩展名"
+    code = "01"
+    message = "不支持的文件扩展名"
 
 
 class InvalidScopeException(MediaException):
     """非法的 scope 参数。"""
-    _code_segment = "02"
-    default_message = "非法的 scope 参数"
+    code = "02"
+    message = "非法的 scope 参数"

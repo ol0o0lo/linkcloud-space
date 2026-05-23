@@ -24,6 +24,7 @@ from apps.organizations.api import (
     settings_router as org_settings_router,
 )
 from apps.settings.api import org_router as settings_org_router
+from apps.settings.api import team_router as settings_team_router
 from apps.settings.api import user_router as settings_user_router
 from apps.teams.api import router as teams_router
 
@@ -49,4 +50,5 @@ api.add_router("/organizations/", orgs_router)
 api.add_router("/teams/", teams_router)
 api.add_router("/users/", users_router)
 api.add_router("/settings/org/", settings_org_router)
+api.add_router("/settings/teams/", settings_team_router)
 api.add_router("/settings/user/", settings_user_router)

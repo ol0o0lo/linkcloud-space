@@ -77,7 +77,6 @@ INSTALLED_APPS = [
     "allauth.socialaccount.providers.github",
     "storages",
     "hijack",
-    "rest_framework",
 ]
 
 # DJANGO HIJACK SETTINGS
@@ -351,6 +350,7 @@ ACCOUNT_SHOW_POST_LOGIN_MESSAGE = False
 # instead of rendering templates, and email/redirect links are mapped through
 # HEADLESS_FRONTEND_URLS to SPA routes.
 HEADLESS_ONLY = True
+HEADLESS_CLIENTS = ["browser", "app"]  # app client 供移动端使用，通过 X-Session-Token 鉴权
 HEADLESS_FRONTEND_URLS = {
     "account_confirm_email": "/accounts/confirm-email/{key}",
     "account_reset_password_from_key": "/accounts/password/reset/key/{key}",
@@ -509,17 +509,4 @@ MAINTENANCE_MODE_STATE_BACKEND = "maintenance_mode.backends.CacheBackend"
 MAINTENANCE_MODE_STATE_BACKEND_FALLBACK_VALUE = True
 
 VITE_DEV_MODE = env.bool("VITE_DEV_MODE", default=DEBUG)
-
-# ---------------------------------------------------------------------------
-# Django REST Framework
-# ---------------------------------------------------------------------------
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
-    ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated",
-    ],
-    "EXCEPTION_HANDLER": "config.drf_exceptions.custom_exception_handler",
-}
 

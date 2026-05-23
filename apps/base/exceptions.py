@@ -1,72 +1,67 @@
 """
 异常体系基类。
 
-code 由 MRO 链上各层的 _code_segment 拼接而成：
-    BadRequestError(_code_segment="01") + MediaError(_code_segment="20")
-    + InvalidExtensionError(_code_segment="01") → code="012001"
+code 由 MRO 链上各层的 code 拼接而成：
+    BadRequestError(code="01") + MediaError(code="20")
+    + InvalidExtensionError(code="01") → code="012001"
 
 各 app 在自己的 exceptions.py 中继承对应的大类并定义子类。
+所有 AppException 响应均使用 HTTP 200，由 code 字段区分错误类型。
 """
+
+from typing import ClassVar
 
 
 class AppException(Exception):
-    _code_segment: str = ""
-    status_code: int = 500
-    default_message: str = "服务异常"
+    code: ClassVar[str] = ""
+    message: ClassVar[str] = "服务异常"
 
     def __init__(self, message: str | None = None):
-        self.message = message or self.default_message
+        self.message: str = message if message is not None else self.__class__.message
         super().__init__(self.message)
 
     @classmethod
-    def code(cls) -> str:
-        segments = "".join(
-            klass.__dict__["_code_segment"]
+    def full_code(cls) -> str:
+        return "".join(
+            klass.__dict__["code"]
             for klass in reversed(cls.__mro__)
-            if "_code_segment" in klass.__dict__ and klass.__dict__["_code_segment"]
+            if "code" in klass.__dict__ and klass.__dict__["code"]
         )
-        return f"{cls.status_code}{segments}"
 
 
-# ── 通用大类 ────────────────────────────────────────────────────────────────
+# 通用大类
 
 class BadRequestException(AppException):
-    """400 参数或业务校验失败。"""
-    _code_segment = "01"
-    status_code = 400
-    default_message = "请求参数错误"
+    """参数或业务校验失败。"""
+    code = "01"
+    message = "请求参数错误"
 
 
 class AuthException(AppException):
-    """401 未认证。"""
-    _code_segment = "02"
-    status_code = 401
-    default_message = "请先登录"
+    """未认证。"""
+    code = "02"
+    message = "请先登录"
 
 
 class ForbiddenException(AppException):
-    """403 无权限。"""
-    _code_segment = "03"
-    status_code = 403
-    default_message = "无操作权限"
+    """无权限。"""
+    code = "03"
+    message = "无操作权限"
 
 
 class NotFoundException(AppException):
-    """404 资源不存在。"""
-    _code_segment = "04"
-    status_code = 404
-    default_message = "资源不存在"
+    """资源不存在。"""
+    code = "04"
+    message = "资源不存在"
 
 
 class ConflictException(AppException):
-    """409 资源冲突（重复创建等）。"""
-    _code_segment = "05"
-    status_code = 409
-    default_message = "资源已存在"
+    """资源冲突（重复创建等）。"""
+    code = "05"
+    message = "资源已存在"
 
 
 class QuotaExceededException(AppException):
-    """402 超出配额限制。"""
-    _code_segment = "06"
-    status_code = 402
-    default_message = "已达到创建上限"
+    """超出配额限制。"""
+    code = "06"
+    message = "已达到创建上限"
