@@ -393,7 +393,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # 关闭 socialaccount 自动注册弹窗（headless 模式下用 provider/signup 端点处理）
 SOCIALACCOUNT_AUTO_SIGNUP = True
-SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"  # GitHub email 已经过 GitHub 验证
 
 # ALLAUTH MFA SETTINGS
