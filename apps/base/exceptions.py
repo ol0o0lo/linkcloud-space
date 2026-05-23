@@ -20,11 +20,12 @@ class AppException(Exception):
 
     @classmethod
     def code(cls) -> str:
-        return "".join(
+        segments = "".join(
             klass.__dict__["_code_segment"]
             for klass in reversed(cls.__mro__)
             if "_code_segment" in klass.__dict__ and klass.__dict__["_code_segment"]
         )
+        return f"{cls.status_code}{segments}"
 
 
 # ── 通用大类 ────────────────────────────────────────────────────────────────
