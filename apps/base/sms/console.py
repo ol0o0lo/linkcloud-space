@@ -9,5 +9,4 @@ class ConsoleSMSBackend(SMSBackend):
     """Development SMS backend that prints verification codes to the console/log."""
 
     def send(self, phone: str, code: str) -> None:
-        logger.info("SMS to %s: %s", phone, code)
-        print(f"\n[SMS] To: {phone} | Code: {code}\n")
+        logger.warning("[SMS] To: %s | Code: %s", phone, code)
