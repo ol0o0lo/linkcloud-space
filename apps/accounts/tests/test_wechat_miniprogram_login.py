@@ -68,3 +68,32 @@ def test_wechat_miniprogram_provider_token_endpoint_reachable(client, db):
     # 任何非 404/405 都说明 provider 已注册且端点正常工作
     assert resp.status_code not in (404, 405), \
         f"Provider 未注册或端点不存在: {resp.status_code} {resp.content[:200]}"
+
+
+@override_settings(**MINIPROGRAM_TEST_SETTINGS)
+def test_miniprogram_login_calls_jscode2session(client, db):
+    """provider/token 端点收到 code 后调用微信 jscode2session API。"""
+    from unittest.mock import MagicMock, patch
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"openid": "test_openid_123", "session_key": "test_session_key"}
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch(
+        "apps.accounts.providers.wechat_miniprogram.provider.http_requests.get",
+        return_value=mock_resp,
+    ) as mock_get:
+        client.post(
+            "/_allauth/app/v1/auth/provider/token",
+            {
+                "provider": "wechat_miniprogram",
+                "process": "login",
+                "token": {"client_id": "test-miniprogram-appid", "id_token": "test_code_abc"},
+            },
+            content_type="application/json",
+        )
+        mock_get.assert_called_once()
+        call_kwargs = mock_get.call_args
+        assert "jscode2session" in call_kwargs[0][0]
+        assert call_kwargs[1]["params"]["js_code"] == "test_code_abc"
+        assert call_kwargs[1]["params"]["appid"] == "test-miniprogram-appid"
