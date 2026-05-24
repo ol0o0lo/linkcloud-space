@@ -1,10 +1,11 @@
 from django.conf import settings
 from django.db import models
 
+from apps.base.enums import ChoicesMixin
 from apps.base.mixins import TimeStampModelMixin
 
 
-class ValueType(models.TextChoices):
+class ValueType(ChoicesMixin):
     TEXT = "text", "文本"
     PASSWORD = "password", "密码"
     JSON = "json", "JSON"
