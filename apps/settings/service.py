@@ -1,13 +1,13 @@
-from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting
+from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting, ValueType
 
 
 def _serialize_value(value, value_type: str):
     """根据 value_type 处理返回值。password 脱敏，其余做类型转换。"""
-    if value_type == "password":
+    if value_type == ValueType.PASSWORD:
         return "********"
-    if value_type == "boolean":
+    if value_type == ValueType.BOOLEAN:
         return bool(value)
-    if value_type == "integer":
+    if value_type == ValueType.INTEGER:
         return int(value)
     return value
 
