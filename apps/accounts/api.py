@@ -194,15 +194,15 @@ def delete_avatar(request):
     return Status(204, None)
 
 
-auth_router = Router(tags=["auth"])
 
 
-@auth_router.post("/wechat-phone/", response=WechatPhoneOut)
+@users_router.post("/me/wechat-phone/", response=WechatPhoneOut)
 def bind_wechat_phone(request, payload: WechatPhoneIn):
     require_authenticated(request)
     from allauth.socialaccount.models import SocialApp
 
-    from apps.accounts.wechat_phone import bind_phone_to_user, get_phone_number
+    from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
+    from apps.accounts.services import bind_phone_to_user
 
     try:
         app = SocialApp.objects.get(provider="wechat_miniprogram")
