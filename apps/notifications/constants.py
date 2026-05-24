@@ -1,7 +1,7 @@
-from django.db import models
+from apps.base.enums import StrChoices
 
 
-class NotificationChannel(models.TextChoices):
+class NotificationChannel(StrChoices):
     """
     Delivery channels recognized by `notify()`, `send_email()`, and the prefs API.
 
