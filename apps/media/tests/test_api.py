@@ -121,3 +121,50 @@ class TestConfirmAPI:
         }
         resp = self.client.post(CONFIRM_URL, payload, content_type="application/json")
         assert resp.status_code == 422
+
+
+from django.core.files.uploadedfile import SimpleUploadedFile  # noqa: E402
+
+UPLOAD_URL = "/api/media/upload/"
+
+
+@pytest.mark.django_db
+class TestUploadAPI:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        self.client = client
+        self.user = User.objects.create_user(username="uploader_api", password="secret")  # noqa: S106
+        self.client.force_login(self.user)
+
+    def test_requires_login(self):
+        from django.test import Client as AnonymousClient
+
+        anon = AnonymousClient()
+        file = SimpleUploadedFile("photo.png", b"fakecontent", content_type="image/png")
+        resp = anon.post(UPLOAD_URL, {"files": [file], "resource_type": "avatar"}, format="multipart")
+        assert resp.status_code == 401
+
+    @patch("apps.media.services.default_storage")
+    def test_single_file_upload(self, mock_storage):
+        mock_storage.save.return_value = "uploads/users/1/abc.png"
+        file = SimpleUploadedFile("photo.png", b"fakecontent", content_type="image/png")
+        resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": "avatar"}, format="multipart")
+        assert resp.status_code == 201
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["original_filename"] == "photo.png"
+
+    @patch("apps.media.services.default_storage")
+    def test_multiple_files_upload(self, mock_storage):
+        mock_storage.save.side_effect = ["uploads/users/1/a.png", "uploads/users/1/b.png"]
+        f1 = SimpleUploadedFile("a.png", b"content1", content_type="image/png")
+        f2 = SimpleUploadedFile("b.png", b"content2", content_type="image/png")
+        resp = self.client.post(UPLOAD_URL, {"files": [f1, f2], "resource_type": "avatar"}, format="multipart")
+        assert resp.status_code == 201
+        assert len(resp.json()) == 2
+
+    def test_invalid_resource_type_returns_422(self):
+        file = SimpleUploadedFile("photo.png", b"fakecontent", content_type="image/png")
+        resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": "bad_type"}, format="multipart")
+        assert resp.status_code == 422
