@@ -14,9 +14,11 @@
 因此测试中使用 settings APP 方式（不建 DB 记录）。
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from django.test import override_settings
+
+import pytest
 
 MINIPROGRAM_TEST_SETTINGS = {
     "SOCIALACCOUNT_PROVIDERS": {
@@ -44,13 +46,12 @@ def client():
 
 @override_settings(**MINIPROGRAM_TEST_SETTINGS)
 def test_wechat_miniprogram_provider_token_endpoint_reachable(client, db):
-    """provider/token 端点接受 wechat_miniprogram 请求（验证 provider 已注册）。
+    """
+    provider/token 端点接受 wechat_miniprogram 请求（验证 provider 已注册）。
 
     小程序走 app 端（/_allauth/app/v1/auth/provider/token）。
     此测试不 mock 微信 API，只验证端点存在且 provider 被识别（不返回 404/405）。
     """
-    from unittest.mock import MagicMock, patch
-
     mock_resp = MagicMock()
     mock_resp.json.return_value = {"openid": "probe_openid", "session_key": "sk"}
     mock_resp.raise_for_status = MagicMock()
@@ -73,8 +74,6 @@ def test_wechat_miniprogram_provider_token_endpoint_reachable(client, db):
 @override_settings(**MINIPROGRAM_TEST_SETTINGS)
 def test_miniprogram_login_calls_jscode2session(client, db):
     """provider/token 端点收到 code 后调用微信 jscode2session API。"""
-    from unittest.mock import MagicMock, patch
-
     mock_resp = MagicMock()
     mock_resp.json.return_value = {"openid": "test_openid_123", "session_key": "test_session_key"}
     mock_resp.raise_for_status = MagicMock()
@@ -101,8 +100,6 @@ def test_miniprogram_login_calls_jscode2session(client, db):
 
 def _mock_wx_login(client, openid, *, unionid=None):
     """辅助函数：mock 微信登录，返回 response。"""
-    from unittest.mock import MagicMock, patch
-
     wx_data = {"openid": openid, "session_key": "sk"}
     if unionid:
         wx_data["unionid"] = unionid
@@ -130,6 +127,7 @@ def _mock_wx_login(client, openid, *, unionid=None):
 def test_miniprogram_new_user_auto_registers(client, db):
     """新 openid 首次登录自动创建 User 和 SocialAccount。"""
     from django.contrib.auth import get_user_model
+
     from allauth.socialaccount.models import SocialAccount
 
     User = get_user_model()
@@ -167,6 +165,7 @@ def test_miniprogram_username_format(client, db):
 def test_miniprogram_existing_user_logs_in(client, db):
     """已有 SocialAccount 的 openid 再次登录，直接返回已有 User，不重复创建。"""
     from django.contrib.auth import get_user_model
+
     from allauth.socialaccount.models import SocialAccount
     from model_bakery import baker
 
@@ -189,8 +188,6 @@ def test_miniprogram_existing_user_logs_in(client, db):
 @override_settings(**MINIPROGRAM_TEST_SETTINGS)
 def test_miniprogram_invalid_code_returns_error(client, db):
     """微信返回 errcode 时，响应为 4xx 而非 500。"""
-    from unittest.mock import MagicMock, patch
-
     mock_resp = MagicMock()
     mock_resp.json.return_value = {"errcode": 40029, "errmsg": "invalid code"}
     mock_resp.raise_for_status = MagicMock()
@@ -231,9 +228,10 @@ MINIPROGRAM_AND_WEIXIN_SETTINGS = {
 def test_unionid_merge_miniprogram_then_weixin(db):
     """先小程序登录建立账号，再用相同 unionid 的 weixin provider 登录，应合并为同一 User。"""
     from django.contrib.auth import get_user_model
+    from django.test import RequestFactory
+
     from allauth.socialaccount.models import SocialAccount, SocialLogin, SocialToken
     from model_bakery import baker
-    from django.test import RequestFactory
 
     User = get_user_model()
 
@@ -269,9 +267,10 @@ def test_unionid_merge_miniprogram_then_weixin(db):
 def test_unionid_merge_weixin_then_miniprogram(db):
     """先网页扫码登录建立账号，再用相同 unionid 的小程序登录，应合并为同一 User。"""
     from django.contrib.auth import get_user_model
+    from django.test import RequestFactory
+
     from allauth.socialaccount.models import SocialAccount, SocialLogin, SocialToken
     from model_bakery import baker
-    from django.test import RequestFactory
 
     User = get_user_model()
 
@@ -307,6 +306,7 @@ def test_unionid_merge_weixin_then_miniprogram(db):
 def test_no_unionid_creates_independent_accounts(client, db):
     """小程序登录没有 unionid 时，不合并，独立创建账号。"""
     from django.contrib.auth import get_user_model
+
     from allauth.socialaccount.models import SocialAccount
     from model_bakery import baker
 

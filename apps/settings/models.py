@@ -19,13 +19,7 @@ class DefaultSetting(TimeStampModelMixin):
     value = models.JSONField()
     value_type = models.CharField(max_length=20, choices=ValueType.choices, default=ValueType.TEXT)
     description = models.TextField(blank=True)
-    updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="+",
-    )
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
 
     class Meta:
         db_table = "settings_default"
@@ -38,16 +32,8 @@ class DefaultSetting(TimeStampModelMixin):
 class OrganizationSetting(TimeStampModelMixin):
     """租户覆盖设置，稀疏存储，只存与默认值不同的项。"""
 
-    organization = models.ForeignKey(
-        "organizations.Organization",
-        on_delete=models.CASCADE,
-        related_name="settings",
-    )
-    setting = models.ForeignKey(
-        DefaultSetting,
-        on_delete=models.PROTECT,
-        related_name="org_overrides",
-    )
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="settings")
+    setting = models.ForeignKey(DefaultSetting, on_delete=models.PROTECT, related_name="org_overrides")
     value = models.JSONField()
 
     class Meta:
@@ -61,16 +47,8 @@ class OrganizationSetting(TimeStampModelMixin):
 class TeamSetting(TimeStampModelMixin):
     """Team 覆盖设置，稀疏存储，fallback 到 DefaultSetting（不经过 Org）。"""
 
-    team = models.ForeignKey(
-        "teams.Team",
-        on_delete=models.CASCADE,
-        related_name="settings",
-    )
-    setting = models.ForeignKey(
-        DefaultSetting,
-        on_delete=models.PROTECT,
-        related_name="team_overrides",
-    )
+    team = models.ForeignKey("teams.Team", on_delete=models.CASCADE, related_name="settings")
+    setting = models.ForeignKey(DefaultSetting, on_delete=models.PROTECT, related_name="team_overrides")
     value = models.JSONField()
 
     class Meta:
@@ -84,11 +62,7 @@ class TeamSetting(TimeStampModelMixin):
 class UserSetting(TimeStampModelMixin):
     """用户偏好，独立存储，无 fallback 链，key 不需要在 DefaultSetting 中预定义。"""
 
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="preferences",
-    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="preferences")
     key = models.CharField(max_length=100)
     value = models.JSONField()
 

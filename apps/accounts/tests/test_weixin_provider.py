@@ -5,8 +5,9 @@ weixin provider 是 allauth 内置实现，此处只验证配置正确、
 provider 可用、redirect 返回到微信授权页。
 """
 
-import pytest
 from django.test import override_settings
+
+import pytest
 
 WEIXIN_TEST_SETTINGS = {
     "SOCIALACCOUNT_PROVIDERS": {
