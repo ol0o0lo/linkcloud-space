@@ -3,6 +3,7 @@ import json
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.files.storage import default_storage
 
 from alibabacloud_sts20150401.client import Client as StsClient
 from alibabacloud_sts20150401.models import AssumeRoleRequest
@@ -10,6 +11,7 @@ from alibabacloud_tea_openapi.models import Config as TeaConfig
 
 from apps.media.constants import MediaExtension, MediaScope
 from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
+from apps.media.models import MediaFile
 
 
 def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
@@ -76,12 +78,6 @@ def get_oss_token(scope: str, object_id: int, filename: str) -> dict:
     }
 
 
-from django.core.files.base import ContentFile  # noqa: E402, F401
-from django.core.files.storage import default_storage  # noqa: E402
-
-from apps.media.models import MediaFile as _MediaFile  # noqa: E402
-
-
 def register_media_file(
     *,
     uploader,
@@ -89,9 +85,9 @@ def register_media_file(
     original_filename: str,
     resource_type: str,
     file_size: int,
-) -> _MediaFile:
+) -> MediaFile:
     """将已存在于 OSS 的文件路径登记为 MediaFile 记录。"""
-    mf = _MediaFile(
+    mf = MediaFile(
         uploader=uploader,
         resource_type=resource_type,
         original_filename=original_filename,
@@ -107,13 +103,13 @@ def upload_and_register(
     uploader,
     file,
     resource_type: str,
-) -> _MediaFile:
+) -> MediaFile:
     """将文件上传到默认存储后端（OSS），并登记 MediaFile 记录。"""
-    parts = file.name.rsplit(".", 1)
-    ext = parts[1].lower() if len(parts) == 2 else ""
-    uid = uuid4().hex
-    oss_path = f"uploads/users/{uploader.pk}/{uid}.{ext}" if ext else f"uploads/users/{uploader.pk}/{uid}"
-
+    oss_path = generate_upload_path(
+        scope=MediaScope.USER,
+        object_id=uploader.pk,
+        filename=file.name,
+    )
     saved_path = default_storage.save(oss_path, file)
     return register_media_file(
         uploader=uploader,

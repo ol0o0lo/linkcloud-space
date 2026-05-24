@@ -5,7 +5,7 @@ from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.responses import Status
 
-from apps.base.permissions import require_authenticated, require_org_selected
+from apps.base.permissions import require_org_selected
 from apps.media.constants import MediaScope, ResourceType
 from apps.media.schemas import MediaFileConfirmIn, MediaFileOut, OssTokenIn, OssTokenOut
 from apps.media.services import get_oss_token, register_media_file, upload_and_register
@@ -15,8 +15,6 @@ router = Router(tags=["media"])
 
 @router.get("/oss-token/", response=OssTokenOut)
 def oss_token(request, params: OssTokenIn = Query(...)):
-    require_authenticated(request)
-
     if params.scope == MediaScope.USER:
         object_id = request.user.pk
     else:
@@ -29,7 +27,6 @@ def oss_token(request, params: OssTokenIn = Query(...)):
 
 @router.post("/confirm/", response={201: MediaFileOut})
 def confirm_upload(request, payload: MediaFileConfirmIn):
-    require_authenticated(request)
     if payload.resource_type not in ResourceType.values:
         raise HttpError(422, f"无效的 resource_type: {payload.resource_type}")
     mf = register_media_file(
@@ -44,7 +41,6 @@ def confirm_upload(request, payload: MediaFileConfirmIn):
 
 @router.post("/upload/", response={201: list[MediaFileOut]})
 def upload_files(request, files: list[UploadedFile] = File(...), resource_type: str = Form(...)):
-    require_authenticated(request)
     if resource_type not in ResourceType.values:
         raise HttpError(422, f"无效的 resource_type: {resource_type}")
     results = []
