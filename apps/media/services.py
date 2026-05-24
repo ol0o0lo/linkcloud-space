@@ -13,15 +13,15 @@ from apps.media.exceptions import InvalidExtensionException, InvalidScopeExcepti
 
 
 def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
-    if scope not in MediaScope.get_values():
+    if scope not in MediaScope.values:
         raise InvalidScopeException()
 
     parts = filename.rsplit(".", 1)
     if len(parts) != 2 or not parts[1]:
         raise InvalidExtensionException("文件名必须包含有效扩展名")
     ext = parts[1].lower()
-    if ext not in MediaExtension.get_values():
-        raise InvalidExtensionException(f"不支持的扩展名 '.{ext}'，允许：{MediaExtension.get_values()}")
+    if ext not in MediaExtension.values:
+        raise InvalidExtensionException(f"不支持的扩展名 '.{ext}'，允许：{MediaExtension.values}")
 
     uid = uuid4().hex
     if scope == MediaScope.USER:

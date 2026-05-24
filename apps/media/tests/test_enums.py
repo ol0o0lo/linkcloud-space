@@ -3,7 +3,7 @@ from apps.media.enums import MediaExtension, MediaScope
 
 class TestMediaScope:
     def test_values(self):
-        assert MediaScope.get_values() == ["user", "org"]
+        assert MediaScope.values == ["user", "org"]
 
     def test_user_member(self):
         assert MediaScope.USER == "user"
@@ -14,7 +14,7 @@ class TestMediaScope:
 
 class TestMediaExtension:
     def test_values(self):
-        assert MediaExtension.get_values() == ["jpg", "jpeg", "png", "webp"]
+        assert MediaExtension.values == ["jpg", "jpeg", "png", "webp"]
 
     def test_jpg_member(self):
         assert MediaExtension.JPG == "jpg"
