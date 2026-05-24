@@ -49,19 +49,43 @@ class AccountAdapter(DefaultAccountAdapter):
         user.phone_verified = verified
         user.save(update_fields=["phone", "phone_verified"])
 
-    def set_phone_verified(self, user, phone):
-        """Mark the phone number as verified."""
-        user.phone_verified = True
-        user.save(update_fields=["phone_verified"])
-
     def get_user_by_phone(self, phone):
-        """Look up a user by phone number. Returns None if not found."""
+        """Look up a user by phone number.
+
+        When signup is open and the phone is not registered, create an inactive
+        placeholder so allauth can generate and send a verification code. The account
+        is only activated after the code is confirmed (see set_phone_verified).
+        """
         from apps.accounts.models import User
 
         try:
             return User.objects.get(phone=phone)
         except User.DoesNotExist:
+            pass
+
+        if not getattr(settings, "ACCOUNT_SIGNUP_OPEN", False):
             return None
+
+        import uuid
+
+        user = User(
+            phone=phone,
+            phone_verified=False,
+            is_active=False,
+            username=f"phone_{uuid.uuid4().hex[:12]}",
+        )
+        user.set_unusable_password()
+        user.save()
+        return user
+
+    def set_phone_verified(self, user, phone):
+        """Mark the phone number as verified and activate new accounts."""
+        user.phone_verified = True
+        update_fields = ["phone_verified"]
+        if not user.is_active:
+            user.is_active = True
+            update_fields.append("is_active")
+        user.save(update_fields=update_fields)
 
     def send_verification_code_sms(self, user, phone, code, **kwargs):
         """Send SMS verification code via configured SMS backend."""
