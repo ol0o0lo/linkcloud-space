@@ -1,9 +1,8 @@
-import io
 import json
 import logging
 
+import requests as http_requests
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
@@ -11,7 +10,6 @@ from ninja import File, Form, Query, Router, Status
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.pagination import paginate
-from PIL import Image
 
 from apps.accounts.schemas import AvatarOut, ImpersonateUserOut, UserOut, UserPatchIn, WechatPhoneIn, WechatPhoneOut
 from apps.base.ninja_pagination import make_pagination
@@ -19,18 +17,7 @@ from apps.base.permissions import require_authenticated
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-ALLOWED_PIL_FORMATS = {"JPEG", "PNG", "WEBP"}
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
-# Pillow defaults to ~89M pixels; that's still enough headroom for a
-# decompression-bomb DoS on a small avatar worker. 32M (≈ 5660x5660) is
-# plenty for an avatar source and bounds the worst-case decode cost.
-MAX_IMAGE_PIXELS = 32 * 1024 * 1024
-THUMBNAIL_SIZE = 256
-
-
 users_router = Router(tags=["users"])
-avatar_router = Router(tags=["avatar"])
 
 
 def _users_qs(request):
@@ -101,17 +88,14 @@ def patch_user(request, user_id: int, payload: UserPatchIn):
     return user
 
 
-@avatar_router.post("/", response=AvatarOut)
+@users_router.post("/me/avatar/", response=AvatarOut)
 def upload_avatar(
     request,
     image: UploadedFile = File(...),
     crop_data: str = Form("{}"),
 ):
     require_authenticated(request)
-    if image.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HttpError(400, "Unsupported image type. Use JPEG, PNG, or WebP.")
-    if image.size > MAX_UPLOAD_SIZE:
-        raise HttpError(400, "Image must be under 10 MB.")
+    from apps.accounts.services import process_and_save_avatar
 
     try:
         crop = json.loads(crop_data or "{}")
@@ -120,80 +104,21 @@ def upload_avatar(
     if not isinstance(crop, dict):
         raise HttpError(400, "Invalid crop_data: must be a JSON object.")
 
-    crop_box = None
-    if crop.get("width") and crop.get("height"):
-        try:
-            left = int(crop["left"])
-            top = int(crop["top"])
-            width = int(crop["width"])
-            height = int(crop["height"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise HttpError(400, "Invalid crop_data: left/top/width/height must be numbers.") from exc
-        crop_box = (left, top, left + width, top + height)
-
-    image.seek(0)
     try:
-        probe = Image.open(image)
-        probe_format = probe.format
-        probe.verify()
-    except Exception as exc:
-        raise HttpError(400, "Could not decode the uploaded image.") from exc
-    if probe_format not in ALLOWED_PIL_FORMATS:
-        raise HttpError(400, "Unsupported image format. Use JPEG, PNG, or WebP.")
+        avatar_url = process_and_save_avatar(request.user, image, crop)
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
 
-    image.seek(0)
-    try:
-        img = Image.open(image)
-        if (img.width * img.height) > MAX_IMAGE_PIXELS:
-            raise HttpError(400, "Image dimensions are too large.")
-        img = img.convert("RGB")
-    except HttpError:
-        raise
-    except Exception as exc:
-        raise HttpError(400, "Could not decode the uploaded image.") from exc
-    if crop_box is not None:
-        img = img.crop(crop_box)
-    img = img.resize((THUMBNAIL_SIZE, THUMBNAIL_SIZE), Image.LANCZOS)
-    thumb_io = io.BytesIO()
-    img.save(thumb_io, format="JPEG", quality=90)
-    thumb_file = InMemoryUploadedFile(thumb_io, None, "thumbnail.jpg", "image/jpeg", thumb_io.tell(), None)
-
-    user = request.user
-    # Capture the previous storage paths before the field assignments below
-    # overwrite them; we only delete them after the model row commits, so a
-    # mid-upload failure leaves the prior avatar intact.
-    old_original = user.avatar_original.name if user.avatar_original else None
-    old_thumb = user.avatar_thumbnail.name if user.avatar_thumbnail else None
-    old_original_storage = user.avatar_original.storage if user.avatar_original else None
-    old_thumb_storage = user.avatar_thumbnail.storage if user.avatar_thumbnail else None
-
-    image.seek(0)
-    user.avatar_original.save(image.name, image, save=False)
-    user.avatar_thumbnail.save("thumbnail.jpg", thumb_file, save=False)
-    user.avatar_crop_data = crop
-    user.save(update_fields=["avatar_original", "avatar_thumbnail", "avatar_crop_data"])
-
-    if old_original and old_original != user.avatar_original.name:
-        old_original_storage.delete(old_original)
-    if old_thumb and old_thumb != user.avatar_thumbnail.name:
-        old_thumb_storage.delete(old_thumb)
-
-    return {"avatar_url": user.avatar_url}
+    return {"avatar_url": avatar_url}
 
 
-@avatar_router.delete("/", response={204: None})
+@users_router.delete("/me/avatar/", response={204: None})
 def delete_avatar(request):
     require_authenticated(request)
-    user = request.user
-    if user.avatar_original:
-        user.avatar_original.delete(save=False)
-    if user.avatar_thumbnail:
-        user.avatar_thumbnail.delete(save=False)
-    user.avatar_crop_data = None
-    user.save(update_fields=["avatar_original", "avatar_thumbnail", "avatar_crop_data"])
+    from apps.accounts.services import delete_user_avatar
+
+    delete_user_avatar(request.user)
     return Status(204, None)
-
-
 
 
 @users_router.post("/me/wechat-phone/", response=WechatPhoneOut)
@@ -212,7 +137,6 @@ def bind_wechat_phone(request, payload: WechatPhoneIn):
         provider = get_social_adapter().get_provider(request, "wechat_miniprogram")
         app = provider.app
 
-    import requests as http_requests
     try:
         phone = get_phone_number(app, payload.phone_code)
     except (ValueError, http_requests.RequestException) as e:
