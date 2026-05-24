@@ -17,6 +17,42 @@ from apps.organizations.session import get_member_count, get_owner_count
 router = Router(tags=["app"])
 
 
+class AppContextUserOut(Schema):
+    id: int
+    email: str
+    username: str
+    first_name: str
+    last_name: str
+    timezone: str
+    timezone_display: str
+    avatar_url: str | None
+    phone: str | None
+    phone_verified: bool
+    is_staff: bool
+    is_superuser: bool
+    is_hijacked: bool
+    organizations: list[dict]
+
+
+class AppContextOrgOut(Schema):
+    id: int
+    name: str
+    slug: str
+    is_owner: bool
+
+
+class AppContextOut(Schema):
+    user: AppContextUserOut | None
+    org: AppContextOrgOut | None
+    organizations: list[dict]
+    orgMemberCount: int
+    orgOwnerCount: int
+    siteName: str
+    instance: str
+    signupOpen: bool
+    version: str
+
+
 def _get_app_version() -> str:
     if vite_settings.VITE_DEV_MODE is True:
         return "dev"
@@ -33,7 +69,7 @@ def get_version(request):
     return {"version": _get_app_version()}
 
 
-@router.get("/app-context/", auth=None)
+@router.get("/app-context/", auth=None, response=AppContextOut)
 def app_context(request):
     if not request.user.is_authenticated:
         return {
