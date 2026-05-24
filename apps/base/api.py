@@ -7,6 +7,7 @@ from ninja.errors import HttpError
 
 from apps.accounts.models import User
 from apps.base.permissions import require_superuser
+from apps.base.schemas import AppContextOut
 from apps.base.templatetags.vite import _get_manifest, vite_settings
 from apps.base.utils.email import send_email
 from apps.base.utils.timezones import get_timezone_label
@@ -15,42 +16,6 @@ from apps.organizations.models import Organization, OrganizationMember
 from apps.organizations.session import get_member_count, get_owner_count
 
 router = Router(tags=["app"])
-
-
-class AppContextUserOut(Schema):
-    id: int
-    email: str
-    username: str
-    first_name: str
-    last_name: str
-    timezone: str
-    timezone_display: str
-    avatar_url: str | None
-    phone: str | None
-    phone_verified: bool
-    is_staff: bool
-    is_superuser: bool
-    is_hijacked: bool
-    organizations: list[dict]
-
-
-class AppContextOrgOut(Schema):
-    id: int
-    name: str
-    slug: str
-    is_owner: bool
-
-
-class AppContextOut(Schema):
-    user: AppContextUserOut | None
-    org: AppContextOrgOut | None
-    organizations: list[dict]
-    orgMemberCount: int
-    orgOwnerCount: int
-    siteName: str
-    instance: str
-    signupOpen: bool
-    version: str
 
 
 def _get_app_version() -> str:
