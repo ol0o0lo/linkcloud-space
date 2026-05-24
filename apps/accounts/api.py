@@ -30,6 +30,12 @@ def _users_qs(request):
     return User.objects.filter(**filter_kwargs).only("id", "username", "first_name", "last_name", "timezone").order_by("first_name")
 
 
+@users_router.get("/me/", response=UserOut)
+def get_me(request):
+    require_authenticated(request)
+    return request.user
+
+
 @users_router.get("/", response=list[UserOut])
 @paginate(make_pagination(default_page_size=50))
 def list_users(request, q: str | None = Query(None)):
