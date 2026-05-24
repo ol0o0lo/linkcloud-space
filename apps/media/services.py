@@ -74,3 +74,28 @@ def get_oss_token(scope: str, object_id: int, filename: str) -> dict:
         "path": path,
         "expires_at": token["expires_at"],
     }
+
+
+from django.core.files.base import ContentFile  # noqa: E402, F401
+
+from apps.media.models import MediaFile as _MediaFile  # noqa: E402
+
+
+def register_media_file(
+    *,
+    uploader,
+    oss_path: str,
+    original_filename: str,
+    resource_type: str,
+    file_size: int,
+) -> _MediaFile:
+    """将已存在于 OSS 的文件路径登记为 MediaFile 记录。"""
+    mf = _MediaFile(
+        uploader=uploader,
+        resource_type=resource_type,
+        original_filename=original_filename,
+        file_size=file_size,
+    )
+    mf.file.name = oss_path
+    mf.save()
+    return mf
