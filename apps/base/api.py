@@ -67,6 +67,8 @@ def app_context(request):
             "timezone": user.timezone,
             "timezone_display": get_timezone_label(user.timezone),
             "avatar_url": user.avatar_url,
+            "phone": user.phone,
+            "phone_verified": user.phone_verified,
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
             "is_hijacked": getattr(user, "is_hijacked", False),
