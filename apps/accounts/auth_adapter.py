@@ -52,16 +52,29 @@ class AccountAdapter(DefaultAccountAdapter):
     def get_user_by_phone(self, phone):
         """Look up a user by phone number.
 
-        When signup is open and the phone is not registered, create an inactive
-        placeholder so allauth can generate and send a verification code. The account
-        is only activated after the code is confirmed (see set_phone_verified).
+        For the phone-code login flow (code/request), if signup is open and the
+        phone is not yet registered, create an inactive placeholder so allauth can
+        generate and send a verification code.  The account is activated only after
+        the code is confirmed (see set_phone_verified).
+
+        For the email+phone signup flow we deliberately do NOT create a placeholder
+        here, because allauth's BaseSignupForm._clean_phone would otherwise treat the
+        returned user as "account_already_exists" and silently abort the signup.
         """
+        from allauth.core import context
+
         from apps.accounts.models import User
 
         try:
             return User.objects.get(phone=phone)
         except User.DoesNotExist:
             pass
+
+        # Only auto-create a placeholder during the "login by code" request path.
+        request = context.request
+        is_code_request = request is not None and "code/request" in request.path
+        if not is_code_request:
+            return None
 
         if not getattr(settings, "ACCOUNT_SIGNUP_OPEN", False):
             return None

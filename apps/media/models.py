@@ -26,5 +26,5 @@ class MediaFile(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
-    def __str__(self):
+    def __str__(self):  # noqa: D105
         return f"{self.resource_type}:{self.original_filename}"

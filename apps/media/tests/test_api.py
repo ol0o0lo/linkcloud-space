@@ -72,7 +72,6 @@ class TestOssTokenAPI:
         assert resp.status_code == 403
 
 
-from apps.media.constants import ResourceType  # noqa: E402
 from apps.media.models import MediaFile  # noqa: E402
 
 CONFIRM_URL = "/api/media/confirm/"

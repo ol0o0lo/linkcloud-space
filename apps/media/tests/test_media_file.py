@@ -2,7 +2,6 @@ import pytest
 
 from apps.accounts.models import User
 from apps.media.constants import ResourceType
-from apps.media.models import MediaFile
 from apps.media.services import register_media_file
 
 

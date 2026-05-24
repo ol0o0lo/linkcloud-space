@@ -1,5 +1,4 @@
 """OSS 临时凭证接口."""
-from typing import List
 
 from ninja import File, Form, Query, Router
 from ninja.errors import HttpError
@@ -43,8 +42,8 @@ def confirm_upload(request, payload: MediaFileConfirmIn):
     return Status(201, mf)
 
 
-@router.post("/upload/", response={201: List[MediaFileOut]})
-def upload_files(request, files: List[UploadedFile] = File(...), resource_type: str = Form(...)):
+@router.post("/upload/", response={201: list[MediaFileOut]})
+def upload_files(request, files: list[UploadedFile] = File(...), resource_type: str = Form(...)):
     require_authenticated(request)
     if resource_type not in ResourceType.values:
         raise HttpError(422, f"无效的 resource_type: {resource_type}")

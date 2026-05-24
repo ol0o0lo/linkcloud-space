@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.headless",
+    "allauth.usersessions",
     "allauth.mfa",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",

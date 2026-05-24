@@ -3,8 +3,9 @@ from uuid import UUID
 
 import pytest
 
-from apps.media.services import generate_upload_path, _generate_sts_token as generate_sts_token
-from apps.media.exceptions import InvalidScopeException, InvalidExtensionException
+from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
+from apps.media.services import _generate_sts_token as generate_sts_token
+from apps.media.services import generate_upload_path
 
 
 class TestGenerateUploadPath:
