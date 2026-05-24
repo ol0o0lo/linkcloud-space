@@ -1,10 +1,12 @@
 """OSS 临时凭证接口."""
 from ninja import Query, Router
+from ninja.errors import HttpError
+from ninja.responses import Status
 
 from apps.base.permissions import require_authenticated, require_org_selected
-from apps.media.constants import MediaScope
-from apps.media.schemas import OssTokenIn, OssTokenOut
-from apps.media.services import get_oss_token
+from apps.media.constants import MediaScope, ResourceType
+from apps.media.schemas import MediaFileConfirmIn, MediaFileOut, OssTokenIn, OssTokenOut
+from apps.media.services import get_oss_token, register_media_file
 
 router = Router(tags=["media"])
 
@@ -21,3 +23,18 @@ def oss_token(request, params: OssTokenIn = Query(...)):
 
     result = get_oss_token(scope=params.scope, object_id=object_id, filename=params.filename)
     return OssTokenOut(**result)
+
+
+@router.post("/confirm/", response={201: MediaFileOut})
+def confirm_upload(request, payload: MediaFileConfirmIn):
+    require_authenticated(request)
+    if payload.resource_type not in ResourceType.values:
+        raise HttpError(422, f"无效的 resource_type: {payload.resource_type}")
+    mf = register_media_file(
+        uploader=request.user,
+        oss_path=payload.oss_path,
+        original_filename=payload.original_filename,
+        resource_type=payload.resource_type,
+        file_size=payload.file_size,
+    )
+    return Status(201, mf)

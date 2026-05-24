@@ -70,3 +70,54 @@ class TestOssTokenAPI:
         self._login()
         resp = self._get({"scope": "org", "filename": "room.jpg"})
         assert resp.status_code == 403
+
+
+from apps.media.constants import ResourceType  # noqa: E402
+from apps.media.models import MediaFile  # noqa: E402
+
+CONFIRM_URL = "/api/media/confirm/"
+
+
+@pytest.mark.django_db
+class TestConfirmAPI:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        self.client = client
+        self.user = User.objects.create_user(username="confirmer", password="secret")  # noqa: S106
+        self.client.force_login(self.user)
+
+    def test_requires_login(self, client):
+        from django.test import Client as DjangoClient
+
+        anon = DjangoClient()
+        resp = anon.post(
+            CONFIRM_URL,
+            {"oss_path": "x", "original_filename": "x.png", "resource_type": "avatar", "file_size": 100},
+            content_type="application/json",
+        )
+        assert resp.status_code == 401
+
+    def test_creates_media_file(self):
+        payload = {
+            "oss_path": "uploads/users/1/abc.png",
+            "original_filename": "photo.png",
+            "resource_type": "avatar",
+            "file_size": 1024,
+        }
+        resp = self.client.post(CONFIRM_URL, payload, content_type="application/json")
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["original_filename"] == "photo.png"
+        assert data["resource_type"] == "avatar"
+        assert "url" in data
+        assert MediaFile.objects.filter(pk=data["id"]).exists()
+
+    def test_invalid_resource_type_returns_422(self):
+        payload = {
+            "oss_path": "uploads/users/1/abc.png",
+            "original_filename": "photo.png",
+            "resource_type": "nonexistent",
+            "file_size": 1024,
+        }
+        resp = self.client.post(CONFIRM_URL, payload, content_type="application/json")
+        assert resp.status_code == 422

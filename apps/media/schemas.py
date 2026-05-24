@@ -29,7 +29,10 @@ class MediaFileOut(Schema):
 
     @staticmethod
     def resolve_url(obj):
-        return obj.file.url
+        try:
+            return obj.file.url
+        except Exception:
+            return obj.file.name or ""
 
 
 class MediaFileConfirmIn(Schema):
