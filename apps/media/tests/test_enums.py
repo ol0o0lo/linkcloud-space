@@ -1,4 +1,4 @@
-from apps.media.enums import MediaExtension, MediaScope
+from apps.media.constants import MediaExtension, MediaScope
 
 
 class TestMediaScope:

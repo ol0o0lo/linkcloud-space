@@ -2,7 +2,7 @@
 from ninja import Query, Router
 
 from apps.base.permissions import require_authenticated, require_org_selected
-from apps.media.enums import MediaScope
+from apps.media.constants import MediaScope
 from apps.media.schemas import OssTokenIn, OssTokenOut
 from apps.media.services import get_oss_token
 

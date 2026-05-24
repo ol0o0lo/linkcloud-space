@@ -1,6 +1,6 @@
 from ninja import Schema
 
-from apps.media.enums import MediaScope
+from apps.media.constants import MediaScope
 
 
 class OssTokenIn(Schema):

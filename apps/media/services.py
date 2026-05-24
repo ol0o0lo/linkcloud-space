@@ -8,7 +8,7 @@ from alibabacloud_sts20150401.client import Client as StsClient
 from alibabacloud_sts20150401.models import AssumeRoleRequest
 from alibabacloud_tea_openapi.models import Config as TeaConfig
 
-from apps.media.enums import MediaExtension, MediaScope
+from apps.media.constants import MediaExtension, MediaScope
 from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
 
 

@@ -1,4 +1,5 @@
-from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting, ValueType
+from apps.settings.constants import ValueType
+from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting
 
 
 def _serialize_value(value, value_type: str):
