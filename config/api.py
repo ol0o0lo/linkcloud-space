@@ -6,7 +6,7 @@ from ninja import NinjaAPI
 from ninja.security import django_auth
 
 from allauth.headless.contrib.ninja.security import jwt_token_auth
-from apps.accounts.api import avatar_router, users_router
+from apps.accounts.api import users_router
 from apps.base.api import router as base_router
 from apps.base.errors import register_error_handlers
 from apps.media.api import router as media_router
@@ -40,7 +40,6 @@ api = NinjaAPI(
 register_error_handlers(api)
 
 api.add_router("/", base_router)
-api.add_router("/avatar/", avatar_router)
 api.add_router("/media/", media_router)
 api.add_router("/organization-invites/", org_invites_router)
 api.add_router("/invite-by-key/", public_invites_router)
