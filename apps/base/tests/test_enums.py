@@ -1,19 +1,19 @@
 from django.utils.translation import gettext_lazy as _
 
-from apps.base.enums import ChoicesMixin, IntegerChoicesMixin
+from apps.base.enums import IntChoices, StrChoices
 
 
-class Color(ChoicesMixin):
+class Color(StrChoices):
     RED = "red", _("红色")
     GREEN = "green", _("绿色")
 
 
-class Status(IntegerChoicesMixin):
+class Status(IntChoices):
     ACTIVE = 1, "启用"
     INACTIVE = 0, "禁用"
 
 
-class TestChoicesMixin:
+class TestStrChoices:
     def test_get_choice_label_found(self):
         assert Color.get_choice_label("red") == "红色"
 
@@ -21,7 +21,7 @@ class TestChoicesMixin:
         assert Color.get_choice_label("unknown") == "unknown"
 
 
-class TestIntegerChoicesMixin:
+class TestIntChoices:
     def test_values(self):
         assert Status.values == [1, 0]
 
