@@ -2,17 +2,18 @@
 from ninja import Query, Router
 
 from apps.base.permissions import require_authenticated, require_org_selected
+from apps.media.enums import MediaScope
 from apps.media.schemas import OssTokenIn, OssTokenOut
 from apps.media.services import get_oss_token
 
 router = Router(tags=["media"])
 
 
-@router.get("/oss-token/", response=OssTokenOut, auth=None)
+@router.get("/oss-token/", response=OssTokenOut)
 def oss_token(request, params: OssTokenIn = Query(...)):
     require_authenticated(request)
 
-    if params.scope == "user":
+    if params.scope == MediaScope.USER:
         object_id = request.user.pk
     else:
         org = require_org_selected(request)

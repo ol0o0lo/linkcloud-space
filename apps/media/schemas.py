@@ -1,10 +1,10 @@
-from typing import Literal
-
 from ninja import Schema
+
+from apps.media.enums import MediaScope
 
 
 class OssTokenIn(Schema):
-    scope: Literal["user", "org"]
+    scope: MediaScope
     filename: str
 
 
