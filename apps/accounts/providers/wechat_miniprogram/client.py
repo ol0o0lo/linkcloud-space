@@ -3,8 +3,28 @@
 import requests
 from django.core.cache import cache
 
+JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session"
 ACCESS_TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token"  # noqa: S105
 GET_PHONE_URL = "https://api.weixin.qq.com/wxa/business/getuserphonenumber"
+
+
+def jscode2session(app, js_code: str) -> dict:
+    """用小程序 code 换取 openid / session_key / unionid，失败抛 ValueError。"""
+    resp = requests.get(
+        JSCODE2SESSION_URL,
+        params={
+            "appid": app.client_id,
+            "secret": app.secret,
+            "js_code": js_code,
+            "grant_type": "authorization_code",
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("errcode"):
+        raise ValueError(f"微信登录失败: {data.get('errmsg', data['errcode'])}")
+    return data
 
 
 def get_miniprogram_access_token(app) -> str:

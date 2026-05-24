@@ -1,8 +1,5 @@
-import requests as http_requests
 from allauth.socialaccount.adapter import get_adapter
 from allauth.socialaccount.providers.base import Provider, ProviderAccount
-
-JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session"
 
 
 class WechatMiniprogramAccount(ProviderAccount):
@@ -48,21 +45,14 @@ class WechatMiniprogramProvider(Provider):
         if not code:
             raise get_adapter().validation_error("invalid_token", "缺少 code 参数。")
 
-        app = self.app
-        params = {
-            "appid": app.client_id,
-            "secret": app.secret,
-            "js_code": code,
-            "grant_type": "authorization_code",
-        }
-        resp = http_requests.get(JSCODE2SESSION_URL, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        from apps.accounts.providers.wechat_miniprogram.client import jscode2session
 
-        if data.get("errcode"):
+        try:
+            data = jscode2session(self.app, code)
+        except ValueError as e:
             from django.core.exceptions import ValidationError
 
-            raise ValidationError(f"微信登录失败: {data.get('errmsg', data['errcode'])}")
+            raise ValidationError(str(e)) from e
 
         return self.sociallogin_from_response(request, data)
 
