@@ -10,6 +10,20 @@ class UserOut(Schema):
     avatar_url: str | None = None
 
 
+class MeOut(Schema):
+    id: int
+    email: str
+    username: str
+    first_name: str
+    last_name: str
+    timezone: str
+    avatar_url: str | None
+    phone: str | None
+    phone_verified: bool
+    is_staff: bool
+    is_superuser: bool
+
+
 class UserPatchIn(Schema):
     first_name: str | None = None
     last_name: str | None = None

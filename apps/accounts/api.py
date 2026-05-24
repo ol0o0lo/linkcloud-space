@@ -11,7 +11,7 @@ from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.pagination import paginate
 
-from apps.accounts.schemas import AvatarOut, ImpersonateUserOut, UserOut, UserPatchIn, WechatPhoneIn, WechatPhoneOut
+from apps.accounts.schemas import AvatarOut, ImpersonateUserOut, MeOut, UserOut, UserPatchIn, WechatPhoneIn, WechatPhoneOut
 from apps.base.ninja_pagination import make_pagination
 from apps.base.permissions import require_authenticated
 
@@ -28,6 +28,12 @@ def _users_qs(request):
     else:
         filter_kwargs["organizationmember__organization"] = request.org.pk
     return User.objects.filter(**filter_kwargs).only("id", "username", "first_name", "last_name", "timezone").order_by("first_name")
+
+
+@users_router.get("/me/", response=MeOut)
+def get_me(request):
+    require_authenticated(request)
+    return request.user
 
 
 @users_router.get("/", response=list[UserOut])
