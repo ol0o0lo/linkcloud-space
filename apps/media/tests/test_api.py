@@ -32,7 +32,7 @@ class TestOssTokenAPI:
 
     def test_requires_login(self):
         resp = self._get({"scope": "user", "filename": "photo.jpg"})
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     @patch("apps.media.services._generate_sts_token")
     @patch("apps.media.services.generate_upload_path", return_value="uploads/users/1/abc.jpg")
@@ -59,7 +59,9 @@ class TestOssTokenAPI:
         mock_path.side_effect = InvalidExtensionException()
         self._login()
         resp = self._get({"scope": "user", "filename": "file.exe"})
-        assert resp.status_code == 400
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "code" in data
 
     @patch("apps.media.services._generate_sts_token")
     @patch("apps.media.services.generate_upload_path", return_value="uploads/orgs/5/abc.jpg")

@@ -8,25 +8,23 @@ from alibabacloud_sts20150401.client import Client as StsClient
 from alibabacloud_sts20150401.models import AssumeRoleRequest
 from alibabacloud_tea_openapi.models import Config as TeaConfig
 
+from apps.media.enums import MediaExtension, MediaScope
 from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
-
-ALLOWED_SCOPES = {"user", "org"}
-ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 
 
 def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
-    if scope not in ALLOWED_SCOPES:
+    if scope not in MediaScope.get_values():
         raise InvalidScopeException()
 
     parts = filename.rsplit(".", 1)
     if len(parts) != 2 or not parts[1]:
         raise InvalidExtensionException("文件名必须包含有效扩展名")
     ext = parts[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise InvalidExtensionException(f"不支持的扩展名 '.{ext}'，允许：{ALLOWED_EXTENSIONS}")
+    if ext not in MediaExtension.get_values():
+        raise InvalidExtensionException(f"不支持的扩展名 '.{ext}'，允许：{MediaExtension.get_values()}")
 
     uid = uuid4().hex
-    if scope == "user":
+    if scope == MediaScope.USER:
         return f"uploads/users/{object_id}/{uid}.{ext}"
     return f"uploads/orgs/{object_id}/{uid}.{ext}"
 
