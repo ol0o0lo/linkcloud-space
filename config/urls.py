@@ -19,9 +19,6 @@ def _public_not_found(request, path=""):
 
 urlpatterns: list[URLResolver | URLPattern] = [
     path("_allauth/", include("allauth.headless.urls")),
-    # OAuth 回调端点（allauth socialaccount 需要）
-    path("accounts/", include("allauth.socialaccount.providers.github.urls")),
-    path("accounts/", include("allauth.socialaccount.providers.weixin.urls")),
     path("api/", ninja_api.urls),
     path("-/", include("django_alive.urls")),
     path("admin/", admin.site.urls),
