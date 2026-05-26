@@ -33,6 +33,11 @@ reset := `tput -Txterm sgr0`
     {{ bun_cmd_prefix }} bun run build
     just collectstatic
 
+# Build admin frontend assets (vben-admin web-antdv-next)
+@build_admin:
+    cd frontend_admin/apps/web-antdv-next && pnpm build
+    just collectstatic
+
 # Remove build files, python cache files and test coverage data
 @clean: clean_py_cache clean_coverage_data
     rm -rf .ty_cache/
