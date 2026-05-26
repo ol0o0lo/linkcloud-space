@@ -1,7 +1,10 @@
 import io
+import os
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseBadRequest
+from django.middleware.csrf import get_token
 from django.shortcuts import render
 from django.views import generic
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -22,16 +25,14 @@ class SPAView(generic.TemplateView):
 
 class DashboardSPAView(generic.View):
     def get(self, request, *args, **kwargs):
-        import os
-        from django.conf import settings
-        from django.middleware.csrf import get_token
-
         index_path = os.path.join(settings.BASE_DIR, "public", "static", "dist", "admin", "index.html")
-        with open(index_path, "rb") as f:
-            content = f.read()
-        response = HttpResponse(content, content_type="text/html; charset=utf-8")
+        try:
+            with open(index_path, "rb") as f:
+                content = f.read()
+        except FileNotFoundError:
+            return HttpResponse("Admin frontend not built. Run `just build_admin`.", status=503)
         get_token(request)
-        return response
+        return HttpResponse(content, content_type="text/html; charset=utf-8")
 
 
 def http_500(request):
