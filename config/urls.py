@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.http import HttpResponseNotFound
 from django.urls import URLPattern, URLResolver, include, path, re_path
 
-from apps.base.views import SPAView, http_404, http_500, qr_svg
+from apps.base.views import DashboardSPAView, SPAView, http_404, http_500, qr_svg
 from config.api import api as ninja_api
 
 
@@ -34,6 +34,7 @@ urlpatterns: list[URLResolver | URLPattern] = [
         SPAView.as_view(),
         name="accept_invite",
     ),
+    re_path(r"^dashboard/", DashboardSPAView.as_view(), name="dashboard-spa"),
     re_path(r"^public/", _public_not_found, name="public-not-found"),
     re_path(r"^(?!public/).*$", SPAView.as_view(), name="spa"),
 ]
