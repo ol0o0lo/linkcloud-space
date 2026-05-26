@@ -20,6 +20,20 @@ class SPAView(generic.TemplateView):
         return ensure_csrf_cookie(view)
 
 
+class DashboardSPAView(generic.View):
+    def get(self, request, *args, **kwargs):
+        import os
+        from django.conf import settings
+        from django.middleware.csrf import get_token
+
+        index_path = os.path.join(settings.BASE_DIR, "public", "static", "dist", "admin", "index.html")
+        with open(index_path, "rb") as f:
+            content = f.read()
+        response = HttpResponse(content, content_type="text/html; charset=utf-8")
+        get_token(request)
+        return response
+
+
 def http_500(request):
     raise Exception
 
