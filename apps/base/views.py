@@ -23,16 +23,33 @@ class SPAView(generic.TemplateView):
         return ensure_csrf_cookie(view)
 
 
+def _static_index_response(request, relative_index_path: str, missing_message: str) -> HttpResponse:
+    index_path = os.path.join(settings.BASE_DIR, *relative_index_path.split("/"))
+    try:
+        with open(index_path, "rb") as f:
+            content = f.read()
+    except FileNotFoundError:
+        return HttpResponse(missing_message, status=503)
+    get_token(request)
+    return HttpResponse(content, content_type="text/html; charset=utf-8")
+
+
 class DashboardSPAView(generic.View):
     def get(self, request, *args, **kwargs):
-        index_path = os.path.join(settings.BASE_DIR, "public", "static", "dist", "admin", "index.html")
-        try:
-            with open(index_path, "rb") as f:
-                content = f.read()
-        except FileNotFoundError:
-            return HttpResponse("Admin frontend not built. Run `just build_admin`.", status=503)
-        get_token(request)
-        return HttpResponse(content, content_type="text/html; charset=utf-8")
+        return _static_index_response(
+            request,
+            "public/static/dist/admin/index.html",
+            "Admin frontend not built. Run `just build_admin`.",
+        )
+
+
+class H5SPAView(generic.View):
+    def get(self, request, *args, **kwargs):
+        return _static_index_response(
+            request,
+            "public/static/dist/h5/index.html",
+            "H5 frontend not built. Run `just build_h5`.",
+        )
 
 
 def http_500(request):

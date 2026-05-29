@@ -38,6 +38,11 @@ reset := `tput -Txterm sgr0`
     cd frontend_admin/apps/web-antdv-next && pnpm build
     just collectstatic
 
+# Build H5 frontend assets
+@build_h5:
+    cd frontend_miniprogram && pnpm build:h5
+    just collectstatic
+
 # Remove build files, python cache files and test coverage data
 @clean: clean_py_cache clean_coverage_data
     rm -rf .ty_cache/
@@ -87,6 +92,8 @@ reset := `tput -Txterm sgr0`
 # Run Django's collectstatic management command
 @collectstatic:
     just _start_msg "Collecting static files"
+    if [ -d frontend_admin/apps/web-antdv-next/dist ]; then mkdir -p public/static/dist/admin && cp -R frontend_admin/apps/web-antdv-next/dist/. public/static/dist/admin/; fi
+    if [ -d frontend_miniprogram/dist/build/h5 ]; then mkdir -p public/static/dist/h5 && cp -R frontend_miniprogram/dist/build/h5/. public/static/dist/h5/; fi
     {{ python_cmd_prefix }} ./manage.py collectstatic --no-input --no-default-ignore --clear
 
 # Dump the database
