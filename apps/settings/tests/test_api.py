@@ -3,6 +3,8 @@ import json
 import pytest
 from model_bakery import baker
 
+from apps.access.models import AccessRole
+from apps.access.tests.helpers import bind_org_role, bind_team_role, make_access_group
 from apps.accounts.models import User
 from apps.organizations.models import OrganizationMember
 from apps.settings.models import DefaultSetting, OrganizationSetting
@@ -78,7 +80,19 @@ class TestOrgSettingList:
         resp = client.get(ORG_LIST_URL)
         assert resp.status_code in (401, 403)
 
-    def test_member_can_list(self, client, default_text, org, member):
+    def test_member_without_view_permission_cannot_list(self, client, default_text, org, member):
+        client.force_login(member)
+        set_session_org(client, org)
+        resp = client.get(ORG_LIST_URL)
+        assert resp.status_code == 403
+
+    def test_member_with_view_permission_can_list(self, client, default_text, org, member):
+        group = make_access_group(
+            "org_settings_viewer",
+            AccessRole.Scope.ORG,
+            [("settings", "org_setting_view")],
+        )
+        bind_org_role(org, member, group)
         client.force_login(member)
         set_session_org(client, org)
         resp = client.get(ORG_LIST_URL)
@@ -87,6 +101,12 @@ class TestOrgSettingList:
         assert any(item["key"] == "site_name" for item in data)
 
     def test_response_includes_description_and_value_type(self, client, default_text, org, member):
+        group = make_access_group(
+            "org_settings_viewer_details",
+            AccessRole.Scope.ORG,
+            [("settings", "org_setting_view")],
+        )
+        bind_org_role(org, member, group)
         client.force_login(member)
         set_session_org(client, org)
         resp = client.get(ORG_LIST_URL)
@@ -96,6 +116,12 @@ class TestOrgSettingList:
         assert item["is_customized"] is False
 
     def test_password_value_masked(self, client, default_password, org, member):
+        group = make_access_group(
+            "org_settings_viewer_password",
+            AccessRole.Scope.ORG,
+            [("settings", "org_setting_view")],
+        )
+        bind_org_role(org, member, group)
         client.force_login(member)
         set_session_org(client, org)
         resp = client.get(ORG_LIST_URL)
@@ -138,6 +164,70 @@ class TestOrgSettingDetail:
         set_session_org(client, org, is_owner=True)
         resp = client.get(org_detail_url("nonexistent"))
         assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestTeamSettingDetail:
+    def test_team_viewer_can_list_bound_team_settings(self, client, default_text, org, member):
+        team = baker.make("teams.Team", organization=org)
+        team.members.add(member)
+        group = make_access_group(
+            "team_settings_viewer",
+            AccessRole.Scope.TEAM,
+            [("settings", "team_setting_view")],
+        )
+        bind_team_role(team, member, group)
+        client.force_login(member)
+        set_session_org(client, org)
+
+        resp = client.get(team_list_url(team.pk))
+
+        assert resp.status_code == 200
+
+    def test_team_member_without_view_permission_cannot_list_team_settings(self, client, default_text, org, member):
+        team = baker.make("teams.Team", organization=org)
+        team.members.add(member)
+        client.force_login(member)
+        set_session_org(client, org)
+
+        resp = client.get(team_list_url(team.pk))
+
+        assert resp.status_code == 403
+
+    def test_team_manager_can_put_bound_team_setting(self, client, default_text, org, member):
+        team = baker.make("teams.Team", organization=org)
+        team.members.add(member)
+        group = make_access_group(
+            "team_manager_for_settings",
+            AccessRole.Scope.TEAM,
+            [("settings", "team_setting_manage")],
+        )
+        bind_team_role(team, member, group)
+        client.force_login(member)
+        set_session_org(client, org)
+
+        resp = put_json(client, team_detail_url(team.pk, "site_name"), {"value": "Team Name"})
+
+        assert resp.status_code == 200
+        assert resp.json()["value"] == "Team Name"
+
+    def test_team_manager_cannot_put_other_team_setting(self, client, default_text, org, member):
+        team = baker.make("teams.Team", organization=org)
+        other_team = baker.make("teams.Team", organization=org)
+        team.members.add(member)
+        other_team.members.add(member)
+        group = make_access_group(
+            "team_manager_for_settings_other",
+            AccessRole.Scope.TEAM,
+            [("settings", "team_setting_manage")],
+        )
+        bind_team_role(team, member, group)
+        client.force_login(member)
+        set_session_org(client, org)
+
+        resp = put_json(client, team_detail_url(other_team.pk, "site_name"), {"value": "Other Team"})
+
+        assert resp.status_code == 403
 
 
 @pytest.mark.django_db

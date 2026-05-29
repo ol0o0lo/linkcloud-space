@@ -10,8 +10,11 @@ from ninja import Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
+from apps.access.constants import OrganizationPermission
+from apps.access.permissions import require_org_permission
 from apps.base.ninja_pagination import LegacyPagination
-from apps.base.permissions import require_authenticated, require_org_owner
+from apps.base.permissions import require_authenticated
+from apps.organizations.hooks import post_create_organization, pre_create_organization
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.schemas import (
     InviteIn,
@@ -30,7 +33,6 @@ from apps.organizations.schemas import (
     SuccessOut,
     SwitchListItemOut,
 )
-from apps.organizations.hooks import post_create_organization, pre_create_organization
 from apps.organizations.session import remove_org, save_counts, save_org_data
 
 orgs_router = Router(tags=["organizations"])
@@ -132,7 +134,7 @@ def _members_qs(request):
 @members_router.get("/", response=list[MemberOut])
 @paginate(LegacyPagination)
 def list_members(request, q: str | None = Query(None)):
-    require_org_owner(request)
+    require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     qs = _members_qs(request)
     if q:
         qs = qs.filter(
@@ -146,7 +148,7 @@ def list_members(request, q: str | None = Query(None)):
 
 @members_router.get("/search/", response=list[MemberSearchOut])
 def search_members(request, q: str = Query("")):
-    org = require_org_owner(request)
+    org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     user_model = apps.get_model(settings.AUTH_USER_MODEL)
     qs = []
     if len(q) > 2:
@@ -178,20 +180,20 @@ def search_members(request, q: str = Query("")):
 
 @members_router.post("/", response={201: MemberOut})
 def create_member(request, payload: MemberIn):
-    org = require_org_owner(request)
+    org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     membership = OrganizationMember.objects.create(organization=org, user_id=payload.user, is_owner=payload.is_owner)
     return Status(201, membership)
 
 
 @members_router.get("/{member_id}/", response=MemberOut)
 def get_member(request, member_id: int):
-    require_org_owner(request)
+    require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     return get_object_or_404(_members_qs(request), pk=member_id)
 
 
 @members_router.patch("/{member_id}/", response=MemberOut)
 def patch_member(request, member_id: int, payload: MemberPatchIn):
-    require_org_owner(request)
+    require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     membership = get_object_or_404(_members_qs(request), pk=member_id)
     was_owner = membership.is_owner
     if payload.is_owner is not None:
@@ -204,7 +206,7 @@ def patch_member(request, member_id: int, payload: MemberPatchIn):
 
 @members_router.delete("/{member_id}/", response={204: None})
 def delete_member(request, member_id: int):
-    require_org_owner(request)
+    require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     membership = get_object_or_404(_members_qs(request), pk=member_id)
     if membership.user.pk == request.user.pk:
         raise HttpError(400, "You're not allowed to remove yourself from the organization.")
@@ -229,13 +231,13 @@ def _invites_qs(request):
 @invites_router.get("/", response=list[InviteOut])
 @paginate(LegacyPagination)
 def list_invites(request):
-    require_org_owner(request)
+    require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     return _invites_qs(request)
 
 
 @invites_router.post("/", response={201: InviteOut})
 def create_invite(request, payload: InviteIn):
-    org = require_org_owner(request)
+    org = require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     with transaction.atomic():
         invite = OrganizationInvite.objects.create(
             organization=org,
@@ -250,13 +252,13 @@ def create_invite(request, payload: InviteIn):
 
 @invites_router.get("/{invite_id}/", response=InviteOut)
 def get_invite(request, invite_id: int):
-    require_org_owner(request)
+    require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     return get_object_or_404(_invites_qs(request), pk=invite_id)
 
 
 @invites_router.delete("/{invite_id}/", response={204: None})
 def delete_invite(request, invite_id: int):
-    require_org_owner(request)
+    require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     invite = get_object_or_404(_invites_qs(request), pk=invite_id)
     with transaction.atomic():
         transaction.on_commit(invite.send_cancellation)
@@ -271,13 +273,13 @@ def delete_invite(request, invite_id: int):
 
 @settings_router.get("/", response=SettingsOut)
 def get_settings(request):
-    org = require_org_owner(request)
+    org = require_org_permission(request, OrganizationPermission.SETTING_MANAGE)
     return {"billing_email": org.billing_email or ""}
 
 
 @settings_router.patch("/update_settings/", response=SettingsOut)
 def update_settings(request, payload: SettingsPatchIn):
-    org = require_org_owner(request)
+    org = require_org_permission(request, OrganizationPermission.SETTING_MANAGE)
     data = payload.dict(exclude_unset=True)
     for field, value in data.items():
         setattr(org, field, value)

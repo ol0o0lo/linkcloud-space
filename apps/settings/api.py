@@ -2,14 +2,12 @@
 
 from typing import Any
 
-from django.core.exceptions import PermissionDenied
-from django.shortcuts import get_object_or_404
-
 from ninja import Router, Schema, Status
 from ninja.errors import HttpError
 
+from apps.access.constants import SettingsPermission
+from apps.access.permissions import require_org_permission, require_team_permission
 from apps.base.permissions import require_authenticated
-from apps.organizations.models import OrganizationMember
 from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting
 from apps.settings.service import (
     delete_org_setting,
@@ -25,7 +23,6 @@ from apps.settings.service import (
     set_team_setting,
     set_user_setting,
 )
-from apps.teams.models import Team
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -63,47 +60,38 @@ user_router = Router(tags=["settings-user"])
 # ---------------------------------------------------------------------------
 
 
-def _is_org_owner(request) -> bool:
-    org = request.org.instance
-    return OrganizationMember.objects.filter(organization=org, user=request.user, is_owner=True).exists()
-
-
 @org_router.get("/", response=list[SettingOut])
 def list_org_settings(request):
-    require_authenticated(request)
+    require_org_permission(request, SettingsPermission.ORG_SETTING_VIEW)
     return get_all_org_settings(request.org.instance)
 
 
 @org_router.get("/{key}/", response=SettingOut)
 def get_org_setting_view(request, key: str):
-    require_authenticated(request)
+    require_org_permission(request, SettingsPermission.ORG_SETTING_VIEW)
     try:
         return get_org_setting(request.org.instance, key)
-    except DefaultSetting.DoesNotExist:
-        raise HttpError(404, "设置项不存在")
+    except DefaultSetting.DoesNotExist as exc:
+        raise HttpError(404, "设置项不存在") from exc
 
 
 @org_router.put("/{key}/", response=SettingOut)
 def put_org_setting(request, key: str, payload: SetSettingIn):
-    require_authenticated(request)
-    if not _is_org_owner(request):
-        raise PermissionDenied("Only organization owners are allowed to perform this action.")
+    require_org_permission(request, SettingsPermission.ORG_SETTING_MANAGE)
     try:
         set_org_setting(request.org.instance, key, payload.value)
         return get_org_setting(request.org.instance, key)
-    except DefaultSetting.DoesNotExist:
-        raise HttpError(404, "设置项不存在")
+    except DefaultSetting.DoesNotExist as exc:
+        raise HttpError(404, "设置项不存在") from exc
 
 
 @org_router.delete("/{key}/", response={204: None})
 def delete_org_setting_view(request, key: str):
-    require_authenticated(request)
-    if not _is_org_owner(request):
-        raise PermissionDenied("Only organization owners are allowed to perform this action.")
+    require_org_permission(request, SettingsPermission.ORG_SETTING_MANAGE)
     try:
         delete_org_setting(request.org.instance, key)
-    except (DefaultSetting.DoesNotExist, OrganizationSetting.DoesNotExist):
-        raise HttpError(404, "覆盖设置不存在")
+    except (DefaultSetting.DoesNotExist, OrganizationSetting.DoesNotExist) as exc:
+        raise HttpError(404, "覆盖设置不存在") from exc
     return Status(204, None)
 
 
@@ -112,54 +100,38 @@ def delete_org_setting_view(request, key: str):
 # ---------------------------------------------------------------------------
 
 
-def _is_team_admin_or_org_owner(request, team: Team) -> bool:
-    is_member = team.members.filter(pk=request.user.pk).exists()
-    is_org_owner = OrganizationMember.objects.filter(
-        organization=team.organization, user=request.user, is_owner=True
-    ).exists()
-    return is_member or is_org_owner
-
-
 @team_router.get("/{team_id}/", response=list[SettingOut])
 def list_team_settings(request, team_id: int):
-    require_authenticated(request)
-    team = get_object_or_404(Team, pk=team_id)
+    team = require_team_permission(request, team_id, SettingsPermission.TEAM_SETTING_VIEW)
     return get_all_team_settings(team)
 
 
 @team_router.get("/{team_id}/{key}/", response=SettingOut)
 def get_team_setting_view(request, team_id: int, key: str):
-    require_authenticated(request)
-    team = get_object_or_404(Team, pk=team_id)
+    team = require_team_permission(request, team_id, SettingsPermission.TEAM_SETTING_VIEW)
     try:
         return get_team_setting(team, key)
-    except DefaultSetting.DoesNotExist:
-        raise HttpError(404, "设置项不存在")
+    except DefaultSetting.DoesNotExist as exc:
+        raise HttpError(404, "设置项不存在") from exc
 
 
 @team_router.put("/{team_id}/{key}/", response=SettingOut)
 def put_team_setting(request, team_id: int, key: str, payload: SetSettingIn):
-    require_authenticated(request)
-    team = get_object_or_404(Team, pk=team_id)
-    if not _is_team_admin_or_org_owner(request, team):
-        raise PermissionDenied("Only team members or org owners are allowed to perform this action.")
+    team = require_team_permission(request, team_id, SettingsPermission.TEAM_SETTING_MANAGE)
     try:
         set_team_setting(team, key, payload.value)
         return get_team_setting(team, key)
-    except DefaultSetting.DoesNotExist:
-        raise HttpError(404, "设置项不存在")
+    except DefaultSetting.DoesNotExist as exc:
+        raise HttpError(404, "设置项不存在") from exc
 
 
 @team_router.delete("/{team_id}/{key}/", response={204: None})
 def delete_team_setting_view(request, team_id: int, key: str):
-    require_authenticated(request)
-    team = get_object_or_404(Team, pk=team_id)
-    if not _is_team_admin_or_org_owner(request, team):
-        raise PermissionDenied("Only team members or org owners are allowed to perform this action.")
+    team = require_team_permission(request, team_id, SettingsPermission.TEAM_SETTING_MANAGE)
     try:
         delete_team_setting(team, key)
-    except (DefaultSetting.DoesNotExist, TeamSetting.DoesNotExist):
-        raise HttpError(404, "覆盖设置不存在")
+    except (DefaultSetting.DoesNotExist, TeamSetting.DoesNotExist) as exc:
+        raise HttpError(404, "覆盖设置不存在") from exc
     return Status(204, None)
 
 

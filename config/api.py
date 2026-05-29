@@ -2,10 +2,15 @@
 
 from django.conf import settings
 
+from allauth.headless.contrib.ninja.security import jwt_token_auth
 from ninja import NinjaAPI
 from ninja.security import django_auth
 
-from allauth.headless.contrib.ninja.security import jwt_token_auth
+from apps.access.api import org_bindings_router as access_org_bindings_router
+from apps.access.api import org_roles_router as access_org_roles_router
+from apps.access.api import permissions_router as access_permissions_router
+from apps.access.api import team_bindings_router as access_team_bindings_router
+from apps.access.api import team_roles_router as access_team_roles_router
 from apps.accounts.api import users_router
 from apps.base.api import router as base_router
 from apps.base.errors import register_error_handlers
@@ -41,6 +46,11 @@ register_error_handlers(api)
 
 api.add_router("/", base_router)
 api.add_router("/media/", media_router)
+api.add_router("/access/permissions/", access_permissions_router)
+api.add_router("/access/organization-roles/", access_org_roles_router)
+api.add_router("/access/organization-bindings/", access_org_bindings_router)
+api.add_router("/access/teams/", access_team_roles_router)
+api.add_router("/access/teams/", access_team_bindings_router)
 api.add_router("/organization-invites/", org_invites_router)
 api.add_router("/invite-by-key/", public_invites_router)
 api.add_router("/notifications/", notifications_router)

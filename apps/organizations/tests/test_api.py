@@ -6,6 +6,8 @@ from django.test import TestCase
 
 from model_bakery import baker
 
+from apps.access.models import AccessRole
+from apps.access.tests.helpers import bind_org_role, make_access_group
 from apps.accounts.models import User
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
@@ -125,6 +127,32 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
             data=json.dumps({"user": new_user.pk, "is_owner": False}),
             content_type="application/json",
         )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(OrganizationMember.objects.filter(organization=self.org, user=new_user).exists())
+
+    def test_org_admin_can_create_member(self):
+        admin = User.objects.create_user(username="admin", email="admin@example.com", password="secret")  # noqa: S106
+        new_user = User.objects.create_user(
+            username="member2",
+            email="member2@example.com",
+            password="secret",  # noqa: S106
+        )
+        baker.make("organizations.OrganizationMember", organization=self.org, user=admin, is_owner=False)
+        group = make_access_group(
+            "org_admin_for_members",
+            AccessRole.Scope.ORG,
+            [("organizations", "member_manage")],
+        )
+        bind_org_role(self.org, admin, group)
+        self.user = admin
+        self._login()
+
+        resp = self.client.post(
+            "/api/organization-members/",
+            data=json.dumps({"user": new_user.pk, "is_owner": False}),
+            content_type="application/json",
+        )
+
         self.assertEqual(resp.status_code, 201)
         self.assertTrue(OrganizationMember.objects.filter(organization=self.org, user=new_user).exists())
 

@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.organizations",
     "apps.teams",
+    "apps.access",
     "apps.notifications",
     "apps.settings",
     "maintenance_mode",
@@ -533,4 +534,3 @@ MAINTENANCE_MODE_STATE_BACKEND = "maintenance_mode.backends.CacheBackend"
 MAINTENANCE_MODE_STATE_BACKEND_FALLBACK_VALUE = True
 
 VITE_DEV_MODE = env.bool("VITE_DEV_MODE", default=DEBUG)
-
