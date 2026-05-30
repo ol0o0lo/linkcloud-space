@@ -7,7 +7,7 @@ from PIL import Image
 
 from apps.accounts.models import User
 
-URL = "/api/avatar/"
+URL = "/api/users/me/avatar/"
 
 
 def _make_png_bytes(size=(512, 512), color="red"):

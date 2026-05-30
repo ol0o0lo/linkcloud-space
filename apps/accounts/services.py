@@ -99,10 +99,25 @@ def bind_phone_to_user(request, user, phone: str):
     User = get_user_model()
 
     if user.phone == phone:
+        if not user.phone_verified:
+            user.phone_verified = True
+            user.save(update_fields=["phone_verified"])
         return user, False
 
     existing = User.objects.filter(phone=phone).exclude(pk=user.pk).first()
     if existing:
+        if not existing.phone_verified:
+            with transaction.atomic():
+                existing.phone = None
+                existing.phone_verified = False
+                existing.save(update_fields=["phone", "phone_verified"])
+                user.phone = phone
+                user.phone_verified = True
+                user.save(update_fields=["phone", "phone_verified"])
+            return user, False
+        if not existing.is_active:
+            raise ValueError("This phone number belongs to a disabled account.")
+
         with transaction.atomic():
             SocialAccount.objects.filter(user=user).update(user=existing)
             user.is_active = False

@@ -64,12 +64,12 @@ def test_access_token_cached_on_second_call(db):
 
     from allauth.socialaccount.models import SocialApp
 
-    from apps.accounts.wechat_phone import get_miniprogram_access_token
+    from apps.accounts.providers.wechat_miniprogram.client import get_miniprogram_access_token
 
     cache.clear()
     app = SocialApp(provider="wechat_miniprogram", client_id="test-miniprogram-appid", secret="test-miniprogram-secret")
 
-    with patch("apps.accounts.wechat_phone.requests.post", return_value=_make_access_token_mock()) as mock_post:
+    with patch("apps.accounts.providers.wechat_miniprogram.client.requests.post", return_value=_make_access_token_mock()) as mock_post:
         token1 = get_miniprogram_access_token(app)
         token2 = get_miniprogram_access_token(app)
 
@@ -86,12 +86,12 @@ def test_get_phone_number_returns_normalized(db):
 
     from allauth.socialaccount.models import SocialApp
 
-    from apps.accounts.wechat_phone import get_phone_number
+    from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
 
     cache.delete("wechat_miniprogram_access_token:test-miniprogram-appid")
     app = SocialApp(provider="wechat_miniprogram", client_id="test-miniprogram-appid", secret="test-miniprogram-secret")
 
-    with patch("apps.accounts.wechat_phone.requests.post") as mock_post:
+    with patch("apps.accounts.providers.wechat_miniprogram.client.requests.post") as mock_post:
         mock_post.side_effect = [_make_access_token_mock(), _make_phone_mock("13912345678", "86")]
         phone = get_phone_number(app, "test_phone_code")
 
@@ -106,7 +106,7 @@ def test_get_phone_number_raises_on_errcode(db):
 
     from allauth.socialaccount.models import SocialApp
 
-    from apps.accounts.wechat_phone import get_phone_number
+    from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
 
     cache.delete("wechat_miniprogram_access_token:test-miniprogram-appid")
     app = SocialApp(provider="wechat_miniprogram", client_id="test-miniprogram-appid", secret="test-miniprogram-secret")
@@ -115,7 +115,7 @@ def test_get_phone_number_raises_on_errcode(db):
     error_mock.json.return_value = {"errcode": 40029, "errmsg": "invalid code"}
     error_mock.raise_for_status = MagicMock()
 
-    with patch("apps.accounts.wechat_phone.requests.post") as mock_post:
+    with patch("apps.accounts.providers.wechat_miniprogram.client.requests.post") as mock_post:
         mock_post.side_effect = [_make_access_token_mock(), error_mock]
         with pytest.raises(ValueError, match="微信手机号换取失败"):
             get_phone_number(app, "bad_code")
@@ -129,9 +129,9 @@ def client():
 
 
 def test_wechat_phone_requires_auth(client, db):
-    """未登录请求 /api/auth/wechat-phone/ 返回 401。"""
+    """未登录请求 /api/users/me/wechat-phone/ 返回 401。"""
     resp = client.post(
-        "/api/auth/wechat-phone/",
+        "/api/users/me/wechat-phone/",
         {"phone_code": "some_code"},
         content_type="application/json",
     )
@@ -144,14 +144,14 @@ def _login_user(client, user):
 
 
 def _post_wechat_phone(client, phone_number="13800138000"):
-    """辅助：mock 微信 API，POST /api/auth/wechat-phone/。"""
+    """辅助：mock 微信 API，POST /api/users/me/wechat-phone/。"""
     from django.core.cache import cache
     cache.set("wechat_miniprogram_access_token:test-miniprogram-appid", "cached_token", timeout=7000)
 
     phone_mock = _make_phone_mock(phone_number)
-    with patch("apps.accounts.wechat_phone.requests.post", return_value=phone_mock):
+    with patch("apps.accounts.providers.wechat_miniprogram.client.requests.post", return_value=phone_mock):
         return client.post(
-            "/api/auth/wechat-phone/",
+            "/api/users/me/wechat-phone/",
             {"phone_code": "test_phone_code"},
             content_type="application/json",
         )
@@ -195,6 +195,83 @@ def test_bind_same_phone_is_idempotent(client, db):
 
     assert resp.status_code == 200
     assert resp.json()["merged"] is False
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_same_unverified_phone_marks_verified(client, db):
+    """当前用户已占用同一手机号但未验证时，绑定成功后应补成已验证。"""
+    from django.contrib.auth import get_user_model
+
+    from model_bakery import baker
+
+    User = get_user_model()
+    user = baker.make(User, username="wx_unverified", email="", phone="+8613800138000", phone_verified=False)
+    _login_user(client, user)
+
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 200
+    assert resp.json()["merged"] is False
+    user.refresh_from_db()
+    assert user.phone_verified is True
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_claims_inactive_unverified_placeholder(client, db):
+    """手机号只被未验证占位用户占用时，应绑定到当前用户而不是合并登录到占位用户。"""
+    from django.contrib.auth import get_user_model
+
+    from model_bakery import baker
+
+    User = get_user_model()
+    user = baker.make(User, username="wx_current", email="", phone=None)
+    placeholder = baker.make(
+        User,
+        username="phone_placeholder",
+        email="",
+        phone="+8613800138000",
+        phone_verified=False,
+        is_active=False,
+    )
+    _login_user(client, user)
+
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 200
+    assert resp.json()["merged"] is False
+    user.refresh_from_db()
+    placeholder.refresh_from_db()
+    assert user.phone == "+8613800138000"
+    assert user.phone_verified is True
+    assert placeholder.phone is None
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_rejects_inactive_verified_account(client, db):
+    """手机号属于已验证但停用账号时，不应合并或抢占该手机号。"""
+    from django.contrib.auth import get_user_model
+
+    from model_bakery import baker
+
+    User = get_user_model()
+    user = baker.make(User, username="wx_current_rejected", email="", phone=None)
+    inactive = baker.make(
+        User,
+        username="inactive_verified",
+        email="inactive@example.com",
+        phone="+8613800138000",
+        phone_verified=True,
+        is_active=False,
+    )
+    _login_user(client, user)
+
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 400
+    user.refresh_from_db()
+    inactive.refresh_from_db()
+    assert user.phone is None
+    assert inactive.phone == "+8613800138000"
 
 
 @override_settings(**WECHAT_PHONE_SETTINGS)
@@ -258,9 +335,9 @@ def test_wechat_phone_api_error_returns_400(client, db):
     error_mock.json.return_value = {"errcode": 40029, "errmsg": "invalid code"}
     error_mock.raise_for_status = MagicMock()
 
-    with patch("apps.accounts.wechat_phone.requests.post", return_value=error_mock):
+    with patch("apps.accounts.providers.wechat_miniprogram.client.requests.post", return_value=error_mock):
         resp = client.post(
-            "/api/auth/wechat-phone/",
+            "/api/users/me/wechat-phone/",
             {"phone_code": "bad_code"},
             content_type="application/json",
         )
