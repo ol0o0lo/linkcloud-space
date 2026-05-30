@@ -1,11 +1,12 @@
 from datetime import datetime
 
 from ninja import Schema
+from pydantic import Field
 
 
 class OrganizationCreateIn(Schema):
-    name: str
-    slug: str
+    name: str = Field(..., description="租户名称。")
+    slug: str = Field(..., description="租户 slug，用于切换与公开链接。")
 
 
 class OrganizationCreateOut(Schema):
@@ -73,12 +74,12 @@ class MemberOut(Schema):
 
 
 class MemberIn(Schema):
-    user: int
-    is_owner: bool = False
+    user: int = Field(..., description="要添加到租户的用户 ID。")
+    is_owner: bool = Field(False, description="是否授予该成员租户 owner 权限。")
 
 
 class MemberPatchIn(Schema):
-    is_owner: bool | None = None
+    is_owner: bool | None = Field(None, description="是否修改为租户 owner。")
 
 
 class MemberSearchOut(Schema):
@@ -115,9 +116,9 @@ class InviteOut(Schema):
 
 
 class InviteIn(Schema):
-    invitee_email: str = ""
-    invitee: int | None = None
-    is_owner: bool = False
+    invitee_email: str = Field("", description="被邀请人邮箱，可用于未注册用户邀请。")
+    invitee: int | None = Field(None, description="被邀请用户 ID，可用于站内已存在用户邀请。")
+    is_owner: bool = Field(False, description="接受邀请后是否授予租户 owner 权限。")
 
 
 class PublicInviteOut(Schema):
@@ -135,4 +136,4 @@ class SettingsOut(Schema):
 
 
 class SettingsPatchIn(Schema):
-    billing_email: str | None = None
+    billing_email: str | None = Field(None, description="租户账单联系邮箱。")

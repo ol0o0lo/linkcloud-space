@@ -13,7 +13,7 @@ from apps.teams.hooks import post_create_team, pre_create_team
 from apps.teams.models import Team
 from apps.teams.schemas import TeamIn, TeamOut, TeamPatchIn
 
-router = Router(tags=["teams"])
+router = Router(tags=["团队/基础"])
 
 
 def _team_qs(request):
@@ -32,9 +32,10 @@ def _validate_members(member_ids: list[int], org) -> list[int]:
     return member_ids
 
 
-@router.get("/", response=list[TeamOut])
+@router.get("/", response=list[TeamOut], summary="获取团队列表")
 @paginate(LegacyPagination)
-def list_teams(request, q: str | None = Query(None)):
+def list_teams(request, q: str | None = Query(None, description="按团队名称搜索。")):
+    """返回当前租户下用户可见的团队列表，支持按名称搜索。"""
     require_authenticated(request)
     org = require_org_selected(request)
     qs = _team_qs(request)
@@ -50,8 +51,9 @@ def list_teams(request, q: str | None = Query(None)):
     return qs.distinct()
 
 
-@router.post("/", response={201: TeamOut})
+@router.post("/", response={201: TeamOut}, summary="创建团队")
 def create_team(request, payload: TeamIn):
+    """在当前租户下创建一个新团队，并可设置初始成员。"""
     org = require_org_permission(request, TeamPermission.CREATE)
     member_ids = _validate_members(payload.members, org)
     pre_create_team(request)
@@ -63,13 +65,15 @@ def create_team(request, payload: TeamIn):
     return Status(201, team)
 
 
-@router.get("/{team_id}/", response=TeamOut)
+@router.get("/{team_id}/", response=TeamOut, summary="获取团队详情")
 def get_team(request, team_id: int):
+    """返回当前用户有权限访问的单个团队详情。"""
     return require_team_permission(request, team_id, TeamPermission.VIEW)
 
 
-@router.patch("/{team_id}/", response=TeamOut)
+@router.patch("/{team_id}/", response=TeamOut, summary="更新团队")
 def patch_team(request, team_id: int, payload: TeamPatchIn):
+    """更新团队名称或成员列表，成员变更需要额外的成员管理权限。"""
     team = require_team_permission(request, team_id, TeamPermission.UPDATE)
     org = team.organization
     if payload.name is not None:
@@ -82,8 +86,9 @@ def patch_team(request, team_id: int, payload: TeamPatchIn):
     return team
 
 
-@router.delete("/{team_id}/", response={204: None})
+@router.delete("/{team_id}/", response={204: None}, summary="删除团队")
 def delete_team(request, team_id: int):
+    """删除指定团队。"""
     team = require_team_permission(request, team_id, TeamPermission.DELETE)
     team.delete()
     return Status(204, None)

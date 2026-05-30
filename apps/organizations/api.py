@@ -6,7 +6,7 @@ from django.db import models, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
-from ninja import Query, Router, Status
+from ninja import Path, Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
@@ -35,11 +35,11 @@ from apps.organizations.schemas import (
 )
 from apps.organizations.session import remove_org, save_counts, save_org_data
 
-orgs_router = Router(tags=["organizations"])
-members_router = Router(tags=["organization-members"])
-invites_router = Router(tags=["organization-invites"])
-public_invites_router = Router(tags=["public-invites"])
-settings_router = Router(tags=["organization-settings"])
+orgs_router = Router(tags=["租户/基础"])
+members_router = Router(tags=["租户/成员"])
+invites_router = Router(tags=["租户/邀请"])
+public_invites_router = Router(tags=["租户/公开邀请"])
+settings_router = Router(tags=["租户/资料"])
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +47,9 @@ settings_router = Router(tags=["organization-settings"])
 # ---------------------------------------------------------------------------
 
 
-@orgs_router.post("/", response={201: OrganizationCreateOut})
+@orgs_router.post("/", response={201: OrganizationCreateOut}, summary="创建租户")
 def create_organization(request, payload: OrganizationCreateIn):
+    """创建一个新租户，并将当前用户设置为租户 owner 与 primary 成员。"""
     require_authenticated(request)
     pre_create_organization(request)
     with transaction.atomic():
@@ -59,8 +60,9 @@ def create_organization(request, payload: OrganizationCreateIn):
     return Status(201, {"id": org.pk, "name": org.name, "slug": org.slug})
 
 
-@orgs_router.get("/switch-list/", response=list[SwitchListItemOut])
+@orgs_router.get("/switch-list/", response=list[SwitchListItemOut], summary="获取租户切换列表")
 def switch_list(request):
+    """返回当前用户所属租户列表及当前选中、主租户状态。"""
     require_authenticated(request)
     orgs = Organization.objects.filter(organizationmember__user=request.user).annotate(
         is_primary=models.Subquery(
@@ -83,15 +85,17 @@ def switch_list(request):
     ]
 
 
-@orgs_router.post("/signout/", response=SuccessOut)
+@orgs_router.post("/signout/", response=SuccessOut, summary="退出当前租户")
 def signout(request):
+    """清除当前会话中的租户上下文选择。"""
     require_authenticated(request)
     remove_org(request)
     return {"success": True}
 
 
-@orgs_router.post("/{slug}/select/", response=OrgSelectOut)
-def select_org(request, slug: str):
+@orgs_router.post("/{slug}/select/", response=OrgSelectOut, summary="切换当前租户")
+def select_org(request, slug: str = Path(..., description="租户 slug。")):
+    """将当前会话切换到指定 slug 对应的租户。"""
     require_authenticated(request)
     org = get_object_or_404(Organization, slug=slug)
     if not org.is_member(request.user):
@@ -100,8 +104,9 @@ def select_org(request, slug: str):
     return {"id": org.pk, "slug": org.slug, "name": org.name, "is_owner": org.is_owner(request.user)}
 
 
-@orgs_router.post("/{slug}/set-primary/", response=SetPrimaryOut)
-def set_primary(request, slug: str):
+@orgs_router.post("/{slug}/set-primary/", response=SetPrimaryOut, summary="设置主租户")
+def set_primary(request, slug: str = Path(..., description="租户 slug。")):
+    """将指定租户设置为当前用户的主租户。"""
     require_authenticated(request)
     org = get_object_or_404(Organization, slug=slug)
     with transaction.atomic():
@@ -131,9 +136,10 @@ def _members_qs(request):
     )
 
 
-@members_router.get("/", response=list[MemberOut])
+@members_router.get("/", response=list[MemberOut], summary="获取租户成员列表")
 @paginate(LegacyPagination)
-def list_members(request, q: str | None = Query(None)):
+def list_members(request, q: str | None = Query(None, description="按姓名、用户名或邮箱搜索成员。")):
+    """返回当前租户成员列表，支持按姓名、用户名和邮箱搜索。"""
     require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     qs = _members_qs(request)
     if q:
@@ -146,8 +152,9 @@ def list_members(request, q: str | None = Query(None)):
     return qs
 
 
-@members_router.get("/search/", response=list[MemberSearchOut])
-def search_members(request, q: str = Query("")):
+@members_router.get("/search/", response=list[MemberSearchOut], summary="搜索可添加成员")
+def search_members(request, q: str = Query("", description="待搜索的用户关键字。")):
+    """搜索尚未加入当前租户且未被邀请的可添加用户。"""
     org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     user_model = apps.get_model(settings.AUTH_USER_MODEL)
     qs = []
@@ -178,21 +185,24 @@ def search_members(request, q: str = Query("")):
     ]
 
 
-@members_router.post("/", response={201: MemberOut})
+@members_router.post("/", response={201: MemberOut}, summary="添加租户成员")
 def create_member(request, payload: MemberIn):
+    """向当前租户新增一个成员，并可选择是否授予 owner 身份。"""
     org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     membership = OrganizationMember.objects.create(organization=org, user_id=payload.user, is_owner=payload.is_owner)
     return Status(201, membership)
 
 
-@members_router.get("/{member_id}/", response=MemberOut)
+@members_router.get("/{member_id}/", response=MemberOut, summary="获取租户成员详情")
 def get_member(request, member_id: int):
+    """返回当前租户内单个成员的详细信息。"""
     require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     return get_object_or_404(_members_qs(request), pk=member_id)
 
 
-@members_router.patch("/{member_id}/", response=MemberOut)
+@members_router.patch("/{member_id}/", response=MemberOut, summary="更新租户成员")
 def patch_member(request, member_id: int, payload: MemberPatchIn):
+    """更新成员 owner 状态等可编辑信息。"""
     require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     membership = get_object_or_404(_members_qs(request), pk=member_id)
     was_owner = membership.is_owner
@@ -204,8 +214,9 @@ def patch_member(request, member_id: int, payload: MemberPatchIn):
     return membership
 
 
-@members_router.delete("/{member_id}/", response={204: None})
+@members_router.delete("/{member_id}/", response={204: None}, summary="移除租户成员")
 def delete_member(request, member_id: int):
+    """将指定成员从当前租户移除，不允许移除自己。"""
     require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     membership = get_object_or_404(_members_qs(request), pk=member_id)
     if membership.user.pk == request.user.pk:
@@ -228,15 +239,17 @@ def _invites_qs(request):
     )
 
 
-@invites_router.get("/", response=list[InviteOut])
+@invites_router.get("/", response=list[InviteOut], summary="获取租户邀请列表")
 @paginate(LegacyPagination)
 def list_invites(request):
+    """返回当前租户的邀请记录列表。"""
     require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     return _invites_qs(request)
 
 
-@invites_router.post("/", response={201: InviteOut})
+@invites_router.post("/", response={201: InviteOut}, summary="创建租户邀请")
 def create_invite(request, payload: InviteIn):
+    """向指定邮箱或用户发送加入当前租户的邀请。"""
     org = require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     with transaction.atomic():
         invite = OrganizationInvite.objects.create(
@@ -250,14 +263,16 @@ def create_invite(request, payload: InviteIn):
     return Status(201, invite)
 
 
-@invites_router.get("/{invite_id}/", response=InviteOut)
+@invites_router.get("/{invite_id}/", response=InviteOut, summary="获取租户邀请详情")
 def get_invite(request, invite_id: int):
+    """返回当前租户某条邀请记录的详情。"""
     require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     return get_object_or_404(_invites_qs(request), pk=invite_id)
 
 
-@invites_router.delete("/{invite_id}/", response={204: None})
+@invites_router.delete("/{invite_id}/", response={204: None}, summary="取消租户邀请")
 def delete_invite(request, invite_id: int):
+    """取消一条未处理的租户邀请。"""
     require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     invite = get_object_or_404(_invites_qs(request), pk=invite_id)
     with transaction.atomic():
@@ -271,14 +286,16 @@ def delete_invite(request, invite_id: int):
 # ---------------------------------------------------------------------------
 
 
-@settings_router.get("/", response=SettingsOut)
+@settings_router.get("/", response=SettingsOut, summary="获取租户资料")
 def get_settings(request):
+    """返回当前租户资料页所需的基础信息。"""
     org = require_org_permission(request, OrganizationPermission.SETTING_MANAGE)
     return {"billing_email": org.billing_email or ""}
 
 
-@settings_router.patch("/update_settings/", response=SettingsOut)
+@settings_router.patch("/update_settings/", response=SettingsOut, summary="更新租户资料")
 def update_settings(request, payload: SettingsPatchIn):
+    """更新当前租户的基础资料字段。"""
     org = require_org_permission(request, OrganizationPermission.SETTING_MANAGE)
     data = payload.dict(exclude_unset=True)
     for field, value in data.items():
@@ -292,8 +309,9 @@ def update_settings(request, payload: SettingsPatchIn):
 # ---------------------------------------------------------------------------
 
 
-@public_invites_router.get("/{key}/", response=PublicInviteOut, auth=None)
-def get_invite_by_key(request, key: str):
+@public_invites_router.get("/{key}/", response=PublicInviteOut, auth=None, summary="获取公开邀请信息")
+def get_invite_by_key(request, key: str = Path(..., description="邀请 key。")):
+    """根据邀请 key 查询公开邀请详情，供登录前后的接受页展示。"""
     invite = get_object_or_404(OrganizationInvite.objects.select_related("organization", "sender"), key=key)
     is_already_member = bool(request.user.is_authenticated and invite.organization.is_member(request.user))
     return {
@@ -305,8 +323,9 @@ def get_invite_by_key(request, key: str):
     }
 
 
-@public_invites_router.post("/{key}/accept/", response=SuccessOut)
-def accept_invite_by_key(request, key: str):
+@public_invites_router.post("/{key}/accept/", response=SuccessOut, summary="接受公开邀请")
+def accept_invite_by_key(request, key: str = Path(..., description="邀请 key。")):
+    """接受租户邀请并将当前用户加入对应租户。"""
     require_authenticated(request)
     invite = get_object_or_404(OrganizationInvite.objects.select_related("organization", "sender"), key=key)
     if invite.is_expired:
@@ -324,8 +343,9 @@ def accept_invite_by_key(request, key: str):
     return {"success": True}
 
 
-@public_invites_router.post("/{key}/decline/", response=SuccessOut)
-def decline_invite_by_key(request, key: str):
+@public_invites_router.post("/{key}/decline/", response=SuccessOut, summary="拒绝公开邀请")
+def decline_invite_by_key(request, key: str = Path(..., description="邀请 key。")):
+    """拒绝并删除当前用户对应的租户邀请。"""
     require_authenticated(request)
     invite = get_object_or_404(OrganizationInvite.objects, key=key)
     if invite.invitee_email and invite.invitee_email.lower() != request.user.email.lower():

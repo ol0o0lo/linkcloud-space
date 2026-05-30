@@ -3,7 +3,7 @@ from dataclasses import asdict
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from ninja import Query, Router, Status
+from ninja import Path, Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
@@ -21,16 +21,17 @@ from apps.notifications.schemas import (
     UnreadCountOut,
 )
 
-router = Router(tags=["notifications"])
+router = Router(tags=["通知/消息"])
 
 
 def _base_qs(request):
     return Notification.objects.filter_by_org(request).select_related("actor")
 
 
-@router.get("/", response=list[NotificationOut])
+@router.get("/", response=list[NotificationOut], summary="获取通知列表")
 @paginate(LegacyPagination)
-def list_notifications(request, is_read: str | None = Query(None)):
+def list_notifications(request, is_read: str | None = Query(None, description="按已读状态筛选。")):
+    """返回当前用户在当前租户范围内的通知列表，支持按已读状态筛选。"""
     qs = _base_qs(request)
     if is_read is not None:
         want_read = is_read.lower() in ("true", "1", "yes")
@@ -38,8 +39,9 @@ def list_notifications(request, is_read: str | None = Query(None)):
     return qs
 
 
-@router.get("/unread-count/", response=UnreadCountOut)
+@router.get("/unread-count/", response=UnreadCountOut, summary="获取未读通知数量")
 def unread_count(request):
+    """返回当前用户在当前租户下的未读通知数量。"""
     return {"count": _base_qs(request).filter(read_at__isnull=True).count()}
 
 
@@ -51,15 +53,20 @@ def _serialize_category(cat, pref) -> dict:
     }
 
 
-@router.get("/preferences/", response=list[NotificationPreferenceOut])
+@router.get("/preferences/", response=list[NotificationPreferenceOut], summary="获取通知偏好设置")
 def list_preferences(request):
-    """Return one row per registered category, merged with the user's saved preferences."""
+    """返回通知类别与当前用户偏好设置的合并结果。"""
     saved = {p.category: p for p in NotificationPreference.objects.filter(user=request.user)}
     return [_serialize_category(cat, saved.get(cat.key)) for cat in get_categories()]
 
 
-@router.patch("/preferences/{category}/", response=NotificationPreferenceOut)
-def patch_preference(request, category: str, payload: NotificationPreferencePatchIn):
+@router.patch("/preferences/{category}/", response=NotificationPreferenceOut, summary="更新通知偏好设置")
+def patch_preference(
+    request,
+    category: str = Path(..., description="通知类别 key。"),
+    payload: NotificationPreferencePatchIn = ...,
+):
+    """更新某个通知类别的站内和邮件接收偏好。"""
     cat = get_category(category)
     if cat is None:
         raise HttpError(404, f"Unknown notification category: {category}")
@@ -79,8 +86,9 @@ def patch_preference(request, category: str, payload: NotificationPreferencePatc
     return _serialize_category(cat, pref)
 
 
-@router.post("/bulk/", response=BulkResultOut)
-def bulk_action(request, payload: BulkActionIn):
+@router.post("/bulk/", response=BulkResultOut, summary="批量处理通知")
+def bulk_action(request, payload: BulkActionIn = ...):
+    """批量标记通知已读、未读或删除通知。"""
     qs = _base_qs(request)
     if payload.all_unread:
         qs = qs.filter(read_at__isnull=True)
@@ -98,13 +106,19 @@ def bulk_action(request, payload: BulkActionIn):
     return {"updated": updated}
 
 
-@router.get("/{notification_id}/", response=NotificationOut)
+@router.get("/{notification_id}/", response=NotificationOut, summary="获取通知详情")
 def get_notification(request, notification_id: int):
+    """返回当前用户可访问的单条通知详情。"""
     return get_object_or_404(_base_qs(request), pk=notification_id)
 
 
-@router.patch("/{notification_id}/", response=NotificationOut)
-def patch_notification(request, notification_id: int, payload: NotificationPatchIn):
+@router.patch("/{notification_id}/", response=NotificationOut, summary="更新通知状态")
+def patch_notification(
+    request,
+    notification_id: int,
+    payload: NotificationPatchIn,
+):
+    """更新单条通知的已读状态。"""
     notification = get_object_or_404(_base_qs(request), pk=notification_id)
     if payload.is_read is not None:
         notification.read_at = timezone.now() if payload.is_read else None
@@ -112,8 +126,9 @@ def patch_notification(request, notification_id: int, payload: NotificationPatch
     return notification
 
 
-@router.delete("/{notification_id}/", response={204: None})
+@router.delete("/{notification_id}/", response={204: None}, summary="删除通知")
 def delete_notification(request, notification_id: int):
+    """删除当前用户可访问的单条通知。"""
     notification = get_object_or_404(_base_qs(request), pk=notification_id)
     notification.delete()
     return Status(204, None)

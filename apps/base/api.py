@@ -14,7 +14,7 @@ from apps.notifications.services import notify
 from apps.organizations.models import Organization, OrganizationMember
 from apps.organizations.session import get_member_count, get_owner_count
 
-router = Router(tags=["app"])
+router = Router(tags=["应用/基础"])
 
 
 class AppContextUserOut(Schema):
@@ -64,13 +64,15 @@ def _get_app_version() -> str:
     return entry.get("file", "unknown")
 
 
-@router.get("/version/", auth=None)
+@router.get("/version/", auth=None, summary="获取应用版本")
 def get_version(request):
+    """返回当前前端构建版本标识，用于客户端版本展示与调试。"""
     return {"version": _get_app_version()}
 
 
-@router.get("/app-context/", auth=None, response=AppContextOut)
+@router.get("/app-context/", auth=None, response=AppContextOut, summary="获取应用上下文")
 def app_context(request):
+    """返回当前用户、当前租户和前端初始化所需的全局上下文信息。"""
     if not request.user.is_authenticated:
         return {
             "user": None,
@@ -121,8 +123,9 @@ def app_context(request):
     }
 
 
-@router.get("/test-notifications/staff-users/")
+@router.get("/test-notifications/staff-users/", summary="获取测试通知收件人列表")
 def test_notifications_staff_users(request):
+    """返回可用于发送测试通知的 staff 用户列表，仅超级管理员可用。"""
     require_superuser(request)
     users = User.objects.filter(is_staff=True).order_by("first_name", "last_name", "email")
     return [{"id": u.pk, "full_name": u.get_full_name() or u.username, "email": u.email} for u in users]
@@ -134,8 +137,9 @@ class TestNotificationIn(Schema):
     send_in_app: bool = True
 
 
-@router.post("/test-notifications/")
+@router.post("/test-notifications/", summary="发送测试通知")
 def send_test_notification(request, payload: TestNotificationIn):
+    """向指定 staff 用户发送测试邮件或站内通知，仅超级管理员可用。"""
     require_superuser(request)
     if not payload.send_email and not payload.send_in_app:
         raise HttpError(400, "Select at least one notification channel.")

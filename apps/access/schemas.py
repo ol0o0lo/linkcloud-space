@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from ninja import Schema
+from pydantic import Field
 
 
 class AccessRoleOut(Schema):
@@ -35,17 +36,17 @@ class PermissionOut(Schema):
 
 
 class CustomRoleCreateIn(Schema):
-    code: str
-    name: str
-    permission_keys: list[str] | None = None
-    copy_from: int | None = None
+    code: str = Field(..., description="角色编码，需在当前作用域内唯一。")
+    name: str = Field(..., description="角色显示名称。")
+    permission_keys: list[str] | None = Field(None, description="角色拥有的权限 key 列表。")
+    copy_from: int | None = Field(None, description="可选，基于现有角色复制权限配置的角色 ID。")
 
 
 class CustomRolePatchIn(Schema):
-    code: str | None = None
-    name: str | None = None
-    permission_keys: list[str] | None = None
-    is_active: bool | None = None
+    code: str | None = Field(None, description="新的角色编码。")
+    name: str | None = Field(None, description="新的角色显示名称。")
+    permission_keys: list[str] | None = Field(None, description="新的权限 key 列表。")
+    is_active: bool | None = Field(None, description="角色是否启用。")
 
 
 class AccessUserOut(Schema):
@@ -122,5 +123,5 @@ class TeamBindingOut(Schema):
 
 
 class RoleBindingIn(Schema):
-    user: int
-    role: int
+    user: int = Field(..., description="要授权的用户 ID。")
+    role: int = Field(..., description="要绑定的角色 ID。")

@@ -1,4 +1,5 @@
 from ninja import Schema
+from pydantic import Field
 
 
 class UserOut(Schema):
@@ -25,9 +26,9 @@ class MeOut(Schema):
 
 
 class UserPatchIn(Schema):
-    first_name: str | None = None
-    last_name: str | None = None
-    timezone: str | None = None
+    first_name: str | None = Field(None, description="用户名字。")
+    last_name: str | None = Field(None, description="用户姓氏。")
+    timezone: str | None = Field(None, description="用户时区标识。")
 
 
 class ImpersonateUserOut(Schema):
@@ -45,7 +46,7 @@ class AvatarOut(Schema):
 
 
 class WechatPhoneIn(Schema):
-    phone_code: str
+    phone_code: str = Field(..., description="微信小程序获取手机号接口返回的 phone code。")
 
 
 class WechatPhoneOut(Schema):

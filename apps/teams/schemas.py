@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from ninja import Schema
+from pydantic import Field
 
 
 class MemberDetailOut(Schema):
@@ -38,10 +39,10 @@ class TeamOut(Schema):
 
 
 class TeamIn(Schema):
-    name: str
-    members: list[int] = []
+    name: str = Field(..., description="团队名称。")
+    members: list[int] = Field(default_factory=list, description="初始成员用户 ID 列表。")
 
 
 class TeamPatchIn(Schema):
-    name: str | None = None
-    members: list[int] | None = None
+    name: str | None = Field(None, description="新的团队名称。")
+    members: list[int] | None = Field(None, description="新的团队成员用户 ID 列表。")

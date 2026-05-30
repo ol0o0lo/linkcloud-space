@@ -29,11 +29,11 @@ from apps.access.services import (
 )
 from apps.teams.models import Team
 
-permissions_router = Router(tags=["权限点"])
-org_roles_router = Router(tags=["租户角色"])
-org_bindings_router = Router(tags=["租户角色绑定"])
-team_roles_router = Router(tags=["团队角色"])
-team_bindings_router = Router(tags=["团队角色绑定"])
+permissions_router = Router(tags=["权限/权限清单"])
+org_roles_router = Router(tags=["权限/租户角色"])
+org_bindings_router = Router(tags=["权限/租户授权"])
+team_roles_router = Router(tags=["权限/团队角色"])
+team_bindings_router = Router(tags=["权限/团队授权"])
 
 
 @permissions_router.get("/", response=list[PermissionOut], summary="获取可分配权限列表")
@@ -146,9 +146,7 @@ def create_team_role(request, team_id: int, payload: CustomRoleCreateIn):
     return Status(201, role)
 
 
-@team_roles_router.patch(
-    "/{team_id}/roles/{role_id}/", response=AccessRoleOut, summary="更新团队级自定义角色"
-)
+@team_roles_router.patch("/{team_id}/roles/{role_id}/", response=AccessRoleOut, summary="更新团队级自定义角色")
 def patch_team_role(request, team_id: int, role_id: int, payload: CustomRolePatchIn):
     """修改当前组织下的 team 级自定义角色名称、编码、权限列表或启停状态；系统预置角色不能通过该接口修改。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
@@ -163,9 +161,7 @@ def patch_team_role(request, team_id: int, role_id: int, payload: CustomRolePatc
     )
 
 
-@team_roles_router.delete(
-    "/{team_id}/roles/{role_id}/", response={204: None}, summary="停用团队级自定义角色"
-)
+@team_roles_router.delete("/{team_id}/roles/{role_id}/", response={204: None}, summary="停用团队级自定义角色")
 def delete_team_role(request, team_id: int, role_id: int):
     """将当前组织下的 team 级自定义角色标记为停用，不会物理删除历史绑定记录。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
@@ -175,9 +171,7 @@ def delete_team_role(request, team_id: int, role_id: int):
     return Status(204, None)
 
 
-@team_bindings_router.get(
-    "/{team_id}/bindings/", response=list[TeamBindingOut], summary="获取团队级角色绑定列表"
-)
+@team_bindings_router.get("/{team_id}/bindings/", response=list[TeamBindingOut], summary="获取团队级角色绑定列表")
 def list_team_bindings_view(request, team_id: int):
     """返回指定 team 下用户与 team 级角色的绑定关系，用于展示团队内实际授权结果。"""
     team = require_team_permission(request, team_id, AccessPermission.TEAM_ROLE_VIEW)
@@ -193,9 +187,7 @@ def create_team_binding(request, team_id: int, payload: RoleBindingIn):
     return Status(201, binding)
 
 
-@team_bindings_router.delete(
-    "/{team_id}/bindings/{binding_id}/", response={204: None}, summary="移除团队级角色绑定"
-)
+@team_bindings_router.delete("/{team_id}/bindings/{binding_id}/", response={204: None}, summary="移除团队级角色绑定")
 def delete_team_binding(request, team_id: int, binding_id: int):
     """删除指定 team 下某个用户的 team 级角色绑定。"""
     team = require_team_permission(request, team_id, AccessPermission.TEAM_ROLE_MANAGE)

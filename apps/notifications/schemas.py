@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 from ninja import Schema
+from pydantic import Field
 
 
 class NotificationActorOut(Schema):
@@ -38,7 +39,7 @@ class NotificationOut(Schema):
 
 
 class NotificationPatchIn(Schema):
-    is_read: bool | None = None
+    is_read: bool | None = Field(None, description="通知是否标记为已读。")
 
 
 class UnreadCountOut(Schema):
@@ -46,9 +47,9 @@ class UnreadCountOut(Schema):
 
 
 class BulkActionIn(Schema):
-    action: Literal["mark_read", "mark_unread", "delete"]
-    ids: list[int] | None = None
-    all_unread: bool = False
+    action: Literal["mark_read", "mark_unread", "delete"] = Field(..., description="批量操作类型。")
+    ids: list[int] | None = Field(None, description="要处理的通知 ID 列表。")
+    all_unread: bool = Field(False, description="是否对全部未读通知执行操作。")
 
 
 class BulkResultOut(Schema):
@@ -66,5 +67,5 @@ class NotificationPreferenceOut(Schema):
 
 
 class NotificationPreferencePatchIn(Schema):
-    in_app: bool | None = None
-    email: bool | None = None
+    in_app: bool | None = Field(None, description="是否接收站内通知。")
+    email: bool | None = Field(None, description="是否接收邮件通知。")
