@@ -6,7 +6,7 @@ from django.test import TestCase
 from model_bakery import baker
 
 from apps.access.models import AccessRole
-from apps.access.tests.helpers import bind_org_role, bind_team_role, make_access_group
+from tests.access.helpers import bind_org_role, bind_team_role, make_access_group
 from apps.accounts.models import User
 from apps.organizations.signals import user_logged_in_receiver
 from apps.teams.models import Team

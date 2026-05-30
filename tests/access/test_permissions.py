@@ -14,7 +14,7 @@ from apps.access.services import (
     remove_org_role,
     remove_team_role,
 )
-from apps.access.tests.helpers import make_access_group, make_permission
+from tests.access.helpers import make_access_group, make_permission
 from apps.accounts.models import User
 
 

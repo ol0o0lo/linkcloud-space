@@ -54,11 +54,13 @@ Use Just for all development tasks. Common ones:
 ## Testing
 
 - pytest with pytest-django.
-- **Run tests with `uv run pytest`** (local venv, always in sync with pyproject.toml). Do NOT use `docker compose exec web pytest` — the container image may be stale after dependency changes and would require a rebuild.
+- **Run tests with `docker compose exec web pytest` — the container image may be stale after dependency changes and would require a rebuild.
+- Backend unit tests live under the project-root `tests/` package, mirroring the app layout: app code in `apps/accounts/...` is tested in `tests/accounts/...`, `apps/base/...` in `tests/base/...`, etc.
+- When adding or moving backend unit tests, do not create `apps/<app>/tests/`; use `tests/<app>/...` and import shared test helpers from the `tests.*` package, for example `tests.access.helpers`.
 - Test settings in `config.settings.test_runner`; e2e settings in `config.settings.e2e`.
 - Model Bakery for fixtures.
 - Django Test Plus for additional helpers.
-- pyotp for the TOTP / MFA tests under `apps/accounts/tests/test_mfa_flows.py`.
+- pyotp for the TOTP / MFA tests under `tests/accounts/test_mfa_flows.py`.
 - Playwright e2e tests under `e2e/` (auth flow, invite flow); `--ignore=e2e` is on `pyproject.toml` `[tool.pytest.ini_options]` so the unit suite stays fast.
 - Coverage configuration in `config/coverage.ini`.
 

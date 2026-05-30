@@ -5,7 +5,7 @@ from model_bakery import baker
 
 from apps.access.constants import AccessRoleCode
 from apps.access.models import AccessRole, TeamGroupBinding
-from apps.access.tests.helpers import make_access_group
+from tests.access.helpers import make_access_group
 from apps.accounts.models import User
 
 

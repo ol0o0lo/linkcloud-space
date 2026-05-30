@@ -77,6 +77,7 @@ django_settings_module = "config.settings.test_runner"
 
 [tool.pytest.ini_options]
 addopts = "--nomigrations --ds config.settings.test_runner --cov-config=config/coverage.ini --ignore=e2e"
+testpaths = ["tests"]
 
 # Python warnings documentation: https://docs.python.org/3/library/warnings.html
 filterwarnings = [

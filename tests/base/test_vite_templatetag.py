@@ -4,9 +4,9 @@ from django.test import override_settings
 import pytest
 
 from apps.base.templatetags.vite import _get_manifest, vite_asset, vite_hmr_client
-from apps.base.tests import BaseTest
+from tests.base import BaseTest
 
-VITE_MANIFEST_FILE = settings.BASE_DIR / "apps" / "base" / "tests" / "vite_manifest.json"
+VITE_MANIFEST_FILE = settings.BASE_DIR / "tests" / "base" / "vite_manifest.json"
 VITE_OUTPUT_DIR = "dist/"
 VITE_SERVER_HOST = "example.com"
 VITE_SERVER_PORT = "9999"
@@ -51,7 +51,7 @@ class TestViteAssetDevModeOff(BaseViteTest):
         with pytest.raises(
             Exception,
             match=f'The vite asset "js/does_not_exist.js" was not found in the manifest file '
-            f"{settings.BASE_DIR}/apps/base/tests/vite_manifest.json.",
+            f"{settings.BASE_DIR}/tests/base/vite_manifest.json.",
         ):
             vite_asset("js/does_not_exist.js")
 
@@ -59,7 +59,7 @@ class TestViteAssetDevModeOff(BaseViteTest):
         with pytest.raises(
             Exception,
             match=f'The vite asset "js/does_not_exist.css" was not found in the manifest file '
-            f"{settings.BASE_DIR}/apps/base/tests/vite_manifest.json.",
+            f"{settings.BASE_DIR}/tests/base/vite_manifest.json.",
         ):
             vite_asset("js/does_not_exist.css")
 
@@ -74,7 +74,7 @@ class TestViteAssetDevModeOff(BaseViteTest):
         with pytest.raises(
             Exception,
             match=f'The vite asset "js/does_not_exist.js" was not found in the manifest file '
-            f"{settings.BASE_DIR}/apps/base/tests/vite_manifest.json.",
+            f"{settings.BASE_DIR}/tests/base/vite_manifest.json.",
         ):
             vite_asset("js/does_not_exist.js")
 
@@ -89,7 +89,7 @@ class TestViteAssetDevModeOff(BaseViteTest):
         with pytest.raises(
             Exception,
             match=f'The vite asset "js/does_not_exist.css" was not found in the manifest file '
-            f"{settings.BASE_DIR}/apps/base/tests/vite_manifest.json.",
+            f"{settings.BASE_DIR}/tests/base/vite_manifest.json.",
         ):
             vite_asset("js/does_not_exist.css")
 

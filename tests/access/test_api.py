@@ -7,7 +7,7 @@ from model_bakery import baker
 
 from apps.access.constants import AccessPermission, FinancePermission
 from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
-from apps.access.tests.helpers import bind_team_role, make_access_group, make_permission
+from tests.access.helpers import bind_team_role, make_access_group, make_permission
 from apps.accounts.models import User
 from apps.organizations.signals import user_logged_in_receiver
 
