@@ -13,6 +13,7 @@ from apps.access.api import team_bindings_router as access_team_bindings_router
 from apps.access.api import team_roles_router as access_team_roles_router
 from apps.accounts.api import users_router
 from apps.base.api import router as base_router
+from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
 from apps.media.api import router as media_router
 from apps.notifications.api import router as notifications_router
@@ -37,7 +38,7 @@ from apps.teams.api import router as teams_router
 api = NinjaAPI(
     title="Django Base Site API",
     version="1.0.0",
-    auth=[django_auth, jwt_token_auth],  # 同时支持 session cookie 和 JWT Bearer token
+    auth=[django_auth, jwt_token_auth, x_session_token_user_auth],  # 同时支持 session cookie、JWT Bearer 和 X-Session-Token
     docs_url="/docs" if settings.DEBUG else None,
     openapi_url="/openapi.json" if settings.DEBUG else None,
 )

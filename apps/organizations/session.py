@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 from django.apps import apps
 
+from apps.organizations.constants import ORG_SESSION_KEY, ORG_SLUG_HEADER
+
 REQUIRED_ORG_KEYS = {"pk", "id", "name", "slug", "is_owner"}
 
 
@@ -32,15 +34,17 @@ def is_org_missing_keys(org: dict):
 
 
 def get_organization(request):
+    header_org = _get_organization_from_header(request)
+    if header_org is not None:
+        return header_org
+
     session = request.session if hasattr(request, "session") else {}
-    org_data = json.loads(session.get("organization_data", "{}"))
+    org_data = json.loads(session.get(ORG_SESSION_KEY, "{}"))
     if org_data and is_org_missing_keys(org_data):
         remove_org(request)
-        return {}
+        return MockedOrg()
 
-    org = MockedOrg(**org_data)
-
-    return org
+    return MockedOrg(**org_data)
 
 
 def get_member_count(request):
@@ -58,9 +62,7 @@ def save_counts(request):
 
 
 def save_org(request, org):
-    data = {k: getattr(org, k) for k in REQUIRED_ORG_KEYS if k != "is_owner"}
-    data["is_owner"] = org.is_owner(request.user)
-    request.session["organization_data"] = json.dumps(data)
+    request.session[ORG_SESSION_KEY] = json.dumps(_serialize_org(org, request.user))
 
 
 def save_org_data(request, org):
@@ -75,5 +77,28 @@ def remove_org(request):
     if hasattr(underlying, "org"):
         delattr(underlying, "org")
 
-    if "organization_data" in request.session:
-        del request.session["organization_data"]
+    if ORG_SESSION_KEY in request.session:
+        del request.session[ORG_SESSION_KEY]
+
+
+def _serialize_org(org, user) -> dict:
+    data = {k: getattr(org, k) for k in REQUIRED_ORG_KEYS if k != "is_owner"}
+    data["is_owner"] = org.is_owner(user)
+    return data
+
+
+def _get_organization_from_header(request):
+    slug = request.headers.get(ORG_SLUG_HEADER)
+    if not slug:
+        return None
+
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return MockedOrg()
+
+    org_model = apps.get_model("organizations.Organization")
+    org = org_model.objects.filter(slug=slug).first()
+    if org is None or not org.is_member(user):
+        return MockedOrg()
+
+    return MockedOrg(**_serialize_org(org, user))
