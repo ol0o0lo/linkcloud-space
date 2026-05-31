@@ -1,5 +1,7 @@
+import importlib
 import json
 
+from django.apps import apps
 from django.contrib.auth import user_logged_in
 from django.test import TestCase
 
@@ -7,9 +9,9 @@ from model_bakery import baker
 
 from apps.access.constants import AccessPermission, FinancePermission
 from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
-from tests.access.helpers import bind_team_role, make_access_group, make_permission
 from apps.accounts.models import User
 from apps.organizations.signals import user_logged_in_receiver
+from tests.access.helpers import bind_team_role, make_access_group, make_permission
 
 
 class AccessAPITestBase(TestCase):
@@ -47,6 +49,20 @@ class TestAccessOrgAPI(AccessAPITestBase):
         self.assertEqual(resp.status_code, 200)
         keys = {item["key"] for item in resp.json()}
         self.assertIn(FinancePermission.BILL_VIEW, keys)
+
+    def test_owner_can_list_seeded_permissions_with_chinese_names(self):
+        seed_system_roles = importlib.import_module("apps.access.migrations.0002_seed_system_roles")
+        seed_finance_permissions = importlib.import_module("apps.access.migrations.0003_seed_finance_permissions")
+
+        seed_system_roles.seed_roles(apps, None)
+        seed_finance_permissions.seed_finance_permissions(apps, None)
+
+        resp = self.client.get("/api/access/permissions/")
+
+        self.assertEqual(resp.status_code, 200)
+        names_by_key = {item["key"]: item["name"] for item in resp.json()}
+        self.assertEqual(names_by_key[AccessPermission.ROLE_MANAGE], "管理访问角色")
+        self.assertEqual(names_by_key[FinancePermission.BILL_REFUND], "退款账单")
 
     def test_owner_can_list_org_roles_and_bindings(self):
         system_role = make_access_group(

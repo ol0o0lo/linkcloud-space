@@ -2,35 +2,37 @@
 
 from django.db import migrations
 
-PERMISSIONS = {
+# Frozen historical baseline for fresh databases migrating through this point.
+# Runtime synchronization now happens from `apps.access.constants` and `apps.access.sync`.
+HISTORICAL_PERMISSIONS = {
     "access": [
-        ("role_view", "Can view access roles"),
-        ("role_manage", "Can manage access roles"),
-        ("team_role_view", "Can view team access role bindings"),
-        ("team_role_manage", "Can manage team access role bindings"),
+        ("role_view", "查看访问角色"),
+        ("role_manage", "管理访问角色"),
+        ("team_role_view", "查看团队访问角色绑定"),
+        ("team_role_manage", "管理团队访问角色绑定"),
     ],
     "organizations": [
-        ("member_view", "Can view organization members"),
-        ("member_manage", "Can manage organization members"),
-        ("invite_manage", "Can manage organization invites"),
-        ("setting_manage", "Can manage organization settings"),
+        ("member_view", "查看组织成员"),
+        ("member_manage", "管理组织成员"),
+        ("invite_manage", "管理组织邀请"),
+        ("setting_manage", "管理组织设置"),
     ],
     "teams": [
-        ("team_view", "Can view teams"),
-        ("team_create", "Can create teams"),
-        ("team_update", "Can update teams"),
-        ("team_delete", "Can delete teams"),
-        ("team_member_manage", "Can manage team members"),
+        ("team_view", "查看团队"),
+        ("team_create", "创建团队"),
+        ("team_update", "更新团队"),
+        ("team_delete", "删除团队"),
+        ("team_member_manage", "管理团队成员"),
     ],
     "settings": [
-        ("org_setting_view", "Can view organization settings"),
-        ("org_setting_manage", "Can manage organization settings"),
-        ("team_setting_view", "Can view team settings"),
-        ("team_setting_manage", "Can manage team settings"),
+        ("org_setting_view", "查看组织设置"),
+        ("org_setting_manage", "管理组织设置"),
+        ("team_setting_view", "查看团队设置"),
+        ("team_setting_manage", "管理团队设置"),
     ],
 }
 
-ROLES = {
+HISTORICAL_ROLES = {
     "org_admin": {
         "scope": "org",
         "name": "Organization admin",
@@ -95,7 +97,7 @@ def seed_roles(apps, schema_editor):
     access_role_model = apps.get_model("access", "AccessRole")
 
     permissions_by_key = {}
-    for app_label, permissions in PERMISSIONS.items():
+    for app_label, permissions in HISTORICAL_PERMISSIONS.items():
         content_type, _ = content_type_model.objects.get_or_create(app_label=app_label, model="accesspermission")
         for codename, name in permissions:
             permission, _ = permission_model.objects.get_or_create(
@@ -105,7 +107,7 @@ def seed_roles(apps, schema_editor):
             )
             permissions_by_key[f"{app_label}.{codename}"] = permission
 
-    for code, role_data in ROLES.items():
+    for code, role_data in HISTORICAL_ROLES.items():
         group, _ = group_model.objects.get_or_create(name=code)
         group.permissions.set([permissions_by_key[key] for key in role_data["permissions"]])
         access_role_model.objects.update_or_create(

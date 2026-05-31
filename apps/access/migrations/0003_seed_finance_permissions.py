@@ -2,13 +2,15 @@
 
 from django.db import migrations
 
-FINANCE_PERMISSIONS = [
-    ("finance_bill_view", "Can view finance bills"),
-    ("finance_bill_refund", "Can refund finance bills"),
-    ("finance_report_export", "Can export finance reports"),
+# Frozen historical baseline for fresh databases migrating through this point.
+# Runtime synchronization now happens from `apps.access.constants` and `apps.access.sync`.
+HISTORICAL_FINANCE_PERMISSIONS = [
+    ("finance_bill_view", "查看账单"),
+    ("finance_bill_refund", "退款账单"),
+    ("finance_report_export", "导出财务报表"),
 ]
 
-ROLE_PERMISSIONS = {
+HISTORICAL_ROLE_PERMISSIONS = {
     "org_admin": [
         "finance.finance_bill_view",
         "finance.finance_bill_refund",
@@ -33,7 +35,7 @@ def seed_finance_permissions(apps, schema_editor):
 
     content_type, _ = content_type_model.objects.get_or_create(app_label="finance", model="accesspermission")
     permissions_by_key = {}
-    for codename, name in FINANCE_PERMISSIONS:
+    for codename, name in HISTORICAL_FINANCE_PERMISSIONS:
         permission, _ = permission_model.objects.get_or_create(
             content_type=content_type,
             codename=codename,
@@ -41,7 +43,7 @@ def seed_finance_permissions(apps, schema_editor):
         )
         permissions_by_key[f"finance.{codename}"] = permission
 
-    for code, permission_keys in ROLE_PERMISSIONS.items():
+    for code, permission_keys in HISTORICAL_ROLE_PERMISSIONS.items():
         group = group_model.objects.filter(name=code).first()
         if group is None:
             continue

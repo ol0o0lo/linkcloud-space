@@ -14,8 +14,8 @@ from apps.access.services import (
     remove_org_role,
     remove_team_role,
 )
-from tests.access.helpers import make_access_group, make_permission
 from apps.accounts.models import User
+from tests.access.helpers import make_access_group, make_permission
 
 
 def make_role(code: str, scope: str, codenames: list[str], organization=None):
@@ -48,7 +48,7 @@ class AccessPermissionTests(TestCase):
 
     def test_org_role_applies_to_all_teams_in_org(self):
         make_permission("access_tests", "finance_bill_view")
-        group = make_role("org_finance", AccessRole.Scope.ORG, ["finance_bill_view"])
+        group = make_role("test_org_finance", AccessRole.Scope.ORG, ["finance_bill_view"])
         OrganizationGroupBinding.objects.create(organization=self.org, user=self.user, group=group)
 
         self.assertTrue(has_permission(self.user, self.org, "access_tests.finance_bill_view", team=self.team))
@@ -56,7 +56,7 @@ class AccessPermissionTests(TestCase):
 
     def test_team_role_only_applies_to_bound_team(self):
         make_permission("access_tests", "finance_bill_view")
-        group = make_role("team_finance", AccessRole.Scope.TEAM, ["finance_bill_view"])
+        group = make_role("test_team_finance", AccessRole.Scope.TEAM, ["finance_bill_view"])
         TeamGroupBinding.objects.create(team=self.team, user=self.user, group=group)
 
         other_team_in_org = baker.make("teams.Team", organization=self.org)
@@ -67,7 +67,7 @@ class AccessPermissionTests(TestCase):
 
     def test_team_permission_does_not_cross_org(self):
         make_permission("access_tests", "finance_bill_view")
-        group = make_role("team_finance", AccessRole.Scope.TEAM, ["finance_bill_view"])
+        group = make_role("test_cross_org_team_finance", AccessRole.Scope.TEAM, ["finance_bill_view"])
         TeamGroupBinding.objects.create(team=self.team, user=self.user, group=group)
 
         self.assertFalse(has_permission(self.user, self.org, "access_tests.finance_bill_view", team=self.other_team))
@@ -82,26 +82,26 @@ class AccessPermissionTests(TestCase):
 
     def test_org_binding_requires_org_member_and_org_scope_role(self):
         make_permission("access_tests", "member_manage")
-        team_group = make_role("team_manager", AccessRole.Scope.TEAM, ["member_manage"])
+        team_group = make_role("test_team_manager", AccessRole.Scope.TEAM, ["member_manage"])
 
         binding = OrganizationGroupBinding(organization=self.org, user=self.user, group=team_group)
         with self.assertRaises(ValidationError):
             binding.full_clean()
 
-        org_group = make_role("org_admin", AccessRole.Scope.ORG, ["member_manage"])
+        org_group = make_role("test_org_admin", AccessRole.Scope.ORG, ["member_manage"])
         outsider_binding = OrganizationGroupBinding(organization=self.org, user=self.outsider, group=org_group)
         with self.assertRaises(ValidationError):
             outsider_binding.full_clean()
 
     def test_team_binding_requires_team_member_and_team_scope_role(self):
         make_permission("access_tests", "team_setting_manage")
-        org_group = make_role("org_admin", AccessRole.Scope.ORG, ["team_setting_manage"])
+        org_group = make_role("test_binding_org_admin", AccessRole.Scope.ORG, ["team_setting_manage"])
 
         binding = TeamGroupBinding(team=self.team, user=self.user, group=org_group)
         with self.assertRaises(ValidationError):
             binding.full_clean()
 
-        team_group = make_role("team_manager", AccessRole.Scope.TEAM, ["team_setting_manage"])
+        team_group = make_role("test_binding_team_manager", AccessRole.Scope.TEAM, ["team_setting_manage"])
         outsider_binding = TeamGroupBinding(team=self.team, user=self.outsider, group=team_group)
         with self.assertRaises(ValidationError):
             outsider_binding.full_clean()
@@ -120,8 +120,13 @@ class AccessPermissionTests(TestCase):
         make_role("other_org_custom_role", AccessRole.Scope.ORG, [], organization=self.other_org)
 
         roles = list(list_available_roles(self.org, AccessRole.Scope.ORG))
+        role_codes = [role.code for role in roles]
 
-        self.assertEqual([role.code for role in roles], ["system_org_role", "custom_org_role"])
+        self.assertIn("org_admin", role_codes)
+        self.assertIn("org_finance", role_codes)
+        self.assertIn("system_org_role", role_codes)
+        self.assertIn("custom_org_role", role_codes)
+        self.assertNotIn("other_org_custom_role", role_codes)
         self.assertEqual(custom_group.access_role.organization_id, self.org.pk)
 
     def test_assign_and_remove_org_role(self):
