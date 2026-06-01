@@ -60,3 +60,6 @@ Thumbs.db
 .claude/
 CLAUDE.local.md
 .playwright-mcp/
+
+# Git worktrees
+.worktrees/
