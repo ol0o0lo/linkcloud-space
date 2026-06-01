@@ -288,6 +288,10 @@ CELERY_BEAT_SCHEDULE = {
         # in compose.yml; in production use a dedicated beat process.
         "schedule": crontab(hour=3, minute=0),
     },
+    "cleanup-unreferenced-media": {
+        "task": "apps.media.tasks.cleanup_unreferenced_media_files",
+        "schedule": crontab(hour=4, minute=0),
+    },
 }
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
@@ -310,6 +314,11 @@ NOTIFICATIONS_TARGET_MODELS: list[str] = []
 # The `purge_expired_notifications` celery task / `purge_notifications`
 # management command deletes anything older than this.
 NOTIFICATIONS_RETENTION_DAYS = env.int("NOTIFICATIONS_RETENTION_DAYS", default=90)
+
+# Media files that are not reported by MEDIA_REFERENCE_PROVIDERS are treated as
+# orphan candidates only after this retention window.
+MEDIA_ORPHAN_RETENTION_HOURS = env.int("MEDIA_ORPHAN_RETENTION_HOURS", default=24)
+MEDIA_REFERENCE_PROVIDERS: list[str] = []
 
 # Notification categories shown on the account-settings Notifications tab and
 # consulted by `apps.notifications.categories.should_send`. Use
