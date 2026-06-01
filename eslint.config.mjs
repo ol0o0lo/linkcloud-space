@@ -22,7 +22,7 @@ export default [
       'no-console': isDevMode ? 'off' : ['error', { allow: ['warn', 'error'] }],
       'no-debugger': isDevMode ? 'off' : 'error',
       'one-var': ['error', 'always'],
-      'max-len': ['error', { code: 120 }],
+      'max-len': ['error', { code: 180 }],
       'no-underscore-dangle': ['error', { allow: ['__addToast'] }],
       'vue/no-v-for-template-key': 'off',
     },
@@ -33,7 +33,7 @@ export default [
     rules: {
       'one-var': 'off',
       'no-param-reassign': ['error', { props: false }],
-      'max-len': ['error', { code: 120, ignorePattern: '\\s+class=' }],
+      'max-len': ['error', { code: 180, ignorePattern: '\\s+class=' }],
     },
   },
 ];
