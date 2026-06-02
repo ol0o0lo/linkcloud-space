@@ -28,10 +28,12 @@ def test_audit_model_mixin_defines_user_audit_fields():
     assert isinstance(created_by, models.CharField)
     assert created_by.max_length == 150
     assert created_by.blank is True
+    assert created_by.default == ""
 
     assert isinstance(updated_by, models.CharField)
     assert updated_by.max_length == 150
     assert updated_by.blank is True
+    assert updated_by.default == ""
 
 
 def test_create_update_time_model_mixin_defines_time_fields():

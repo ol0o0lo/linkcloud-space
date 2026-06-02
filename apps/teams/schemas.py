@@ -17,8 +17,8 @@ class TeamOut(Schema):
     name: str
     members: list[int]
     member_details: list[MemberDetailOut]
-    created: datetime
-    modified: datetime
+    created_at: datetime
+    updated_at: datetime
 
     @staticmethod
     def resolve_members(obj) -> list[int]:

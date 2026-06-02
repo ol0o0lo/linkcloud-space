@@ -82,7 +82,8 @@ def patch_preference(
         pref.in_app = payload.in_app
     if payload.email is not None:
         pref.email = payload.email
-    pref.save(update_fields=["in_app", "email", "modified"])
+    if payload.in_app is not None or payload.email is not None:
+        pref.save(update_fields=["in_app", "email", "updated_at"])
     return _serialize_category(cat, pref)
 
 
@@ -122,7 +123,7 @@ def patch_notification(
     notification = get_object_or_404(_base_qs(request), pk=notification_id)
     if payload.is_read is not None:
         notification.read_at = timezone.now() if payload.is_read else None
-        notification.save(update_fields=["read_at", "modified"])
+        notification.save(update_fields=["read_at", "updated_at"])
     return notification
 
 

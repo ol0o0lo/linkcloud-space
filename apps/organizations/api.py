@@ -208,7 +208,7 @@ def patch_member(request, member_id: int, payload: MemberPatchIn):
     was_owner = membership.is_owner
     if payload.is_owner is not None:
         membership.is_owner = payload.is_owner
-        membership.save(update_fields=["is_owner", "modified"])
+        membership.save(update_fields=["is_owner", "updated_at"])
         if not was_owner and membership.is_owner:
             membership.send_owner_email(sending_user=request.user)
     return membership
@@ -235,7 +235,7 @@ def _invites_qs(request):
     return (
         OrganizationInvite.objects.select_related("organization", "sender", "invitee")
         .filter_by_org(request)
-        .order_by("-created")
+        .order_by("-created_at")
     )
 
 

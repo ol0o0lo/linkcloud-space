@@ -4,10 +4,10 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.access.constants import AccessScope
-from apps.base.mixins import TimeStampModelMixin
+from apps.base.mixins import BaseModelMixin
 
 
-class AccessRole(TimeStampModelMixin):
+class AccessRole(BaseModelMixin):
     Scope = AccessScope
 
     group = models.OneToOneField(Group, on_delete=models.CASCADE, related_name="access_role")
@@ -50,7 +50,7 @@ class AccessRole(TimeStampModelMixin):
         return self.name
 
 
-class OrganizationGroupBinding(TimeStampModelMixin):
+class OrganizationGroupBinding(BaseModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     group = models.ForeignKey(Group, on_delete=models.CASCADE)
@@ -86,7 +86,7 @@ class OrganizationGroupBinding(TimeStampModelMixin):
         return f"{self.organization} / {self.user} / {self.group}"
 
 
-class TeamGroupBinding(TimeStampModelMixin):
+class TeamGroupBinding(BaseModelMixin):
     team = models.ForeignKey("teams.Team", on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     group = models.ForeignKey(Group, on_delete=models.CASCADE)

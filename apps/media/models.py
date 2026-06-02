@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 
+from apps.base.mixins import CreateUpdateTimeModelMixin
 from apps.media.constants import ResourceType
 
 
@@ -8,7 +9,7 @@ def _media_upload_to(instance, filename):
     return filename  # 路径由服务层预先生成，直接返回
 
 
-class MediaFile(models.Model):
+class MediaFile(CreateUpdateTimeModelMixin):
     uploader = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -21,7 +22,6 @@ class MediaFile(models.Model):
     file = models.FileField(upload_to=_media_upload_to)
     file_size = models.PositiveIntegerField(help_text="bytes")
     order = models.PositiveIntegerField(default=0, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]

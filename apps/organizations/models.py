@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from ..base.mixins import TimeStampModelMixin
+from ..base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from ..base.utils.email import send_email
 from .managers import OrganizationInviteQuerySet, OrganizationMemberQuerySet, OrganizationQuerySet
 
@@ -19,7 +19,7 @@ def get_user_model():
     return apps.get_model(settings.AUTH_USER_MODEL)
 
 
-class Organization(TimeStampModelMixin):
+class Organization(BaseModelMixin):
     name = models.CharField(max_length=75, verbose_name=_("display name"))
     slug = models.SlugField(
         max_length=40,
@@ -69,7 +69,7 @@ class OrganizationRoleMixin(models.Model):
         abstract = True
 
 
-class OrganizationMember(OrganizationRoleMixin, TimeStampModelMixin):
+class OrganizationMember(OrganizationRoleMixin, BaseModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     is_primary = models.BooleanField(default=False, verbose_name=_("primary"))
@@ -112,7 +112,7 @@ class OrganizationMember(OrganizationRoleMixin, TimeStampModelMixin):
         )
 
 
-class OrganizationInvite(OrganizationRoleMixin, TimeStampModelMixin):
+class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE)
     invitee = models.ForeignKey(
@@ -126,7 +126,7 @@ class OrganizationInvite(OrganizationRoleMixin, TimeStampModelMixin):
 
     @property
     def is_expired(self):
-        return (timezone.now() - self.created) > timedelta(days=self.expired_in_days)
+        return (timezone.now() - self.created_at) > timedelta(days=self.expired_in_days)
 
     @property
     def invitee_first_name(self):

@@ -43,7 +43,7 @@ class Command(BaseCommand):
                         created += 1
                     continue
                 binding = assign_team_role(team, user, role)
-                if binding.created == binding.modified:
+                if binding.created_at == binding.updated_at:
                     created += 1
 
         self.stdout.write(self.style.SUCCESS(f"Backfill complete. created={created}, skipped={skipped}"))

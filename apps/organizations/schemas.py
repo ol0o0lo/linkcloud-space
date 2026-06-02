@@ -53,8 +53,8 @@ class MemberOut(Schema):
     organization: int
     user: OrgUserOut
     is_owner: bool
-    created: datetime
-    modified: datetime
+    created_at: datetime
+    updated_at: datetime
 
     @staticmethod
     def resolve_organization(obj) -> int:
@@ -99,8 +99,8 @@ class InviteOut(Schema):
     invitee_email: str = ""
     is_owner: bool
     key: str
-    created: datetime
-    modified: datetime
+    created_at: datetime
+    updated_at: datetime
 
     @staticmethod
     def resolve_organization(obj) -> int:
