@@ -68,10 +68,10 @@ Use Just for all development tasks. Common ones:
 
 - **Python**: Ruff for formatting + linting (replaces Black/isort). Ty for type checking. Django conventions throughout. Bandit (S) ruleset enabled in Ruff.
 - **Ninja**: `[tool.ruff.lint.flake8-bugbear] extend-immutable-calls` includes `ninja.Query/File/Form/Body/Path` so default-arg-with-call patterns don't trip B008.
-- **JavaScript / Vue**: ESLint flat config (`eslint.config.mjs`) with `@eslint/js` recommended + `eslint-plugin-vue` flat/recommended. 120-char line length.
+- **JavaScript / Vue**: ESLint flat config (`eslint.config.mjs`) with `@eslint/js` recommended + `eslint-plugin-vue` flat/recommended. 180-char line length.
 - **HTML / Django templates**: djLint for formatting and linting.
 - **CSS**: Tailwind v4 utilities (no separate Sass/Stylelint pipeline anymore — both were dropped during the SPA conversion).
-- **Line Length**: 120 characters for Python and HTML.
+- **Line Length**: 180 characters for Python and HTML.
 
 ## Debugging
 

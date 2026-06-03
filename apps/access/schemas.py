@@ -69,8 +69,8 @@ class OrganizationBindingOut(Schema):
     organization_id: int
     user: AccessUserOut
     role: AccessRoleSummaryOut
-    created: datetime
-    modified: datetime
+    created_at: datetime
+    updated_at: datetime
 
     @staticmethod
     def resolve_organization_id(obj) -> int:
@@ -98,8 +98,8 @@ class TeamBindingOut(Schema):
     team_id: int
     user: AccessUserOut
     role: AccessRoleSummaryOut
-    created: datetime
-    modified: datetime
+    created_at: datetime
+    updated_at: datetime
 
     @staticmethod
     def resolve_team_id(obj) -> int:

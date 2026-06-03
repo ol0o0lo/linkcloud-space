@@ -2,6 +2,7 @@ import json
 import logging
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
@@ -11,13 +12,26 @@ from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.pagination import paginate
 
-from apps.accounts.schemas import AvatarOut, ImpersonateUserOut, MeOut, UserOut, UserPatchIn, WechatPhoneIn, WechatPhoneOut
+from apps.accounts.schemas import (
+    AdminUserOut,
+    AvatarOut,
+    ForceLogoutOut,
+    ImpersonateUserOut,
+    MeOut,
+    ResetMfaOut,
+    UserOut,
+    UserPatchIn,
+    UserStatusPatchIn,
+    WechatPhoneIn,
+    WechatPhoneOut,
+)
 from apps.base.ninja_pagination import make_pagination
-from apps.base.permissions import require_authenticated
+from apps.base.permissions import require_authenticated, require_superuser
 
 logger = logging.getLogger(__name__)
 
 users_router = Router(tags=["用户/资料"])
+admin_users_router = Router(tags=["用户/生命周期"])
 
 
 def _users_qs(request):
@@ -161,3 +175,71 @@ def bind_wechat_phone(request, payload: WechatPhoneIn):
     except ValueError as e:
         raise HttpError(400, str(e)) from e
     return {"phone": phone, "merged": merged}
+
+
+def _get_admin_user(request, user_id: int):
+    require_superuser(request)
+    User = get_user_model()
+    return get_object_or_404(User, pk=user_id)
+
+
+@admin_users_router.patch("/{user_id}/status/", response=AdminUserOut, summary="启用或禁用用户")
+def patch_user_status(request, user_id: int, payload: UserStatusPatchIn):
+    """由超级管理员启用或禁用用户账号；禁止通过该接口禁用自己。"""
+    user = _get_admin_user(request, user_id)
+    if user.pk == request.user.pk and payload.is_active is False:
+        raise HttpError(400, "You cannot disable your own account.")
+    user.is_active = payload.is_active
+    user.save(update_fields=["is_active"])
+    return user
+
+
+@admin_users_router.post("/{user_id}/force-logout/", response=ForceLogoutOut, summary="强制用户退出登录")
+def force_logout_user(request, user_id: int):
+    """删除 allauth 记录的用户会话，使用户需要重新登录。"""
+    user = _get_admin_user(request, user_id)
+    from allauth.usersessions.models import UserSession
+
+    user_sessions = list(UserSession.objects.filter(user=user))
+    for user_session in user_sessions:
+        user_session.end()
+    deleted_sessions = len(user_sessions)
+    return {"deleted_sessions": deleted_sessions}
+
+
+@admin_users_router.post("/{user_id}/reset-mfa/", response=ResetMfaOut, summary="重置用户 MFA")
+def reset_user_mfa(request, user_id: int):
+    """删除用户已配置的 allauth MFA authenticators。"""
+    user = _get_admin_user(request, user_id)
+    from allauth.mfa.models import Authenticator
+
+    deleted_authenticators, _ = Authenticator.objects.filter(user=user).delete()
+    return {"deleted_authenticators": deleted_authenticators}
+
+
+@admin_users_router.delete("/{user_id}/phone/", response={204: None}, summary="解绑用户手机号")
+def unbind_user_phone(request, user_id: int):
+    """清空用户手机号及验证状态。"""
+    user = _get_admin_user(request, user_id)
+    user.phone = None
+    user.phone_verified = False
+    user.save(update_fields=["phone", "phone_verified"])
+    return Status(204, None)
+
+
+@admin_users_router.delete("/{user_id}/wechat/", response={204: None}, summary="解绑用户微信账号")
+def unbind_user_wechat(request, user_id: int):
+    """删除用户微信开放平台和小程序 social account 绑定。"""
+    user = _get_admin_user(request, user_id)
+    from allauth.socialaccount.internal.flows.connect import validate_disconnect
+    from allauth.socialaccount.models import SocialAccount
+
+    accounts = list(SocialAccount.objects.filter(user=user, provider__in=["weixin", "wechat_miniprogram"]))
+    try:
+        for account in accounts:
+            validate_disconnect(request, account)
+    except ValidationError as exc:
+        raise HttpError(400, "; ".join(str(message) for message in exc.messages)) from exc
+    for account in accounts:
+        account.delete()
+    return Status(204, None)

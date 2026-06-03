@@ -78,7 +78,7 @@ def patch_team(request, team_id: int, payload: TeamPatchIn):
     org = team.organization
     if payload.name is not None:
         team.name = payload.name
-        team.save(update_fields=["name", "modified"])
+        team.save(update_fields=["name", "updated_at"])
     if payload.members is not None:
         require_team_permission(request, team_id, TeamPermission.MEMBER_MANAGE)
         member_ids = _validate_members(payload.members, org)

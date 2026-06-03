@@ -1,18 +1,17 @@
 from django.conf import settings
 from django.db import models
 
-from apps.base.mixins import TimeStampModelMixin
+from apps.base.mixins import BaseModelMixin
 from apps.settings.constants import ValueType
 
 
-class DefaultSetting(TimeStampModelMixin):
+class DefaultSetting(BaseModelMixin):
     """平台默认设置，超管维护，对普通用户透明。"""
 
     key = models.CharField(max_length=100, unique=True)
     value = models.JSONField()
     value_type = models.CharField(max_length=20, choices=ValueType.choices, default=ValueType.TEXT)
     description = models.TextField(blank=True)
-    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
 
     class Meta:
         db_table = "settings_default"
@@ -22,7 +21,7 @@ class DefaultSetting(TimeStampModelMixin):
         return self.key
 
 
-class OrganizationSetting(TimeStampModelMixin):
+class OrganizationSetting(BaseModelMixin):
     """租户覆盖设置，稀疏存储，只存与默认值不同的项。"""
 
     organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="settings")
@@ -37,7 +36,7 @@ class OrganizationSetting(TimeStampModelMixin):
         return f"{self.organization} / {self.setting.key}"
 
 
-class TeamSetting(TimeStampModelMixin):
+class TeamSetting(BaseModelMixin):
     """Team 覆盖设置，稀疏存储，fallback 到 DefaultSetting（不经过 Org）。"""
 
     team = models.ForeignKey("teams.Team", on_delete=models.CASCADE, related_name="settings")
@@ -52,7 +51,7 @@ class TeamSetting(TimeStampModelMixin):
         return f"{self.team} / {self.setting.key}"
 
 
-class UserSetting(TimeStampModelMixin):
+class UserSetting(BaseModelMixin):
     """用户偏好，独立存储，无 fallback 链，key 不需要在 DefaultSetting 中预定义。"""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="preferences")

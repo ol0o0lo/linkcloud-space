@@ -81,7 +81,7 @@ class TestPurgeExpired:
 
     def test_deletes_rows_older_than_retention_default(self):
         notify([self.alice], title="old")
-        Notification.objects.update(created=timezone.now() - timedelta(days=120))
+        Notification.objects.update(created_at=timezone.now() - timedelta(days=120))
         notify([self.alice], title="recent")
 
         deleted = purge_expired()

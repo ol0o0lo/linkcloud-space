@@ -3,11 +3,11 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-from apps.base.mixins import TimeStampModelMixin
+from apps.base.mixins import CreateUpdateTimeModelMixin
 from apps.notifications.managers import NotificationQuerySet
 
 
-class Notification(TimeStampModelMixin):
+class Notification(CreateUpdateTimeModelMixin):
     """
     Generic in-app notification.
 
@@ -76,12 +76,12 @@ class Notification(TimeStampModelMixin):
     objects = NotificationQuerySet.as_manager()
 
     class Meta:
-        ordering = ("-created",)
+        ordering = ("-created_at",)
         indexes = [
-            models.Index(fields=["recipient", "organization", "-created"]),
-            models.Index(fields=["recipient", "organization", "read_at"]),
-            models.Index(fields=["recipient", "category", "-created"]),
-            models.Index(fields=["target_content_type", "target_object_id"]),
+            models.Index(fields=["recipient", "organization", "-created_at"], name="notificatio_recipie_6e705f_idx"),
+            models.Index(fields=["recipient", "organization", "read_at"], name="notificatio_recipie_40360d_idx"),
+            models.Index(fields=["recipient", "category", "-created_at"], name="notificatio_recipie_61125d_idx"),
+            models.Index(fields=["target_content_type", "target_object_id"], name="notificatio_target__dfbaf5_idx"),
         ]
 
     def __str__(self):
@@ -93,7 +93,7 @@ class Notification(TimeStampModelMixin):
         return self.read_at is not None
 
 
-class NotificationPreference(TimeStampModelMixin):
+class NotificationPreference(CreateUpdateTimeModelMixin):
     """
     Per-user, per-category channel preferences.
 

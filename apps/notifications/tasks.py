@@ -15,7 +15,7 @@ def purge_expired(days: int | None = None) -> int:
 
     A row is deleted when:
       - `expires_at` is set and has passed, OR
-      - `expires_at` is null and `created` is older than `days`
+      - `expires_at` is null and `created_at` is older than `days`
         (defaulting to settings.NOTIFICATIONS_RETENTION_DAYS).
 
     Returns the number of rows deleted.

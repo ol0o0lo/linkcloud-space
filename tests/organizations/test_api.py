@@ -7,10 +7,10 @@ from django.test import TestCase
 from model_bakery import baker
 
 from apps.access.models import AccessRole
-from tests.access.helpers import bind_org_role, make_access_group
 from apps.accounts.models import User
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
+from tests.access.helpers import bind_org_role, make_access_group
 
 
 class OrganizationAPITestBase(TestCase):
@@ -31,9 +31,7 @@ class OrganizationAPITestBase(TestCase):
     def _login(self):
         self.client.force_login(self.user)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": True}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": True})
         session.save()
 
 
@@ -79,6 +77,81 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["success"])
         self.assertNotIn("organization_data", self.client.session)
+
+    def test_owner_can_update_organization_profile_and_limits(self):
+        self._login()
+        resp = self.client.patch(
+            f"/api/organizations/{self.org.slug}/",
+            data=json.dumps(
+                {
+                    "name": "Acme Updated",
+                    "billing_email": "billing@example.com",
+                    "member_limit": 12,
+                    "team_limit": 3,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.name, "Acme Updated")
+        self.assertEqual(self.org.billing_email, "billing@example.com")
+        self.assertEqual(self.org.member_limit, 12)
+        self.assertEqual(self.org.team_limit, 3)
+
+    def test_owner_can_archive_and_restore_organization(self):
+        self._login()
+        archive_resp = self.client.patch(
+            f"/api/organizations/{self.org.slug}/status/",
+            data=json.dumps({"is_active": False}),
+            content_type="application/json",
+        )
+        self.assertEqual(archive_resp.status_code, 200)
+        self.assertFalse(archive_resp.json()["is_active"])
+        self.org.refresh_from_db()
+        self.assertFalse(self.org.is_active)
+
+        restore_resp = self.client.patch(
+            f"/api/organizations/{self.org.slug}/status/",
+            data=json.dumps({"is_active": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(restore_resp.status_code, 200)
+        self.org.refresh_from_db()
+        self.assertTrue(self.org.is_active)
+
+    def test_owner_can_transfer_owner_to_existing_member(self):
+        new_owner = User.objects.create_user(username="new-owner", email="new-owner@example.com", password="secret")  # noqa: S106
+        baker.make("organizations.OrganizationMember", organization=self.org, user=new_owner, is_owner=False)
+        self._login()
+
+        resp = self.client.post(
+            f"/api/organizations/{self.org.slug}/transfer-owner/",
+            data=json.dumps({"user": new_owner.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(OrganizationMember.objects.get(organization=self.org, user=new_owner).is_owner)
+        self.assertFalse(OrganizationMember.objects.get(organization=self.org, user=self.user).is_owner)
+
+    def test_owner_can_read_organization_usage(self):
+        other_member = User.objects.create_user(username="other", email="other@example.com", password="secret")  # noqa: S106
+        baker.make("organizations.OrganizationMember", organization=self.org, user=other_member, is_owner=False)
+        baker.make("teams.Team", organization=self.org)
+        self.org.member_limit = 5
+        self.org.team_limit = 2
+        self.org.save(update_fields=["member_limit", "team_limit"])
+        self._login()
+
+        resp = self.client.get(f"/api/organizations/{self.org.slug}/usage/")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["member_count"], 2)
+        self.assertEqual(resp.json()["team_count"], 1)
+        self.assertEqual(resp.json()["member_limit"], 5)
+        self.assertEqual(resp.json()["team_limit"], 2)
 
 
 class TestOrganizationMemberViewSet(OrganizationAPITestBase):
@@ -162,9 +235,7 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
             email="member@example.com",
             password="secret",  # noqa: S106
         )
-        membership = baker.make(
-            "organizations.OrganizationMember", organization=self.org, user=new_user, is_owner=False
-        )
+        membership = baker.make("organizations.OrganizationMember", organization=self.org, user=new_user, is_owner=False)
         self._login()
         resp = self.client.delete(f"/api/organization-members/{membership.pk}/")
         self.assertEqual(resp.status_code, 204)
@@ -225,6 +296,23 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         resp = self.client.delete(f"/api/organization-invites/{invite.pk}/")
         self.assertEqual(resp.status_code, 204)
         self.assertFalse(OrganizationInvite.objects.filter(pk=invite.pk).exists())
+
+    def test_resend_invite(self):
+        invite = OrganizationInvite.objects.create(
+            organization=self.org,
+            sender=self.user,
+            invitee_email="guest@example.com",
+        )
+        self._login()
+        mail.outbox = []
+
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.post(f"/api/organization-invites/{invite.pk}/resend/")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("guest@example.com", mail.outbox[0].to)
 
 
 class TestOrganizationSettingsViewSet(OrganizationAPITestBase):

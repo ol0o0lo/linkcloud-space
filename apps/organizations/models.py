@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from ..base.mixins import TimeStampModelMixin
+from ..base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from ..base.utils.email import send_email
 from .managers import OrganizationInviteQuerySet, OrganizationMemberQuerySet, OrganizationQuerySet
 
@@ -19,7 +19,7 @@ def get_user_model():
     return apps.get_model(settings.AUTH_USER_MODEL)
 
 
-class Organization(TimeStampModelMixin):
+class Organization(BaseModelMixin):
     name = models.CharField(max_length=75, verbose_name=_("display name"))
     slug = models.SlugField(
         max_length=40,
@@ -29,6 +29,10 @@ class Organization(TimeStampModelMixin):
         error_messages={"invalid": _("Enter a valid name consisting of letters, numbers, underscores or hyphens.")},
     )
     billing_email = models.EmailField(null=True, blank=True, help_text="The email address that receipts are sent.")
+    is_active = models.BooleanField(default=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    member_limit = models.PositiveIntegerField(null=True, blank=True)
+    team_limit = models.PositiveIntegerField(null=True, blank=True)
     objects = OrganizationQuerySet.as_manager()
 
     def __str__(self):
@@ -51,15 +55,11 @@ class Organization(TimeStampModelMixin):
 
     @property
     def regular_members(self):
-        return get_user_model().objects.filter(
-            pk__in=self.organizationmember_set.filter(is_owner=False).values_list("pk", flat=True)
-        )
+        return get_user_model().objects.filter(pk__in=self.organizationmember_set.filter(is_owner=False).values_list("pk", flat=True))
 
     @property
     def owners(self):
-        return get_user_model().objects.filter(
-            pk__in=self.organizationmember_set.filter(is_owner=True).values_list("pk", flat=True)
-        )
+        return get_user_model().objects.filter(pk__in=self.organizationmember_set.filter(is_owner=True).values_list("pk", flat=True))
 
 
 class OrganizationRoleMixin(models.Model):
@@ -69,7 +69,7 @@ class OrganizationRoleMixin(models.Model):
         abstract = True
 
 
-class OrganizationMember(OrganizationRoleMixin, TimeStampModelMixin):
+class OrganizationMember(OrganizationRoleMixin, BaseModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     is_primary = models.BooleanField(default=False, verbose_name=_("primary"))
@@ -112,12 +112,10 @@ class OrganizationMember(OrganizationRoleMixin, TimeStampModelMixin):
         )
 
 
-class OrganizationInvite(OrganizationRoleMixin, TimeStampModelMixin):
+class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE)
-    invitee = models.ForeignKey(
-        settings.AUTH_USER_MODEL, related_name="invitees", null=True, blank=True, on_delete=models.CASCADE
-    )
+    invitee = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="invitees", null=True, blank=True, on_delete=models.CASCADE)
     invitee_email = models.EmailField(null=True, blank=True)
     key = models.CharField(max_length=32, editable=False)
     objects = OrganizationInviteQuerySet.as_manager()
@@ -126,7 +124,7 @@ class OrganizationInvite(OrganizationRoleMixin, TimeStampModelMixin):
 
     @property
     def is_expired(self):
-        return (timezone.now() - self.created) > timedelta(days=self.expired_in_days)
+        return (timezone.now() - self.created_at) > timedelta(days=self.expired_in_days)
 
     @property
     def invitee_first_name(self):
@@ -166,16 +164,9 @@ class OrganizationInvite(OrganizationRoleMixin, TimeStampModelMixin):
             is True
         ):
             if self.invitee is not None:
-                raise ValidationError(
-                    _(
-                        "There is already a pending invitation for the user,"
-                        f" {self.invitee.get_full_name()} ({self.invitee.username})."
-                    )
-                )
+                raise ValidationError(_(f"There is already a pending invitation for the user, {self.invitee.get_full_name()} ({self.invitee.username})."))
             else:
-                raise ValidationError(
-                    _(f'There is already a pending invitation for the email address, "{self.invitee_email}".')
-                )
+                raise ValidationError(_(f'There is already a pending invitation for the email address, "{self.invitee_email}".'))
 
     def save(self, **kwargs):
         self.full_clean()

@@ -5,29 +5,32 @@ from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSettin
 
 @admin.register(DefaultSetting)
 class DefaultSettingAdmin(admin.ModelAdmin):
-    list_display = ("key", "value_type", "description", "modified")
+    list_display = ("key", "value_type", "description", "updated_at")
     search_fields = ("key", "description")
-    readonly_fields = ("created", "modified", "updated_by")
+    readonly_fields = ("created_at", "updated_at", "created_by", "updated_by")
 
     def save_model(self, request, obj, form, change):
-        obj.updated_by = request.user
+        username = request.user.get_username()
+        if not change:
+            obj.created_by = username
+        obj.updated_by = username
         super().save_model(request, obj, form, change)
 
 
 @admin.register(OrganizationSetting)
 class OrganizationSettingAdmin(admin.ModelAdmin):
-    list_display = ("organization", "setting", "modified")
+    list_display = ("organization", "setting", "updated_at")
     list_select_related = ("organization", "setting")
     search_fields = ("organization__name", "setting__key")
 
 
 @admin.register(TeamSetting)
 class TeamSettingAdmin(admin.ModelAdmin):
-    list_display = ("team", "setting", "modified")
+    list_display = ("team", "setting", "updated_at")
     list_select_related = ("team", "setting")
 
 
 @admin.register(UserSetting)
 class UserSettingAdmin(admin.ModelAdmin):
-    list_display = ("user", "key", "modified")
+    list_display = ("user", "key", "updated_at")
     search_fields = ("user__username", "key")

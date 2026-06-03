@@ -160,7 +160,7 @@ def update_custom_role(
 def deactivate_custom_role(role: AccessRole) -> AccessRole:
     _validate_custom_role(role)
     role.is_active = False
-    role.save(update_fields=["is_active", "modified"])
+    role.save(update_fields=["is_active", "updated_at"])
     return role
 
 
