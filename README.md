@@ -86,6 +86,8 @@ just format             # 格式化代码
 just pre_commit         # format + lint + test + e2e
 ```
 
+前端工程采用同仓多工程、依赖隔离的方式组织。SaaS 管理后台在 `frontend_admin/`，小程序端在 `frontend_miniprogram/`，旧 `frontend/` 仅暂时保留。具体边界和入口命令见 [docs/frontend-structure.md](docs/frontend-structure.md)。
+
 测试约定：
 
 - 后端单元测试放在 `tests/<app>/...`

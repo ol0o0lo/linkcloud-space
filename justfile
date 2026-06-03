@@ -10,6 +10,26 @@ project_slug := 'linkcloud-space'
 @create_env:
     uvx epicenv create
 
+# Start SaaS admin frontend dev server
+@admin_dev:
+    cd frontend_admin && pnpm dev:antdv-next
+
+# Build SaaS admin frontend assets
+@admin_build:
+    just build_admin
+
+# Start mini program frontend dev server for WeChat
+@miniprogram_dev:
+    cd frontend_miniprogram && pnpm dev:mp-weixin
+
+# Build mini program frontend assets for WeChat
+@miniprogram_build:
+    cd frontend_miniprogram && pnpm build:mp-weixin
+
+# Build mini program H5 assets and collect them into Django static files
+@miniprogram_build_h5:
+    just build_h5
+
 # Remove extra Django Base Site files not needed in a new project
 @clean_extra_files:
     rm -f LICENSE.md
