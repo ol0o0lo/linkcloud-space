@@ -12,12 +12,12 @@ Django Base Site is an opinionated Django starter template with a production-rea
 
 ## Architecture
 
-- **Apps**: Under `apps/` — `accounts/` (custom user with timezone + avatar fields), `base/` (utilities, ninja error handlers, storage backends, the SPA shell view, the `qr_svg` view, etc.), `organizations/` (Organization, OrganizationMember, OrganizationInvite + the public invite ninja API), `teams/` (Team model + ninja API), `notifications/` (Notification + NotificationPreference, ninja API at `/api/notifications/`, `notify()` producer helper, retention purge via celery beat, GenericForeignKey post_delete cleanup driven by `settings.NOTIFICATIONS_TARGET_MODELS`, per-user category prefs declared in `settings.NOTIFICATIONS_CATEGORIES`).
+- **Apps**: Under `apps/` — `accounts/` (custom user with timezone + avatar fields), `base/` (utilities, ninja error handlers, storage backends, the SPA shell view, dashboard/H5 static shell views, the `qr_svg` view, etc.), `media/` (media file records, OSS/S3 upload helpers, orphan cleanup), `organizations/` (Organization, OrganizationMember, OrganizationInvite + the public invite ninja API), `teams/` (Team model + ninja API), `access/` (RBAC permission catalog, org/team roles, org/team bindings), `notifications/` (Notification + NotificationPreference, ninja API at `/api/notifications/`, `notify()` producer helper, retention purge via celery beat, GenericForeignKey post_delete cleanup driven by `settings.NOTIFICATIONS_TARGET_MODELS`, per-user category prefs declared in `settings.NOTIFICATIONS_CATEGORIES`), `settings/` (default settings plus user/org/team override APIs).
 - **Settings**: `config/settings/` — `_base.py` (main, env-driven via epicenv), `__init__.py` (re-exports `_base`), `test_runner.py` (overrides for pytest), `e2e.py` (overrides for Playwright with pre-built Vite assets).
-- **API**: A single `NinjaAPI` instance in `config/api.py` mounted at `/api/`. Routers come from each app's `api.py` (`apps.base.api`, `apps.accounts.api`, `apps.organizations.api`, `apps.teams.api`, `apps.notifications.api`).
-- **URLs** (`config/urls.py`): A re_path catch-all serves the Vue SPA shell for every non-API path. `/_allauth/` mounts allauth's headless API, `/hijack/` mounts django-hijack, `/admin/` is the Django admin, `/api/` is the ninja API. A `_public_not_found` shim before the catch-all keeps stale `/public/static/*` chunks from being answered with HTML.
-- **Frontend**: Vue 3 SPA in `frontend/` (was `src/` pre-conversion). `frontend/js/app.js` mounts `App.vue`, `frontend/js/router.js` defines all SPA routes (lazy-loaded). `frontend/js/stores/app.js` is the reactive app store; `appStore.fetchContext()` hits `/api/app-context/` to populate user, org, organizations, version, etc. `frontend/css/app.css` is Tailwind v4 with Fraunces / IBM Plex Sans / JetBrains Mono via Google Fonts. Built with bun + Vite.
-- **Docker**: `compose.yml` with healthchecks on every service: `db` (postgres 17), `redis` (7), `mailpit`, `minio`, `web`, `worker` (celery), `frontend` (bun running Vite). The web container runs `migrate` and `ensure_s3_bucket` on startup. Multi-stage production image at `config/docker/Dockerfile.web` (python-requirements → base → dev / js_assets → prod with gunicorn).
+- **API**: A single `NinjaAPI` instance in `config/api.py` mounted at `/api/`. Routers come from each app's `api.py` (`apps.base.api`, `apps.access.api`, `apps.accounts.api`, `apps.media.api`, `apps.organizations.api`, `apps.teams.api`, `apps.notifications.api`, `apps.settings.api`). API auth accepts Django session, allauth JWT Bearer, and `X-Session-Token`.
+- **URLs** (`config/urls.py`): A re_path catch-all serves the main Vue SPA shell for every non-API path. `/_allauth/` mounts allauth's headless API, `/hijack/` mounts django-hijack, `/admin/` is the Django admin, `/api/` is the ninja API, `/dashboard/` serves the built admin SPA, and `/h5/` serves the built H5 app. A `_public_not_found` shim before the main catch-all keeps stale `/public/static/*` chunks from being answered with HTML.
+- **Frontend**: The main Vue 3 SPA lives in `frontend/` (was `src/` pre-conversion). `frontend/js/app.js` mounts `App.vue`, `frontend/js/router.js` defines all SPA routes (lazy-loaded), and `frontend/js/stores/app.js` populates app context from `/api/app-context/`. `frontend/css/app.css` is Tailwind v4 with Fraunces / IBM Plex Sans / JetBrains Mono via Google Fonts. Additional built frontends live in `frontend_admin/apps/web-antdv-next` (served at `/dashboard/`) and `frontend_miniprogram/` (H5 build served at `/h5/`); `config/base.just` copies their build outputs into `public/static/dist/admin` and `public/static/dist/h5` before Django `collectstatic`.
+- **Docker**: `compose.yml` defines `db` (postgres 17), `redis` (7), `minio`, `web`, `worker` (celery), `frontend` (bun running Vite), and an optional `docs` service under the `full` / `docs` profile. Healthchecks are defined for `db`, `redis`, `minio`, and `frontend`. The web container runs `migrate` and `ensure_s3_bucket` on startup. Multi-stage production image at `config/docker/Dockerfile.web` (python-requirements → base → dev / js_assets → prod with gunicorn).
 - **Static / media**: WhiteNoise serves Vite-hashed assets in production with `Cache-Control: max-age=31536000, immutable` (regex defined in settings). Media uploads use `apps/base/storage.py:S3MediaStorage` which handles the Docker-internal vs. browser endpoint URL split for MinIO.
 
 ## Development Commands
@@ -27,16 +27,20 @@ Use Just for all development tasks. Common ones:
 **Setup & Management:**
 - `just start` - `docker compose up`
 - `just start_with_debugpy` - same with debugpy listening on `:5678`
+- `just start_full` - start docker compose with the `full` profile (for example the docs service)
 - `just stop` - Stop all services
 - `just build` - Rebuild Docker images + clear node_modules + collectstatic
 - `just build_frontend` - `bun run build` + collectstatic
+- `just build_admin` - build `frontend_admin/apps/web-antdv-next` with `pnpm` + collectstatic
+- `just build_h5` - build `frontend_miniprogram` H5 assets with `pnpm` + collectstatic
 - `just clean` - Remove caches, coverage, dist
 - `just create_env` - Generate `.env` from the schema in `pyproject.toml`
+- `just upgrade_all_packages` - stop/remove containers, upgrade Python and Node deps, rebuild, then run pre-commit checks
 
 **Code Quality:**
 - `just format` - Format Python (ruff), JS (eslint), HTML (djlint), justfile
 - `just lint` - Run all linters + ty type check + check for missing migrations
-- `just pre_commit` - format + lint + test
+- `just pre_commit` - format + lint + test + test_e2e
 
 **Testing:**
 - `just test` - pytest (Django + ninja API tests)
@@ -62,13 +66,14 @@ Use Just for all development tasks. Common ones:
 - Django Test Plus for additional helpers.
 - pyotp for the TOTP / MFA tests under `tests/accounts/test_mfa_flows.py`.
 - Playwright e2e tests under `e2e/` (auth flow, invite flow); `--ignore=e2e` is on `pyproject.toml` `[tool.pytest.ini_options]` so the unit suite stays fast.
+- `just test_e2e` pre-builds the main `frontend/` SPA only; if you change `/dashboard/` or `/h5/`, build those assets explicitly with `just build_admin` or `just build_h5`.
 - Coverage configuration in `config/coverage.ini`.
 
 ## Code Standards
 
 - **Python**: Ruff for formatting + linting (replaces Black/isort). Ty for type checking. Django conventions throughout. Bandit (S) ruleset enabled in Ruff.
 - **Ninja**: `[tool.ruff.lint.flake8-bugbear] extend-immutable-calls` includes `ninja.Query/File/Form/Body/Path` so default-arg-with-call patterns don't trip B008.
-- **JavaScript / Vue**: ESLint flat config (`eslint.config.mjs`) with `@eslint/js` recommended + `eslint-plugin-vue` flat/recommended. 180-char line length.
+- **JavaScript / Vue**: Root ESLint flat config (`eslint.config.mjs`) with `@eslint/js` recommended + `eslint-plugin-vue` flat/recommended applies to `frontend/`. `frontend_admin/` and `frontend_miniprogram/` keep their own package managers and lint configs. 180-char line length.
 - **HTML / Django templates**: djLint for formatting and linting.
 - **CSS**: Tailwind v4 utilities (no separate Sass/Stylelint pipeline anymore — both were dropped during the SPA conversion).
 - **Line Length**: 180 characters for Python and HTML.
@@ -118,15 +123,19 @@ Key variables:
 - `INTERNAL_IPS` — for Django Debug Toolbar
 - `USE_DEBUGPY=true` — enable remote debugging
 - `MEDIA_S3_*` — MinIO / S3 credentials. `MEDIA_S3_ENDPOINT_URL` is the Docker-internal hostname (`http://minio:9000`); `MEDIA_S3_URL_ENDPOINT_URL` is the browser-facing one (`http://localhost:9000`). The split is handled by `apps.base.storage.S3MediaStorage`.
+- `ALIYUN_STS_*` — STS credentials used by `apps.media.api` when issuing direct-upload OSS tokens.
+- `SMS_BACKEND`, `ALIYUN_SMS_*`, `TENCENT_SMS_*` — phone verification / login-by-code SMS backends.
+- `GITHUB_CLIENT_*`, `WECHAT_APP_*`, `WECHAT_MINIPROGRAM_APP_*` — social login providers for browser and mini-program clients.
 - `ACCOUNT_SIGNUP_OPEN` — bool, gates new registrations.
 
 ## SPA Auth Flow
 
-`HEADLESS_ONLY = True`, so allauth never renders templates — it returns JSON via `/_allauth/browser/v1/...`. The Vue SPA at `frontend/js/accounts/views/*` drives the entire flow:
+`HEADLESS_ONLY = True` with `HEADLESS_CLIENTS = ["browser", "app"]`, so allauth never renders templates — browser flows return JSON via `/_allauth/browser/v1/...`, and app/mobile clients use the headless app client with JWT. The Vue SPA at `frontend/js/accounts/views/*` drives the browser flow:
 
-- **Sign-in**: `LoginView.vue` POSTs to `/_allauth/browser/v1/auth/login`. Honors `?next=` (skipping `/accounts/*` redirects).
-- **Sign-up**: `SignupView.vue` POSTs to `.../auth/signup`. Includes a hidden `timezone` field auto-populated by `Intl.DateTimeFormat`. After signup, if email verification is optional and the user is auto-logged-in, honors `?next=`.
+- **Sign-in**: `LoginView.vue` handles password sign-in, passkey sign-in, and GitHub sign-in. Password login still honors `?next=` (skipping `/accounts/*` redirects) and may branch into phone verification or MFA flows based on allauth's returned `flows` state.
+- **Sign-up**: `SignupView.vue` submits `phone`, `email`, and `password`, supports GitHub sign-up, and redirects into the phone-verification flow when allauth returns a pending `verify_phone` step.
 - **Email verification**: link in the email goes to `/accounts/confirm-email/{key}` (Vue route via `HEADLESS_FRONTEND_URLS`).
+- **Phone verification**: the SPA route `frontend/js/accounts/views/PhoneVerifyView.vue` completes the pending `verify_phone` flow used by phone-first / login-by-code auth.
 - **Password reset**: 3-step flow under `frontend/js/accounts/views/PasswordReset*View.vue`.
 - **MFA**: TOTP, recovery codes, WebAuthn passkeys. The TOTP enrollment QR is rendered locally at `/qr/?data=<otpauth-url>` (login_required) using the `qrcode` package — no third-party image service.
 - **Org invite**: email link points to `/organizations/invite/<key>/accept/`, served by `SPAView` via a re_path that keeps the `accept_invite` URL name for `reverse()`. The Vue page (`frontend/js/views/AcceptInviteView.vue`) hits `/api/invite-by-key/<key>/` for the lookup; accept and decline endpoints live on the same prefix.
@@ -140,7 +149,7 @@ Key variables:
 
 ## Key Dependencies
 
-- **Backend**: Django 5, django-allauth[mfa] (with fido2 for WebAuthn), django-ninja, django-hijack, Pillow, Celery, Redis, PostgreSQL 17, gunicorn, WhiteNoise, django-storages + boto3, django-ses, django-alive, django-maintenance-mode.
+- **Backend**: Django 5, django-allauth[mfa] (with fido2 for WebAuthn), django-ninja, django-hijack, Pillow, Celery, Redis, PostgreSQL 17, gunicorn, WhiteNoise, django-storages + boto3, django-ses, django-alive, django-maintenance-mode, Aliyun SMS/STS SDKs, Tencent SMS SDK.
 - **Frontend**: Vue 3, Vue Router 5, Tailwind v4, Vite 8, bun, @heroicons/vue, vue-advanced-cropper, reka-ui (modal/toast primitives).
 - **Development**: Docker, pytest, pytest-playwright, pyotp, Ruff, Ty, ESLint, djLint, model-bakery.
 
