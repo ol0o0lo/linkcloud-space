@@ -15,6 +15,35 @@ class OrganizationCreateOut(Schema):
     slug: str
 
 
+class OrganizationOut(Schema):
+    id: int
+    name: str
+    slug: str
+    billing_email: str | None = None
+    is_active: bool
+    member_limit: int | None = None
+    team_limit: int | None = None
+
+
+class OrganizationPatchIn(Schema):
+    name: str | None = Field(None, description="租户显示名称。")
+    slug: str | None = Field(None, description="租户 slug。")
+    billing_email: str | None = Field(None, description="租户账单联系邮箱。")
+    member_limit: int | None = Field(None, description="成员数量上限，null 表示不限。")
+    team_limit: int | None = Field(None, description="团队数量上限，null 表示不限。")
+
+
+class OrganizationStatusPatchIn(Schema):
+    is_active: bool = Field(..., description="是否启用租户。")
+
+
+class OrganizationUsageOut(Schema):
+    member_count: int
+    team_count: int
+    member_limit: int | None = None
+    team_limit: int | None = None
+
+
 class SwitchListItemOut(Schema):
     id: int
     name: str
@@ -76,6 +105,10 @@ class MemberOut(Schema):
 class MemberIn(Schema):
     user: int = Field(..., description="要添加到租户的用户 ID。")
     is_owner: bool = Field(False, description="是否授予该成员租户 owner 权限。")
+
+
+class TransferOwnerIn(Schema):
+    user: int = Field(..., description="新的 owner 用户 ID，必须已经是当前租户成员。")
 
 
 class MemberPatchIn(Schema):

@@ -29,6 +29,10 @@ class Organization(BaseModelMixin):
         error_messages={"invalid": _("Enter a valid name consisting of letters, numbers, underscores or hyphens.")},
     )
     billing_email = models.EmailField(null=True, blank=True, help_text="The email address that receipts are sent.")
+    is_active = models.BooleanField(default=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    member_limit = models.PositiveIntegerField(null=True, blank=True)
+    team_limit = models.PositiveIntegerField(null=True, blank=True)
     objects = OrganizationQuerySet.as_manager()
 
     def __str__(self):
@@ -51,15 +55,11 @@ class Organization(BaseModelMixin):
 
     @property
     def regular_members(self):
-        return get_user_model().objects.filter(
-            pk__in=self.organizationmember_set.filter(is_owner=False).values_list("pk", flat=True)
-        )
+        return get_user_model().objects.filter(pk__in=self.organizationmember_set.filter(is_owner=False).values_list("pk", flat=True))
 
     @property
     def owners(self):
-        return get_user_model().objects.filter(
-            pk__in=self.organizationmember_set.filter(is_owner=True).values_list("pk", flat=True)
-        )
+        return get_user_model().objects.filter(pk__in=self.organizationmember_set.filter(is_owner=True).values_list("pk", flat=True))
 
 
 class OrganizationRoleMixin(models.Model):
@@ -115,9 +115,7 @@ class OrganizationMember(OrganizationRoleMixin, BaseModelMixin):
 class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE)
-    invitee = models.ForeignKey(
-        settings.AUTH_USER_MODEL, related_name="invitees", null=True, blank=True, on_delete=models.CASCADE
-    )
+    invitee = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="invitees", null=True, blank=True, on_delete=models.CASCADE)
     invitee_email = models.EmailField(null=True, blank=True)
     key = models.CharField(max_length=32, editable=False)
     objects = OrganizationInviteQuerySet.as_manager()
@@ -166,16 +164,9 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
             is True
         ):
             if self.invitee is not None:
-                raise ValidationError(
-                    _(
-                        "There is already a pending invitation for the user,"
-                        f" {self.invitee.get_full_name()} ({self.invitee.username})."
-                    )
-                )
+                raise ValidationError(_(f"There is already a pending invitation for the user, {self.invitee.get_full_name()} ({self.invitee.username})."))
             else:
-                raise ValidationError(
-                    _(f'There is already a pending invitation for the email address, "{self.invitee_email}".')
-                )
+                raise ValidationError(_(f'There is already a pending invitation for the email address, "{self.invitee_email}".'))
 
     def save(self, **kwargs):
         self.full_clean()

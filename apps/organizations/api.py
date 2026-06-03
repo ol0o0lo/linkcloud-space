@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db import models, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from ninja import Path, Query, Router, Status
 from ninja.errors import HttpError
@@ -13,7 +14,7 @@ from ninja.pagination import paginate
 from apps.access.constants import OrganizationPermission
 from apps.access.permissions import require_org_permission
 from apps.base.ninja_pagination import LegacyPagination
-from apps.base.permissions import require_authenticated
+from apps.base.permissions import require_authenticated, require_org_owner
 from apps.organizations.hooks import post_create_organization, pre_create_organization
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.schemas import (
@@ -25,6 +26,10 @@ from apps.organizations.schemas import (
     MemberSearchOut,
     OrganizationCreateIn,
     OrganizationCreateOut,
+    OrganizationOut,
+    OrganizationPatchIn,
+    OrganizationStatusPatchIn,
+    OrganizationUsageOut,
     OrgSelectOut,
     PublicInviteOut,
     SetPrimaryOut,
@@ -32,8 +37,10 @@ from apps.organizations.schemas import (
     SettingsPatchIn,
     SuccessOut,
     SwitchListItemOut,
+    TransferOwnerIn,
 )
 from apps.organizations.session import remove_org, save_counts, save_org_data
+from apps.teams.models import Team
 
 orgs_router = Router(tags=["租户/基础"])
 members_router = Router(tags=["租户/成员"])
@@ -58,6 +65,13 @@ def create_organization(request, payload: OrganizationCreateIn):
         post_create_organization(request, org)
     save_org_data(request, org)
     return Status(201, {"id": org.pk, "name": org.name, "slug": org.slug})
+
+
+def _selected_owner_org(request, slug: str) -> Organization:
+    org = require_org_owner(request)
+    if org.slug != slug:
+        raise HttpError(403, "Select this organization before managing it.")
+    return org
 
 
 @orgs_router.get("/switch-list/", response=list[SwitchListItemOut], summary="获取租户切换列表")
@@ -91,6 +105,62 @@ def signout(request):
     require_authenticated(request)
     remove_org(request)
     return {"success": True}
+
+
+@orgs_router.patch("/{slug}/", response=OrganizationOut, summary="更新租户资料和限制")
+def patch_organization(request, slug: str, payload: OrganizationPatchIn):
+    """更新当前选中租户的基础资料、账单邮箱和成员/团队上限。"""
+    org = _selected_owner_org(request, slug)
+    data = payload.dict(exclude_unset=True)
+    for field, value in data.items():
+        setattr(org, field, value)
+    org.full_clean()
+    org.save()
+    save_org_data(request, org)
+    return org
+
+
+@orgs_router.patch("/{slug}/status/", response=OrganizationOut, summary="归档或恢复租户")
+def patch_organization_status(request, slug: str, payload: OrganizationStatusPatchIn):
+    """通过 is_active 控制租户是否可用；禁用时记录 archived_at，恢复时清空。"""
+    org = _selected_owner_org(request, slug)
+    org.is_active = payload.is_active
+    org.archived_at = None if payload.is_active else timezone.now()
+    org.save(update_fields=["is_active", "archived_at", "updated_at"])
+    save_org_data(request, org)
+    return org
+
+
+@orgs_router.post("/{slug}/transfer-owner/", response=SuccessOut, summary="转移租户 owner")
+def transfer_owner(request, slug: str, payload: TransferOwnerIn):
+    """将当前 owner 身份转移给同租户的另一个成员。"""
+    org = _selected_owner_org(request, slug)
+    with transaction.atomic():
+        new_owner = get_object_or_404(OrganizationMember.objects.select_for_update(), organization=org, user_id=payload.user)
+        current_owner = get_object_or_404(OrganizationMember.objects.select_for_update(), organization=org, user=request.user)
+        if new_owner.user_id == request.user.pk:
+            raise HttpError(400, "The selected user is already the current owner.")
+        updated_at = timezone.now()
+        new_owner.is_owner = True
+        new_owner.updated_at = updated_at
+        current_owner.is_owner = False
+        current_owner.updated_at = updated_at
+        OrganizationMember.objects.bulk_update([new_owner, current_owner], ["is_owner", "updated_at"])
+    save_org_data(request, org)
+    save_counts(request)
+    return {"success": True}
+
+
+@orgs_router.get("/{slug}/usage/", response=OrganizationUsageOut, summary="获取租户用量")
+def get_organization_usage(request, slug: str):
+    """返回当前租户成员数、团队数及对应上限。"""
+    org = _selected_owner_org(request, slug)
+    return {
+        "member_count": OrganizationMember.objects.filter(organization=org).count(),
+        "team_count": Team.objects.filter(organization=org).count(),
+        "member_limit": org.member_limit,
+        "team_limit": org.team_limit,
+    }
 
 
 @orgs_router.post("/{slug}/select/", response=OrgSelectOut, summary="切换当前租户")
@@ -129,11 +199,7 @@ def set_primary(request, slug: str = Path(..., description="租户 slug。")):
 
 
 def _members_qs(request):
-    return (
-        OrganizationMember.objects.select_related("user", "organization")
-        .filter_by_org(request)
-        .order_by("user__username")
-    )
+    return OrganizationMember.objects.select_related("user", "organization").filter_by_org(request).order_by("user__username")
 
 
 @members_router.get("/", response=list[MemberOut], summary="获取租户成员列表")
@@ -143,12 +209,7 @@ def list_members(request, q: str | None = Query(None, description="按姓名、�
     require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     qs = _members_qs(request)
     if q:
-        qs = qs.filter(
-            Q(user__first_name__icontains=q)
-            | Q(user__last_name__icontains=q)
-            | Q(user__username__icontains=q)
-            | Q(user__email__icontains=q)
-        )
+        qs = qs.filter(Q(user__first_name__icontains=q) | Q(user__last_name__icontains=q) | Q(user__username__icontains=q) | Q(user__email__icontains=q))
     return qs
 
 
@@ -166,11 +227,7 @@ def search_members(request, q: str = Query("", description="待搜索的用户�
                 q_obj |= Q(**{f"{fn}__icontains": item})
         qs = user_model.objects.filter(is_active=True).filter(q_obj)
         qs = qs.exclude(pk__in=OrganizationMember.objects.filter(organization=org).values_list("user_id", flat=True))
-        qs = qs.exclude(
-            pk__in=OrganizationInvite.objects.filter(organization=org)
-            .filter(invitee__isnull=False)
-            .values_list("invitee_id", flat=True)
-        )
+        qs = qs.exclude(pk__in=OrganizationInvite.objects.filter(organization=org).filter(invitee__isnull=False).values_list("invitee_id", flat=True))
         qs = qs[:10]
     return [
         {
@@ -232,11 +289,7 @@ def delete_member(request, member_id: int):
 
 
 def _invites_qs(request):
-    return (
-        OrganizationInvite.objects.select_related("organization", "sender", "invitee")
-        .filter_by_org(request)
-        .order_by("-created_at")
-    )
+    return OrganizationInvite.objects.select_related("organization", "sender", "invitee").filter_by_org(request).order_by("-created_at")
 
 
 @invites_router.get("/", response=list[InviteOut], summary="获取租户邀请列表")
@@ -268,6 +321,17 @@ def get_invite(request, invite_id: int):
     """返回当前租户某条邀请记录的详情。"""
     require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     return get_object_or_404(_invites_qs(request), pk=invite_id)
+
+
+@invites_router.post("/{invite_id}/resend/", response=SuccessOut, summary="重发租户邀请")
+def resend_invite(request, invite_id: int):
+    """重新发送当前租户内某条待处理邀请。"""
+    require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
+    invite = get_object_or_404(_invites_qs(request), pk=invite_id)
+    OrganizationInvite.objects.filter(pk=invite.pk).update(sender=request.user, updated_at=timezone.now())
+    invite.sender = request.user
+    transaction.on_commit(invite.send_invite)
+    return {"success": True}
 
 
 @invites_router.delete("/{invite_id}/", response={204: None}, summary="取消租户邀请")

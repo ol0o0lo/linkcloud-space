@@ -11,6 +11,15 @@ class UserOut(Schema):
     avatar_url: str | None = None
 
 
+class AdminUserOut(UserOut):
+    email: str = ""
+    phone: str | None = None
+    phone_verified: bool
+    is_active: bool
+    is_staff: bool
+    is_superuser: bool
+
+
 class MeOut(Schema):
     id: int
     email: str
@@ -52,3 +61,15 @@ class WechatPhoneIn(Schema):
 class WechatPhoneOut(Schema):
     phone: str
     merged: bool
+
+
+class UserStatusPatchIn(Schema):
+    is_active: bool = Field(..., description="是否启用用户。")
+
+
+class ForceLogoutOut(Schema):
+    deleted_sessions: int
+
+
+class ResetMfaOut(Schema):
+    deleted_authenticators: int
