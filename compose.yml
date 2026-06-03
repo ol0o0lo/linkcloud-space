@@ -139,32 +139,32 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings
 
-  frontend:
-    container_name: frontend
-    image: linkcloud-space:bun
-    build:
-      context: .
-      dockerfile: config/docker/Dockerfile.bun
-    init: true
-    working_dir: /srv/app
+  # frontend:
+  #   container_name: frontend
+  #   image: linkcloud-space:bun
+  #   build:
+  #     context: .
+  #     dockerfile: config/docker/Dockerfile.bun
+  #   init: true
+  #   working_dir: /srv/app
 
-    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+  #   user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
 
-    command: sh -c "bun run dev --host 0.0.0.0"
+  #   command: sh -c "bun run dev --host 0.0.0.0"
 
-    volumes:
-      - .:/srv/app
-      - node_modules:/srv/app/node_modules
+  #   volumes:
+  #     - .:/srv/app
+  #     - node_modules:/srv/app/node_modules
 
-    ports:
-      - "127.0.0.1:3000:3000"
+  #   ports:
+  #     - "127.0.0.1:3000:3000"
 
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3000"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 30s
 
   docs:
     container_name: docs
