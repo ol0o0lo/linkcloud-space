@@ -1,8 +1,10 @@
 import json
+from datetime import timedelta
 
 from django.contrib.auth import user_logged_in
 from django.core import mail
 from django.test import TestCase
+from django.utils import timezone
 
 from model_bakery import baker
 
@@ -313,6 +315,30 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         self.assertTrue(resp.json()["success"])
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("guest@example.com", mail.outbox[0].to)
+
+    def test_resend_expired_invite_refreshes_expiration(self):
+        invite = OrganizationInvite.objects.create(
+            organization=self.org,
+            sender=self.user,
+            invitee_email="guest@example.com",
+        )
+        stale_created_at = timezone.now() - timedelta(days=invite.expired_in_days + 1)
+        OrganizationInvite.objects.filter(pk=invite.pk).update(created_at=stale_created_at)
+        invite.refresh_from_db()
+        old_key = invite.key
+        self.assertTrue(invite.is_expired)
+
+        self._login()
+        mail.outbox = []
+
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.post(f"/api/organization-invites/{invite.pk}/resend/")
+
+        self.assertEqual(resp.status_code, 200)
+        invite.refresh_from_db()
+        self.assertFalse(invite.is_expired)
+        self.assertNotEqual(invite.key, old_key)
+        self.assertEqual(len(mail.outbox), 1)
 
 
 class TestOrganizationSettingsViewSet(OrganizationAPITestBase):

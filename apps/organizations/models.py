@@ -174,6 +174,20 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
             self.key = binascii.hexlify(os.urandom(20)).decode()[:32]
         super().save(**kwargs)
 
+    def reissue(self, *, sender):
+        refreshed_at = timezone.now()
+        new_key = binascii.hexlify(os.urandom(20)).decode()[:32]
+        type(self).objects.filter(pk=self.pk).update(
+            sender=sender,
+            key=new_key,
+            created_at=refreshed_at,
+            updated_at=refreshed_at,
+        )
+        self.sender = sender
+        self.key = new_key
+        self.created_at = refreshed_at
+        self.updated_at = refreshed_at
+
     def _send_email(self, subject: str, template_name: str, context: dict):
         context = {"site_url": settings.SITE_URL, **context}
         recipient = self.invitee.email if self.invitee else self.invitee_email

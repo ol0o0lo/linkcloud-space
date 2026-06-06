@@ -328,9 +328,9 @@ def resend_invite(request, invite_id: int):
     """重新发送当前租户内某条待处理邀请。"""
     require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
     invite = get_object_or_404(_invites_qs(request), pk=invite_id)
-    OrganizationInvite.objects.filter(pk=invite.pk).update(sender=request.user, updated_at=timezone.now())
-    invite.sender = request.user
-    transaction.on_commit(invite.send_invite)
+    with transaction.atomic():
+        invite.reissue(sender=request.user)
+        transaction.on_commit(invite.send_invite)
     return {"success": True}
 
 
