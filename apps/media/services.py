@@ -213,7 +213,14 @@ def cleanup_unreferenced_media(
     older_than=DEFAULT_ORPHAN_RETENTION,
 ) -> CleanupResult:
     """删除超过保留窗口且没有被业务引用的媒体记录和物理文件。"""
-    referenced_ids = set(referenced_media_ids) if referenced_media_ids is not None else collect_referenced_media_ids()
+    if referenced_media_ids is not None:
+        referenced_ids = set(referenced_media_ids)
+    else:
+        providers = list(getattr(settings, "MEDIA_REFERENCE_PROVIDERS", []))
+        if not providers:
+            return CleanupResult(deleted_count=0, deleted_ids=[])
+        referenced_ids = collect_referenced_media_ids(providers)
+
     cutoff = timezone.now() - older_than
     candidates = MediaFile.objects.filter(created_at__lt=cutoff).exclude(pk__in=referenced_ids).order_by("pk")
 

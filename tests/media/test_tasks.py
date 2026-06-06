@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
+from django.test import override_settings
 
 from apps.media.tasks import cleanup_unreferenced_media_files
 
@@ -20,3 +21,8 @@ def test_cleanup_task_is_registered_in_celery_beat_schedule():
     schedule = settings.CELERY_BEAT_SCHEDULE["cleanup-unreferenced-media"]
 
     assert schedule["task"] == "apps.media.tasks.cleanup_unreferenced_media_files"
+
+
+@override_settings(MEDIA_REFERENCE_PROVIDERS=[])
+def test_cleanup_task_returns_zero_when_no_provider_configured():
+    assert cleanup_unreferenced_media_files() == 0

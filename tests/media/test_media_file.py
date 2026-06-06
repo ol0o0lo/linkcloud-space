@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.test import override_settings
 from django.utils import timezone
 
 import pytest
@@ -7,8 +8,12 @@ import pytest
 from apps.accounts.models import User
 from apps.media.constants import MediaScope, ResourceType
 from apps.media.models import MediaFile
-from apps.media.services import cleanup_unreferenced_media, get_media_list_info, register_media_file, validate_media_ids
+from apps.media.services import CleanupResult, cleanup_unreferenced_media, collect_referenced_media_ids, get_media_list_info, register_media_file, validate_media_ids
 from apps.organizations.models import Organization
+
+
+def fake_media_provider():
+    return [101, 102, None]
 
 
 @pytest.mark.django_db
@@ -195,3 +200,27 @@ class TestCleanupUnreferencedMedia:
         assert MediaFile.objects.filter(pk=referenced.pk).exists()
         assert not MediaFile.objects.filter(pk=orphan.pk).exists()
         assert MediaFile.objects.filter(pk=fresh.pk).exists()
+
+
+@override_settings(MEDIA_REFERENCE_PROVIDERS=["tests.media.test_media_file.fake_media_provider"])
+def test_collect_referenced_media_ids_supports_import_string():
+    assert collect_referenced_media_ids() == {101, 102}
+
+
+@pytest.mark.django_db
+@override_settings(MEDIA_REFERENCE_PROVIDERS=[])
+def test_cleanup_is_noop_when_no_providers_configured():
+    user = User.objects.create_user(username="cleanup_guard", password="secret")  # noqa: S106
+    orphan = register_media_file(
+        uploader=user,
+        oss_path="uploads/users/1/orphan.png",
+        original_filename="orphan.png",
+        resource_type=ResourceType.AVATAR,
+        file_size=100,
+    )
+    MediaFile.objects.filter(pk=orphan.pk).update(created_at=timezone.now() - timedelta(days=2))
+
+    result = cleanup_unreferenced_media(older_than=timedelta(days=1))
+
+    assert result == CleanupResult(deleted_count=0, deleted_ids=[])
+    assert MediaFile.objects.filter(pk=orphan.pk).exists()

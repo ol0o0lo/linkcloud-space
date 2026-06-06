@@ -39,6 +39,13 @@ INSTANCE = env("INSTANCE", default="dev")
 
 ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS = [
+        *CSRF_TRUSTED_ORIGINS,
+        "http://localhost:3000",
+        "http://localhost:5999",
+        "http://localhost:6000",
+    ]
 # Only honor X-Forwarded-Proto when explicitly opted in. Setting this when the
 # app isn't behind a proxy that strips the header lets a client spoof HTTPS
 # detection and bypass `secure`-flag cookies / SECURE_SSL_REDIRECT.
@@ -318,6 +325,11 @@ NOTIFICATIONS_RETENTION_DAYS = env.int("NOTIFICATIONS_RETENTION_DAYS", default=9
 # Media files that are not reported by MEDIA_REFERENCE_PROVIDERS are treated as
 # orphan candidates only after this retention window.
 MEDIA_ORPHAN_RETENTION_HOURS = env.int("MEDIA_ORPHAN_RETENTION_HOURS", default=24)
+
+# Register one function path per business module that stores JSON list[int]
+# media references. Each provider must return the MediaFile IDs that are still
+# referenced by active business records. Keep this list empty until the first
+# business consumer is actually wired; cleanup will safely no-op in that case.
 MEDIA_REFERENCE_PROVIDERS: list[str] = []
 
 # Notification categories shown on the account-settings Notifications tab and
