@@ -114,10 +114,7 @@ def upload_and_register(
     object_id: int | None = None,
 ) -> MediaFile:
     """将文件上传到默认存储后端（OSS），并登记 MediaFile 记录。"""
-    if scope == MediaScope.USER:
-        target_object_id = uploader.pk
-    else:
-        target_object_id = object_id
+    target_object_id = uploader.pk if scope == MediaScope.USER else object_id
 
     if target_object_id is None:
         raise ValueError("scope=org 时必须提供 object_id")
