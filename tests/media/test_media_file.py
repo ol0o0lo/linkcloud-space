@@ -5,9 +5,10 @@ from django.utils import timezone
 import pytest
 
 from apps.accounts.models import User
-from apps.media.constants import ResourceType
+from apps.media.constants import MediaScope, ResourceType
 from apps.media.models import MediaFile
 from apps.media.services import cleanup_unreferenced_media, get_media_list_info, register_media_file, validate_media_ids
+from apps.organizations.models import Organization
 
 
 @pytest.mark.django_db
@@ -64,6 +65,29 @@ class TestUploadAndRegister:
         assert mf.original_filename == "photo.png"
         assert mf.file_size == 2048
         mock_storage.save.assert_called_once()
+
+    @patch("apps.media.services.default_storage")
+    def test_uploads_to_org_scope(self, mock_storage):
+        mock_storage.save.return_value = "uploads/orgs/9/abc.png"
+        user = User.objects.create_user(username="org_uploader", password="secret")  # noqa: S106
+        org = Organization.objects.create(name="Example Org", slug="example-org")
+
+        fake_file = MagicMock()
+        fake_file.name = "logo.png"
+        fake_file.size = 2048
+
+        mf = upload_and_register(
+            uploader=user,
+            file=fake_file,
+            resource_type=ResourceType.ORG_LOGO,
+            scope=MediaScope.ORG,
+            object_id=org.pk,
+        )
+
+        assert mf.pk is not None
+        assert mf.resource_type == ResourceType.ORG_LOGO
+        saved_path = mock_storage.save.call_args[0][0]
+        assert saved_path.startswith(f"uploads/orgs/{org.pk}/")
 
 
 @pytest.mark.django_db

@@ -46,16 +46,27 @@ def upload_files(
     request,
     files: list[UploadedFile] = File(..., description="要上传的文件列表。"),
     resource_type: str = Form(..., description="资源类型，例如 avatar、org_logo。"),
+    scope: str = Form(MediaScope.USER, description="上传作用域，user 或 org。"),
 ):
     """通过服务端接收文件并上传存储，同时登记媒体文件记录。"""
     if resource_type not in ResourceType.values:
         raise HttpError(422, f"无效的 resource_type: {resource_type}")
+    if scope not in MediaScope.values:
+        raise HttpError(422, f"无效的 scope: {scope}")
+
+    object_id = request.user.pk
+    if scope == MediaScope.ORG:
+        org = require_org_selected(request)
+        object_id = org.pk
+
     results = []
     for f in files:
         mf = upload_and_register(
             uploader=request.user,
             file=f,
             resource_type=resource_type,
+            scope=scope,
+            object_id=object_id,
         )
         results.append(mf)
     return Status(201, results)

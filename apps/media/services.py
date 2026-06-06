@@ -110,11 +110,21 @@ def upload_and_register(
     uploader,
     file,
     resource_type: str,
+    scope: str = MediaScope.USER,
+    object_id: int | None = None,
 ) -> MediaFile:
     """将文件上传到默认存储后端（OSS），并登记 MediaFile 记录。"""
+    if scope == MediaScope.USER:
+        target_object_id = uploader.pk
+    else:
+        target_object_id = object_id
+
+    if target_object_id is None:
+        raise ValueError("scope=org 时必须提供 object_id")
+
     oss_path = generate_upload_path(
-        scope=MediaScope.USER,
-        object_id=uploader.pk,
+        scope=scope,
+        object_id=target_object_id,
         filename=file.name,
     )
     saved_path = default_storage.save(oss_path, file)

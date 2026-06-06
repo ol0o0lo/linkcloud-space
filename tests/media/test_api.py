@@ -1,9 +1,11 @@
+import json
 from unittest.mock import patch
 
 import pytest
 
 from apps.accounts.models import User
 from apps.media.exceptions import InvalidExtensionException
+from apps.organizations.models import Organization, OrganizationMember
 
 OSS_TOKEN_URL = "/api/media/oss-token/"
 
@@ -15,6 +17,14 @@ def _make_sts_response():
         "security_token": "token",
         "expires_at": "2026-05-16T08:30:00Z",
     }
+
+
+def set_session_org(client, org, is_owner=False):
+    session = client.session
+    session["organization_data"] = json.dumps(
+        {"pk": org.pk, "id": org.pk, "name": org.name, "slug": org.slug, "is_owner": is_owner}
+    )
+    session.save()
 
 
 @pytest.mark.django_db
@@ -155,6 +165,29 @@ class TestUploadAPI:
         assert len(data) == 1
         assert data[0]["original_filename"] == "photo.png"
         assert "order" not in data[0]
+
+    def test_org_scope_requires_active_org(self):
+        file = SimpleUploadedFile("logo.png", b"fakecontent", content_type="image/png")
+        resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": "org_logo", "scope": "org"}, format="multipart")
+        assert resp.status_code == 403
+
+    @patch("apps.media.services.default_storage")
+    def test_org_scope_uploads_into_org_prefix(self, mock_storage):
+        mock_storage.save.return_value = "uploads/orgs/5/logo.png"
+        org = Organization.objects.create(name="Org A", slug="org-a")
+        OrganizationMember.objects.create(organization=org, user=self.user, is_owner=True)
+        set_session_org(self.client, org, is_owner=True)
+
+        file = SimpleUploadedFile("logo.png", b"fakecontent", content_type="image/png")
+        resp = self.client.post(
+            UPLOAD_URL,
+            {"files": [file], "resource_type": "org_logo", "scope": "org"},
+            format="multipart",
+        )
+
+        assert resp.status_code == 201
+        saved_path = mock_storage.save.call_args[0][0]
+        assert saved_path.startswith(f"uploads/orgs/{org.pk}/")
 
     @patch("apps.media.services.default_storage")
     def test_multiple_files_upload(self, mock_storage):
