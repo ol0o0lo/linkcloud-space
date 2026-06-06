@@ -120,3 +120,108 @@ class TestAdminUserLifecycleAPI(TestCase):
         )
 
         self.assertEqual(resp.status_code, 403)
+
+    def test_superuser_can_list_all_users_for_admin(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+
+        resp = self.client.get("/api/admin/users/")
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        rows = data["results"]
+        self.assertEqual(data["count"], 2)
+        member = next(row for row in rows if row["id"] == self.user.pk)
+        self.assertEqual(member["email"], "member@example.com")
+        self.assertFalse(member["is_active"])
+        self.assertFalse(member["is_staff"])
+        self.assertFalse(member["is_superuser"])
+
+    def test_staff_user_cannot_list_admin_users(self):
+        staff = User.objects.create_user(username="staff-list", password="secret", is_staff=True)  # noqa: S106
+        self.client.force_login(staff)
+
+        resp = self.client.get("/api/admin/users/")
+
+        self.assertEqual(resp.status_code, 403)
+
+    def test_superuser_can_create_admin_user(self):
+        resp = self.client.post(
+            "/api/admin/users/",
+            data=json.dumps(
+                {
+                    "username": "new-admin-user",
+                    "email": "new-admin@example.com",
+                    "first_name": "New",
+                    "last_name": "Admin",
+                    "timezone": "Asia/Shanghai",
+                    "phone": "+8613900009999",
+                    "phone_verified": True,
+                    "is_active": True,
+                    "is_staff": True,
+                    "is_superuser": False,
+                    "password": "new-admin-pass",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        created = User.objects.get(username="new-admin-user")
+        self.assertEqual(created.email, "new-admin@example.com")
+        self.assertTrue(created.is_staff)
+        self.assertTrue(created.check_password("new-admin-pass"))
+
+    def test_superuser_can_patch_admin_user(self):
+        resp = self.client.patch(
+            f"/api/admin/users/{self.user.pk}/",
+            data=json.dumps(
+                {
+                    "first_name": "Edited",
+                    "last_name": "Member",
+                    "is_staff": True,
+                    "timezone": "UTC",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Edited")
+        self.assertEqual(self.user.last_name, "Member")
+        self.assertTrue(self.user.is_staff)
+        self.assertEqual(self.user.timezone, "UTC")
+
+    def test_superuser_can_set_user_password(self):
+        resp = self.client.post(
+            f"/api/admin/users/{self.user.pk}/set-password/",
+            data=json.dumps({"password": "new-secret-pass"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("new-secret-pass"))
+
+    def test_superuser_cannot_remove_own_superuser_access(self):
+        resp = self.client.patch(
+            f"/api/admin/users/{self.admin.pk}/",
+            data=json.dumps({"is_superuser": False}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_superuser)
+
+    def test_superuser_cannot_remove_own_staff_access(self):
+        resp = self.client.patch(
+            f"/api/admin/users/{self.admin.pk}/",
+            data=json.dumps({"is_staff": False}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_staff)

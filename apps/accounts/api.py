@@ -13,11 +13,21 @@ from ninja.files import UploadedFile
 from ninja.pagination import paginate
 
 from apps.accounts.schemas import (
+    AdminRealNameDecisionIn,
+    AdminRealNameVerificationRowOut,
+    AdminUserCreateIn,
     AdminUserOut,
+    AdminUserPasswordIn,
+    AdminUserPatchIn,
     AvatarOut,
     ForceLogoutOut,
     ImpersonateUserOut,
     MeOut,
+    RealNameLogOut,
+    RealNameRetryIn,
+    RealNameSubmitIn,
+    RealNameVerificationDetailOut,
+    RealNameVerificationOut,
     ResetMfaOut,
     UserOut,
     UserPatchIn,
@@ -32,6 +42,8 @@ logger = logging.getLogger(__name__)
 
 users_router = Router(tags=["用户/资料"])
 admin_users_router = Router(tags=["用户/生命周期"])
+real_name_router = Router(tags=["用户/实名"])
+admin_real_name_router = Router(tags=["用户/实名后台"])
 
 
 def _users_qs(request):
@@ -48,7 +60,23 @@ def _users_qs(request):
 def get_me(request):
     """返回当前登录用户的资料、权限相关标记和展示信息。"""
     require_authenticated(request)
-    return request.user
+    return {
+        "avatar_url": request.user.avatar_url,
+        "email": request.user.email,
+        "first_name": request.user.first_name,
+        "id": request.user.id,
+        "id_number_masked": request.user.id_number_masked,
+        "is_staff": request.user.is_staff,
+        "is_superuser": request.user.is_superuser,
+        "last_name": request.user.last_name,
+        "phone": request.user.phone,
+        "phone_verified": request.user.phone_verified,
+        "real_name_masked": request.user.real_name_masked,
+        "real_name_status": request.user.real_name_status,
+        "real_name_verified_at": request.user.real_name_verified_at.isoformat() if request.user.real_name_verified_at else None,
+        "timezone": request.user.timezone,
+        "username": request.user.username,
+    }
 
 
 @users_router.get("/", response=list[UserOut], summary="获取用户列表")
@@ -183,14 +211,74 @@ def _get_admin_user(request, user_id: int):
     return get_object_or_404(User, pk=user_id)
 
 
+def _prevent_self_admin_lockout(request, user, data: dict):
+    if user.pk != request.user.pk:
+        return
+    if data.get("is_active") is False:
+        raise HttpError(400, "You cannot disable your own account.")
+    if data.get("is_staff") is False:
+        raise HttpError(400, "You cannot remove staff access from your own account.")
+    if data.get("is_superuser") is False:
+        raise HttpError(400, "You cannot remove superuser access from your own account.")
+
+
+@admin_users_router.get("/", response=list[AdminUserOut], summary="获取后台用户列表")
+@paginate(make_pagination(default_page_size=50))
+def list_admin_users(request, q: str | None = Query(None, description="按姓名、用户名或邮箱搜索。")):
+    """由超级管理员查看全量用户列表，用于后台账号生命周期管理。"""
+    require_superuser(request)
+    User = get_user_model()
+    qs = User.objects.all().order_by("id")
+    if q:
+        qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q) | Q(email__icontains=q))
+    return qs
+
+
+@admin_users_router.post("/", response=AdminUserOut, summary="创建后台用户")
+def create_admin_user(request, payload: AdminUserCreateIn):
+    """由超级管理员创建用户，可同时设置角色、手机号和初始密码。"""
+    require_superuser(request)
+    User = get_user_model()
+    data = payload.dict()
+    password = data.pop("password")
+    user = User(**data)
+    user.set_password(password)
+    user.full_clean()
+    user.save()
+    return user
+
+
+@admin_users_router.patch("/{user_id}/", response=AdminUserOut, summary="更新后台用户")
+def patch_admin_user(request, user_id: int, payload: AdminUserPatchIn):
+    """由超级管理员更新用户资料、角色与联系方式。"""
+    user = _get_admin_user(request, user_id)
+    data = payload.dict(exclude_unset=True)
+    _prevent_self_admin_lockout(request, user, data)
+    for field, value in data.items():
+        setattr(user, field, value)
+    user.full_clean()
+    user.save()
+    return user
+
+
 @admin_users_router.patch("/{user_id}/status/", response=AdminUserOut, summary="启用或禁用用户")
 def patch_user_status(request, user_id: int, payload: UserStatusPatchIn):
     """由超级管理员启用或禁用用户账号；禁止通过该接口禁用自己。"""
     user = _get_admin_user(request, user_id)
-    if user.pk == request.user.pk and payload.is_active is False:
-        raise HttpError(400, "You cannot disable your own account.")
+    data = payload.dict()
+    _prevent_self_admin_lockout(request, user, data)
     user.is_active = payload.is_active
+    user.full_clean()
     user.save(update_fields=["is_active"])
+    return user
+
+
+@admin_users_router.post("/{user_id}/set-password/", response=AdminUserOut, summary="设置用户密码")
+def set_admin_user_password(request, user_id: int, payload: AdminUserPasswordIn):
+    """由超级管理员直接设置用户密码。"""
+    user = _get_admin_user(request, user_id)
+    user.set_password(payload.password)
+    user.save(update_fields=["password"])
     return user
 
 
@@ -243,3 +331,195 @@ def unbind_user_wechat(request, user_id: int):
     for account in accounts:
         account.delete()
     return Status(204, None)
+
+
+@real_name_router.get("/me/real-name/", response=RealNameVerificationOut, summary="获取当前用户实名认证状态")
+def get_my_real_name(request):
+    require_authenticated(request)
+    from apps.accounts.constants import RealNameProvider, RealNameSource, RealNameStatus
+    from apps.accounts.real_name import get_current_real_name_verification, serialize_real_name_verification
+
+    verification = get_current_real_name_verification(request.user)
+    if verification:
+        return serialize_real_name_verification(verification)
+    return {
+        "created_at": "",
+        "failure_reason": "",
+        "id": 0,
+        "id_number_last4": "",
+        "id_number_masked": request.user.id_number_masked,
+        "is_current": False,
+        "provider": RealNameProvider.MOCK_AUTO,
+        "provider_label": RealNameProvider.get_choice_label(RealNameProvider.MOCK_AUTO),
+        "provider_request_id": "",
+        "provider_result": {},
+        "real_name_masked": request.user.real_name_masked,
+        "review_note": "",
+        "reviewed_at": request.user.real_name_verified_at.isoformat() if request.user.real_name_verified_at else None,
+        "reviewed_by": None,
+        "source": RealNameSource.USER_SUBMIT,
+        "source_label": RealNameSource.get_choice_label(RealNameSource.USER_SUBMIT),
+        "status": request.user.real_name_status,
+        "status_label": RealNameStatus.get_choice_label(request.user.real_name_status),
+        "updated_at": "",
+    }
+
+
+@real_name_router.get("/me/real-name/logs/", response=list[RealNameLogOut], summary="获取当前用户实名认证时间线")
+def list_my_real_name_logs(request):
+    require_authenticated(request)
+    from apps.accounts.real_name import build_real_name_timeline_row, get_current_real_name_verification
+
+    verification = get_current_real_name_verification(request.user)
+    if not verification:
+        return []
+    return [build_real_name_timeline_row(log) for log in verification.logs.select_related("operator").all()]
+
+
+@real_name_router.post("/me/real-name/submit/", response=RealNameVerificationOut, summary="提交实名认证申请")
+def submit_my_real_name(request, payload: RealNameSubmitIn):
+    require_authenticated(request)
+    from apps.accounts.real_name import serialize_real_name_verification, submit_real_name_verification
+
+    verification = submit_real_name_verification(
+        user=request.user,
+        real_name=payload.real_name,
+        id_number=payload.id_number,
+        source=payload.source,
+    )
+    return serialize_real_name_verification(verification)
+
+
+@real_name_router.post("/me/real-name/retry/", response=RealNameVerificationOut, summary="重新提交实名认证申请")
+def retry_my_real_name(request, payload: RealNameRetryIn):
+    require_authenticated(request)
+    from apps.accounts.constants import RealNameStatus
+    from apps.accounts.real_name import get_current_real_name_verification, serialize_real_name_verification, submit_real_name_verification
+
+    current = get_current_real_name_verification(request.user)
+    if current and current.status not in {RealNameStatus.REJECTED, RealNameStatus.REVOKED}:
+        raise HttpError(400, "当前实名状态不允许重新提交。")
+    verification = submit_real_name_verification(
+        user=request.user,
+        real_name=payload.real_name,
+        id_number=payload.id_number,
+        source=payload.source,
+    )
+    return serialize_real_name_verification(verification)
+
+
+@admin_real_name_router.get("/", response=list[AdminRealNameVerificationRowOut], summary="获取实名认证记录列表")
+@paginate(make_pagination(default_page_size=50))
+def list_admin_real_name_verifications(
+    request,
+    q: str | None = Query(None, description="按用户名、邮箱、手机号、实名脱敏或身份证后四位搜索。"),
+    status: str | None = Query(None, description="按实名状态筛选。"),
+):
+    require_superuser(request)
+    from apps.accounts.models import RealNameVerification
+
+    qs = RealNameVerification.objects.select_related("user", "reviewed_by").filter(is_current=True).order_by("-created_at")
+    if status:
+        qs = qs.filter(status=status)
+    if q:
+        qs = qs.filter(
+            Q(user__username__icontains=q)
+            | Q(user__email__icontains=q)
+            | Q(user__phone__icontains=q)
+            | Q(real_name_masked__icontains=q)
+            | Q(id_number_last4__icontains=q)
+        )
+    from apps.accounts.real_name import serialize_real_name_verification
+
+    return [serialize_real_name_verification(item) for item in qs]
+
+
+@admin_real_name_router.get("/{verification_id}/", response=RealNameVerificationDetailOut, summary="获取实名认证详情")
+def get_admin_real_name_verification(request, verification_id: int):
+    require_superuser(request)
+    from apps.accounts.models import RealNameVerification
+    from apps.accounts.real_name import build_real_name_timeline_row, serialize_real_name_verification
+
+    verification = get_object_or_404(RealNameVerification.objects.select_related("user", "reviewed_by"), pk=verification_id)
+    payload = serialize_real_name_verification(verification, include_sensitive=True)
+    payload["logs"] = [build_real_name_timeline_row(log) for log in verification.logs.select_related("operator").all()]
+    return payload
+
+
+def _get_admin_real_name_verification(request, verification_id: int):
+    require_superuser(request)
+    from apps.accounts.models import RealNameVerification
+
+    return get_object_or_404(RealNameVerification.objects.select_related("user", "reviewed_by"), pk=verification_id)
+
+
+@admin_real_name_router.post("/{verification_id}/manual-review/", response=RealNameVerificationDetailOut, summary="转人工复核")
+def move_admin_real_name_to_manual_review(request, verification_id: int, payload: AdminRealNameDecisionIn):
+    from apps.accounts.constants import RealNameLogAction, RealNameStatus
+    from apps.accounts.real_name import admin_transition_real_name, build_real_name_timeline_row, serialize_real_name_verification
+
+    verification = _get_admin_real_name_verification(request, verification_id)
+    verification = admin_transition_real_name(
+        verification,
+        operator=request.user,
+        to_status=RealNameStatus.MANUAL_REVIEW,
+        action=RealNameLogAction.MOVED_TO_MANUAL_REVIEW,
+        note=payload.note or "后台转人工复核。",
+    )
+    result = serialize_real_name_verification(verification, include_sensitive=True)
+    result["logs"] = [build_real_name_timeline_row(log) for log in verification.logs.select_related("operator").all()]
+    return result
+
+
+@admin_real_name_router.post("/{verification_id}/approve/", response=RealNameVerificationDetailOut, summary="人工通过实名认证")
+def approve_admin_real_name(request, verification_id: int, payload: AdminRealNameDecisionIn):
+    from apps.accounts.constants import RealNameLogAction, RealNameStatus
+    from apps.accounts.real_name import admin_transition_real_name, build_real_name_timeline_row, serialize_real_name_verification
+
+    verification = _get_admin_real_name_verification(request, verification_id)
+    verification = admin_transition_real_name(
+        verification,
+        operator=request.user,
+        to_status=RealNameStatus.VERIFIED,
+        action=RealNameLogAction.MANUAL_APPROVED,
+        note=payload.note or "后台人工审核通过。",
+    )
+    result = serialize_real_name_verification(verification, include_sensitive=True)
+    result["logs"] = [build_real_name_timeline_row(log) for log in verification.logs.select_related("operator").all()]
+    return result
+
+
+@admin_real_name_router.post("/{verification_id}/reject/", response=RealNameVerificationDetailOut, summary="人工驳回实名认证")
+def reject_admin_real_name(request, verification_id: int, payload: AdminRealNameDecisionIn):
+    from apps.accounts.constants import RealNameLogAction, RealNameStatus
+    from apps.accounts.real_name import admin_transition_real_name, build_real_name_timeline_row, serialize_real_name_verification
+
+    verification = _get_admin_real_name_verification(request, verification_id)
+    verification = admin_transition_real_name(
+        verification,
+        operator=request.user,
+        to_status=RealNameStatus.REJECTED,
+        action=RealNameLogAction.MANUAL_REJECTED,
+        note=payload.note or "后台人工审核驳回。",
+    )
+    result = serialize_real_name_verification(verification, include_sensitive=True)
+    result["logs"] = [build_real_name_timeline_row(log) for log in verification.logs.select_related("operator").all()]
+    return result
+
+
+@admin_real_name_router.post("/{verification_id}/revoke/", response=RealNameVerificationDetailOut, summary="撤销实名认证")
+def revoke_admin_real_name(request, verification_id: int, payload: AdminRealNameDecisionIn):
+    from apps.accounts.constants import RealNameLogAction, RealNameStatus
+    from apps.accounts.real_name import admin_transition_real_name, build_real_name_timeline_row, serialize_real_name_verification
+
+    verification = _get_admin_real_name_verification(request, verification_id)
+    verification = admin_transition_real_name(
+        verification,
+        operator=request.user,
+        to_status=RealNameStatus.REVOKED,
+        action=RealNameLogAction.REVOKED,
+        note=payload.note or "后台撤销实名认证。",
+    )
+    result = serialize_real_name_verification(verification, include_sensitive=True)
+    result["logs"] = [build_real_name_timeline_row(log) for log in verification.logs.select_related("operator").all()]
+    return result

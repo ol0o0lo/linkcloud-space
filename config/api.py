@@ -11,7 +11,7 @@ from apps.access.api import org_roles_router as access_org_roles_router
 from apps.access.api import permissions_router as access_permissions_router
 from apps.access.api import team_bindings_router as access_team_bindings_router
 from apps.access.api import team_roles_router as access_team_roles_router
-from apps.accounts.api import admin_users_router, users_router
+from apps.accounts.api import admin_real_name_router, admin_users_router, real_name_router, users_router
 from apps.base.api import router as base_router
 from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
@@ -61,6 +61,8 @@ api.add_router("/organizations/", orgs_router)
 api.add_router("/teams/", teams_router)
 api.add_router("/users/", users_router)
 api.add_router("/admin/users/", admin_users_router)
+api.add_router("/users/", real_name_router)
+api.add_router("/admin/real-name-verifications/", admin_real_name_router)
 api.add_router("/settings/org/", settings_org_router)
 api.add_router("/settings/teams/", settings_team_router)
 api.add_router("/settings/user/", settings_user_router)
