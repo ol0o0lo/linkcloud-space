@@ -147,8 +147,8 @@ def get_media_file_info(media_file: MediaFile) -> dict:
     }
 
 
-def get_media_list_info(media_ids: Iterable[int]) -> list[dict]:
-    """按传入 ID 顺序返回媒体信息，适合业务方保存的 list[id] 回显。"""
+def validate_media_ids(media_ids: Iterable[int]) -> list[int]:
+    """校验业务 JSON list[int] 中的媒体 ID，保持原顺序返回。"""
     ordered_ids = list(media_ids)
     if len(ordered_ids) != len(set(ordered_ids)):
         raise ValueError("media_ids 不能包含重复 ID")
@@ -159,6 +159,16 @@ def get_media_list_info(media_ids: Iterable[int]) -> list[dict]:
     missing_ids = [media_id for media_id in ordered_ids if media_id not in media_by_id]
     if missing_ids:
         raise ValueError(f"媒体文件不存在: {missing_ids}")
+    return ordered_ids
+
+
+def get_media_list_info(media_ids: Iterable[int]) -> list[dict]:
+    """按传入 ID 顺序返回媒体信息，适合业务方保存的 list[id] 回显。"""
+    ordered_ids = validate_media_ids(media_ids)
+    if not ordered_ids:
+        return []
+
+    media_by_id = MediaFile.objects.in_bulk(ordered_ids)
     return [get_media_file_info(media_by_id[media_id]) for media_id in ordered_ids]
 
 

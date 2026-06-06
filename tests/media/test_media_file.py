@@ -7,7 +7,7 @@ import pytest
 from apps.accounts.models import User
 from apps.media.constants import ResourceType
 from apps.media.models import MediaFile
-from apps.media.services import cleanup_unreferenced_media, get_media_list_info, register_media_file
+from apps.media.services import cleanup_unreferenced_media, get_media_list_info, register_media_file, validate_media_ids
 
 
 @pytest.mark.django_db
@@ -92,6 +92,48 @@ class TestMediaListInfo:
         assert result[0]["thumbnail"] is None
         assert result[0]["file_size"] == 200
         assert "order" not in result[0]
+
+
+@pytest.mark.django_db
+class TestValidateMediaIds:
+    def test_returns_ids_in_original_order(self):
+        user = User.objects.create_user(username="validator", password="secret")  # noqa: S106
+        first = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/first.png",
+            original_filename="first.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=100,
+        )
+        second = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/second.png",
+            original_filename="second.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=100,
+        )
+
+        assert validate_media_ids([second.pk, first.pk]) == [second.pk, first.pk]
+
+    def test_returns_empty_list_for_empty_input(self):
+        assert validate_media_ids([]) == []
+
+    def test_raises_for_duplicate_ids(self):
+        user = User.objects.create_user(username="validator_dup", password="secret")  # noqa: S106
+        media = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/dup.png",
+            original_filename="dup.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=100,
+        )
+
+        with pytest.raises(ValueError, match="media_ids 不能包含重复 ID"):
+            validate_media_ids([media.pk, media.pk])
+
+    def test_raises_for_missing_ids(self):
+        with pytest.raises(ValueError, match=r"媒体文件不存在: \[999999\]"):
+            validate_media_ids([999999])
 
 
 @pytest.mark.django_db
