@@ -26,7 +26,6 @@ class MediaFileOut(Schema):
     original_filename: str
     url: str
     file_size: int
-    order: int
     created_at: datetime
 
     @staticmethod

@@ -7,7 +7,7 @@ import pytest
 from apps.accounts.models import User
 from apps.media.constants import ResourceType
 from apps.media.models import MediaFile
-from apps.media.services import cleanup_unreferenced_media, get_media_list_info, register_media_file, set_media_order
+from apps.media.services import cleanup_unreferenced_media, get_media_list_info, register_media_file
 
 
 @pytest.mark.django_db
@@ -67,39 +67,7 @@ class TestUploadAndRegister:
 
 
 @pytest.mark.django_db
-class TestMediaOrdering:
-    def test_set_media_order_updates_order_by_input_position(self):
-        user = User.objects.create_user(username="sorter", password="secret")  # noqa: S106
-        first = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/first.png",
-            original_filename="first.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-        second = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/second.png",
-            original_filename="second.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-        third = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/third.png",
-            original_filename="third.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-
-        set_media_order([third.pk, first.pk, second.pk])
-
-        assert list(
-            MediaFile.objects.filter(pk__in=[first.pk, second.pk, third.pk]).order_by("order", "id").values_list(
-                "pk", flat=True
-            )
-        ) == [third.pk, first.pk, second.pk]
-
+class TestMediaListInfo:
     def test_get_media_list_info_preserves_requested_id_order(self):
         user = User.objects.create_user(username="viewer", password="secret")  # noqa: S106
         first = register_media_file(
@@ -123,6 +91,7 @@ class TestMediaOrdering:
         assert result[0]["original"]["url"]
         assert result[0]["thumbnail"] is None
         assert result[0]["file_size"] == 200
+        assert "order" not in result[0]
 
 
 @pytest.mark.django_db

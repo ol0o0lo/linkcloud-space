@@ -21,7 +21,6 @@ class MediaFile(CreateUpdateTimeModelMixin):
     original_filename = models.CharField(max_length=255)
     file = models.FileField(upload_to=_media_upload_to)
     file_size = models.PositiveIntegerField(help_text="bytes")
-    order = models.PositiveIntegerField(default=0, db_index=True)
 
     class Meta:
         ordering = ["-created_at"]

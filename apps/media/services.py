@@ -8,7 +8,6 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.core.files.storage import default_storage
-from django.db import transaction
 from django.utils import timezone
 
 from alibabacloud_sts20150401.client import Client as StsClient
@@ -128,25 +127,6 @@ def upload_and_register(
     )
 
 
-def set_media_order(media_ids: Iterable[int]) -> None:
-    """按传入 ID 顺序批量更新 MediaFile.order。"""
-    ordered_ids = list(media_ids)
-    if len(ordered_ids) != len(set(ordered_ids)):
-        raise ValueError("media_ids 不能包含重复 ID")
-    if not ordered_ids:
-        return
-
-    media_by_id = MediaFile.objects.in_bulk(ordered_ids)
-    missing_ids = [media_id for media_id in ordered_ids if media_id not in media_by_id]
-    if missing_ids:
-        raise ValueError(f"媒体文件不存在: {missing_ids}")
-
-    with transaction.atomic():
-        for order, media_id in enumerate(ordered_ids):
-            media_by_id[media_id].order = order
-        MediaFile.objects.bulk_update(media_by_id.values(), ["order"])
-
-
 def get_media_file_info(media_file: MediaFile) -> dict:
     """返回前端展示需要的媒体资源信息。缩略图尚未生成时返回 None。"""
     try:
@@ -163,7 +143,6 @@ def get_media_file_info(media_file: MediaFile) -> dict:
         },
         "thumbnail": None,
         "file_size": media_file.file_size,
-        "order": media_file.order,
         "created_at": media_file.created_at,
     }
 

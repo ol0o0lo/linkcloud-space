@@ -109,6 +109,7 @@ class TestConfirmAPI:
         assert data["original_filename"] == "photo.png"
         assert data["resource_type"] == "avatar"
         assert "url" in data
+        assert "order" not in data
         assert MediaFile.objects.filter(pk=data["id"]).exists()
 
     def test_invalid_resource_type_returns_422(self):
@@ -153,6 +154,7 @@ class TestUploadAPI:
         assert isinstance(data, list)
         assert len(data) == 1
         assert data[0]["original_filename"] == "photo.png"
+        assert "order" not in data[0]
 
     @patch("apps.media.services.default_storage")
     def test_multiple_files_upload(self, mock_storage):
