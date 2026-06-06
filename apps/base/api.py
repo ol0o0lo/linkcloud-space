@@ -1,9 +1,13 @@
 from django.conf import settings
+from django.http import HttpResponseRedirect
+from django.middleware.csrf import get_token
 from django.utils import dateformat
 from django.utils.timezone import now
 
 from ninja import Router, Schema
 from ninja.errors import HttpError
+
+from allauth.headless.socialaccount.forms import RedirectToProviderForm
 
 from apps.accounts.models import User
 from apps.base.permissions import require_superuser
@@ -28,6 +32,9 @@ class AppContextUserOut(Schema):
     avatar_url: str | None
     phone: str | None
     phone_verified: bool
+    real_name_status: str
+    real_name_masked: str = ""
+    id_number_masked: str = ""
     is_staff: bool
     is_superuser: bool
     is_hijacked: bool
@@ -53,6 +60,10 @@ class AppContextOut(Schema):
     version: str
 
 
+class CsrfOut(Schema):
+    csrfToken: str
+
+
 def _get_app_version() -> str:
     if vite_settings.VITE_DEV_MODE is True:
         return "dev"
@@ -68,6 +79,36 @@ def _get_app_version() -> str:
 def get_version(request):
     """返回当前前端构建版本标识，用于客户端版本展示与调试。"""
     return {"version": _get_app_version()}
+
+
+@router.get("/csrf/", auth=None, response=CsrfOut, summary="获取 CSRF Token")
+def get_csrf(request):
+    """为独立前端开发服务设置并返回 Django CSRF token。"""
+    return {"csrfToken": get_token(request)}
+
+
+@router.get("/auth/provider-login/", auth=None, summary="发起第三方登录跳转")
+def provider_login_redirect(request, provider: str, callback_url: str, process: str = "login"):
+    """为独立前端提供无 CSRF 表单依赖的第三方登录跳转入口。"""
+    form = RedirectToProviderForm(
+        {
+            "provider": provider,
+            "callback_url": callback_url,
+            "process": process,
+        }
+    )
+    if not form.is_valid():
+        raise HttpError(400, form.errors.get_json_data())
+
+    provider_app = form.cleaned_data["provider"]
+    next_url = form.cleaned_data["callback_url"]
+    auth_process = form.cleaned_data["process"]
+    return provider_app.redirect(
+        request,
+        auth_process,
+        next_url=next_url,
+        headless=True,
+    )
 
 
 @router.get("/app-context/", auth=None, response=AppContextOut, summary="获取应用上下文")
@@ -107,6 +148,9 @@ def app_context(request):
             "avatar_url": user.avatar_url,
             "phone": user.phone,
             "phone_verified": user.phone_verified,
+            "real_name_status": user.real_name_status,
+            "real_name_masked": user.real_name_masked,
+            "id_number_masked": user.id_number_masked,
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
             "is_hijacked": getattr(user, "is_hijacked", False),
