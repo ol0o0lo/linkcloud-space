@@ -74,7 +74,7 @@ docs/                  项目文档
 - `apps/teams`：团队与成员范围
 - `apps/access`：RBAC 角色、权限、绑定关系
 - `apps/notifications`：站内/邮件通知与偏好设置
-- `apps/media`：媒体文件记录、OSS/STS 上传能力
+- `apps/media`：通用媒体存储平台，提供 OSS/STS 上传、服务端上传、`media_ids` 校验与顺序回显、Provider 驱动的延迟清理
 - `apps/settings`：用户/组织/团队三级设置
 - `apps/base`：SPA 壳、应用上下文、CSRF、第三方登录跳转、通用工具
 
