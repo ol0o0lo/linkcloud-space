@@ -184,10 +184,9 @@ bun run lint-js
 - [docs/media-platform.md](docs/media-platform.md)：媒体平台接入约定
 - [docs/real-name-verification.md](docs/real-name-verification.md)：实名认证流程与设计
 - [docs/template-initialization.md](docs/template-initialization.md)：模板初始化与改名指南
-- [docs/startup-branch.md](docs/startup-branch.md)：`startup` 模板分支使用约定
 
 ## 适合继续扩展的方向
 
 - 在 `apps/` 下继续增加业务域 app，并复用现有认证、组织、权限和通知体系
 - 在 `frontend/`、`frontend_admin/`、`frontend_miniprogram/` 中分别承接主站、后台和移动端业务
-- 将项目专属业务与可复用基础能力分开提交，便于后续回灌到 `startup` 分支
+- 将项目专属业务与基础能力尽量拆分清楚，方便后续维护与复用
