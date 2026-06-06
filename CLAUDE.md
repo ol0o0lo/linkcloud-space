@@ -2,6 +2,8 @@
 
 ## git
 - git commit 提交的message用中文
+- git commit message 使用标准格式：`<type>: <动作><对象>`，其中 `type` 使用英文（如 `feat`、`fix`、`docs`、`refactor`、`test`、`chore`）
+- 示例：`docs: 更新 AGENTS 指南文档`
 - 尽量保证每次提交都可以完整可用的
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
