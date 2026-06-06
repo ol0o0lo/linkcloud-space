@@ -26,6 +26,8 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+    ports:
+      - "127.0.0.1:6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -47,25 +49,25 @@ services:
   #     retries: 3
   #     start_period: 10s
 
-  minio:
-    container_name: minio
-    image: minio/minio:latest
-    init: true
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    volumes:
-      - minio_data:/data
-    ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+  # minio:
+  #   container_name: minio
+  #   image: minio/minio:latest
+  #   init: true
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+  #   volumes:
+  #     - minio_data:/data
+  #   ports:
+  #     - "127.0.0.1:9000:9000"
+  #     - "127.0.0.1:9001:9001"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
 
   web:
     container_name: web
@@ -98,15 +100,13 @@ services:
       - .:/srv/app:cached
 
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:18000:8000"
       - "127.0.0.1:5678:5678"  # debugpy port for VS Code/LazyVim debugging
 
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      minio:
         condition: service_healthy
       # mailpit:
       #   condition: service_healthy
@@ -125,7 +125,7 @@ services:
     # `-B` runs celery beat embedded in the worker — fine for a starter and for
     # local dev. In production, run `celery -A config beat` as a separate
     # process so that scaling workers doesn't run the schedule N times.
-    command: sh -c "celery -A config worker -B -l info"
+    command: sh -c "celery -A config worker -B -l info --schedule=/tmp/celerybeat-schedule"
 
     volumes:
       - .:/srv/app:cached
