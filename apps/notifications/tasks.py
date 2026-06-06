@@ -23,7 +23,7 @@ def purge_expired(days: int | None = None) -> int:
     retention_days = days if days is not None else settings.NOTIFICATIONS_RETENTION_DAYS
     now = timezone.now()
     cutoff = now - timedelta(days=retention_days)
-    qs = Notification.objects.filter(Q(expires_at__lte=now) | Q(expires_at__isnull=True, created__lt=cutoff))
+    qs = Notification.objects.filter(Q(expires_at__lte=now) | Q(expires_at__isnull=True, created_at__lt=cutoff))
     deleted, _ = qs.delete()
     return deleted
 
