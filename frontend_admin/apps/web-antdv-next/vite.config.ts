@@ -8,6 +8,7 @@ export default defineConfig(async () => {
     application: {},
     vite: {
       server: {
+        allowedHosts: ['localhost', '127.0.0.1', '.ngrok-free.app'],
         proxy: {
           '/api': {
             changeOrigin: true,
