@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+
+import { useRoute, useRouter } from 'vue-router';
 
 import { Profile } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
@@ -10,8 +12,16 @@ import ProfilePasswordSetting from './password-setting.vue';
 import ProfileSecuritySetting from './security-setting.vue';
 
 const userStore = useUserStore();
+const route = useRoute();
+const router = useRouter();
 
-const tabsValue = ref<string>('basic');
+const validTabs = new Set(['basic', 'security', 'password', 'notice']);
+
+function normalizeTab(value: unknown) {
+  return typeof value === 'string' && validTabs.has(value) ? value : 'basic';
+}
+
+const tabsValue = ref<string>(normalizeTab(route.query.tab));
 
 const tabs = ref([
   {
@@ -31,6 +41,30 @@ const tabs = ref([
     value: 'notice',
   },
 ]);
+
+watch(
+  () => route.query.tab,
+  (value) => {
+    const nextTab = normalizeTab(value);
+    if (nextTab !== tabsValue.value) {
+      tabsValue.value = nextTab;
+    }
+  },
+);
+
+watch(tabsValue, async (value) => {
+  const current = normalizeTab(route.query.tab);
+  if (current === value) return;
+
+  const nextQuery = { ...route.query };
+  if (value === 'basic') {
+    delete nextQuery.tab;
+  } else {
+    nextQuery.tab = value;
+  }
+
+  await router.replace({ query: nextQuery });
+});
 </script>
 <template>
   <Profile

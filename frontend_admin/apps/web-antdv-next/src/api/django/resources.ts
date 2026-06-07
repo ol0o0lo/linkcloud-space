@@ -1,6 +1,7 @@
 import {
   djangoDelete,
   djangoGet,
+  djangoMultipartPost,
   djangoPatch,
   djangoPost,
   djangoPut,
@@ -138,6 +139,20 @@ export interface BulkActionResult {
   updated: number;
 }
 
+export interface AvatarUploadRow {
+  avatar_url: null | string;
+}
+
+export interface OrganizationCreatePayload {
+  name: string;
+  slug: string;
+}
+
+export interface OrganizationPrimaryResult {
+  is_primary: boolean;
+  success: boolean;
+}
+
 export interface TeamSettingRow {
   description: string;
   is_customized: boolean;
@@ -206,6 +221,22 @@ function rows<T>(data: Paged<T> | T[]) {
 export const listUsersApi = (q?: string) =>
   djangoGet<Paged<UserRow> | UserRow[]>('/users/', { q }).then(rows);
 
+export const getCurrentUserApi = () => djangoGet<UserRow>('/users/me/');
+
+export const updateCurrentUserApi = (
+  userId: number,
+  payload: Pick<AdminUserPayload, 'first_name' | 'last_name' | 'timezone'>,
+) => djangoPatch<UserRow>(`/users/${userId}/`, payload);
+
+export const uploadCurrentUserAvatarApi = (image: File) => {
+  const formData = new FormData();
+  formData.append('image', image);
+  formData.append('crop_data', '{}');
+  return djangoMultipartPost<AvatarUploadRow>('/users/me/avatar/', formData);
+};
+
+export const deleteCurrentUserAvatarApi = () => djangoDelete('/users/me/avatar/');
+
 export const listAdminUsersApi = (q?: string) =>
   djangoGet<Paged<UserRow> | UserRow[]>('/admin/users/', { q }).then(rows);
 
@@ -236,8 +267,16 @@ export const unbindUserWechatApi = (userId: number) =>
 export const listOrganizationsApi = () =>
   djangoGet<OrganizationRow[]>('/organizations/switch-list/');
 
+export const createOrganizationApi = (payload: OrganizationCreatePayload) =>
+  djangoPost<OrganizationRow>('/organizations/', payload);
+
 export const selectOrganizationApi = (slug: string) =>
   djangoPost(`/organizations/${slug}/select/`);
+
+export const signoutOrganizationApi = () => djangoPost('/organizations/signout/');
+
+export const setPrimaryOrganizationApi = (slug: string) =>
+  djangoPost<OrganizationPrimaryResult>(`/organizations/${slug}/set-primary/`);
 
 export const listMembersApi = (q?: string) =>
   djangoGet<Paged<MemberRow> | MemberRow[]>('/organization-members/', { q }).then(rows);

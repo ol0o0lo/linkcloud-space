@@ -33,6 +33,30 @@ function unwrap<T>(options: { publicKey?: T } | T) {
   return options as T;
 }
 
+function decodeCreationOptions(options: any) {
+  const inner = unwrap(options);
+  const decoded = {
+    ...inner,
+    challenge: base64UrlToBuffer(inner.challenge),
+  };
+
+  if (inner.user) {
+    decoded.user = {
+      ...inner.user,
+      id: base64UrlToBuffer(inner.user.id),
+    };
+  }
+
+  if (inner.excludeCredentials) {
+    decoded.excludeCredentials = inner.excludeCredentials.map((item: any) => ({
+      ...item,
+      id: base64UrlToBuffer(item.id),
+    }));
+  }
+
+  return decoded;
+}
+
 function decodeRequestOptions(options: any) {
   const inner = unwrap(options);
   const decoded = {
@@ -81,10 +105,24 @@ export async function getPasskeyAssertion(requestOptionsJson: any) {
   return encodeCredential(credential);
 }
 
+export async function createPasskeyCredential(creationOptionsJson: any) {
+  const publicKey = decodeCreationOptions(creationOptionsJson);
+  const credential = (await navigator.credentials.create({
+    publicKey,
+  })) as PublicKeyCredential | null;
+
+  if (!credential) {
+    throw new Error('未获取到 Passkey 凭据。');
+  }
+
+  return encodeCredential(credential);
+}
+
 export function isWebAuthnSupported() {
   return (
     typeof window !== 'undefined' &&
     typeof window.PublicKeyCredential !== 'undefined' &&
+    typeof navigator.credentials?.create === 'function' &&
     typeof navigator.credentials?.get === 'function'
   );
 }

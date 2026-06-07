@@ -123,7 +123,7 @@ onMounted(() => loadData());
 </script>
 
 <template>
-  <Page auto-content-height content-class="p-6" title="团队管理">
+  <Page auto-content-height content-class="p-6" title="团队协作">
     <div class="space-y-8">
       <div class="grid gap-5 md:grid-cols-3">
         <Card v-for="item in teamStats" :key="item.label" :bordered="false" class="shadow-sm">

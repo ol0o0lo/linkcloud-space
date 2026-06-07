@@ -29,6 +29,10 @@ function csrfHeaders() {
   return token ? { 'X-CSRFToken': token } : {};
 }
 
+export function getCsrfToken() {
+  return getCookie('csrftoken');
+}
+
 export async function djangoGet<T>(url: string, params?: QueryParams) {
   return requestClient.get<T>(`${url}${buildQuery(params)}`, {
     responseReturn: 'body',
@@ -36,6 +40,13 @@ export async function djangoGet<T>(url: string, params?: QueryParams) {
 }
 
 export async function djangoPost<T>(url: string, data?: unknown) {
+  return requestClient.post<T>(url, data, {
+    headers: csrfHeaders(),
+    responseReturn: 'body',
+  });
+}
+
+export async function djangoMultipartPost<T>(url: string, data: FormData) {
   return requestClient.post<T>(url, data, {
     headers: csrfHeaders(),
     responseReturn: 'body',

@@ -21,6 +21,54 @@ export interface LoginCodeConfirmParams {
   code: string;
 }
 
+export interface PasswordChangeParams {
+  current_password: string;
+  new_password: string;
+}
+
+export interface AuthenticatorRow {
+  created_at?: number;
+  id?: number;
+  is_passwordless?: boolean;
+  name?: string;
+  total_code_count?: number;
+  type: string;
+  unused_code_count?: number;
+}
+
+export interface RecoveryCodesRow {
+  codes?: string[];
+  total_code_count?: number;
+  unused_codes?: string[];
+}
+
+export interface SocialAccountRow {
+  display: string;
+  provider: {
+    id: string;
+    name?: string;
+  };
+  uid: string;
+}
+
+export function parseAllauthErrors(responseData: any) {
+  const errors: Record<string, string[]> = {};
+
+  if (responseData?.errors) {
+    for (const err of responseData.errors) {
+      const key = err.param || 'non_field_errors';
+      if (!errors[key]) errors[key] = [];
+      errors[key].push(err.message);
+    }
+  }
+
+  if (Object.keys(errors).length === 0) {
+    return { non_field_errors: ['发生了未预期的错误。'] };
+  }
+
+  return errors;
+}
+
 function hasPendingFlow(error: any, flowId: string) {
   const flows = error?.data?.data?.flows ?? error?.data?.flows ?? [];
   return flows.some((flow: any) => flow?.id === flowId && flow?.is_pending);
@@ -46,6 +94,15 @@ export async function redirectProviderLogin(provider: string, callbackUrl: strin
   const params = new URLSearchParams({
     callback_url: callbackUrl,
     process: 'login',
+    provider,
+  });
+  window.location.href = `/api/auth/provider-login/?${params.toString()}`;
+}
+
+export async function redirectProviderConnect(provider: string, callbackUrl: string) {
+  const params = new URLSearchParams({
+    callback_url: callbackUrl,
+    process: 'connect',
     provider,
   });
   window.location.href = `/api/auth/provider-login/?${params.toString()}`;
@@ -143,6 +200,101 @@ export async function logoutApi() {
       throw error;
     }
   }
+}
+
+export async function changePasswordApi(data: PasswordChangeParams) {
+  return await allauthRequest(`${ALLAUTH_BASE}/account/password/change`, {
+    body: JSON.stringify(data),
+    method: 'POST',
+  });
+}
+
+export async function getSocialAccountsApi() {
+  return await allauthRequest<{ data?: SocialAccountRow[] }>(`${ALLAUTH_BASE}/account/providers`, {
+    method: 'GET',
+  });
+}
+
+export async function disconnectSocialApi(provider: string, accountUid: string) {
+  return await allauthRequest(`${ALLAUTH_BASE}/account/providers`, {
+    body: JSON.stringify({ account_uid: accountUid, provider }),
+    method: 'DELETE',
+  });
+}
+
+export async function listAuthenticatorsApi() {
+  return await allauthRequest<{ data?: AuthenticatorRow[] }>(`${ALLAUTH_BASE}/account/authenticators`, {
+    method: 'GET',
+  });
+}
+
+export async function getTotpStatusApi() {
+  return await allauthRequest<any>(`${ALLAUTH_BASE}/account/authenticators/totp`, {
+    method: 'GET',
+  });
+}
+
+export async function activateTotpApi(code: string) {
+  return await allauthRequest(`${ALLAUTH_BASE}/account/authenticators/totp`, {
+    body: JSON.stringify({ code }),
+    method: 'POST',
+  });
+}
+
+export async function deactivateTotpApi() {
+  return await allauthRequest(`${ALLAUTH_BASE}/account/authenticators/totp`, {
+    method: 'DELETE',
+  });
+}
+
+export async function listRecoveryCodesApi() {
+  return await allauthRequest<{ data?: RecoveryCodesRow }>(`${ALLAUTH_BASE}/account/authenticators/recovery-codes`, {
+    method: 'GET',
+  });
+}
+
+export async function regenerateRecoveryCodesApi() {
+  return await allauthRequest(`${ALLAUTH_BASE}/account/authenticators/recovery-codes`, {
+    body: JSON.stringify({}),
+    method: 'POST',
+  });
+}
+
+export async function beginAddPasskeyApi(passwordless: boolean) {
+  const params = new URLSearchParams({
+    passwordless: passwordless ? 'true' : 'false',
+  });
+  return await allauthRequest<any>(`${ALLAUTH_BASE}/account/authenticators/webauthn?${params.toString()}`, {
+    method: 'GET',
+  });
+}
+
+export async function addPasskeyApi(name: string, credential: unknown) {
+  return await allauthRequest(`${ALLAUTH_BASE}/account/authenticators/webauthn`, {
+    body: JSON.stringify({ credential, name }),
+    method: 'POST',
+  });
+}
+
+export async function renamePasskeyApi(id: number, name: string) {
+  return await allauthRequest(`${ALLAUTH_BASE}/account/authenticators/webauthn`, {
+    body: JSON.stringify({ id, name }),
+    method: 'PUT',
+  });
+}
+
+export async function removePasskeyApi(id: number) {
+  return await allauthRequest(`${ALLAUTH_BASE}/account/authenticators/webauthn`, {
+    body: JSON.stringify({ authenticators: [id] }),
+    method: 'DELETE',
+  });
+}
+
+export async function reauthenticateApi(password: string) {
+  return await allauthRequest(`${ALLAUTH_BASE}/auth/reauthenticate`, {
+    body: JSON.stringify({ password }),
+    method: 'POST',
+  });
 }
 
 export async function refreshTokenApi() {

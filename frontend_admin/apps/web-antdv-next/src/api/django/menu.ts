@@ -102,6 +102,18 @@ export async function getAllMenusApi() {
         name: 'Notifications',
         path: '/notifications',
       },
+      {
+        component: '/admin/organizations',
+        meta: { icon: 'lucide:building-2', title: '租户工作台' },
+        name: 'OrganizationWorkspace',
+        path: '/organizations',
+      },
+      {
+        component: '/admin/teams',
+        meta: { icon: 'lucide:network', title: '团队协作' },
+        name: 'PersonalTeams',
+        path: '/teams',
+      },
     ],
   });
 
