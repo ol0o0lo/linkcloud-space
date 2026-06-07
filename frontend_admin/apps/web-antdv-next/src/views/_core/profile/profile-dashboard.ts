@@ -69,21 +69,12 @@ export function buildProfileStatusCards(input: {
     },
     {
       actionLabel: '提升安全',
-      description: '集中处理验证器、恢复码、Passkey 与第三方绑定。',
+      description: '集中处理验证器、Passkey、第三方绑定和登录密码。',
       key: 'security',
       summary: hasTotp ? (passkeyCount > 0 ? `已开启验证器，已添加 ${passkeyCount} 个 Passkey` : '已开启验证器，尚未添加 Passkey') : '尚未开启验证器',
       tags: [hasTotp ? '验证器已开启' : '验证器未开启', `${passkeyCount} 个 Passkey`, `${input.socialAccounts.length} 个第三方绑定`],
       tone: hasTotp ? (passkeyCount > 0 ? 'positive' : 'warning') : 'warning',
       title: '账户安全',
-    },
-    {
-      actionLabel: '修改密码',
-      description: '登录密码保持独立流程处理，修改后继续保留当前会话。',
-      key: 'password',
-      summary: '登录密码已设置，可按需更新',
-      tags: ['保持当前设备登录'],
-      tone: 'default',
-      title: '密码状态',
     },
     {
       actionLabel: '管理提醒',

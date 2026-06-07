@@ -38,6 +38,8 @@ describe('profile-dashboard', () => {
       user: { email: 'lan@example.com', id: 1, username: 'lan' },
     });
 
+    expect(cards.map((item) => item.key)).toEqual(['basic', 'security', 'notification']);
+
     const security = cards.find((item) => item.key === 'security');
     expect(security?.tone).toBe('warning');
     expect(security?.summary).toContain('尚未添加 Passkey');

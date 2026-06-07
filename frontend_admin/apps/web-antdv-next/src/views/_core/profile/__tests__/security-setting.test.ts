@@ -6,6 +6,7 @@ const {
   activateTotpApi,
   addPasskeyApi,
   beginAddPasskeyApi,
+  changePasswordApi,
   deactivateTotpApi,
   disconnectSocialApi,
   getSocialAccountsApi,
@@ -24,6 +25,7 @@ const {
   activateTotpApi: vi.fn(),
   addPasskeyApi: vi.fn(),
   beginAddPasskeyApi: vi.fn(),
+  changePasswordApi: vi.fn(),
   deactivateTotpApi: vi.fn(),
   disconnectSocialApi: vi.fn(),
   getSocialAccountsApi: vi.fn(),
@@ -46,6 +48,7 @@ vi.mock('#/api/django/auth', () => ({
   activateTotpApi,
   addPasskeyApi,
   beginAddPasskeyApi,
+  changePasswordApi,
   deactivateTotpApi,
   disconnectSocialApi,
   getSocialAccountsApi,
@@ -199,6 +202,7 @@ describe('security-setting.vue', () => {
     activateTotpApi.mockReset();
     addPasskeyApi.mockReset();
     beginAddPasskeyApi.mockReset();
+    changePasswordApi.mockReset();
     deactivateTotpApi.mockReset();
     disconnectSocialApi.mockReset();
     getSocialAccountsApi.mockReset();
@@ -215,6 +219,7 @@ describe('security-setting.vue', () => {
     renamePasskeyApi.mockReset();
 
     activateTotpApi.mockResolvedValue(undefined);
+    changePasswordApi.mockResolvedValue(undefined);
     disconnectSocialApi.mockResolvedValue(undefined);
     getSocialAccountsApi.mockResolvedValue({
       data: [{ display: 'lan', provider: { id: 'github', name: 'GitHub' }, uid: 'github-1' }],
@@ -289,6 +294,37 @@ describe('security-setting.vue', () => {
 
     expect(disconnectSocialApi).toHaveBeenCalledWith('github', 'github-1');
     expect(view.container.textContent).toContain('已绑定 0 个');
+
+    view.app.unmount();
+  });
+
+  it('在安全区内展示并更新登录密码', async () => {
+    const view = mountSecuritySetting();
+
+    await flushPromises();
+    expect(view.container.textContent).toContain('登录密码');
+    expect(view.container.textContent).toContain('可按需更新');
+
+    findButton(view.container, '管理安全方式')?.click();
+    await nextTick();
+    findButton(view.container, '修改密码')?.click();
+    await nextTick();
+
+    const inputs = [...view.container.querySelectorAll('input[type="password"]')] as HTMLInputElement[];
+    inputs[0]!.value = 'old-password';
+    inputs[0]!.dispatchEvent(new Event('input'));
+    inputs[1]!.value = 'new-password';
+    inputs[1]!.dispatchEvent(new Event('input'));
+    inputs[2]!.value = 'new-password';
+    inputs[2]!.dispatchEvent(new Event('input'));
+
+    findButton(view.container, '更新密码')?.click();
+    await flushPromises();
+
+    expect(changePasswordApi).toHaveBeenCalledWith({
+      current_password: 'old-password',
+      new_password: 'new-password',
+    });
 
     view.app.unmount();
   });

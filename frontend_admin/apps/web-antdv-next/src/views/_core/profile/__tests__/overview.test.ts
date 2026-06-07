@@ -61,9 +61,11 @@ describe('overview.vue', () => {
     }).mount(container);
 
     await nextTick();
-    findButton(container, '完善资料')?.click();
-    findButton(container, '安全')?.click();
+    expect(findButton(container, '密码')).toBeUndefined();
 
-    expect(sections).toEqual(['basic', 'security']);
+    findButton(container, '完善资料')?.click();
+    findButton(container, '通知')?.click();
+
+    expect(sections).toEqual(['basic', 'notification']);
   });
 });

@@ -9,6 +9,7 @@ import {
   activateTotpApi,
   addPasskeyApi,
   beginAddPasskeyApi,
+  changePasswordApi,
   deactivateTotpApi,
   disconnectSocialApi,
   getSocialAccountsApi,
@@ -60,6 +61,14 @@ const detailsOpen = ref(false);
 const newPasskeyName = ref('');
 const passwordless = ref(true);
 const passkeyErrors = ref<FieldErrors>({});
+const passwordErrors = ref<FieldErrors>({});
+const passwordEditing = ref(false);
+const passwordSubmitting = ref(false);
+const passwordForm = ref({
+  confirm_password: '',
+  current_password: '',
+  new_password: '',
+});
 const supported = ref(true);
 
 const needsReauth = ref(false);
@@ -78,7 +87,32 @@ const isLockedByOtherSection = computed(() => props.activeEditSection !== null &
 function toggleDetails(open: boolean) {
   if (open && isLockedByOtherSection.value) return;
   detailsOpen.value = open;
+  if (!open) {
+    cancelPasswordEdit(false);
+  }
   emit('editChange', open);
+}
+
+function resetPasswordForm() {
+  passwordForm.value = {
+    confirm_password: '',
+    current_password: '',
+    new_password: '',
+  };
+}
+
+function startPasswordEdit() {
+  passwordErrors.value = {};
+  passwordEditing.value = true;
+}
+
+function cancelPasswordEdit(emitChange = false) {
+  resetPasswordForm();
+  passwordErrors.value = {};
+  passwordEditing.value = false;
+  if (emitChange) {
+    emit('statusChange');
+  }
 }
 
 function setActionLoading(key: string, value: boolean) {
@@ -359,6 +393,32 @@ async function disconnectGithub() {
   }
 }
 
+async function submitPassword() {
+  passwordErrors.value = {};
+
+  if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
+    passwordErrors.value = {
+      confirm_password: ['两次输入的新密码不一致'],
+    };
+    return;
+  }
+
+  passwordSubmitting.value = true;
+  try {
+    await changePasswordApi({
+      current_password: passwordForm.value.current_password,
+      new_password: passwordForm.value.new_password,
+    });
+    cancelPasswordEdit();
+    message.success('登录密码已更新');
+    emit('statusChange');
+  } catch (error: any) {
+    passwordErrors.value = error?.data ? parseAllauthErrors(error.data) : { non_field_errors: ['密码修改失败，请稍后重试。'] };
+  } finally {
+    passwordSubmitting.value = false;
+  }
+}
+
 async function submitReauth() {
   reauthErrors.value = {};
   reauthLoading.value = true;
@@ -398,7 +458,7 @@ onMounted(() => {
         <div>
           <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">安全与登录</div>
           <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            管理验证器、恢复码、Passkey 和第三方账号绑定。
+            管理验证器、Passkey、第三方账号绑定，以及登录密码更新。
           </div>
         </div>
 
@@ -407,7 +467,7 @@ onMounted(() => {
         </Button>
       </div>
 
-      <div class="mt-6 grid gap-4 lg:grid-cols-3">
+      <div class="mt-6 grid gap-4 lg:grid-cols-4">
         <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
           <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">验证器</div>
           <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ totp ? '已开启' : '未开启' }}</div>
@@ -424,6 +484,11 @@ onMounted(() => {
           <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">第三方账号</div>
           <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">已绑定 {{ socialAccountCount }} 个</div>
           <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">当前支持 GitHub 快捷登录和账户关联。</div>
+        </div>
+        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">登录密码</div>
+          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">可按需更新</div>
+          <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">修改后继续保留当前设备登录，不影响其他安全方式。</div>
         </div>
       </div>
 
@@ -625,6 +690,65 @@ onMounted(() => {
               解除绑定
             </Button>
             <Button v-else :loading="actionLoading['github-connect']" type="primary" @click="connectGithub">连接 GitHub</Button>
+          </div>
+        </Card>
+
+        <Card :bordered="false" class="shadow-none ring-1 ring-zinc-200/80 dark:ring-zinc-800">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">登录密码</div>
+              <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                保持密码作为基础登录方式，需要更新时在这里局部完成，不单独占用一个页面区块。
+              </div>
+            </div>
+            <Tag color="blue">保持当前设备登录</Tag>
+          </div>
+
+          <div v-if="!passwordEditing" class="mt-5 flex flex-col gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">密码状态</div>
+              <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">登录密码已设置，可按需更新。</div>
+            </div>
+            <Button type="primary" @click="startPasswordEdit">修改密码</Button>
+          </div>
+
+          <div v-else class="mt-5 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+            <Alert
+              v-if="passwordErrors.non_field_errors?.length"
+              :message="passwordErrors.non_field_errors[0]"
+              class="mb-4"
+              show-icon
+              type="error"
+            />
+
+            <div class="grid gap-5 xl:grid-cols-2">
+              <div class="xl:col-span-2">
+                <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">当前密码</div>
+                <InputPassword v-model:value="passwordForm.current_password" autocomplete="current-password" placeholder="请输入当前密码" />
+                <div v-if="passwordErrors.current_password?.length" class="mt-2 text-sm text-rose-500">
+                  {{ passwordErrors.current_password[0] }}
+                </div>
+              </div>
+              <div>
+                <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">新密码</div>
+                <InputPassword v-model:value="passwordForm.new_password" autocomplete="new-password" placeholder="请输入新密码" />
+                <div v-if="(passwordErrors.new_password || passwordErrors.password || passwordErrors.password1)?.length" class="mt-2 text-sm text-rose-500">
+                  {{ (passwordErrors.new_password || passwordErrors.password || passwordErrors.password1 || [])[0] }}
+                </div>
+              </div>
+              <div>
+                <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">确认新密码</div>
+                <InputPassword v-model:value="passwordForm.confirm_password" autocomplete="new-password" placeholder="请再次输入新密码" />
+                <div v-if="(passwordErrors.confirm_password || passwordErrors.new_password2 || passwordErrors.password2)?.length" class="mt-2 text-sm text-rose-500">
+                  {{ (passwordErrors.confirm_password || passwordErrors.new_password2 || passwordErrors.password2 || [])[0] }}
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-5 flex flex-wrap justify-end gap-3">
+              <Button @click="cancelPasswordEdit()">取消</Button>
+              <Button :loading="passwordSubmitting" type="primary" @click="submitPassword">更新密码</Button>
+            </div>
           </div>
         </Card>
       </div>

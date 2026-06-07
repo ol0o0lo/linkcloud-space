@@ -6,7 +6,6 @@ import type { ProfileSectionKey } from '../profile-dashboard';
 const items = [
   { key: 'basic', label: '资料' },
   { key: 'security', label: '安全' },
-  { key: 'password', label: '密码' },
   { key: 'notification', label: '通知' },
 ] as const satisfies Array<{ key: ProfileSectionKey; label: string }>;
 

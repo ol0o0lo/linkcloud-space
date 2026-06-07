@@ -18,7 +18,6 @@ import {
 import ProfileBase from './base-setting.vue';
 import ProfileNotificationSetting from './notification-setting.vue';
 import ProfileOverview from './overview.vue';
-import ProfilePasswordSetting from './password-setting.vue';
 import { buildProfileHero, buildProfileStatusCards, type ProfileSectionKey } from './profile-dashboard';
 import ProfileSecuritySetting from './security-setting.vue';
 
@@ -37,8 +36,8 @@ const notificationPreferences = ref<NotificationPreferenceRow[]>([]);
 const sectionIds: Record<ProfileSectionKey, string> = {
   basic: 'profile-section-basic',
   notification: 'profile-section-notification',
-  password: 'profile-section-password',
   security: 'profile-section-security',
+  password: 'profile-section-security',
 };
 
 function unwrapAllauthData<T>(payload: any): T {
@@ -48,7 +47,7 @@ function unwrapAllauthData<T>(payload: any): T {
 function normalizeSection(value: unknown): ProfileSectionKey {
   if (value === 'notice' || value === 'notification') return 'notification';
   if (value === 'security') return 'security';
-  if (value === 'password') return 'password';
+  if (value === 'password') return 'security';
   return 'basic';
 }
 
@@ -139,14 +138,6 @@ onMounted(async () => {
         <ProfileSecuritySetting
           :active-edit-section="activeEditSection"
           @edit-change="(editing) => handleSectionEdit('security', editing)"
-          @status-change="loadDashboardSummary"
-        />
-      </section>
-
-      <section id="profile-section-password">
-        <ProfilePasswordSetting
-          :active-edit-section="activeEditSection"
-          @edit-change="(editing) => handleSectionEdit('password', editing)"
           @status-change="loadDashboardSummary"
         />
       </section>
