@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
-import { Card, Empty, Spin, Switch } from 'antdv-next';
+import { Button, Card, Empty, Spin, Switch } from 'antdv-next';
+
+import type { ProfileSectionKey } from './profile-dashboard';
 
 import {
   listNotificationPreferencesApi,
@@ -9,9 +11,43 @@ import {
   updateNotificationPreferenceApi,
 } from '#/api/django/resources';
 
+const props = withDefaults(defineProps<{
+  activeEditSection?: null | ProfileSectionKey;
+}>(), {
+  activeEditSection: null,
+});
+
+const emit = defineEmits<{
+  editChange: [editing: boolean];
+  statusChange: [];
+}>();
+
+const sectionKey: ProfileSectionKey = 'notification';
 const loading = ref(false);
 const categories = ref<NotificationPreferenceRow[]>([]);
 const savingKeys = ref<Record<string, boolean>>({});
+const isEditing = ref(false);
+const isLockedByOtherSection = computed(() => props.activeEditSection !== null && props.activeEditSection !== sectionKey);
+const summary = computed(() => ({
+  emailEnabled: categories.value.filter((item) => item.email).length,
+  inAppEnabled: categories.value.filter((item) => item.in_app).length,
+  total: categories.value.length,
+}));
+
+watch(
+  () => props.activeEditSection,
+  (section) => {
+    if (section !== sectionKey) {
+      isEditing.value = false;
+    }
+  },
+);
+
+function toggleEditing(open: boolean) {
+  if (open && isLockedByOtherSection.value) return;
+  isEditing.value = open;
+  emit('editChange', open);
+}
 
 async function loadData() {
   loading.value = true;
@@ -34,6 +70,7 @@ async function togglePreference(record: NotificationPreferenceRow, field: 'email
     if (index >= 0) {
       categories.value.splice(index, 1, updated);
     }
+    emit('statusChange');
   } finally {
     savingKeys.value = {
       ...savingKeys.value,
@@ -48,15 +85,37 @@ onMounted(loadData);
 <template>
   <Spin :spinning="loading">
     <Card :bordered="false" class="shadow-sm">
-      <div class="mb-6">
-        <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">消息提醒偏好</div>
-        <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          管理站内信与邮件两个通道的开关，和旧用户端 `/accounts/notifications/` 使用同一套后端偏好配置。
+      <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">消息提醒</div>
+          <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            先看当前提醒覆盖情况，再进入编辑模式统一调整站内信和邮件触达。
+          </div>
         </div>
+
+        <Button v-if="!isEditing" :disabled="isLockedByOtherSection" class="w-full sm:w-auto" type="primary" @click="toggleEditing(true)">
+          编辑提醒方式
+        </Button>
+        <Button v-else class="w-full sm:w-auto" type="primary" @click="toggleEditing(false)">完成</Button>
       </div>
 
       <div v-if="categories.length === 0" class="py-8">
         <Empty description="暂时还没有可配置的通知分类" />
+      </div>
+
+      <div v-else-if="!isEditing" class="mt-6 grid gap-4 md:grid-cols-3">
+        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">通知分类</div>
+          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ summary.total }} 个分类</div>
+        </div>
+        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">站内信</div>
+          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">开启 {{ summary.inAppEnabled }} 项</div>
+        </div>
+        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">邮件</div>
+          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">开启 {{ summary.emailEnabled }} 项</div>
+        </div>
       </div>
 
       <div v-else class="space-y-4">

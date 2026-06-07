@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 
 import { Avatar, Button, Card, Input, Select, Spin, Tag, message } from 'antdv-next';
 
+import type { ProfileSectionKey } from './profile-dashboard';
+
 import {
   deleteCurrentUserAvatarApi,
   getCurrentUserApi,
@@ -12,12 +14,25 @@ import {
 } from '#/api/django/resources';
 import { useAuthStore } from '#/store';
 
+const props = withDefaults(defineProps<{
+  activeEditSection?: null | ProfileSectionKey;
+}>(), {
+  activeEditSection: null,
+});
+
+const emit = defineEmits<{
+  editChange: [editing: boolean];
+  profileUpdated: [];
+}>();
+
 const authStore = useAuthStore();
+const sectionKey: ProfileSectionKey = 'basic';
 
 const loading = ref(false);
 const saving = ref(false);
 const avatarUploading = ref(false);
 const avatarDeleting = ref(false);
+const isEditing = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const profile = ref<null | UserRow>(null);
 const form = ref({
@@ -44,6 +59,7 @@ function buildTimezoneOptions(currentTimezone = '') {
 }
 
 const timezoneOptions = computed(() => buildTimezoneOptions(form.value.timezone));
+const isLockedByOtherSection = computed(() => props.activeEditSection !== null && props.activeEditSection !== sectionKey);
 
 const fullName = computed(() => {
   const current = profile.value;
@@ -52,6 +68,18 @@ const fullName = computed(() => {
 });
 
 const phoneStatus = computed(() => (profile.value?.phone_verified ? '已验证' : '未验证'));
+
+function startEditing() {
+  if (isLockedByOtherSection.value) return;
+  isEditing.value = true;
+  emit('editChange', true);
+}
+
+function cancelEditing() {
+  if (profile.value) syncProfile(profile.value);
+  isEditing.value = false;
+  emit('editChange', false);
+}
 
 function syncProfile(data: UserRow) {
   profile.value = data;
@@ -87,6 +115,9 @@ async function saveProfile() {
     });
     syncProfile(data);
     await authStore.fetchUserInfo();
+    isEditing.value = false;
+    emit('editChange', false);
+    emit('profileUpdated');
     message.success('个人资料已更新');
   } finally {
     saving.value = false;
@@ -94,6 +125,7 @@ async function saveProfile() {
 }
 
 function triggerAvatarSelect() {
+  if (isLockedByOtherSection.value) return;
   fileInputRef.value?.click();
 }
 
@@ -114,6 +146,7 @@ async function handleAvatarChange(event: Event) {
       };
     }
     await authStore.fetchUserInfo();
+    emit('profileUpdated');
     message.success('头像已更新');
   } finally {
     avatarUploading.value = false;
@@ -131,6 +164,7 @@ async function removeAvatar() {
       avatar_url: null,
     };
     await authStore.fetchUserInfo();
+    emit('profileUpdated');
     message.success('头像已移除');
   } finally {
     avatarDeleting.value = false;
@@ -172,9 +206,9 @@ onMounted(loadData);
               type="file"
               @change="handleAvatarChange"
             >
-            <Button :loading="avatarUploading" @click="triggerAvatarSelect">上传头像</Button>
+            <Button :disabled="isLockedByOtherSection" :loading="avatarUploading" @click="triggerAvatarSelect">上传头像</Button>
             <Button
-              :disabled="!profile?.avatar_url"
+              :disabled="isLockedByOtherSection || !profile?.avatar_url"
               :loading="avatarDeleting"
               danger
               ghost
@@ -187,48 +221,102 @@ onMounted(loadData);
       </Card>
 
       <Card :bordered="false" class="shadow-sm">
-        <div class="mb-6">
-          <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">基本资料</div>
-          <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            这里维护登录后用户常用的个人资料，后续消息通知、租户协作和审计展示都复用这里的数据。
+        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">个人资料</div>
+            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              先确认当前身份信息，需要调整时再进入编辑。
+            </div>
+          </div>
+
+          <div class="flex w-full flex-wrap justify-end gap-3 sm:w-auto">
+            <Button
+              v-if="!isEditing"
+              :disabled="isLockedByOtherSection"
+              class="w-full sm:w-auto"
+              type="primary"
+              @click="startEditing"
+            >
+              编辑资料
+            </Button>
+            <template v-else>
+              <Button class="w-full sm:w-auto" @click="cancelEditing">取消</Button>
+              <Button :loading="saving" class="w-full sm:w-auto" type="primary" @click="saveProfile">保存资料</Button>
+            </template>
           </div>
         </div>
 
-        <div class="grid gap-5 xl:grid-cols-2">
-          <div>
-            <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">姓</div>
-            <Input v-model:value="form.first_name" placeholder="请输入姓氏" />
+        <div v-if="!isEditing" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+            <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">姓名</div>
+            <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ fullName || '-' }}</div>
           </div>
-          <div>
-            <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">名</div>
-            <Input v-model:value="form.last_name" placeholder="请输入名字" />
+          <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+            <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">邮箱</div>
+            <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ profile?.email || '-' }}</div>
           </div>
-          <div>
-            <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">用户名</div>
-            <Input :value="profile?.username" disabled />
+          <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+            <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">手机号</div>
+            <div class="mt-2 flex items-center gap-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">
+              <span>{{ profile?.phone || '未绑定' }}</span>
+              <Tag :color="profile?.phone_verified ? 'green' : 'gold'">{{ phoneStatus }}</Tag>
+            </div>
           </div>
-          <div>
-            <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">邮箱</div>
-            <Input :value="profile?.email || ''" disabled />
+          <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+            <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">用户名</div>
+            <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ profile?.username || '-' }}</div>
           </div>
-          <div>
-            <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">手机号</div>
-            <Input :value="profile?.phone || '未绑定'" disabled />
+          <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+            <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">时区</div>
+            <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ profile?.timezone || form.timezone }}</div>
           </div>
-          <div>
-            <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">时区</div>
-            <Select
-              v-model:value="form.timezone"
-              :options="timezoneOptions"
-              option-filter-prop="label"
-              placeholder="请选择时区"
-              show-search
-            />
+          <div class="rounded-2xl border border-dashed border-zinc-200/80 bg-white p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-400">
+            资料会同步用于消息提醒、组织协作和后台审计展示，建议保持姓名与时区最新。
           </div>
         </div>
 
-        <div class="mt-6 flex justify-end">
-          <Button :loading="saving" type="primary" @click="saveProfile">保存资料</Button>
+        <div v-else class="space-y-6">
+          <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+            <div class="text-sm font-medium text-zinc-950 dark:text-zinc-50">账号信息</div>
+            <div class="mt-2 flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <Tag color="blue">{{ profile?.username || 'anonymous' }}</Tag>
+              <Tag>{{ profile?.email || '未设置邮箱' }}</Tag>
+              <Tag :color="profile?.phone_verified ? 'green' : 'gold'">手机号{{ phoneStatus }}</Tag>
+            </div>
+          </div>
+
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div>
+              <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">姓</div>
+              <Input v-model:value="form.first_name" placeholder="请输入姓氏" />
+            </div>
+            <div>
+              <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">名</div>
+              <Input v-model:value="form.last_name" placeholder="请输入名字" />
+            </div>
+            <div>
+              <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">用户名</div>
+              <Input :value="profile?.username" disabled />
+            </div>
+            <div>
+              <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">邮箱</div>
+              <Input :value="profile?.email || ''" disabled />
+            </div>
+            <div>
+              <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">手机号</div>
+              <Input :value="profile?.phone || '未绑定'" disabled />
+            </div>
+            <div>
+              <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">时区</div>
+              <Select
+                v-model:value="form.timezone"
+                :options="timezoneOptions"
+                option-filter-prop="label"
+                placeholder="请选择时区"
+                show-search
+              />
+            </div>
+          </div>
         </div>
       </Card>
     </div>

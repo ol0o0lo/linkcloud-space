@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 
 import { Alert, Button, Card, Empty, Input, InputPassword, Modal, Space, Spin, Switch, Tag, message } from 'antdv-next';
 
+import type { ProfileSectionKey } from './profile-dashboard';
+
 import {
   activateTotpApi,
   addPasskeyApi,
@@ -27,6 +29,18 @@ import { createPasskeyCredential, isWebAuthnSupported } from '#/api/django/webau
 
 type FieldErrors = Record<string, string[]>;
 
+const props = withDefaults(defineProps<{
+  activeEditSection?: null | ProfileSectionKey;
+}>(), {
+  activeEditSection: null,
+});
+
+const emit = defineEmits<{
+  editChange: [editing: boolean];
+  statusChange: [];
+}>();
+
+const sectionKey: ProfileSectionKey = 'security';
 const loading = ref(false);
 const authenticators = ref<AuthenticatorRow[]>([]);
 const socialAccounts = ref<SocialAccountRow[]>([]);
@@ -42,7 +56,7 @@ const recoveryUnused = ref<string[]>([]);
 const recoveryTotal = ref(0);
 const showRecoveryCodes = ref(false);
 
-const showPasskeys = ref(false);
+const detailsOpen = ref(false);
 const newPasskeyName = ref('');
 const passwordless = ref(true);
 const passkeyErrors = ref<FieldErrors>({});
@@ -58,6 +72,14 @@ const totp = computed(() => authenticators.value.find((item) => item.type === 't
 const recoveryAuthenticator = computed(() => authenticators.value.find((item) => item.type === 'recovery_codes') ?? null);
 const passkeys = computed(() => authenticators.value.filter((item) => item.type === 'webauthn'));
 const githubAccount = computed(() => socialAccounts.value.find((item) => item.provider?.id === 'github') ?? null);
+const socialAccountCount = computed(() => socialAccounts.value.length);
+const isLockedByOtherSection = computed(() => props.activeEditSection !== null && props.activeEditSection !== sectionKey);
+
+function toggleDetails(open: boolean) {
+  if (open && isLockedByOtherSection.value) return;
+  detailsOpen.value = open;
+  emit('editChange', open);
+}
 
 function setActionLoading(key: string, value: boolean) {
   actionLoading.value = {
@@ -117,10 +139,6 @@ async function loadSecurityData() {
     authenticators.value = unwrapAllauthData<AuthenticatorRow[]>(authenticatorResponse) || [];
     socialAccounts.value = unwrapAllauthData<SocialAccountRow[]>(socialResponse) || [];
 
-    if (passkeys.value.length > 0) {
-      showPasskeys.value = true;
-    }
-
     if (totp.value) {
       totpSecret.value = '';
       totpUrl.value = '';
@@ -149,6 +167,7 @@ async function enableTotp() {
     totpCode.value = '';
     message.success('验证器已启用');
     await loadSecurityData();
+    emit('statusChange');
   } catch (error: any) {
     totpErrors.value = error?.data ? parseAllauthErrors(error.data) : { non_field_errors: ['启用验证器失败，请稍后重试。'] };
   } finally {
@@ -176,6 +195,7 @@ async function disableTotp() {
         recoveryTotal.value = 0;
         message.success('验证器已关闭');
         await loadSecurityData();
+        emit('statusChange');
       } finally {
         setActionLoading('totp-disable', false);
       }
@@ -217,6 +237,7 @@ async function regenerateRecoveryCodes() {
         message.success('恢复码已重新生成');
         await loadRecoveryCodes();
         await loadSecurityData();
+        emit('statusChange');
       } finally {
         setActionLoading('recovery-regenerate', false);
       }
@@ -249,9 +270,9 @@ async function addPasskey() {
     if (!completed) return;
 
     newPasskeyName.value = '';
-    showPasskeys.value = true;
     message.success('Passkey 已添加');
     await loadSecurityData();
+    emit('statusChange');
   } catch (error: any) {
     if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') {
       return;
@@ -278,6 +299,7 @@ async function renamePasskey(passkey: AuthenticatorRow) {
 
     message.success('Passkey 名称已更新');
     await loadSecurityData();
+    emit('statusChange');
   } finally {
     setActionLoading(`passkey-rename-${passkey.id}`, false);
   }
@@ -301,6 +323,7 @@ async function removePasskey(passkey: AuthenticatorRow) {
 
         message.success('Passkey 已移除');
         await loadSecurityData();
+        emit('statusChange');
       } finally {
         setActionLoading(`passkey-remove-${passkey.id}`, false);
       }
@@ -330,6 +353,7 @@ async function disconnectGithub() {
 
     message.success('GitHub 绑定已解除');
     await loadSecurityData();
+    emit('statusChange');
   } finally {
     setActionLoading('github-disconnect', false);
   }
@@ -369,209 +393,242 @@ onMounted(() => {
 
 <template>
   <Spin :spinning="loading">
-    <div class="space-y-6">
-      <Card :bordered="false" class="shadow-sm">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">验证器应用 (TOTP)</div>
-            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              和旧账户中心保持同一套 allauth MFA 数据，启用后登录时会要求输入动态验证码。
-            </div>
-          </div>
-          <Tag :color="totp ? 'green' : 'default'">{{ totp ? '已启用' : '未启用' }}</Tag>
-        </div>
-
-        <div v-if="totp" class="mt-5 flex flex-wrap items-center gap-3">
-          <Button :loading="actionLoading['totp-disable']" danger @click="disableTotp">关闭验证器</Button>
-          <span class="text-sm text-zinc-500 dark:text-zinc-400">恢复码会继续保留，建议在关闭前确认是否已经备份。</span>
-        </div>
-
-        <div v-else class="mt-5 grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)]">
-          <div v-if="totpUrl" class="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-            <img
-              :src="`/qr/?data=${encodeURIComponent(totpUrl)}`"
-              alt="TOTP QR code"
-              class="mx-auto block"
-              height="180"
-              width="180"
-            >
-          </div>
-          <div>
-            <Alert
-              v-if="totpErrors.non_field_errors?.length"
-              :message="totpErrors.non_field_errors[0]"
-              class="mb-4"
-              show-icon
-              type="error"
-            />
-            <div class="text-sm text-zinc-600 dark:text-zinc-300">
-              扫描二维码后，输入验证器应用生成的 6 位验证码完成绑定。
-            </div>
-            <div v-if="totpSecret" class="mt-3 rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-200">
-              手动输入密钥：<span class="font-mono">{{ totpSecret }}</span>
-            </div>
-            <div class="mt-4 max-w-sm">
-              <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">验证码</div>
-              <Input v-model:value="totpCode" autocomplete="one-time-code" placeholder="请输入 6 位验证码" />
-              <div v-if="totpErrors.code?.length" class="mt-2 text-sm text-rose-500">{{ totpErrors.code[0] }}</div>
-            </div>
-            <div class="mt-4">
-              <Button :loading="actionLoading.totp" type="primary" @click="enableTotp">启用验证器</Button>
-            </div>
+    <Card :bordered="false" class="shadow-sm">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">安全与登录</div>
+          <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            管理验证器、恢复码、Passkey 和第三方账号绑定。
           </div>
         </div>
-      </Card>
 
-      <Card :bordered="false" class="shadow-sm">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">恢复码</div>
-            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              当你暂时无法访问验证器应用时，可以用恢复码完成一次性登录验证。
+        <Button class="w-full sm:w-auto" :disabled="isLockedByOtherSection" type="primary" @click="toggleDetails(!detailsOpen)">
+          {{ detailsOpen ? '完成' : '管理安全方式' }}
+        </Button>
+      </div>
+
+      <div class="mt-6 grid gap-4 lg:grid-cols-3">
+        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">验证器</div>
+          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ totp ? '已开启' : '未开启' }}</div>
+          <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+            {{ recoveryAuthenticator ? `${recoveryAuthenticator.unused_code_count || 0}/${recoveryAuthenticator.total_code_count || 0} 个恢复码可用` : '尚未生成恢复码' }}
+          </div>
+        </div>
+        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Passkey</div>
+          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">已添加 {{ passkeys.length }} 个</div>
+          <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">支持 Touch ID、Windows Hello、手机或硬件安全密钥。</div>
+        </div>
+        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">第三方账号</div>
+          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">已绑定 {{ socialAccountCount }} 个</div>
+          <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">当前支持 GitHub 快捷登录和账户关联。</div>
+        </div>
+      </div>
+
+      <div v-if="detailsOpen" class="mt-8 grid gap-6">
+        <Card :bordered="false" class="shadow-none ring-1 ring-zinc-200/80 dark:ring-zinc-800">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">验证器与恢复码</div>
+              <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                启用验证器后，恢复码会作为兜底方案一起保留，建议同步备份。
+              </div>
+            </div>
+            <Tag :color="totp ? 'green' : 'default'">{{ totp ? '验证器已启用' : '验证器未启用' }}</Tag>
+          </div>
+
+          <div v-if="totp" class="mt-5 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="text-sm text-zinc-500 dark:text-zinc-400">恢复码会继续保留，建议在关闭前确认是否已经备份。</div>
+              <Button :loading="actionLoading['totp-disable']" danger @click="disableTotp">关闭验证器</Button>
             </div>
           </div>
-          <Tag :color="recoveryAuthenticator ? 'blue' : 'default'">
-            {{ recoveryAuthenticator ? `${recoveryAuthenticator.unused_code_count || 0}/${recoveryAuthenticator.total_code_count || 0} 可用` : '尚未生成' }}
-          </Tag>
-        </div>
 
-        <div class="mt-5 flex flex-wrap gap-3">
-          <Button :disabled="!recoveryAuthenticator" :loading="actionLoading.recovery" @click="loadRecoveryCodes">
-            查看恢复码
-          </Button>
-          <Button
-            :disabled="!recoveryAuthenticator"
-            :loading="actionLoading['recovery-regenerate']"
-            type="primary"
-            ghost
-            @click="regenerateRecoveryCodes"
-          >
-            重新生成
-          </Button>
-        </div>
-
-        <div v-if="showRecoveryCodes" class="mt-5 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-          <div v-if="recoveryCodes.length" class="space-y-4">
-            <div class="grid gap-2 rounded-xl bg-zinc-50 p-4 font-mono text-sm dark:bg-zinc-900/60 md:grid-cols-2">
-              <div v-for="code in recoveryCodes" :key="code">{{ code }}</div>
+          <div v-else class="mt-5 grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)]">
+            <div v-if="totpUrl" class="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <img
+                :src="`/qr/?data=${encodeURIComponent(totpUrl)}`"
+                alt="TOTP QR code"
+                class="mx-auto block"
+                height="180"
+                width="180"
+              >
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-500 dark:text-zinc-400">
-              <span>{{ recoveryUnused.length }} / {{ recoveryTotal }} 个恢复码尚未使用</span>
-              <Button @click="copyRecoveryCodes">复制全部</Button>
-            </div>
-          </div>
-          <Empty v-else description="当前没有可显示的恢复码" />
-        </div>
-      </Card>
-
-      <Card :bordered="false" class="shadow-sm">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">Passkeys</div>
-            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              支持 Touch ID、Windows Hello、手机或硬件安全密钥，和旧前端账户页共享同一批 Passkey 数据。
+            <div>
+              <Alert
+                v-if="totpErrors.non_field_errors?.length"
+                :message="totpErrors.non_field_errors[0]"
+                class="mb-4"
+                show-icon
+                type="error"
+              />
+              <div class="text-sm text-zinc-600 dark:text-zinc-300">
+                扫描二维码后，输入验证器应用生成的 6 位验证码完成绑定。
+              </div>
+              <div v-if="totpSecret" class="mt-3 rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-200">
+                手动输入密钥：<span class="font-mono">{{ totpSecret }}</span>
+              </div>
+              <div class="mt-4 max-w-sm">
+                <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">验证码</div>
+                <Input v-model:value="totpCode" autocomplete="one-time-code" placeholder="请输入 6 位验证码" />
+                <div v-if="totpErrors.code?.length" class="mt-2 text-sm text-rose-500">{{ totpErrors.code[0] }}</div>
+              </div>
+              <div class="mt-4">
+                <Button :loading="actionLoading.totp" type="primary" @click="enableTotp">启用验证器</Button>
+              </div>
             </div>
           </div>
-          <Tag :color="passkeys.length ? 'green' : 'default'">{{ passkeys.length }} 个已登记</Tag>
-        </div>
 
-        <Alert
-          v-if="!supported"
-          class="mt-4"
-          message="当前浏览器不支持 Passkey，请改用支持 WebAuthn 的浏览器。"
-          show-icon
-          type="warning"
-        />
-
-        <div class="mt-5 flex flex-wrap gap-3">
-          <Button @click="showPasskeys = !showPasskeys">{{ showPasskeys ? '收起详情' : '管理 Passkey' }}</Button>
-        </div>
-
-        <div v-if="showPasskeys" class="mt-5 space-y-5">
-          <div v-if="passkeys.length" class="space-y-3">
-            <div
-              v-for="passkey in passkeys"
-              :key="passkey.id || passkey.name"
-              class="flex flex-col gap-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between"
-            >
+          <div class="mt-6 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{{ passkey.name || 'Passkey' }}</div>
+                <div class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">恢复码</div>
                 <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  {{ passkey.is_passwordless ? '可直接无密码登录' : '作为二次验证设备使用' }}
+                  当你暂时无法访问验证器应用时，可以用恢复码完成一次性登录验证。
                 </div>
               </div>
-              <Space>
-                <Button :loading="actionLoading[`passkey-rename-${passkey.id}`]" @click="renamePasskey(passkey)">重命名</Button>
-                <Button :loading="actionLoading[`passkey-remove-${passkey.id}`]" danger ghost @click="removePasskey(passkey)">移除</Button>
-              </Space>
+              <Tag :color="recoveryAuthenticator ? 'blue' : 'default'">
+                {{ recoveryAuthenticator ? `${recoveryAuthenticator.unused_code_count || 0}/${recoveryAuthenticator.total_code_count || 0} 可用` : '尚未生成' }}
+              </Tag>
             </div>
-          </div>
-          <Empty v-else description="还没有登记任何 Passkey" />
 
-          <div class="rounded-2xl border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
-            <Alert
-              v-if="passkeyErrors.non_field_errors?.length"
-              :message="passkeyErrors.non_field_errors[0]"
-              class="mb-4"
-              show-icon
-              type="error"
-            />
-            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_180px]">
-              <div>
-                <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">设备名称</div>
-                <Input v-model:value="newPasskeyName" placeholder="例如：MacBook Pro / YubiKey / iPhone" />
-                <div v-if="passkeyErrors.name?.length" class="mt-2 text-sm text-rose-500">{{ passkeyErrors.name[0] }}</div>
-              </div>
-              <div class="rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-900/60">
-                <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">登录方式</div>
-                <div class="mt-3 flex items-center justify-between gap-3">
-                  <span class="text-sm text-zinc-700 dark:text-zinc-200">允许无密码登录</span>
-                  <Switch v-model:checked="passwordless" />
-                </div>
-              </div>
-            </div>
-            <div class="mt-4">
-              <Button :disabled="!supported" :loading="actionLoading['passkey-add']" type="primary" @click="addPasskey">
-                添加 Passkey
+            <div class="mt-5 flex flex-wrap gap-3">
+              <Button :disabled="!recoveryAuthenticator" :loading="actionLoading.recovery" @click="loadRecoveryCodes">
+                查看恢复码
+              </Button>
+              <Button
+                :disabled="!recoveryAuthenticator"
+                :loading="actionLoading['recovery-regenerate']"
+                type="primary"
+                ghost
+                @click="regenerateRecoveryCodes"
+              >
+                重新生成
               </Button>
             </div>
-          </div>
-        </div>
-      </Card>
 
-      <Card :bordered="false" class="shadow-sm">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">GitHub 绑定</div>
-            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              迁移后这里直接替代旧账户页的 GitHub 连接能力，用于一键登录和账户关联。
+            <div v-if="showRecoveryCodes" class="mt-5 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+              <div v-if="recoveryCodes.length" class="space-y-4">
+                <div class="grid gap-2 rounded-xl bg-zinc-50 p-4 font-mono text-sm dark:bg-zinc-900/60 md:grid-cols-2">
+                  <div v-for="code in recoveryCodes" :key="code">{{ code }}</div>
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                  <span>{{ recoveryUnused.length }} / {{ recoveryTotal }} 个恢复码尚未使用</span>
+                  <Button @click="copyRecoveryCodes">复制全部</Button>
+                </div>
+              </div>
+              <Empty v-else description="当前没有可显示的恢复码" />
             </div>
           </div>
-          <Tag :color="githubAccount ? 'green' : 'default'">{{ githubAccount ? '已连接' : '未连接' }}</Tag>
-        </div>
+        </Card>
 
-        <div class="mt-5 flex flex-col gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-              {{ githubAccount ? githubAccount.display : 'GitHub' }}
+        <Card :bordered="false" class="shadow-none ring-1 ring-zinc-200/80 dark:ring-zinc-800">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">Passkey</div>
+              <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                使用本机生物识别或安全密钥，减少密码输入频次，同时保留传统 MFA 流程。
+              </div>
             </div>
-            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              {{ githubAccount ? '已经与当前账号建立绑定，可用于后续快捷登录。' : '连接后可以使用 GitHub 账号直接登录。' }}
+            <Tag :color="passkeys.length ? 'green' : 'default'">{{ passkeys.length }} 个已登记</Tag>
+          </div>
+
+          <Alert
+            v-if="!supported"
+            class="mt-4"
+            message="当前浏览器不支持 Passkey，请改用支持 WebAuthn 的浏览器。"
+            show-icon
+            type="warning"
+          />
+
+          <div class="mt-5 space-y-5">
+            <div v-if="passkeys.length" class="space-y-3">
+              <div
+                v-for="passkey in passkeys"
+                :key="passkey.id || passkey.name"
+                class="flex flex-col gap-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between"
+              >
+                <div>
+                  <div class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{{ passkey.name || 'Passkey' }}</div>
+                  <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    {{ passkey.is_passwordless ? '可直接无密码登录' : '作为二次验证设备使用' }}
+                  </div>
+                </div>
+                <Space>
+                  <Button :loading="actionLoading[`passkey-rename-${passkey.id}`]" @click="renamePasskey(passkey)">重命名</Button>
+                  <Button :loading="actionLoading[`passkey-remove-${passkey.id}`]" danger ghost @click="removePasskey(passkey)">移除</Button>
+                </Space>
+              </div>
+            </div>
+            <Empty v-else description="还没有登记任何 Passkey" />
+
+            <div class="rounded-2xl border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+              <Alert
+                v-if="passkeyErrors.non_field_errors?.length"
+                :message="passkeyErrors.non_field_errors[0]"
+                class="mb-4"
+                show-icon
+                type="error"
+              />
+              <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_180px]">
+                <div>
+                  <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">设备名称</div>
+                  <Input v-model:value="newPasskeyName" placeholder="例如：MacBook Pro / YubiKey / iPhone" />
+                  <div v-if="passkeyErrors.name?.length" class="mt-2 text-sm text-rose-500">{{ passkeyErrors.name[0] }}</div>
+                </div>
+                <div class="rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-900/60">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">登录方式</div>
+                  <div class="mt-3 flex items-center justify-between gap-3">
+                    <span class="text-sm text-zinc-700 dark:text-zinc-200">允许无密码登录</span>
+                    <Switch v-model:checked="passwordless" />
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4">
+                <Button :disabled="!supported" :loading="actionLoading['passkey-add']" type="primary" @click="addPasskey">
+                  添加 Passkey
+                </Button>
+              </div>
             </div>
           </div>
-          <Button
-            v-if="githubAccount"
-            :loading="actionLoading['github-disconnect']"
-            danger
-            ghost
-            @click="disconnectGithub"
-          >
-            解除绑定
-          </Button>
-          <Button v-else :loading="actionLoading['github-connect']" type="primary" @click="connectGithub">连接 GitHub</Button>
-        </div>
-      </Card>
-    </div>
+        </Card>
+
+        <Card :bordered="false" class="shadow-none ring-1 ring-zinc-200/80 dark:ring-zinc-800">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">第三方账号绑定</div>
+              <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                当前使用 GitHub 作为快捷登录来源，后续如扩展更多提供商也会归并到这里管理。
+              </div>
+            </div>
+            <Tag :color="githubAccount ? 'green' : 'default'">{{ githubAccount ? '已连接 GitHub' : '尚未连接 GitHub' }}</Tag>
+          </div>
+
+          <div class="mt-5 flex flex-col gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                {{ githubAccount ? githubAccount.display : 'GitHub' }}
+              </div>
+              <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {{ githubAccount ? '已经与当前账号建立绑定，可用于后续快捷登录。' : '连接后可以使用 GitHub 账号直接登录。' }}
+              </div>
+            </div>
+            <Button
+              v-if="githubAccount"
+              :loading="actionLoading['github-disconnect']"
+              danger
+              ghost
+              @click="disconnectGithub"
+            >
+              解除绑定
+            </Button>
+            <Button v-else :loading="actionLoading['github-connect']" type="primary" @click="connectGithub">连接 GitHub</Button>
+          </div>
+        </Card>
+      </div>
+    </Card>
   </Spin>
 
   <Modal
