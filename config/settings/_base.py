@@ -39,13 +39,25 @@ INSTANCE = env("INSTANCE", default="dev")
 
 ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+DEV_LAN_HOST = env("DEV_LAN_HOST", default="").strip()
+DEV_FRONTEND_PORTS = env.list("DEV_FRONTEND_PORTS", default=["3000", "5999", "6000"])
 if DEBUG:
+    if DEV_LAN_HOST:
+        ALLOWED_HOSTS = [*ALLOWED_HOSTS, DEV_LAN_HOST]
     CSRF_TRUSTED_ORIGINS = [
         *CSRF_TRUSTED_ORIGINS,
         "http://localhost:3000",
         "http://localhost:5999",
         "http://localhost:6000",
     ]
+    if DEV_LAN_HOST:
+        CSRF_TRUSTED_ORIGINS = [
+            *CSRF_TRUSTED_ORIGINS,
+            *(f"http://{DEV_LAN_HOST}:{port}" for port in DEV_FRONTEND_PORTS),
+            f"http://{DEV_LAN_HOST}:18000",
+        ]
+    ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
+    CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
 # Only honor X-Forwarded-Proto when explicitly opted in. Setting this when the
 # app isn't behind a proxy that strips the header lets a client spoof HTTPS
 # detection and bypass `secure`-flag cookies / SECURE_SSL_REDIRECT.

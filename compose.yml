@@ -100,7 +100,7 @@ services:
       - .:/srv/app:cached
 
     ports:
-      - "127.0.0.1:18000:8000"
+      - "${WEB_BIND_HOST:-127.0.0.1}:18000:8000"
       - "127.0.0.1:5678:5678"  # debugpy port for VS Code/LazyVim debugging
 
     depends_on:
