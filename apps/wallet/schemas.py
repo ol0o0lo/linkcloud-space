@@ -11,6 +11,19 @@ class WalletSummaryOut(Schema):
     total_withdrawn: int
 
 
+class WalletAccountAdminOut(WalletSummaryOut):
+    id: int
+    user_id: int
+
+    @staticmethod
+    def resolve_id(obj) -> int:
+        return obj.pk
+
+    @staticmethod
+    def resolve_user_id(obj) -> int:
+        return obj.user_id
+
+
 class WalletLedgerOut(Schema):
     id: int
     entry_type: str
@@ -77,3 +90,27 @@ class PayoutCallbackIn(Schema):
     provider_trade_no: str = ""
     callback_status: str
     response_payload: dict = {}
+
+
+class WithdrawalPayoutOut(Schema):
+    id: int
+    withdrawal_request_id: int
+    provider: str
+    out_trade_no: str
+    provider_trade_no: str
+    status: str
+    error_code: str
+    error_message: str
+    executed_at: datetime | None = None
+
+    @staticmethod
+    def resolve_id(obj) -> int:
+        return obj.pk
+
+    @staticmethod
+    def resolve_withdrawal_request_id(obj) -> int:
+        return obj.withdrawal_request_id
+
+
+class ReconcileOut(Schema):
+    diff_count: int

@@ -271,3 +271,14 @@ def handle_payout_callback(*, provider, out_trade_no, provider_trade_no, callbac
         idempotency_key=f"withdraw-refund:{withdrawal.pk}",
     )
     return payout
+
+
+def reconcile_wallet_state():
+    diff_count = 0
+    for wallet in WalletAccount.objects.all():
+        latest_ledger = wallet.ledgers.order_by("created_at", "pk").last()
+        if latest_ledger is None:
+            continue
+        if latest_ledger.available_balance_after != wallet.available_balance or latest_ledger.frozen_balance_after != wallet.frozen_balance:
+            diff_count += 1
+    return {"diff_count": diff_count}
