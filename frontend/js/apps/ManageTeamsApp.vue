@@ -45,7 +45,7 @@ const memberOptionsList = computed(() => memberOptions.value.map((m) => ({
 async function loadTeams() {
   try {
     const data = await get(props.teamListUrl);
-    teams.value = data.results || data;
+    teams.value = data.items || data;
   } catch {
     showToast('Failed to load teams.', 'error');
   }
@@ -54,8 +54,8 @@ async function loadTeams() {
 async function loadMembers() {
   try {
     const data = await get(props.organizationMemberListUrl);
-    const results = data.results || data;
-    memberOptions.value = results.map((m) => m.user || m);
+    const items = data.items || data;
+    memberOptions.value = items.map((m) => m.user || m);
   } catch {
     memberOptions.value = [];
   }

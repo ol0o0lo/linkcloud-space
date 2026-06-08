@@ -183,7 +183,8 @@ class TestRealNameAPI(TestCase):
         self.client.force_login(self.admin)
         list_resp = self.client.get("/api/admin/real-name-verifications/?status=manual_review")
         self.assertEqual(list_resp.status_code, 200, list_resp.content)
-        self.assertEqual(list_resp.json()["count"], 1)
+        self.assertEqual(list_resp.json()["total"], 1)
+        self.assertEqual(list_resp.json()["page"], 1)
 
         detail_resp = self.client.get(f"/api/admin/real-name-verifications/{verification.pk}/")
         self.assertEqual(detail_resp.status_code, 200, detail_resp.content)

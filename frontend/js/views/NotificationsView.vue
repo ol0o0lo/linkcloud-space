@@ -42,9 +42,9 @@ async function load() {
     const params = { page: page.value, page_size: PAGE_SIZE };
     if (filterTab.value === 'unread') params.is_read = 'false';
     const data = await get('/api/notifications/', params);
-    items.value = data.results;
-    totalCount.value = data.count;
-    numPages.value = data.num_pages;
+    items.value = data.items;
+    totalCount.value = data.total;
+    numPages.value = Math.max(1, Math.ceil(data.total / data.page_size));
   } catch {
     showToast('Failed to load notifications.', 'error');
   } finally {

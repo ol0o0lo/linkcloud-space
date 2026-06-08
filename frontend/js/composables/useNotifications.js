@@ -31,15 +31,15 @@ function toastForNew(results) {
 async function refreshUnread() {
   try {
     const data = await get('/api/notifications/', { is_read: 'false', page_size: 20 });
-    unreadCount.value = data.count;
+    unreadCount.value = data.total;
     if (currentFilter.value === 'unread') {
-      notifications.value = data.results;
+      notifications.value = data.items;
     } else if (dropdownOpen.value) {
       // Keep the "All" list fresh while the user is looking at it
       const all = await get('/api/notifications/', { page_size: 30 });
-      notifications.value = all.results;
+      notifications.value = all.items;
     }
-    toastForNew(data.results);
+    toastForNew(data.items);
   } catch {
     // swallow — polling recovers on next tick
   }
@@ -53,10 +53,10 @@ async function fetchList({ filter = currentFilter.value } = {}) {
     if (filter === 'unread') params.is_read = 'false';
     // eslint-disable-next-line one-var
     const data = await get('/api/notifications/', params);
-    notifications.value = data.results;
+    notifications.value = data.items;
     if (filter === 'unread') {
-      unreadCount.value = data.count;
-      toastForNew(data.results);
+      unreadCount.value = data.total;
+      toastForNew(data.items);
     }
   } finally {
     loading.value = false;

@@ -6,10 +6,10 @@ from django.test import TestCase
 from model_bakery import baker
 
 from apps.access.models import AccessRole
-from tests.access.helpers import bind_org_role, bind_team_role, make_access_group
 from apps.accounts.models import User
 from apps.organizations.signals import user_logged_in_receiver
 from apps.teams.models import Team
+from tests.access.helpers import bind_org_role, bind_team_role, make_access_group
 
 LIST_URL = "/api/teams/"
 
@@ -44,17 +44,17 @@ class TestTeamAPI(TestCase):
         resp = self.client.get(LIST_URL)
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
-        self.assertEqual(len(body["results"]), 1)
-        self.assertEqual(body["results"][0]["id"], team.pk)
-        self.assertEqual(body["count"], 1)
-        self.assertEqual(body["current_page_num"], 1)
+        self.assertEqual(len(body["items"]), 1)
+        self.assertEqual(body["items"][0]["id"], team.pk)
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["page"], 1)
 
     def test_list_q_search(self):
         baker.make("teams.Team", name="Engineering", organization=self.org)
         baker.make("teams.Team", name="Designers", organization=self.org)
         self._login()
         resp = self.client.get(LIST_URL, {"q": "design"})
-        names = [r["name"] for r in resp.json()["results"]]
+        names = [r["name"] for r in resp.json()["items"]]
         self.assertEqual(names, ["Designers"])
 
     def test_list_ignores_inactive_team_view_role(self):
@@ -75,7 +75,7 @@ class TestTeamAPI(TestCase):
         resp = self.client.get(LIST_URL)
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["count"], 0)
+        self.assertEqual(resp.json()["total"], 0)
 
     def test_create(self):
         self._login()

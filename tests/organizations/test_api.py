@@ -161,9 +161,9 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organization-members/")
         self.assertEqual(resp.status_code, 200)
-        results = resp.json()["results"] if isinstance(resp.json(), dict) and "results" in resp.json() else resp.json()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["user"]["id"], self.user.pk)
+        items = resp.json()["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["user"]["id"], self.user.pk)
 
     def test_list_q_search(self):
         match = User.objects.create_user(
@@ -185,8 +185,8 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organization-members/", {"q": "alice"})
         self.assertEqual(resp.status_code, 200)
-        results = resp.json()["results"]
-        usernames = {r["user"]["username"] for r in results}
+        items = resp.json()["items"]
+        usernames = {r["user"]["username"] for r in items}
         self.assertIn("alice", usernames)
         self.assertNotIn("bob", usernames)
 
@@ -269,8 +269,8 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organization-invites/")
         self.assertEqual(resp.status_code, 200)
-        results = resp.json()["results"] if isinstance(resp.json(), dict) and "results" in resp.json() else resp.json()
-        ids = {r["pk"] for r in results}
+        items = resp.json()["items"]
+        ids = {r["pk"] for r in items}
         self.assertIn(invite.pk, ids)
 
     def test_create_invite(self):

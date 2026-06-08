@@ -129,8 +129,9 @@ class TestAdminUserLifecycleAPI(TestCase):
 
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        rows = data["results"]
-        self.assertEqual(data["count"], 2)
+        rows = data["items"]
+        self.assertEqual(data["total"], 2)
+        self.assertEqual(data["page"], 1)
         member = next(row for row in rows if row["id"] == self.user.pk)
         self.assertEqual(member["email"], "member@example.com")
         self.assertFalse(member["is_active"])

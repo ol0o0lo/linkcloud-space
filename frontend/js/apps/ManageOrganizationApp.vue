@@ -43,8 +43,8 @@ async function loadData() {
       get(props.organizationMemberListUrl),
       get(props.organizationInviteListUrl),
     ]);
-    members.value = membersData.results || membersData;
-    invites.value = invitesData.results || invitesData;
+    members.value = membersData.items || membersData;
+    invites.value = invitesData.items || invitesData;
   } catch {
     showToast('Failed to load data.', 'error');
   }

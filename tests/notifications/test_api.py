@@ -66,8 +66,9 @@ class TestNotificationAPI:
         resp = self.client.get(LIST_URL)
         assert resp.status_code == 200
         body = resp.json()
-        assert body["count"] == 2
-        for row in body["results"]:
+        assert body["total"] == 2
+        assert body["page"] == 1
+        for row in body["items"]:
             assert row["title"] == "mine in org"
 
     def test_unread_count(self):
@@ -89,9 +90,9 @@ class TestNotificationAPI:
         baker.make(Notification, recipient=self.user, organization=self.org, read_at="2026-01-01T00:00:00Z")
         self._login_in_org()
         resp = self.client.get(LIST_URL, {"is_read": "false"})
-        assert resp.json()["count"] == 2
+        assert resp.json()["total"] == 2
         resp = self.client.get(LIST_URL, {"is_read": "true"})
-        assert resp.json()["count"] == 1
+        assert resp.json()["total"] == 1
 
     def test_mark_read_sets_read_at(self):
         n = baker.make(Notification, recipient=self.user, organization=self.org)

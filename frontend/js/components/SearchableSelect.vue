@@ -25,7 +25,7 @@ const props = defineProps({
   url: { type: String, default: '' },
   // Async loader for sources that can't be expressed as a single URL (e.g. a
   // combined users + teams dropdown). Receives `(q, page)` and resolves to
-  // `{ results: [{ value, label }], hasMore: bool, currentPage: int }`. Takes
+  // `{ items: [{ value, label }], hasMore: bool, currentPage: int }`. Takes
   // precedence over `url` when provided.
   loader: { type: Function, default: null },
   valueField: { type: String, default: 'id' },
@@ -51,6 +51,10 @@ function mapResult(item) {
     ? props.labelField(item)
     : item[props.labelField];
   return { value: String(item[props.valueField]), label: label || '' };
+}
+
+function hasMorePages(data) {
+  return data.page * data.page_size < data.total;
 }
 
 const isAsync = computed(() => props.loader || !!props.url);
@@ -114,7 +118,7 @@ async function fetchOptions(searchText = '') {
   try {
     if (props.loader) {
       const data = await props.loader(searchText, 1);
-      apiOptions.value = data.results || [];
+      apiOptions.value = data.items || [];
       currentPage.value = data.currentPage || 1;
       hasMore.value = !!data.hasMore;
       return;
@@ -122,10 +126,10 @@ async function fetchOptions(searchText = '') {
     const params = { page_size: 30, page: 1 };
     if (searchText) params.q = searchText;
     const data = await get(props.url, params);
-    const results = data.results || data;
-    apiOptions.value = results.map(mapResult);
-    currentPage.value = data.current_page_num || 1;
-    hasMore.value = !!data.next;
+    const items = data.items || data;
+    apiOptions.value = items.map(mapResult);
+    currentPage.value = data.page || 1;
+    hasMore.value = Array.isArray(data) ? false : hasMorePages(data);
   } catch {
     apiOptions.value = [];
     hasMore.value = false;
@@ -138,7 +142,7 @@ async function fetchNextPage() {
   try {
     if (props.loader) {
       const data = await props.loader(currentSearchText.value, currentPage.value + 1);
-      apiOptions.value = [...apiOptions.value, ...(data.results || [])];
+      apiOptions.value = [...apiOptions.value, ...(data.items || [])];
       currentPage.value = data.currentPage || currentPage.value + 1;
       hasMore.value = !!data.hasMore;
       return;
@@ -146,10 +150,10 @@ async function fetchNextPage() {
     const params = { page_size: 30, page: currentPage.value + 1 };
     if (currentSearchText.value) params.q = currentSearchText.value;
     const data = await get(props.url, params);
-    const results = data.results || data;
-    apiOptions.value = [...apiOptions.value, ...results.map(mapResult)];
-    currentPage.value = data.current_page_num || currentPage.value + 1;
-    hasMore.value = !!data.next;
+    const items = data.items || data;
+    apiOptions.value = [...apiOptions.value, ...items.map(mapResult)];
+    currentPage.value = data.page || currentPage.value + 1;
+    hasMore.value = Array.isArray(data) ? false : hasMorePages(data);
   } catch {
     hasMore.value = false;
   } finally {

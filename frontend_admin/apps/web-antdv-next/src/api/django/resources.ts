@@ -208,14 +208,14 @@ export interface RealNameVerificationDetailRow extends RealNameVerificationRow {
 }
 
 interface Paged<T> {
-  count: number;
-  next: null | string;
-  previous: null | string;
-  results: T[];
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
 }
 
 function rows<T>(data: Paged<T> | T[]) {
-  return Array.isArray(data) ? data : data.results;
+  return Array.isArray(data) ? data : data.items;
 }
 
 export const listUsersApi = (q?: string) =>

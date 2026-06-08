@@ -125,10 +125,9 @@ export function parseErrors(error) {
 export async function getAllResults(url, params = {}, results = []) {
   const data = await get(url, params);
 
-  results.push(...data.results);
-  if (data.next) {
-    const nextUrl = new URL(data.next),
-      nextParams = { ...params, page: nextUrl.searchParams.get('page') };
+  results.push(...data.items);
+  if (data.page * data.page_size < data.total) {
+    const nextParams = { ...params, page: data.page + 1 };
 
     return getAllResults(url, nextParams, results);
   }
