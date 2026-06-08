@@ -20,7 +20,7 @@
 
 - 钱包账户余额管理（可用余额、冻结余额）
 - 钱包流水总账（所有资金变动必记账）
-- 通用钱包入账发放（含幂等约束）
+- 钱包资金流水记账与提现闭环
 - 提现申请、审核、代付、回调、失败补偿
 - 管理端调账与审核操作审计
 
@@ -35,7 +35,7 @@
 
 ### 3.1 备选方案
 
-方案A（推荐）：钱包账户 + 流水 + 提现申请 + 代付记录 + 通用入账发放记录。  
+方案A（推荐）：钱包账户 + 流水 + 提现申请 + 代付记录。  
 方案B：极简模式，仅账户与提现，弱化资金流水。  
 方案C：中台化抽象，提前支持多钱包、多资产。
 
@@ -50,7 +50,7 @@
 
 ## 4. 领域模型设计
 
-一期采用 5 个核心模型。
+一期采用 4 个核心模型。
 
 ### 4.1 WalletAccount（钱包账户）
 
@@ -84,32 +84,7 @@
 
 说明：钱包流水不再只保留单一余额快照，必须同时保留可用余额与冻结余额快照，才能完整表达提现冻结、解冻、结算场景下的资金变化。
 
-### 4.3 WalletCreditGrant（通用钱包入账发放记录）
-
-用途：独立沉淀“外部业务向钱包发起一笔入账”的事实记录与幂等控制。该模型属于钱包域，不直接绑定推广业务，可承接推广奖励、活动补贴、任务奖励、后台补发等入账场景。  
-关键字段建议：
-
-- `user`
-- `credit_type`（如 `promotion_reward`、`campaign_bonus`、`manual_bonus`）
-- `source_type`（如 `invite_register`、`campaign_task`、`ops_manual`）
-- `source_id`（外部业务主键或事件主键）
-- `amount`（单位分）
-- `status`（`granted`/`revoked` 预留）
-- `idempotency_key`
-- `granted_at`
-- `created_at`、`updated_at`
-
-约束建议：`idempotency_key` 唯一；或 `(user, credit_type, source_type, source_id)` 唯一（二选一，建议前者）。
-
-联动规则：
-
-- 推广模块、活动模块等外部业务只负责判定“该不该发这笔钱”
-- 一旦需要入账，由外部业务调用 wallet service 的统一 credit 接口
-- wallet service 负责创建 `WalletCreditGrant`、更新 `WalletAccount`、写入 `WalletLedger`
-- 外部业务侧保存 wallet 返回的 grant id 或 ledger 关联信息，用于后续对账与追踪
-- 钱包域不承载推广规则本身，只承载资金入账事实
-
-### 4.4 WithdrawalRequest（提现申请）
+### 4.3 WithdrawalRequest（提现申请）
 
 用途：提现业务主单。  
 关键字段建议：
@@ -126,7 +101,7 @@
 
 状态建议：`pending_review`、`cancelled`、`rejected`、`approved`、`paying`、`paid`、`failed`。
 
-### 4.5 WithdrawalPayout（代付执行记录）
+### 4.4 WithdrawalPayout（代付执行记录）
 
 用途：第三方代付请求与回调事实记录。  
 关键字段建议：
@@ -146,7 +121,7 @@
 
 ## 5. API 设计
 
-一期建议总计 16 个 API，分四组。
+一期建议总计 15 个 API，分四组。
 
 ### 5.1 用户侧 API（6）
 
@@ -157,14 +132,15 @@
 - `GET /api/wallet/me/withdrawals/{id}/` 提现详情
 - `POST /api/wallet/me/withdrawals/{id}/cancel/` 撤销申请（仅 `pending_review`）
 
-### 5.2 超管运营 API（6）
+### 5.2 超管运营 API（5）
 
 - `GET /api/admin/wallet/accounts/` 钱包账户列表
 - `GET /api/admin/wallet/accounts/{user_id}/ledger/` 指定用户流水
 - `POST /api/admin/wallet/adjustments/` 管理员调账
-- `POST /api/admin/wallet/credits/grant/` 发起钱包入账发放（幂等）
 - `GET /api/admin/wallet/withdrawals/` 提现审核列表
 - `POST /api/admin/wallet/withdrawals/{id}/review/` 审核通过/拒绝
+
+说明：推广奖励、活动补贴等业务入账不通过独立 wallet HTTP API 发起，统一由对应业务模块在服务层调用 wallet service 完成入账。
 
 ### 5.3 代付执行 API（2）
 
@@ -249,7 +225,7 @@
 
 一期高风险动作统一需要幂等约束：
 
-- 通用入账发放：由 `WalletCreditGrant.idempotency_key` 保证，同一外部业务事件只发放一次
+- 外部业务入账：由业务模块自己的奖励/补贴记录承担事件幂等，wallet service 再以 `WalletLedger.idempotency_key` 保证资金记账幂等
 - 管理员调账：请求必须带 `idempotency_key`，并在 `WalletLedger` 上唯一约束，避免重复提交或页面重放
 - 提现申请：前端可选带 `client_request_id`，后端可按用户 + 请求键去重，避免连点重复申请
 - 提现审核：审核请求必须带操作幂等键，避免后台重复点击导致状态重复推进
@@ -329,7 +305,7 @@
 - 并发测试：同一用户并发提现防超提
 - 补偿测试：代付失败后余额回退
 - 权限测试：普通用户不可访问超管接口
-- 回归测试：通用入账发放与调账均能稳定入账并可查询
+- 回归测试：业务模块触发入账与调账均能稳定入账并可查询
 - 脱敏测试：敏感字段在列表、日志、错误响应中不泄露原文
 - 对账测试：模拟渠道与本地状态不一致，验证差异识别与补偿分流
 
@@ -337,7 +313,7 @@
 
 1. `M1`：模型与迁移、服务层记账引擎、基础单测
 2. `M2`：用户端 API（查询/申请/取消）
-3. `M3`：超管调账、入账发放、提现审核 API
+3. `M3`：业务模块联动、超管调账、提现审核 API
 4. `M4`：代付接口与回调、补偿与对账任务
 5. `M5`：联调、压测、灰度上线
 
@@ -350,11 +326,17 @@
 
 ## 13. 跨模块联动建议
 
-后续如果新增独立的推广奖励模块，建议采用“业务域判定 + 钱包域入账”的协作方式：
+后续如果新增独立的推广奖励模块，建议采用“业务事件表 + 钱包流水事实表”的协作方式：
 
-- 推广模块维护邀请关系、返奖规则、奖励状态、活动统计
-- 推广模块在奖励确认后，调用钱包统一入账接口，并传入明确的 `credit_type`、`source_type`、`source_id`、`idempotency_key`
-- 钱包模块只负责资金记账、幂等、防重复入账和资金审计
-- 两边通过 `source_type/source_id` 或 wallet 返回的 grant id 建立追踪关系
+- 推广模块维护邀请关系、返奖规则、奖励状态、活动统计，以及自己的奖励记录表
+- 奖励记录表表达的是“为什么发这笔钱”，状态可采用 `pending -> granting -> granted / grant_failed`
+- 当业务模块确认需要发放奖励时，调用 wallet service 入账，并传入明确的 `biz_type`、`biz_id`、`idempotency_key`
+- wallet service 成功更新 `WalletAccount` 并写入 `WalletLedger` 后，才视为奖励真正到账
+- 业务模块收到成功结果后，将自己的奖励记录更新为 `granted`，并保存 `ledger_id` 或等效关联键
+- 如果 wallet service 执行失败，业务模块将奖励记录更新为 `grant_failed`，后续可按业务规则重试
 
-这样处理后，推广模块未来即使独立拆分，钱包模型和 API 仍然保持通用，不需要再从 `WalletRewardGrant` 重命名或迁移到更抽象的结构。
+这样处理后：
+
+- 业务模块表负责记录“奖励事件”
+- `WalletLedger` 负责记录“资金事实”
+- 钱包域不需要额外维护一张通用入账发放表，也不会被具体业务名称绑死
