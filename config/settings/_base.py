@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     "apps.organizations",
     "apps.teams",
     "apps.access",
+    "apps.wallet",
     "apps.notifications",
     "apps.settings",
     "maintenance_mode",
