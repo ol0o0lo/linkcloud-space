@@ -1,0 +1,79 @@
+from datetime import datetime
+
+from ninja import Schema
+from pydantic import Field
+
+
+class WalletSummaryOut(Schema):
+    available_balance: int
+    frozen_balance: int
+    total_income: int
+    total_withdrawn: int
+
+
+class WalletLedgerOut(Schema):
+    id: int
+    entry_type: str
+    amount_delta: int
+    available_balance_after: int
+    frozen_balance_after: int
+    biz_type: str
+    biz_id: str
+    remark: str
+    created_at: datetime
+
+    @staticmethod
+    def resolve_id(obj) -> int:
+        return obj.pk
+
+
+class WithdrawalIn(Schema):
+    amount: int
+    fee_amount: int = 0
+    pay_channel: str
+    payee_account: dict
+    client_request_id: str
+
+
+class WithdrawalOut(Schema):
+    id: int
+    amount: int
+    fee_amount: int
+    net_amount: int
+    status: str
+    pay_channel: str
+    payee_account_snapshot: dict
+    reject_reason: str
+    created_at: datetime
+    reviewed_at: datetime | None = None
+
+    @staticmethod
+    def resolve_id(obj) -> int:
+        return obj.pk
+
+
+class WalletAdjustmentIn(Schema):
+    user_id: int = Field(..., description="待调账用户 ID。")
+    amount: int = Field(..., description="调账金额，正数增加，负数扣减。")
+    idempotency_key: str = Field(..., description="调账幂等键。")
+    remark: str = Field("", description="调账原因备注。")
+
+
+class WithdrawalReviewIn(Schema):
+    approved: bool
+    reason: str = ""
+    idempotency_key: str
+
+
+class PayoutCreateIn(Schema):
+    provider: str
+    out_trade_no: str
+    request_payload: dict = {}
+    idempotency_key: str
+
+
+class PayoutCallbackIn(Schema):
+    out_trade_no: str
+    provider_trade_no: str = ""
+    callback_status: str
+    response_payload: dict = {}

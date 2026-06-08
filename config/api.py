@@ -34,6 +34,9 @@ from apps.settings.api import org_router as settings_org_router
 from apps.settings.api import team_router as settings_team_router
 from apps.settings.api import user_router as settings_user_router
 from apps.teams.api import router as teams_router
+from apps.wallet.api import admin_router as wallet_admin_router
+from apps.wallet.api import internal_router as wallet_internal_router
+from apps.wallet.api import router as wallet_router
 
 api = NinjaAPI(
     title="Django Base Site API",
@@ -63,6 +66,9 @@ api.add_router("/users/", users_router)
 api.add_router("/admin/users/", admin_users_router)
 api.add_router("/users/", real_name_router)
 api.add_router("/admin/real-name-verifications/", admin_real_name_router)
+api.add_router("/wallet/", wallet_router)
+api.add_router("/admin/wallet/", wallet_admin_router)
+api.add_router("/internal/wallet/", wallet_internal_router)
 api.add_router("/settings/org/", settings_org_router)
 api.add_router("/settings/teams/", settings_team_router)
 api.add_router("/settings/user/", settings_user_router)
