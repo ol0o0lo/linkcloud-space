@@ -77,6 +77,9 @@ def apply_wallet_adjustment(*, user, amount, idempotency_key, operator, remark):
 
 @transaction.atomic
 def submit_withdrawal(*, user, amount, fee_amount, pay_channel, payee_account, client_request_id):
+    client_request_id = client_request_id.strip()
+    if not client_request_id:
+        raise ValueError("client_request_id is required.")
     wallet = WalletAccount.objects.select_for_update().get(pk=ensure_wallet_account(user).pk)
     if amount <= 0 or fee_amount < 0 or amount <= fee_amount:
         raise ValueError("Invalid withdrawal amount.")
@@ -212,6 +215,40 @@ def create_withdrawal_payout(*, withdrawal, provider, out_trade_no, request_payl
     withdrawal.status = WithdrawalStatus.PAYING
     withdrawal.save(update_fields=["status", "updated_at"])
     return payout
+
+
+@transaction.atomic
+def retry_withdrawal_payout(*, withdrawal, provider, out_trade_no, request_payload, idempotency_key):
+    withdrawal = WithdrawalRequest.objects.select_for_update().get(pk=withdrawal.pk)
+    if withdrawal.status != WithdrawalStatus.FAILED:
+        raise ValueError("Only failed withdrawals can be retried.")
+
+    wallet = WalletAccount.objects.select_for_update().get(pk=withdrawal.wallet_id)
+    if wallet.available_balance < withdrawal.amount:
+        raise ValueError("Insufficient available balance for retry.")
+
+    wallet.available_balance -= withdrawal.amount
+    wallet.frozen_balance += withdrawal.amount
+    wallet.save(update_fields=["available_balance", "frozen_balance", "updated_at"])
+    withdrawal.status = WithdrawalStatus.APPROVED
+    withdrawal.save(update_fields=["status", "updated_at"])
+    WalletLedger.objects.create(
+        wallet=wallet,
+        entry_type=WalletEntryType.WITHDRAW_FREEZE,
+        amount_delta=-withdrawal.amount,
+        available_balance_after=wallet.available_balance,
+        frozen_balance_after=wallet.frozen_balance,
+        biz_type="wallet.withdrawal.retry",
+        biz_id=str(withdrawal.pk),
+        idempotency_key=f"withdraw-retry-freeze:{withdrawal.pk}:{idempotency_key}",
+    )
+    return create_withdrawal_payout(
+        withdrawal=withdrawal,
+        provider=provider,
+        out_trade_no=out_trade_no,
+        request_payload=request_payload,
+        idempotency_key=idempotency_key,
+    )
 
 
 @transaction.atomic

@@ -37,6 +37,10 @@ DEBUG = env.bool("DEBUG", default=False)
 
 INSTANCE = env("INSTANCE", default="dev")
 
+WALLET_PAYOUT_CALLBACK_SECRETS = {
+    "mock_provider": env("WALLET_MOCK_PROVIDER_CALLBACK_SECRET", default=SECRET_KEY),
+}
+
 ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 if DEBUG:

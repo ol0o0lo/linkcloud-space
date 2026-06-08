@@ -9,7 +9,8 @@ from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_superuser
 from apps.wallet.models import WalletLedger, WithdrawalRequest
 from apps.wallet.models import WalletAccount
-from apps.wallet.schemas import PayoutCallbackIn, PayoutCreateIn, ReconcileOut, WalletAccountAdminOut, WalletAdjustmentIn, WalletLedgerOut, WalletSummaryOut, WithdrawalIn, WithdrawalOut, WithdrawalPayoutOut, WithdrawalReviewIn
+from apps.wallet.schemas import PayoutCallbackIn, PayoutCreateIn, ReconcileOut, WalletAccountAdminOut, WalletAdjustmentIn, WalletLedgerOut, WalletSummaryOut, WithdrawalIn, WithdrawalOut, WithdrawalPayoutOut, WithdrawalRetryIn, WithdrawalReviewIn
+from apps.wallet.security import verify_callback_signature
 from apps.wallet.services import (
     apply_wallet_adjustment,
     approve_withdrawal,
@@ -18,6 +19,7 @@ from apps.wallet.services import (
     ensure_wallet_account,
     handle_payout_callback,
     reconcile_wallet_state,
+    retry_withdrawal_payout,
     submit_withdrawal,
 )
 
@@ -137,10 +139,29 @@ def payout_withdrawal(request, withdrawal_id: int, payload: PayoutCreateIn):
         raise HttpError(400, str(exc)) from exc
 
 
-@router.post("/payout/callback/{provider}/", auth=None, summary="处理代付回调")
+@router.post("/payout/callback/{provider}/", auth=None, response=WithdrawalPayoutOut, summary="处理代付回调")
 def payout_callback(request, provider: str, payload: PayoutCallbackIn):
+    signature = request.headers.get("X-Wallet-Callback-Signature", "")
+    if not verify_callback_signature(provider=provider, payload=payload.dict(), signature=signature):
+        raise HttpError(403, "Invalid callback signature.")
     try:
         return handle_payout_callback(provider=provider, **payload.dict())
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+
+
+@internal_router.post("/withdrawals/{withdrawal_id}/retry/", response=WithdrawalPayoutOut, summary="重试失败提现代付")
+def retry_withdrawal(request, withdrawal_id: int, payload: WithdrawalRetryIn):
+    require_superuser(request)
+    withdrawal = get_object_or_404(WithdrawalRequest, pk=withdrawal_id)
+    try:
+        return retry_withdrawal_payout(
+            withdrawal=withdrawal,
+            provider=payload.provider,
+            out_trade_no=payload.out_trade_no,
+            request_payload=payload.request_payload,
+            idempotency_key=payload.idempotency_key,
+        )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 

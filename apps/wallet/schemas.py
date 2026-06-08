@@ -45,7 +45,7 @@ class WithdrawalIn(Schema):
     fee_amount: int = 0
     pay_channel: str
     payee_account: dict
-    client_request_id: str
+    client_request_id: str = Field(..., min_length=1)
 
 
 class WithdrawalOut(Schema):
@@ -83,6 +83,10 @@ class PayoutCreateIn(Schema):
     out_trade_no: str
     request_payload: dict = {}
     idempotency_key: str
+
+
+class WithdrawalRetryIn(PayoutCreateIn):
+    pass
 
 
 class PayoutCallbackIn(Schema):
