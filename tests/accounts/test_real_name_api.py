@@ -4,6 +4,9 @@ from django.test import TestCase
 
 from apps.accounts.constants import RealNameLogAction, RealNameStatus
 from apps.accounts.models import RealNameVerification, User
+from apps.referrals.constants import ReferralRecordStatus
+from apps.referrals.models import ReferralRecord
+from apps.referrals.services import ensure_referral_link
 
 
 def build_cn_id(prefix17: str) -> str:
@@ -54,6 +57,33 @@ class TestRealNameAPI(TestCase):
         self.assertTrue(self.user.id_number_masked.endswith(self.valid_id[-4:]))
         self.assertEqual(verification.logs.count(), 2)
         self.assertEqual(verification.logs.last().action, RealNameLogAction.AUTO_VERIFIED)
+
+    def test_submit_valid_real_name_marks_referral_record_pending_review(self):
+        inviter = User.objects.create_user(username="inviter", email="inviter@example.com", password="secret123")  # noqa: S106
+        link = ensure_referral_link(inviter)
+        ReferralRecord.objects.create(
+            inviter=inviter,
+            invitee=self.user,
+            referral_link=link,
+            status=ReferralRecordStatus.REGISTERED,
+        )
+        self.client.force_login(self.user)
+
+        resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        record = ReferralRecord.objects.get(invitee=self.user)
+        self.assertEqual(record.status, ReferralRecordStatus.PENDING_REVIEW)
 
     def test_submit_invalid_real_name_is_rejected(self):
         self.client.force_login(self.user)

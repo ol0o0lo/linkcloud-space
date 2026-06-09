@@ -11,6 +11,7 @@ from ninja.errors import HttpError
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification, RealNameVerificationLog
+from apps.referrals.services import mark_referral_as_qualified
 
 CN_ID_RE = re.compile(r"^\d{17}[\dXx]$")
 CN_ID_WEIGHTS = (7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2)
@@ -113,6 +114,8 @@ def sync_user_real_name_summary(user, verification: RealNameVerification) -> Non
     user.id_number_masked = verification.id_number_masked
     user.real_name_verified_at = verification.reviewed_at if verification.status == RealNameStatus.VERIFIED else None
     user.save(update_fields=["real_name_status", "real_name_masked", "id_number_masked", "real_name_verified_at"])
+    if verification.status == RealNameStatus.VERIFIED:
+        mark_referral_as_qualified(invitee=user, event_type="real_name_verified")
 
 
 def append_real_name_log(

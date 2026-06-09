@@ -2,8 +2,10 @@ import secrets
 
 from django.db import transaction
 
-from apps.referrals.constants import ReferralRecordStatus
-from apps.referrals.models import ReferralLink, ReferralRecord
+from apps.referrals.constants import ReferralDisplayLevel, ReferralRecordStatus, ReferralTriggerEvent
+from apps.referrals.models import ReferralLink, ReferralRecord, ReferralRuleConfig
+from apps.wallet.constants import WalletEntryType
+from apps.wallet.services import apply_wallet_credit
 
 REFERRAL_SESSION_KEY = "referral_invite_code"
 
@@ -58,3 +60,55 @@ def create_record_from_request(*, request, invitee):
     if invite_code:
         request.session.pop(REFERRAL_SESSION_KEY, None)
     return record
+
+
+def get_referral_rule_config():
+    rule = ReferralRuleConfig.objects.order_by("created_at", "pk").first()
+    if rule is not None:
+        return rule
+    return ReferralRuleConfig.objects.create(
+        name="default",
+        trigger_event=ReferralTriggerEvent.REAL_NAME_VERIFIED,
+        requires_manual_review=True,
+        display_level=ReferralDisplayLevel.MASKED_PROGRESS,
+    )
+
+
+@transaction.atomic
+def mark_referral_as_qualified(*, invitee, event_type: str):
+    record = ReferralRecord.objects.select_for_update().filter(invitee=invitee).first()
+    if record is None:
+        return None
+    if event_type != ReferralTriggerEvent.REAL_NAME_VERIFIED:
+        return None
+    if record.status != ReferralRecordStatus.REGISTERED:
+        return record
+
+    record.status = ReferralRecordStatus.PENDING_REVIEW
+    record.save(update_fields=["status", "updated_at"])
+    return record
+
+
+@transaction.atomic
+def approve_referral_reward(*, record, reviewer, remark: str):
+    record = ReferralRecord.objects.select_for_update().select_related("inviter").get(pk=record.pk)
+    if record.status == ReferralRecordStatus.REWARD_ISSUED:
+        return record.reviews.order_by("-created_at", "-pk").first()
+    if record.status != ReferralRecordStatus.PENDING_REVIEW:
+        raise ValueError("Only pending review referral records can issue rewards.")
+
+    rule = get_referral_rule_config()
+    review = record.reviews.create(reviewer=reviewer, action="approve", remark=remark)
+    apply_wallet_credit(
+        user=record.inviter,
+        amount=rule.inviter_reward_amount,
+        entry_type=WalletEntryType.PROMOTION_REWARD,
+        biz_type="referral.reward",
+        biz_id=str(record.pk),
+        idempotency_key=f"referral-reward:{record.pk}",
+        operator=reviewer,
+        remark=remark,
+    )
+    record.status = ReferralRecordStatus.REWARD_ISSUED
+    record.save(update_fields=["status", "updated_at"])
+    return review
