@@ -88,6 +88,12 @@ async function onSubmit() {
       <p class="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
         Create your account
       </p>
+      <p
+        v-if="route.query.invite_code"
+        class="mt-2 text-center text-sm font-medium text-emerald-600 dark:text-emerald-400"
+      >
+        你正在通过邀请码 {{ route.query.invite_code }} 注册
+      </p>
       <form
         class="mt-6 space-y-4"
         @submit.prevent="onSubmit"

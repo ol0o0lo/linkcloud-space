@@ -1,6 +1,10 @@
 <script setup>
 import { RouterLink, useRoute } from 'vue-router';
 
+defineProps({
+  wide: { type: Boolean, default: false },
+});
+
 const route = useRoute();
 
 const tabs = [
@@ -13,16 +17,20 @@ const tabs = [
     activeNames: ['account-security', 'account-totp', 'account-recovery-codes', 'account-passkeys'],
   },
   { to: { name: 'account-notifications' }, label: 'Notifications', activeNames: ['account-notifications'] },
+  { to: { name: 'account-referrals' }, label: 'Referrals', activeNames: ['account-referrals'] },
 ];
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl w-full">
+  <div
+    class="mx-auto w-full"
+    :class="wide ? 'max-w-6xl' : 'max-w-2xl'"
+  >
     <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">
       Account Settings
     </h1>
     <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
-      <nav class="flex gap-4 -mb-px">
+      <nav class="-mb-px flex flex-wrap gap-x-4 gap-y-2">
         <RouterLink
           v-for="tab in tabs"
           :key="tab.label"

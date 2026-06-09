@@ -155,6 +155,12 @@ export function createRouter(appStore) {
         meta: { requiresAuth: true },
       },
       {
+        path: '/accounts/referrals/',
+        name: 'account-referrals',
+        component: () => import('./views/account/ReferralCenterView.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
         path: '/accounts/security/totp/',
         name: 'account-totp',
         component: () => import('./accounts/views/AccountTotpView.vue'),
