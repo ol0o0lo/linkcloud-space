@@ -1,0 +1,104 @@
+import json
+
+from django.test import TestCase
+
+from model_bakery import baker
+
+from apps.accounts.models import User
+from apps.referrals.constants import ReferralRecordStatus
+from apps.referrals.models import ReferralRecord, ReferralRuleConfig
+from apps.referrals.services import ensure_referral_link
+
+
+class ReferralUserAPITests(TestCase):
+    def setUp(self):
+        self.user = baker.make(User)
+        self.client.force_login(self.user)
+
+    def test_user_can_get_referral_summary(self):
+        link = ensure_referral_link(self.user)
+        baker.make("referrals.ReferralRecord", inviter=self.user, referral_link=link, status=ReferralRecordStatus.REGISTERED)
+
+        resp = self.client.get("/api/referrals/me/summary/")
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["invite_code"], link.code)
+        self.assertEqual(data["registered_count"], 1)
+
+
+class ReferralAdminAPITests(TestCase):
+    def setUp(self):
+        self.admin = baker.make(User, is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+
+    def test_admin_can_get_and_patch_config(self):
+        ReferralRuleConfig.objects.create(name="default", inviter_reward_amount=500)
+
+        get_resp = self.client.get("/api/admin/referrals/config/")
+        patch_resp = self.client.patch(
+            "/api/admin/referrals/config/",
+            data=json.dumps({"inviter_reward_amount": 888}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(get_resp.status_code, 200)
+        self.assertEqual(patch_resp.status_code, 200)
+        self.assertEqual(patch_resp.json()["inviter_reward_amount"], 888)
+
+    def test_admin_can_review_referral_record(self):
+        ReferralRuleConfig.objects.create(name="default", inviter_reward_amount=666)
+        record = baker.make("referrals.ReferralRecord", status=ReferralRecordStatus.PENDING_REVIEW)
+
+        resp = self.client.post(
+            f"/api/admin/referrals/records/{record.pk}/review/",
+            data=json.dumps({"approved": True, "remark": "通过"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        record.refresh_from_db()
+        self.assertEqual(record.status, ReferralRecordStatus.REWARD_ISSUED)
+
+
+class ReferralInternalAPITests(TestCase):
+    def setUp(self):
+        self.admin = baker.make(User, is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+
+    def test_internal_register_event_creates_record(self):
+        inviter = baker.make(User)
+        invitee = baker.make(User)
+        link = ensure_referral_link(inviter)
+
+        resp = self.client.post(
+            "/api/internal/referrals/events/register/",
+            data=json.dumps({"invitee_id": invitee.id, "invite_code": link.code}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(ReferralRecord.objects.filter(invitee=invitee, inviter=inviter).exists())
+
+    def test_internal_qualify_event_marks_record_pending_review(self):
+        record = baker.make("referrals.ReferralRecord", status=ReferralRecordStatus.REGISTERED)
+
+        resp = self.client.post(
+            "/api/internal/referrals/events/qualify/",
+            data=json.dumps({"invitee_id": record.invitee_id, "event_type": "real_name_verified"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        record.refresh_from_db()
+        self.assertEqual(record.status, ReferralRecordStatus.PENDING_REVIEW)
+
+    def test_internal_reward_issue_endpoint_issues_reward(self):
+        ReferralRuleConfig.objects.create(name="default", inviter_reward_amount=777)
+        record = baker.make("referrals.ReferralRecord", status=ReferralRecordStatus.PENDING_REVIEW)
+
+        resp = self.client.post(f"/api/internal/referrals/rewards/{record.pk}/issue/", content_type="application/json")
+
+        self.assertEqual(resp.status_code, 200)
+        record.refresh_from_db()
+        self.assertEqual(record.status, ReferralRecordStatus.REWARD_ISSUED)
