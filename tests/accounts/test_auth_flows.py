@@ -8,6 +8,8 @@ import pytest
 from allauth.account.models import EmailAddress
 
 from apps.accounts.models import User
+from apps.referrals.models import ReferralRecord
+from apps.referrals.services import ensure_referral_link
 
 
 @pytest.fixture()
@@ -45,6 +47,25 @@ def test_signup(mailoutbox, client):
     assert User.objects.filter(email="newbie@example.com").exists()
     assert len(mailoutbox) == 1
     assert "newbie@example.com" in mailoutbox[0].to
+
+
+@pytest.mark.django_db
+def test_signup_with_invite_code_creates_referral_record(mailoutbox, client):
+    inviter = User.objects.create(email="inviter@example.com", username="inviter@example.com")
+    link = ensure_referral_link(inviter)
+
+    resp = client.post(
+        f"/_allauth/browser/v1/auth/signup?invite_code={link.code}",
+        data={"email": "referred@example.com", "password": "testpw123!"},
+        content_type="application/json",
+    )
+
+    assert resp.status_code in (200, 401), resp.content
+    invitee = User.objects.get(email="referred@example.com")
+    record = ReferralRecord.objects.get(invitee=invitee)
+    assert record.inviter_id == inviter.id
+    assert record.referral_link_id == link.id
+    assert len(mailoutbox) == 1
 
 
 @pytest.mark.django_db
