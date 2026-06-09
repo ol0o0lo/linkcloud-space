@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     "apps.teams",
     "apps.access",
     "apps.wallet",
+    "apps.referrals",
     "apps.notifications",
     "apps.settings",
     "maintenance_mode",
