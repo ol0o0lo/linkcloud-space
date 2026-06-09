@@ -62,6 +62,16 @@ const routes: RouteRecordRaw[] = [
         path: '/admin/access',
       },
       {
+        component: () => import('#/views/admin/referrals.vue'),
+        meta: {
+          authority: ['admin', 'super'],
+          icon: 'lucide:gift',
+          title: '裂变推广',
+        },
+        name: 'AdminReferrals',
+        path: '/admin/referrals',
+      },
+      {
         component: () => import('#/views/settings/admin.vue'),
         meta: {
           authority: ['admin', 'super'],
