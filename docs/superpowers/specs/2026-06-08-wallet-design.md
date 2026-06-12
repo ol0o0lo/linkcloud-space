@@ -154,7 +154,26 @@
 
 ## 6. 提现状态机与资金一致性
 
-### 6.0 手续费口径
+### 6.0 提现主线路
+
+提现主线路按以下顺序闭环：
+
+1. 用户提交提现申请：`POST /api/wallet/me/withdrawals/`
+   冻结 `amount`，创建 `WithdrawalRequest(status=pending_review)`，写 `withdraw_freeze` 流水。
+2. 用户撤销提现申请：`POST /api/wallet/me/withdrawals/{id}/cancel/`
+   仅允许 `pending_review`，解冻 `amount`，写 `withdraw_cancel` 流水。
+3. 管理员审核提现：`POST /api/admin/wallet/withdrawals/{id}/review/`
+   通过时 `pending_review -> approved`，不动余额；拒绝时 `pending_review -> rejected`，解冻 `amount`，写 `withdraw_unfreeze` 流水。
+4. 管理员发起代付：`POST /api/admin/wallet/withdrawals/{id}/payout/`
+   仅允许 `approved`，创建 `WithdrawalPayout`，状态推进为 `approved -> paying`。
+5. 第三方成功回调：`POST /api/wallet/payout/callback/{provider}/`
+   验签通过后执行 `paying -> paid`，扣减冻结余额，累计 `total_withdrawn += amount`，写 `withdraw_settle` 流水。
+6. 第三方失败回调：同一回调接口
+   验签通过后执行 `paying -> failed`，返还 `amount` 到可用余额，写 `withdraw_refund` 流水。
+7. 内部失败重试：`POST /api/internal/wallet/withdrawals/{id}/retry/`
+   仅允许 `failed`，重新冻结 `amount` 并重新发起一轮代付，状态回到 `approved -> paying`。
+
+### 6.1 手续费口径
 
 一期提现金额口径统一如下：
 
@@ -171,7 +190,7 @@
 
 这样可以避免提现处理中出现“手续费另扣一次”或“冻结净额但账面少扣手续费”的口径分叉。
 
-### 6.1 状态流转
+### 6.2 状态流转
 
 1. `pending_review`：用户申请后即冻结资金。  
 2. `rejected`：审核拒绝，解冻返还。  
@@ -198,13 +217,14 @@
 - 非 `paying` 状态不接受成功/失败回调更新终态
 - `paid`、`rejected`、`failed`、`cancelled` 为终态，不允许再流转到其他状态
 
-### 6.2 记账规则
+### 6.3 记账规则
 
 - 申请提现：`available -= amount`，`frozen += amount`，流水记 `withdraw_freeze`
 - 用户撤销：`available += amount`，`frozen -= amount`，流水记 `withdraw_cancel`
 - 审核拒绝：`available += amount`，`frozen -= amount`，流水记 `withdraw_unfreeze`
 - 代付成功：`frozen -= amount`，`total_withdrawn += amount`，流水记 `withdraw_settle`
 - 代付失败：`available += amount`，`frozen -= amount`，流水记 `withdraw_refund`
+- 内部重试：`available -= amount`，`frozen += amount`，再次写 `withdraw_freeze` 或显式重试冻结流水
 
 手续费结算规则：
 
@@ -212,22 +232,23 @@
 - 平台侧如需统计提现手续费收入，一期不单独入用户钱包流水，改由提现单上的 `fee_amount` 汇总统计
 - 如果后续需要做平台资金账，再新增平台资金流水，不在本期个人钱包账本中混记
 
-### 6.3 一致性硬约束
+### 6.4 一致性硬约束
 
 - 余额变更、流水写入、状态迁移必须同事务提交
 - 钱包账户行更新使用 `select_for_update()` 防并发超提
 - 代付回调按交易号和事件结果做幂等，重复回调不得重复记账
+- 代付回调必须先验签，验签失败不得推进任何资金状态
 - 任意时刻 `available_balance`、`frozen_balance` 不得为负
 - 推广奖励和管理员调账均禁止直接改余额字段，必须通过服务层统一记账
 - `WithdrawalRequest`、`WithdrawalPayout`、`WalletLedger` 的业务写入都必须通过统一 wallet service 完成，禁止绕过服务层直接写模型
 
-### 6.4 幂等矩阵
+### 6.5 幂等矩阵
 
 一期高风险动作统一需要幂等约束：
 
 - 外部业务入账：由业务模块自己的奖励/补贴记录承担事件幂等，wallet service 再以 `WalletLedger.idempotency_key` 保证资金记账幂等
 - 管理员调账：请求必须带 `idempotency_key`，并在 `WalletLedger` 上唯一约束，避免重复提交或页面重放
-- 提现申请：前端可选带 `client_request_id`，后端可按用户 + 请求键去重，避免连点重复申请
+- 提现申请：前端必须带非空 `client_request_id`，后端按用户 + 请求键去重，避免连点重复申请与空值冲突
 - 提现审核：审核请求必须带操作幂等键，避免后台重复点击导致状态重复推进
 - 代付发起：`WithdrawalPayout.idempotency_key` 与 `out_trade_no` 双重约束，同一提现单同一轮代付只允许创建一次有效请求
 - 代付回调：按 `provider + provider_trade_no + callback_status` 或等效业务键去重，重复回调只做幂等确认，不重复更新余额

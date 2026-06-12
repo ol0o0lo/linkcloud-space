@@ -117,29 +117,21 @@
 
 ## 6. API 规模与分组
 
-一期建议总计 11 个接口。
+一期建议总计 6 个对外接口。
 
-### 6.1 用户侧接口（3）
+### 6.1 用户侧接口（2）
 
 - `GET /api/referrals/me/summary/` 推广中心总览
 - `GET /api/referrals/me/records/` 我的邀请记录列表
-- `GET /api/referrals/me/records/{id}/` 单条邀请记录详情
 
-### 6.2 管理端接口（5）
+### 6.2 管理端接口（4）
 
 - `GET /api/admin/referrals/config/` 获取当前裂变规则配置
 - `PATCH /api/admin/referrals/config/` 更新当前裂变规则配置
 - `GET /api/admin/referrals/records/` 邀请记录与审核列表
-- `GET /api/admin/referrals/records/{id}/` 邀请记录详情
 - `POST /api/admin/referrals/records/{id}/review/` 逐条审核邀请奖励
 
-### 6.3 内部接口（3）
-
-- `POST /api/internal/referrals/events/register/` 注册成功归因
-- `POST /api/internal/referrals/events/qualify/` 关键行为达成事件
-- `POST /api/internal/referrals/rewards/{record_id}/issue/` 审核通过后触发奖励发放
-
-说明：一期不单独开放批量审核与邀请码刷新接口，优先保持接口收敛。
+说明：注册归因、关键行为达成与发奖动作在一期通过服务层与信号完成，不单独暴露为 HTTP 接口；同时不开放批量审核与邀请码刷新接口，优先保持接口收敛。
 
 ## 7. 业务规则
 

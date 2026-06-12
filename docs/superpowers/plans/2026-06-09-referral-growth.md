@@ -438,15 +438,6 @@ class ReferralAPITests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
 
-    def test_internal_qualify_event_marks_record_pending_review(self):
-        record = baker.make('referrals.ReferralRecord', status='registered')
-        self.client.force_login(self.admin)
-        resp = self.client.post(
-            '/api/internal/referrals/events/qualify/',
-            data=json.dumps({'invitee_id': record.invitee_id, 'event_type': 'real_name_verified'}),
-            content_type='application/json',
-        )
-        self.assertEqual(resp.status_code, 200)
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -454,7 +445,7 @@ class ReferralAPITests(TestCase):
 Run: `docker compose exec web pytest tests/referrals/test_api.py -v`
 Expected: FAIL，提示 `/api/referrals/me/summary/` 路由不存在
 
-- [ ] **Step 3: 实现 schemas、routers 和 11 个接口**
+- [ ] **Step 3: 实现 schemas、routers 和 6 个对外接口**
 
 ```python
 # apps/referrals/api.py
@@ -465,12 +456,11 @@ from ninja.pagination import paginate
 
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_superuser
-from apps.referrals.models import ReferralRecord, ReferralRuleConfig
-from apps.referrals.services import approve_referral_reward, ensure_referral_link, mark_referral_as_qualified
+from apps.referrals.models import ReferralRecord
+from apps.referrals.services import approve_referral_reward, ensure_referral_link
 
 router = Router(tags=['裂变/用户'])
 admin_router = Router(tags=['裂变/管理'])
-internal_router = Router(tags=['裂变/内部'])
 
 
 @router.get('/me/summary/')
@@ -500,24 +490,15 @@ def review_referral_record(request, record_id: int, payload):
     return record
 
 
-@internal_router.post('/events/qualify/')
-def internal_qualify(request, payload):
-    require_superuser(request)
-    record = get_object_or_404(ReferralRecord, invitee_id=payload.invitee_id)
-    mark_referral_as_qualified(invitee=record.invitee, event_type=payload.event_type)
-    record.refresh_from_db()
-    return record
 ```
 
 ```python
 # config/api.py
 from apps.referrals.api import admin_router as referrals_admin_router
-from apps.referrals.api import internal_router as referrals_internal_router
 from apps.referrals.api import router as referrals_router
 
 api.add_router('/referrals/', referrals_router)
 api.add_router('/admin/referrals/', referrals_admin_router)
-api.add_router('/internal/referrals/', referrals_internal_router)
 ```
 
 - [ ] **Step 4: 回归 referral API 与钱包联动测试**
