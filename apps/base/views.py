@@ -7,21 +7,10 @@ from django.http import HttpResponse, HttpResponseBadRequest
 from django.middleware.csrf import get_token
 from django.shortcuts import render
 from django.views import generic
-from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET
 
 import qrcode
 import qrcode.image.svg
-
-
-class SPAView(generic.TemplateView):
-    template_name = "layouts/spa_shell.html"
-
-    @classmethod
-    def as_view(cls, **initkwargs):
-        view = super().as_view(**initkwargs)
-        return ensure_csrf_cookie(view)
-
 
 def _static_index_response(request, relative_index_path: str, missing_message: str) -> HttpResponse:
     index_path = os.path.join(settings.BASE_DIR, *relative_index_path.split("/"))

@@ -11,7 +11,6 @@ from allauth.headless.socialaccount.forms import RedirectToProviderForm
 
 from apps.accounts.models import User
 from apps.base.permissions import require_superuser
-from apps.base.templatetags.vite import _get_manifest, vite_settings
 from apps.base.utils.email import send_email
 from apps.base.utils.timezones import get_timezone_label
 from apps.notifications.services import notify
@@ -65,14 +64,7 @@ class CsrfOut(Schema):
 
 
 def _get_app_version() -> str:
-    if vite_settings.VITE_DEV_MODE is True:
-        return "dev"
-    try:
-        manifest = _get_manifest()
-    except (FileNotFoundError, ValueError):
-        return "unknown"
-    entry = manifest.get("js/app.js") or {}
-    return entry.get("file", "unknown")
+    return "unknown"
 
 
 @router.get("/version/", auth=None, summary="获取应用版本")

@@ -1,20 +1,9 @@
 from django.conf import settings
 from django.contrib import admin
-from django.http import HttpResponseNotFound
 from django.urls import URLPattern, URLResolver, include, path, re_path
 
-from apps.base.views import DashboardSPAView, H5SPAView, SPAView, http_404, http_500, qr_svg
+from apps.base.views import DashboardSPAView, H5SPAView, http_404, http_500, qr_svg
 from config.api import api as ninja_api
-
-
-def _public_not_found(request, path=""):
-    """
-    Return 404 for missing /public/static/* and /public/media/* requests.
-
-    Catches stale Vite chunks during a deploy so the SPA catch-all doesn't answer 200 with
-    HTML for a missing asset (which would break dynamic-import chunk loads).
-    """
-    return HttpResponseNotFound()
 
 
 urlpatterns: list[URLResolver | URLPattern] = [
@@ -28,18 +17,8 @@ urlpatterns: list[URLResolver | URLPattern] = [
     path("500/", http_500),
     path("404/", http_404),
     path("qr/", qr_svg, name="qr-svg"),
-    # Keep the URL name so OrganizationInvite.accept_invite_url's reverse() and
-    # email links still resolve, but render the SPA shell so the Vue route at
-    # /organizations/invite/:key/accept/ handles the flow.
-    re_path(
-        r"^organizations/invite/(?P<key>[0-9a-z]+)/accept/$",
-        SPAView.as_view(),
-        name="accept_invite",
-    ),
     re_path(r"^dashboard/", DashboardSPAView.as_view(), name="dashboard-spa"),
     re_path(r"^h5/", H5SPAView.as_view(), name="h5-spa"),
-    re_path(r"^public/", _public_not_found, name="public-not-found"),
-    re_path(r"^(?!public/).*$", SPAView.as_view(), name="spa"),
 ]
 
 if settings.DEBUG is True:

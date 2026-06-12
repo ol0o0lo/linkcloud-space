@@ -1,5 +1,7 @@
 import json
 
+from allauth.mfa.models import Authenticator
+from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from django.test import TestCase
 
 from apps.accounts.models import User
@@ -52,3 +54,34 @@ class TestUserTimezoneAPI(TestCase):
         resp = self.client.get(_detail_url(self.user.pk))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["timezone"], "America/Chicago")
+
+
+class TestUserTotpSetupAPI(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="totp-user",
+            email="totp@example.com",
+            password="testpass",  # noqa: S106
+        )
+        self.client.force_login(self.user)
+
+    def test_get_totp_setup_returns_secret_and_url(self):
+        resp = self.client.get("/api/users/me/mfa/totp-setup/")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["secret"])
+        self.assertTrue(body["totp_url"].startswith("otpauth://"))
+        self.assertIn("totp%40example.com", body["totp_url"])
+
+    def test_get_totp_setup_rejects_enabled_totp(self):
+        TOTP.activate(self.user, generate_totp_secret())
+
+        resp = self.client.get("/api/users/me/mfa/totp-setup/")
+
+        self.assertEqual(resp.status_code, 409)
+        self.assertEqual(resp.json()["detail"], "TOTP is already enabled.")
+        self.assertEqual(
+            Authenticator.objects.filter(user=self.user, type=Authenticator.Type.TOTP).count(),
+            1,
+        )

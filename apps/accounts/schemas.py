@@ -70,6 +70,11 @@ class WechatPhoneOut(Schema):
     merged: bool
 
 
+class TotpSetupOut(Schema):
+    secret: str
+    totp_url: str
+
+
 class UserStatusPatchIn(Schema):
     is_active: bool = Field(..., description="是否启用用户。")
 

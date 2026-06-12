@@ -7,6 +7,10 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 import requests as http_requests
+from allauth.mfa.adapter import get_adapter as get_mfa_adapter
+from allauth.mfa.models import Authenticator
+from allauth.mfa.totp.internal.auth import generate_totp_secret
+from allauth.mfa.utils import is_mfa_enabled
 from ninja import File, Form, Query, Router, Status
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
@@ -29,6 +33,7 @@ from apps.accounts.schemas import (
     RealNameVerificationDetailOut,
     RealNameVerificationOut,
     ResetMfaOut,
+    TotpSetupOut,
     UserOut,
     UserPatchIn,
     UserStatusPatchIn,
@@ -203,6 +208,20 @@ def bind_wechat_phone(request, payload: WechatPhoneIn):
     except ValueError as e:
         raise HttpError(400, str(e)) from e
     return {"phone": phone, "merged": merged}
+
+
+@users_router.get("/me/mfa/totp-setup/", response=TotpSetupOut, summary="获取 TOTP 初始化信息")
+def get_totp_setup(request):
+    """返回当前用户可用于初始化 TOTP 的密钥和 otpauth URL。"""
+    require_authenticated(request)
+    if is_mfa_enabled(request.user, [Authenticator.Type.TOTP]):
+        raise HttpError(409, "TOTP is already enabled.")
+
+    secret = generate_totp_secret()
+    return {
+        "secret": secret,
+        "totp_url": get_mfa_adapter().build_totp_url(request.user, secret),
+    }
 
 
 def _get_admin_user(request, user_id: int):

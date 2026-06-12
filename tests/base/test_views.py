@@ -5,18 +5,16 @@ from django.test import SimpleTestCase, override_settings
 
 
 class TestSPAShell(SimpleTestCase):
-    def test_root_returns_spa_shell(self):
+    def test_root_returns_404_after_spa_removal(self):
         resp = self.client.get("/")
-        self.assertEqual(resp.status_code, 200)
-        self.assertTemplateUsed(resp, "layouts/spa_shell.html")
+        self.assertEqual(resp.status_code, 404)
 
-    def test_unknown_path_returns_spa_shell(self):
+    def test_unknown_path_returns_404_after_spa_removal(self):
         resp = self.client.get("/some/random/path/")
-        self.assertEqual(resp.status_code, 200)
-        self.assertTemplateUsed(resp, "layouts/spa_shell.html")
+        self.assertEqual(resp.status_code, 404)
 
-    def test_public_static_404_does_not_return_spa_shell(self):
-        resp = self.client.get("/public/static/dist/js/missing-chunk.js")
+    def test_legacy_invite_frontend_route_returns_404(self):
+        resp = self.client.get("/organizations/invite/abc123/accept/")
         self.assertEqual(resp.status_code, 404)
 
 
