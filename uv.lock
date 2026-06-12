@@ -860,6 +860,7 @@ dependencies = [
     { name = "python-json-logger" },
     { name = "redis" },
     { name = "tencentcloud-sdk-python-sms" },
+    { name = "wechatpayv3" },
     { name = "whitenoise" },
 ]
 
@@ -909,6 +910,7 @@ requires-dist = [
     { name = "python-json-logger", specifier = "~=4.1" },
     { name = "redis", specifier = "~=7.1" },
     { name = "tencentcloud-sdk-python-sms", specifier = ">=3.0.0" },
+    { name = "wechatpayv3", specifier = "~=2.0" },
     { name = "whitenoise", specifier = "~=6.7" },
 ]
 
@@ -2991,6 +2993,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2c/ee/afaf0f85a9a18fe47a67f1e4422ed6cf1fe642f0ae0a2f81166231303c52/wcwidth-0.7.0.tar.gz", hash = "sha256:90e3a7ea092341c44b99562e75d09e4d5160fe7a3974c6fb842a101a95e7eed0", size = 182132, upload-time = "2026-05-02T16:04:12.653Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/52/e465037f5375f43533d1a80b6923955201596a99142ed524d77b571a1418/wcwidth-0.7.0-py3-none-any.whl", hash = "sha256:5d69154c429a82910e241c738cd0e2976fac8a2dd47a1a805f4afed1c0f136f2", size = 110825, upload-time = "2026-05-02T16:04:11.033Z" },
+]
+
+[[package]]
+name = "wechatpayv3"
+version = "2.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c6/f2/0807f156c835f74f5a40a0a0e169ee94ddd707e0a3b4429da6570344f37f/wechatpayv3-2.0.2.tar.gz", hash = "sha256:2d6885be3fc2944ac07e94ad14b4c3e35e7c28116268008ec998fd1eb6970bdb", size = 92684, upload-time = "2026-02-28T06:26:00.218Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/ea/2d0b3c76f22efb9c41389d54eeb0e4e326218c1e4c01f08d2a61d73e48ce/wechatpayv3-2.0.2-py3-none-any.whl", hash = "sha256:089b9313695a113cc22563fd36e55aba8c6390b7f2249cbd04144e1a9d29d7fd", size = 114299, upload-time = "2026-02-28T06:25:58.735Z" },
 ]
 
 [[package]]
