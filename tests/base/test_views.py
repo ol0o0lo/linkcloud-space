@@ -5,9 +5,11 @@ from django.test import SimpleTestCase, override_settings
 
 
 class TestSPAShell(SimpleTestCase):
-    def test_root_returns_404_after_spa_removal(self):
+    def test_root_returns_landing_page(self):
         resp = self.client.get("/")
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "官网即将上线", html=False)
+        self.assertContains(resp, "/dashboard/", html=False)
 
     def test_unknown_path_returns_404_after_spa_removal(self):
         resp = self.client.get("/some/random/path/")

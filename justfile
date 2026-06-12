@@ -12,7 +12,7 @@ project_slug := 'linkcloud-space'
 
 # Start SaaS admin frontend dev server
 @admin_dev:
-    cd frontend_admin && pnpm dev:antdv-next
+    cd frontend_admin && pnpm dev
 
 # Build SaaS admin frontend assets
 @admin_build:

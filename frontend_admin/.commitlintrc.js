@@ -1,1 +1,1 @@
-export { default } from '@vben/commitlint-config';
+module.exports = { extends: ['@commitlint/config-conventional'] };

@@ -1,28 +1,39 @@
-import Vue from '@vitejs/plugin-vue';
-import VueJsx from '@vitejs/plugin-vue-jsx';
-import { configDefaults, defineConfig } from 'vitest/config';
+import { join } from 'node:path';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [Vue(), VueJsx()],
+  resolve: {
+    alias: {
+      '@': join(__dirname, 'src'),
+      '@root': join(__dirname),
+      '@@': join(__dirname, 'src', '.umi'),
+    },
+  },
   test: {
     environment: 'happy-dom',
-    environmentOptions: {
-      happyDOM: {
-        settings: {
-          // happy-dom v20+ disables JS evaluation by default (security fix).
-          // Treat disabled script loading as success to preserve test behavior.
-          handleDisabledFileLoadingAsSuccess: true,
-        },
-      },
-    },
+    globals: true,
+    setupFiles: ['./tests/setupTests.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Exclude Umi integration tests that depend on @umijs/max test infrastructure
+    // These require Umi's Jest runner and cannot be used with Vitest directly
     exclude: [
-      ...configDefaults.exclude,
-      '**/e2e/**',
-      '**/dist/**',
-      '**/.{idea,git,cache,output,temp}/**',
-      '**/node_modules/**',
-      '**/{stylelint,eslint}.config.*',
-      '**/{oxfmt,oxlint}.config.*',
+      'src/pages/user/login/login.test.tsx',
+      'node_modules',
+      'dist',
+      '.umi',
     ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/.umi/**',
+        'src/services/ant-design-pro/**',
+        'src/**/*.d.ts',
+        'src/**/index.style.ts',
+      ],
+    },
+    passWithNoTests: true,
+    testTimeout: 15000,
   },
 });

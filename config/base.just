@@ -28,14 +28,13 @@ reset := `tput -Txterm sgr0`
     docker compose build
     just collectstatic
 
-# Build frontend assets
+# Compatibility alias for the previous root web frontend build.
 @build_frontend:
-    {{ bun_cmd_prefix }} bun run build
-    just collectstatic
+    just build_admin
 
-# Build admin frontend assets (vben-admin web-antdv-next)
+# Build admin frontend assets (Ant Design Pro)
 @build_admin:
-    cd frontend_admin/apps/web-antdv-next && pnpm build
+    cd frontend_admin && pnpm build
     just collectstatic
 
 # Build H5 frontend assets
@@ -92,7 +91,7 @@ reset := `tput -Txterm sgr0`
 # Run Django's collectstatic management command
 @collectstatic:
     just _start_msg "Collecting static files"
-    if [ -d frontend_admin/apps/web-antdv-next/dist ]; then mkdir -p public/static/dist/admin && cp -R frontend_admin/apps/web-antdv-next/dist/. public/static/dist/admin/; fi
+    if [ -d frontend_admin/dist ]; then mkdir -p public/static/dist/admin && cp -R frontend_admin/dist/. public/static/dist/admin/; fi
     if [ -d frontend_miniprogram/dist/build/h5 ]; then mkdir -p public/static/dist/h5 && cp -R frontend_miniprogram/dist/build/h5/. public/static/dist/h5/; fi
     {{ python_cmd_prefix }} ./manage.py collectstatic --no-input --no-default-ignore --clear
 
@@ -126,8 +125,8 @@ db_restore dump_file="":
 
 # Format Javascript code
 @format_js:
-    just _start_msg "Formatting Javascript code using eslint"
-    {{ bun_cmd_prefix }} bun run format-js
+    just _start_msg "Formatting admin frontend code using Biome"
+    cd frontend_admin && pnpm biome
 
 # Format the justfile
 @format_just:
@@ -155,8 +154,8 @@ lint: lint_js lint_html lint_py lint_migrations lint_types
 
 # Lint Javascript code with eslint
 @lint_js:
-    just _start_msg "Checking Javascript code using eslint"
-    {{ bun_cmd_prefix }} bun run lint-js
+    just _start_msg "Checking admin frontend code"
+    cd frontend_admin && pnpm lint
 
 # Check for missing Django migrations
 @lint_migrations:
@@ -205,13 +204,13 @@ pre_commit: format lint test test_e2e
 # Run Playwright e2e tests against pre-built frontend assets.
 @test_e2e *args:
     just _start_msg "Running Playwright e2e tests"
-    just build_frontend
+    just build_admin
     {{ python_cmd_prefix }} pytest e2e/ --ds=config.settings.e2e {{ args }}
 
-# Upgrade frontend (bun) requirements based on `package.json` file
+# Upgrade admin frontend requirements based on `frontend_admin/package.json`
 @upgrade_node_packages:
-    just _start_msg "Upgrading frontend requirements"
-    {{ bun_cmd_prefix }} bun update
+    just _start_msg "Upgrading admin frontend requirements"
+    cd frontend_admin && pnpm update
 
 # Upgrade python requirements
 upgrade_python_packages +packages="":

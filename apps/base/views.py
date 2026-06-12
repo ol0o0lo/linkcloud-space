@@ -41,6 +41,10 @@ class H5SPAView(generic.View):
         )
 
 
+class RootLandingView(generic.TemplateView):
+    template_name = "root_landing.html"
+
+
 def http_500(request):
     raise Exception
 

@@ -2,11 +2,12 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import URLPattern, URLResolver, include, path, re_path
 
-from apps.base.views import DashboardSPAView, H5SPAView, http_404, http_500, qr_svg
+from apps.base.views import DashboardSPAView, H5SPAView, RootLandingView, http_404, http_500, qr_svg
 from config.api import api as ninja_api
 
 
 urlpatterns: list[URLResolver | URLPattern] = [
+    path("", RootLandingView.as_view(), name="root-landing"),
     path("_allauth/", include("allauth.headless.urls")),
     path("accounts/", include("allauth.socialaccount.providers.github.urls")),
     path("accounts/", include("allauth.socialaccount.providers.weixin.urls")),

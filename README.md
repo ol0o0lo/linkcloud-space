@@ -5,7 +5,7 @@
 ## 项目定位
 
 - 后端基于 Django 5、django-ninja、django-allauth headless
-- 主 Web 端为 Vue 3 SPA，挂载在 `/`
+- 站点根路径 `/` 当前返回一个临时跳转页，后续会替换为正式官网地址
 - 管理后台构建产物挂载在 `/dashboard/`
 - 小程序 H5 构建产物挂载在 `/h5/`
 - 认证、组织/团队、权限、通知、媒体、设置、实名认证等基础能力已经接好，可直接作为新业务的底座继续开发
@@ -47,8 +47,7 @@
 ## 技术栈
 
 - 后端：Django 5、django-ninja、django-allauth、Celery、PostgreSQL 17、Redis 7
-- 前端：Vue 3、Vue Router、Tailwind v4、Vite 8、Bun
-- 管理后台：`frontend_admin/` 中的独立 `pnpm workspace`
+- 前端后台：官方 Ant Design Pro，位于 `frontend_admin/`
 - 小程序端：`frontend_miniprogram/` 中的 uni-app / unibest 工程
 - 测试：pytest、pytest-django、model-bakery、Playwright
 - 质量：Ruff、Ty、ESLint、djLint、coverage
@@ -59,8 +58,7 @@
 ```text
 apps/                  Django 业务应用
 config/                Django 配置、URL、API、Docker 与 MkDocs 配置
-frontend/              主 Web SPA（Vue 3）
-frontend_admin/        SaaS 管理后台前端
+frontend_admin/        Ant Design Pro 管理后台前端
 frontend_miniprogram/  小程序与 H5 前端
 tests/                 后端测试
 e2e/                   Playwright 端到端测试
@@ -85,7 +83,6 @@ docs/                  项目文档
 - Docker / Docker Compose
 - Just
 - uv / uvx
-- Bun
 - pnpm（用于 `frontend_admin/` 和 `frontend_miniprogram/`）
 
 ### 1. 生成环境变量
@@ -121,21 +118,14 @@ just start_full
 
 ### 3. 按需启动前端工程
 
-主 Web SPA 当前通过根目录 `bun` 脚本维护；`compose.yml` 里的前端容器默认未启用，因此日常开发更推荐直接在宿主机运行：
-
-```bash
-bun install
-bun run dev
-```
-
-默认 Vite 地址：`http://localhost:3000`
-
-管理后台与小程序端是独立子工程：
+管理后台是当前唯一的 Web 前端工程：
 
 ```bash
 just admin_dev
 just miniprogram_dev
 ```
+
+默认管理后台开发地址以 `frontend_admin/` 的 dev server 输出为准。
 
 更多边界说明见 [docs/frontend-structure.md](docs/frontend-structure.md)。
 
@@ -153,14 +143,6 @@ just miniprogram_build_h5  # 构建 H5 产物并收集静态文件
 just test                  # 运行后端测试
 just lint                  # 运行 lint / type check / migration check
 just format                # 格式化代码
-```
-
-主 Web SPA 的本地命令：
-
-```bash
-bun run dev
-bun run build
-bun run lint-js
 ```
 
 ## 测试与质量约定
@@ -188,5 +170,5 @@ bun run lint-js
 ## 适合继续扩展的方向
 
 - 在 `apps/` 下继续增加业务域 app，并复用现有认证、组织、权限和通知体系
-- 在 `frontend/`、`frontend_admin/`、`frontend_miniprogram/` 中分别承接主站、后台和移动端业务
+- 在 `frontend_admin/`、`frontend_miniprogram/` 中分别承接后台和移动端业务
 - 将项目专属业务与基础能力尽量拆分清楚，方便后续维护与复用
