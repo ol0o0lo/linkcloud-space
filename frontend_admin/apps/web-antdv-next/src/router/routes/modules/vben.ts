@@ -113,6 +113,33 @@ const routes: RouteRecordRaw[] = [
       title: $t('page.auth.profile'),
     },
   },
+  {
+    name: 'ProfileSecurity',
+    path: '/profile/security',
+    component: () => import('#/views/_core/profile/security-page.vue'),
+    meta: {
+      hideInMenu: true,
+      title: '安全设置',
+    },
+  },
+  {
+    name: 'ProfilePassword',
+    path: '/profile/password',
+    component: () => import('#/views/_core/profile/password-page.vue'),
+    meta: {
+      hideInMenu: true,
+      title: '修改密码',
+    },
+  },
+  {
+    name: 'ProfileNotifications',
+    path: '/profile/notifications',
+    component: () => import('#/views/_core/profile/notifications-page.vue'),
+    meta: {
+      hideInMenu: true,
+      title: '新消息提醒',
+    },
+  },
 ];
 
 export default routes;

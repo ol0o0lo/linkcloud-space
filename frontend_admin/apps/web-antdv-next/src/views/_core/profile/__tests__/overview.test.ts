@@ -1,8 +1,14 @@
+// @vitest-environment happy-dom
+
 import { createApp, defineComponent, nextTick } from 'vue';
 
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('antdv-next', () => ({
+  Avatar: defineComponent({
+    name: 'Avatar',
+    template: '<div><slot /></div>',
+  }),
   Button: defineComponent({
     name: 'Button',
     props: {
@@ -11,14 +17,6 @@ vi.mock('antdv-next', () => ({
     },
     emits: ['click'],
     template: '<button :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>',
-  }),
-  Card: defineComponent({
-    name: 'Card',
-    template: '<section><slot /></section>',
-  }),
-  Tag: defineComponent({
-    name: 'Tag',
-    template: '<span><slot /></span>',
   }),
 }));
 
@@ -29,29 +27,22 @@ function findButton(container: HTMLElement, text: string) {
 }
 
 describe('overview.vue', () => {
-  it('把状态卡和锚点点击统一抛给父层', async () => {
+  it('展示账户总览并把三个独立入口抛给父层', async () => {
     const container = document.createElement('div');
     const sections: string[] = [];
 
     createApp(ProfileOverview, {
-      cards: [
-        {
-          actionLabel: '完善资料',
-          description: 'desc',
-          key: 'basic',
-          summary: 'summary',
-          tags: ['tag'],
-          title: '资料完整度',
-          tone: 'warning',
-        },
-      ],
-      hero: {
-        completionText: '资料完整度 3/5',
-        currentOrgLabel: 'LinkCloud Space',
-        displayName: 'Lan Kong',
+      avatarText: 'L',
+      hasTotp: true,
+      unreadCount: 2,
+      user: {
+        avatar_url: 'https://example.com/avatar.png',
         email: 'lan@example.com',
+        first_name: 'Lan',
+        last_name: 'Kong',
         phone: '13800000000',
-        phoneVerified: true,
+        phone_verified: true,
+        real_name_status: 'verified',
         timezone: 'Asia/Shanghai',
         username: 'lan',
       },
@@ -61,11 +52,14 @@ describe('overview.vue', () => {
     }).mount(container);
 
     await nextTick();
-    expect(findButton(container, '密码')).toBeUndefined();
 
-    findButton(container, '完善资料')?.click();
-    findButton(container, '通知')?.click();
+    expect(container.textContent).toContain('账户总览');
+    expect(container.textContent).toContain('相关设置');
 
-    expect(sections).toEqual(['basic', 'notification']);
+    findButton(container, '进入安全设置')?.click();
+    findButton(container, '进入密码页')?.click();
+    findButton(container, '进入通知设置')?.click();
+
+    expect(sections).toEqual(['security', 'password', 'notifications']);
   });
 });

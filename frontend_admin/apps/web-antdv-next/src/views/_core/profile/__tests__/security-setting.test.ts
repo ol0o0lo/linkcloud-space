@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { createApp, defineComponent, nextTick } from 'vue';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,7 +8,6 @@ const {
   activateTotpApi,
   addPasskeyApi,
   beginAddPasskeyApi,
-  changePasswordApi,
   deactivateTotpApi,
   disconnectSocialApi,
   getSocialAccountsApi,
@@ -21,11 +22,12 @@ const {
   regenerateRecoveryCodesApi,
   removePasskeyApi,
   renamePasskeyApi,
+  messageError,
+  messageSuccess,
 } = vi.hoisted(() => ({
   activateTotpApi: vi.fn(),
   addPasskeyApi: vi.fn(),
   beginAddPasskeyApi: vi.fn(),
-  changePasswordApi: vi.fn(),
   deactivateTotpApi: vi.fn(),
   disconnectSocialApi: vi.fn(),
   getSocialAccountsApi: vi.fn(),
@@ -42,13 +44,15 @@ const {
   regenerateRecoveryCodesApi: vi.fn(),
   removePasskeyApi: vi.fn(),
   renamePasskeyApi: vi.fn(),
+  messageError: vi.fn(),
+  messageSuccess: vi.fn(),
 }));
 
 vi.mock('#/api/django/auth', () => ({
   activateTotpApi,
   addPasskeyApi,
   beginAddPasskeyApi,
-  changePasswordApi,
+  changePasswordApi: vi.fn(),
   deactivateTotpApi,
   disconnectSocialApi,
   getSocialAccountsApi,
@@ -75,21 +79,21 @@ vi.mock('antdv-next', () => {
       open: Boolean,
     },
     emits: ['cancel', 'ok', 'update:open'],
-    template: '<div v-if="open"><slot /></div>',
+    template: '<div v-if="open"><slot /><button data-role="modal-ok" @click="$emit(\'ok\')">OK</button><button data-role="modal-cancel" @click="$emit(\'cancel\')">Cancel</button></div>',
   });
 
   return {
     Alert: defineComponent({
       name: 'Alert',
-      props: {
-        message: String,
-      },
+      props: { message: String },
       template: '<div>{{ message }}</div>',
     }),
     Button: defineComponent({
       name: 'Button',
       props: {
+        danger: Boolean,
         disabled: Boolean,
+        ghost: Boolean,
         loading: Boolean,
         type: String,
       },
@@ -102,9 +106,7 @@ vi.mock('antdv-next', () => {
     }),
     Empty: defineComponent({
       name: 'Empty',
-      props: {
-        description: String,
-      },
+      props: { description: String },
       template: '<div>{{ description }}</div>',
     }),
     Input: defineComponent({
@@ -145,15 +147,16 @@ vi.mock('antdv-next', () => {
       props: {
         checked: Boolean,
       },
-      emits: ['update:checked'],
-      template: '<input :checked="checked" type="checkbox" @change="$emit(\'update:checked\', $event.target.checked)">',
+      emits: ['change', 'update:checked'],
+      template: '<input :checked="checked" type="checkbox" @change="$emit(\'change\', $event.target.checked); $emit(\'update:checked\', $event.target.checked)">',
     }),
     Tag: defineComponent({
       name: 'Tag',
       template: '<span><slot /></span>',
     }),
     message: {
-      success: vi.fn(),
+      error: messageError,
+      success: messageSuccess,
     },
   };
 });
@@ -197,12 +200,11 @@ function mountSecuritySetting(props: Record<string, unknown> = {}) {
   };
 }
 
-describe('security-setting.vue', () => {
+describe('独立的安全设置组件', () => {
   beforeEach(() => {
     activateTotpApi.mockReset();
     addPasskeyApi.mockReset();
     beginAddPasskeyApi.mockReset();
-    changePasswordApi.mockReset();
     deactivateTotpApi.mockReset();
     disconnectSocialApi.mockReset();
     getSocialAccountsApi.mockReset();
@@ -217,16 +219,23 @@ describe('security-setting.vue', () => {
     regenerateRecoveryCodesApi.mockReset();
     removePasskeyApi.mockReset();
     renamePasskeyApi.mockReset();
+    messageError.mockReset();
+    messageSuccess.mockReset();
 
     activateTotpApi.mockResolvedValue(undefined);
-    changePasswordApi.mockResolvedValue(undefined);
+    deactivateTotpApi.mockResolvedValue(undefined);
     disconnectSocialApi.mockResolvedValue(undefined);
     getSocialAccountsApi.mockResolvedValue({
       data: [{ display: 'lan', provider: { id: 'github', name: 'GitHub' }, uid: 'github-1' }],
     });
     getTotpStatusApi.mockResolvedValue({ data: { secret: 'SECRET', totp_url: 'otpauth://totp/demo' } });
     isWebAuthnSupported.mockReturnValue(true);
-    listAuthenticatorsApi.mockResolvedValue({ data: [{ total_code_count: 8, type: 'recovery_codes', unused_code_count: 8 }, { id: 2, name: 'MacBook', type: 'webauthn' }] });
+    listAuthenticatorsApi.mockImplementation(async () => ({
+      data: [
+        { total_code_count: 8, type: 'recovery_codes', unused_code_count: 8 },
+        { id: 2, name: 'MacBook', type: 'webauthn' },
+      ],
+    }));
     listRecoveryCodesApi.mockResolvedValue({ data: { codes: ['code-1'], total_code_count: 1, unused_codes: ['code-1'] } });
     reauthenticateApi.mockResolvedValue(undefined);
     regenerateRecoveryCodesApi.mockResolvedValue(undefined);
@@ -234,97 +243,63 @@ describe('security-setting.vue', () => {
     renamePasskeyApi.mockResolvedValue(undefined);
   });
 
-  it('在其他模块编辑时禁用安全管理入口并展示摘要', async () => {
-    const view = mountSecuritySetting({ activeEditSection: 'basic' });
+  it('默认展示安全概览，旧的工作台 props 不再切成密码专用模式', async () => {
+    const view = mountSecuritySetting({
+      activeEditSection: 'basic',
+      displayMode: 'password',
+      requestedEditKey: 1,
+      requestedIntent: 'password',
+      requestedIntentKey: 1,
+    });
 
     await flushPromises();
 
-    const manageButton = findButton(view.container, '管理安全方式');
-    expect(manageButton).toBeTruthy();
-    expect(manageButton?.getAttribute('disabled')).not.toBeNull();
-    expect(view.container.textContent).toContain('已添加 1 个');
-    expect(view.container.textContent).toContain('已绑定 1 个');
+    expect(view.container.textContent).toContain('账户安全');
+    expect(view.container.textContent).toContain('两步验证与设备');
+    expect(view.container.textContent).toContain('第三方账号');
+    expect(view.container.textContent).not.toContain('当前密码');
+    expect(findButton(view.container, '管理安全方式')).toBeTruthy();
+    expect(view.getEditEvents()).toEqual([]);
 
     view.app.unmount();
   });
 
-  it('展开详情并启用验证器后通知父层刷新', async () => {
-    listAuthenticatorsApi
-      .mockResolvedValueOnce({ data: [{ total_code_count: 8, type: 'recovery_codes', unused_code_count: 8 }, { id: 2, name: 'MacBook', type: 'webauthn' }] })
-      .mockResolvedValueOnce({
-        data: [
-          { total_code_count: 8, type: 'recovery_codes', unused_code_count: 8 },
-          { id: 1, type: 'totp' },
-          { id: 2, name: 'MacBook', type: 'webauthn' },
-        ],
-      });
+  it('点击管理安全方式后才展开详细操作区', async () => {
+    const view = mountSecuritySetting();
 
+    await flushPromises();
+
+    expect(view.container.textContent).not.toContain('验证器与恢复码');
+
+    findButton(view.container, '管理安全方式')?.click();
+    await flushPromises();
+
+    expect(view.container.textContent).toContain('验证器与恢复码');
+    expect(view.container.textContent).toContain('Passkey');
+    expect(view.container.textContent).toContain('第三方账号绑定');
+    expect(view.getEditEvents()).toEqual([true]);
+
+    view.app.unmount();
+  });
+
+  it('启用验证器成功后会刷新状态并通知父层', async () => {
     const view = mountSecuritySetting();
 
     await flushPromises();
     findButton(view.container, '管理安全方式')?.click();
-    await nextTick();
+    await flushPromises();
 
-    const codeInput = view.container.querySelector('input[placeholder="请输入 6 位验证码"]') as HTMLInputElement | null;
+    const codeInput = [...view.container.querySelectorAll('input')].find((input) => input.getAttribute('placeholder') === '请输入 6 位验证码');
+    expect(codeInput).toBeTruthy();
     codeInput!.value = '123456';
     codeInput!.dispatchEvent(new Event('input'));
 
     findButton(view.container, '启用验证器')?.click();
     await flushPromises();
 
-    expect(view.getEditEvents()).toEqual([true]);
     expect(activateTotpApi).toHaveBeenCalledWith('123456');
-    expect(view.container.textContent).toContain('已开启');
-
-    view.app.unmount();
-  });
-
-  it('解绑 GitHub 后通知父层刷新', async () => {
-    getSocialAccountsApi
-      .mockResolvedValueOnce({ data: [{ display: 'lan', provider: { id: 'github', name: 'GitHub' }, uid: 'github-1' }] })
-      .mockResolvedValueOnce({ data: [] });
-
-    const view = mountSecuritySetting();
-
-    await flushPromises();
-    findButton(view.container, '管理安全方式')?.click();
-    await nextTick();
-    findButton(view.container, '解除绑定')?.click();
-    await flushPromises();
-
-    expect(disconnectSocialApi).toHaveBeenCalledWith('github', 'github-1');
-    expect(view.container.textContent).toContain('已绑定 0 个');
-
-    view.app.unmount();
-  });
-
-  it('在安全区内展示并更新登录密码', async () => {
-    const view = mountSecuritySetting();
-
-    await flushPromises();
-    expect(view.container.textContent).toContain('登录密码');
-    expect(view.container.textContent).toContain('可按需更新');
-
-    findButton(view.container, '管理安全方式')?.click();
-    await nextTick();
-    findButton(view.container, '修改密码')?.click();
-    await nextTick();
-
-    const inputs = [...view.container.querySelectorAll('input[type="password"]')] as HTMLInputElement[];
-    inputs[0]!.value = 'old-password';
-    inputs[0]!.dispatchEvent(new Event('input'));
-    inputs[1]!.value = 'new-password';
-    inputs[1]!.dispatchEvent(new Event('input'));
-    inputs[2]!.value = 'new-password';
-    inputs[2]!.dispatchEvent(new Event('input'));
-
-    findButton(view.container, '更新密码')?.click();
-    await flushPromises();
-
-    expect(changePasswordApi).toHaveBeenCalledWith({
-      current_password: 'old-password',
-      new_password: 'new-password',
-    });
+    expect(messageSuccess).toHaveBeenCalledWith('验证器已启用');
+    expect(view.getStatusChangeCount()).toBe(1);
 
     view.app.unmount();
   });

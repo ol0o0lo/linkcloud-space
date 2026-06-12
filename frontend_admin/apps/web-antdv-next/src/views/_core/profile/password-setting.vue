@@ -1,24 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { ref } from 'vue';
 
 import { Alert, Button, Card, InputPassword, message } from 'antdv-next';
 
-import type { ProfileSectionKey } from './profile-dashboard';
-
 import { changePasswordApi, parseAllauthErrors } from '#/api/django/auth';
-
-const props = withDefaults(defineProps<{
-  activeEditSection?: null | ProfileSectionKey;
-}>(), {
-  activeEditSection: null,
-});
 
 const emit = defineEmits<{
   editChange: [editing: boolean];
   statusChange: [];
 }>();
 
-const sectionKey: ProfileSectionKey = 'password';
 const isEditing = ref(false);
 const submitting = ref(false);
 const form = ref({
@@ -27,21 +18,8 @@ const form = ref({
   new_password: '',
 });
 const errors = ref<Record<string, string[]>>({});
-const isLockedByOtherSection = computed(() => props.activeEditSection !== null && props.activeEditSection !== sectionKey);
-
-watch(
-  () => props.activeEditSection,
-  (section) => {
-    if (section !== sectionKey) {
-      isEditing.value = false;
-      resetForm();
-      errors.value = {};
-    }
-  },
-);
 
 function startEditing() {
-  if (isLockedByOtherSection.value) return;
   isEditing.value = true;
   emit('editChange', true);
 }
@@ -101,7 +79,7 @@ async function submit() {
       </div>
 
       <div class="flex w-full flex-wrap justify-end gap-3 sm:w-auto">
-        <Button v-if="!isEditing" :disabled="isLockedByOtherSection" class="w-full sm:w-auto" type="primary" @click="startEditing">
+        <Button v-if="!isEditing" class="w-full sm:w-auto" type="primary" @click="startEditing">
           修改密码
         </Button>
         <template v-else>

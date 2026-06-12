@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
-import { Button, Card, Empty, Spin, Switch } from 'antdv-next';
-
-import type { ProfileSectionKey } from './profile-dashboard';
+import { Button, Empty, Spin, Switch } from 'antdv-next';
 
 import {
   listNotificationPreferencesApi,
@@ -11,40 +9,22 @@ import {
   updateNotificationPreferenceApi,
 } from '#/api/django/resources';
 
-const props = withDefaults(defineProps<{
-  activeEditSection?: null | ProfileSectionKey;
-}>(), {
-  activeEditSection: null,
-});
-
 const emit = defineEmits<{
   editChange: [editing: boolean];
   statusChange: [];
 }>();
 
-const sectionKey: ProfileSectionKey = 'notification';
 const loading = ref(false);
 const categories = ref<NotificationPreferenceRow[]>([]);
 const savingKeys = ref<Record<string, boolean>>({});
 const isEditing = ref(false);
-const isLockedByOtherSection = computed(() => props.activeEditSection !== null && props.activeEditSection !== sectionKey);
 const summary = computed(() => ({
   emailEnabled: categories.value.filter((item) => item.email).length,
   inAppEnabled: categories.value.filter((item) => item.in_app).length,
   total: categories.value.length,
 }));
 
-watch(
-  () => props.activeEditSection,
-  (section) => {
-    if (section !== sectionKey) {
-      isEditing.value = false;
-    }
-  },
-);
-
 function toggleEditing(open: boolean) {
-  if (open && isLockedByOtherSection.value) return;
   isEditing.value = open;
   emit('editChange', open);
 }
@@ -84,17 +64,17 @@ onMounted(loadData);
 
 <template>
   <Spin :spinning="loading">
-    <Card :bordered="false" class="shadow-sm">
+    <div>
       <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">消息提醒</div>
-          <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            先看当前提醒覆盖情况，再进入编辑模式统一调整站内信和邮件触达。
+          <div class="text-xl font-semibold text-zinc-950 dark:text-zinc-50">通知设置</div>
+          <div class="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            支持先查看通知渠道状态，也支持从个人中心直接进入编辑态逐项调整触达方式。
           </div>
         </div>
 
-        <Button v-if="!isEditing" :disabled="isLockedByOtherSection" class="w-full sm:w-auto" type="primary" @click="toggleEditing(true)">
-          编辑提醒方式
+        <Button v-if="!isEditing" class="w-full sm:w-auto" type="primary" @click="toggleEditing(true)">
+          编辑通知
         </Button>
         <Button v-else class="w-full sm:w-auto" type="primary" @click="toggleEditing(false)">完成</Button>
       </div>
@@ -103,26 +83,31 @@ onMounted(loadData);
         <Empty description="暂时还没有可配置的通知分类" />
       </div>
 
-      <div v-else-if="!isEditing" class="mt-6 grid gap-4 md:grid-cols-3">
-        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">通知分类</div>
-          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ summary.total }} 个分类</div>
+      <div v-else-if="!isEditing" class="overflow-hidden rounded-[28px] border border-slate-200/80 bg-slate-50/50 dark:border-zinc-800 dark:bg-zinc-900/40">
+        <div class="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">站内提醒</div>
+            <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">组织邀请、系统通知和协作变更会在后台内实时显示。</div>
+          </div>
+          <div class="text-sm font-medium text-zinc-950 dark:text-zinc-50">已开启 {{ summary.inAppEnabled }} / {{ summary.total }} 类</div>
         </div>
-        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">站内信</div>
-          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">开启 {{ summary.inAppEnabled }} 项</div>
-        </div>
-        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">邮件</div>
-          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">开启 {{ summary.emailEnabled }} 项</div>
+
+        <div class="border-t border-slate-200/80 dark:border-zinc-800"></div>
+
+        <div class="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">邮件通知</div>
+            <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">需要留痕或需要离线触达的消息，会根据分类发送到收件箱。</div>
+          </div>
+          <div class="text-sm font-medium text-zinc-950 dark:text-zinc-50">已开启 {{ summary.emailEnabled }} / {{ summary.total }} 类</div>
         </div>
       </div>
 
-      <div v-else class="space-y-4">
+      <div v-else class="space-y-4 rounded-[28px] border border-slate-200/80 bg-slate-50/50 p-5 dark:border-zinc-800 dark:bg-zinc-900/40 sm:p-6">
         <div
           v-for="record in categories"
           :key="record.key"
-          class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
+          class="rounded-2xl border border-white/90 bg-white p-4 dark:border-white/10 dark:bg-zinc-950/60"
         >
           <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -132,7 +117,7 @@ onMounted(loadData);
               </div>
             </div>
             <div class="grid gap-3 sm:min-w-72 sm:grid-cols-2">
-              <div class="rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-900/60">
+              <div class="rounded-xl bg-slate-50 px-4 py-3 dark:bg-zinc-900/60">
                 <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">站内信</div>
                 <div class="mt-3 flex items-center justify-between gap-3">
                   <span class="text-sm text-zinc-700 dark:text-zinc-200">应用内提醒</span>
@@ -143,7 +128,7 @@ onMounted(loadData);
                   />
                 </div>
               </div>
-              <div class="rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-900/60">
+              <div class="rounded-xl bg-slate-50 px-4 py-3 dark:bg-zinc-900/60">
                 <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">邮件</div>
                 <div class="mt-3 flex items-center justify-between gap-3">
                   <span class="text-sm text-zinc-700 dark:text-zinc-200">收件箱提醒</span>
@@ -158,6 +143,6 @@ onMounted(loadData);
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   </Spin>
 </template>

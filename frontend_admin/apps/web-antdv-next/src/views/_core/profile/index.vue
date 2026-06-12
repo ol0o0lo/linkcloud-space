@@ -1,154 +1,120 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
-
-import { Alert } from 'antdv-next';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
-import { useUserStore } from '@vben/stores';
 
-import { getSocialAccountsApi, listAuthenticatorsApi } from '#/api/django/auth';
-import {
-  getCurrentUserApi,
-  listNotificationPreferencesApi,
-  type NotificationPreferenceRow,
-  type UserRow,
-} from '#/api/django/resources';
+import { Spin } from 'antdv-next';
+import { useRoute, useRouter } from 'vue-router';
+
+import { listAuthenticatorsApi, type AuthenticatorRow } from '#/api/django/auth';
+import { getCurrentUserApi, getUnreadCountApi, type UserRow } from '#/api/django/resources';
 
 import ProfileBase from './base-setting.vue';
-import ProfileNotificationSetting from './notification-setting.vue';
 import ProfileOverview from './overview.vue';
-import { buildProfileHero, buildProfileStatusCards, type ProfileSectionKey } from './profile-dashboard';
-import ProfileSecuritySetting from './security-setting.vue';
 
-const userStore = useUserStore();
+type ProfileSecondaryPage = 'notifications' | 'password' | 'security';
+
 const route = useRoute();
 const router = useRouter();
 
-const activeEditSection = ref<null | ProfileSectionKey>(null);
-const summaryLoading = ref(false);
-const summaryError = ref('');
-const profile = ref<null | UserRow>(null);
-const authenticators = ref<any[]>([]);
-const socialAccounts = ref<any[]>([]);
-const notificationPreferences = ref<NotificationPreferenceRow[]>([]);
+const loading = ref(false);
+const unreadCount = ref(0);
+const hasTotp = ref(false);
+const user = ref<null | UserRow>(null);
 
-const sectionIds: Record<ProfileSectionKey, string> = {
-  basic: 'profile-section-basic',
-  notification: 'profile-section-notification',
-  security: 'profile-section-security',
-  password: 'profile-section-security',
-};
+const displayName = computed(() => {
+  const current = user.value;
+  if (!current) return '当前用户';
+  const mergedName = [current.first_name, current.last_name].filter(Boolean).join('');
+  return mergedName || current.username || current.email || '当前用户';
+});
 
-function unwrapAllauthData<T>(payload: any): T {
-  return (payload?.data ?? payload) as T;
-}
+const avatarText = computed(() => displayName.value.trim().slice(0, 1).toUpperCase() || 'U');
 
-function normalizeSection(value: unknown): ProfileSectionKey {
-  if (value === 'notice' || value === 'notification') return 'notification';
-  if (value === 'security') return 'security';
-  if (value === 'password') return 'security';
-  return 'basic';
-}
-
-async function updateRouteTab(section: ProfileSectionKey) {
-  const nextQuery = { ...route.query };
-  if (section === 'basic') {
-    delete nextQuery.tab;
-  } else {
-    nextQuery.tab = section;
+function getQueryValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'string' ? value[0] : '';
   }
-  await router.replace({ query: nextQuery });
-
+  return typeof value === 'string' ? value : '';
 }
 
-async function loadDashboardSummary() {
-  summaryLoading.value = true;
-  summaryError.value = '';
+function resolveLegacyTarget() {
+  const value = (getQueryValue(route.query.section) || getQueryValue(route.query.tab)).toLowerCase();
+  if (value === 'security') return '/profile/security';
+  if (value === 'password') return '/profile/password';
+  if (['notification', 'notifications', 'notice'].includes(value)) return '/profile/notifications';
+  return '';
+}
+
+function redirectLegacyEntry() {
+  const target = resolveLegacyTarget();
+  if (!target) return false;
+  const navigation = router.replace({ path: target, replace: true });
+  navigation?.catch?.(() => undefined);
+  return true;
+}
+
+async function loadData() {
+  loading.value = true;
   try {
-    const [profileData, authenticatorsResponse, socialResponse, notificationData] = await Promise.all([
+    const [profileResult, unreadResult, authenticatorsResult] = await Promise.allSettled([
       getCurrentUserApi(),
-      listAuthenticatorsApi().catch(() => ({ data: [] })),
-      getSocialAccountsApi().catch(() => ({ data: [] })),
-      listNotificationPreferencesApi().catch(() => []),
+      getUnreadCountApi(),
+      listAuthenticatorsApi(),
     ]);
 
-    profile.value = profileData;
-    authenticators.value = unwrapAllauthData<any[]>(authenticatorsResponse) || [];
-    socialAccounts.value = unwrapAllauthData<any[]>(socialResponse) || [];
-    notificationPreferences.value = notificationData;
-  } catch {
-    summaryError.value = '个人中心摘要加载失败，请稍后重试。';
+    if (profileResult.status === 'fulfilled') {
+      user.value = profileResult.value;
+    }
+
+    if (unreadResult.status === 'fulfilled') {
+      unreadCount.value = unreadResult.value.count ?? 0;
+    }
+
+    if (authenticatorsResult.status === 'fulfilled') {
+      const authenticators = ((authenticatorsResult.value as { data?: AuthenticatorRow[] })?.data ?? authenticatorsResult.value ?? []) as AuthenticatorRow[];
+      hasTotp.value = authenticators.some((item) => item.type === 'totp');
+    }
   } finally {
-    summaryLoading.value = false;
+    loading.value = false;
   }
 }
 
-const hero = computed(() => buildProfileHero(profile.value, userStore.userInfo, String(userStore.userInfo?.desc || '')));
-const cards = computed(() => buildProfileStatusCards({
-  authenticators: authenticators.value,
-  notificationPreferences: notificationPreferences.value,
-  socialAccounts: socialAccounts.value,
-  user: profile.value,
-}));
-
-function handleSectionEdit(section: ProfileSectionKey, editing: boolean) {
-  activeEditSection.value = editing
-    ? section
-    : activeEditSection.value === section
-      ? null
-      : activeEditSection.value;
-}
-
-async function openSection(section: ProfileSectionKey) {
-  await updateRouteTab(section);
-  await nextTick();
-  document.getElementById(sectionIds[section])?.scrollIntoView({
-    behavior: 'smooth',
-    block: 'start',
-  });
+function openSection(section: ProfileSecondaryPage) {
+  const navigation = router.push(`/profile/${section}`);
+  navigation?.catch?.(() => undefined);
 }
 
 onMounted(async () => {
-  await loadDashboardSummary();
-  const initialSection = normalizeSection(route.query.tab);
-  if (initialSection !== 'basic') {
-    await openSection(initialSection);
-  }
+  if (redirectLegacyEntry()) return;
+  await loadData();
 });
 </script>
+
 <template>
-  <Page auto-content-height content-class="overflow-x-hidden p-0">
-    <div class="flex flex-col gap-6">
-      <section id="profile-section-overview">
-        <ProfileOverview :cards="cards" :hero="hero" :loading="summaryLoading" @open-section="openSection" />
-      </section>
+  <Page auto-content-height content-class="overflow-x-hidden p-0" title="个人资料">
+    <div class="min-h-full bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.82),_transparent_30%),linear-gradient(180deg,_#eef2f6_0%,_#e6ebf1_100%)] px-4 py-6 sm:px-6 lg:px-8">
+      <div class="mx-auto w-full max-w-5xl">
+        <Spin :spinning="loading">
+          <div class="space-y-6">
+            <ProfileOverview
+              :avatar-text="avatarText"
+              :has-totp="hasTotp"
+              :unread-count="unreadCount"
+              :user="user"
+              @open-section="openSection"
+            />
 
-      <Alert v-if="summaryError" :message="summaryError" show-icon type="warning" />
-
-      <section id="profile-section-basic">
-        <ProfileBase
-          :active-edit-section="activeEditSection"
-          @edit-change="(editing) => handleSectionEdit('basic', editing)"
-          @profile-updated="loadDashboardSummary"
-        />
-      </section>
-
-      <section id="profile-section-security">
-        <ProfileSecuritySetting
-          :active-edit-section="activeEditSection"
-          @edit-change="(editing) => handleSectionEdit('security', editing)"
-          @status-change="loadDashboardSummary"
-        />
-      </section>
-
-      <section id="profile-section-notification">
-        <ProfileNotificationSetting
-          :active-edit-section="activeEditSection"
-          @edit-change="(editing) => handleSectionEdit('notification', editing)"
-          @status-change="loadDashboardSummary"
-        />
-      </section>
+            <section class="rounded-[28px] border border-white/70 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)] lg:p-8">
+              <div class="mb-5">
+                <div class="text-lg font-semibold text-slate-900">基础资料</div>
+                <div class="mt-1 text-sm text-slate-500">从上往下集中维护头像、姓名、手机号和时区，编辑动作只在明确点击后展开。</div>
+              </div>
+              <ProfileBase @profile-updated="loadData" />
+            </section>
+          </div>
+        </Spin>
+      </div>
     </div>
   </Page>
 </template>

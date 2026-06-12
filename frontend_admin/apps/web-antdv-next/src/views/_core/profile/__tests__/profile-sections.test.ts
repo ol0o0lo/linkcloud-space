@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { createApp, defineComponent, nextTick } from 'vue';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,9 +29,7 @@ vi.mock('#/api/django/resources', () => ({
 vi.mock('antdv-next', () => ({
   Alert: defineComponent({
     name: 'Alert',
-    props: {
-      message: String,
-    },
+    props: { message: String },
     template: '<div>{{ message }}</div>',
   }),
   Button: defineComponent({
@@ -48,9 +48,7 @@ vi.mock('antdv-next', () => ({
   }),
   Empty: defineComponent({
     name: 'Empty',
-    props: {
-      description: String,
-    },
+    props: { description: String },
     template: '<div>{{ description }}</div>',
   }),
   InputPassword: defineComponent({
@@ -123,7 +121,7 @@ function mountSection(component: any, props: Record<string, unknown> = {}) {
   };
 }
 
-describe('profile password and notification sections', () => {
+describe('独立的密码与通知页面组件', () => {
   beforeEach(() => {
     changePasswordApi.mockReset();
     listNotificationPreferencesApi.mockReset();
@@ -144,14 +142,21 @@ describe('profile password and notification sections', () => {
     }));
   });
 
-  it('在其他模块编辑时禁用密码编辑入口', async () => {
+  it('密码页默认先展示摘要，旧的锁定 props 不再阻止进入编辑态', async () => {
     const view = mountSection(PasswordSetting, { activeEditSection: 'notification' });
 
     await flushPromises();
 
+    expect(view.container.textContent).toContain('密码状态');
     const editButton = findButton(view.container, '修改密码');
     expect(editButton).toBeTruthy();
-    expect(editButton?.getAttribute('disabled')).not.toBeNull();
+    expect(editButton?.getAttribute('disabled')).toBeNull();
+
+    editButton?.click();
+    await flushPromises();
+
+    expect(view.container.textContent).toContain('当前密码');
+    expect(view.getEditEvents()).toEqual([true]);
 
     view.app.unmount();
   });
@@ -184,26 +189,32 @@ describe('profile password and notification sections', () => {
     view.app.unmount();
   });
 
-  it('通知模块在查看态展示摘要并支持锁定', async () => {
-    const view = mountSection(NotificationSetting, { activeEditSection: 'password' });
+  it('通知页默认停留在摘要态，旧的请求编辑 props 不再自动打开表单', async () => {
+    const view = mountSection(NotificationSetting, {
+      activeEditSection: 'notification',
+      requestedEditKey: 1,
+    });
 
     await flushPromises();
 
-    const editButton = findButton(view.container, '编辑提醒方式');
-    expect(editButton).toBeTruthy();
-    expect(editButton?.getAttribute('disabled')).not.toBeNull();
-    expect(view.container.textContent).toContain('2 个分类');
-    expect(view.container.textContent).toContain('开启 2 项');
-    expect(view.container.textContent).toContain('开启 1 项');
+    expect(view.container.textContent).toContain('站内提醒');
+    expect(view.container.textContent).toContain('邮件通知');
+    expect(view.container.textContent).not.toContain('应用内提醒');
+    expect(view.getEditEvents()).toEqual([]);
 
     view.app.unmount();
   });
 
   it('通知开关更新后刷新摘要并通知父层', async () => {
-    const view = mountSection(NotificationSetting);
+    const view = mountSection(NotificationSetting, { activeEditSection: 'password' });
 
     await flushPromises();
-    findButton(view.container, '编辑提醒方式')?.click();
+
+    const editButton = findButton(view.container, '编辑通知');
+    expect(editButton).toBeTruthy();
+    expect(editButton?.getAttribute('disabled')).toBeNull();
+
+    editButton?.click();
     await nextTick();
 
     const switches = [...view.container.querySelectorAll('input[type="checkbox"]')];
@@ -216,7 +227,7 @@ describe('profile password and notification sections', () => {
     expect(updateNotificationPreferenceApi).toHaveBeenCalledWith('invite', { email: false });
     expect(view.getEditEvents()).toEqual([true, false]);
     expect(view.getStatusChangeCount()).toBe(1);
-    expect(view.container.textContent).toContain('邮件开启 0 项');
+    expect(view.container.textContent).toContain('已开启 0 / 2 类');
 
     view.app.unmount();
   });

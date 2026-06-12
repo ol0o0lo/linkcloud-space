@@ -3,13 +3,10 @@ import { computed, onMounted, ref } from 'vue';
 
 import { Alert, Button, Card, Empty, Input, InputPassword, Modal, Space, Spin, Switch, Tag, message } from 'antdv-next';
 
-import type { ProfileSectionKey } from './profile-dashboard';
-
 import {
   activateTotpApi,
   addPasskeyApi,
   beginAddPasskeyApi,
-  changePasswordApi,
   deactivateTotpApi,
   disconnectSocialApi,
   getSocialAccountsApi,
@@ -29,19 +26,17 @@ import {
 import { createPasskeyCredential, isWebAuthnSupported } from '#/api/django/webauthn';
 
 type FieldErrors = Record<string, string[]>;
-
-const props = withDefaults(defineProps<{
-  activeEditSection?: null | ProfileSectionKey;
-}>(), {
-  activeEditSection: null,
-});
+type ProtectedActionOptions = {
+  action: () => Promise<void>;
+  onError?: (error: any) => void;
+  onSuccess?: () => Promise<void> | void;
+};
 
 const emit = defineEmits<{
   editChange: [editing: boolean];
   statusChange: [];
 }>();
 
-const sectionKey: ProfileSectionKey = 'security';
 const loading = ref(false);
 const authenticators = ref<AuthenticatorRow[]>([]);
 const socialAccounts = ref<SocialAccountRow[]>([]);
@@ -61,58 +56,26 @@ const detailsOpen = ref(false);
 const newPasskeyName = ref('');
 const passwordless = ref(true);
 const passkeyErrors = ref<FieldErrors>({});
-const passwordErrors = ref<FieldErrors>({});
-const passwordEditing = ref(false);
-const passwordSubmitting = ref(false);
-const passwordForm = ref({
-  confirm_password: '',
-  current_password: '',
-  new_password: '',
-});
 const supported = ref(true);
 
 const needsReauth = ref(false);
 const reauthLoading = ref(false);
 const reauthPassword = ref('');
 const reauthErrors = ref<FieldErrors>({});
-let pendingAction: null | (() => Promise<void>) = null;
+let pendingAction: null | (() => Promise<unknown>) = null;
 
 const totp = computed(() => authenticators.value.find((item) => item.type === 'totp') ?? null);
 const recoveryAuthenticator = computed(() => authenticators.value.find((item) => item.type === 'recovery_codes') ?? null);
 const passkeys = computed(() => authenticators.value.filter((item) => item.type === 'webauthn'));
 const githubAccount = computed(() => socialAccounts.value.find((item) => item.provider?.id === 'github') ?? null);
 const socialAccountCount = computed(() => socialAccounts.value.length);
-const isLockedByOtherSection = computed(() => props.activeEditSection !== null && props.activeEditSection !== sectionKey);
 
 function toggleDetails(open: boolean) {
-  if (open && isLockedByOtherSection.value) return;
   detailsOpen.value = open;
   if (!open) {
-    cancelPasswordEdit(false);
+    closeReauth();
   }
   emit('editChange', open);
-}
-
-function resetPasswordForm() {
-  passwordForm.value = {
-    confirm_password: '',
-    current_password: '',
-    new_password: '',
-  };
-}
-
-function startPasswordEdit() {
-  passwordErrors.value = {};
-  passwordEditing.value = true;
-}
-
-function cancelPasswordEdit(emitChange = false) {
-  resetPasswordForm();
-  passwordErrors.value = {};
-  passwordEditing.value = false;
-  if (emitChange) {
-    emit('statusChange');
-  }
 }
 
 function setActionLoading(key: string, value: boolean) {
@@ -132,18 +95,30 @@ function isReauthRequired(error: any) {
   return flows.some((flow: any) => ['mfa_reauthenticate', 'reauthenticate'].includes(flow?.id));
 }
 
-async function runWithReauth(action: () => Promise<void>) {
-  try {
-    await action();
-    return true;
-  } catch (error: any) {
-    if (isReauthRequired(error)) {
-      pendingAction = action;
-      needsReauth.value = true;
-      return false;
+async function executeProtectedAction(options: ProtectedActionOptions) {
+  const runner = async (): Promise<boolean> => {
+    try {
+      await options.action();
+      await options.onSuccess?.();
+      return true;
+    } catch (error: any) {
+      if (isReauthRequired(error)) {
+        pendingAction = runner;
+        reauthErrors.value = {};
+        needsReauth.value = true;
+        return false;
+      }
+
+      if (options.onError) {
+        options.onError(error);
+        return false;
+      }
+
+      throw error;
     }
-    throw error;
-  }
+  };
+
+  return await runner();
 }
 
 async function prepareTotpSetup() {
@@ -193,17 +168,20 @@ async function enableTotp() {
   totpErrors.value = {};
   setActionLoading('totp', true);
   try {
-    const completed = await runWithReauth(async () => {
-      await activateTotpApi(totpCode.value.trim());
+    await executeProtectedAction({
+      action: async () => {
+        await activateTotpApi(totpCode.value.trim());
+      },
+      onError: (error) => {
+        totpErrors.value = error?.data ? parseAllauthErrors(error.data) : { non_field_errors: ['启用验证器失败，请稍后重试。'] };
+      },
+      onSuccess: async () => {
+        totpCode.value = '';
+        message.success('验证器已启用');
+        await loadSecurityData();
+        emit('statusChange');
+      },
     });
-    if (!completed) return;
-
-    totpCode.value = '';
-    message.success('验证器已启用');
-    await loadSecurityData();
-    emit('statusChange');
-  } catch (error: any) {
-    totpErrors.value = error?.data ? parseAllauthErrors(error.data) : { non_field_errors: ['启用验证器失败，请稍后重试。'] };
   } finally {
     setActionLoading('totp', false);
   }
@@ -218,18 +196,23 @@ async function disableTotp() {
     async onOk() {
       setActionLoading('totp-disable', true);
       try {
-        const completed = await runWithReauth(async () => {
-          await deactivateTotpApi();
+        await executeProtectedAction({
+          action: async () => {
+            await deactivateTotpApi();
+          },
+          onError: () => {
+            message.error('关闭验证器失败，请稍后重试。');
+          },
+          onSuccess: async () => {
+            showRecoveryCodes.value = false;
+            recoveryCodes.value = [];
+            recoveryUnused.value = [];
+            recoveryTotal.value = 0;
+            message.success('验证器已关闭');
+            await loadSecurityData();
+            emit('statusChange');
+          },
         });
-        if (!completed) return;
-
-        showRecoveryCodes.value = false;
-        recoveryCodes.value = [];
-        recoveryUnused.value = [];
-        recoveryTotal.value = 0;
-        message.success('验证器已关闭');
-        await loadSecurityData();
-        emit('statusChange');
       } finally {
         setActionLoading('totp-disable', false);
       }
@@ -240,15 +223,19 @@ async function disableTotp() {
 async function loadRecoveryCodes() {
   setActionLoading('recovery', true);
   try {
-    const completed = await runWithReauth(async () => {
-      const data = await listRecoveryCodesApi();
-      const payload = unwrapAllauthData<RecoveryCodesRow>(data) || {};
-      recoveryCodes.value = payload.unused_codes || payload.codes || [];
-      recoveryUnused.value = payload.unused_codes || [];
-      recoveryTotal.value = payload.total_code_count || recoveryCodes.value.length;
-      showRecoveryCodes.value = true;
+    await executeProtectedAction({
+      action: async () => {
+        const data = await listRecoveryCodesApi();
+        const payload = unwrapAllauthData<RecoveryCodesRow>(data) || {};
+        recoveryCodes.value = payload.unused_codes || payload.codes || [];
+        recoveryUnused.value = payload.unused_codes || [];
+        recoveryTotal.value = payload.total_code_count || recoveryCodes.value.length;
+        showRecoveryCodes.value = true;
+      },
+      onError: () => {
+        message.error('读取恢复码失败，请稍后重试。');
+      },
     });
-    if (!completed) return;
   } finally {
     setActionLoading('recovery', false);
   }
@@ -263,15 +250,20 @@ async function regenerateRecoveryCodes() {
     async onOk() {
       setActionLoading('recovery-regenerate', true);
       try {
-        const completed = await runWithReauth(async () => {
-          await regenerateRecoveryCodesApi();
+        await executeProtectedAction({
+          action: async () => {
+            await regenerateRecoveryCodesApi();
+          },
+          onError: () => {
+            message.error('恢复码重置失败，请稍后重试。');
+          },
+          onSuccess: async () => {
+            message.success('恢复码已重新生成');
+            await loadRecoveryCodes();
+            await loadSecurityData();
+            emit('statusChange');
+          },
         });
-        if (!completed) return;
-
-        message.success('恢复码已重新生成');
-        await loadRecoveryCodes();
-        await loadSecurityData();
-        emit('statusChange');
       } finally {
         setActionLoading('recovery-regenerate', false);
       }
@@ -294,26 +286,29 @@ async function addPasskey() {
   passkeyErrors.value = {};
   setActionLoading('passkey-add', true);
   try {
-    const completed = await runWithReauth(async () => {
-      const data = await beginAddPasskeyApi(passwordless.value);
-      const payload = unwrapAllauthData<any>(data);
-      const options = payload?.creation_options ?? payload;
-      const credential = await createPasskeyCredential(options);
-      await addPasskeyApi(newPasskeyName.value.trim() || 'Passkey', credential);
+    await executeProtectedAction({
+      action: async () => {
+        const data = await beginAddPasskeyApi(passwordless.value);
+        const payload = unwrapAllauthData<any>(data);
+        const options = payload?.creation_options ?? payload;
+        const credential = await createPasskeyCredential(options);
+        await addPasskeyApi(newPasskeyName.value.trim() || 'Passkey', credential);
+      },
+      onError: (error) => {
+        if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') {
+          return;
+        }
+        passkeyErrors.value = error?.data
+          ? parseAllauthErrors(error.data)
+          : { non_field_errors: [error?.message || '添加 Passkey 失败，请稍后重试。'] };
+      },
+      onSuccess: async () => {
+        newPasskeyName.value = '';
+        message.success('Passkey 已添加');
+        await loadSecurityData();
+        emit('statusChange');
+      },
     });
-    if (!completed) return;
-
-    newPasskeyName.value = '';
-    message.success('Passkey 已添加');
-    await loadSecurityData();
-    emit('statusChange');
-  } catch (error: any) {
-    if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') {
-      return;
-    }
-    passkeyErrors.value = error?.data
-      ? parseAllauthErrors(error.data)
-      : { non_field_errors: [error?.message || '添加 Passkey 失败，请稍后重试。'] };
   } finally {
     setActionLoading('passkey-add', false);
   }
@@ -326,14 +321,19 @@ async function renamePasskey(passkey: AuthenticatorRow) {
 
   setActionLoading(`passkey-rename-${passkey.id}`, true);
   try {
-    const completed = await runWithReauth(async () => {
-      await renamePasskeyApi(passkey.id as number, name);
+    await executeProtectedAction({
+      action: async () => {
+        await renamePasskeyApi(passkey.id as number, name);
+      },
+      onError: () => {
+        message.error('Passkey 重命名失败，请稍后重试。');
+      },
+      onSuccess: async () => {
+        message.success('Passkey 名称已更新');
+        await loadSecurityData();
+        emit('statusChange');
+      },
     });
-    if (!completed) return;
-
-    message.success('Passkey 名称已更新');
-    await loadSecurityData();
-    emit('statusChange');
   } finally {
     setActionLoading(`passkey-rename-${passkey.id}`, false);
   }
@@ -350,14 +350,19 @@ async function removePasskey(passkey: AuthenticatorRow) {
     async onOk() {
       setActionLoading(`passkey-remove-${passkey.id}`, true);
       try {
-        const completed = await runWithReauth(async () => {
-          await removePasskeyApi(passkey.id as number);
+        await executeProtectedAction({
+          action: async () => {
+            await removePasskeyApi(passkey.id as number);
+          },
+          onError: () => {
+            message.error('Passkey 移除失败，请稍后重试。');
+          },
+          onSuccess: async () => {
+            message.success('Passkey 已移除');
+            await loadSecurityData();
+            emit('statusChange');
+          },
         });
-        if (!completed) return;
-
-        message.success('Passkey 已移除');
-        await loadSecurityData();
-        emit('statusChange');
       } finally {
         setActionLoading(`passkey-remove-${passkey.id}`, false);
       }
@@ -368,7 +373,7 @@ async function removePasskey(passkey: AuthenticatorRow) {
 async function connectGithub() {
   setActionLoading('github-connect', true);
   try {
-    const callbackUrl = `${window.location.origin}/dashboard/account/social/callback?next=${encodeURIComponent('/profile?tab=security')}`;
+    const callbackUrl = `${window.location.origin}/dashboard/account/social/callback?next=${encodeURIComponent('/profile/security')}`;
     await redirectProviderConnect('github', callbackUrl);
   } catch {
     setActionLoading('github-connect', false);
@@ -380,42 +385,21 @@ async function disconnectGithub() {
 
   setActionLoading('github-disconnect', true);
   try {
-    const completed = await runWithReauth(async () => {
-      await disconnectSocialApi('github', githubAccount.value?.uid || '');
+    await executeProtectedAction({
+      action: async () => {
+        await disconnectSocialApi('github', githubAccount.value?.uid || '');
+      },
+      onError: () => {
+        message.error('解除 GitHub 绑定失败，请稍后重试。');
+      },
+      onSuccess: async () => {
+        message.success('GitHub 绑定已解除');
+        await loadSecurityData();
+        emit('statusChange');
+      },
     });
-    if (!completed) return;
-
-    message.success('GitHub 绑定已解除');
-    await loadSecurityData();
-    emit('statusChange');
   } finally {
     setActionLoading('github-disconnect', false);
-  }
-}
-
-async function submitPassword() {
-  passwordErrors.value = {};
-
-  if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
-    passwordErrors.value = {
-      confirm_password: ['两次输入的新密码不一致'],
-    };
-    return;
-  }
-
-  passwordSubmitting.value = true;
-  try {
-    await changePasswordApi({
-      current_password: passwordForm.value.current_password,
-      new_password: passwordForm.value.new_password,
-    });
-    cancelPasswordEdit();
-    message.success('登录密码已更新');
-    emit('statusChange');
-  } catch (error: any) {
-    passwordErrors.value = error?.data ? parseAllauthErrors(error.data) : { non_field_errors: ['密码修改失败，请稍后重试。'] };
-  } finally {
-    passwordSubmitting.value = false;
   }
 }
 
@@ -424,10 +408,10 @@ async function submitReauth() {
   reauthLoading.value = true;
   try {
     await reauthenticateApi(reauthPassword.value);
-    needsReauth.value = false;
-    reauthPassword.value = '';
     const action = pendingAction;
     pendingAction = null;
+    needsReauth.value = false;
+    reauthPassword.value = '';
     if (action) {
       await action();
     }
@@ -453,42 +437,73 @@ onMounted(() => {
 
 <template>
   <Spin :spinning="loading">
-    <Card :bordered="false" class="shadow-sm">
+    <div>
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">安全与登录</div>
-          <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            管理验证器、Passkey、第三方账号绑定，以及登录密码更新。
+          <div class="text-xl font-semibold text-zinc-950 dark:text-zinc-50">账户安全</div>
+          <div class="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            默认先看安全概览，点击后再进入管理态处理验证器、Passkey 和绑定信息。
           </div>
         </div>
 
-        <Button class="w-full sm:w-auto" :disabled="isLockedByOtherSection" type="primary" @click="toggleDetails(!detailsOpen)">
+        <Button class="w-full sm:w-auto" type="primary" @click="toggleDetails(!detailsOpen)">
           {{ detailsOpen ? '完成' : '管理安全方式' }}
         </Button>
       </div>
 
-      <div class="mt-6 grid gap-4 lg:grid-cols-4">
-        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">验证器</div>
-          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ totp ? '已开启' : '未开启' }}</div>
-          <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            {{ recoveryAuthenticator ? `${recoveryAuthenticator.unused_code_count || 0}/${recoveryAuthenticator.total_code_count || 0} 个恢复码可用` : '尚未生成恢复码' }}
+      <div class="mt-6 grid gap-4 lg:grid-cols-2">
+        <div class="rounded-[28px] border border-slate-200/80 bg-slate-50/60 p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">两步验证与设备</div>
+              <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                验证器、恢复码和 Passkey 统一归在这里，优先展示当前是否已经具备多层防护。
+              </div>
+            </div>
+            <Tag :color="totp ? 'green' : 'gold'">{{ totp ? '保护中' : '待加强' }}</Tag>
+          </div>
+
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            <div class="rounded-2xl border border-white/90 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-950/60">
+              <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">验证器</div>
+              <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ totp ? '已开启' : '未开启' }}</div>
+            </div>
+            <div class="rounded-2xl border border-white/90 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-950/60">
+              <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Passkey</div>
+              <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">已添加 {{ passkeys.length }} 个</div>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-2xl border border-white/90 bg-white px-4 py-3 text-sm text-zinc-500 dark:border-white/10 dark:bg-zinc-950/60 dark:text-zinc-400">
+            {{ recoveryAuthenticator ? `${recoveryAuthenticator.unused_code_count || 0}/${recoveryAuthenticator.total_code_count || 0} 个恢复码可用` : '尚未生成恢复码，建议完成验证器配置后备份。' }}
           </div>
         </div>
-        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Passkey</div>
-          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">已添加 {{ passkeys.length }} 个</div>
-          <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">支持 Touch ID、Windows Hello、手机或硬件安全密钥。</div>
-        </div>
-        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">第三方账号</div>
-          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">已绑定 {{ socialAccountCount }} 个</div>
-          <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">当前支持 GitHub 快捷登录和账户关联。</div>
-        </div>
-        <div class="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">登录密码</div>
-          <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">可按需更新</div>
-          <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">修改后继续保留当前设备登录，不影响其他安全方式。</div>
+
+        <div class="rounded-[28px] border border-slate-200/80 bg-slate-50/60 p-5 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">第三方账号</div>
+              <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                管理 GitHub 等外部登录方式，减少密码输入，同时保留独立的密码更新入口。
+              </div>
+            </div>
+            <Tag :color="githubAccount ? 'green' : 'default'">{{ githubAccount ? '已绑定' : '未绑定' }}</Tag>
+          </div>
+
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            <div class="rounded-2xl border border-white/90 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-950/60">
+              <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">已绑定账号</div>
+              <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ socialAccountCount }} 个</div>
+            </div>
+            <div class="rounded-2xl border border-white/90 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-950/60">
+              <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">登录密码</div>
+              <div class="mt-2 text-sm font-medium text-zinc-950 dark:text-zinc-50">已设置，可按需更新</div>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-2xl border border-white/90 bg-white px-4 py-3 text-sm text-zinc-500 dark:border-white/10 dark:bg-zinc-950/60 dark:text-zinc-400">
+            {{ githubAccount ? '当前账号已连接 GitHub，可用于快捷登录。' : '目前还没有绑定第三方账号，后续可在这里连接。' }}
+          </div>
         </div>
       </div>
 
@@ -693,66 +708,9 @@ onMounted(() => {
           </div>
         </Card>
 
-        <Card :bordered="false" class="shadow-none ring-1 ring-zinc-200/80 dark:ring-zinc-800">
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">登录密码</div>
-              <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                保持密码作为基础登录方式，需要更新时在这里局部完成，不单独占用一个页面区块。
-              </div>
-            </div>
-            <Tag color="blue">保持当前设备登录</Tag>
-          </div>
-
-          <div v-if="!passwordEditing" class="mt-5 flex flex-col gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">密码状态</div>
-              <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">登录密码已设置，可按需更新。</div>
-            </div>
-            <Button type="primary" @click="startPasswordEdit">修改密码</Button>
-          </div>
-
-          <div v-else class="mt-5 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-            <Alert
-              v-if="passwordErrors.non_field_errors?.length"
-              :message="passwordErrors.non_field_errors[0]"
-              class="mb-4"
-              show-icon
-              type="error"
-            />
-
-            <div class="grid gap-5 xl:grid-cols-2">
-              <div class="xl:col-span-2">
-                <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">当前密码</div>
-                <InputPassword v-model:value="passwordForm.current_password" autocomplete="current-password" placeholder="请输入当前密码" />
-                <div v-if="passwordErrors.current_password?.length" class="mt-2 text-sm text-rose-500">
-                  {{ passwordErrors.current_password[0] }}
-                </div>
-              </div>
-              <div>
-                <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">新密码</div>
-                <InputPassword v-model:value="passwordForm.new_password" autocomplete="new-password" placeholder="请输入新密码" />
-                <div v-if="(passwordErrors.new_password || passwordErrors.password || passwordErrors.password1)?.length" class="mt-2 text-sm text-rose-500">
-                  {{ (passwordErrors.new_password || passwordErrors.password || passwordErrors.password1 || [])[0] }}
-                </div>
-              </div>
-              <div>
-                <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">确认新密码</div>
-                <InputPassword v-model:value="passwordForm.confirm_password" autocomplete="new-password" placeholder="请再次输入新密码" />
-                <div v-if="(passwordErrors.confirm_password || passwordErrors.new_password2 || passwordErrors.password2)?.length" class="mt-2 text-sm text-rose-500">
-                  {{ (passwordErrors.confirm_password || passwordErrors.new_password2 || passwordErrors.password2 || [])[0] }}
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-5 flex flex-wrap justify-end gap-3">
-              <Button @click="cancelPasswordEdit()">取消</Button>
-              <Button :loading="passwordSubmitting" type="primary" @click="submitPassword">更新密码</Button>
-            </div>
-          </div>
-        </Card>
       </div>
-    </Card>
+
+    </div>
   </Spin>
 
   <Modal
