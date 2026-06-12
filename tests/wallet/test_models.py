@@ -4,6 +4,7 @@ from django.test import TestCase
 from model_bakery import baker
 
 from apps.accounts.models import User
+from apps.wallet.constants import WithdrawalPayChannel
 from apps.wallet.models import WalletAccount, WalletLedger, WithdrawalPayout, WithdrawalRequest
 
 
@@ -51,7 +52,7 @@ class WalletModelTests(TestCase):
             fee_amount=100,
             net_amount=900,
             status="approved",
-            pay_channel="alipay",
+            pay_channel=WithdrawalPayChannel.WECHAT,
             payee_account_snapshot={"masked_account": "***0001"},
         )
         WithdrawalPayout.objects.create(

@@ -12,6 +12,10 @@ class WalletEntryType(StrChoices):
     WITHDRAW_REFUND = "withdraw_refund", "提现失败退回"
 
 
+class WithdrawalPayChannel(StrChoices):
+    WECHAT = "wechat", "微信提现"
+
+
 class WithdrawalStatus(StrChoices):
     PENDING_REVIEW = "pending_review", "待审核"
     CANCELLED = "cancelled", "已撤销"
@@ -27,4 +31,3 @@ class PayoutStatus(StrChoices):
     PROCESSING = "processing", "处理中"
     SUCCEEDED = "succeeded", "成功"
     FAILED = "failed", "失败"
-

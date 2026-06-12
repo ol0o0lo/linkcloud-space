@@ -2,7 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.base.mixins import CreateUpdateTimeModelMixin
-from apps.wallet.constants import PayoutStatus, WithdrawalStatus
+from apps.wallet.constants import PayoutStatus, WithdrawalPayChannel, WithdrawalStatus
 
 
 class WalletAccount(CreateUpdateTimeModelMixin):
@@ -40,7 +40,7 @@ class WithdrawalRequest(CreateUpdateTimeModelMixin):
     net_amount = models.BigIntegerField()
     client_request_id = models.CharField(max_length=64, blank=True, default="")
     status = models.CharField(max_length=32, choices=WithdrawalStatus.choices, default=WithdrawalStatus.PENDING_REVIEW)
-    pay_channel = models.CharField(max_length=32)
+    pay_channel = models.CharField(max_length=32, choices=WithdrawalPayChannel.choices, default=WithdrawalPayChannel.WECHAT)
     payee_account_snapshot = models.JSONField(default=dict)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="reviewed_withdrawals")
     reviewed_at = models.DateTimeField(null=True, blank=True)

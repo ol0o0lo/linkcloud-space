@@ -1,7 +1,5 @@
 import base64
 import hashlib
-import hmac
-import json
 
 from cryptography.fernet import Fernet
 from django.conf import settings
@@ -34,28 +32,15 @@ def build_payee_snapshot(payee_account: dict) -> dict:
     }
 
 
-def _callback_secret(provider: str) -> str:
-    return getattr(settings, "WALLET_PAYOUT_CALLBACK_SECRETS", {}).get(provider, "")
-
-
-def build_callback_signature(*, provider: str, payload: dict) -> str:
-    secret = _callback_secret(provider)
-    if not secret:
-        raise ValueError(f"Missing callback secret for provider: {provider}")
-    message = json.dumps(
-        {"provider": provider, **payload},
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    return hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
-
-
-def verify_callback_signature(*, provider: str, payload: dict, signature: str) -> bool:
-    if not signature:
-        return False
-    try:
-        expected = build_callback_signature(provider=provider, payload=payload)
-    except ValueError:
-        return False
-    return hmac.compare_digest(expected, signature)
+def build_wechat_payee_snapshot(*, social_account, receiver_name: str) -> dict:
+    extra_data = social_account.extra_data or {}
+    raw_account = extra_data.get("openid") or social_account.uid or ""
+    return {
+        "channel": "wechat",
+        "social_provider": social_account.provider,
+        "social_uid": social_account.uid,
+        "unionid": extra_data.get("unionid", ""),
+        "openid": extra_data.get("openid", ""),
+        "receiver_name": receiver_name,
+        "masked_account": mask_account(raw_account),
+    }

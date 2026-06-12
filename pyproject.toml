@@ -21,6 +21,7 @@ dependencies = [
     "psycopg2-binary~=2.9",
     "python-json-logger~=4.1",
     "redis~=7.1", # needed for celery
+    "wechatpayv3~=2.0",
     "whitenoise~=6.7",
     "alibabacloud-dysmsapi20170525>=2.0.0",
     "alibabacloud-sts20150401>=1.0.0",
