@@ -292,7 +292,7 @@ onMounted(() => loadData());
 
     <template v-else>
       <!-- 统计卡 -->
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div v-for="stat in stats" :key="stat.label" class="text-center">
             <div class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{{ stat.value }}</div>
@@ -302,7 +302,7 @@ onMounted(() => loadData());
       </Card>
 
       <!-- Org 角色 -->
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-4 flex items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">租户级角色</div>
@@ -355,7 +355,7 @@ onMounted(() => loadData());
       </Card>
 
       <!-- Org 授权 -->
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-4 flex items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">租户级授权</div>
@@ -408,7 +408,7 @@ onMounted(() => loadData());
       </Card>
 
       <!-- Team 角色 & 授权 -->
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">团队角色与授权</div>

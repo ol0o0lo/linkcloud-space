@@ -83,9 +83,17 @@ const coreRoutes: RouteRecordRaw[] = [
       {
         name: 'Register',
         path: 'register',
-        redirect: LOGIN_PATH,
+        component: () => import('#/views/_core/authentication/register.vue'),
         meta: {
           title: $t('page.auth.register'),
+        },
+      },
+      {
+        name: 'VerifyPhone',
+        path: 'verify-phone',
+        component: () => import('#/views/_core/authentication/verify-phone.vue'),
+        meta: {
+          title: '验证手机号',
         },
       },
     ],

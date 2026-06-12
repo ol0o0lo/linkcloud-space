@@ -223,29 +223,29 @@ onMounted(loadData);
 </script>
 
 <template>
-  <Page auto-content-height content-class="p-6" title="租户工作台">
-    <div class="flex flex-col gap-8">
-      <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <Card v-for="item in orgStats" :key="item.label" :bordered="false" class="shadow-sm">
+  <Page auto-content-height content-class="p-4 sm:p-6" title="租户工作台">
+    <div class="flex flex-col gap-6 sm:gap-8">
+      <div class="grid gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <Card v-for="item in orgStats" :key="item.label" class="shadow-sm" variant="borderless">
           <div class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{{ item.label }}</div>
           <div class="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">{{ item.value }}</div>
         </Card>
       </div>
 
-      <Card :bordered="false" class="shadow-sm">
-        <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <Card class="shadow-sm" variant="borderless">
+        <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">个人空间与租户入口</div>
             <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              这里补齐旧前端 `/organizations/switch/` 和 `/organizations/new/` 的能力，支持切回个人空间、新建租户和维护主租户。
+              在这里切换个人空间与租户空间，也可以创建新的租户。
             </div>
             <div class="mt-6 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-              <div class="text-sm text-zinc-500 dark:text-zinc-400">当前上下文</div>
+              <div class="text-sm text-zinc-500 dark:text-zinc-400">当前空间</div>
               <div class="mt-3 text-lg font-semibold text-zinc-950 dark:text-zinc-50">
                 {{ currentOrganization?.name || '个人空间' }}
               </div>
               <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                {{ hasCurrentOrganization ? '成员、团队和邀请管理都会基于当前租户上下文执行。' : '当前不在任何租户上下文内，可随时切换或创建新的租户。' }}
+                {{ hasCurrentOrganization ? '成员、团队和邀请管理都会基于当前租户执行。' : '当前处于个人空间，可随时切换或创建新的租户。' }}
               </div>
               <div class="mt-4 flex flex-wrap gap-3">
                 <Button :disabled="!hasCurrentOrganization" @click="signoutOrg">切到个人空间</Button>
@@ -272,11 +272,11 @@ onMounted(loadData);
         </div>
       </Card>
 
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">当前租户资料</div>
-            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">查看当前上下文、容量和基础资料，作为后续管理动作的入口。</div>
+            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">查看当前租户的基础资料与容量使用情况。</div>
           </div>
           <Tag :color="currentOrgIsOwner ? 'green' : 'default'">{{ currentOrgIsOwner ? '可管理当前租户' : '当前为成员视角' }}</Tag>
         </div>
@@ -313,11 +313,11 @@ onMounted(loadData);
         </div>
       </Card>
 
-      <Card :bordered="false" class="shadow-sm">
-        <div class="mb-4 flex items-start justify-between gap-4">
+      <Card class="shadow-sm" variant="borderless">
+        <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">租户列表</div>
-            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">切换当前操作上下文，决定下方成员、邀请和容量数据。</div>
+            <div class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">切换当前操作的租户，查看对应的成员、邀请和容量数据。</div>
           </div>
         </div>
 
@@ -331,6 +331,7 @@ onMounted(loadData);
           :data-source="organizations"
           :loading
           :locale="{ emptyText: '没有可切换的租户' }"
+          :scroll="{ x: 720 }"
           row-key="id"
         >
           <template #emptyText>
@@ -362,7 +363,7 @@ onMounted(loadData);
         </Table>
       </Card>
 
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">当前租户成员</div>
@@ -376,7 +377,7 @@ onMounted(loadData);
             v-model:value="selectedUserId"
             :disabled="!currentOrgIsOwner"
             show-search
-            class="min-w-80 flex-1"
+            class="w-full sm:min-w-80 sm:flex-1"
             placeholder="搜索并添加成员（至少 3 个字符）"
             :filter-option="false"
             :options="
@@ -388,7 +389,7 @@ onMounted(loadData);
             @search="searchAvailableMembers"
           />
           <Checkbox v-model:checked="selectedUserIsOwner" :disabled="!currentOrgIsOwner">设为 owner</Checkbox>
-          <Button :disabled="!currentOrgIsOwner" type="primary" @click="addMember">添加成员</Button>
+          <Button class="w-full sm:w-auto" :disabled="!currentOrgIsOwner" type="primary" @click="addMember">添加成员</Button>
         </div>
 
         <Table
@@ -401,6 +402,7 @@ onMounted(loadData);
           :data-source="members"
           :loading
           :locale="{ emptyText: currentOrganization ? '当前租户还没有成员' : '请先选择租户' }"
+          :scroll="{ x: 760 }"
           row-key="pk"
         >
           <template #emptyText>
@@ -454,7 +456,7 @@ onMounted(loadData);
         </Table>
       </Card>
 
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">邀请记录</div>
@@ -467,12 +469,12 @@ onMounted(loadData);
           <Input
             v-model:value="inviteEmail"
             :disabled="!currentOrgIsOwner"
-            class="w-full max-w-md"
+            class="w-full sm:max-w-md"
             placeholder="邀请邮箱"
             @press-enter="createInvite"
           />
           <Checkbox v-model:checked="inviteOwner" :disabled="!currentOrgIsOwner">加入后设为 owner</Checkbox>
-          <Button :disabled="!currentOrgIsOwner" type="primary" @click="createInvite">发送邀请</Button>
+          <Button class="w-full sm:w-auto" :disabled="!currentOrgIsOwner" type="primary" @click="createInvite">发送邀请</Button>
         </div>
 
         <Table
@@ -485,6 +487,7 @@ onMounted(loadData);
           :data-source="invites"
           :loading
           :locale="{ emptyText: currentOrganization ? '当前没有待处理邀请' : '请先选择租户' }"
+          :scroll="{ x: 720 }"
           row-key="pk"
         >
           <template #emptyText>

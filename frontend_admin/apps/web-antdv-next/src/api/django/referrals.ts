@@ -12,6 +12,14 @@ export interface ReferralConfigRow {
   trigger_event: string;
 }
 
+export interface ReferralSummaryRow {
+  invite_code: string;
+  pending_review_count: number;
+  registered_count: number;
+  rewarded_count: number;
+  share_link: string;
+}
+
 export interface ReferralRecordRow {
   created_at: string;
   id: number;
@@ -30,17 +38,25 @@ interface PaginatedResponse<T> {
 }
 
 export async function getReferralConfigApi() {
-  return djangoGet<ReferralConfigRow>('/api/admin/referrals/config/');
+  return djangoGet<ReferralConfigRow>('/admin/referrals/config/');
+}
+
+export async function getMyReferralSummaryApi() {
+  return djangoGet<ReferralSummaryRow>('/referrals/me/summary/');
+}
+
+export async function listMyReferralRecordsApi(params: Record<string, string | number> = {}) {
+  return djangoGet<PaginatedResponse<ReferralRecordRow>>('/referrals/me/records/', params);
 }
 
 export async function updateReferralConfigApi(data: Partial<ReferralConfigRow>) {
-  return djangoPatch<ReferralConfigRow>('/api/admin/referrals/config/', data);
+  return djangoPatch<ReferralConfigRow>('/admin/referrals/config/', data);
 }
 
 export async function listReferralRecordsApi(params: Record<string, string | number> = {}) {
-  return djangoGet<PaginatedResponse<ReferralRecordRow>>('/api/admin/referrals/records/', params);
+  return djangoGet<PaginatedResponse<ReferralRecordRow>>('/admin/referrals/records/', params);
 }
 
 export async function reviewReferralRecordApi(recordId: number, data: { approved: boolean; remark: string }) {
-  return djangoPost<ReferralRecordRow>(`/api/admin/referrals/records/${recordId}/review/`, data);
+  return djangoPost<ReferralRecordRow>(`/admin/referrals/records/${recordId}/review/`, data);
 }

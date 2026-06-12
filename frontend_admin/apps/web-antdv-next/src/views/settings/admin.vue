@@ -212,7 +212,7 @@ onMounted(loadData);
 <template>
   <Page auto-content-height content-class="p-6" title="系统设置">
     <div class="flex flex-col gap-8">
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-lg font-semibold text-zinc-950 dark:text-zinc-50">配置中心</div>
@@ -248,7 +248,7 @@ onMounted(loadData);
         </div>
       </Card>
 
-      <Card v-if="activeDomain === 'org'" :bordered="false" class="shadow-sm">
+      <Card v-if="activeDomain === 'org'" class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">租户设置</div>
@@ -349,7 +349,7 @@ onMounted(loadData);
         </Table>
       </Card>
 
-      <Card v-if="activeDomain === 'user'" :bordered="false" class="shadow-sm">
+      <Card v-if="activeDomain === 'user'" class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">个人设置</div>
@@ -409,7 +409,7 @@ onMounted(loadData);
         </Table>
       </Card>
 
-      <Card v-if="activeDomain === 'notifications'" :bordered="false" class="shadow-sm">
+      <Card v-if="activeDomain === 'notifications'" class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950 dark:text-zinc-50">通知偏好</div>

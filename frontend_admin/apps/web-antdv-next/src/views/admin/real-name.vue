@@ -162,13 +162,13 @@ onMounted(loadData);
   <Page auto-content-height content-class="p-6" title="实名认证">
     <div class="space-y-8">
       <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <Card v-for="item in stats" :key="item.label" :bordered="false" class="shadow-sm" size="small">
+        <Card v-for="item in stats" :key="item.label" class="shadow-sm" size="small" variant="borderless">
           <div class="text-xs text-zinc-500">{{ item.label }}</div>
           <div class="mt-2 text-2xl font-semibold text-zinc-950">{{ item.value }}</div>
         </Card>
       </div>
 
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-base font-semibold text-zinc-950">实名审核队列</div>

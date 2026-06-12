@@ -25,6 +25,7 @@ describe('profile-dashboard', () => {
       'LinkCloud Space',
     );
 
+    expect(hero.avatarUrl).toBe('https://example.com/avatar.png');
     expect(hero.displayName).toBe('Lan Kong');
     expect(hero.currentOrgLabel).toBe('LinkCloud Space');
     expect(hero.completionText).toContain('资料完整度');

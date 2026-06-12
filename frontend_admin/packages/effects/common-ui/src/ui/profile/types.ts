@@ -3,10 +3,6 @@ import type { BasicUserInfo } from '@vben/types';
 export interface Props {
   title?: string;
   userInfo: BasicUserInfo | null;
-  tabs: {
-    label: string;
-    value: string;
-  }[];
 }
 
 export interface FormSchemaItem {

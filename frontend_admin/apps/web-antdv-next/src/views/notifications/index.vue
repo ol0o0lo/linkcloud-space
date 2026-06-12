@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue';
-
 import { Page } from '@vben/common-ui';
 
 import { Badge, Button, Card, Drawer, Empty, message, Modal, Space, Table, Tag } from 'antdv-next';
@@ -8,84 +6,25 @@ import { Badge, Button, Card, Drawer, Empty, message, Modal, Space, Table, Tag }
 import {
   bulkNotificationsApi,
   deleteNotificationApi,
-  listNotificationsApi,
   markNotificationApi,
   type NotificationRow,
 } from '#/api/django/resources';
+import { useNotificationCenter } from './use-notification-center';
 
-type NotificationTaskFilter = 'all' | 'read' | 'unread';
-
-const loading = ref(false);
-const notifications = ref<NotificationRow[]>([]);
-const selectedRowKeys = ref<number[]>([]);
-const activeTaskFilter = ref<NotificationTaskFilter>('unread');
-const detailVisible = ref(false);
-const activeNotification = ref<null | NotificationRow>(null);
-const loadRequestId = ref(0);
-
-const apiReadFilter = computed(() => {
-  if (activeTaskFilter.value === 'read') return 'true';
-  if (activeTaskFilter.value === 'unread') return 'false';
-  return undefined;
-});
-
-const notificationSummary = computed(() => {
-  const total = notifications.value.length;
-  const unread = notifications.value.filter((item) => !item.is_read).length;
-  return {
-    selected: selectedRowKeys.value.length,
-    total,
-    unread,
-  };
-});
-
-function onSelectionChange(keys: Array<number | string>) {
-  selectedRowKeys.value = keys.map((key) => Number(key)).filter((key) => !Number.isNaN(key));
-}
-
-function syncActiveNotification() {
-  if (!activeNotification.value) return;
-  const freshRecord = notifications.value.find((item) => item.id === activeNotification.value?.id);
-  if (freshRecord) {
-    activeNotification.value = freshRecord;
-    return;
-  }
-  detailVisible.value = false;
-  activeNotification.value = null;
-}
-
-async function loadData() {
-  const requestId = loadRequestId.value + 1;
-  loadRequestId.value = requestId;
-  loading.value = true;
-  try {
-    const rows = await listNotificationsApi(apiReadFilter.value).catch(() => []);
-    if (requestId !== loadRequestId.value) return;
-    notifications.value = rows;
-    syncActiveNotification();
-  } finally {
-    if (requestId === loadRequestId.value) {
-      loading.value = false;
-    }
-  }
-}
-
-function openNotification(record: NotificationRow) {
-  activeNotification.value = record;
-  detailVisible.value = true;
-}
-
-async function changeTaskFilter(value: NotificationTaskFilter) {
-  if (activeTaskFilter.value === value) return;
-  activeTaskFilter.value = value;
-  selectedRowKeys.value = [];
-  await loadData();
-}
-
-function closeNotificationDetail() {
-  detailVisible.value = false;
-  activeNotification.value = null;
-}
+const {
+  activeNotification,
+  activeTaskFilter,
+  changeTaskFilter,
+  closeNotificationDetail,
+  detailVisible,
+  loadData,
+  loading,
+  notificationSummary,
+  notifications,
+  onSelectionChange,
+  openNotification,
+  selectedRowKeys,
+} = useNotificationCenter();
 
 async function toggleRead(record: NotificationRow) {
   await markNotificationApi(record.id, !record.is_read);
@@ -167,18 +106,17 @@ function confirmAction(options: {
   });
 }
 
-onMounted(loadData);
 </script>
 
 <template>
-  <Page auto-content-height title="通知处理">
+  <Page auto-content-height content-class="p-4 sm:p-6" title="通知处理">
     <div class="space-y-4">
-      <Card :bordered="false" class="shadow-sm">
-        <div class="flex flex-wrap items-start justify-between gap-4">
+      <Card class="shadow-sm" variant="borderless">
+        <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
           <div>
             <div class="text-lg font-semibold text-zinc-950 dark:text-zinc-50">通知处理</div>
             <div class="mt-1 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
-              面向日常运营的消息处理台，和 Vben 顶栏未读提醒、顶栏通知入口保持同一批站内通知状态。
+              统一查看、筛选和批量处理系统通知，便于日常跟进与处理。
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-3">
@@ -189,7 +127,7 @@ onMounted(loadData);
           </div>
         </div>
 
-        <div class="mt-5 flex flex-wrap items-center justify-between gap-4">
+        <div class="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div class="flex flex-wrap gap-2">
             <Button :type="activeTaskFilter === 'unread' ? 'primary' : 'default'" @click="changeTaskFilter('unread')">
               未读优先
@@ -208,7 +146,7 @@ onMounted(loadData);
         </div>
       </Card>
 
-      <Card :bordered="false" class="shadow-sm">
+      <Card class="shadow-sm" variant="borderless">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900/60">
           <div class="text-sm font-medium text-zinc-700 dark:text-zinc-200">批量处理</div>
           <div class="flex flex-wrap gap-2">
@@ -225,7 +163,7 @@ onMounted(loadData);
               @click="
                 confirmAction({
                   title: '确认删除选中通知',
-                  content: `这会删除当前选中的 ${selectedRowKeys.length} 条通知记录，处理台和后续人工追溯都不再显示这些消息。`,
+                  content: `这会删除当前选中的 ${selectedRowKeys.length} 条通知记录，删除后这些消息将不再显示。`,
                   okText: '确认删除',
                   onOk: () => deleteSelected(),
                 })
@@ -318,9 +256,9 @@ onMounted(loadData);
 
       <Drawer
         v-model:open="detailVisible"
+        size="large"
         :title="activeNotification?.title || '通知详情'"
         placement="right"
-        width="min(520px, 100vw)"
         @close="closeNotificationDetail"
       >
         <div v-if="activeNotification" class="space-y-5">
@@ -340,7 +278,7 @@ onMounted(loadData);
           <div>
             <div class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">关联业务对象</div>
             <div class="rounded-lg border border-dashed border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-              后续如果通知携带工单、租户、成员或其它关联对象，可在这里提供跳转入口，帮助管理员从消息直接进入处理对象。
+              当前通知暂未提供可跳转的关联对象。
             </div>
           </div>
         </div>

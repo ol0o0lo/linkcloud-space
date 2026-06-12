@@ -13,6 +13,17 @@ export interface LoginParams {
   username?: string;
 }
 
+export interface SignupParams {
+  email: string;
+  password: string;
+  phone: string;
+}
+
+export interface SignupResult {
+  accessToken: null | string;
+  pendingFlow: null | 'verify_phone';
+}
+
 export interface LoginCodeParams {
   phone: string;
 }
@@ -42,6 +53,11 @@ export interface RecoveryCodesRow {
   unused_codes?: string[];
 }
 
+export interface PhoneNumberRow {
+  phone: string;
+  verified: boolean;
+}
+
 export interface SocialAccountRow {
   display: string;
   provider: {
@@ -69,7 +85,7 @@ export function parseAllauthErrors(responseData: any) {
   return errors;
 }
 
-function hasPendingFlow(error: any, flowId: string) {
+export function getPendingFlow(error: any, flowId: string) {
   const flows = error?.data?.data?.flows ?? error?.data?.flows ?? [];
   return flows.some((flow: any) => flow?.id === flowId && flow?.is_pending);
 }
@@ -118,7 +134,7 @@ export async function requestLoginCodeApi(data: LoginCodeParams) {
   } catch (error: any) {
     if (
       error?.response?.status === 401 &&
-      hasPendingFlow(error, 'login_by_code')
+      getPendingFlow(error, 'login_by_code')
     ) {
       return;
     }
@@ -190,6 +206,26 @@ export async function loginApi(data: LoginParams) {
   return { accessToken: 'session' };
 }
 
+export async function signupApi(data: SignupParams): Promise<SignupResult> {
+  try {
+    await djangoGet('/csrf/');
+    await allauthRequest(`${ALLAUTH_BASE}/auth/signup`, {
+      body: JSON.stringify({
+        email: data.email,
+        password: data.password,
+        phone: data.phone,
+      }),
+      method: 'POST',
+    });
+    return { accessToken: 'session', pendingFlow: null };
+  } catch (error: any) {
+    if (error?.response?.status === 401 && getPendingFlow(error, 'verify_phone')) {
+      return { accessToken: null, pendingFlow: 'verify_phone' };
+    }
+    throw new Error(getAllauthErrors(error));
+  }
+}
+
 export async function logoutApi() {
   try {
     await allauthRequest(`${ALLAUTH_BASE}/auth/session`, {
@@ -205,6 +241,26 @@ export async function logoutApi() {
 export async function changePasswordApi(data: PasswordChangeParams) {
   return await allauthRequest(`${ALLAUTH_BASE}/account/password/change`, {
     body: JSON.stringify(data),
+    method: 'POST',
+  });
+}
+
+export async function getAccountPhonesApi() {
+  return await allauthRequest<{ data?: PhoneNumberRow[] }>(`${ALLAUTH_BASE}/account/phone`, {
+    method: 'GET',
+  });
+}
+
+export async function changeAccountPhoneApi(phone: string) {
+  return await allauthRequest<{ data?: PhoneNumberRow[] }>(`${ALLAUTH_BASE}/account/phone`, {
+    body: JSON.stringify({ phone }),
+    method: 'POST',
+  });
+}
+
+export async function verifyPhoneApi(code: string) {
+  return await allauthRequest(`${ALLAUTH_BASE}/auth/phone/verify`, {
+    body: JSON.stringify({ code }),
     method: 'POST',
   });
 }

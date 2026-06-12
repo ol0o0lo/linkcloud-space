@@ -319,9 +319,10 @@ export const updateTeamApi = (teamId: number, payload: { members?: number[]; nam
 
 export const deleteTeamApi = (teamId: number) => djangoDelete(`/teams/${teamId}/`);
 
-export const listNotificationsApi = (isRead?: string) =>
+export const listNotificationsApi = (isRead?: string, pageSize?: number) =>
   djangoGet<Paged<NotificationRow> | NotificationRow[]>('/notifications/', {
     is_read: isRead,
+    page_size: pageSize,
   }).then(rows);
 
 export const markNotificationApi = (id: number, isRead: boolean) =>

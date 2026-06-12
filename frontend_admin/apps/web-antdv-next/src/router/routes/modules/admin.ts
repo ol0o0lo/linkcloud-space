@@ -66,10 +66,30 @@ const routes: RouteRecordRaw[] = [
         meta: {
           authority: ['admin', 'super'],
           icon: 'lucide:gift',
-          title: '裂变推广',
+          title: '推广管理',
         },
         name: 'AdminReferrals',
         path: '/admin/referrals',
+      },
+      {
+        component: () => import('#/views/admin/wallet-accounts.vue'),
+        meta: {
+          authority: ['admin', 'super'],
+          icon: 'lucide:wallet',
+          title: '钱包账户',
+        },
+        name: 'AdminWalletAccounts',
+        path: '/admin/wallet/accounts',
+      },
+      {
+        component: () => import('#/views/admin/wallet-withdrawals.vue'),
+        meta: {
+          authority: ['admin', 'super'],
+          icon: 'lucide:arrow-right-left',
+          title: '提现审核',
+        },
+        name: 'AdminWalletWithdrawals',
+        path: '/admin/wallet/withdrawals',
       },
       {
         component: () => import('#/views/settings/admin.vue'),

@@ -78,14 +78,20 @@ const formSchema = computed((): VbenFormSchema[] => {
 <template>
   <AuthenticationLogin
     :form-schema="formSchema"
-    :loading="authStore.loginLoading"
-    :show-code-login="false"
-    :show-forget-password="false"
-    :show-qrcode-login="false"
-    :show-register="false"
-    :show-third-party-login="false"
-    @submit="authStore.authLogin"
-  >
+  :loading="authStore.loginLoading"
+  :show-code-login="false"
+  :show-forget-password="false"
+  :show-qrcode-login="false"
+  :show-register="true"
+  :show-third-party-login="false"
+  @submit="authStore.authLogin"
+>
+    <template #to-register>
+      <div class="mt-3 text-center text-sm">
+        还没有账号？
+        <span class="vben-link text-sm font-normal" @click="router.push({ path: '/auth/register', query: route.query })">注册</span>
+      </div>
+    </template>
     <template #third-party-login>
       <div class="mt-4 flex gap-4">
         <Button

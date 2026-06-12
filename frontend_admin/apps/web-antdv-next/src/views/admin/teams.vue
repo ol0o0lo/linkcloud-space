@@ -123,17 +123,17 @@ onMounted(() => loadData());
 </script>
 
 <template>
-  <Page auto-content-height content-class="p-6" title="团队协作">
+  <Page auto-content-height content-class="p-4 sm:p-6" title="团队协作">
     <div class="space-y-8">
-      <div class="grid gap-5 md:grid-cols-3">
-        <Card v-for="item in teamStats" :key="item.label" :bordered="false" class="shadow-sm">
+      <div class="grid gap-4 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <Card v-for="item in teamStats" :key="item.label" class="shadow-sm" variant="borderless">
           <div class="text-xs uppercase tracking-wide text-zinc-500">{{ item.label }}</div>
           <div class="mt-3 text-3xl font-semibold text-zinc-900">{{ item.value }}</div>
         </Card>
       </div>
 
-      <div class="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card :bordered="false" class="shadow-sm">
+      <div class="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <Card class="shadow-sm" variant="borderless">
           <div class="mb-4">
             <div class="text-base font-semibold text-zinc-900">创建团队</div>
             <div class="mt-1 text-sm text-zinc-500">先确定团队名称，再为团队分配首批成员，后续仍可随时调整。</div>
@@ -165,7 +165,7 @@ onMounted(() => loadData());
           </div>
         </Card>
 
-        <Card :bordered="false" class="shadow-sm">
+        <Card class="shadow-sm" variant="borderless">
           <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <div class="text-base font-semibold text-zinc-900">团队列表</div>
@@ -189,6 +189,7 @@ onMounted(() => loadData());
             :data-source="teams"
             :loading
             :pagination="{ pageSize: 8, showSizeChanger: false }"
+            :scroll="{ x: 720 }"
             row-key="id"
           >
             <template #bodyCell="{ column, record }">
@@ -234,12 +235,12 @@ onMounted(() => loadData());
         </Card>
       </div>
 
-      <Card v-if="editingTeamId" :bordered="false" class="shadow-sm">
+      <Card v-if="editingTeamId" class="shadow-sm" variant="borderless">
         <div class="mb-4">
           <div class="text-base font-semibold text-zinc-900">编辑团队</div>
           <div class="mt-1 text-sm text-zinc-500">你可以调整团队名称和成员范围，变更会立即影响当前团队协作视图。</div>
         </div>
-        <div class="grid gap-4 rounded-lg bg-zinc-50 p-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
+        <div class="grid gap-4 rounded-lg bg-zinc-50 p-4 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
           <Input v-model:value="editingTeamName" placeholder="团队名称" />
           <Select
             v-model:value="editingTeamMembers"
@@ -253,10 +254,10 @@ onMounted(() => loadData());
               }))
             "
           />
-          <div class="xl:col-span-2">
-            <Space>
-              <Button type="primary" @click="saveEdit">保存变更</Button>
-              <Button @click="editingTeamId = null">取消</Button>
+          <div class="lg:col-span-2">
+            <Space wrap>
+              <Button class="w-full sm:w-auto" type="primary" @click="saveEdit">保存变更</Button>
+              <Button class="w-full sm:w-auto" @click="editingTeamId = null">取消</Button>
             </Space>
           </div>
         </div>

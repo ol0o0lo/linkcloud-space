@@ -6,12 +6,15 @@ import type { NotificationPreferenceRow, UserRow } from '#/api/django/resources'
 export type ProfileSectionKey = 'basic' | 'notification' | 'password' | 'security';
 
 export interface ProfileHeroModel {
+  avatarUrl: null | string;
   completionText: string;
   currentOrgLabel: string;
   displayName: string;
   email: string;
+  primaryBadge: string;
   phone: string;
   phoneVerified: boolean;
+  secondaryBadge: string;
   timezone: string;
   username: string;
 }
@@ -33,14 +36,29 @@ export function buildProfileHero(
 ): ProfileHeroModel {
   const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || userInfo?.realName || user?.email || user?.username || '当前用户';
   const completedFields = [user?.avatar_url, displayName, user?.email, user?.phone, user?.timezone].filter(Boolean).length;
+  const primaryBadge = user?.real_name_status === 'verified'
+    ? '已认证'
+    : user?.real_name_status === 'pending'
+      ? '审核中'
+      : '未认证';
+  const secondaryBadge = user?.is_superuser
+    ? '超级管理员'
+    : user?.is_staff
+      ? '管理员'
+      : user?.phone_verified
+        ? '已绑定手机'
+        : '资料待完善';
 
   return {
+    avatarUrl: user?.avatar_url || userInfo?.avatar || null,
     completionText: `资料完整度 ${completedFields}/5`,
     currentOrgLabel: currentOrgLabel || '当前暂无组织上下文',
     displayName,
     email: user?.email || '未设置邮箱',
+    primaryBadge,
     phone: user?.phone || '未绑定手机号',
     phoneVerified: Boolean(user?.phone_verified),
+    secondaryBadge,
     timezone: user?.timezone || 'Asia/Shanghai',
     username: user?.username || userInfo?.username || 'account',
   };

@@ -20,6 +20,33 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginLoading = ref(false);
 
+  async function finalizeAuthenticatedSession(
+    onSuccess?: () => Promise<void> | void,
+  ) {
+    accessStore.setAccessToken('session');
+
+    const [userInfo, accessCodes] = await Promise.all([
+      fetchUserInfo(),
+      getAccessCodesApi(),
+    ]);
+
+    userStore.setUserInfo(userInfo);
+    accessStore.setAccessCodes(accessCodes);
+
+    if (accessStore.loginExpired) {
+      accessStore.setLoginExpired(false);
+      return userInfo;
+    }
+
+    if (onSuccess) {
+      await onSuccess();
+      return userInfo;
+    }
+
+    await router.push(userInfo.homePath || preferences.app.defaultHomePath);
+    return userInfo;
+  }
+
   /**
    * 异步处理登录操作
    * Asynchronously handle the login process
@@ -38,27 +65,7 @@ export const useAuthStore = defineStore('auth', () => {
       // 如果成功获取到 accessToken
       if (accessToken) {
         accessStore.setAccessToken(accessToken);
-
-        // 获取用户信息并存储到 accessStore 中
-        const [fetchUserInfoResult, accessCodes] = await Promise.all([
-          fetchUserInfo(),
-          getAccessCodesApi(),
-        ]);
-
-        userInfo = fetchUserInfoResult;
-
-        userStore.setUserInfo(userInfo);
-        accessStore.setAccessCodes(accessCodes);
-
-        if (accessStore.loginExpired) {
-          accessStore.setLoginExpired(false);
-        } else {
-          onSuccess
-            ? await onSuccess?.()
-            : await router.push(
-                userInfo.homePath || preferences.app.defaultHomePath,
-              );
-        }
+        userInfo = await finalizeAuthenticatedSession(onSuccess);
 
         if (userInfo?.realName) {
           notification.success({
@@ -110,6 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     $reset,
     authLogin,
+    finalizeAuthenticatedSession,
     fetchUserInfo,
     loginLoading,
     logout,
