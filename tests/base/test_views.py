@@ -47,3 +47,22 @@ class TestDashboardAndH5Entrypoints(SimpleTestCase):
             "public/static/dist/h5/index.html",
             "<html>h5</html>",
         )
+
+    def test_dashboard_rewrites_frontend_asset_urls_to_static_url(self):
+        with TemporaryDirectory() as tmp_dir:
+            base_dir = Path(tmp_dir)
+            index_path = base_dir / "public/static/dist/admin/index.html"
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            index_path.write_text(
+                '<link rel="stylesheet" href="/umi.css"><script src="auto/scripts/loading.js"></script><script src="//example.com/analytics.js"></script>',
+                encoding="utf-8",
+            )
+
+            with override_settings(BASE_DIR=base_dir, STATIC_URL="/public/static/"):
+                resp = self.client.get("/dashboard/")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn('href="/public/static/dist/admin/umi.css"', html)
+        self.assertIn('src="/public/static/dist/admin/scripts/loading.js"', html)
+        self.assertIn('src="//example.com/analytics.js"', html)

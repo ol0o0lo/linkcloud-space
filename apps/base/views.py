@@ -1,5 +1,6 @@
 import io
 import os
+import re
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -12,13 +13,45 @@ from django.views.decorators.http import require_GET
 import qrcode
 import qrcode.image.svg
 
-def _static_index_response(request, relative_index_path: str, missing_message: str) -> HttpResponse:
+
+def _static_asset_prefix(asset_subdir: str) -> str:
+    return f"{settings.STATIC_URL.rstrip('/')}/{asset_subdir.strip('/')}/"
+
+
+def _rewrite_index_asset_urls(content: bytes, asset_subdir: str | None = None) -> bytes:
+    if not asset_subdir:
+        return content
+
+    html = content.decode("utf-8")
+    asset_prefix = _static_asset_prefix(asset_subdir)
+
+    def replace_asset_url(match: re.Match[str]) -> str:
+        attr = match.group("attr")
+        url = match.group("url")
+        relative_url = url.removeprefix("/").removeprefix("auto/")
+        return f"{attr}{asset_prefix}{relative_url}"
+
+    return re.sub(
+        r'(?P<attr>\b(?:src|href)=["\'])(?P<url>/(?!/)[^"\']+|auto/[^"\']+)',
+        replace_asset_url,
+        html,
+    ).encode("utf-8")
+
+
+def _static_index_response(
+    request,
+    relative_index_path: str,
+    missing_message: str,
+    *,
+    asset_subdir: str | None = None,
+) -> HttpResponse:
     index_path = os.path.join(settings.BASE_DIR, *relative_index_path.split("/"))
     try:
         with open(index_path, "rb") as f:
             content = f.read()
     except FileNotFoundError:
         return HttpResponse(missing_message, status=503)
+    content = _rewrite_index_asset_urls(content, asset_subdir)
     get_token(request)
     return HttpResponse(content, content_type="text/html; charset=utf-8")
 
@@ -29,6 +62,7 @@ class DashboardSPAView(generic.View):
             request,
             "public/static/dist/admin/index.html",
             "Admin frontend not built. Run `just build_admin`.",
+            asset_subdir="dist/admin",
         )
 
 
