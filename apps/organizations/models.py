@@ -6,7 +6,6 @@ from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -135,7 +134,7 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
 
     @property
     def accept_invite_url(self):
-        return reverse("accept_invite", args=[self.key])
+        return f"/organizations/invite/{self.key}/accept/"
 
     def clean(self):
         if self.invitee and not self.invitee_email:

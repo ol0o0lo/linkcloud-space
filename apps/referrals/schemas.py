@@ -63,13 +63,3 @@ class ReferralRuleConfigPatchIn(Schema):
 class ReferralReviewIn(Schema):
     approved: bool
     remark: str = ""
-
-
-class InternalRegisterIn(Schema):
-    invitee_id: int
-    invite_code: str
-
-
-class InternalQualifyIn(Schema):
-    invitee_id: int
-    event_type: str

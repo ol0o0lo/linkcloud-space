@@ -31,7 +31,6 @@ from apps.organizations.api import (
     settings_router as org_settings_router,
 )
 from apps.referrals.api import admin_router as referrals_admin_router
-from apps.referrals.api import internal_router as referrals_internal_router
 from apps.referrals.api import router as referrals_router
 from apps.settings.api import org_router as settings_org_router
 from apps.settings.api import team_router as settings_team_router
@@ -74,7 +73,6 @@ api.add_router("/admin/wallet/", wallet_admin_router)
 api.add_router("/internal/wallet/", wallet_internal_router)
 api.add_router("/referrals/", referrals_router)
 api.add_router("/admin/referrals/", referrals_admin_router)
-api.add_router("/internal/referrals/", referrals_internal_router)
 api.add_router("/settings/org/", settings_org_router)
 api.add_router("/settings/teams/", settings_team_router)
 api.add_router("/settings/user/", settings_user_router)
