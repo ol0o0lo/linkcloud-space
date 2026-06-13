@@ -262,6 +262,16 @@ def get_totp_setup(request):
     }
 
 
+@users_router.delete("/me/mfa/authenticators/{authenticator_type}/", response={204: None}, summary="删除当前用户的 MFA 认证器")
+def delete_my_authenticator(request, authenticator_type: str):
+    """删除当前登录用户指定类型的 MFA 认证器。"""
+    require_authenticated(request)
+    deleted, _ = Authenticator.objects.filter(user=request.user, type=authenticator_type).delete()
+    if deleted == 0:
+        raise HttpError(404, "Authenticator not found.")
+    return Status(204, None)
+
+
 def _get_admin_user(request, user_id: int):
     require_superuser(request)
     User = get_user_model()
