@@ -1,13 +1,17 @@
 from django.conf import settings
-from django.http import HttpResponseRedirect
+from django.contrib.auth import get_user_model
+from django.contrib.auth import login as django_login
+from django.contrib.auth import logout as django_logout
+from django.db.models import Q
+from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.utils import dateformat
 from django.utils.timezone import now
 
+from allauth.headless.socialaccount.forms import RedirectToProviderForm
 from ninja import Router, Schema
 from ninja.errors import HttpError
-
-from allauth.headless.socialaccount.forms import RedirectToProviderForm
+from pydantic import Field
 
 from apps.accounts.models import User
 from apps.base.permissions import require_superuser
@@ -63,14 +67,97 @@ class CsrfOut(Schema):
     csrfToken: str
 
 
+class ProLoginIn(Schema):
+    username: str = Field("", description="用户名或邮箱。")
+    password: str = Field("", description="密码。")
+    type: str = Field("account", description="Ant Design Pro 登录类型。")
+    autoLogin: bool = Field(False, description="是否自动登录。")
+
+
 def _get_app_version() -> str:
     return "unknown"
+
+
+def _pro_access_for_user(user) -> str:
+    return "admin" if user.is_staff or user.is_superuser else "user"
+
+
+def _pro_current_user_payload(user) -> dict:
+    full_name = user.get_full_name() or user.username
+    return {
+        "name": full_name,
+        "avatar": user.avatar_url,
+        "userid": user.username,
+        "email": user.email,
+        "signature": "",
+        "title": "管理员" if user.is_staff or user.is_superuser else "成员",
+        "group": "后台管理" if user.is_staff or user.is_superuser else "普通用户",
+        "tags": [],
+        "notifyCount": 0,
+        "unreadCount": 0,
+        "country": "",
+        "access": _pro_access_for_user(user),
+        "geographic": {},
+        "address": "",
+        "phone": user.phone or "",
+    }
+
+
+def _resolve_pro_login_user(identifier: str):
+    identifier = identifier.strip()
+    User = get_user_model()
+    try:
+        return User.objects.get(Q(username__iexact=identifier) | Q(email__iexact=identifier) | Q(phone=identifier))
+    except User.DoesNotExist:
+        return None
 
 
 @router.get("/version/", auth=None, summary="获取应用版本")
 def get_version(request):
     """返回当前前端构建版本标识，用于客户端版本展示与调试。"""
     return {"version": _get_app_version()}
+
+
+@router.get("/currentUser", auth=None, summary="Ant Design Pro 获取当前用户")
+def pro_current_user(request):
+    """返回 Ant Design Pro 默认布局需要的当前用户结构。"""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {
+                "success": True,
+                "data": {"isLogin": False},
+                "errorCode": "401",
+                "errorMessage": "请先登录！",
+            },
+            status=401,
+        )
+    return {"success": True, "data": _pro_current_user_payload(request.user)}
+
+
+@router.post("/login/account", auth=None, summary="Ant Design Pro 账号密码登录")
+def pro_account_login(request, payload: ProLoginIn):
+    """使用 Django session 完成 Ant Design Pro 后台登录。"""
+    user = _resolve_pro_login_user(payload.username)
+    if user is None or not user.is_active or not user.check_password(payload.password):
+        return {
+            "status": "error",
+            "type": payload.type,
+            "currentAuthority": "guest",
+        }
+
+    django_login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
+    return {
+        "status": "ok",
+        "type": payload.type,
+        "currentAuthority": _pro_access_for_user(user),
+    }
+
+
+@router.post("/login/outLogin", auth=None, summary="Ant Design Pro 退出登录")
+def pro_out_login(request):
+    """清理当前 Django session，兼容 Ant Design Pro 默认退出接口。"""
+    django_logout(request)
+    return {"success": True, "data": {}}
 
 
 @router.get("/csrf/", auth=None, response=CsrfOut, summary="获取 CSRF Token")
@@ -121,9 +208,7 @@ def app_context(request):
 
     user = request.user
     org = getattr(request, "org", None)
-    user_orgs = [
-        {"id": o.pk, "name": o.name, "slug": o.slug} for o in Organization.objects.filter(organizationmember__user=user)
-    ]
+    user_orgs = [{"id": o.pk, "name": o.name, "slug": o.slug} for o in Organization.objects.filter(organizationmember__user=user)]
     org_data = None
     if org and org.pk:
         org_data = {"id": org.id, "name": org.name, "slug": org.slug, "is_owner": org.is_owner}
@@ -210,10 +295,7 @@ def send_test_notification(request, payload: TestNotificationIn):
 
     if payload.send_in_app:
         sender_org = request.org.instance if getattr(request.org, "id", None) else None
-        if (
-            sender_org is not None
-            and not OrganizationMember.objects.filter(user=recipient, organization=sender_org).exists()
-        ):
+        if sender_org is not None and not OrganizationMember.objects.filter(user=recipient, organization=sender_org).exists():
             raise HttpError(
                 400,
                 f"{recipient.get_full_name() or recipient.username} isn't a member of "
