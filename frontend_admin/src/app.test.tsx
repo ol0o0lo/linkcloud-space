@@ -12,6 +12,7 @@ const mockHistory = {
 };
 
 const mockQueryCurrentUser = vi.fn();
+const mockGetOrganizationSwitchList = vi.fn();
 
 vi.mock('@umijs/max', () => ({
   history: mockHistory,
@@ -22,6 +23,10 @@ vi.mock('@/services/ant-design-pro/api', () => ({
   currentUser: mockQueryCurrentUser,
 }));
 
+vi.mock('@/services/organization', () => ({
+  getOrganizationSwitchList: mockGetOrganizationSwitchList,
+}));
+
 vi.mock('@/components', () => ({
   AvatarDropdown: () => null,
   DocLink: () => null,
@@ -29,6 +34,7 @@ vi.mock('@/components', () => ({
   Footer: () => null,
   LangDropdown: () => null,
   OfflineBanner: () => null,
+  OrgSwitcher: () => null,
   VersionDropdown: () => null,
 }));
 
@@ -51,6 +57,8 @@ vi.mock('../config/defaultSettings', () => ({
 describe('app getInitialState', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    mockGetOrganizationSwitchList.mockResolvedValue([]);
     mockHistory.location = {
       pathname: '/welcome',
       search: '',
@@ -74,8 +82,39 @@ describe('app getInitialState', () => {
       name: 'Test User',
       access: 'admin',
     });
+    expect(state.organizations).toEqual([]);
+    expect(state.selectedOrgSlug).toBeUndefined();
     expect(state.settingDrawerOpen).toBe(false);
     expect(state.fetchUserInfo).toBeDefined();
+  });
+
+  it('should default select the first organization when only one is available', async () => {
+    const { getInitialState } = await import('./app');
+    mockQueryCurrentUser.mockResolvedValue({
+      data: {
+        name: 'Tenant User',
+        access: 'admin',
+      },
+    });
+    mockGetOrganizationSwitchList.mockResolvedValue([
+      {
+        id: 1,
+        name: 'Acme',
+        slug: 'acme',
+        isCurrent: false,
+        isPrimary: true,
+      },
+    ]);
+
+    const state = await getInitialState();
+
+    expect(mockGetOrganizationSwitchList).toHaveBeenCalledWith({
+      skipErrorHandler: true,
+    });
+    expect(state.organizations).toEqual([
+      expect.objectContaining({ slug: 'acme' }),
+    ]);
+    expect(state.selectedOrgSlug).toBe('acme');
   });
 
   it('should redirect to login when currentUser fetch fails (401)', async () => {

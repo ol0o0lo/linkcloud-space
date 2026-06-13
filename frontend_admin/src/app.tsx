@@ -17,26 +17,33 @@ import {
   Footer,
   LangDropdown,
   OfflineBanner,
+  OrgSwitcher,
   VersionDropdown,
 } from '@/components';
 import { currentUser as queryCurrentUser } from '@/services/ant-design-pro/api';
+import { getOrganizationSwitchList } from '@/services/organization';
+import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import defaultSettings from '../config/defaultSettings';
-import { errorConfig } from './requestErrorConfig';
 import logoUrl from '../public/logo.svg';
+import { errorConfig } from './requestErrorConfig';
 
 const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
 
-/**
- * @see https://umijs.org/docs/api/runtime-config#getinitialstate
- * */
-export async function getInitialState(): Promise<{
+type InitialState = {
   settings?: Partial<LayoutSettings>;
   currentUser?: API.CurrentUser;
   loading?: boolean;
   fetchUserInfo?: () => Promise<API.CurrentUser | undefined>;
   settingDrawerOpen?: boolean;
-}> {
+  organizations?: API.OrganizationOption[];
+  selectedOrgSlug?: string;
+};
+
+/**
+ * @see https://umijs.org/docs/api/runtime-config#getinitialstate
+ * */
+export async function getInitialState(): Promise<InitialState> {
   const fetchUserInfo = async () => {
     try {
       const msg = await queryCurrentUser({
@@ -51,21 +58,31 @@ export async function getInitialState(): Promise<{
     }
     return undefined;
   };
+  const fetchOrganizations = async () => {
+    try {
+      return await getOrganizationSwitchList({
+        skipErrorHandler: true,
+      });
+    } catch (_error) {
+      return [];
+    }
+  };
   // 如果不是登录页面，执行
   const { location } = history;
   if (
-    ![
-      loginPath,
-      '/user/register',
-      '/user/register-result',
-    ].includes(
+    ![loginPath, '/user/register', '/user/register-result'].includes(
       location.pathname,
     )
   ) {
     const currentUser = await fetchUserInfo();
+    const organizations = currentUser ? await fetchOrganizations() : [];
+    const selectedOrgSlug = resolveSelectedOrgSlug(organizations);
+
     return {
       fetchUserInfo,
       currentUser,
+      organizations,
+      selectedOrgSlug,
       settings: defaultSettings as Partial<LayoutSettings>,
       settingDrawerOpen: false,
     };
@@ -99,6 +116,7 @@ export const layout: RunTimeLayoutConfig = ({
       const localeEnabled =
         (initialState?.settings as { locale?: boolean })?.locale !== false;
       return [
+        <OrgSwitcher key="org-switcher" />,
         <DocLink key="doc" />,
         <VersionDropdown key="version" />,
         localeEnabled && <LangDropdown key="lang" />,

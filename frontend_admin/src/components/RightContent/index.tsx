@@ -4,11 +4,18 @@ import {
   ForkOutlined,
   GlobalOutlined,
 } from '@ant-design/icons';
-import { getAllLocales, getLocale, history, setLocale } from '@umijs/max';
+import {
+  getAllLocales,
+  getLocale,
+  history,
+  setLocale,
+  useModel,
+} from '@umijs/max';
 import type { MenuProps } from 'antd';
-import { Button, Tooltip } from 'antd';
+import { Button, Select, Tooltip } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { useMemo } from 'react';
+import { setSelectedOrgSlug } from '@/utils/orgSelection';
 import HeaderDropdown from '../HeaderDropdown';
 
 export const localeLabelMap: Record<string, { emoji: string; label: string }> =
@@ -34,7 +41,47 @@ const useStyles = createStyles(({ token, css }) => ({
     padding-block: 0 !important;
     border-radius: ${token.borderRadius}px !important;
   `,
+  orgSwitcher: css`
+    min-width: 180px;
+
+    .ant-select-selector {
+      border-radius: ${token.borderRadius}px !important;
+    }
+  `,
 }));
+
+export const OrgSwitcher: React.FC = () => {
+  const { styles } = useStyles();
+  const { initialState, setInitialState } = useModel('@@initialState');
+  const organizations = initialState?.organizations || [];
+
+  if (organizations.length === 0) {
+    return null;
+  }
+
+  return (
+    <Select
+      allowClear
+      aria-label="选择租户"
+      className={styles.orgSwitcher}
+      options={organizations.map((item) => ({
+        label: item.name,
+        value: item.slug,
+      }))}
+      placeholder="选择租户"
+      popupMatchSelectWidth={false}
+      size="middle"
+      value={initialState?.selectedOrgSlug}
+      onChange={(value) => {
+        const nextSlug = setSelectedOrgSlug(value);
+        setInitialState((state) => ({
+          ...state,
+          selectedOrgSlug: nextSlug,
+        }));
+      }}
+    />
+  );
+};
 
 export const DocLink: React.FC = () => {
   const { styles } = useStyles();

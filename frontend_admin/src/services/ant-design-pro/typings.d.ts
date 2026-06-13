@@ -39,6 +39,14 @@ declare namespace API {
     phoneNationalNumber?: string;
   };
 
+  type OrganizationOption = {
+    id: number;
+    name: string;
+    slug: string;
+    isCurrent: boolean;
+    isPrimary: boolean;
+  };
+
   type LoginResult = {
     status?: string;
     type?: string;

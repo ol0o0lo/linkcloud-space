@@ -1,6 +1,7 @@
 import { message, notification } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { errorConfig } from './requestErrorConfig';
+import { setSelectedOrgSlug } from './utils/orgSelection';
 
 const { mockHistoryPush, mockRequest } = vi.hoisted(() => ({
   mockHistoryPush: vi.fn(),
@@ -35,6 +36,7 @@ describe('requestErrorConfig', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    setSelectedOrgSlug(undefined);
   });
 
   describe('errorThrower', () => {
@@ -286,6 +288,7 @@ describe('requestErrorConfig', () => {
         writable: true,
         value: 'csrftoken=test-token',
       });
+      setSelectedOrgSlug('acme');
 
       const config = {
         headers: {},
@@ -299,6 +302,7 @@ describe('requestErrorConfig', () => {
       expect(result.headers).toEqual(
         expect.objectContaining({
           'X-CSRFToken': 'test-token',
+          'X-Org-Slug': 'acme',
         }),
       );
       expect(mockRequest).not.toHaveBeenCalled();
@@ -346,6 +350,7 @@ describe('requestErrorConfig', () => {
         writable: true,
         value: 'csrftoken=test-token',
       });
+      setSelectedOrgSlug('acme');
 
       const config = {
         headers: {},
@@ -356,8 +361,22 @@ describe('requestErrorConfig', () => {
       const result = await interceptor(config);
 
       expect(result.credentials).toBeUndefined();
-      expect(result.headers).toEqual({});
+      expect(result.headers).toEqual({
+        'X-Org-Slug': 'acme',
+      });
       expect(mockRequest).not.toHaveBeenCalled();
+    });
+
+    it('should not inject X-Org-Slug when no organization is selected', async () => {
+      const config = {
+        headers: {},
+        method: 'GET',
+        url: '/api/users/me/',
+      };
+
+      const result = await interceptor(config);
+
+      expect(result.headers).toEqual({});
     });
   });
 });

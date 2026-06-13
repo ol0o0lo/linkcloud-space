@@ -2,6 +2,7 @@ import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
 import { message, notification } from 'antd';
+import { getSelectedOrgSlug } from './utils/orgSelection';
 
 const LOGIN_PATH = '/user/login';
 const ALLAUTH_BROWSER_BASE = '/api/allauth/browser/v1';
@@ -124,8 +125,17 @@ export const errorConfig: RequestConfig = {
   // 请求拦截器
   requestInterceptors: [
     async (config: RequestOptions) => {
+      const selectedOrgSlug = getSelectedOrgSlug();
+      const headers = {
+        ...(config.headers || {}),
+        ...(selectedOrgSlug ? { 'X-Org-Slug': selectedOrgSlug } : {}),
+      };
+
       if (isSafeMethod(config.method)) {
-        return config;
+        return {
+          ...config,
+          headers,
+        };
       }
 
       const csrfToken = await ensureCsrfToken();
@@ -134,7 +144,7 @@ export const errorConfig: RequestConfig = {
         ...config,
         credentials: 'include',
         headers: {
-          ...(config.headers || {}),
+          ...headers,
           'X-CSRFToken': csrfToken,
         },
       };
