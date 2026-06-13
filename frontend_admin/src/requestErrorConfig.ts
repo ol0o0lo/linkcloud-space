@@ -1,9 +1,38 @@
 import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
-import { getIntl, history } from '@umijs/max';
+import { getIntl, history, request } from '@umijs/max';
 import { message, notification } from 'antd';
 
 const LOGIN_PATH = '/user/login';
+const ALLAUTH_BROWSER_BASE = '/api/allauth/browser/v1';
+
+function getCookie(name: string) {
+  if (typeof document === 'undefined') {
+    return '';
+  }
+  const cookie = document.cookie
+    .split('; ')
+    .find((item) => item.startsWith(`${name}=`));
+  return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : '';
+}
+
+async function ensureCsrfToken() {
+  let token = getCookie('csrftoken');
+  if (!token) {
+    await request(`${ALLAUTH_BROWSER_BASE}/config`, {
+      method: 'GET',
+      credentials: 'include',
+      skipErrorHandler: true,
+    } as any);
+    token = getCookie('csrftoken');
+  }
+  return token;
+}
+
+function isSafeMethod(method?: string) {
+  const normalized = (method || 'GET').toUpperCase();
+  return ['GET', 'HEAD', 'OPTIONS'].includes(normalized);
+}
 
 // 错误处理方案： 错误类型
 enum ErrorShowType {
@@ -94,14 +123,21 @@ export const errorConfig: RequestConfig = {
 
   // 请求拦截器
   requestInterceptors: [
-    (config: RequestOptions) => {
-      // 拦截请求配置，进行个性化处理。
-      // 示例：为请求附加 token（按需启用）
-      // const token = localStorage.getItem('token');
-      // if (token) {
-      //   config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
-      // }
-      return config;
+    async (config: RequestOptions) => {
+      if (isSafeMethod(config.method)) {
+        return config;
+      }
+
+      const csrfToken = await ensureCsrfToken();
+
+      return {
+        ...config,
+        credentials: 'include',
+        headers: {
+          ...(config.headers || {}),
+          'X-CSRFToken': csrfToken,
+        },
+      };
     },
   ],
 

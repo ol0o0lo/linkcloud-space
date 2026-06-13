@@ -2,6 +2,11 @@ import { message, notification } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { errorConfig } from './requestErrorConfig';
 
+const { mockHistoryPush, mockRequest } = vi.hoisted(() => ({
+  mockHistoryPush: vi.fn(),
+  mockRequest: vi.fn(),
+}));
+
 vi.mock('antd', () => ({
   message: {
     warning: vi.fn(),
@@ -16,6 +21,10 @@ vi.mock('@umijs/max', () => ({
   getIntl: vi.fn(() => ({
     formatMessage: vi.fn(({ defaultMessage }) => defaultMessage),
   })),
+  history: {
+    push: mockHistoryPush,
+  },
+  request: mockRequest,
 }));
 
 describe('requestErrorConfig', () => {
@@ -158,7 +167,7 @@ describe('requestErrorConfig', () => {
 
       errorHandler(error, {});
 
-      // REDIRECT 分支不应触发任何消息/通知提示
+      expect(mockHistoryPush).toHaveBeenCalledWith('/user/login');
       expect(message.warning).not.toHaveBeenCalled();
       expect(message.error).not.toHaveBeenCalled();
       expect(notification.open).not.toHaveBeenCalled();
@@ -240,29 +249,115 @@ describe('requestErrorConfig', () => {
     // The interceptor is registered as a plain function (not a tuple),
     // so narrow the union type to a callable for the test.
     const interceptor = errorConfig.requestInterceptors?.[0] as (config: {
+      credentials?: string;
+      headers?: Record<string, string>;
       url?: string;
       method?: string;
-    }) => { url?: string };
+    }) => Promise<{
+      credentials?: string;
+      headers?: Record<string, string>;
+      url?: string;
+    }>;
 
-    it('should pass through config without modification', () => {
+    it('should pass through config without modification', async () => {
       const config = {
         url: 'https://api.example.com/users',
         method: 'GET',
       };
 
-      const result = interceptor(config);
+      const result = await interceptor(config);
 
       // Token attachment is intentionally commented out in the source;
       // interceptor currently returns config as-is
       expect(result.url).toBe('https://api.example.com/users');
     });
 
-    it('should handle URL without config', () => {
+    it('should handle URL without config', async () => {
       const config = {};
 
-      const result = interceptor(config);
+      const result = await interceptor(config);
 
       expect(result.url).toBeUndefined();
+    });
+
+    it('should attach csrf token and credentials to mutating requests', async () => {
+      Object.defineProperty(document, 'cookie', {
+        configurable: true,
+        writable: true,
+        value: 'csrftoken=test-token',
+      });
+
+      const config = {
+        headers: {},
+        method: 'POST',
+        url: '/api/users/me/avatar/',
+      };
+
+      const result = await interceptor(config);
+
+      expect(result.credentials).toBe('include');
+      expect(result.headers).toEqual(
+        expect.objectContaining({
+          'X-CSRFToken': 'test-token',
+        }),
+      );
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+
+    it('should fetch csrf token when missing for mutating requests', async () => {
+      Object.defineProperty(document, 'cookie', {
+        configurable: true,
+        writable: true,
+        value: '',
+      });
+      mockRequest.mockImplementationOnce(async (url: string) => {
+        if (url === '/api/allauth/browser/v1/config') {
+          document.cookie = 'csrftoken=fetched-token';
+        }
+        return { status: 200 };
+      });
+
+      const config = {
+        headers: {},
+        method: 'PATCH',
+        url: '/api/users/7/',
+      };
+
+      const result = await interceptor(config);
+
+      expect(mockRequest).toHaveBeenCalledWith(
+        '/api/allauth/browser/v1/config',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'GET',
+        }),
+      );
+      expect(result.headers).toEqual(
+        expect.objectContaining({
+          'X-CSRFToken': 'fetched-token',
+        }),
+      );
+      expect(result.credentials).toBe('include');
+    });
+
+    it('should skip csrf injection for safe methods', async () => {
+      Object.defineProperty(document, 'cookie', {
+        configurable: true,
+        writable: true,
+        value: 'csrftoken=test-token',
+      });
+
+      const config = {
+        headers: {},
+        method: 'GET',
+        url: '/api/users/me/',
+      };
+
+      const result = await interceptor(config);
+
+      expect(result.credentials).toBeUndefined();
+      expect(result.headers).toEqual({});
+      expect(mockRequest).not.toHaveBeenCalled();
     });
   });
 });
