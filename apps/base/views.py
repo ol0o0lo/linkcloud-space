@@ -28,6 +28,8 @@ def _rewrite_index_asset_urls(content: bytes, asset_subdir: str | None = None) -
     def replace_asset_url(match: re.Match[str]) -> str:
         attr = match.group("attr")
         url = match.group("url")
+        if url.startswith(asset_prefix):
+            return f"{attr}{url}"
         relative_url = url.removeprefix("/").removeprefix("auto/")
         return f"{attr}{asset_prefix}{relative_url}"
 
@@ -55,12 +57,11 @@ def _static_index_response(
     get_token(request)
     return HttpResponse(content, content_type="text/html; charset=utf-8")
 
-
 class DashboardSPAView(generic.View):
     def get(self, request, *args, **kwargs):
         return _static_index_response(
             request,
-            "public/static/dist/admin/index.html",
+            "public/static/dist/admin/dashboard/index.html",
             "Admin frontend not built. Run `just build_admin`.",
             asset_subdir="dist/admin",
         )

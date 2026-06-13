@@ -34,10 +34,10 @@ class TestDashboardAndH5Entrypoints(SimpleTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, expected_body, html=False)
 
-    def test_dashboard_returns_admin_index(self):
+    def test_dashboard_returns_dashboard_scoped_index(self):
         self._assert_static_index_route(
             "/dashboard/",
-            "public/static/dist/admin/index.html",
+            "public/static/dist/admin/dashboard/index.html",
             "<html>admin</html>",
         )
 
@@ -51,7 +51,7 @@ class TestDashboardAndH5Entrypoints(SimpleTestCase):
     def test_dashboard_rewrites_frontend_asset_urls_to_static_url(self):
         with TemporaryDirectory() as tmp_dir:
             base_dir = Path(tmp_dir)
-            index_path = base_dir / "public/static/dist/admin/index.html"
+            index_path = base_dir / "public/static/dist/admin/dashboard/index.html"
             index_path.parent.mkdir(parents=True, exist_ok=True)
             index_path.write_text(
                 '<link rel="stylesheet" href="/umi.css"><script src="auto/scripts/loading.js"></script><script src="//example.com/analytics.js"></script>',
@@ -66,3 +66,22 @@ class TestDashboardAndH5Entrypoints(SimpleTestCase):
         self.assertIn('href="/public/static/dist/admin/umi.css"', html)
         self.assertIn('src="/public/static/dist/admin/scripts/loading.js"', html)
         self.assertIn('src="//example.com/analytics.js"', html)
+
+    def test_dashboard_keeps_prefixed_asset_urls_unchanged(self):
+        with TemporaryDirectory() as tmp_dir:
+            base_dir = Path(tmp_dir)
+            index_path = base_dir / "public/static/dist/admin/dashboard/index.html"
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            index_path.write_text(
+                '<link rel="stylesheet" href="/public/static/dist/admin/umi.css"><script src="/public/static/dist/admin/umi.js"></script>',
+                encoding="utf-8",
+            )
+
+            with override_settings(BASE_DIR=base_dir, STATIC_URL="/public/static/"):
+                resp = self.client.get("/dashboard/")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn('href="/public/static/dist/admin/umi.css"', html)
+        self.assertIn('src="/public/static/dist/admin/umi.js"', html)
+        self.assertNotIn("/public/static/dist/admin/public/static/dist/admin/", html)

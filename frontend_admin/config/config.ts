@@ -33,7 +33,9 @@ const commitHash =
  */
 const PUBLIC_PATH: string =
   process.env.NODE_ENV === 'production'
-    ? (process.env.PUBLIC_PATH ?? 'auto')
+    // Django 固定从 /public/static/dist/admin/ 提供后台静态资源；
+    // 这里不能继续用 `auto`，否则根路径资源和运行时拆包地址容易漂回主站根目录。
+    ? (process.env.PUBLIC_PATH ?? '/public/static/dist/admin/')
     : '/';
 
 export default defineConfig({
@@ -47,6 +49,7 @@ export default defineConfig({
    */
   hash: true,
 
+  base: '/dashboard/',
   publicPath: PUBLIC_PATH,
 
   /**
@@ -118,7 +121,7 @@ export default defineConfig({
    * @name layout 插件
    * @doc https://umijs.org/docs/max/layout-menu
    */
-  title: 'Ant Design Pro',
+  title: 'LinkCloud Space',
   layout: {
     locale: true,
     ...defaultSettings,
