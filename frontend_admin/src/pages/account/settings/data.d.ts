@@ -28,6 +28,8 @@ export type CurrentUser = {
   userid: string;
   notice: NoticeType[];
   email: string;
+  phoneCountryCode?: string;
+  phoneNationalNumber?: string;
   signature: string;
   title: string;
   group: string;
