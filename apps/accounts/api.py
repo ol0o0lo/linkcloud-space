@@ -33,6 +33,7 @@ from apps.accounts.schemas import (
     RealNameVerificationDetailOut,
     RealNameVerificationOut,
     ResetMfaOut,
+    SocialBindingsOut,
     TotpSetupOut,
     UserOut,
     UserPatchIn,
@@ -115,6 +116,31 @@ def get_me(request):
         "timezone": request.user.timezone,
         "username": request.user.username,
         **profile_fallback,
+    }
+
+
+@users_router.get("/me/social-bindings/", response=SocialBindingsOut, summary="获取当前用户社交账号绑定状态")
+def get_social_bindings(request):
+    """返回管理端账号绑定页需要展示的当前用户社交绑定状态。"""
+    require_authenticated(request)
+    from allauth.socialaccount.models import SocialAccount
+
+    connected_providers = set(
+        SocialAccount.objects.filter(user=request.user, provider__in=["github", "weixin"]).values_list("provider", flat=True)
+    )
+    return {
+        "items": [
+            {
+                "provider": "github",
+                "label": "GitHub",
+                "connected": "github" in connected_providers,
+            },
+            {
+                "provider": "weixin",
+                "label": "微信",
+                "connected": "weixin" in connected_providers,
+            },
+        ]
     }
 
 

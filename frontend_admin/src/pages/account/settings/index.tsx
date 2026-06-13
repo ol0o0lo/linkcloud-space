@@ -13,6 +13,15 @@ type SettingsState = {
   selectKey: SettingsStateKeys;
 };
 
+const isSettingsTab = (value: string | null): value is SettingsStateKeys => {
+  return value === 'base' || value === 'security' || value === 'binding' || value === 'notification';
+};
+
+const getInitialSelectKey = (): SettingsStateKeys => {
+  const tab = new URLSearchParams(window.location.search).get('tab');
+  return isSettingsTab(tab) ? tab : 'base';
+};
+
 const SettingsContent: React.FC<{ selectKey: SettingsStateKeys }> = ({
   selectKey,
 }) => {
@@ -40,7 +49,7 @@ const Settings: React.FC = () => {
   };
   const [initConfig, setInitConfig] = useState<SettingsState>({
     mode: 'inline',
-    selectKey: 'base',
+    selectKey: getInitialSelectKey(),
   });
   const dom = useRef<HTMLDivElement>(null);
 
@@ -75,6 +84,13 @@ const Settings: React.FC = () => {
       window.removeEventListener('resize', handler);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', initConfig.selectKey);
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+  }, [initConfig.selectKey]);
+
   const getMenu = () => {
     return Object.keys(menuMap).map((item) => ({
       key: item,

@@ -69,6 +69,16 @@ class AvatarOut(Schema):
     avatar_url: str | None
 
 
+class SocialBindingItemOut(Schema):
+    provider: str
+    label: str
+    connected: bool
+
+
+class SocialBindingsOut(Schema):
+    items: list[SocialBindingItemOut]
+
+
 class WechatPhoneIn(Schema):
     phone_code: str = Field(..., description="微信小程序获取手机号接口返回的 phone code。")
 
