@@ -25,7 +25,6 @@ class User(AbstractUser):
     avatar_original = models.ImageField(upload_to=avatar_original_path, blank=True)
     avatar_thumbnail = models.ImageField(upload_to=avatar_thumbnail_path, blank=True)
     avatar_crop_data = models.JSONField(blank=True, null=True)
-    phone = models.CharField(max_length=20, unique=True, null=True, blank=True)
     phone_country_code = models.CharField(max_length=8, blank=True, default="")
     phone_national_number = models.CharField(max_length=32, blank=True, default="")
     phone_verified = models.BooleanField(default=False)
@@ -50,20 +49,32 @@ class User(AbstractUser):
                 ZoneInfo(self.timezone)
             except (ZoneInfoNotFoundError, KeyError) as err:
                 raise ValidationError({"timezone": f"Invalid timezone: {self.timezone}"}) from err
-        self._sync_phone_fields()
+        self._normalize_phone_parts()
 
     def save(self, *args, **kwargs):
-        changed_fields = self._sync_phone_fields()
+        changed_fields = self._normalize_phone_parts()
         update_fields = kwargs.get("update_fields")
         if update_fields is not None and changed_fields:
             kwargs["update_fields"] = set(update_fields) | changed_fields
         super().save(*args, **kwargs)
 
     def set_phone_number(self, phone: str | None, verified: bool | None = None) -> None:
-        self.phone = normalize_phone(phone)
+        country_code, national_number = split_phone(phone)
+        self.phone_country_code = country_code
+        self.phone_national_number = national_number
         if verified is not None:
             self.phone_verified = verified
-        self._sync_phone_fields()
+        self._normalize_phone_parts()
+
+    @property
+    def phone(self) -> str | None:
+        return compose_phone(self.phone_country_code, self.phone_national_number)
+
+    @phone.setter
+    def phone(self, value: str | None) -> None:
+        country_code, national_number = split_phone(value)
+        self.phone_country_code = country_code
+        self.phone_national_number = national_number
 
     @property
     def avatar_url(self):
@@ -71,21 +82,15 @@ class User(AbstractUser):
             return self.avatar_thumbnail.url
         return None
 
-    def _sync_phone_fields(self) -> set[str]:
+    def _normalize_phone_parts(self) -> set[str]:
         old_values = {
-            "phone": self.phone,
             "phone_country_code": self.phone_country_code,
             "phone_national_number": self.phone_national_number,
         }
-        if self.phone:
-            country_code, national_number = split_phone(self.phone)
-            self.phone_country_code = country_code
-            self.phone_national_number = national_number
-            self.phone = compose_phone(country_code, national_number)
-        else:
-            self.phone = None
+        self.phone_country_code = (self.phone_country_code or "").strip().replace(" ", "")
+        self.phone_national_number = (self.phone_national_number or "").strip().replace(" ", "").replace("-", "")
+        if not self.phone_national_number:
             self.phone_country_code = ""
-            self.phone_national_number = ""
         return {field for field, old_value in old_values.items() if getattr(self, field) != old_value}
 
 

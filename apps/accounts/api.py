@@ -106,7 +106,6 @@ def get_me(request):
         "is_staff": request.user.is_staff,
         "is_superuser": request.user.is_superuser,
         "last_name": request.user.last_name,
-        "phone": request.user.phone,
         "phone_country_code": request.user.phone_country_code,
         "phone_national_number": request.user.phone_national_number,
         "phone_verified": request.user.phone_verified,
@@ -242,7 +241,11 @@ def bind_wechat_phone(request, payload: WechatPhoneIn):
         user, merged = bind_phone_to_user(request, request.user, phone)
     except ValueError as e:
         raise HttpError(400, str(e)) from e
-    return {"phone": phone, "merged": merged}
+    return {
+        "phone_country_code": user.phone_country_code,
+        "phone_national_number": user.phone_national_number,
+        "merged": merged,
+    }
 
 
 @users_router.get("/me/mfa/totp-setup/", response=TotpSetupOut, summary="获取 TOTP 初始化信息")
@@ -365,7 +368,7 @@ def unbind_user_phone(request, user_id: int):
     user = _get_admin_user(request, user_id)
     user.set_phone_number(None)
     user.phone_verified = False
-    user.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
+    user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
     return Status(204, None)
 
 

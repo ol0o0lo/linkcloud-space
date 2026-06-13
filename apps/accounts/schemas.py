@@ -16,7 +16,8 @@ class UserOut(Schema):
 
 class AdminUserOut(UserOut):
     email: str = ""
-    phone: str | None = None
+    phone_country_code: str = ""
+    phone_national_number: str = ""
     phone_verified: bool
     is_active: bool
     is_staff: bool
@@ -31,7 +32,6 @@ class MeOut(Schema):
     last_name: str
     timezone: str
     avatar_url: str | None
-    phone: str | None
     phone_country_code: str = ""
     phone_national_number: str = ""
     phone_verified: bool
@@ -74,7 +74,8 @@ class WechatPhoneIn(Schema):
 
 
 class WechatPhoneOut(Schema):
-    phone: str
+    phone_country_code: str
+    phone_national_number: str
     merged: bool
 
 
@@ -93,7 +94,8 @@ class AdminUserCreateIn(Schema):
     first_name: str = Field("", description="名字。")
     last_name: str = Field("", description="姓氏。")
     timezone: str = Field("Asia/Shanghai", description="时区。")
-    phone: str | None = Field(None, description="手机号。")
+    phone_country_code: str = Field("", description="手机号国家区号。")
+    phone_national_number: str = Field("", description="手机号本地号码。")
     phone_verified: bool = Field(False, description="手机号是否已验证。")
     is_active: bool = Field(True, description="是否启用。")
     is_staff: bool = Field(False, description="是否为管理员。")
@@ -107,7 +109,8 @@ class AdminUserPatchIn(Schema):
     first_name: str | None = Field(None, description="名字。")
     last_name: str | None = Field(None, description="姓氏。")
     timezone: str | None = Field(None, description="时区。")
-    phone: str | None = Field(None, description="手机号。")
+    phone_country_code: str | None = Field(None, description="手机号国家区号。")
+    phone_national_number: str | None = Field(None, description="手机号本地号码。")
     phone_verified: bool | None = Field(None, description="手机号是否已验证。")
     is_active: bool | None = Field(None, description="是否启用。")
     is_staff: bool | None = Field(None, description="是否为管理员。")

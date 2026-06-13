@@ -34,7 +34,7 @@ def test_users_me_returns_current_user_for_existing_session(client):
     assert payload["last_name"] == "Lovelace"
     assert payload["email"] == "admin@example.com"
     assert payload["is_staff"] is True
-    assert payload["phone"] == "+8617688363534"
+    assert "phone" not in payload
     assert payload["phone_country_code"] == "+86"
     assert payload["phone_national_number"] == "17688363534"
     assert payload["phone_verified"] is True

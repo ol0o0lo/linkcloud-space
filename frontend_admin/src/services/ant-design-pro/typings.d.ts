@@ -32,7 +32,6 @@ declare namespace API {
     country?: string;
     access?: string;
     notice?: CurrentUserNotice[];
-    phone?: string;
     phoneCountryCode?: string;
     phoneNationalNumber?: string;
   };

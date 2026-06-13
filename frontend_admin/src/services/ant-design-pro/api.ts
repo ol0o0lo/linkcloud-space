@@ -15,7 +15,6 @@ type MeResponse = {
   last_name?: string;
   notify_count?: number;
   notice?: API.CurrentUserNotice[];
-  phone?: string | null;
   phone_country_code?: string;
   phone_national_number?: string;
   signature?: string;
@@ -73,7 +72,6 @@ function mapMeToCurrentUser(user: MeResponse): API.CurrentUser {
     group: isAdmin ? '后台管理' : '普通用户',
     signature: user.signature || '',
     notice: user.notice || [],
-    phone: user.phone || '',
     phoneCountryCode: user.phone_country_code || '',
     phoneNationalNumber: user.phone_national_number || '',
     tags: user.tags || [],

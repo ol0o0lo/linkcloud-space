@@ -22,7 +22,8 @@ class TestAdminUserLifecycleAPI(TestCase):
             username="member",
             email="member@example.com",
             password="secret",  # noqa: S106
-            phone="+8613800000000",
+            phone_country_code="+86",
+            phone_national_number="13800000000",
             phone_verified=True,
         )
         self.client.force_login(self.admin)
@@ -158,7 +159,8 @@ class TestAdminUserLifecycleAPI(TestCase):
                     "first_name": "New",
                     "last_name": "Admin",
                     "timezone": "Asia/Shanghai",
-                    "phone": "+8613900009999",
+                    "phone_country_code": "+86",
+                    "phone_national_number": "13900009999",
                     "phone_verified": True,
                     "is_active": True,
                     "is_staff": True,
@@ -172,7 +174,6 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertEqual(resp.status_code, 200, resp.content)
         created = User.objects.get(username="new-admin-user")
         self.assertEqual(created.email, "new-admin@example.com")
-        self.assertEqual(created.phone, "+8613900009999")
         self.assertEqual(created.phone_country_code, "+86")
         self.assertEqual(created.phone_national_number, "13900009999")
         self.assertTrue(created.is_staff)

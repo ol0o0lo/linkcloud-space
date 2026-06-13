@@ -28,7 +28,6 @@ export type CurrentUser = {
   notifyCount: number;
   unreadCount: number;
   country: string;
-  phone: string;
   phoneCountryCode: string;
   phoneNationalNumber: string;
 };

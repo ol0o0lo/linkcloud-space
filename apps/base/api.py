@@ -25,7 +25,8 @@ class AppContextUserOut(Schema):
     timezone: str
     timezone_display: str
     avatar_url: str | None
-    phone: str | None
+    phone_country_code: str
+    phone_national_number: str
     phone_verified: bool
     real_name_status: str
     real_name_masked: str = ""
@@ -98,7 +99,8 @@ def app_context(request):
             "timezone": user.timezone,
             "timezone_display": get_timezone_label(user.timezone),
             "avatar_url": user.avatar_url,
-            "phone": user.phone,
+            "phone_country_code": user.phone_country_code,
+            "phone_national_number": user.phone_national_number,
             "phone_verified": user.phone_verified,
             "real_name_status": user.real_name_status,
             "real_name_masked": user.real_name_masked,

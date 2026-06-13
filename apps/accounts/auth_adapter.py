@@ -46,7 +46,7 @@ class AccountAdapter(DefaultAccountAdapter):
     def set_phone(self, user, phone, verified):
         """Store phone number and verification status on the user."""
         user.set_phone_number(phone, verified)
-        user.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
+        user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
 
     def get_user_by_phone(self, phone):
         """
@@ -63,13 +63,13 @@ class AccountAdapter(DefaultAccountAdapter):
         """
         from allauth.core import context
 
-        from apps.accounts.models import User, normalize_phone
+        from apps.accounts.models import User, split_phone
 
-        normalized_phone = normalize_phone(phone)
-        if not normalized_phone:
+        country_code, national_number = split_phone(phone)
+        if not national_number:
             return None
         try:
-            return User.objects.get(phone=normalized_phone)
+            return User.objects.get(phone_country_code=country_code, phone_national_number=national_number)
         except User.DoesNotExist:
             pass
 
@@ -101,7 +101,7 @@ class AccountAdapter(DefaultAccountAdapter):
         if user.phone != normalize_phone(phone):
             user.set_phone_number(phone)
         user.phone_verified = True
-        update_fields = ["phone", "phone_country_code", "phone_national_number", "phone_verified"]
+        update_fields = ["phone_country_code", "phone_national_number", "phone_verified"]
         if not user.is_active:
             user.is_active = True
             update_fields.append("is_active")

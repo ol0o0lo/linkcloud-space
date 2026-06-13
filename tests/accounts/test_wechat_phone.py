@@ -172,7 +172,8 @@ def test_bind_new_phone_to_user(client, db):
 
     assert resp.status_code == 200, f"{resp.status_code}: {resp.content[:200]}"
     body = resp.json()
-    assert body["phone"] == "+8613800138000"
+    assert body["phone_country_code"] == "+86"
+    assert body["phone_national_number"] == "13800138000"
     assert body["merged"] is False
 
     user.refresh_from_db()
@@ -309,7 +310,8 @@ def test_bind_phone_merges_existing_account(client, db):
     assert resp.status_code == 200
     body = resp.json()
     assert body["merged"] is True
-    assert body["phone"] == "+8613800138000"
+    assert body["phone_country_code"] == "+86"
+    assert body["phone_national_number"] == "13800138000"
 
     # SocialAccount 已迁移到 user_b
     assert SocialAccount.objects.filter(uid="openid_abc", user=user_b).exists()

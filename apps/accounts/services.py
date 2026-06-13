@@ -96,10 +96,11 @@ def bind_phone_to_user(request, user, phone: str):
     from allauth.account.internal.flows.login import Login, perform_login
     from allauth.socialaccount.models import SocialAccount
 
-    from apps.accounts.models import normalize_phone
+    from apps.accounts.models import normalize_phone, split_phone
 
     User = get_user_model()
     phone = normalize_phone(phone)
+    country_code, national_number = split_phone(phone)
 
     if user.phone == phone:
         if not user.phone_verified:
@@ -107,16 +108,16 @@ def bind_phone_to_user(request, user, phone: str):
             user.save(update_fields=["phone_verified"])
         return user, False
 
-    existing = User.objects.filter(phone=phone).exclude(pk=user.pk).first()
+    existing = User.objects.filter(phone_country_code=country_code, phone_national_number=national_number).exclude(pk=user.pk).first()
     if existing:
         if not existing.phone_verified:
             with transaction.atomic():
                 existing.set_phone_number(None)
                 existing.phone_verified = False
-                existing.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
+                existing.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
                 user.set_phone_number(phone)
                 user.phone_verified = True
-                user.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
+                user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
             return user, False
         if not existing.is_active:
             raise ValueError("This phone number belongs to a disabled account.")
@@ -130,5 +131,5 @@ def bind_phone_to_user(request, user, phone: str):
     else:
         user.set_phone_number(phone)
         user.phone_verified = True
-        user.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
+        user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
         return user, False

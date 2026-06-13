@@ -7,9 +7,9 @@
 3. 提交验证码 → 登录完成
 """
 
+from unittest.mock import patch
+
 import pytest
-from allauth.account.models import EmailAddress
-from unittest.mock import patch, call
 
 
 @pytest.fixture(autouse=True)
