@@ -1,6 +1,4 @@
 import type { Request, Response } from 'express';
-import { defaultUser } from '../../../../mock/utils';
-
 const city = require('./geographic/city.json');
 const province = require('./geographic/province.json');
 
@@ -17,14 +15,7 @@ function getCity(req: Request, res: Response) {
   });
 }
 
-function getCurrentUse(_req: Request, res: Response) {
-  return res.json({
-    data: defaultUser,
-  });
-}
-
 export default {
-  'GET  /api/users/me/': getCurrentUse,
   'GET  /api/mock/geographic/province': getProvince,
   'GET  /api/mock/geographic/city/:province': getCity,
 };
