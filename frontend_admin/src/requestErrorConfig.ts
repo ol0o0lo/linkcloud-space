@@ -1,7 +1,9 @@
-﻿import type { RequestOptions } from '@@/plugin-request/request';
+import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
-import { getIntl } from '@umijs/max';
+import { getIntl, history } from '@umijs/max';
 import { message, notification } from 'antd';
+
+const LOGIN_PATH = '/user/login';
 
 // 错误处理方案： 错误类型
 enum ErrorShowType {
@@ -32,7 +34,7 @@ export const errorConfig: RequestConfig = {
     errorThrower: (res) => {
       const { success, data, errorCode, errorMessage, showType } =
         res as unknown as ResponseStructure;
-      if (!success) {
+      if (success === false) {
         const error: any = new Error(errorMessage);
         error.name = 'BizError';
         error.info = { errorCode, errorMessage, showType, data };
@@ -64,7 +66,7 @@ export const errorConfig: RequestConfig = {
               });
               break;
             case ErrorShowType.REDIRECT:
-              window.location.href = '/user/login';
+              history.push(LOGIN_PATH);
               break;
             default:
               message.error(errorMessage);

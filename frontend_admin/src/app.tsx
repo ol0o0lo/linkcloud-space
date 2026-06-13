@@ -22,6 +22,7 @@ import {
 import { currentUser as queryCurrentUser } from '@/services/ant-design-pro/api';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
+import logoUrl from '../public/logo.svg';
 
 const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
@@ -53,7 +54,11 @@ export async function getInitialState(): Promise<{
   // 如果不是登录页面，执行
   const { location } = history;
   if (
-    ![loginPath, '/user/register', '/user/register-result'].includes(
+    ![
+      loginPath,
+      '/user/register',
+      '/user/register-result',
+    ].includes(
       location.pathname,
     )
   ) {
@@ -101,11 +106,12 @@ export const layout: RunTimeLayoutConfig = ({
     },
     avatarProps: {
       src: initialState?.currentUser?.avatar,
-      title: 'ProUser',
+      title: initialState?.currentUser?.name ?? '用户',
       render: (_, avatarChildren) => (
         <AvatarDropdown>{avatarChildren}</AvatarDropdown>
       ),
     },
+    logo: logoUrl,
     // waterMarkProps: {
     //   content: initialState?.currentUser?.name,
     // },
@@ -190,7 +196,8 @@ export const layout: RunTimeLayoutConfig = ({
  * @doc https://umijs.org/docs/max/request#配置
  */
 export const request: RequestConfig = {
-  baseURL: isDev ? '' : 'https://pro-api.ant-design-demo.workers.dev',
+  baseURL: '',
+  withCredentials: true,
   ...errorConfig,
 };
 
