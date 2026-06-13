@@ -4,16 +4,16 @@ from apps.accounts.models import User
 
 
 @pytest.mark.django_db
-def test_current_user_requires_login(client):
-    response = client.get("/api/currentUser")
+def test_users_me_requires_login(client):
+    response = client.get("/api/users/me/")
 
     assert response.status_code == 401
-    assert response.json()["data"]["isLogin"] is False
+    assert response.json()["detail"] == "Unauthorized"
 
 
 @pytest.mark.django_db
-def test_account_login_creates_session_and_returns_current_user(client):
-    User.objects.create_user(
+def test_users_me_returns_current_user_for_existing_session(client):
+    user = User.objects.create_user(
         username="admin",
         email="admin@example.com",
         password="secret123",  # noqa: S106
@@ -21,61 +21,31 @@ def test_account_login_creates_session_and_returns_current_user(client):
         last_name="Lovelace",
         is_staff=True,
     )
+    client.force_login(user)
 
-    login_response = client.post(
-        "/api/login/account",
-        {"username": "admin", "password": "secret123", "type": "account"},
-        content_type="application/json",
-    )
-
-    assert login_response.status_code == 200
-    assert login_response.json() == {
-        "status": "ok",
-        "type": "account",
-        "currentAuthority": "admin",
-    }
-
-    current_response = client.get("/api/currentUser")
+    current_response = client.get("/api/users/me/")
 
     assert current_response.status_code == 200
     payload = current_response.json()
-    assert payload["success"] is True
-    assert payload["data"]["userid"] == "admin"
-    assert payload["data"]["name"] == "Ada Lovelace"
-    assert payload["data"]["email"] == "admin@example.com"
-    assert payload["data"]["access"] == "admin"
+    assert payload["username"] == "admin"
+    assert payload["first_name"] == "Ada"
+    assert payload["last_name"] == "Lovelace"
+    assert payload["email"] == "admin@example.com"
+    assert payload["is_staff"] is True
 
 
 @pytest.mark.django_db
-def test_account_login_rejects_invalid_credentials(client):
-    User.objects.create_user(
-        username="member",
-        email="member@example.com",
-        password="secret123",  # noqa: S106
-    )
-
-    response = client.post(
-        "/api/login/account",
-        {"username": "member", "password": "wrong", "type": "account"},
-        content_type="application/json",
-    )
+def test_allauth_headless_is_mounted_under_api(client):
+    response = client.get("/api/allauth/browser/v1/config")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "error",
-        "type": "account",
-        "currentAuthority": "guest",
-    }
-    assert client.get("/api/currentUser").status_code == 401
+    payload = response.json()
+    assert payload["status"] == 200
+    assert "account" in payload["data"]
 
 
 @pytest.mark.django_db
-def test_out_login_clears_session(client):
-    user = User.objects.create_user(username="member", password="secret123")  # noqa: S106
-    client.force_login(user)
-
-    response = client.post("/api/login/outLogin")
-
-    assert response.status_code == 200
-    assert response.json() == {"success": True, "data": {}}
-    assert client.get("/api/currentUser").status_code == 401
+def test_ant_design_pro_compat_endpoints_are_not_exposed(client):
+    assert client.get("/api/currentUser").status_code == 404
+    assert client.post("/api/login/account", {}, content_type="application/json").status_code == 404
+    assert client.post("/api/login/outLogin").status_code == 404

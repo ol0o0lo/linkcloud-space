@@ -1,7 +1,7 @@
 """
 allauth headless app 端（移动端）认证流程测试。
 
-使用 /_allauth/app/v1/ 路径，与浏览器端 /_allauth/browser/v1/ 区别在于：
+使用 /api/allauth/app/v1/ 路径，与浏览器端 /api/allauth/browser/v1/ 区别在于：
 - 无 CSRF 要求
 - 登录响应 body 里返回 session token
 - 后续请求用 X-Session-Token header 携带 token（不依赖 cookie）
@@ -38,7 +38,7 @@ def _app_auth_settings(settings):
 def test_app_login_returns_session_token(client, verified_user):
     """App 端登录成功后，响应 body 里应包含 session token。"""
     resp = client.post(
-        "/_allauth/app/v1/auth/login",
+        "/api/allauth/app/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
@@ -52,7 +52,7 @@ def test_app_login_returns_session_token(client, verified_user):
 def test_app_session_token_authenticates_allauth_endpoints(client, verified_user):
     """App 端登录后，用 X-Session-Token header 可以访问 allauth app 端点（如获取当前 session）。"""
     resp = client.post(
-        "/_allauth/app/v1/auth/login",
+        "/api/allauth/app/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
@@ -60,7 +60,7 @@ def test_app_session_token_authenticates_allauth_endpoints(client, verified_user
     session_token = resp.json()["meta"]["session_token"]
 
     # 用 session token 访问 allauth app 端点
-    session_resp = client.get("/_allauth/app/v1/auth/session", HTTP_X_SESSION_TOKEN=session_token)
+    session_resp = client.get("/api/allauth/app/v1/auth/session", HTTP_X_SESSION_TOKEN=session_token)
     assert session_resp.status_code == 200, session_resp.content
     assert session_resp.json()["data"]["user"]["email"] == verified_user.email
 
@@ -69,7 +69,7 @@ def test_app_session_token_authenticates_allauth_endpoints(client, verified_user
 def test_app_login_wrong_password_returns_400(client, verified_user):
     """错误密码登录应返回 400。"""
     resp = client.post(
-        "/_allauth/app/v1/auth/login",
+        "/api/allauth/app/v1/auth/login",
         data={"email": verified_user.email, "password": "wrongpassword"},
         content_type="application/json",
     )
@@ -80,13 +80,13 @@ def test_app_login_wrong_password_returns_400(client, verified_user):
 def test_app_logout_invalidates_session_token(client, verified_user):
     """App 端登出后，session token 应失效，无法再访问需认证的 API。"""
     resp = client.post(
-        "/_allauth/app/v1/auth/login",
+        "/api/allauth/app/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
     session_token = resp.json()["meta"]["session_token"]
 
-    client.delete("/_allauth/app/v1/auth/session", HTTP_X_SESSION_TOKEN=session_token)
+    client.delete("/api/allauth/app/v1/auth/session", HTTP_X_SESSION_TOKEN=session_token)
 
     api_resp = client.get("/api/users/me/", HTTP_X_SESSION_TOKEN=session_token)
     assert api_resp.status_code == 401, api_resp.content
@@ -100,7 +100,7 @@ def test_app_request_uses_x_org_slug_without_session_org(client, verified_user):
     DefaultSetting.objects.create(key="site_name", value="My SaaS", value_type="text", description="站点名称")
 
     resp = client.post(
-        "/_allauth/app/v1/auth/login",
+        "/api/allauth/app/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
@@ -129,7 +129,7 @@ def test_app_request_prefers_x_org_slug_over_session_org(client, verified_user):
     session.save()
 
     resp = client.post(
-        "/_allauth/app/v1/auth/login",
+        "/api/allauth/app/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )

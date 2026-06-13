@@ -8,9 +8,9 @@ from config.api import api as ninja_api
 
 urlpatterns: list[URLResolver | URLPattern] = [
     path("", RootLandingView.as_view(), name="root-landing"),
-    path("_allauth/", include("allauth.headless.urls")),
     path("accounts/", include("allauth.socialaccount.providers.github.urls")),
     path("accounts/", include("allauth.socialaccount.providers.weixin.urls")),
+    path("api/allauth/", include("allauth.headless.urls")),
     path("api/", ninja_api.urls),
     path("-/", include("django_alive.urls")),
     path("admin/", admin.site.urls),

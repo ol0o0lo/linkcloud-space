@@ -39,7 +39,7 @@ def browser_client():
 def test_weixin_redirect_returns_302(browser_client, db):
     """发起 weixin 登录返回重定向到微信开放平台授权页。"""
     resp = browser_client.post(
-        "/_allauth/browser/v1/auth/provider/redirect",
+        "/api/allauth/browser/v1/auth/provider/redirect",
         {
             "provider": "weixin",
             "callback_url": "http://localhost:5173/accounts/callback/",

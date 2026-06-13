@@ -51,5 +51,5 @@ function getCurrentUser(_req: Request, res: Response) {
 
 export default {
   'GET  /api/fake_list_Detail': getFakeList,
-  'GET  /api/currentUserDetail': getCurrentUser,
+  'GET  /api/users/me/': getCurrentUser,
 };

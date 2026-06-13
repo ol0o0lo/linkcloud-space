@@ -49,16 +49,16 @@ def test_wechat_miniprogram_provider_token_endpoint_reachable(client, db):
     """
     provider/token 端点接受 wechat_miniprogram 请求（验证 provider 已注册）。
 
-    小程序走 app 端（/_allauth/app/v1/auth/provider/token）。
+    小程序走 app 端（/api/allauth/app/v1/auth/provider/token）。
     此测试不 mock 微信 API，只验证端点存在且 provider 被识别（不返回 404/405）。
     """
     mock_resp = MagicMock()
     mock_resp.json.return_value = {"openid": "probe_openid", "session_key": "sk"}
     mock_resp.raise_for_status = MagicMock()
 
-    with patch("apps.accounts.providers.wechat_miniprogram.provider.http_requests.get", return_value=mock_resp):
+    with patch("apps.accounts.providers.wechat_miniprogram.client.requests.get", return_value=mock_resp):
         resp = client.post(
-            "/_allauth/app/v1/auth/provider/token",
+            "/api/allauth/app/v1/auth/provider/token",
             {
                 "provider": "wechat_miniprogram",
                 "process": "login",
@@ -79,11 +79,11 @@ def test_miniprogram_login_calls_jscode2session(client, db):
     mock_resp.raise_for_status = MagicMock()
 
     with patch(
-        "apps.accounts.providers.wechat_miniprogram.provider.http_requests.get",
+        "apps.accounts.providers.wechat_miniprogram.client.requests.get",
         return_value=mock_resp,
     ) as mock_get:
         client.post(
-            "/_allauth/app/v1/auth/provider/token",
+            "/api/allauth/app/v1/auth/provider/token",
             {
                 "provider": "wechat_miniprogram",
                 "process": "login",
@@ -109,11 +109,11 @@ def _mock_wx_login(client, openid, *, unionid=None):
     mock_resp.raise_for_status = MagicMock()
 
     with patch(
-        "apps.accounts.providers.wechat_miniprogram.provider.http_requests.get",
+        "apps.accounts.providers.wechat_miniprogram.client.requests.get",
         return_value=mock_resp,
     ):
         return client.post(
-            "/_allauth/app/v1/auth/provider/token",
+            "/api/allauth/app/v1/auth/provider/token",
             {
                 "provider": "wechat_miniprogram",
                 "process": "login",
@@ -193,11 +193,11 @@ def test_miniprogram_invalid_code_returns_error(client, db):
     mock_resp.raise_for_status = MagicMock()
 
     with patch(
-        "apps.accounts.providers.wechat_miniprogram.provider.http_requests.get",
+        "apps.accounts.providers.wechat_miniprogram.client.requests.get",
         return_value=mock_resp,
     ):
         resp = client.post(
-            "/_allauth/app/v1/auth/provider/token",
+            "/api/allauth/app/v1/auth/provider/token",
             {
                 "provider": "wechat_miniprogram",
                 "process": "login",

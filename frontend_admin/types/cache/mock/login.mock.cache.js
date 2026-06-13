@@ -1,5 +1,5 @@
 module.exports = {
-  'GET /api/currentUser': {
+  'GET /api/users/me/': {
     data: {
       name: 'Serati Ma',
       avatar: 'https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png',
@@ -315,8 +315,8 @@ module.exports = {
     pageSize: 20,
     current: 1,
   },
-  'POST /api/login/outLogin': { data: {}, success: true },
-  'POST /api/login/account': {
+  'POST /api/allauth/browser/v1/auth/session': { data: {}, success: true },
+  'POST /api/allauth/browser/v1/auth/login': {
     status: 'ok',
     type: 'account',
     currentAuthority: 'admin',

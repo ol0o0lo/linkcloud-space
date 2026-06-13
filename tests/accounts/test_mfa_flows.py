@@ -30,7 +30,7 @@ def _use_allauth_backend(settings):
 
 def _login(client, user):
     resp = client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/api/allauth/browser/v1/auth/login",
         data={"email": user.email, "password": "testpw123!"},
         content_type="application/json",
     )
@@ -40,7 +40,7 @@ def _login(client, user):
 @pytest.mark.django_db
 def test_totp_setup_returns_secret_and_url(client, verified_user):
     _login(client, verified_user)
-    resp = client.get("/_allauth/browser/v1/account/authenticators/totp")
+    resp = client.get("/api/allauth/browser/v1/account/authenticators/totp")
     assert resp.status_code == 404, resp.content
     body = resp.json()
     assert "secret" in body["meta"]
@@ -51,12 +51,12 @@ def test_totp_setup_returns_secret_and_url(client, verified_user):
 def test_totp_activate_then_login_requires_code(client, verified_user, mailoutbox):
     _login(client, verified_user)
 
-    setup = client.get("/_allauth/browser/v1/account/authenticators/totp").json()
+    setup = client.get("/api/allauth/browser/v1/account/authenticators/totp").json()
     secret = setup["meta"]["secret"]
     code = pyotp.TOTP(secret).now()
 
     activate = client.post(
-        "/_allauth/browser/v1/account/authenticators/totp",
+        "/api/allauth/browser/v1/account/authenticators/totp",
         data={"code": code},
         content_type="application/json",
     )
@@ -70,10 +70,10 @@ def test_totp_activate_then_login_requires_code(client, verified_user, mailoutbo
     ).exists()
 
     # Subsequent login returns 401 with a pending mfa_authenticate flow
-    client.post("/_allauth/browser/v1/auth/session", content_type="application/json")  # logout
+    client.post("/api/allauth/browser/v1/auth/session", content_type="application/json")  # logout
     client.cookies.clear()
     resp = client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/api/allauth/browser/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
@@ -84,7 +84,7 @@ def test_totp_activate_then_login_requires_code(client, verified_user, mailoutbo
     # Submitting the TOTP code completes the login
     code = pyotp.TOTP(secret).now()
     finish = client.post(
-        "/_allauth/browser/v1/auth/2fa/authenticate",
+        "/api/allauth/browser/v1/auth/2fa/authenticate",
         data={"code": code},
         content_type="application/json",
     )
@@ -105,7 +105,7 @@ def test_recovery_code_consumes_one(client, verified_user):
     assert len(unused_before) > 0
 
     resp = client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/api/allauth/browser/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
@@ -113,7 +113,7 @@ def test_recovery_code_consumes_one(client, verified_user):
 
     used = unused_before[0]
     finish = client.post(
-        "/_allauth/browser/v1/auth/2fa/authenticate",
+        "/api/allauth/browser/v1/auth/2fa/authenticate",
         data={"code": used},
         content_type="application/json",
     )
@@ -132,17 +132,17 @@ def test_authenticators_list(client, verified_user):
     RecoveryCodes.activate(verified_user)
 
     client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/api/allauth/browser/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
     client.post(
-        "/_allauth/browser/v1/auth/2fa/authenticate",
+        "/api/allauth/browser/v1/auth/2fa/authenticate",
         data={"code": pyotp.TOTP(secret).now()},
         content_type="application/json",
     )
 
-    resp = client.get("/_allauth/browser/v1/account/authenticators")
+    resp = client.get("/api/allauth/browser/v1/account/authenticators")
     assert resp.status_code == 200, resp.content
     types = {a["type"] for a in resp.json()["data"]}
     assert "totp" in types
@@ -151,7 +151,7 @@ def test_authenticators_list(client, verified_user):
 
 @pytest.mark.django_db
 def test_passkey_login_endpoint_advertised_in_config(client):
-    resp = client.get("/_allauth/browser/v1/config")
+    resp = client.get("/api/allauth/browser/v1/config")
     assert resp.status_code == 200, resp.content
     mfa = resp.json().get("data", {}).get("mfa", {})
     assert mfa.get("passkey_login_enabled") is True

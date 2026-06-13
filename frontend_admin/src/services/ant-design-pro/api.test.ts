@@ -1,6 +1,6 @@
 import { request } from '@umijs/max';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { login, outLogin } from './api';
+import { currentUser, login, outLogin } from './api';
 
 vi.mock('@umijs/max', () => ({
   request: vi.fn(),
@@ -29,7 +29,7 @@ describe('ant-design-pro api auth', () => {
     });
 
     expect(mockRequest).toHaveBeenCalledWith(
-      '/_allauth/browser/v1/auth/login',
+      '/api/allauth/browser/v1/auth/login',
       expect.objectContaining({
         method: 'POST',
         data: { email: 'admin@example.com', password: 'secret123' },
@@ -54,7 +54,7 @@ describe('ant-design-pro api auth', () => {
     });
 
     expect(mockRequest).toHaveBeenCalledWith(
-      '/_allauth/browser/v1/auth/login',
+      '/api/allauth/browser/v1/auth/login',
       expect.objectContaining({
         data: { phone: '+8613800138000', password: 'secret123' },
       }),
@@ -74,12 +74,12 @@ describe('ant-design-pro api auth', () => {
 
     expect(mockRequest).toHaveBeenNthCalledWith(
       1,
-      '/_allauth/browser/v1/config',
+      '/api/allauth/browser/v1/config',
       expect.objectContaining({ method: 'GET' }),
     );
     expect(mockRequest).toHaveBeenNthCalledWith(
       2,
-      '/_allauth/browser/v1/auth/login',
+      '/api/allauth/browser/v1/auth/login',
       expect.objectContaining({
         headers: expect.objectContaining({ 'X-CSRFToken': 'fetched-token' }),
       }),
@@ -117,10 +117,40 @@ describe('ant-design-pro api auth', () => {
     await outLogin();
 
     expect(mockRequest).toHaveBeenCalledWith(
-      '/_allauth/browser/v1/auth/session',
+      '/api/allauth/browser/v1/auth/session',
       expect.objectContaining({
         method: 'DELETE',
         headers: expect.objectContaining({ 'X-CSRFToken': 'csrf-token' }),
+      }),
+    );
+  });
+
+  it('maps the existing users/me endpoint to the admin current user shape', async () => {
+    mockRequest.mockResolvedValueOnce({
+      avatar_url: '/media/avatar.jpg',
+      email: 'admin@example.com',
+      first_name: 'Ada',
+      is_staff: true,
+      is_superuser: false,
+      last_name: 'Lovelace',
+      phone: '+8613800138000',
+      username: 'admin',
+    });
+
+    const result = await currentUser();
+
+    expect(mockRequest).toHaveBeenCalledWith(
+      '/api/users/me/',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        access: 'admin',
+        avatar: '/media/avatar.jpg',
+        email: 'admin@example.com',
+        name: 'Ada Lovelace',
+        phone: '+8613800138000',
+        userid: 'admin',
       }),
     );
   });

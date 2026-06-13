@@ -42,7 +42,7 @@ def test_login_triggers_verification_email_with_usable_key(mailoutbox, client, u
     settings.ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
 
     login_response = client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/api/allauth/browser/v1/auth/login",
         data={"email": unverified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
@@ -65,7 +65,7 @@ def test_verify_endpoint_accepts_decoded_key(mailoutbox, client, unverified_user
     Mirror what EmailConfirmView.vue does.
 
     decodeURIComponent the route param before POSTing to
-    /_allauth/browser/v1/auth/email/verify.
+    /api/allauth/browser/v1/auth/email/verify.
     """
     settings.AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
     settings.ACCOUNT_EMAIL_VERIFICATION = "mandatory"
@@ -74,14 +74,14 @@ def test_verify_endpoint_accepts_decoded_key(mailoutbox, client, unverified_user
     settings.ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
 
     client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/api/allauth/browser/v1/auth/login",
         data={"email": unverified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
     decoded_key = unquote(_extract_key_from_email(mailoutbox[0].body))
 
     verify_response = client.post(
-        "/_allauth/browser/v1/auth/email/verify",
+        "/api/allauth/browser/v1/auth/email/verify",
         data={"key": decoded_key},
         content_type="application/json",
     )
@@ -114,7 +114,7 @@ def test_set_primary_email_uses_patch(client):
 
     client.force_login(user)
     response = client.patch(
-        "/_allauth/browser/v1/account/email",
+        "/api/allauth/browser/v1/account/email",
         data=json.dumps({"email": secondary.email, "primary": True}),
         content_type="application/json",
     )

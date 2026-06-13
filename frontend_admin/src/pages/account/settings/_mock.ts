@@ -24,7 +24,7 @@ function getCurrentUse(_req: Request, res: Response) {
 }
 
 export default {
-  'GET  /api/accountSettingCurrentUser': getCurrentUse,
-  'GET  /api/geographic/province': getProvince,
-  'GET  /api/geographic/city/:province': getCity,
+  'GET  /api/users/me/': getCurrentUse,
+  'GET  /api/mock/geographic/province': getProvince,
+  'GET  /api/mock/geographic/city/:province': getCity,
 };

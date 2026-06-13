@@ -160,10 +160,10 @@ const BaseView: React.FC = () => {
                         ]}
                         disabled={!province}
                         request={async () => {
-                          if (!province?.key) {
+                          if (!province?.value) {
                             return [];
                           }
-                          return queryCity(province.key || '').then(
+                          return queryCity(province.value || '').then(
                             ({ data }) => {
                               return data.map((item) => {
                                 return {

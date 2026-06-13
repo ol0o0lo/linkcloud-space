@@ -38,7 +38,7 @@ def _use_allauth_backend(settings):
 @pytest.mark.django_db
 def test_signup(mailoutbox, client):
     resp = client.post(
-        "/_allauth/browser/v1/auth/signup",
+        "/api/allauth/browser/v1/auth/signup",
         data={"email": "newbie@example.com", "password": "testpw123!"},
         content_type="application/json",
     )
@@ -55,7 +55,7 @@ def test_signup_with_invite_code_creates_referral_record(mailoutbox, client):
     link = ensure_referral_link(inviter)
 
     resp = client.post(
-        f"/_allauth/browser/v1/auth/signup?invite_code={link.code}",
+        f"/api/allauth/browser/v1/auth/signup?invite_code={link.code}",
         data={"email": "referred@example.com", "password": "testpw123!"},
         content_type="application/json",
     )
@@ -71,7 +71,7 @@ def test_signup_with_invite_code_creates_referral_record(mailoutbox, client):
 @pytest.mark.django_db
 def test_login(client, verified_user):
     resp = client.post(
-        "/_allauth/browser/v1/auth/login",
+        "/api/allauth/browser/v1/auth/login",
         data={"email": verified_user.email, "password": "testpw123!"},
         content_type="application/json",
     )
@@ -82,7 +82,7 @@ def test_login(client, verified_user):
 @pytest.mark.django_db
 def test_password_reset_request(mailoutbox, client, verified_user):
     resp = client.post(
-        "/_allauth/browser/v1/auth/password/request",
+        "/api/allauth/browser/v1/auth/password/request",
         data={"email": verified_user.email},
         content_type="application/json",
     )

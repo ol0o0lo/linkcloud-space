@@ -53,7 +53,7 @@ def app_client():
 def test_github_redirect_returns_302(browser_client, db):
     """browser 端：发起 GitHub 登录返回重定向到 GitHub 授权页。"""
     resp = browser_client.post(
-        "/_allauth/browser/v1/auth/provider/redirect",
+        "/api/allauth/browser/v1/auth/provider/redirect",
         {
             "provider": "github",
             "callback_url": "http://localhost:5173/accounts/callback/",
@@ -68,7 +68,7 @@ def test_github_redirect_returns_302(browser_client, db):
 def test_github_provider_in_flows(browser_client, db):
     """未认证时 GitHub provider 出现在 login flows 中。"""
     # 任意需要认证的接口都会返回 401 + flows 列表
-    resp = browser_client.get("/_allauth/browser/v1/account/providers")
+    resp = browser_client.get("/api/allauth/browser/v1/account/providers")
     body = resp.json()
     # flows 在未认证的 401 响应的 data 里
     flows = body.get("data", {}).get("flows", [])
@@ -93,7 +93,7 @@ def test_github_app_token_login_flow(app_client, db):
 
     with patch("requests.Session.get", return_value=mock_response):
         resp = app_client.post(
-            "/_allauth/app/v1/auth/provider/token",
+            "/api/allauth/app/v1/auth/provider/token",
             {
                 "provider": "github",
                 "access_token": "gho_fake_github_token",
