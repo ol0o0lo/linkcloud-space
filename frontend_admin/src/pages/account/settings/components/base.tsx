@@ -1,38 +1,84 @@
 import { UploadOutlined } from '@ant-design/icons';
+import { useModel } from '@umijs/max';
 import {
   ProForm,
-  ProFormFieldSet,
-  ProFormSelect,
   ProFormText,
-  ProFormTextArea,
 } from '@ant-design/pro-components';
-import { useQuery } from '@tanstack/react-query';
-import { Button, Input, message, Upload } from 'antd';
-import React from 'react';
-import { queryCurrent } from '../service';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, message, Upload } from 'antd';
+import type { UploadProps } from 'antd';
+import React, { startTransition } from 'react';
+import type { CurrentUser } from '../data';
+import { queryCurrent, updateCurrentUser, uploadAvatar } from '../service';
 import useStyles from './index.style';
-
-const validatorPhone = (
-  _rule: any,
-  value: string[],
-  callback: (message?: string) => void,
-) => {
-  if (!value[0]) {
-    callback('Please input your area code!');
-  }
-  if (!value[1]) {
-    callback('Please input your phone number!');
-  }
-  callback();
-};
 
 const BaseView: React.FC = () => {
   const { styles } = useStyles();
+  const queryClient = useQueryClient();
+  const { setInitialState } = useModel('@@initialState');
 
   const { data: currentUser, isLoading: loading } = useQuery({
     queryKey: ['current-user'],
     queryFn: () => queryCurrent().then((res) => res.data),
   });
+
+  const syncCurrentUser = (patch: Partial<CurrentUser>) => {
+    queryClient.setQueryData<CurrentUser | undefined>(['current-user'], (previous) => {
+      if (!previous) {
+        return previous;
+      }
+      return {
+        ...previous,
+        ...patch,
+      };
+    });
+    startTransition(() => {
+      setInitialState((state) => {
+        if (!state?.currentUser) {
+          return state;
+        }
+        return {
+          ...state,
+          currentUser: {
+            ...state.currentUser,
+            ...patch,
+          },
+        };
+      });
+    });
+  };
+
+  const { mutateAsync: saveNickname, isPending: savingNickname } = useMutation({
+    mutationFn: async (nickname: string) => {
+      if (!currentUser?.id) {
+        throw new Error('当前用户信息不存在，无法更新昵称');
+      }
+      await updateCurrentUser(currentUser.id, {
+        last_name: nickname,
+      });
+      return nickname;
+    },
+    onSuccess: (nickname) => {
+      syncCurrentUser({
+        name: nickname,
+        lastName: nickname,
+      });
+      message.success('更新基本信息成功');
+      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+    },
+  });
+
+  const { mutateAsync: saveAvatar, isPending: savingAvatar } = useMutation({
+    mutationFn: uploadAvatar,
+    onSuccess: (result) => {
+      syncCurrentUser({
+        avatar: result.avatar_url || '',
+      });
+      message.success('头像更新成功');
+      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+    },
+  });
+
   const getAvatarURL = () => {
     if (currentUser) {
       if (currentUser.avatar) {
@@ -44,9 +90,22 @@ const BaseView: React.FC = () => {
     }
     return '';
   };
-  const handleFinish = async () => {
-    message.success('更新基本信息成功');
+
+  const handleFinish = async (values: { name?: string }) => {
+    const nickname = (values.name || '').trim();
+    await saveNickname(nickname);
+    return true;
   };
+
+  const handleAvatarUpload: UploadProps['customRequest'] = async (options) => {
+    try {
+      const result = await saveAvatar(options.file as File);
+      options.onSuccess?.(result as never);
+    } catch (error) {
+      options.onError?.(error as Error);
+    }
+  };
+
   return (
     <div className={styles.baseView}>
       {loading ? null : (
@@ -59,28 +118,17 @@ const BaseView: React.FC = () => {
                 searchConfig: {
                   submitText: '更新基本信息',
                 },
+                submitButtonProps: {
+                  loading: savingNickname,
+                },
                 render: (_, dom) => dom[1],
               }}
               initialValues={{
                 ...currentUser,
-                phone: [
-                  currentUser?.phoneCountryCode || '+86',
-                  currentUser?.phoneNationalNumber || '',
-                ],
+                name: currentUser?.lastName || currentUser?.name || '',
               }}
               requiredMark={false}
             >
-              <ProFormText
-                width="md"
-                name="email"
-                label="邮箱"
-                rules={[
-                  {
-                    required: true,
-                    message: '请输入您的邮箱!',
-                  },
-                ]}
-              />
               <ProFormText
                 width="md"
                 name="name"
@@ -92,54 +140,14 @@ const BaseView: React.FC = () => {
                   },
                 ]}
               />
-              <ProFormTextArea
-                name="profile"
-                label="个人简介"
-                rules={[
-                  {
-                    required: true,
-                    message: '请输入个人简介!',
-                  },
-                ]}
-                placeholder="个人简介"
-              />
-              <ProFormSelect
-                width="sm"
-                name="country"
-                label="国家/地区"
-                rules={[
-                  {
-                    required: true,
-                    message: '请输入您的国家或地区!',
-                  },
-                ]}
-                options={[
-                  {
-                    label: '中国',
-                    value: 'China',
-                  },
-                ]}
-              />
-              <ProFormFieldSet
-                name="phone"
-                label="联系电话"
-                rules={[
-                  {
-                    required: true,
-                    message: '请输入您的联系电话!',
-                  },
-                  {
-                    validator: validatorPhone,
-                  },
-                ]}
-              >
-                <Input className={styles.area_code} />
-                <Input className={styles.phone_number} />
-              </ProFormFieldSet>
             </ProForm>
           </div>
           <div className={styles.right}>
-            <AvatarView avatar={getAvatarURL()} />
+            <AvatarView
+              avatar={getAvatarURL()}
+              loading={savingAvatar}
+              onUpload={handleAvatarUpload}
+            />
           </div>
         </>
       )}
@@ -148,7 +156,15 @@ const BaseView: React.FC = () => {
 };
 export default BaseView;
 
-const AvatarView = ({ avatar }: { avatar: string }) => {
+const AvatarView = ({
+  avatar,
+  loading,
+  onUpload,
+}: {
+  avatar: string;
+  loading: boolean;
+  onUpload: UploadProps['customRequest'];
+}) => {
   const { styles } = useStyles();
 
   return (
@@ -157,9 +173,13 @@ const AvatarView = ({ avatar }: { avatar: string }) => {
       <div className={styles.avatar}>
         <img src={avatar} alt="avatar" />
       </div>
-      <Upload showUploadList={false}>
+      <Upload
+        accept="image/png,image/jpeg,image/webp"
+        customRequest={onUpload}
+        showUploadList={false}
+      >
         <div className={styles.button_view}>
-          <Button>
+          <Button loading={loading}>
             <UploadOutlined />
             更换头像
           </Button>

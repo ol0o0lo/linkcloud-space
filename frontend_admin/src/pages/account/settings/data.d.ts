@@ -20,7 +20,10 @@ export type NoticeType = {
 };
 
 export type CurrentUser = {
+  id: number;
   name: string;
+  firstName: string;
+  lastName: string;
   avatar: string;
   userid: string;
   notice: NoticeType[];
@@ -31,7 +34,4 @@ export type CurrentUser = {
   tags: TagType[];
   notifyCount: number;
   unreadCount: number;
-  country: string;
-  phoneCountryCode: string;
-  phoneNationalNumber: string;
 };

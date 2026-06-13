@@ -63,7 +63,10 @@ function mapMeToCurrentUser(user: MeResponse): API.CurrentUser {
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || user.email || '';
   const isAdmin = Boolean(user.is_staff || user.is_superuser);
   return {
+    id: user.id,
     name,
+    firstName: user.first_name || '',
+    lastName: user.last_name || '',
     avatar: user.avatar_url || undefined,
     userid: user.username,
     email: user.email,

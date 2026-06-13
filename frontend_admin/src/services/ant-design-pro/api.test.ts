@@ -10,7 +10,7 @@ const mockRequest = vi.mocked(request);
 
 describe('ant-design-pro api auth', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     Object.defineProperty(document, 'cookie', {
       configurable: true,
       writable: true,
@@ -62,8 +62,12 @@ describe('ant-design-pro api auth', () => {
   });
 
   it('fetches allauth config first when csrf cookie is missing', async () => {
-    mockRequest.mockResolvedValueOnce({ status: 200 });
-    document.cookie = 'csrftoken=fetched-token';
+    mockRequest.mockImplementationOnce(async (url) => {
+      if (url === '/api/allauth/browser/v1/config') {
+        document.cookie = 'csrftoken=fetched-token';
+      }
+      return { status: 200 };
+    });
     mockRequest.mockResolvedValueOnce({ status: 200 });
 
     await login({
@@ -131,6 +135,7 @@ describe('ant-design-pro api auth', () => {
       country: 'China',
       email: 'admin@example.com',
       first_name: 'Ada',
+      id: 42,
       is_staff: true,
       is_superuser: false,
       last_name: 'Lovelace',
@@ -167,6 +172,9 @@ describe('ant-design-pro api auth', () => {
         avatar: '/media/avatar.jpg',
         country: 'China',
         email: 'admin@example.com',
+        firstName: 'Ada',
+        id: 42,
+        lastName: 'Lovelace',
         notifyCount: 5,
         notice: [
           expect.objectContaining({ title: '审核中心' }),
