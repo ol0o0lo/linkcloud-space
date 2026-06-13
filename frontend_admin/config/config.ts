@@ -104,7 +104,6 @@ export default defineConfig({
    * @description 生成资源清单，配合 routePrefetch 使用
    */
   manifest: {},
-  esbuildMinifyIIFE: true,
   //============== 以下都是max的插件配置 ===============
   /**
    * @name 数据流插件
@@ -219,6 +218,16 @@ export default defineConfig({
     include: ['src/pages/**/_mock.ts'],
     exclude: ['mock/requestRecord.mock.js'],
   },
+  utoopack: {
+    module: {
+      rules: {
+        '*.md': {
+          loaders: [{ loader: join(__dirname, 'md-raw-loader.cjs') }],
+          as: '*.js',
+        },
+      },
+    },
+  },
   requestRecord: {},
   exportStatic: {},
   define: {
@@ -226,6 +235,6 @@ export default defineConfig({
     'process.env.COMMIT_HASH': commitHash,
     __APP_VERSION__: require('./../package.json').version,
     __UMI_VERSION__: require('@umijs/max/package.json').version,
-    __UTOO_VERSION__: 'disabled',
+    __UTOO_VERSION__: require('@utoo/pack/package.json').version,
   },
 });
