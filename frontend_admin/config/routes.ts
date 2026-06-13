@@ -73,7 +73,7 @@ export default [
     routes: [
       {
         path: '/dashboard',
-        redirect: '/dashboard/analysis',
+        redirect: '/welcome',
       },
       {
         name: 'analysis',
@@ -288,7 +288,7 @@ export default [
   },
   {
     path: '/',
-    redirect: '/dashboard/analysis',
+    redirect: '/welcome',
   },
   {
     component: './exception/404',
