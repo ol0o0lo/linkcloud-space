@@ -6,7 +6,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from apps.accounts.constants import RealNameProvider, RealNameSource, RealNameStatus, RealNameLogAction
+from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,22 @@ class User(AbstractUser):
     avatar_thumbnail = models.ImageField(upload_to=avatar_thumbnail_path, blank=True)
     avatar_crop_data = models.JSONField(blank=True, null=True)
     phone = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    phone_country_code = models.CharField(max_length=8, blank=True, default="")
+    phone_national_number = models.CharField(max_length=32, blank=True, default="")
     phone_verified = models.BooleanField(default=False)
     real_name_status = models.CharField(max_length=32, choices=RealNameStatus.choices, default=RealNameStatus.UNVERIFIED, db_index=True)
     real_name_verified_at = models.DateTimeField(null=True, blank=True)
     real_name_masked = models.CharField(max_length=64, blank=True, default="")
     id_number_masked = models.CharField(max_length=32, blank=True, default="")
+
+    class Meta(AbstractUser.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                condition=~models.Q(phone_national_number=""),
+                fields=("phone_country_code", "phone_national_number"),
+                name="accounts_user_phone_parts_unique",
+            )
+        ]
 
     def clean(self):
         super().clean()
@@ -39,12 +50,76 @@ class User(AbstractUser):
                 ZoneInfo(self.timezone)
             except (ZoneInfoNotFoundError, KeyError) as err:
                 raise ValidationError({"timezone": f"Invalid timezone: {self.timezone}"}) from err
+        self._sync_phone_fields()
+
+    def save(self, *args, **kwargs):
+        changed_fields = self._sync_phone_fields()
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and changed_fields:
+            kwargs["update_fields"] = set(update_fields) | changed_fields
+        super().save(*args, **kwargs)
+
+    def set_phone_number(self, phone: str | None, verified: bool | None = None) -> None:
+        self.phone = normalize_phone(phone)
+        if verified is not None:
+            self.phone_verified = verified
+        self._sync_phone_fields()
 
     @property
     def avatar_url(self):
         if self.avatar_thumbnail:
             return self.avatar_thumbnail.url
         return None
+
+    def _sync_phone_fields(self) -> set[str]:
+        old_values = {
+            "phone": self.phone,
+            "phone_country_code": self.phone_country_code,
+            "phone_national_number": self.phone_national_number,
+        }
+        if self.phone:
+            country_code, national_number = split_phone(self.phone)
+            self.phone_country_code = country_code
+            self.phone_national_number = national_number
+            self.phone = compose_phone(country_code, national_number)
+        else:
+            self.phone = None
+            self.phone_country_code = ""
+            self.phone_national_number = ""
+        return {field for field, old_value in old_values.items() if getattr(self, field) != old_value}
+
+
+def normalize_phone(phone: str | None) -> str | None:
+    country_code, national_number = split_phone(phone)
+    return compose_phone(country_code, national_number)
+
+
+def split_phone(phone: str | None) -> tuple[str, str]:
+    if not phone:
+        return "", ""
+    value = str(phone).strip().replace(" ", "")
+    if not value:
+        return "", ""
+    if value.startswith("+") and "-" in value:
+        country_code, national_number = value.split("-", 1)
+        return country_code, national_number.replace("-", "")
+
+    compact = value.replace("-", "")
+    if compact.startswith("+86") and len(compact) > 3:
+        return "+86", compact[3:]
+    if compact.startswith("86") and len(compact) > 2:
+        return "+86", compact[2:]
+    if compact.startswith("1") and len(compact) == 11:
+        return "+86", compact
+    return "", compact
+
+
+def compose_phone(country_code: str, national_number: str) -> str | None:
+    national_number = (national_number or "").strip().replace(" ", "").replace("-", "")
+    if not national_number:
+        return None
+    country_code = (country_code or "").strip().replace(" ", "")
+    return f"{country_code}{national_number}" if country_code else national_number
 
 
 class RealNameVerification(models.Model):

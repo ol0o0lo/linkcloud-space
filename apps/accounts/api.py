@@ -65,6 +65,38 @@ def _users_qs(request):
 def get_me(request):
     """返回当前登录用户的资料、权限相关标记和展示信息。"""
     require_authenticated(request)
+    profile_fallback = {
+        "signature": "资料待补充",
+        "country": "China",
+        "tags": [
+            {"key": "verified-email", "label": "已验证邮箱"},
+            {"key": "verified-phone", "label": "已绑定手机"},
+        ],
+        "notice": [
+            {
+                "id": "profile-notice-1",
+                "title": "资料完善",
+                "logo": "https://gw.alipayobjects.com/zos/rmsportal/WdGqmHpayyMjiEhcKoVE.png",
+                "description": "待补充基础资料字段",
+                "updatedAt": "2026-06-13T09:00:00+08:00",
+                "member": "账户中心",
+                "href": "",
+                "memberLink": "",
+            },
+            {
+                "id": "profile-notice-2",
+                "title": "安全检查",
+                "logo": "https://gw.alipayobjects.com/zos/rmsportal/zOsKZmFRdUtvpqCImOVY.png",
+                "description": "已启用标准 allauth 登录",
+                "updatedAt": "2026-06-13T09:00:00+08:00",
+                "member": "认证中心",
+                "href": "",
+                "memberLink": "",
+            },
+        ],
+        "notify_count": 2,
+        "unread_count": 1,
+    }
     return {
         "avatar_url": request.user.avatar_url,
         "email": request.user.email,
@@ -75,12 +107,15 @@ def get_me(request):
         "is_superuser": request.user.is_superuser,
         "last_name": request.user.last_name,
         "phone": request.user.phone,
+        "phone_country_code": request.user.phone_country_code,
+        "phone_national_number": request.user.phone_national_number,
         "phone_verified": request.user.phone_verified,
         "real_name_masked": request.user.real_name_masked,
         "real_name_status": request.user.real_name_status,
         "real_name_verified_at": request.user.real_name_verified_at.isoformat() if request.user.real_name_verified_at else None,
         "timezone": request.user.timezone,
         "username": request.user.username,
+        **profile_fallback,
     }
 
 
@@ -328,9 +363,9 @@ def reset_user_mfa(request, user_id: int):
 def unbind_user_phone(request, user_id: int):
     """清空用户手机号及验证状态。"""
     user = _get_admin_user(request, user_id)
-    user.phone = None
+    user.set_phone_number(None)
     user.phone_verified = False
-    user.save(update_fields=["phone", "phone_verified"])
+    user.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
     return Status(204, None)
 
 

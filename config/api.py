@@ -43,7 +43,7 @@ from apps.wallet.api import router as wallet_router
 api = NinjaAPI(
     title="Django Base Site API",
     version="1.0.0",
-    auth=[django_auth, jwt_token_auth, x_session_token_user_auth],  # 同时支持 session cookie、JWT Bearer 和 X-Session-Token
+    auth=[jwt_token_auth, x_session_token_user_auth, django_auth],  # 优先支持 JWT Bearer / X-Session-Token，最后回落到 session cookie
     docs_url="/docs" if settings.DEBUG else None,
     openapi_url="/openapi.json" if settings.DEBUG else None,
 )

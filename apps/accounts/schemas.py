@@ -32,6 +32,8 @@ class MeOut(Schema):
     timezone: str
     avatar_url: str | None
     phone: str | None
+    phone_country_code: str = ""
+    phone_national_number: str = ""
     phone_verified: bool
     real_name_status: str
     real_name_masked: str = ""
@@ -39,6 +41,12 @@ class MeOut(Schema):
     real_name_verified_at: str | None = None
     is_staff: bool
     is_superuser: bool
+    signature: str = ""
+    country: str = ""
+    tags: list[dict] = []
+    notice: list[dict] = []
+    notify_count: int = 0
+    unread_count: int = 0
 
 
 class UserPatchIn(Schema):

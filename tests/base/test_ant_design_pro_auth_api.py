@@ -20,6 +20,8 @@ def test_users_me_returns_current_user_for_existing_session(client):
         first_name="Ada",
         last_name="Lovelace",
         is_staff=True,
+        phone="+8617688363534",
+        phone_verified=True,
     )
     client.force_login(user)
 
@@ -32,6 +34,24 @@ def test_users_me_returns_current_user_for_existing_session(client):
     assert payload["last_name"] == "Lovelace"
     assert payload["email"] == "admin@example.com"
     assert payload["is_staff"] is True
+    assert payload["phone"] == "+8617688363534"
+    assert payload["phone_country_code"] == "+86"
+    assert payload["phone_national_number"] == "17688363534"
+    assert payload["phone_verified"] is True
+    assert payload["signature"] == "资料待补充"
+    assert payload["country"] == "China"
+    assert "province_name" not in payload
+    assert "province_code" not in payload
+    assert "city_name" not in payload
+    assert "city_code" not in payload
+    assert "address" not in payload
+    assert payload["notify_count"] == 2
+    assert payload["unread_count"] == 1
+    assert payload["tags"] == [
+        {"key": "verified-email", "label": "已验证邮箱"},
+        {"key": "verified-phone", "label": "已绑定手机"},
+    ]
+    assert payload["notice"][0]["title"] == "资料完善"
 
 
 @pytest.mark.django_db

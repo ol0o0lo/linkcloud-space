@@ -1,7 +1,6 @@
 import {
   ClusterOutlined,
   ContactsOutlined,
-  HomeOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
 import { GridContent } from '@ant-design/pro-components';
@@ -160,31 +159,6 @@ const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
           }}
         />
         {user.group}
-      </p>
-      <p>
-        <HomeOutlined
-          style={{
-            marginRight: 8,
-          }}
-        />
-        {
-          (
-            user.geographic || {
-              province: {
-                label: '',
-              },
-            }
-          ).province.label
-        }
-        {
-          (
-            user.geographic || {
-              city: {
-                label: '',
-              },
-            }
-          ).city.label
-        }
       </p>
     </div>
   );

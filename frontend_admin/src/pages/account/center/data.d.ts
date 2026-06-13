@@ -4,17 +4,6 @@ export interface TagType {
   label: string;
 }
 
-export type GeographicType = {
-  province: {
-    label: string;
-    key: string;
-  };
-  city: {
-    label: string;
-    key: string;
-  };
-};
-
 export type NoticeType = {
   id: string;
   title: string;
@@ -39,9 +28,9 @@ export type CurrentUser = {
   notifyCount: number;
   unreadCount: number;
   country: string;
-  geographic: GeographicType;
-  address: string;
   phone: string;
+  phoneCountryCode: string;
+  phoneNationalNumber: string;
 };
 
 export type Member = {

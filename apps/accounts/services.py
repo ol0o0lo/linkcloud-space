@@ -96,7 +96,10 @@ def bind_phone_to_user(request, user, phone: str):
     from allauth.account.internal.flows.login import Login, perform_login
     from allauth.socialaccount.models import SocialAccount
 
+    from apps.accounts.models import normalize_phone
+
     User = get_user_model()
+    phone = normalize_phone(phone)
 
     if user.phone == phone:
         if not user.phone_verified:
@@ -108,12 +111,12 @@ def bind_phone_to_user(request, user, phone: str):
     if existing:
         if not existing.phone_verified:
             with transaction.atomic():
-                existing.phone = None
+                existing.set_phone_number(None)
                 existing.phone_verified = False
-                existing.save(update_fields=["phone", "phone_verified"])
-                user.phone = phone
+                existing.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
+                user.set_phone_number(phone)
                 user.phone_verified = True
-                user.save(update_fields=["phone", "phone_verified"])
+                user.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
             return user, False
         if not existing.is_active:
             raise ValueError("This phone number belongs to a disabled account.")
@@ -125,7 +128,7 @@ def bind_phone_to_user(request, user, phone: str):
         perform_login(request, Login(user=existing))
         return existing, True
     else:
-        user.phone = phone
+        user.set_phone_number(phone)
         user.phone_verified = True
-        user.save(update_fields=["phone", "phone_verified"])
+        user.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
         return user, False

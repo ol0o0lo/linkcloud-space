@@ -177,6 +177,8 @@ def test_bind_new_phone_to_user(client, db):
 
     user.refresh_from_db()
     assert user.phone == "+8613800138000"
+    assert user.phone_country_code == "+86"
+    assert user.phone_national_number == "13800138000"
     assert user.phone_verified is True
 
 
@@ -242,8 +244,12 @@ def test_bind_phone_claims_inactive_unverified_placeholder(client, db):
     user.refresh_from_db()
     placeholder.refresh_from_db()
     assert user.phone == "+8613800138000"
+    assert user.phone_country_code == "+86"
+    assert user.phone_national_number == "13800138000"
     assert user.phone_verified is True
     assert placeholder.phone is None
+    assert placeholder.phone_country_code == ""
+    assert placeholder.phone_national_number == ""
 
 
 @override_settings(**WECHAT_PHONE_SETTINGS)

@@ -6,13 +6,21 @@ const ALLAUTH_BROWSER_BASE = '/api/allauth/browser/v1';
 
 type MeResponse = {
   avatar_url?: string | null;
+  country?: string;
   email?: string;
   first_name?: string;
   id?: number;
   is_staff?: boolean;
   is_superuser?: boolean;
   last_name?: string;
+  notify_count?: number;
+  notice?: API.CurrentUserNotice[];
   phone?: string | null;
+  phone_country_code?: string;
+  phone_national_number?: string;
+  signature?: string;
+  tags?: API.TagType[];
+  unread_count?: number;
   username?: string;
 };
 
@@ -63,10 +71,15 @@ function mapMeToCurrentUser(user: MeResponse): API.CurrentUser {
     access: isAdmin ? 'admin' : 'user',
     title: isAdmin ? '管理员' : '成员',
     group: isAdmin ? '后台管理' : '普通用户',
+    signature: user.signature || '',
+    notice: user.notice || [],
     phone: user.phone || '',
-    tags: [],
-    notifyCount: 0,
-    unreadCount: 0,
+    phoneCountryCode: user.phone_country_code || '',
+    phoneNationalNumber: user.phone_national_number || '',
+    tags: user.tags || [],
+    notifyCount: user.notify_count || 0,
+    unreadCount: user.unread_count || 0,
+    country: user.country || '',
   };
 }
 

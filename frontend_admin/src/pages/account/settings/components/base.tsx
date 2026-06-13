@@ -1,7 +1,6 @@
 import { UploadOutlined } from '@ant-design/icons';
 import {
   ProForm,
-  ProFormDependency,
   ProFormFieldSet,
   ProFormSelect,
   ProFormText,
@@ -10,7 +9,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Button, Input, message, Upload } from 'antd';
 import React from 'react';
-import { queryCity, queryCurrent, queryProvince } from '../service';
+import { queryCurrent } from '../service';
 import useStyles from './index.style';
 
 const validatorPhone = (
@@ -64,7 +63,10 @@ const BaseView: React.FC = () => {
               }}
               initialValues={{
                 ...currentUser,
-                phone: currentUser?.phone?.split('-'),
+                phone: [
+                  currentUser?.phoneCountryCode || '+86',
+                  currentUser?.phoneNationalNumber || '',
+                ],
               }}
               requiredMark={false}
             >
@@ -115,78 +117,6 @@ const BaseView: React.FC = () => {
                   {
                     label: '中国',
                     value: 'China',
-                  },
-                ]}
-              />
-
-              <ProForm.Group title="所在省市" size={8}>
-                <ProFormSelect
-                  rules={[
-                    {
-                      required: true,
-                      message: '请输入您的所在省!',
-                    },
-                  ]}
-                  width="sm"
-                  fieldProps={{
-                    labelInValue: true,
-                  }}
-                  name="province"
-                  request={async () => {
-                    return queryProvince().then(({ data }) => {
-                      return data.map((item) => {
-                        return {
-                          label: item.name,
-                          value: item.id,
-                        };
-                      });
-                    });
-                  }}
-                />
-                <ProFormDependency name={['province']}>
-                  {({ province }) => {
-                    return (
-                      <ProFormSelect
-                        params={{
-                          key: province?.value,
-                        }}
-                        name="city"
-                        width="sm"
-                        rules={[
-                          {
-                            required: true,
-                            message: '请输入您的所在城市!',
-                          },
-                        ]}
-                        disabled={!province}
-                        request={async () => {
-                          if (!province?.value) {
-                            return [];
-                          }
-                          return queryCity(province.value || '').then(
-                            ({ data }) => {
-                              return data.map((item) => {
-                                return {
-                                  label: item.name,
-                                  value: item.id,
-                                };
-                              });
-                            },
-                          );
-                        }}
-                      />
-                    );
-                  }}
-                </ProFormDependency>
-              </ProForm.Group>
-              <ProFormText
-                width="md"
-                name="address"
-                label="街道地址"
-                rules={[
-                  {
-                    required: true,
-                    message: '请输入您的街道地址!',
                   },
                 ]}
               />

@@ -2,6 +2,22 @@
 /* eslint-disable */
 
 declare namespace API {
+  type TagType = {
+    key?: string;
+    label?: string;
+  };
+
+  type CurrentUserNotice = {
+    id?: string;
+    title?: string;
+    logo?: string;
+    description?: string;
+    updatedAt?: string;
+    member?: string;
+    href?: string;
+    memberLink?: string;
+  };
+
   type CurrentUser = {
     name?: string;
     avatar?: string;
@@ -10,17 +26,15 @@ declare namespace API {
     signature?: string;
     title?: string;
     group?: string;
-    tags?: { key?: string; label?: string }[];
+    tags?: TagType[];
     notifyCount?: number;
     unreadCount?: number;
     country?: string;
     access?: string;
-    geographic?: {
-      province?: { label?: string; key?: string };
-      city?: { label?: string; key?: string };
-    };
-    address?: string;
+    notice?: CurrentUserNotice[];
     phone?: string;
+    phoneCountryCode?: string;
+    phoneNationalNumber?: string;
   };
 
   type LoginResult = {

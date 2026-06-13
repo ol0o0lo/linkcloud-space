@@ -128,12 +128,31 @@ describe('ant-design-pro api auth', () => {
   it('maps the existing users/me endpoint to the admin current user shape', async () => {
     mockRequest.mockResolvedValueOnce({
       avatar_url: '/media/avatar.jpg',
+      country: 'China',
       email: 'admin@example.com',
       first_name: 'Ada',
       is_staff: true,
       is_superuser: false,
       last_name: 'Lovelace',
+      notice: [
+        {
+          description: '待审核 3 项',
+          href: '',
+          id: 'notice-1',
+          logo: '/logo.svg',
+          member: '内容审核组',
+          memberLink: '',
+          title: '审核中心',
+          updatedAt: '2026-06-13T09:00:00+08:00',
+        },
+      ],
+      notify_count: 5,
       phone: '+8613800138000',
+      phone_country_code: '+86',
+      phone_national_number: '13800138000',
+      signature: '保持发布节奏',
+      tags: [{ key: 'ops', label: '运营' }],
+      unread_count: 2,
       username: 'admin',
     });
 
@@ -147,9 +166,19 @@ describe('ant-design-pro api auth', () => {
       expect.objectContaining({
         access: 'admin',
         avatar: '/media/avatar.jpg',
+        country: 'China',
         email: 'admin@example.com',
+        notifyCount: 5,
+        notice: [
+          expect.objectContaining({ title: '审核中心' }),
+        ],
         name: 'Ada Lovelace',
         phone: '+8613800138000',
+        phoneCountryCode: '+86',
+        phoneNationalNumber: '13800138000',
+        signature: '保持发布节奏',
+        tags: [{ key: 'ops', label: '运营' }],
+        unreadCount: 2,
         userid: 'admin',
       }),
     );

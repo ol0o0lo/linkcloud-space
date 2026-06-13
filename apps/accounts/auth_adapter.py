@@ -45,12 +45,12 @@ class AccountAdapter(DefaultAccountAdapter):
 
     def set_phone(self, user, phone, verified):
         """Store phone number and verification status on the user."""
-        user.phone = phone
-        user.phone_verified = verified
-        user.save(update_fields=["phone", "phone_verified"])
+        user.set_phone_number(phone, verified)
+        user.save(update_fields=["phone", "phone_country_code", "phone_national_number", "phone_verified"])
 
     def get_user_by_phone(self, phone):
-        """Look up a user by phone number.
+        """
+        Look up a user by phone number.
 
         For the phone-code login flow (code/request), if signup is open and the
         phone is not yet registered, create an inactive placeholder so allauth can
@@ -63,10 +63,13 @@ class AccountAdapter(DefaultAccountAdapter):
         """
         from allauth.core import context
 
-        from apps.accounts.models import User
+        from apps.accounts.models import User, normalize_phone
 
+        normalized_phone = normalize_phone(phone)
+        if not normalized_phone:
+            return None
         try:
-            return User.objects.get(phone=phone)
+            return User.objects.get(phone=normalized_phone)
         except User.DoesNotExist:
             pass
 
@@ -82,19 +85,23 @@ class AccountAdapter(DefaultAccountAdapter):
         import uuid
 
         user = User(
-            phone=phone,
             phone_verified=False,
             is_active=False,
             username=f"phone_{uuid.uuid4().hex[:12]}",
         )
+        user.set_phone_number(phone, False)
         user.set_unusable_password()
         user.save()
         return user
 
     def set_phone_verified(self, user, phone):
         """Mark the phone number as verified and activate new accounts."""
+        from apps.accounts.models import normalize_phone
+
+        if user.phone != normalize_phone(phone):
+            user.set_phone_number(phone)
         user.phone_verified = True
-        update_fields = ["phone_verified"]
+        update_fields = ["phone", "phone_country_code", "phone_national_number", "phone_verified"]
         if not user.is_active:
             user.is_active = True
             update_fields.append("is_active")

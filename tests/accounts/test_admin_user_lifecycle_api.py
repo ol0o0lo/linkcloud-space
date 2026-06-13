@@ -86,6 +86,8 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertEqual(resp.status_code, 204)
         self.user.refresh_from_db()
         self.assertIsNone(self.user.phone)
+        self.assertEqual(self.user.phone_country_code, "")
+        self.assertEqual(self.user.phone_national_number, "")
         self.assertFalse(self.user.phone_verified)
 
     def test_unbind_wechat_removes_wechat_social_accounts(self):
@@ -170,6 +172,9 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertEqual(resp.status_code, 200, resp.content)
         created = User.objects.get(username="new-admin-user")
         self.assertEqual(created.email, "new-admin@example.com")
+        self.assertEqual(created.phone, "+8613900009999")
+        self.assertEqual(created.phone_country_code, "+86")
+        self.assertEqual(created.phone_national_number, "13900009999")
         self.assertTrue(created.is_staff)
         self.assertTrue(created.check_password("new-admin-pass"))
 
