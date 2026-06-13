@@ -4,12 +4,14 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SecurityView from './security';
 
-const mockQueryCurrent = vi.fn();
-const mockListAuthenticators = vi.fn();
+const serviceMocks = vi.hoisted(() => ({
+  mockQueryCurrent: vi.fn(),
+  mockListAuthenticators: vi.fn(),
+}));
 
 vi.mock('../service', () => ({
-  queryCurrent: mockQueryCurrent,
-  listAuthenticators: mockListAuthenticators,
+  queryCurrent: serviceMocks.mockQueryCurrent,
+  listAuthenticators: serviceMocks.mockListAuthenticators,
 }));
 
 vi.mock('./security.modals', () => ({
@@ -21,7 +23,7 @@ vi.mock('./security.modals', () => ({
 describe('SecurityView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockQueryCurrent.mockResolvedValue({
+    serviceMocks.mockQueryCurrent.mockResolvedValue({
       data: {
         id: 7,
         email: 'member@example.com',
@@ -29,7 +31,7 @@ describe('SecurityView', () => {
         phoneNationalNumber: '13800138001',
       },
     });
-    mockListAuthenticators.mockResolvedValue({
+    serviceMocks.mockListAuthenticators.mockResolvedValue({
       data: [{ type: 'totp' }, { type: 'recovery_codes' }],
     });
   });
@@ -62,7 +64,7 @@ describe('SecurityView', () => {
   });
 
   it('shows unbound copy for empty phone and email', async () => {
-    mockQueryCurrent.mockResolvedValue({
+    serviceMocks.mockQueryCurrent.mockResolvedValue({
       data: {
         id: 7,
         email: '',
@@ -70,7 +72,7 @@ describe('SecurityView', () => {
         phoneNationalNumber: '',
       },
     });
-    mockListAuthenticators.mockResolvedValue({ data: [] });
+    serviceMocks.mockListAuthenticators.mockResolvedValue({ data: [] });
 
     renderView();
 

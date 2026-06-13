@@ -172,10 +172,8 @@ describe('account settings service', () => {
       .mockResolvedValueOnce({
         data: [{ type: 'totp' }, { type: 'recovery_codes' }],
       })
-      .mockRejectedValueOnce({
-        response: {
-          data: { meta: { secret: 'secret', totp_url: 'otpauth://totp/demo' } },
-        },
+      .mockResolvedValueOnce({
+        meta: { secret: 'secret', totp_url: 'otpauth://totp/demo' },
       });
 
     const authenticators = await listAuthenticators();
