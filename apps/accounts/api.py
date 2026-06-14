@@ -46,10 +46,10 @@ from apps.base.permissions import require_authenticated, require_superuser
 
 logger = logging.getLogger(__name__)
 
-users_router = Router(tags=["用户/资料"])
-admin_users_router = Router(tags=["用户/生命周期"])
+users_router = Router(tags=["用户/账户"])
+admin_users_router = Router(tags=["用户/管理"])
 real_name_router = Router(tags=["用户/实名"])
-admin_real_name_router = Router(tags=["用户/实名后台"])
+admin_real_name_router = Router(tags=["用户/实名管理"])
 
 
 def _users_qs(request):

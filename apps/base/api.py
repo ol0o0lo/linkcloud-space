@@ -13,7 +13,7 @@ from apps.notifications.services import notify
 from apps.organizations.models import Organization, OrganizationMember
 from apps.organizations.session import get_member_count, get_owner_count
 
-router = Router(tags=["应用/基础"])
+router = Router(tags=["应用/系统"])
 
 
 class AppContextUserOut(Schema):

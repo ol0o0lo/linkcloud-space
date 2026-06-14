@@ -206,10 +206,16 @@ export default defineConfig({
    */
   openAPI: [
     {
+      projectName: 'openapi',
       requestLibPath: "import { request } from '@umijs/max'",
-      // 或者使用在线的版本
-      // schemaPath: "https://gw.alipayobjects.com/os/antfincdn/M%24jrzTTYJN/oneapi.json"
-      schemaPath: join(__dirname, 'oneapi.json'),
+      schemaPath: process.env.OPENAPI_SCHEMA_PATH || 'http://localhost:18000/api/openapi.json',
+      mock: false,
+    },
+    {
+      projectName: 'allauth',
+      requestLibPath: "import { request } from '@umijs/max'",
+      schemaPath: process.env.ALLAUTH_OPENAPI_SCHEMA_PATH || 'http://127.0.0.1:4523/export/openapi/2?version=3.0',
+      namespace: 'AllauthAPI',
       mock: false,
     },
   ],

@@ -46,7 +46,7 @@ orgs_router = Router(tags=["租户/基础"])
 members_router = Router(tags=["租户/成员"])
 invites_router = Router(tags=["租户/邀请"])
 public_invites_router = Router(tags=["租户/公开邀请"])
-settings_router = Router(tags=["租户/资料"])
+settings_router = Router(tags=["租户/档案"])
 
 
 # ---------------------------------------------------------------------------
