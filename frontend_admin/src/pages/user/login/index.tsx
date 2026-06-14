@@ -14,9 +14,40 @@ import { Alert, App } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { startTransition, useState } from 'react';
 import { Footer } from '@/components';
-import { login } from '@/services/manual/api';
+import { postBrowserV1AuthLogin } from '@/services/allauth/authAccount';
 import Settings from '../../../../config/defaultSettings';
 import logoUrl from '../../../../public/logo.svg';
+
+type LoginFormValues = {
+  username?: string;
+  password?: string;
+  autoLogin?: boolean;
+  type?: string;
+};
+
+type LoginResult = {
+  status?: 'ok' | 'error';
+  type?: string;
+  currentAuthority?: string;
+};
+
+function buildAllauthLoginData(body: LoginFormValues) {
+  const identifier = (body.username || '').trim();
+  const password = body.password || '';
+
+  if (identifier.includes('@')) {
+    return { email: identifier, password };
+  }
+
+  const phone = /^1\d{10}$/.test(identifier) ? `+86${identifier}` : identifier;
+  return { phone, password };
+}
+
+function isAllauthValidationError(error: any) {
+  const status = error?.response?.status;
+  const errors = error?.response?.data?.errors || error?.data?.errors;
+  return status === 400 && Array.isArray(errors);
+}
 
 const useStyles = createStyles(({ token }) => {
   return {
@@ -69,7 +100,7 @@ const LoginMessage: React.FC<{
 };
 
 const Login: React.FC = () => {
-  const [userLoginState, setUserLoginState] = useState<API.LoginResult>({});
+  const [userLoginState, setUserLoginState] = useState<LoginResult>({});
   const type = 'account';
   const { initialState, setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
@@ -110,10 +141,22 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (values: API.LoginParams) => {
+  const handleSubmit = async (values: LoginFormValues) => {
     try {
-      // 登录
-      const msg = await login({ ...values, type });
+      await postBrowserV1AuthLogin(
+        { client: 'browser' },
+        buildAllauthLoginData({ ...values, type }) as any,
+        {
+          skipErrorHandler: true,
+        } as any,
+      );
+
+      const msg: LoginResult = {
+        status: 'ok',
+        type,
+        currentAuthority: undefined,
+      };
+
       if (msg.status === 'ok') {
         const defaultLoginSuccessMessage = intl.formatMessage({
           id: 'pages.login.success',
@@ -126,15 +169,22 @@ const Login: React.FC = () => {
         window.location.href = redirectUrl;
         return;
       }
-      console.log(msg);
-      // 如果失败去设置用户错误信息
+
       setUserLoginState(msg);
     } catch (error) {
+      if (isAllauthValidationError(error)) {
+        setUserLoginState({
+          status: 'error',
+          type,
+          currentAuthority: 'guest',
+        });
+        return;
+      }
+
       const defaultLoginFailureMessage = intl.formatMessage({
         id: 'pages.login.failure',
         defaultMessage: '登录失败，请重试！',
       });
-      console.log(error);
       message.error(defaultLoginFailureMessage);
     }
   };
@@ -172,7 +222,7 @@ const Login: React.FC = () => {
             autoLogin: true,
           }}
           onFinish={async (values) => {
-            await handleSubmit(values as API.LoginParams);
+            await handleSubmit(values as LoginFormValues);
           }}
         >
           {status === 'error' && loginType === 'account' && (

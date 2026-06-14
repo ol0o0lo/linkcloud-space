@@ -19,24 +19,7 @@ export type NoticeType = {
   memberLink: string;
 };
 
-export type CurrentUser = {
-  id: number;
-  name: string;
-  firstName: string;
-  lastName: string;
-  avatar: string;
-  userid: string;
-  notice: NoticeType[];
-  email: string;
-  phoneCountryCode?: string;
-  phoneNationalNumber?: string;
-  signature: string;
-  title: string;
-  group: string;
-  tags: TagType[];
-  notifyCount: number;
-  unreadCount: number;
-};
+export type CurrentUser = API.MeOut;
 
 export type SocialBindingProvider = 'github' | 'weixin';
 

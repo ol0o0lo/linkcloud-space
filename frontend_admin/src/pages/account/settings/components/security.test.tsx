@@ -27,13 +27,23 @@ describe('SecurityView', () => {
       data: {
         id: 7,
         email: 'member@example.com',
-        phoneCountryCode: '+86',
-        phoneNationalNumber: '13800138001',
+        username: 'member',
+        first_name: 'Member',
+        last_name: 'User',
+        timezone: 'Asia/Shanghai',
+        avatar_url: null,
+        phone_verified: true,
+        real_name_status: 'verified',
+        phone_country_code: '+86',
+        phone_national_number: '13800138001',
+        is_staff: false,
+        is_superuser: false,
       },
     });
-    serviceMocks.mockListAuthenticators.mockResolvedValue({
-      data: [{ type: 'totp' }, { type: 'recovery_codes' }],
-    });
+    serviceMocks.mockListAuthenticators.mockResolvedValue([
+      { type: 'totp' },
+      { type: 'recovery_codes' },
+    ]);
   });
 
   function renderView() {
@@ -68,11 +78,20 @@ describe('SecurityView', () => {
       data: {
         id: 7,
         email: '',
-        phoneCountryCode: '',
-        phoneNationalNumber: '',
+        username: 'member',
+        first_name: '',
+        last_name: '',
+        timezone: 'Asia/Shanghai',
+        avatar_url: null,
+        phone_verified: false,
+        real_name_status: 'unverified',
+        phone_country_code: '',
+        phone_national_number: '',
+        is_staff: false,
+        is_superuser: false,
       },
     });
-    serviceMocks.mockListAuthenticators.mockResolvedValue({ data: [] });
+    serviceMocks.mockListAuthenticators.mockResolvedValue([]);
 
     renderView();
 

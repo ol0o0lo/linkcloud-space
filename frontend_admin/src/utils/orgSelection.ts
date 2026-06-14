@@ -41,8 +41,8 @@ export function setSelectedOrgSlug(slug?: string | null) {
   return selectedOrgSlug;
 }
 
-export function resolveSelectedOrgSlug(
-  organizations: API.OrganizationOption[],
+export function resolveSelectedOrgSlug<T extends { slug: string }>(
+  organizations: T[],
 ) {
   const storedSlug = getSelectedOrgSlug();
   if (storedSlug && organizations.some((item) => item.slug === storedSlug)) {

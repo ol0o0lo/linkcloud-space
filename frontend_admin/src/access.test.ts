@@ -5,10 +5,17 @@ describe('access', () => {
   it('should return canAdmin true when user has admin access', () => {
     const initialState = {
       currentUser: {
-        userid: '1',
-        name: 'Admin User',
-        avatar: 'https://example.com/avatar.png',
-        access: 'admin',
+        id: 1,
+        email: 'admin@example.com',
+        username: 'admin',
+        first_name: 'Admin',
+        last_name: 'User',
+        timezone: 'Asia/Shanghai',
+        avatar_url: 'https://example.com/avatar.png',
+        phone_verified: true,
+        real_name_status: 'verified',
+        is_staff: true,
+        is_superuser: false,
       },
     };
 
@@ -20,10 +27,17 @@ describe('access', () => {
   it('should return canAdmin false when user has non-admin access', () => {
     const initialState = {
       currentUser: {
-        userid: '2',
-        name: 'Regular User',
-        avatar: 'https://example.com/avatar.png',
-        access: 'user',
+        id: 2,
+        email: 'user@example.com',
+        username: 'user',
+        first_name: 'Regular',
+        last_name: 'User',
+        timezone: 'Asia/Shanghai',
+        avatar_url: 'https://example.com/avatar.png',
+        phone_verified: true,
+        real_name_status: 'verified',
+        is_staff: false,
+        is_superuser: false,
       },
     };
 
@@ -32,12 +46,20 @@ describe('access', () => {
     expect(result.canAdmin).toBe(false);
   });
 
-  it('should return canAdmin false when user access is undefined', () => {
+  it('should return canAdmin false when user is not admin', () => {
     const initialState = {
       currentUser: {
-        userid: '3',
-        name: 'Guest User',
-        avatar: 'https://example.com/avatar.png',
+        id: 3,
+        email: 'guest@example.com',
+        username: 'guest',
+        first_name: 'Guest',
+        last_name: 'User',
+        timezone: 'Asia/Shanghai',
+        avatar_url: 'https://example.com/avatar.png',
+        phone_verified: false,
+        real_name_status: 'unverified',
+        is_staff: false,
+        is_superuser: false,
       },
     };
 

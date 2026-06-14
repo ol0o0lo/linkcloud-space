@@ -7,7 +7,7 @@ import { history, useModel } from '@umijs/max';
 import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
 import React, { startTransition } from 'react';
-import { outLogin } from '@/services/manual/api';
+import { deleteBrowserV1AuthSession } from '@/services/allauth/authSession';
 import HeaderDropdown from '../HeaderDropdown';
 
 type GlobalHeaderRightProps = {
@@ -18,7 +18,16 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   children,
 }) => {
   const loginOut = async () => {
-    await outLogin();
+    try {
+      await deleteBrowserV1AuthSession(
+        { client: 'browser' },
+        { skipErrorHandler: true },
+      );
+    } catch (error: any) {
+      if (error?.response?.status !== 401) {
+        throw error;
+      }
+    }
     const { search, pathname } = window.location;
     const urlParams = new URL(window.location.href).searchParams;
     const searchParams = new URLSearchParams({

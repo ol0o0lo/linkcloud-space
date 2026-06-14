@@ -1,9 +1,10 @@
 import { request } from '@umijs/max';
-import { currentUser } from '@/services/manual/api';
+import { appsAccountsApiGetMe } from '@/services/openapi/userAccount';
 import type { CurrentUser, ListItemDataType } from './data.d';
 
 export async function queryCurrent(): Promise<{ data: CurrentUser }> {
-  return currentUser() as Promise<{ data: CurrentUser }>;
+  const data = await appsAccountsApiGetMe();
+  return { data: data as CurrentUser };
 }
 
 export async function queryFakeList(params: {

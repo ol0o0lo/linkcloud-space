@@ -15,21 +15,9 @@ export type NoticeType = {
   memberLink: string;
 };
 
-export type CurrentUser = {
-  name: string;
-  avatar: string;
-  userid: string;
-  notice: NoticeType[];
-  email: string;
-  signature: string;
-  title: string;
-  group: string;
-  tags: TagType[];
-  notifyCount: number;
-  unreadCount: number;
-  country: string;
-  phoneCountryCode: string;
-  phoneNationalNumber: string;
+export type CurrentUser = API.MeOut & {
+  notice?: NoticeType[];
+  tags?: TagType[];
 };
 
 export type Member = {

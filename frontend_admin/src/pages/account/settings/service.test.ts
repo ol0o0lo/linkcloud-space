@@ -22,10 +22,6 @@ vi.mock('@umijs/max', () => ({
   request: vi.fn(),
 }));
 
-vi.mock('@/services/manual/api', () => ({
-  currentUser: vi.fn(),
-}));
-
 const mockRequest = vi.mocked(request);
 
 describe('account settings service', () => {
@@ -173,13 +169,14 @@ describe('account settings service', () => {
         data: [{ type: 'totp' }, { type: 'recovery_codes' }],
       })
       .mockResolvedValueOnce({
-        meta: { secret: 'secret', totp_url: 'otpauth://totp/demo' },
+        secret: 'secret',
+        totp_url: 'otpauth://totp/demo',
       });
 
     const authenticators = await listAuthenticators();
     const totpSetup = await getTotpSetup();
 
-    expect(authenticators.data).toEqual([
+    expect(authenticators).toEqual([
       { type: 'totp' },
       { type: 'recovery_codes' },
     ]);

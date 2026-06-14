@@ -13,7 +13,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormattedMessage, useIntl } from '@umijs/max';
 import { Button, Drawer, type FormInstance, Input, message } from 'antd';
 import React, { useCallback, useRef, useState } from 'react';
-import { removeRule, rule } from '@/services/manual/api';
+import { removeRule, rule, type PageParams, type RuleListItem } from './service';
 import CreateForm from './components/CreateForm';
 import UpdateForm from './components/UpdateForm';
 
@@ -22,8 +22,8 @@ const TableList: React.FC = () => {
   const queryClient = useQueryClient();
 
   const [showDetail, setShowDetail] = useState<boolean>(false);
-  const [currentRow, setCurrentRow] = useState<API.RuleListItem>();
-  const [selectedRowsState, setSelectedRows] = useState<API.RuleListItem[]>([]);
+  const [currentRow, setCurrentRow] = useState<RuleListItem>();
+  const [selectedRowsState, setSelectedRows] = useState<RuleListItem[]>([]);
 
   /**
    * @en-US International configuration
@@ -47,7 +47,7 @@ const TableList: React.FC = () => {
     },
   });
 
-  const columns: ProColumns<API.RuleListItem>[] = [
+  const columns: ProColumns<RuleListItem>[] = [
     {
       title: (
         <FormattedMessage
@@ -156,13 +156,13 @@ const TableList: React.FC = () => {
       dataIndex: 'updatedAt',
       valueType: 'dateTime',
       formItemRender: (
-        item: ProColumns<API.RuleListItem>,
+        item: ProColumns<RuleListItem>,
         {
           defaultRender,
           ...rest
         }: {
           defaultRender: (
-            item: ProColumns<API.RuleListItem>,
+            item: ProColumns<RuleListItem>,
           ) => React.ReactNode;
         },
         form: FormInstance,
@@ -225,7 +225,7 @@ const TableList: React.FC = () => {
    * @param selectedRows
    */
   const handleRemove = useCallback(
-    async (selectedRows: API.RuleListItem[]) => {
+    async (selectedRows: RuleListItem[]) => {
       if (!selectedRows?.length) {
         messageApi.warning('请选择删除项');
 
@@ -244,7 +244,7 @@ const TableList: React.FC = () => {
   return (
     <PageContainer>
       {contextHolder}
-      <ProTable<API.RuleListItem, API.PageParams>
+      <ProTable<RuleListItem, PageParams>
         headerTitle={intl.formatMessage({
           id: 'pages.searchTable.title',
           defaultMessage: 'Enquiry form',
@@ -328,7 +328,7 @@ const TableList: React.FC = () => {
         closable={false}
       >
         {currentRow?.name && (
-          <ProDescriptions<API.RuleListItem>
+          <ProDescriptions<RuleListItem>
             column={2}
             title={currentRow?.name}
             request={async () => ({
@@ -337,7 +337,7 @@ const TableList: React.FC = () => {
             params={{
               id: currentRow?.name,
             }}
-            columns={columns as ProDescriptionsItemProps<API.RuleListItem>[]}
+            columns={columns as ProDescriptionsItemProps<RuleListItem>[]}
           />
         )}
       </Drawer>

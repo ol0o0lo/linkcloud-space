@@ -20,8 +20,8 @@ import {
   OrgSwitcher,
   VersionDropdown,
 } from '@/components';
-import { currentUser as queryCurrentUser } from '@/services/manual/api';
-import { getOrganizationSwitchList } from '@/services/manual/organization';
+import { appsAccountsApiGetMe } from '@/services/openapi/userAccount';
+import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations';
 import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import defaultSettings from '../config/defaultSettings';
 import logoUrl from '../public/logo.svg';
@@ -32,13 +32,26 @@ const loginPath = '/user/login';
 
 type InitialState = {
   settings?: Partial<LayoutSettings>;
-  currentUser?: API.CurrentUser;
+  currentUser?: API.MeOut;
   loading?: boolean;
-  fetchUserInfo?: () => Promise<API.CurrentUser | undefined>;
+  fetchUserInfo?: () => Promise<API.MeOut | undefined>;
   settingDrawerOpen?: boolean;
-  organizations?: API.OrganizationOption[];
+  organizations?: API.SwitchListItemOut[];
   selectedOrgSlug?: string;
 };
+
+function getUserDisplayName(user?: API.MeOut) {
+  if (!user) {
+    return '用户';
+  }
+
+  return (
+    [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+    user.username ||
+    user.email ||
+    '用户'
+  );
+}
 
 /**
  * @see https://umijs.org/docs/api/runtime-config#getinitialstate
@@ -46,10 +59,9 @@ type InitialState = {
 export async function getInitialState(): Promise<InitialState> {
   const fetchUserInfo = async () => {
     try {
-      const msg = await queryCurrentUser({
+      return await appsAccountsApiGetMe({
         skipErrorHandler: true,
       });
-      return msg.data;
     } catch (_error) {
       const { pathname, search, hash } = history.location;
       history.replace(
@@ -60,7 +72,7 @@ export async function getInitialState(): Promise<InitialState> {
   };
   const fetchOrganizations = async () => {
     try {
-      return await getOrganizationSwitchList({
+      return await appsOrganizationsApiSwitchList({
         skipErrorHandler: true,
       });
     } catch (_error) {
@@ -123,8 +135,8 @@ export const layout: RunTimeLayoutConfig = ({
       ].filter(Boolean);
     },
     avatarProps: {
-      src: initialState?.currentUser?.avatar,
-      title: initialState?.currentUser?.name ?? '用户',
+      src: initialState?.currentUser?.avatar_url || undefined,
+      title: getUserDisplayName(initialState?.currentUser),
       render: (_, avatarChildren) => (
         <AvatarDropdown>{avatarChildren}</AvatarDropdown>
       ),

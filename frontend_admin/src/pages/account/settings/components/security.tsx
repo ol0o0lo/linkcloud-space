@@ -30,8 +30,8 @@ const SecurityView: React.FC = () => {
   } = useQuery({
     queryKey: ['security-authenticators'],
     queryFn: async () => {
-      const response = await listAuthenticators();
-      return (response.data || []) as AuthenticatorSummary[];
+      const authenticators = await listAuthenticators();
+      return authenticators as AuthenticatorSummary[];
     },
   });
 
@@ -48,10 +48,10 @@ const SecurityView: React.FC = () => {
         key: 'phone',
         title: '密保手机',
         description: maskPhone(
-          user?.phoneCountryCode,
-          user?.phoneNationalNumber,
+          user?.phone_country_code,
+          user?.phone_national_number,
         ),
-        actionText: user?.phoneNationalNumber ? '修改' : '绑定',
+        actionText: user?.phone_national_number ? '修改' : '绑定',
       },
       {
         key: 'email',

@@ -10,12 +10,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormattedMessage, useIntl } from '@umijs/max';
 import { Modal, message } from 'antd';
 import React, { cloneElement, useCallback, useState } from 'react';
-import { updateRule } from '@/services/manual/api';
+import { updateRule, type RuleListItem } from '../service';
 
 type UpdateFormProps = {
   trigger?: React.ReactElement<any>;
   onOk?: () => void;
-  values: Partial<API.RuleListItem>;
+  values: Partial<RuleListItem>;
 };
 
 const UpdateForm: React.FC<UpdateFormProps> = (props) => {

@@ -21,7 +21,7 @@ import useStyles from './Center.style';
 import Applications from './components/Applications';
 import Articles from './components/Articles';
 import Projects from './components/Projects';
-import type { CurrentUser, TagType, tabKeyType } from './data.d';
+import type { CurrentUser, NoticeType, TagType, tabKeyType } from './data.d';
 import { queryCurrent } from './service';
 
 const operationTabList = [
@@ -142,6 +142,7 @@ const TagList: React.FC<{
 };
 const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
   const { styles } = useStyles();
+  const isAdmin = Boolean(user.is_staff || user.is_superuser);
   return (
     <div className={styles.detail}>
       <p>
@@ -150,7 +151,7 @@ const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
             marginRight: 8,
           }}
         />
-        {user.title}
+        {isAdmin ? '管理员' : '成员'}
       </p>
       <p>
         <ClusterOutlined
@@ -158,7 +159,7 @@ const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
             marginRight: 8,
           }}
         />
-        {user.group}
+        {isAdmin ? '后台管理' : '普通用户'}
       </p>
     </div>
   );
@@ -201,13 +202,17 @@ const Center: React.FC = () => {
             {!loading && currentUser && (
               <>
                 <div className={styles.avatarHolder}>
-                  <img alt="" src={currentUser.avatar} />
-                  <div className={styles.name}>{currentUser.name}</div>
+                  <img alt="" src={currentUser.avatar_url || ''} />
+                  <div className={styles.name}>
+                    {[currentUser.first_name, currentUser.last_name]
+                      .filter(Boolean)
+                      .join(' ') || currentUser.username || currentUser.email}
+                  </div>
                   <div>{currentUser?.signature}</div>
                 </div>
                 <UserInfo user={currentUser} />
                 <Divider dashed />
-                <TagList tags={currentUser.tags || []} />
+                <TagList tags={(currentUser.tags as TagType[]) || []} />
                 <Divider
                   style={{
                     marginTop: 16,
@@ -217,7 +222,7 @@ const Center: React.FC = () => {
                 <div className={styles.team}>
                   <div className={styles.teamTitle}>团队</div>
                   <Row gutter={36}>
-                    {currentUser.notice?.map((item) => (
+                    {(currentUser.notice as NoticeType[] | undefined)?.map((item) => (
                       <Col key={item.id} lg={24} xl={12}>
                         <a href={item.href}>
                           <Avatar size="small" src={item.logo} />

@@ -19,12 +19,12 @@ vi.mock('@umijs/max', () => ({
   Link: ({ children }: any) => children,
 }));
 
-vi.mock('@/services/manual/api', () => ({
-  currentUser: mockQueryCurrentUser,
+vi.mock('@/services/openapi/userAccount', () => ({
+  appsAccountsApiGetMe: mockQueryCurrentUser,
 }));
 
-vi.mock('@/services/manual/organization', () => ({
-  getOrganizationSwitchList: mockGetOrganizationSwitchList,
+vi.mock('@/services/openapi/organizations', () => ({
+  appsOrganizationsApiSwitchList: mockGetOrganizationSwitchList,
 }));
 
 vi.mock('@/components', () => ({
@@ -69,19 +69,27 @@ describe('app getInitialState', () => {
   it('should fetch currentUser when not on login page', async () => {
     const { getInitialState } = await import('./app');
     mockQueryCurrentUser.mockResolvedValue({
-      data: {
-        name: 'Test User',
-        access: 'admin',
-      },
+      first_name: 'Test',
+      last_name: 'User',
+      username: 'test-user',
+      email: 'test@example.com',
+      avatar_url: null,
+      timezone: 'Asia/Shanghai',
+      phone_verified: true,
+      real_name_status: 'unverified',
+      is_staff: true,
+      is_superuser: false,
     });
 
     const state = await getInitialState();
 
     expect(mockQueryCurrentUser).toHaveBeenCalled();
-    expect(state.currentUser).toEqual({
-      name: 'Test User',
-      access: 'admin',
-    });
+    expect(state.currentUser).toEqual(
+      expect.objectContaining({
+        first_name: 'Test',
+        is_staff: true,
+      }),
+    );
     expect(state.organizations).toEqual([]);
     expect(state.selectedOrgSlug).toBeUndefined();
     expect(state.settingDrawerOpen).toBe(false);
@@ -91,18 +99,24 @@ describe('app getInitialState', () => {
   it('should default select the first organization when only one is available', async () => {
     const { getInitialState } = await import('./app');
     mockQueryCurrentUser.mockResolvedValue({
-      data: {
-        name: 'Tenant User',
-        access: 'admin',
-      },
+      first_name: 'Tenant',
+      last_name: 'User',
+      username: 'tenant-user',
+      email: 'tenant@example.com',
+      avatar_url: null,
+      timezone: 'Asia/Shanghai',
+      phone_verified: true,
+      real_name_status: 'unverified',
+      is_staff: true,
+      is_superuser: false,
     });
     mockGetOrganizationSwitchList.mockResolvedValue([
       {
         id: 1,
         name: 'Acme',
         slug: 'acme',
-        isCurrent: false,
-        isPrimary: true,
+        is_current: false,
+        is_primary: true,
       },
     ]);
 
@@ -163,7 +177,16 @@ describe('app getInitialState', () => {
   it('should include default settings in initial state', async () => {
     const { getInitialState } = await import('./app');
     mockQueryCurrentUser.mockResolvedValue({
-      data: { name: 'User' },
+      first_name: 'User',
+      last_name: '',
+      username: 'user',
+      email: 'user@example.com',
+      avatar_url: null,
+      timezone: 'Asia/Shanghai',
+      phone_verified: true,
+      real_name_status: 'unverified',
+      is_staff: false,
+      is_superuser: false,
     });
 
     const state = await getInitialState();
@@ -174,12 +197,23 @@ describe('app getInitialState', () => {
   it('fetchUserInfo should return user data on success', async () => {
     const { getInitialState } = await import('./app');
     mockQueryCurrentUser.mockResolvedValue({
-      data: { name: 'Fetched User', access: 'user' },
+      first_name: 'Fetched',
+      last_name: 'User',
+      username: 'fetched-user',
+      email: 'fetched@example.com',
+      avatar_url: null,
+      timezone: 'Asia/Shanghai',
+      phone_verified: true,
+      real_name_status: 'unverified',
+      is_staff: false,
+      is_superuser: false,
     });
 
     const state = await getInitialState();
 
     const user = await state.fetchUserInfo?.();
-    expect(user).toEqual({ name: 'Fetched User', access: 'user' });
+    expect(user).toEqual(
+      expect.objectContaining({ username: 'fetched-user', is_staff: false }),
+    );
   });
 });

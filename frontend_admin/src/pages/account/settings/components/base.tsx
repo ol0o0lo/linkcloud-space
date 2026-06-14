@@ -60,8 +60,7 @@ const BaseView: React.FC = () => {
     },
     onSuccess: (nickname) => {
       syncCurrentUser({
-        name: nickname,
-        lastName: nickname,
+        last_name: nickname,
       });
       message.success('更新基本信息成功');
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
@@ -72,7 +71,7 @@ const BaseView: React.FC = () => {
     mutationFn: uploadAvatar,
     onSuccess: (result) => {
       syncCurrentUser({
-        avatar: result.avatar_url || '',
+        avatar_url: result.avatar_url,
       });
       message.success('头像更新成功');
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
@@ -81,8 +80,8 @@ const BaseView: React.FC = () => {
 
   const getAvatarURL = () => {
     if (currentUser) {
-      if (currentUser.avatar) {
-        return currentUser.avatar;
+      if (currentUser.avatar_url) {
+        return currentUser.avatar_url;
       }
       const url =
         'https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png';
@@ -125,7 +124,7 @@ const BaseView: React.FC = () => {
               }}
               initialValues={{
                 ...currentUser,
-                name: currentUser?.lastName || currentUser?.name || '',
+                name: currentUser?.last_name || '',
               }}
               requiredMark={false}
             >

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import * as api from '@/services/manual/api';
+import * as api from './service';
 
 // Mock ProComponents before importing component
 vi.mock('@ant-design/pro-components', () => ({
@@ -77,7 +77,7 @@ vi.mock('@umijs/max', () => ({
   ),
 }));
 
-vi.mock('@/services/manual/api', () => ({
+vi.mock('./service', () => ({
   rule: vi.fn(),
   removeRule: vi.fn(),
   addRule: vi.fn(),

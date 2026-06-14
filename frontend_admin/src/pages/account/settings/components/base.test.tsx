@@ -26,10 +26,17 @@ vi.mock('@umijs/max', () => ({
   useModel: () => ({
     initialState: {
       currentUser: {
-        avatar: '/initial-avatar.png',
         id: 7,
-        lastName: '旧昵称',
-        name: '旧昵称',
+        username: 'initial-user',
+        first_name: '',
+        last_name: '旧昵称',
+        email: 'initial@example.com',
+        timezone: 'Asia/Shanghai',
+        avatar_url: '/initial-avatar.png',
+        phone_verified: true,
+        real_name_status: 'verified',
+        is_staff: false,
+        is_superuser: false,
       },
     },
     setInitialState: mockSetInitialState,
@@ -146,10 +153,17 @@ describe('BaseView', () => {
     vi.clearAllMocks();
     mockQueryCurrent.mockResolvedValue({
       data: {
-        avatar: '/avatar.png',
         id: 7,
-        lastName: '产品昵称',
-        name: '旧名称',
+        username: 'product-user',
+        first_name: '',
+        last_name: '产品昵称',
+        email: 'product@example.com',
+        timezone: 'Asia/Shanghai',
+        avatar_url: '/avatar.png',
+        phone_verified: true,
+        real_name_status: 'verified',
+        is_staff: false,
+        is_superuser: false,
       },
     });
   });

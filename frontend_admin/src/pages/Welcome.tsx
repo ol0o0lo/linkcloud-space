@@ -14,7 +14,11 @@ const { Paragraph, Text, Title } = Typography;
 const Welcome: React.FC = () => {
   const { initialState } = useModel('@@initialState');
   const currentUser = initialState?.currentUser;
-  const isAdmin = currentUser?.access === 'admin';
+  const isAdmin = Boolean(currentUser?.is_staff || currentUser?.is_superuser);
+  const displayName =
+    [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ') ||
+    currentUser?.username ||
+    '当前用户';
 
   return (
     <PageContainer
@@ -32,7 +36,7 @@ const Welcome: React.FC = () => {
         <Card>
           <Space direction="vertical" size={8}>
             <Title level={4} style={{ margin: 0 }}>
-              {currentUser?.name || currentUser?.userid || '当前用户'}
+              {displayName}
             </Title>
             <Paragraph style={{ margin: 0 }}>
               <Text type="secondary">{currentUser?.email || '未设置邮箱'}</Text>
@@ -53,7 +57,7 @@ const Welcome: React.FC = () => {
             <Card>
               <Statistic
                 title="登录标识"
-                value={currentUser?.userid || '-'}
+                value={currentUser?.username || '-'}
                 prefix={<UserOutlined />}
               />
             </Card>
@@ -71,7 +75,7 @@ const Welcome: React.FC = () => {
             <Card>
               <Statistic
                 title="未读通知"
-                value={currentUser?.unreadCount ?? 0}
+                value={currentUser?.unread_count ?? 0}
                 prefix={<CheckCircleOutlined />}
               />
             </Card>

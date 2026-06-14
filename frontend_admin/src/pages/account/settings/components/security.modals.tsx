@@ -282,7 +282,7 @@ const PhoneChangeModal: React.FC<PhoneChangeModalProps> = ({
                 await requestPhoneChangeCode(phone);
                 setCooldown(60);
                 message.success('验证码已发送');
-              } catch (error) {
+              } catch (error: any) {
                 if (error?.errorFields) {
                   return;
                 }
@@ -326,8 +326,8 @@ const EmailChangeModal: React.FC<EmailChangeModalProps> = ({
   const [loading, setLoading] = useState(false);
 
   const refreshEmails = async () => {
-    const response = await listAccountEmails();
-    setEmails(response.data || []);
+    const emails = await listAccountEmails();
+    setEmails(emails);
   };
 
   useEffect(() => {
@@ -472,8 +472,8 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
   const [removingType, setRemovingType] = useState<string | null>(null);
 
   const refreshAuthenticators = async () => {
-    const response = await listAuthenticators();
-    setAuthenticators(response.data || []);
+    const authenticators = await listAuthenticators();
+    setAuthenticators(authenticators);
   };
 
   const hasTotp = authenticators.some((item) => item.type === 'totp');

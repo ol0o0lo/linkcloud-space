@@ -1,5 +1,11 @@
+import { getBrowserV1AccountEmail, patchBrowserV1AccountEmail, postBrowserV1AccountEmail } from '@/services/allauth/accountEmail';
+import { postBrowserV1AccountPasswordChange } from '@/services/allauth/accountPassword';
+import { postBrowserV1AccountPhone } from '@/services/allauth/accountPhone';
+import { getBrowserV1AccountAuthenticators, postBrowserV1AccountAuthenticatorsTotp } from '@/services/allauth/accountTwoFactor';
+import { postBrowserV1AuthPhoneVerify } from '@/services/allauth/authAccount';
+import { getBrowserV1Config } from '@/services/allauth/configuration';
+import { appsAccountsApiDeleteMyAuthenticator, appsAccountsApiGetMe, appsAccountsApiGetSocialBindings, appsAccountsApiGetTotpSetup, appsAccountsApiPatchUser, appsAccountsApiUploadAvatar } from '@/services/openapi/userAccount';
 import { request } from '@umijs/max';
-import { currentUser } from '@/services/manual/api';
 import type {
   CurrentUser,
   GeographicItemType,
@@ -23,11 +29,6 @@ export type SocialBindingsResponse = {
   items: SocialBindingItem[];
 };
 
-type AllauthCollectionResponse<T> = {
-  data?: T;
-  meta?: Record<string, any>;
-};
-
 function getCookie(name: string) {
   const cookie = document.cookie
     .split('; ')
@@ -38,18 +39,21 @@ function getCookie(name: string) {
 async function ensureCsrfToken() {
   let token = getCookie('csrftoken');
   if (!token) {
-    await request(`${ALLAUTH_BROWSER_BASE}/config`, {
-      method: 'GET',
-      credentials: 'include',
-      skipErrorHandler: true,
-    } as any);
+    await getBrowserV1Config(
+      { client: 'browser' },
+      {
+        credentials: 'include',
+        skipErrorHandler: true,
+      } as any,
+    );
     token = getCookie('csrftoken');
   }
   return token;
 }
 
 export async function queryCurrent(): Promise<{ data: CurrentUser }> {
-  return currentUser() as Promise<{ data: CurrentUser }>;
+  const data = await appsAccountsApiGetMe();
+  return { data: data as CurrentUser };
 }
 
 export async function updateCurrentUser(
@@ -57,37 +61,43 @@ export async function updateCurrentUser(
   payload: UpdateProfilePayload,
 ) {
   const csrfToken = await ensureCsrfToken();
-  return request(`/api/users/${userId}/`, {
-    credentials: 'include',
-    method: 'PATCH',
-    headers: {
-      'X-CSRFToken': csrfToken,
+  return appsAccountsApiPatchUser(
+    { user_id: userId },
+    payload,
+    {
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': csrfToken,
+      },
     },
-    data: payload,
-  });
+  );
 }
 
 export async function uploadAvatar(file: File): Promise<UploadAvatarResponse> {
   const csrfToken = await ensureCsrfToken();
-  const formData = new FormData();
-  formData.append('image', file);
-  formData.append('crop_data', '{}');
-
-  return request('/api/users/me/avatar/', {
-    credentials: 'include',
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': csrfToken,
+  return appsAccountsApiUploadAvatar(
+    { crop_data: '{}' },
+    file,
+    {
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': csrfToken,
+      },
     },
-    data: formData,
-  });
+  );
 }
 
 export async function querySocialBindings(): Promise<SocialBindingsResponse> {
-  return request('/api/users/me/social-bindings/', {
+  const response = await appsAccountsApiGetSocialBindings({
     method: 'GET',
     credentials: 'include',
   });
+  return {
+    items: response.items.map((item) => ({
+      ...item,
+      provider: item.provider as SocialBindingProvider,
+    })),
+  };
 }
 
 export async function startSocialBinding(provider: SocialBindingProvider) {
@@ -120,117 +130,130 @@ export async function updatePassword(
   newPassword: string,
 ) {
   const csrfToken = await ensureCsrfToken();
-  return request(`${ALLAUTH_BROWSER_BASE}/account/password/change`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
-    },
-    data: {
+  return postBrowserV1AccountPasswordChange(
+    { client: 'browser' },
+    {
       current_password: currentPassword,
       new_password: newPassword,
     },
-  } as any);
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
 }
 
 export async function requestPhoneChangeCode(phone: string) {
   const csrfToken = await ensureCsrfToken();
-  return request(`${ALLAUTH_BROWSER_BASE}/account/phone`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
-    },
-    data: { phone },
-  } as any);
+  return postBrowserV1AccountPhone(
+    { client: 'browser' },
+    { phone },
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
 }
 
 export async function confirmPhoneChange(code: string) {
   const csrfToken = await ensureCsrfToken();
-  return request(`${ALLAUTH_BROWSER_BASE}/auth/phone/verify`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
-    },
-    data: { code },
-  } as any);
+  return postBrowserV1AuthPhoneVerify(
+    { client: 'browser' },
+    { code },
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
 }
 
-export async function listAccountEmails() {
-  return request<
-    AllauthCollectionResponse<
-      Array<{ email: string; primary?: boolean; verified?: boolean }>
-    >
-  >(`${ALLAUTH_BROWSER_BASE}/account/email`, {
-    method: 'GET',
-    credentials: 'include',
-  } as any);
-}
-
-export async function addAccountEmail(email: string) {
-  const csrfToken = await ensureCsrfToken();
-  return request(`${ALLAUTH_BROWSER_BASE}/account/email`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
-    },
-    data: { email },
-  } as any);
-}
-
-export async function setPrimaryAccountEmail(email: string) {
-  const csrfToken = await ensureCsrfToken();
-  return request(`${ALLAUTH_BROWSER_BASE}/account/email`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
-    },
-    data: { email, primary: true },
-  } as any);
-}
-
-export async function listAuthenticators() {
-  return request<AllauthCollectionResponse<Array<{ type: string }>>>(
-    `${ALLAUTH_BROWSER_BASE}/account/authenticators`,
+export async function listAccountEmails(): Promise<
+  Array<{ email: string; primary?: boolean; verified?: boolean }>
+> {
+  const response = await getBrowserV1AccountEmail(
+    { client: 'browser' },
     {
       method: 'GET',
       credentials: 'include',
     } as any,
   );
+  return (response.data || []).map((item) => ({
+    email: String(item.email),
+    primary: item.primary,
+    verified: item.verified,
+  }));
+}
+
+export async function addAccountEmail(email: string) {
+  const csrfToken = await ensureCsrfToken();
+  return postBrowserV1AccountEmail(
+    { client: 'browser' },
+    { email: email as any },
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
+}
+
+export async function setPrimaryAccountEmail(email: string) {
+  const csrfToken = await ensureCsrfToken();
+  return patchBrowserV1AccountEmail(
+    { client: 'browser' },
+    { email: email as any, primary: true },
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
+}
+
+export async function listAuthenticators(): Promise<Array<{ type: string }>> {
+  const response = await getBrowserV1AccountAuthenticators(
+    { client: 'browser' },
+    {
+      credentials: 'include',
+      method: 'GET',
+    } as any,
+  );
+  return Array.isArray(response.data) ? response.data : [];
 }
 
 export async function getTotpSetup() {
   try {
-    const response = await request<AllauthCollectionResponse<never>>(
-      `${ALLAUTH_BROWSER_BASE}/account/authenticators/totp`,
-      {
-        method: 'GET',
-        credentials: 'include',
-        skipErrorHandler: true,
-      } as any,
-    );
-    if (response.meta?.secret && response.meta?.totp_url) {
+    const response = await appsAccountsApiGetTotpSetup({
+      method: 'GET',
+      credentials: 'include',
+      skipErrorHandler: true,
+    } as any);
+    if (response.secret && response.totp_url) {
       return {
-        secret: response.meta.secret,
-        totpUrl: response.meta.totp_url,
+        secret: response.secret,
+        totpUrl: response.totp_url,
       };
     }
     throw new Error('TOTP 初始化信息缺失');
   } catch (error: any) {
-    const status = error?.response?.status;
-    const meta = error?.response?.data?.meta || error?.data?.meta || {};
-    if (status === 404 && meta.secret && meta.totp_url) {
+    const response = error?.response?.data || error?.data || {};
+    if (response.secret && response.totp_url) {
       return {
-        secret: meta.secret,
-        totpUrl: meta.totp_url,
+        secret: response.secret,
+        totpUrl: response.totp_url,
       };
     }
     throw error;
@@ -239,26 +262,32 @@ export async function getTotpSetup() {
 
 export async function activateTotp(code: string) {
   const csrfToken = await ensureCsrfToken();
-  return request(`${ALLAUTH_BROWSER_BASE}/account/authenticators/totp`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
-    },
-    data: { code },
-  } as any);
+  return postBrowserV1AccountAuthenticatorsTotp(
+    { client: 'browser' },
+    { code },
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
 }
 
 export async function deleteAuthenticator(type: string) {
   const csrfToken = await ensureCsrfToken();
-  return request(`/api/users/me/mfa/authenticators/${type}/`, {
-    method: 'DELETE',
-    credentials: 'include',
-    headers: {
-      'X-CSRFToken': csrfToken,
-    },
-  } as any);
+  return appsAccountsApiDeleteMyAuthenticator(
+    { authenticator_type: type },
+    {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
 }
 
 export async function queryProvince(): Promise<{ data: GeographicItemType[] }> {

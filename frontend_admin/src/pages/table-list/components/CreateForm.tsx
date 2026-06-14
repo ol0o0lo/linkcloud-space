@@ -9,7 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormattedMessage, useIntl } from '@umijs/max';
 import { Button, message } from 'antd';
 import type { FC } from 'react';
-import { addRule } from '@/services/manual/api';
+import { addRule, type RuleListItem } from '../service';
 
 interface CreateFormProps {
   reload?: ActionType['reload'];
@@ -55,7 +55,7 @@ const CreateForm: FC<CreateFormProps> = (props) => {
         modalProps={{ okButtonProps: { loading } }}
         onFinish={async (value) => {
           try {
-            await run({ data: value as API.RuleListItem });
+            await run({ data: value as RuleListItem });
             return true;
           } catch {
             return false;
