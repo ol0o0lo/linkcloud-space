@@ -10,6 +10,8 @@ Ant Design Pro — React enterprise boilerplate on Umi Max v4, antd v6, ProCompo
 
 Other: `npm run openapi` (regenerate `src/services/`), `npm run simple` (**irreversible** — commit first), `npm run biome` (auto-fix), `npm run tsc` (type-check only).
 
+Before running tests or any other Node-based command in `frontend_admin/`, switch to Node 22 first with `nvm use 22`.
+
 ## Critical Rules
 
 - **Never edit `src/services/ant-design-pro/`** — auto-generated, regenerate with `npm run openapi`
@@ -18,6 +20,7 @@ Other: `npm run openapi` (regenerate `src/services/`), `npm run simple` (**irrev
 - **`npm run simple` is irreversible** — always commit/branch first
 - **Conventional commits** required (commitlint enforced)
 - **TypeScript strict** · **Node ≥ 22** · **`package-lock.json`** (not yarn/pnpm)
+- **Run `nvm use 22` first** before `npm run test`, `npm run lint`, `npm run build`, `npm run openapi`, or similar Node commands
 - **`.umi` dir is auto-generated** — delete `src/.umi` and restart if dev server acts up
 
 ## Architecture Essentials
