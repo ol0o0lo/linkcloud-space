@@ -118,7 +118,7 @@ describe('account settings service', () => {
       })
       .mockResolvedValueOnce({ meta: { is_authenticated: true } });
 
-    await requestPhoneChangeCode('+8613800138001');
+    await requestPhoneChangeCode('+86', '13800138001');
     await confirmPhoneChange('123456');
 
     expect(mockRequest).toHaveBeenNthCalledWith(

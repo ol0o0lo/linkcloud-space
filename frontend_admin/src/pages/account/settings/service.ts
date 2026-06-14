@@ -1,8 +1,8 @@
-import { getBrowserV1AccountEmail, patchBrowserV1AccountEmail, postBrowserV1AccountEmail } from '@/services/allauth/accountEmail';
+import { deleteBrowserV1AccountEmail, getBrowserV1AccountEmail, patchBrowserV1AccountEmail, postBrowserV1AccountEmail } from '@/services/allauth/accountEmail';
 import { postBrowserV1AccountPasswordChange } from '@/services/allauth/accountPassword';
 import { postBrowserV1AccountPhone } from '@/services/allauth/accountPhone';
 import { getBrowserV1AccountAuthenticators, postBrowserV1AccountAuthenticatorsTotp } from '@/services/allauth/accountTwoFactor';
-import { postBrowserV1AuthPhoneVerify } from '@/services/allauth/authAccount';
+import { postBrowserV1AuthPhoneVerify, postBrowserV1AuthReauthenticate } from '@/services/allauth/authAccount';
 import { getBrowserV1Config } from '@/services/allauth/configuration';
 import { appsAccountsApiDeleteMyAuthenticator, appsAccountsApiGetMe, appsAccountsApiGetSocialBindings, appsAccountsApiGetTotpSetup, appsAccountsApiPatchUser, appsAccountsApiUploadAvatar } from '@/services/openapi/userAccount';
 import { request } from '@umijs/max';
@@ -146,7 +146,8 @@ export async function updatePassword(
   );
 }
 
-export async function requestPhoneChangeCode(phone: string) {
+export async function requestPhoneChangeCode(countryCode: string, nationalNumber: string) {
+  const phone = `${countryCode}${nationalNumber}`;
   const csrfToken = await ensureCsrfToken();
   return postBrowserV1AccountPhone(
     { client: 'browser' },
@@ -223,6 +224,21 @@ export async function setPrimaryAccountEmail(email: string) {
   );
 }
 
+export async function removeAccountEmail(email: string) {
+  const csrfToken = await ensureCsrfToken();
+  return deleteBrowserV1AccountEmail(
+    { client: 'browser' },
+    { email: email as any },
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
+}
+
 export async function listAuthenticators(): Promise<Array<{ type: string }>> {
   const response = await getBrowserV1AccountAuthenticators(
     { client: 'browser' },
@@ -267,6 +283,21 @@ export async function activateTotp(code: string) {
     { code },
     {
       method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
+}
+
+export async function reauthenticate(password: string) {
+  const csrfToken = await ensureCsrfToken();
+  return postBrowserV1AuthReauthenticate(
+    { client: 'browser' },
+    { password },
+    {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',

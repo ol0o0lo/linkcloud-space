@@ -8,6 +8,7 @@ import {
   Modal,
   message,
   QRCode,
+  Select,
   Space,
   Tag,
   Typography,
@@ -22,6 +23,8 @@ import {
   getTotpSetup,
   listAccountEmails,
   listAuthenticators,
+  reauthenticate,
+  removeAccountEmail,
   requestPhoneChangeCode,
   setPrimaryAccountEmail,
   updatePassword,
@@ -33,6 +36,19 @@ import type {
   TotpSetup,
 } from './security.types';
 import { getAuthenticatorLabel } from './security.utils';
+
+const COUNTRY_CODES = [
+  { value: '+86', label: '+86 (中国)' },
+  { value: '+852', label: '+852 (香港)' },
+  { value: '+853', label: '+853 (澳门)' },
+  { value: '+886', label: '+886 (台湾)' },
+  { value: '+1', label: '+1 (美国)' },
+  { value: '+81', label: '+81 (日本)' },
+  { value: '+82', label: '+82 (韩国)' },
+  { value: '+65', label: '+65 (新加坡)' },
+  { value: '+60', label: '+60 (马来西亚)' },
+  { value: '+44', label: '+44 (英国)' },
+];
 
 type SecurityModalsProps = {
   activeModal: SecurityAction | null;
@@ -258,12 +274,29 @@ const PhoneChangeModal: React.FC<PhoneChangeModalProps> = ({
             message={errorMessage}
           />
         ) : null}
-        <Form.Item
-          label="新手机号"
-          name="phone"
-          rules={[{ required: true, message: '请输入新手机号' }]}
-        >
-          <Input />
+        <Form.Item label="新手机号" required>
+          <Space.Compact style={{ width: '100%' }}>
+            <Form.Item
+              noStyle
+              name="countryCode"
+              initialValue="+86"
+              rules={[{ required: true, message: '请选择国家区号' }]}
+            >
+              <Select
+                showSearch
+                style={{ width: 140 }}
+                options={COUNTRY_CODES}
+                placeholder="区号"
+              />
+            </Form.Item>
+            <Form.Item
+              noStyle
+              name="nationalNumber"
+              rules={[{ required: true, message: '请输入手机号' }]}
+            >
+              <Input style={{ flex: 1 }} placeholder="请输入手机号" />
+            </Form.Item>
+          </Space.Compact>
         </Form.Item>
         <Form.Item
           label="验证码"
@@ -278,8 +311,8 @@ const PhoneChangeModal: React.FC<PhoneChangeModalProps> = ({
               setErrorMessage('');
               setSendingCode(true);
               try {
-                const { phone } = await form.validateFields(['phone']);
-                await requestPhoneChangeCode(phone);
+                const { countryCode, nationalNumber } = await form.validateFields(['countryCode', 'nationalNumber']);
+                await requestPhoneChangeCode(countryCode, nationalNumber);
                 setCooldown(60);
                 message.success('验证码已发送');
               } catch (error: any) {
@@ -432,6 +465,30 @@ const EmailChangeModal: React.FC<EmailChangeModalProps> = ({
                     待验证
                   </Tag>
                 ),
+                !item.primary ? (
+                  <Button
+                    key={`${item.email}-delete`}
+                    danger
+                    type="link"
+                    onClick={async () => {
+                      setErrorMessage('');
+                      try {
+                        await removeAccountEmail(item.email);
+                        await refreshEmails();
+                        await onSuccess();
+                        message.success('邮箱已删除');
+                      } catch (error) {
+                        setErrorMessage(
+                          getErrorMessage(error, '删除邮箱失败'),
+                        );
+                      }
+                    }}
+                  >
+                    删除
+                  </Button>
+                ) : (
+                  null
+                ),
               ]}
             >
               <Space>
@@ -470,6 +527,10 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
   const [startingTotp, setStartingTotp] = useState(false);
   const [bindingTotp, setBindingTotp] = useState(false);
   const [removingType, setRemovingType] = useState<string | null>(null);
+  const [pendingTotpCode, setPendingTotpCode] = useState<string | null>(null);
+  const [reauthVisible, setReauthVisible] = useState(false);
+  const [reauthForm] = Form.useForm();
+  const [reauthSubmitting, setReauthSubmitting] = useState(false);
 
   const refreshAuthenticators = async () => {
     const authenticators = await listAuthenticators();
@@ -562,7 +623,21 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                   setTotpSetup(null);
                   message.success('TOTP 已启用');
                 } catch (error) {
-                  setErrorMessage(getErrorMessage(error, 'TOTP 绑定失败'));
+                  const isReauthRequired =
+                    (error as any)?.response?.data?.flows?.some(
+                      (f: any) => f.id === 'reauthenticate',
+                    ) ||
+                    (error as any)?.data?.flows?.some(
+                      (f: any) => f.id === 'reauthenticate',
+                    );
+                  if (isReauthRequired) {
+                    setPendingTotpCode(values.code);
+                    setReauthVisible(true);
+                  } else {
+                    setErrorMessage(
+                      getErrorMessage(error, 'TOTP 绑定失败'),
+                    );
+                  }
                 } finally {
                   setBindingTotp(false);
                 }
@@ -632,6 +707,63 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
           )}
         />
       </Space>
+      <Modal
+        open={reauthVisible}
+        title="身份验证"
+        onCancel={() => {
+          setReauthVisible(false);
+          setPendingTotpCode(null);
+          reauthForm.resetFields();
+        }}
+        footer={null}
+        destroyOnClose
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="绑定 TOTP 需要重新验证身份，请输入密码后继续"
+        />
+        <Form
+          form={reauthForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            setErrorMessage('');
+            setReauthSubmitting(true);
+            try {
+              await reauthenticate(values.password);
+              setReauthVisible(false);
+              reauthForm.resetFields();
+              if (pendingTotpCode) {
+                setBindingTotp(true);
+                try {
+                  await activateTotp(pendingTotpCode);
+                  await refreshAuthenticators();
+                  await onSuccess();
+                  setTotpSetup(null);
+                  message.success('TOTP 已启用');
+                } catch (retryError) {
+                  setErrorMessage(getErrorMessage(retryError, 'TOTP 绑定失败'));
+                } finally {
+                  setBindingTotp(false);
+                  setPendingTotpCode(null);
+                }
+              }
+            } catch (error) {
+              setErrorMessage(getErrorMessage(error, '身份验证失败'));
+            } finally {
+              setReauthSubmitting(false);
+            }
+          }}
+        >
+          <Form.Item label="密码" name="password" rules={[{ required: true, message: '请输入密码' }]}>
+            <Input.Password />
+          </Form.Item>
+          <Button htmlType="submit" type="primary" loading={reauthSubmitting}>
+            确认
+          </Button>
+        </Form>
+      </Modal>
     </Modal>
   );
 };
