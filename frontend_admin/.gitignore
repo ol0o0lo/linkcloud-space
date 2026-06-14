@@ -52,3 +52,8 @@ docs/superpowers
 # cloudflare wrangler
 .wrangler
 requestRecord.mock.js
+
+# local OpenAPI codegen artifacts
+config/oneapi.json
+config/codegen.openapi.json
+config/codegen.allauth.json

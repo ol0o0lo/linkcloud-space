@@ -7,9 +7,9 @@ const { spawnSync } = require('node:child_process');
 const { transformAllauthSchema, transformOpenApiTags } = require('./openapi-codegen-tags');
 
 const DEFAULT_SCHEMA_URL = 'http://localhost:18000/api/openapi.json';
-const DEFAULT_OUTPUT_PATH = path.join(__dirname, '..', 'config', 'openapi.codegen.json');
+const DEFAULT_OUTPUT_PATH = path.join(__dirname, '..', 'config', 'codegen.openapi.json');
 const DEFAULT_ALLAUTH_SCHEMA_URL = 'http://127.0.0.1:4523/export/openapi/2?version=3.0';
-const DEFAULT_ALLAUTH_OUTPUT_PATH = path.join(__dirname, '..', 'config', 'allauth.codegen.json');
+const DEFAULT_ALLAUTH_OUTPUT_PATH = path.join(__dirname, '..', 'config', 'codegen.allauth.json');
 
 function loadHttpSchema(schemaUrl) {
   return new Promise((resolve, reject) => {
