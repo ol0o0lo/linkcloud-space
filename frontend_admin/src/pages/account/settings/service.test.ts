@@ -22,7 +22,7 @@ vi.mock('@umijs/max', () => ({
   request: vi.fn(),
 }));
 
-vi.mock('@/services/ant-design-pro/api', () => ({
+vi.mock('@/services/manual/api', () => ({
   currentUser: vi.fn(),
 }));
 

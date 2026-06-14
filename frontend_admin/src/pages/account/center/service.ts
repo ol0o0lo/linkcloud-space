@@ -1,5 +1,5 @@
 import { request } from '@umijs/max';
-import { currentUser } from '@/services/ant-design-pro/api';
+import { currentUser } from '@/services/manual/api';
 import type { CurrentUser, ListItemDataType } from './data.d';
 
 export async function queryCurrent(): Promise<{ data: CurrentUser }> {

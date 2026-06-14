@@ -20,8 +20,8 @@ import {
   OrgSwitcher,
   VersionDropdown,
 } from '@/components';
-import { currentUser as queryCurrentUser } from '@/services/ant-design-pro/api';
-import { getOrganizationSwitchList } from '@/services/organization';
+import { currentUser as queryCurrentUser } from '@/services/manual/api';
+import { getOrganizationSwitchList } from '@/services/manual/organization';
 import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import defaultSettings from '../config/defaultSettings';
 import logoUrl from '../public/logo.svg';

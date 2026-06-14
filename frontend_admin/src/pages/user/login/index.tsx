@@ -14,7 +14,7 @@ import { Alert, App } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { startTransition, useState } from 'react';
 import { Footer } from '@/components';
-import { login } from '@/services/ant-design-pro/api';
+import { login } from '@/services/manual/api';
 import Settings from '../../../../config/defaultSettings';
 import logoUrl from '../../../../public/logo.svg';
 

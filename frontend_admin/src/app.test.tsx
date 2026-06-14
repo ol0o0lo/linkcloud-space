@@ -19,11 +19,11 @@ vi.mock('@umijs/max', () => ({
   Link: ({ children }: any) => children,
 }));
 
-vi.mock('@/services/ant-design-pro/api', () => ({
+vi.mock('@/services/manual/api', () => ({
   currentUser: mockQueryCurrentUser,
 }));
 
-vi.mock('@/services/organization', () => ({
+vi.mock('@/services/manual/organization', () => ({
   getOrganizationSwitchList: mockGetOrganizationSwitchList,
 }));
 
