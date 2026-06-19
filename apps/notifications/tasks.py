@@ -41,7 +41,7 @@ def dispatch_notification(dispatch_id: int) -> int:
     try:
         return execute_dispatch(dispatch_id)
     except Exception as exc:
-        NotificationDispatch.objects.filter(pk=dispatch_id).update(
+        NotificationDispatch.objects.filter(pk=dispatch_id).exclude(status=NotificationDispatch.Status.SENT).update(
             status=NotificationDispatch.Status.FAILED,
             error_message=str(exc)[:2000],
         )

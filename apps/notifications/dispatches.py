@@ -4,14 +4,16 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.notifications.models import NotificationDispatch
 from apps.notifications.services import notify
-from apps.organizations.models import Organization
+from apps.organizations.models import Organization, OrganizationMember
 
 
 def resolve_dispatch_recipients(dispatch: NotificationDispatch) -> list[User]:
     """Resolve active users targeted by a management dispatch."""
     recipients = User.objects.filter(is_active=True)
 
-    if dispatch.scope == NotificationDispatch.Scope.ORGANIZATION:
+    if dispatch.owner_organization_id and dispatch.scope == NotificationDispatch.Scope.ORGANIZATION:
+        recipients = recipients.filter(organizationmember__organization_id=dispatch.owner_organization_id)
+    elif dispatch.scope == NotificationDispatch.Scope.ORGANIZATION:
         recipients = recipients.filter(organizationmember__organization_id__in=dispatch.scope_ids)
     elif dispatch.scope == NotificationDispatch.Scope.USERS:
         recipients = recipients.filter(pk__in=dispatch.scope_ids)
@@ -54,20 +56,48 @@ def execute_dispatch(dispatch_id: int) -> int:
         dispatch.sent_at = None
         dispatch.save(update_fields=["status", "error_message", "sent_at", "updated_at"])
 
-        recipients = resolve_dispatch_recipients(dispatch)
-        notifications = notify(
-            recipients,
-            title=dispatch.title,
-            url=dispatch.url,
-            organization=_notification_organization(dispatch),
-            body=dispatch.body,
-            category=dispatch.category,
-            data=dispatch.data,
-            dispatch=dispatch,
-        )
+        target_count = 0
+        delivered_count = 0
 
-        dispatch.target_count = len(recipients)
-        dispatch.delivered_count = len(notifications)
+        if dispatch.owner_organization_id is None and dispatch.scope == NotificationDispatch.Scope.ORGANIZATION:
+            for organization_id in dict.fromkeys(dispatch.scope_ids):
+                organization = Organization.objects.get(pk=organization_id)
+                recipients = list(
+                    User.objects.filter(
+                        is_active=True,
+                        pk__in=OrganizationMember.objects.filter(organization_id=organization_id).values("user_id"),
+                    ).order_by("pk")
+                )
+                target_count += len(recipients)
+                delivered_count += len(
+                    notify(
+                        recipients,
+                        title=dispatch.title,
+                        url=dispatch.url,
+                        organization=organization,
+                        body=dispatch.body,
+                        category=dispatch.category,
+                        data=dispatch.data,
+                        dispatch=dispatch,
+                    )
+                )
+        else:
+            recipients = resolve_dispatch_recipients(dispatch)
+            notifications = notify(
+                recipients,
+                title=dispatch.title,
+                url=dispatch.url,
+                organization=_notification_organization(dispatch),
+                body=dispatch.body,
+                category=dispatch.category,
+                data=dispatch.data,
+                dispatch=dispatch,
+            )
+            target_count = len(recipients)
+            delivered_count = len(notifications)
+
+        dispatch.target_count = target_count
+        dispatch.delivered_count = delivered_count
         dispatch.status = NotificationDispatch.Status.SENT
         dispatch.sent_at = timezone.now()
         dispatch.save(update_fields=["target_count", "delivered_count", "status", "sent_at", "updated_at"])
