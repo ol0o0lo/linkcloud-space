@@ -52,6 +52,10 @@ class NotificationDispatch(BaseModelMixin):
 
     def clean(self):
         super().clean()
+        if not isinstance(self.scope_ids, list):
+            raise ValidationError({"scope_ids": "Scope ids must be a list of integers."})
+        if any(type(scope_id) is not int for scope_id in self.scope_ids):
+            raise ValidationError({"scope_ids": "Scope ids must be a list of integers."})
         if self.scope == self.Scope.PLATFORM and self.scope_ids:
             raise ValidationError({"scope_ids": "Platform dispatches must not include scope_ids."})
         if self.scope != self.Scope.PLATFORM and not self.scope_ids:
