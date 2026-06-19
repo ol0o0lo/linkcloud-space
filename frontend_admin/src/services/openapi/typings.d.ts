@@ -80,6 +80,8 @@ declare namespace API {
     provider_request_id?: string;
     /** Provider Result */
     provider_result?: Record<string, any>;
+    /** Id Card Media */
+    id_card_media?: Record<string, any>[];
     /** Is Current */
     is_current: boolean;
     /** Created At */
@@ -1298,6 +1300,8 @@ declare namespace API {
     real_name: string;
     /** Id Number 身份证号。 */
     id_number: string;
+    /** Id Card Media 身份证正反面媒体引用。 */
+    id_card_media: Record<string, any>[];
     /** Source 来源：user_submit 或 business_gate。 */
     source?: string;
   };
@@ -1307,6 +1311,8 @@ declare namespace API {
     real_name: string;
     /** Id Number 身份证号。 */
     id_number: string;
+    /** Id Card Media 身份证正反面媒体引用。 */
+    id_card_media: Record<string, any>[];
     /** Source 来源：user_submit 或 business_gate。 */
     source?: string;
   };
@@ -1344,6 +1350,8 @@ declare namespace API {
     provider_request_id?: string;
     /** Provider Result */
     provider_result?: Record<string, any>;
+    /** Id Card Media */
+    id_card_media?: Record<string, any>[];
     /** Is Current */
     is_current: boolean;
     /** Created At */
@@ -1393,6 +1401,8 @@ declare namespace API {
     provider_request_id?: string;
     /** Provider Result */
     provider_result?: Record<string, any>;
+    /** Id Card Media */
+    id_card_media?: Record<string, any>[];
     /** Is Current */
     is_current: boolean;
     /** Created At */

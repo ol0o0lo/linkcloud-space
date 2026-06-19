@@ -1,4 +1,4 @@
-export type SecurityAction = 'password' | 'phone' | 'email' | 'mfa';
+export type SecurityAction = 'password' | 'phone' | 'email' | 'mfa' | 'real-name';
 
 export type SecurityItem = {
   key: SecurityAction;

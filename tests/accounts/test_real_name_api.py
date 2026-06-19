@@ -4,6 +4,7 @@ from django.test import TestCase
 
 from apps.accounts.constants import RealNameLogAction, RealNameStatus
 from apps.accounts.models import RealNameVerification, User
+from apps.media.models import MediaFile
 from apps.referrals.constants import ReferralRecordStatus
 from apps.referrals.models import ReferralRecord
 from apps.referrals.services import ensure_referral_link
@@ -34,14 +35,36 @@ class TestRealNameAPI(TestCase):
         self.valid_id = build_cn_id("11010519900101001")
         self.second_valid_id = build_cn_id("11010519900101002")
 
-    def test_submit_valid_real_name_marks_user_verified(self):
+    def make_id_card_media(self):
+        front = MediaFile.objects.create(
+            uploader=self.user,
+            resource_type="real_name_id_card",
+            original_filename="front.png",
+            file="uploads/users/1/front.png",
+            file_size=123,
+        )
+        back = MediaFile.objects.create(
+            uploader=self.user,
+            resource_type="real_name_id_card",
+            original_filename="back.png",
+            file="uploads/users/1/back.png",
+            file_size=124,
+        )
+        return [
+            {"media_id": front.pk, "media_type": "image", "label": "身份证人像面", "side": "front"},
+            {"media_id": back.pk, "media_type": "image", "label": "身份证国徽面", "side": "back"},
+        ]
+
+    def test_submit_valid_real_name_creates_pending_application_with_id_card_media(self):
         self.client.force_login(self.user)
+        id_card_media = self.make_id_card_media()
 
         resp = self.client.post(
             "/api/users/me/real-name/submit/",
             data=json.dumps(
                 {
                     "id_number": self.valid_id,
+                    "id_card_media": id_card_media,
                     "real_name": "张三",
                     "source": "user_submit",
                 }
@@ -52,14 +75,20 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(resp.status_code, 200, resp.content)
         self.user.refresh_from_db()
         verification = RealNameVerification.objects.get(user=self.user, is_current=True)
-        self.assertEqual(verification.status, RealNameStatus.VERIFIED)
-        self.assertEqual(self.user.real_name_status, RealNameStatus.VERIFIED)
+        self.assertEqual(verification.status, RealNameStatus.PENDING)
+        self.assertEqual(self.user.real_name_status, RealNameStatus.PENDING)
         self.assertEqual(self.user.real_name_masked, "张*")
         self.assertTrue(self.user.id_number_masked.endswith(self.valid_id[-4:]))
-        self.assertEqual(verification.logs.count(), 2)
-        self.assertEqual(verification.logs.last().action, RealNameLogAction.AUTO_VERIFIED)
+        self.assertEqual(verification.id_card_media, id_card_media)
+        self.assertEqual(verification.logs.count(), 1)
+        self.assertEqual(verification.logs.last().action, RealNameLogAction.SUBMITTED)
+        data = api_data(resp)
+        self.assertEqual(data["status"], RealNameStatus.PENDING)
+        self.assertEqual(data["id_card_media"][0]["side"], "front")
+        self.assertEqual(data["id_card_media"][0]["media_id"], id_card_media[0]["media_id"])
+        self.assertIn("url", data["id_card_media"][0])
 
-    def test_submit_valid_real_name_marks_referral_record_pending_review(self):
+    def test_admin_approval_marks_referral_record_pending_review(self):
         inviter = User.objects.create_user(username="inviter", email="inviter@example.com", password="secret123")  # noqa: S106
         link = ensure_referral_link(inviter)
         ReferralRecord.objects.create(
@@ -69,12 +98,14 @@ class TestRealNameAPI(TestCase):
             status=ReferralRecordStatus.REGISTERED,
         )
         self.client.force_login(self.user)
+        id_card_media = self.make_id_card_media()
 
         resp = self.client.post(
             "/api/users/me/real-name/submit/",
             data=json.dumps(
                 {
                     "id_number": self.valid_id,
+                    "id_card_media": id_card_media,
                     "real_name": "张三",
                     "source": "user_submit",
                 }
@@ -83,17 +114,30 @@ class TestRealNameAPI(TestCase):
         )
 
         self.assertEqual(resp.status_code, 200, resp.content)
+        verification = RealNameVerification.objects.get(user=self.user, is_current=True)
         record = ReferralRecord.objects.get(invitee=self.user)
+        self.assertEqual(record.status, ReferralRecordStatus.REGISTERED)
+
+        self.client.force_login(self.admin)
+        approve_resp = self.client.post(
+            f"/api/admin/real-name-verifications/{verification.pk}/approve/",
+            data=json.dumps({"note": "人工核验通过"}),
+            content_type="application/json",
+        )
+        self.assertEqual(approve_resp.status_code, 200, approve_resp.content)
+        record.refresh_from_db()
         self.assertEqual(record.status, ReferralRecordStatus.PENDING_REVIEW)
 
-    def test_submit_invalid_real_name_is_rejected(self):
+    def test_submit_invalid_real_name_is_rejected_before_creating_application(self):
         self.client.force_login(self.user)
+        id_card_media = self.make_id_card_media()
 
         resp = self.client.post(
             "/api/users/me/real-name/submit/",
             data=json.dumps(
                 {
                     "id_number": "110105199001010019",
+                    "id_card_media": id_card_media,
                     "real_name": "张三",
                     "source": "user_submit",
                 }
@@ -101,23 +145,43 @@ class TestRealNameAPI(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(resp.status_code, 400, resp.content)
         self.user.refresh_from_db()
-        verification = RealNameVerification.objects.get(user=self.user, is_current=True)
-        self.assertEqual(verification.status, RealNameStatus.REJECTED)
-        self.assertEqual(self.user.real_name_status, RealNameStatus.REJECTED)
-        self.assertIn("校验位无效", verification.failure_reason)
+        self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
+        self.assertEqual(self.user.real_name_status, RealNameStatus.UNVERIFIED)
 
-    def test_duplicate_verified_identity_moves_second_user_to_manual_review(self):
+    def test_submit_requires_front_and_back_id_card_media(self):
+        self.client.force_login(self.user)
+        media = self.make_id_card_media()
+
+        resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": [media[0]],
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
+
+    def test_duplicate_verified_identity_can_submit_pending_application(self):
         first = self.user
         second = User.objects.create_user(username="bob", email="bob@example.com", password="secret123")  # noqa: S106
 
         self.client.force_login(first)
+        first_media = self.make_id_card_media()
         first_resp = self.client.post(
             "/api/users/me/real-name/submit/",
             data=json.dumps(
                 {
                     "id_number": self.valid_id,
+                    "id_card_media": first_media,
                     "real_name": "张三",
                     "source": "user_submit",
                 }
@@ -125,13 +189,26 @@ class TestRealNameAPI(TestCase):
             content_type="application/json",
         )
         self.assertEqual(first_resp.status_code, 200, first_resp.content)
+        first_verification = RealNameVerification.objects.get(user=first, is_current=True)
+        self.client.force_login(self.admin)
+        self.client.post(
+            f"/api/admin/real-name-verifications/{first_verification.pk}/approve/",
+            data=json.dumps({"note": "人工核验通过"}),
+            content_type="application/json",
+        )
 
         self.client.force_login(second)
+        second_front = MediaFile.objects.create(uploader=second, resource_type="real_name_id_card", original_filename="front.png", file="uploads/users/2/front.png", file_size=123)
+        second_back = MediaFile.objects.create(uploader=second, resource_type="real_name_id_card", original_filename="back.png", file="uploads/users/2/back.png", file_size=124)
         second_resp = self.client.post(
             "/api/users/me/real-name/submit/",
             data=json.dumps(
                 {
                     "id_number": self.valid_id,
+                    "id_card_media": [
+                        {"media_id": second_front.pk, "media_type": "image", "label": "身份证人像面", "side": "front"},
+                        {"media_id": second_back.pk, "media_type": "image", "label": "身份证国徽面", "side": "back"},
+                    ],
                     "real_name": "李四",
                     "source": "business_gate",
                 }
@@ -142,30 +219,33 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(second_resp.status_code, 200, second_resp.content)
         second.refresh_from_db()
         verification = RealNameVerification.objects.get(user=second, is_current=True)
-        self.assertEqual(verification.status, RealNameStatus.MANUAL_REVIEW)
-        self.assertEqual(second.real_name_status, RealNameStatus.MANUAL_REVIEW)
+        self.assertEqual(verification.status, RealNameStatus.PENDING)
+        self.assertEqual(second.real_name_status, RealNameStatus.PENDING)
 
     def test_retry_after_rejection_creates_new_current_record(self):
         self.client.force_login(self.user)
-        rejected_resp = self.client.post(
-            "/api/users/me/real-name/submit/",
-            data=json.dumps(
-                {
-                    "id_number": "110105199001010019",
-                    "real_name": "张三",
-                }
-            ),
-            content_type="application/json",
+        first_verification = RealNameVerification.objects.create(
+            user=self.user,
+            status=RealNameStatus.REJECTED,
+            source="user_submit",
+            provider="mock_auto",
+            real_name_encrypted="encrypted-name",
+            id_number_encrypted="encrypted-id",
+            real_name_masked="张*",
+            id_number_masked="110***********0019",
+            id_number_last4="0019",
+            id_number_hash="hash-rejected",
+            failure_reason="身份证号格式或校验位无效。",
+            is_current=True,
         )
-        self.assertEqual(rejected_resp.status_code, 200, rejected_resp.content)
-        first_verification = RealNameVerification.objects.get(user=self.user, is_current=True)
-        self.assertEqual(first_verification.status, RealNameStatus.REJECTED)
+        id_card_media = self.make_id_card_media()
 
         retry_resp = self.client.post(
             "/api/users/me/real-name/retry/",
             data=json.dumps(
                 {
                     "id_number": self.second_valid_id,
+                    "id_card_media": id_card_media,
                     "real_name": "张三",
                     "source": "user_submit",
                 }
@@ -177,16 +257,18 @@ class TestRealNameAPI(TestCase):
         first_verification.refresh_from_db()
         self.assertFalse(first_verification.is_current)
         latest = RealNameVerification.objects.get(user=self.user, is_current=True)
-        self.assertEqual(latest.status, RealNameStatus.VERIFIED)
+        self.assertEqual(latest.status, RealNameStatus.PENDING)
 
     def test_admin_can_review_and_approve_real_name_verification(self):
         member = User.objects.create_user(username="carol", email="carol@example.com", password="secret123")  # noqa: S106
         self.client.force_login(self.user)
+        user_media = self.make_id_card_media()
         submit_resp = self.client.post(
             "/api/users/me/real-name/submit/",
             data=json.dumps(
                 {
                     "id_number": self.valid_id,
+                    "id_card_media": user_media,
                     "real_name": "张三",
                     "source": "user_submit",
                 }
@@ -194,13 +276,26 @@ class TestRealNameAPI(TestCase):
             content_type="application/json",
         )
         self.assertEqual(submit_resp.status_code, 200, submit_resp.content)
+        first_verification = RealNameVerification.objects.get(user=self.user, is_current=True)
+        self.client.force_login(self.admin)
+        self.client.post(
+            f"/api/admin/real-name-verifications/{first_verification.pk}/approve/",
+            data=json.dumps({"note": "人工核验通过"}),
+            content_type="application/json",
+        )
 
         self.client.force_login(member)
+        member_front = MediaFile.objects.create(uploader=member, resource_type="real_name_id_card", original_filename="front.png", file="uploads/users/3/front.png", file_size=123)
+        member_back = MediaFile.objects.create(uploader=member, resource_type="real_name_id_card", original_filename="back.png", file="uploads/users/3/back.png", file_size=124)
         conflict_resp = self.client.post(
             "/api/users/me/real-name/submit/",
             data=json.dumps(
                 {
                     "id_number": self.valid_id,
+                    "id_card_media": [
+                        {"media_id": member_front.pk, "media_type": "image", "label": "身份证人像面", "side": "front"},
+                        {"media_id": member_back.pk, "media_type": "image", "label": "身份证国徽面", "side": "back"},
+                    ],
                     "real_name": "王五",
                     "source": "business_gate",
                 }
@@ -209,10 +304,10 @@ class TestRealNameAPI(TestCase):
         )
         self.assertEqual(conflict_resp.status_code, 200, conflict_resp.content)
         verification = RealNameVerification.objects.get(user=member, is_current=True)
-        self.assertEqual(verification.status, RealNameStatus.MANUAL_REVIEW)
+        self.assertEqual(verification.status, RealNameStatus.PENDING)
 
         self.client.force_login(self.admin)
-        list_resp = self.client.get("/api/admin/real-name-verifications/?status=manual_review")
+        list_resp = self.client.get("/api/admin/real-name-verifications/?status=pending")
         self.assertEqual(list_resp.status_code, 200, list_resp.content)
         list_data = api_data(list_resp)
         self.assertEqual(list_data["total"], 1)
@@ -221,6 +316,8 @@ class TestRealNameAPI(TestCase):
         detail_resp = self.client.get(f"/api/admin/real-name-verifications/{verification.pk}/")
         self.assertEqual(detail_resp.status_code, 200, detail_resp.content)
         self.assertEqual(api_data(detail_resp)["id_number"], self.valid_id)
+        self.assertEqual(api_data(detail_resp)["id_card_media"][0]["side"], "front")
+        self.assertIn("url", api_data(detail_resp)["id_card_media"][0])
 
         approve_resp = self.client.post(
             f"/api/admin/real-name-verifications/{verification.pk}/approve/",

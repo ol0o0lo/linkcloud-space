@@ -45,8 +45,9 @@ describe('Settings page tab sync', () => {
     window.history.replaceState({}, '', '/account/settings');
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: '账号绑定' }));
+    fireEvent.click(screen.getByRole('button', { name: '安全设置' }));
 
-    expect(window.location.search).toContain('tab=binding');
+    expect(window.location.search).toContain('tab=security');
+    expect(screen.queryByRole('button', { name: '实名认证' })).not.toBeInTheDocument();
   });
 });

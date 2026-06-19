@@ -13,7 +13,7 @@ import {
   appsWalletApiWalletSummary,
 } from '@/services/openapi/userWallet';
 import { appsReferralsApiMyReferralRecords, appsReferralsApiMyReferralSummary } from '@/services/openapi/referrals';
-import { appsAccountsApiGetMyRealName, appsAccountsApiListMyRealNameLogs, appsAccountsApiRetryMyRealName, appsAccountsApiSubmitMyRealName } from '@/services/openapi/realName';
+import { appsAccountsApiGetMyRealName, appsAccountsApiListMyRealNameLogs } from '@/services/openapi/realName';
 import { appsSettingsApiDeleteUserSettingView, appsSettingsApiGetUserSettingView, appsSettingsApiListUserSettings, appsSettingsApiPutUserSetting } from '@/services/openapi/userSettings';
 import { formatWalletAmount } from '@/pages/wallet-management/shared';
 
@@ -21,7 +21,6 @@ const PersonalBusinessPage: React.FC = () => {
   const [withdrawalDetailId, setWithdrawalDetailId] = useState<number>();
   const [settingDetailKey, setSettingDetailKey] = useState<string>();
   const [withdrawalForm] = Form.useForm<{ amount: number; pay_channel: string; account: string; client_request_id: string }>();
-  const [realNameForm] = Form.useForm<API.RealNameSubmitIn>();
   const [settingForm] = Form.useForm<{ key: string; value: string }>();
 
   const walletSummaryQuery = useQuery({ queryKey: ['personal-business', 'wallet-summary'], queryFn: () => appsWalletApiWalletSummary() });
@@ -51,14 +50,6 @@ const PersonalBusinessPage: React.FC = () => {
   const cancelWithdrawalMutation = useMutation({
     mutationFn: (id: number) => appsWalletApiCancelUserWithdrawal({ withdrawal_id: id }),
     onSuccess: () => withdrawalsQuery.refetch(),
-  });
-  const submitRealNameMutation = useMutation({
-    mutationFn: (payload: API.RealNameSubmitIn) => appsAccountsApiSubmitMyRealName({ ...payload, source: 'user_submit' }),
-    onSuccess: () => realNameQuery.refetch(),
-  });
-  const retryRealNameMutation = useMutation({
-    mutationFn: (payload: API.RealNameRetryIn) => appsAccountsApiRetryMyRealName({ ...payload, source: 'user_submit' }),
-    onSuccess: () => realNameQuery.refetch(),
   });
   const putSettingMutation = useMutation({
     mutationFn: ({ key, value }: { key: string; value: string }) => appsSettingsApiPutUserSetting({ key }, { value }),
@@ -142,24 +133,12 @@ const PersonalBusinessPage: React.FC = () => {
           <Descriptions.Item label="姓名">{realNameQuery.data?.real_name_masked || '-'}</Descriptions.Item>
           <Descriptions.Item label="证件">{realNameQuery.data?.id_number_masked || '-'}</Descriptions.Item>
         </Descriptions>
-        <Form form={realNameForm} layout="vertical" style={{ marginTop: 16 }} onFinish={(values) => submitRealNameMutation.mutate(values)}>
-          <Row gutter={16} align="bottom">
-            <Col xs={24} md={8}>
-              <Form.Item label="真实姓名" name="real_name" rules={[{ required: true, message: '请输入真实姓名' }]}><Input /></Form.Item>
-            </Col>
-            <Col xs={24} md={10}>
-              <Form.Item label="身份证号" name="id_number" rules={[{ required: true, message: '请输入身份证号' }]}><Input /></Form.Item>
-            </Col>
-            <Col xs={24} md={6}>
-              <Form.Item label=" " colon={false}>
-                <Space wrap>
-                  <Button type="primary" htmlType="submit">提交实名</Button>
-                  <Button onClick={async () => retryRealNameMutation.mutate(await realNameForm.validateFields())}>重新提交</Button>
-                </Space>
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
+        <Space direction="vertical" size={12} style={{ marginTop: 16 }}>
+          <span style={wrapTextStyle}>实名认证入口已统一收口到个人设置，若需提交或重新提交，请前往个人设置完成。</span>
+          <Button type="link" href="/account/settings?tab=security" style={{ paddingInline: 0 }}>
+            去个人设置实名
+          </Button>
+        </Space>
         <Table rowKey="created_at" dataSource={realNameLogsQuery.data || []} pagination={false} scroll={adminTableScroll} columns={[{ title: '动作', dataIndex: 'action_label', width: 160 }, { title: '备注', dataIndex: 'note', width: 260, render: (value) => <span style={wrapTextStyle}>{value || '-'}</span> }]} />
       </Card>
       <Card title="个人设置">

@@ -446,6 +446,7 @@ def get_my_real_name(request):
         "provider_label": RealNameProvider.get_choice_label(RealNameProvider.MOCK_AUTO),
         "provider_request_id": "",
         "provider_result": {},
+        "id_card_media": [],
         "real_name_masked": request.user.real_name_masked,
         "review_note": "",
         "reviewed_at": request.user.real_name_verified_at.isoformat() if request.user.real_name_verified_at else None,
@@ -478,6 +479,7 @@ def submit_my_real_name(request, payload: RealNameSubmitIn):
         user=request.user,
         real_name=payload.real_name,
         id_number=payload.id_number,
+        id_card_media=payload.id_card_media,
         source=payload.source,
     )
     return serialize_real_name_verification(verification)
@@ -496,6 +498,7 @@ def retry_my_real_name(request, payload: RealNameRetryIn):
         user=request.user,
         real_name=payload.real_name,
         id_number=payload.id_number,
+        id_card_media=payload.id_card_media,
         source=payload.source,
     )
     return serialize_real_name_verification(verification)

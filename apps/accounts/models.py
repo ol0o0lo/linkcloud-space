@@ -142,6 +142,7 @@ class RealNameVerification(models.Model):
     review_note = models.TextField(blank=True, default="")
     provider_request_id = models.CharField(max_length=128, blank=True, default="")
     provider_result = models.JSONField(blank=True, default=dict)
+    id_card_media = models.JSONField(blank=True, default=list)
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_real_name_verifications")
     reviewed_at = models.DateTimeField(null=True, blank=True)
     is_current = models.BooleanField(default=True, db_index=True)

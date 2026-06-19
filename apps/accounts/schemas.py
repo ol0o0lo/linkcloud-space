@@ -142,12 +142,14 @@ class ResetMfaOut(Schema):
 class RealNameSubmitIn(Schema):
     real_name: str = Field(..., min_length=2, description="真实姓名。")
     id_number: str = Field(..., min_length=15, description="身份证号。")
+    id_card_media: list[dict] = Field(..., min_length=2, description="身份证正反面媒体引用。")
     source: str = Field("user_submit", description="来源：user_submit 或 business_gate。")
 
 
 class RealNameRetryIn(Schema):
     real_name: str = Field(..., min_length=2, description="真实姓名。")
     id_number: str = Field(..., min_length=15, description="身份证号。")
+    id_card_media: list[dict] = Field(..., min_length=2, description="身份证正反面媒体引用。")
     source: str = Field("user_submit", description="来源：user_submit 或 business_gate。")
 
 
@@ -180,6 +182,7 @@ class RealNameVerificationOut(Schema):
     reviewed_at: str | None = None
     provider_request_id: str = ""
     provider_result: dict = {}
+    id_card_media: list[dict] = []
     is_current: bool
     created_at: str
     updated_at: str

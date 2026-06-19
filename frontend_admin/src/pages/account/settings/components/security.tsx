@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert, Button, Form, Image, Input, List, Modal, Skeleton, Space, Upload, message } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { appsMediaApiUploadFiles } from '@/services/openapi/mediaFiles';
 import { appsAccountsApiGetMyRealName, appsAccountsApiRetryMyRealName, appsAccountsApiSubmitMyRealName } from '@/services/openapi/realName';
 import type { CurrentUser } from '../data';
@@ -122,13 +122,25 @@ const SecurityView: React.FC = () => {
     ];
   }, [authenticators, currentUser, realNameStatus]);
 
-  if (currentUserLoading || authenticatorsLoading || realNameLoading) {
-    return <Skeleton active paragraph={{ rows: 6 }} />;
-  }
 
   const canRetry = isRetryableRealNameStatus(realNameStatus?.status);
   const canEditRealName = canRetry || !realNameStatus?.id || realNameStatus?.status === 'unverified';
   const realNameHelper = getRealNameHelper(realNameStatus);
+  const openRealNameModal = useCallback(() => {
+    if (canRetry && realNameStatus?.id_card_media?.length) {
+      setIdCardMedia(
+        sortIdCardMedia(realNameStatus.id_card_media as IdCardMediaRef[]),
+      );
+    } else {
+      setIdCardMedia([]);
+    }
+    realNameForm.resetFields();
+    setRealNameModalOpen(true);
+  }, [canRetry, realNameForm, realNameStatus]);
+
+  if (currentUserLoading || authenticatorsLoading || realNameLoading) {
+    return <Skeleton active paragraph={{ rows: 6 }} />;
+  }
 
   return (
     <>
@@ -150,7 +162,7 @@ const SecurityView: React.FC = () => {
                 key={item.key}
                 onClick={() => {
                   if (item.key === 'real-name') {
-                    setRealNameModalOpen(true);
+                    openRealNameModal();
                     return;
                   }
                   setActiveModal(item.key);
@@ -196,10 +208,10 @@ const SecurityView: React.FC = () => {
               }}
             >
               <Form.Item label="真实姓名" name="real_name" rules={[{ required: true, message: '请输入真实姓名' }]}>
-                <Input />
+                <Input placeholder={canRetry && realNameStatus?.real_name_masked ? `上次提交：${realNameStatus.real_name_masked}` : undefined} />
               </Form.Item>
               <Form.Item label="身份证号" name="id_number" rules={[{ required: true, message: '请输入身份证号' }]}>
-                <Input />
+                <Input placeholder={canRetry && realNameStatus?.id_number_masked ? `上次提交：${realNameStatus.id_number_masked}` : undefined} />
               </Form.Item>
               <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
                 <IdCardUpload

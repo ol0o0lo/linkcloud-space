@@ -11,6 +11,9 @@ from ninja.errors import HttpError
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification, RealNameVerificationLog
+from apps.media.constants import ResourceType
+from apps.media.models import MediaFile
+from apps.media.services import extract_media_ids, get_media_refs_info, validate_media_refs
 from apps.referrals.services import mark_referral_as_qualified
 
 CN_ID_RE = re.compile(r"^\d{17}[\dXx]$")
@@ -97,15 +100,46 @@ def evaluate_real_name_submission(*, user, real_name: str, id_number: str) -> Re
     )
     if duplicate:
         return RealNameEvaluation(
-            failure_reason="该身份证号已被其他账号实名，已转人工复核。",
+            failure_reason="",
             provider_result={"reason": "duplicate_verified_identity"},
-            status=RealNameStatus.MANUAL_REVIEW,
+            status=RealNameStatus.PENDING,
         )
 
     return RealNameEvaluation(
         provider_result={"reason": "valid_cn_id_number"},
-        status=RealNameStatus.VERIFIED,
+        status=RealNameStatus.PENDING,
     )
+
+
+def normalize_id_card_media(*, user, id_card_media: list[dict]) -> list[dict]:
+    """校验并规范化身份证正反面媒体引用。"""
+    try:
+        media_refs = validate_media_refs(id_card_media)
+    except (TypeError, ValueError) as exc:
+        raise HttpError(400, str(exc)) from exc
+
+    normalized = [dict(item) for item in media_refs if isinstance(item, dict)]
+    if len(normalized) != 2:
+        raise HttpError(400, "请上传身份证人像面和国徽面。")
+
+    sides = [item.get("side") for item in normalized]
+    if sorted(sides) != ["back", "front"]:
+        raise HttpError(400, "身份证图片必须包含 side=front 和 side=back。")
+
+    for item in normalized:
+        if item.get("media_type") != "image":
+            raise HttpError(400, "身份证材料必须是图片。")
+
+    media_ids = extract_media_ids(normalized)
+    media_by_id = MediaFile.objects.in_bulk(media_ids)
+    for media_id in media_ids:
+        media = media_by_id[media_id]
+        if media.uploader_id != user.pk:
+            raise HttpError(400, "身份证图片只能引用当前用户上传的媒体。")
+        if media.resource_type != ResourceType.REAL_NAME_ID_CARD:
+            raise HttpError(400, "身份证图片资源类型不正确。")
+
+    return normalized
 
 
 def sync_user_real_name_summary(user, verification: RealNameVerification) -> None:
@@ -163,6 +197,7 @@ def serialize_real_name_verification(verification: RealNameVerification, *, incl
         "provider_label": RealNameProvider.get_choice_label(verification.provider),
         "provider_request_id": verification.provider_request_id,
         "provider_result": verification.provider_result,
+        "id_card_media": get_media_refs_info(verification.id_card_media),
         "real_name_masked": verification.real_name_masked,
         "review_note": verification.review_note,
         "reviewed_at": verification.reviewed_at.isoformat() if verification.reviewed_at else None,
@@ -186,17 +221,21 @@ def serialize_real_name_verification(verification: RealNameVerification, *, incl
 
 
 @transaction.atomic
-def submit_real_name_verification(*, user, real_name: str, id_number: str, source: str) -> RealNameVerification:
+def submit_real_name_verification(*, user, real_name: str, id_number: str, id_card_media: list[dict], source: str) -> RealNameVerification:
     current = RealNameVerification.objects.select_for_update().filter(user=user, is_current=True).first()
     if current and current.status in {RealNameStatus.PENDING, RealNameStatus.MANUAL_REVIEW, RealNameStatus.VERIFIED}:
         raise HttpError(400, "当前实名状态不允许重复提交。")
 
-    RealNameVerification.objects.filter(user=user, is_current=True).update(is_current=False)
+    normalized_id_card_media = normalize_id_card_media(user=user, id_card_media=id_card_media)
     evaluation = evaluate_real_name_submission(user=user, real_name=real_name, id_number=id_number)
+    if evaluation.status == RealNameStatus.REJECTED:
+        raise HttpError(400, evaluation.failure_reason)
+
+    RealNameVerification.objects.filter(user=user, is_current=True).update(is_current=False)
     now = timezone.now()
     verification = RealNameVerification.objects.create(
         user=user,
-        status=evaluation.status,
+        status=RealNameStatus.PENDING,
         source=source,
         provider=evaluation.provider,
         real_name_encrypted=encrypt_identity_value(real_name.strip()),
@@ -207,7 +246,8 @@ def submit_real_name_verification(*, user, real_name: str, id_number: str, sourc
         id_number_hash=hash_id_number(id_number),
         failure_reason=evaluation.failure_reason,
         provider_result=evaluation.provider_result or {},
-        reviewed_at=now if evaluation.status in {RealNameStatus.VERIFIED, RealNameStatus.REJECTED, RealNameStatus.MANUAL_REVIEW} else None,
+        id_card_media=normalized_id_card_media,
+        reviewed_at=None,
         is_current=True,
     )
     append_real_name_log(
@@ -218,31 +258,6 @@ def submit_real_name_verification(*, user, real_name: str, id_number: str, sourc
         operator=user,
         note=f"来源：{RealNameSource.get_choice_label(source)}",
     )
-
-    if evaluation.status == RealNameStatus.VERIFIED:
-        append_real_name_log(
-            verification,
-            action=RealNameLogAction.AUTO_VERIFIED,
-            from_status=RealNameStatus.PENDING,
-            to_status=RealNameStatus.VERIFIED,
-            note="模拟自动校验通过。",
-        )
-    elif evaluation.status == RealNameStatus.REJECTED:
-        append_real_name_log(
-            verification,
-            action=RealNameLogAction.AUTO_REJECTED,
-            from_status=RealNameStatus.PENDING,
-            to_status=RealNameStatus.REJECTED,
-            note=evaluation.failure_reason,
-        )
-    elif evaluation.status == RealNameStatus.MANUAL_REVIEW:
-        append_real_name_log(
-            verification,
-            action=RealNameLogAction.MOVED_TO_MANUAL_REVIEW,
-            from_status=RealNameStatus.PENDING,
-            to_status=RealNameStatus.MANUAL_REVIEW,
-            note=evaluation.failure_reason,
-        )
 
     sync_user_real_name_summary(user, verification)
     return verification

@@ -15,8 +15,6 @@ const {
   mockReferralRecords,
   mockRealName,
   mockRealNameLogs,
-  mockSubmitRealName,
-  mockRetryRealName,
   mockUserSettings,
   mockGetUserSetting,
   mockPutUserSetting,
@@ -32,8 +30,6 @@ const {
   mockReferralRecords: vi.fn(),
   mockRealName: vi.fn(),
   mockRealNameLogs: vi.fn(),
-  mockSubmitRealName: vi.fn(),
-  mockRetryRealName: vi.fn(),
   mockUserSettings: vi.fn(),
   mockGetUserSetting: vi.fn(),
   mockPutUserSetting: vi.fn(),
@@ -57,8 +53,6 @@ vi.mock('@/services/openapi/referrals', () => ({
 vi.mock('@/services/openapi/realName', () => ({
   appsAccountsApiGetMyRealName: mockRealName,
   appsAccountsApiListMyRealNameLogs: mockRealNameLogs,
-  appsAccountsApiSubmitMyRealName: mockSubmitRealName,
-  appsAccountsApiRetryMyRealName: mockRetryRealName,
 }));
 
 vi.mock('@/services/openapi/userSettings', () => ({
@@ -86,8 +80,6 @@ describe('PersonalBusinessPage', () => {
     mockGetUserSetting.mockResolvedValue({ key: 'theme', value: 'light' });
     mockCreateWithdrawal.mockResolvedValue({});
     mockCancelWithdrawal.mockResolvedValue({});
-    mockSubmitRealName.mockResolvedValue({});
-    mockRetryRealName.mockResolvedValue({});
     mockPutUserSetting.mockResolvedValue({});
     mockDeleteUserSetting.mockResolvedValue({});
   });
@@ -111,10 +103,9 @@ describe('PersonalBusinessPage', () => {
     fireEvent.click(screen.getByText('撤销提现'));
     await waitFor(() => expect(mockCancelWithdrawal).toHaveBeenCalledWith({ withdrawal_id: 2 }));
 
-    fireEvent.change(screen.getByLabelText('真实姓名'), { target: { value: '张三' } });
-    fireEvent.change(screen.getByLabelText('身份证号'), { target: { value: '110101199001011234' } });
-    fireEvent.click(screen.getByRole('button', { name: '提交实名' }));
-    await waitFor(() => expect(mockSubmitRealName).toHaveBeenCalledWith({ real_name: '张三', id_number: '110101199001011234', source: 'user_submit' }));
+    expect(screen.queryByLabelText('真实姓名')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('身份证号')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '去个人设置实名' })).toHaveAttribute('href', '/account/settings?tab=security');
 
     fireEvent.change(screen.getByLabelText('设置 Key'), { target: { value: 'theme' } });
     fireEvent.change(screen.getByLabelText('设置值'), { target: { value: 'dark' } });

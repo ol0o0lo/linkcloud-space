@@ -18,3 +18,4 @@ class MediaExtension(StrChoices):
 class ResourceType(StrChoices):
     AVATAR = "avatar", _("用户头像")
     ORG_LOGO = "org_logo", _("组织 Logo")
+    REAL_NAME_ID_CARD = "real_name_id_card", _("实名认证身份证图片")

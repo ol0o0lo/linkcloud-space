@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Card, Descriptions, Drawer, Form, Space, Table, Typography } from 'antd';
+import { Card, Descriptions, Drawer, Form, Image, Space, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useState } from 'react';
@@ -102,6 +102,17 @@ const RealNameAdminPage: React.FC = () => {
           <Descriptions.Item label="状态">{detailQuery.data?.status_label || '-'}</Descriptions.Item>
           <Descriptions.Item label="真实姓名">{detailQuery.data?.real_name || detailQuery.data?.real_name_masked || '-'}</Descriptions.Item>
           <Descriptions.Item label="证件号"><span style={wrapTextStyle}>{detailQuery.data?.id_number || detailQuery.data?.id_number_masked || '-'}</span></Descriptions.Item>
+          <Descriptions.Item label="证件图片">
+            <Space wrap>
+              {((detailQuery.data as any)?.id_card_media || []).map((item: any) => (
+                <Space key={item.media_id} orientation="vertical" size={4}>
+                  <Typography.Text>{item.label || item.side || '证件图片'}</Typography.Text>
+                  <Image alt={item.label || item.side || '证件图片'} src={item.url} width={180} />
+                </Space>
+              ))}
+              {!((detailQuery.data as any)?.id_card_media || []).length ? '-' : null}
+            </Space>
+          </Descriptions.Item>
           <Descriptions.Item label="来源">{detailQuery.data?.source_label || '-'}</Descriptions.Item>
           <Descriptions.Item label="供应商">{detailQuery.data?.provider_label || '-'}</Descriptions.Item>
           <Descriptions.Item label="失败原因">{detailQuery.data?.failure_reason || '-'}</Descriptions.Item>
