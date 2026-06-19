@@ -15,12 +15,22 @@ import { createStyles } from 'antd-style';
 import React, { startTransition, useState } from 'react';
 import { Footer } from '@/components';
 import { postBrowserV1AuthLogin } from '@/services/allauth/authAccount';
+import {
+  postBrowserV1AuthTwofaAuthenticate,
+  postBrowserV1AuthTwofaTrust,
+} from '@/services/allauth/authTwoFactor';
+import {
+  formatUnsupportedFlowMessage,
+  parseLoginFlowState,
+} from '@/services/manual/allauthFlow';
+import { normalizeEmailLikeInput } from '@/utils/email';
 import Settings from '../../../../config/defaultSettings';
 import logoUrl from '../../../../public/logo.svg';
 
 type LoginFormValues = {
   username?: string;
   password?: string;
+  code?: string;
   autoLogin?: boolean;
   type?: string;
 };
@@ -31,12 +41,18 @@ type LoginResult = {
   currentAuthority?: string;
 };
 
+type PendingMfaState = {
+  active: boolean;
+  types: string[];
+};
+
 function buildAllauthLoginData(body: LoginFormValues) {
   const identifier = (body.username || '').trim();
+  const normalizedEmailIdentifier = normalizeEmailLikeInput(identifier);
   const password = body.password || '';
 
-  if (identifier.includes('@')) {
-    return { email: identifier, password };
+  if (normalizedEmailIdentifier.includes('@')) {
+    return { email: normalizedEmailIdentifier, password };
   }
 
   const phone = /^1\d{10}$/.test(identifier) ? `+86${identifier}` : identifier;
@@ -47,6 +63,11 @@ function isAllauthValidationError(error: any) {
   const status = error?.response?.status;
   const errors = error?.response?.data?.errors || error?.data?.errors;
   return status === 400 && Array.isArray(errors);
+}
+
+function getAllauthErrorMessage(error: any, fallback: string) {
+  const detail = error?.response?.data?.errors?.[0] || error?.data?.errors?.[0];
+  return detail?.message || error?.response?.data?.message || error?.message || fallback;
 }
 
 const useStyles = createStyles(({ token }) => {
@@ -101,6 +122,10 @@ const LoginMessage: React.FC<{
 
 const Login: React.FC = () => {
   const [userLoginState, setUserLoginState] = useState<LoginResult>({});
+  const [pendingMfa, setPendingMfa] = useState<PendingMfaState>({
+    active: false,
+    types: [],
+  });
   const type = 'account';
   const { initialState, setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
@@ -141,7 +166,57 @@ const Login: React.FC = () => {
     }
   };
 
+  const finishLogin = async () => {
+    const defaultLoginSuccessMessage = intl.formatMessage({
+      id: 'pages.login.success',
+      defaultMessage: '登录成功！',
+    });
+    message.success(defaultLoginSuccessMessage);
+    await fetchUserInfo();
+    const currentHref = window.location.href || '/user/login';
+    const currentOrigin = window.location.origin || 'http://localhost';
+    const currentUrl = new URL(currentHref, currentOrigin);
+    const urlParams = currentUrl.searchParams;
+    const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
+    window.location.href = redirectUrl;
+  };
+
   const handleSubmit = async (values: LoginFormValues) => {
+    if (pendingMfa.active) {
+      try {
+        await postBrowserV1AuthTwofaAuthenticate(
+          { client: 'browser' },
+          { code: (values.code || '').trim() },
+          {
+            skipErrorHandler: true,
+          } as any,
+        );
+        await finishLogin();
+        return;
+      } catch (error) {
+        const flowState = parseLoginFlowState(error);
+        if (flowState?.kind === 'pending_mfa_trust') {
+          await postBrowserV1AuthTwofaTrust(
+            { client: 'browser' } as any,
+            { trust: false },
+            {
+              skipErrorHandler: true,
+            } as any,
+          );
+          await finishLogin();
+          return;
+        }
+
+        if (flowState?.kind === 'unsupported_flow') {
+          message.error(formatUnsupportedFlowMessage(flowState.flowIds));
+          return;
+        }
+
+        message.error(getAllauthErrorMessage(error, '验证码校验失败，请重试！'));
+        return;
+      }
+    }
+
     try {
       await postBrowserV1AuthLogin(
         { client: 'browser' },
@@ -158,20 +233,27 @@ const Login: React.FC = () => {
       };
 
       if (msg.status === 'ok') {
-        const defaultLoginSuccessMessage = intl.formatMessage({
-          id: 'pages.login.success',
-          defaultMessage: '登录成功！',
-        });
-        message.success(defaultLoginSuccessMessage);
-        await fetchUserInfo();
-        const urlParams = new URL(window.location.href).searchParams;
-        const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
-        window.location.href = redirectUrl;
+        await finishLogin();
         return;
       }
 
       setUserLoginState(msg);
     } catch (error) {
+      const flowState = parseLoginFlowState(error);
+      if (flowState?.kind === 'pending_mfa') {
+        setPendingMfa({
+          active: true,
+          types: Array.isArray(flowState.flow.types) ? flowState.flow.types : [],
+        });
+        setUserLoginState({});
+        return;
+      }
+
+      if (flowState?.kind === 'unsupported_flow') {
+        message.error(formatUnsupportedFlowMessage(flowState.flowIds));
+        return;
+      }
+
       if (isAllauthValidationError(error)) {
         setUserLoginState({
           status: 'error',
@@ -233,73 +315,106 @@ const Login: React.FC = () => {
               })}
             />
           )}
-          <ProFormText
-            name="username"
-            fieldProps={{
-              size: 'large',
-              prefix: <UserOutlined />,
-            }}
-            placeholder={intl.formatMessage({
-              id: 'pages.login.username.placeholder',
-              defaultMessage: '邮箱 / 手机号',
-            })}
-            rules={[
-              {
-                required: true,
-                message: (
-                  <FormattedMessage
-                    id="pages.login.username.required"
-                    defaultMessage="请输入邮箱或手机号!"
-                  />
-                ),
-              },
-            ]}
-          />
-          <ProFormText.Password
-            name="password"
-            fieldProps={{
-              size: 'large',
-              prefix: <LockOutlined />,
-            }}
-            placeholder={intl.formatMessage({
-              id: 'pages.login.password.placeholder',
-              defaultMessage: '密码',
-            })}
-            rules={[
-              {
-                required: true,
-                message: (
-                  <FormattedMessage
-                    id="pages.login.password.required"
-                    defaultMessage="请输入密码！"
-                  />
-                ),
-              },
-            ]}
-          />
-          <div
-            style={{
-              marginBottom: 24,
-            }}
-          >
-            <ProFormCheckbox noStyle name="autoLogin">
-              <FormattedMessage
-                id="pages.login.rememberMe"
-                defaultMessage="自动登录"
+          {pendingMfa.active ? (
+            <>
+              <Alert
+                style={{
+                  marginBottom: 24,
+                }}
+                title="请输入身份验证器验证码或恢复码"
+                description={
+                  pendingMfa.types.includes('recovery_codes')
+                    ? '当前账号开启了多因素认证，请输入 6 位验证码，或直接输入恢复码完成登录。'
+                    : '当前账号开启了多因素认证，请输入身份验证器当前显示的 6 位验证码完成登录。'
+                }
+                type="info"
+                showIcon
               />
-            </ProFormCheckbox>
-            <a
-              href="#"
-              style={{
-                float: 'right',
-              }}
-            >
-              <FormattedMessage
-                id="pages.login.forgotPassword"
-                defaultMessage="忘记密码"
+              <ProFormText
+                name="code"
+                fieldProps={{
+                  size: 'large',
+                }}
+                placeholder="6 位验证码或恢复码"
+                rules={[
+                  {
+                    required: true,
+                    message: '请输入验证码或恢复码！',
+                  },
+                ]}
               />
-            </a>
-          </div>
+            </>
+          ) : (
+            <>
+              <ProFormText
+                name="username"
+                fieldProps={{
+                  size: 'large',
+                  prefix: <UserOutlined />,
+                }}
+                placeholder={intl.formatMessage({
+                  id: 'pages.login.username.placeholder',
+                  defaultMessage: '邮箱 / 手机号',
+                })}
+                rules={[
+                  {
+                    required: true,
+                    message: (
+                      <FormattedMessage
+                        id="pages.login.username.required"
+                        defaultMessage="请输入邮箱或手机号!"
+                      />
+                    ),
+                  },
+                ]}
+              />
+              <ProFormText.Password
+                name="password"
+                fieldProps={{
+                  size: 'large',
+                  prefix: <LockOutlined />,
+                }}
+                placeholder={intl.formatMessage({
+                  id: 'pages.login.password.placeholder',
+                  defaultMessage: '密码',
+                })}
+                rules={[
+                  {
+                    required: true,
+                    message: (
+                      <FormattedMessage
+                        id="pages.login.password.required"
+                        defaultMessage="请输入密码！"
+                      />
+                    ),
+                  },
+                ]}
+              />
+              <div
+                style={{
+                  marginBottom: 24,
+                }}
+              >
+                <ProFormCheckbox noStyle name="autoLogin">
+                  <FormattedMessage
+                    id="pages.login.rememberMe"
+                    defaultMessage="自动登录"
+                  />
+                </ProFormCheckbox>
+                <a
+                  href="#"
+                  style={{
+                    float: 'right',
+                  }}
+                >
+                  <FormattedMessage
+                    id="pages.login.forgotPassword"
+                    defaultMessage="忘记密码"
+                  />
+                </a>
+              </div>
+            </>
+          )}
         </LoginForm>
       </div>
       <Footer />

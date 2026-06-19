@@ -15,6 +15,7 @@ import {
 import type { Store } from 'antd/es/form/interface';
 import type { FC } from 'react';
 import { useEffect, useState } from 'react';
+import { normalizeEmailLikeInput } from '@/utils/email';
 import { fakeRegister } from './service';
 import useStyles from './styles';
 
@@ -161,6 +162,7 @@ const Register: FC = () => {
       <Form form={form} name="UserRegister" onFinish={onFinish}>
         <FormItem
           name="email"
+          normalize={normalizeEmailLikeInput}
           rules={[
             {
               required: true,

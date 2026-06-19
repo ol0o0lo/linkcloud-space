@@ -9,6 +9,7 @@ import {
   addAccountEmail,
   confirmPhoneChange,
   deleteAuthenticator,
+  getRecoveryCodes,
   getTotpSetup,
   listAuthenticators,
   querySocialBindings,
@@ -163,14 +164,30 @@ describe('account settings service', () => {
     );
   });
 
+  it('normalizes full-width punctuation before adding account email', async () => {
+    mockRequest.mockResolvedValue({ data: [] });
+
+    await addAccountEmail('next@example。com');
+
+    expect(mockRequest).toHaveBeenCalledWith(
+      '/api/allauth/browser/v1/account/email',
+      expect.objectContaining({
+        method: 'POST',
+        data: { email: 'next@example.com' },
+      }),
+    );
+  });
+
   it('reads totp setup and authenticator list', async () => {
     mockRequest
       .mockResolvedValueOnce({
         data: [{ type: 'totp' }, { type: 'recovery_codes' }],
       })
       .mockResolvedValueOnce({
-        secret: 'secret',
-        totp_url: 'otpauth://totp/demo',
+        meta: {
+          secret: 'secret',
+          totp_url: 'otpauth://totp/demo',
+        },
       });
 
     const authenticators = await listAuthenticators();
@@ -184,6 +201,38 @@ describe('account settings service', () => {
       secret: 'secret',
       totpUrl: 'otpauth://totp/demo',
     });
+    expect(mockRequest).toHaveBeenNthCalledWith(
+      2,
+      '/api/allauth/browser/v1/account/authenticators/totp',
+      expect.objectContaining({
+        credentials: 'include',
+        method: 'GET',
+        skipErrorHandler: true,
+      }),
+    );
+  });
+
+  it('reads recovery codes from allauth endpoint', async () => {
+    mockRequest.mockResolvedValueOnce({
+      data: {
+        type: 'recovery_codes',
+        total_code_count: 10,
+        unused_code_count: 10,
+        unused_codes: ['code-1', 'code-2'],
+      },
+    });
+
+    const recoveryCodes = await getRecoveryCodes();
+
+    expect(recoveryCodes).toEqual(['code-1', 'code-2']);
+    expect(mockRequest).toHaveBeenCalledWith(
+      '/api/allauth/browser/v1/account/authenticators/recovery-codes',
+      expect.objectContaining({
+        credentials: 'include',
+        method: 'GET',
+        skipErrorHandler: true,
+      }),
+    );
   });
 
   it('deletes authenticator through current-user endpoint', async () => {

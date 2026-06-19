@@ -20,6 +20,7 @@ import {
   addAccountEmail,
   confirmPhoneChange,
   deleteAuthenticator,
+  getRecoveryCodes,
   getTotpSetup,
   listAccountEmails,
   listAuthenticators,
@@ -36,6 +37,7 @@ import type {
   TotpSetup,
 } from './security.types';
 import { getAuthenticatorLabel } from './security.utils';
+import { normalizeEmailLikeInput } from '@/utils/email';
 
 const COUNTRY_CODES = [
   { value: '+86', label: '+86 (中国)' },
@@ -57,12 +59,30 @@ type SecurityModalsProps = {
 };
 
 function getErrorMessage(error: any, fallback: string) {
+  const detail =
+    error?.response?.data?.errors?.[0] || error?.data?.errors?.[0] || null;
+  if (detail?.code === 'incorrect_code') {
+    return '验证码不正确，请确认扫描的是当前二维码，并检查验证器时间是否已自动同步。';
+  }
   return (
+    detail?.message ||
     error?.response?.data?.message ||
     error?.data?.message ||
     error?.message ||
     fallback
   );
+}
+
+function hasReauthenticateFlow(error: any) {
+  const flows =
+    error?.response?.data?.flows ||
+    error?.response?.data?.data?.flows ||
+    error?.data?.flows ||
+    error?.data?.data?.flows ||
+    [];
+  return Array.isArray(flows)
+    ? flows.some((flow: any) => flow.id === 'reauthenticate')
+    : false;
 }
 
 export const SecurityModals: React.FC<SecurityModalsProps> = ({
@@ -157,7 +177,7 @@ const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
             style={{ marginBottom: 16 }}
             type="error"
             showIcon
-            message={errorMessage}
+            title={errorMessage}
           />
         ) : null}
         <Form.Item
@@ -271,7 +291,7 @@ const PhoneChangeModal: React.FC<PhoneChangeModalProps> = ({
             style={{ marginBottom: 16 }}
             type="error"
             showIcon
-            message={errorMessage}
+            title={errorMessage}
           />
         ) : null}
         <Form.Item label="新手机号" required>
@@ -311,7 +331,8 @@ const PhoneChangeModal: React.FC<PhoneChangeModalProps> = ({
               setErrorMessage('');
               setSendingCode(true);
               try {
-                const { countryCode, nationalNumber } = await form.validateFields(['countryCode', 'nationalNumber']);
+                const { countryCode, nationalNumber } =
+                  await form.validateFields(['countryCode', 'nationalNumber']);
                 await requestPhoneChangeCode(countryCode, nationalNumber);
                 setCooldown(60);
                 message.success('验证码已发送');
@@ -383,18 +404,19 @@ const EmailChangeModal: React.FC<EmailChangeModalProps> = ({
     <Modal
       open={open}
       title="修改邮箱"
+      width={660}
       onCancel={onClose}
       footer={null}
       destroyOnClose
     >
-      <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+      <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
         <Alert
           type="info"
           showIcon
-          message={`当前主邮箱：${currentEmail || '未绑定邮箱'}`}
+          title={`当前主邮箱：${currentEmail || '未绑定邮箱'}`}
         />
         {errorMessage ? (
-          <Alert type="error" showIcon message={errorMessage} />
+          <Alert type="error" showIcon title={errorMessage} />
         ) : null}
         <Form
           form={form}
@@ -417,6 +439,7 @@ const EmailChangeModal: React.FC<EmailChangeModalProps> = ({
           <Form.Item
             label="新邮箱"
             name="email"
+            normalize={normalizeEmailLikeInput}
             rules={[
               { required: true, message: '请输入新邮箱' },
               { type: 'email', message: '邮箱格式不正确' },
@@ -470,6 +493,7 @@ const EmailChangeModal: React.FC<EmailChangeModalProps> = ({
                     key={`${item.email}-delete`}
                     danger
                     type="link"
+                    style={{ marginLeft: 8 }}
                     onClick={async () => {
                       setErrorMessage('');
                       try {
@@ -478,27 +502,40 @@ const EmailChangeModal: React.FC<EmailChangeModalProps> = ({
                         await onSuccess();
                         message.success('邮箱已删除');
                       } catch (error) {
-                        setErrorMessage(
-                          getErrorMessage(error, '删除邮箱失败'),
-                        );
+                        setErrorMessage(getErrorMessage(error, '删除邮箱失败'));
                       }
                     }}
                   >
                     删除
                   </Button>
                 ) : (
-                  null
+                  <Button
+                    key={`${item.email}-delete`}
+                    danger
+                    type="link"
+                    disabled
+                    style={{ marginLeft: 8 }}
+                    onClick={() => {
+                      message.info(
+                        '主邮箱无法删除，请先将其他邮箱设为主邮箱后再删除',
+                      );
+                    }}
+                  >
+                    删除
+                  </Button>
                 ),
               ]}
             >
-              <Space>
-                <Typography.Text>{item.email}</Typography.Text>
-                {item.verified ? (
-                  <Tag color="green">已验证</Tag>
-                ) : (
-                  <Tag>未验证</Tag>
-                )}
-              </Space>
+              <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                <Space>
+                  <Typography.Text>{item.email}</Typography.Text>
+                  {item.verified ? (
+                    <Tag color="green">已验证</Tag>
+                  ) : (
+                    <Tag>未验证</Tag>
+                  )}
+                </Space>
+              </div>
             </List.Item>
           )}
         />
@@ -526,9 +563,12 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [startingTotp, setStartingTotp] = useState(false);
   const [bindingTotp, setBindingTotp] = useState(false);
+  const [totpStep, setTotpStep] = useState<0 | 1>(0);
   const [removingType, setRemovingType] = useState<string | null>(null);
   const [pendingTotpCode, setPendingTotpCode] = useState<string | null>(null);
   const [reauthVisible, setReauthVisible] = useState(false);
+  const [recoveryCodesVisible, setRecoveryCodesVisible] = useState(false);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [reauthForm] = Form.useForm();
   const [reauthSubmitting, setReauthSubmitting] = useState(false);
 
@@ -541,6 +581,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
   const hasRecoveryCodes = authenticators.some(
     (item) => item.type === 'recovery_codes',
   );
+  const showSetupPanel = !hasTotp || Boolean(totpSetup);
 
   const removeAuthenticatorGroup = async (type: string) => {
     setRemovingType(type);
@@ -564,6 +605,9 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
       setAuthenticators([]);
       setTotpSetup(null);
       setErrorMessage('');
+      setTotpStep(0);
+      setRecoveryCodesVisible(false);
+      setRecoveryCodes([]);
       return;
     }
 
@@ -575,137 +619,310 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
       .finally(() => setLoading(false));
   }, [open]);
 
+  const openRecoveryCodesModal = async () => {
+    const codes = await getRecoveryCodes();
+    setRecoveryCodes(codes);
+    setRecoveryCodesVisible(true);
+  };
+
+  const completeTotpActivation = async () => {
+    await refreshAuthenticators();
+    await onSuccess();
+    setTotpSetup(null);
+    setTotpStep(0);
+    await openRecoveryCodesModal();
+    message.success('TOTP 已启用');
+  };
+
   return (
     <Modal
       open={open}
       title="MFA 设备"
+      width={640}
       onCancel={onClose}
       footer={null}
       destroyOnClose
     >
-      <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+      <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
         {errorMessage ? (
-          <Alert type="error" showIcon message={errorMessage} />
+          <Alert type="error" showIcon title={errorMessage} />
         ) : null}
-        {!hasTotp ? (
-          <Button
-            onClick={async () => {
-              setErrorMessage('');
-              setStartingTotp(true);
-              try {
-                setTotpSetup(await getTotpSetup());
-              } catch (error) {
-                setErrorMessage(getErrorMessage(error, 'TOTP 初始化失败'));
-              } finally {
-                setStartingTotp(false);
-              }
-            }}
-            loading={startingTotp}
-          >
-            开始绑定 TOTP
-          </Button>
-        ) : null}
-        {totpSetup ? (
-          <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-            <QRCode value={totpSetup.totpUrl || 'otpauth://invalid'} />
-            <Typography.Paragraph copyable>
-              {totpSetup.secret}
-            </Typography.Paragraph>
-            <Form
-              layout="vertical"
-              onFinish={async (values) => {
-                setErrorMessage('');
-                setBindingTotp(true);
-                try {
-                  await activateTotp(values.code);
-                  await refreshAuthenticators();
-                  await onSuccess();
-                  setTotpSetup(null);
-                  message.success('TOTP 已启用');
-                } catch (error) {
-                  const isReauthRequired =
-                    (error as any)?.response?.data?.flows?.some(
-                      (f: any) => f.id === 'reauthenticate',
-                    ) ||
-                    (error as any)?.data?.flows?.some(
-                      (f: any) => f.id === 'reauthenticate',
-                    );
-                  if (isReauthRequired) {
-                    setPendingTotpCode(values.code);
-                    setReauthVisible(true);
-                  } else {
-                    setErrorMessage(
-                      getErrorMessage(error, 'TOTP 绑定失败'),
-                    );
-                  }
-                } finally {
-                  setBindingTotp(false);
-                }
+        {showSetupPanel ? (
+          <Space orientation="vertical" size={12} style={{ display: 'flex' }}>
+            <div
+              style={{
+                padding: 20,
+                border: '1px solid #f0f0f0',
+                borderRadius: 16,
+                background: '#fafafa',
               }}
             >
-              <Form.Item
-                label="6 位验证码"
-                name="code"
-                rules={[{ required: true, message: '请输入 6 位验证码' }]}
-              >
-                <Input />
-              </Form.Item>
-              <Button htmlType="submit" type="primary" loading={bindingTotp}>
-                确认绑定 TOTP
-              </Button>
-            </Form>
+              <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
+                <div>
+                  <Typography.Title level={5} style={{ margin: 0 }}>
+                    {hasTotp ? '重新配置 TOTP' : '绑定身份验证器'}
+                  </Typography.Title>
+                  <Typography.Text type="secondary">
+                    推荐使用 Google Authenticator、Microsoft Authenticator 或
+                    1Password 等验证器应用。
+                  </Typography.Text>
+                </div>
+                {!totpSetup ? (
+                  <Space
+                    orientation="vertical"
+                    size={12}
+                    style={{ display: 'flex' }}
+                  >
+                    <Button
+                      type="primary"
+                      onClick={async () => {
+                        setErrorMessage('');
+                        setStartingTotp(true);
+                        try {
+                          setTotpSetup(await getTotpSetup());
+                          setTotpStep(0);
+                        } catch (error) {
+                          setErrorMessage(
+                            getErrorMessage(error, 'TOTP 初始化失败'),
+                          );
+                        } finally {
+                          setStartingTotp(false);
+                        }
+                      }}
+                      loading={startingTotp}
+                    >
+                      开始绑定 TOTP
+                    </Button>
+                  </Space>
+                ) : (
+                  <Space
+                    orientation="vertical"
+                    size={16}
+                    style={{ display: 'flex' }}
+                  >
+                    {totpStep === 0 ? (
+                      <Space
+                        orientation="vertical"
+                        size={16}
+                        style={{ display: 'flex' }}
+                      >
+                        <div
+                          style={{
+                            padding: 20,
+                            borderRadius: 12,
+                            background: '#fff',
+                            border: '1px solid #f0f0f0',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 12,
+                          }}
+                        >
+                          <Typography.Text
+                            strong
+                            style={{ alignSelf: 'flex-start' }}
+                          >
+                            第 1 步：扫码或录入密钥
+                          </Typography.Text>
+                          <QRCode
+                            value={totpSetup.totpUrl || 'otpauth://invalid'}
+                          />
+                          <Typography.Paragraph
+                            type="secondary"
+                            style={{
+                              margin: 0,
+                              textAlign: 'center',
+                              maxWidth: 320,
+                            }}
+                          >
+                            打开验证器应用，扫描二维码完成添加
+                          </Typography.Paragraph>
+                        </div>
+                        <Alert
+                          type="warning"
+                          showIcon
+                          title="如果无法扫码，可以复制下方密钥手动添加；请务必使用当前页面展示的最新密钥。"
+                        />
+                        <div
+                          style={{
+                            padding: 16,
+                            borderRadius: 12,
+                            background: '#fff',
+                            border: '1px solid #f0f0f0',
+                          }}
+                        >
+                          <Typography.Text strong>手动录入密钥</Typography.Text>
+                          <Typography.Paragraph
+                            copyable
+                            style={{
+                              marginBottom: 0,
+                              marginTop: 8,
+                              fontFamily: 'JetBrains Mono, monospace',
+                              fontSize: 18,
+                              letterSpacing: 0.5,
+                              wordBreak: 'break-all',
+                            }}
+                          >
+                            {totpSetup.secret}
+                          </Typography.Paragraph>
+                        </div>
+                        <Typography.Text type="secondary">
+                          完成添加后，输入验证器当前显示的 6
+                          位动态验证码以确认绑定。
+                        </Typography.Text>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                          }}
+                        >
+                          <Button type="primary" onClick={() => setTotpStep(1)}>
+                            我已完成添加，下一步
+                          </Button>
+                        </div>
+                      </Space>
+                    ) : (
+                      <div
+                        style={{
+                          padding: 20,
+                          borderRadius: 12,
+                          background: '#fff',
+                          border: '1px solid #f0f0f0',
+                        }}
+                      >
+                        <Typography.Text strong>
+                          第 2 步：输入验证码
+                        </Typography.Text>
+                        <Form
+                          layout="vertical"
+                          style={{ marginTop: 16 }}
+                          onFinish={async (values) => {
+                            const code = String(values.code || '').replace(
+                              /\s+/g,
+                              '',
+                            );
+                            setErrorMessage('');
+                            setBindingTotp(true);
+                            try {
+                              await activateTotp(code);
+                              await completeTotpActivation();
+                            } catch (error) {
+                              const isReauthRequired =
+                                hasReauthenticateFlow(error);
+                              if (isReauthRequired) {
+                                setPendingTotpCode(code);
+                                setReauthVisible(true);
+                              } else {
+                                setErrorMessage(
+                                  getErrorMessage(error, 'TOTP 绑定失败'),
+                                );
+                              }
+                            } finally {
+                              setBindingTotp(false);
+                            }
+                          }}
+                        >
+                          <Form.Item
+                            label="6 位验证码"
+                            name="code"
+                            extra="如果连续失败，请检查手机系统时间是否开启自动同步。"
+                            rules={[
+                              { required: true, message: '请输入 6 位验证码' },
+                              {
+                                pattern: /^\d{6}$/,
+                                message: '验证码应为 6 位数字',
+                              },
+                            ]}
+                          >
+                            <Input
+                              inputMode="numeric"
+                              maxLength={6}
+                              autoComplete="one-time-code"
+                              placeholder="请输入验证器当前显示的 6 位数字"
+                            />
+                          </Form.Item>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Button onClick={() => setTotpStep(0)}>
+                              返回上一步
+                            </Button>
+                            <Button
+                              htmlType="submit"
+                              type="primary"
+                              loading={bindingTotp}
+                            >
+                              确认绑定 TOTP
+                            </Button>
+                          </div>
+                        </Form>
+                      </div>
+                    )}
+                  </Space>
+                )}
+              </Space>
+            </div>
           </Space>
         ) : null}
         {hasRecoveryCodes ? (
-          <Alert type="success" showIcon message="系统已为当前账户生成恢复码" />
+          <Alert type="success" showIcon title="系统已为当前账户生成恢复码" />
         ) : null}
-        <List
-          bordered
-          loading={loading}
-          dataSource={authenticators}
-          locale={{ emptyText: '当前未启用 MFA 设备' }}
-          renderItem={(item) => (
-            <List.Item
-              actions={
-                item.type === 'totp'
-                  ? [
-                      <Button
-                        key={`${item.type}-delete`}
-                        danger
-                        type="link"
-                        loading={removingType === item.type}
-                        onClick={async () => {
-                          setErrorMessage('');
-                          try {
-                            await removeAuthenticatorGroup(item.type);
-                          } catch (error) {
-                            setErrorMessage(
-                              getErrorMessage(error, '移除 MFA 设备失败'),
-                            );
-                          }
-                        }}
-                      >
-                        移除
-                      </Button>,
-                    ]
-                  : []
-              }
-            >
-              <Space>
-                <Typography.Text>
-                  {getAuthenticatorLabel(item.type)}
-                </Typography.Text>
-                {item.type === 'totp' ? <Tag color="blue">TOTP</Tag> : null}
-                {item.type === 'recovery_codes' ? (
-                  <Tag color="green">恢复码已生成</Tag>
-                ) : null}
-                {item.type === 'webauthn' ? (
-                  <Tag color="gold">暂不支持在此管理</Tag>
-                ) : null}
-              </Space>
-            </List.Item>
-          )}
-        />
+        {!totpSetup ? (
+          <>
+            <Typography.Text strong>已绑定的 MFA 设备</Typography.Text>
+            <List
+              bordered
+              loading={loading}
+              dataSource={authenticators}
+              locale={{ emptyText: '当前未启用 MFA 设备' }}
+              renderItem={(item) => (
+                <List.Item
+                  actions={
+                    item.type === 'totp'
+                      ? [
+                          <Button
+                            key={`${item.type}-delete`}
+                            danger
+                            type="link"
+                            loading={removingType === item.type}
+                            onClick={async () => {
+                              setErrorMessage('');
+                              try {
+                                await removeAuthenticatorGroup(item.type);
+                              } catch (error) {
+                                setErrorMessage(
+                                  getErrorMessage(error, '移除 MFA 设备失败'),
+                                );
+                              }
+                            }}
+                          >
+                            移除
+                          </Button>,
+                        ]
+                      : []
+                  }
+                >
+                  <Space>
+                    <Typography.Text>
+                      {getAuthenticatorLabel(item.type)}
+                    </Typography.Text>
+                    {item.type === 'totp' ? <Tag color="blue">TOTP</Tag> : null}
+                    {item.type === 'recovery_codes' ? (
+                      <Tag color="green">恢复码已生成</Tag>
+                    ) : null}
+                    {item.type === 'webauthn' ? (
+                      <Tag color="gold">暂不支持在此管理</Tag>
+                    ) : null}
+                  </Space>
+                </List.Item>
+              )}
+            />
+          </>
+        ) : null}
       </Space>
       <Modal
         open={reauthVisible}
@@ -722,7 +939,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="绑定 TOTP 需要重新验证身份，请输入密码后继续"
+          title="绑定 TOTP 需要重新验证身份，请输入密码后继续"
         />
         <Form
           form={reauthForm}
@@ -738,10 +955,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                 setBindingTotp(true);
                 try {
                   await activateTotp(pendingTotpCode);
-                  await refreshAuthenticators();
-                  await onSuccess();
-                  setTotpSetup(null);
-                  message.success('TOTP 已启用');
+                  await completeTotpActivation();
                 } catch (retryError) {
                   setErrorMessage(getErrorMessage(retryError, 'TOTP 绑定失败'));
                 } finally {
@@ -756,13 +970,132 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
             }
           }}
         >
-          <Form.Item label="密码" name="password" rules={[{ required: true, message: '请输入密码' }]}>
+          <Form.Item
+            label="密码"
+            name="password"
+            rules={[{ required: true, message: '请输入密码' }]}
+          >
             <Input.Password />
           </Form.Item>
           <Button htmlType="submit" type="primary" loading={reauthSubmitting}>
             确认
           </Button>
         </Form>
+      </Modal>
+      <Modal
+        open={recoveryCodesVisible}
+        title="请保存恢复码"
+        width={560}
+        onCancel={() => setRecoveryCodesVisible(false)}
+        footer={[
+          <Button
+            key="close"
+            type="primary"
+            onClick={() => setRecoveryCodesVisible(false)}
+          >
+            我已保存
+          </Button>,
+        ]}
+        destroyOnClose
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          title="每个恢复码只显示一次。请复制或下载，并离线妥善保存。"
+        />
+        <div
+          style={{
+            padding: 16,
+            borderRadius: 12,
+            background: '#fafafa',
+            border: '1px solid #f0f0f0',
+            marginBottom: 12,
+          }}
+        >
+          <Space orientation="vertical" size={4} style={{ display: 'flex' }}>
+            <Typography.Text strong>
+              已生成 {recoveryCodes.length} 条恢复码，请立即复制或下载保存。
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              无法使用验证器 App 时，可用任意一条恢复码替代 6 位动态验证码，每条仅可使用一次。
+            </Typography.Text>
+          </Space>
+        </div>
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 10,
+            background: '#fff',
+            border: '1px solid #f0f0f0',
+            maxHeight: 220,
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))',
+              gap: 8,
+            }}
+          >
+            {recoveryCodes.map((code) => (
+              <div
+                key={code}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  background: '#fafafa',
+                  border: '1px solid #f0f0f0',
+                  lineHeight: 1.4,
+                }}
+              >
+                <Typography.Text
+                  style={{
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 16,
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {code}
+                </Typography.Text>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-start',
+            marginTop: 12,
+          }}
+        >
+          <Space wrap>
+            <Button
+              onClick={async () => {
+                await navigator.clipboard.writeText(recoveryCodes.join('\n'));
+                message.success('恢复码已复制');
+              }}
+            >
+              复制恢复码
+            </Button>
+            <Button
+              onClick={() => {
+                const blob = new Blob([recoveryCodes.join('\n')], {
+                  type: 'text/plain;charset=utf-8',
+                });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'recovery-codes.txt';
+                link.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              下载文本
+            </Button>
+          </Space>
+        </div>
       </Modal>
     </Modal>
   );
