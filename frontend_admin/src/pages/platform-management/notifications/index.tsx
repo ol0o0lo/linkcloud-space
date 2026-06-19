@@ -82,7 +82,7 @@ const NotificationsAdminPage: React.FC = () => {
   ];
 
   return (
-    <Card title="通知中心" extra={<Tag color="gold">未读 {unreadCountQuery.data?.count || 0}</Tag>}>
+    <Card title="我的通知" extra={<Tag color="gold">未读 {unreadCountQuery.data?.count || 0}</Tag>}>
       <Tabs
         items={[
           {

@@ -57,6 +57,7 @@ describe('NotificationsAdminPage', () => {
     await waitFor(() => {
       expect(mockListNotifications).toHaveBeenCalledWith({ page: 1, page_size: 10 });
       expect(mockPreferences).toHaveBeenCalled();
+      expect(screen.getByText('我的通知')).toBeInTheDocument();
       expect(screen.getByText('系统通知')).toBeInTheDocument();
     });
 
