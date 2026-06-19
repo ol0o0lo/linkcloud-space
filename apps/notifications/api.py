@@ -7,6 +7,7 @@ from ninja import Path, Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
+from apps.accounts.models import User
 from apps.base.ninja_pagination import LegacyPagination
 from apps.notifications.categories import get_categories, get_category
 from apps.notifications.constants import NotificationChannel
@@ -23,7 +24,7 @@ from apps.notifications.schemas import (
     UnreadCountOut,
 )
 from apps.notifications.tasks import dispatch_notification
-from apps.organizations.models import OrganizationMember
+from apps.organizations.models import Organization, OrganizationMember
 
 router = Router(tags=["通知/消息"])
 dispatches_router = Router(tags=["通知分发"])
@@ -159,8 +160,27 @@ def _dispatch_qs(request):
     return NotificationDispatch.objects.filter(owner_organization_id=org_id)
 
 
+def _validate_existing_scope_ids(payload: NotificationDispatchIn) -> None:
+    target_ids = set(payload.scope_ids)
+    if not target_ids:
+        return
+
+    if payload.scope == NotificationDispatch.Scope.ORGANIZATION:
+        existing_ids = set(Organization.objects.filter(pk__in=target_ids).values_list("pk", flat=True))
+        missing_ids = sorted(target_ids - existing_ids)
+        if missing_ids:
+            raise HttpError(400, f"Unknown organization ids: {missing_ids}")
+
+    if payload.scope == NotificationDispatch.Scope.USERS:
+        existing_ids = set(User.objects.filter(pk__in=target_ids).values_list("pk", flat=True))
+        missing_ids = sorted(target_ids - existing_ids)
+        if missing_ids:
+            raise HttpError(400, f"Unknown user ids: {missing_ids}")
+
+
 def _validate_dispatch_scope(request, payload: NotificationDispatchIn) -> int | None:
     if request.user.is_superuser:
+        _validate_existing_scope_ids(payload)
         return None
 
     org_id = _current_owned_org_id(request)

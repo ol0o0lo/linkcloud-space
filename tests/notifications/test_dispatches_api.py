@@ -78,6 +78,36 @@ class TestNotificationDispatchAPI:
         assert dispatch.created_by == self.superuser.username
         delay.assert_called_once_with(dispatch.pk)
 
+    def test_superuser_cannot_create_organization_dispatch_for_missing_org(self, monkeypatch):
+        delay = Mock()
+        monkeypatch.setattr("apps.notifications.api.dispatch_notification.delay", delay)
+        self._login_platform_admin()
+        missing_org_id = self.other_org.pk + 10000
+
+        resp = self._post_json({"scope": "organization", "scope_ids": [self.org.pk, missing_org_id], "title": "Nope"})
+
+        assert resp.status_code == 400
+        body = api_error(resp)
+        assert "organization" in body["message"].lower()
+        assert str(missing_org_id) in body["message"]
+        assert NotificationDispatch.objects.count() == 0
+        delay.assert_not_called()
+
+    def test_superuser_cannot_create_users_dispatch_for_missing_user(self, monkeypatch):
+        delay = Mock()
+        monkeypatch.setattr("apps.notifications.api.dispatch_notification.delay", delay)
+        self._login_platform_admin()
+        missing_user_id = self.outsider.pk + 10000
+
+        resp = self._post_json({"scope": "users", "scope_ids": [self.member.pk, missing_user_id], "title": "Nope"})
+
+        assert resp.status_code == 400
+        body = api_error(resp)
+        assert "user" in body["message"].lower()
+        assert str(missing_user_id) in body["message"]
+        assert NotificationDispatch.objects.count() == 0
+        delay.assert_not_called()
+
     def test_tenant_owner_cannot_create_platform_dispatch(self, monkeypatch):
         delay = Mock()
         monkeypatch.setattr("apps.notifications.api.dispatch_notification.delay", delay)
@@ -129,6 +159,18 @@ class TestNotificationDispatchAPI:
         body = api_data(resp)
         assert body["total"] == 1
         assert [row["id"] for row in body["items"]] == [mine.pk]
+
+    def test_tenant_owner_can_get_accessible_dispatch_detail(self):
+        dispatch = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatch.Scope.USERS, scope_ids=[self.member.pk], title="Mine")
+        self._login_tenant_owner()
+
+        resp = self.client.get(_detail_url(dispatch.pk))
+
+        assert resp.status_code == 200
+        body = api_data(resp)
+        assert body["id"] == dispatch.pk
+        assert body["owner_organization_id"] == self.org.pk
+        assert body["title"] == "Mine"
 
     def test_tenant_owner_can_list_delivery_rows_for_accessible_dispatch(self):
         dispatch = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatch.Scope.USERS, scope_ids=[self.member.pk], title="Mine")
