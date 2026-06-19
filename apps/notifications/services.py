@@ -8,7 +8,7 @@ from django.db.models import Model
 from apps.accounts.models import User
 from apps.notifications.categories import filter_recipients
 from apps.notifications.constants import NotificationChannel
-from apps.notifications.models import Notification
+from apps.notifications.models import Notification, NotificationDispatch
 from apps.organizations.models import Organization, OrganizationMember
 
 
@@ -24,6 +24,7 @@ def notify(
     category: str = "",
     data: dict[str, Any] | None = None,
     expires_at: datetime | None = None,
+    dispatch: NotificationDispatch | None = None,
 ) -> list[Notification]:
     """
     Create one in-app notification per recipient.
@@ -71,6 +72,7 @@ def notify(
             body=body,
             url=url,
             data=data or {},
+            dispatch=dispatch,
             expires_at=expires_at,
         )
         for recipient in allowed

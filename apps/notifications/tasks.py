@@ -6,7 +6,8 @@ from django.utils import timezone
 
 from celery import shared_task
 
-from apps.notifications.models import Notification
+from apps.notifications.dispatches import execute_dispatch
+from apps.notifications.models import Notification, NotificationDispatch
 
 
 def purge_expired(days: int | None = None) -> int:
@@ -32,3 +33,16 @@ def purge_expired(days: int | None = None) -> int:
 def purge_expired_notifications() -> int:
     """Celery entry point. Runs daily via CELERY_BEAT_SCHEDULE."""
     return purge_expired()
+
+
+@shared_task
+def dispatch_notification(dispatch_id: int) -> int:
+    """Celery entry point for executing a management notification dispatch."""
+    try:
+        return execute_dispatch(dispatch_id)
+    except Exception as exc:
+        NotificationDispatch.objects.filter(pk=dispatch_id).update(
+            status=NotificationDispatch.Status.FAILED,
+            error_message=str(exc)[:2000],
+        )
+        raise
