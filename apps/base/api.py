@@ -54,6 +54,8 @@ class AppContextOut(Schema):
     instance: str
     signupOpen: bool
     version: str
+    amapJsapiKey: str = ""
+    amapSecurityJsCode: str = ""
 
 
 def _get_app_version() -> str:
@@ -80,6 +82,8 @@ def app_context(request):
             "instance": getattr(settings, "INSTANCE", ""),
             "signupOpen": getattr(settings, "ACCOUNT_SIGNUP_OPEN", False),
             "version": _get_app_version(),
+            "amapJsapiKey": getattr(settings, "AMAP_JSAPI_KEY", ""),
+            "amapSecurityJsCode": getattr(settings, "AMAP_SECURITY_JS_CODE", ""),
         }
 
     user = request.user
@@ -118,6 +122,8 @@ def app_context(request):
         "instance": getattr(settings, "INSTANCE", ""),
         "signupOpen": getattr(settings, "ACCOUNT_SIGNUP_OPEN", False),
         "version": _get_app_version(),
+        "amapJsapiKey": getattr(settings, "AMAP_JSAPI_KEY", ""),
+        "amapSecurityJsCode": getattr(settings, "AMAP_SECURITY_JS_CODE", ""),
     }
 
 
