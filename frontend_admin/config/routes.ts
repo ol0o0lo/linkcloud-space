@@ -292,8 +292,25 @@ export default [
       },
     ],
   },
+ {
+    path: '/geo',
+    name: 'geo',
+    icon: 'environment',
+    routes: [
+      {
+        path: '/geo',
+        redirect: '/geo/map',
+      },
+      {
+        name: 'map',
+        icon: 'global',
+        path: '/geo/map',
+        component: './geo/map',
+      },
+    ],
+  },
   {
-    path: '/form',
+   path: '/form',
     icon: 'form',
     name: 'form',
     routes: [
