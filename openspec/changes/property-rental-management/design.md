@@ -40,7 +40,7 @@
 | 10 | address | str | | 详细地址 |
 | 11 | lat | DecimalField | null=True, blank=True | 纬度（项目级定位） |
 | 12 | lng | DecimalField | null=True, blank=True | 经度（项目级定位） |
-| 13 | image_ids | JSONField[list[int]] | default=list, 上限 9 | 项目图片 MediaFile ID 列表，首张为封面 |
+| 13 | images | JSONField[list[dict]] | default=list, 上限 9 | 项目图片媒体引用列表，首张为封面 |
 | 14 | description | TextField | blank=True | 项目介绍 |
 | 15 | is_active | bool | default=True | 是否启用 |
 
@@ -87,8 +87,8 @@
 | 13 | decoration | choices | raw（毛坯）/ simple（简装）/ fine（精装）/ luxury（豪装）, null=True | 装修状况 |
 | 14 | has_elevator_access | bool | default=False | 房源是否可直接使用电梯 |
 | 15 | status | choices | vacant / rented / renovating / locked, default=vacant | 房态快照，真相源为 Lease |
-| 16 | image_ids | JSONField[list[int]] | default=list, 上限 9, 首张为封面 | 房源图片 MediaFile ID 列表 |
-| 17 | video_ids | JSONField[list[int]] | default=list, 上限 3 | 房源视频 MediaFile ID 列表 |
+| 16 | images | JSONField[list[dict]] | default=list, 上限 9, 首张为封面 | 房源图片媒体引用列表 |
+| 17 | videos | JSONField[list[dict]] | default=list, 上限 3 | 房源视频媒体引用列表 |
 | 18 | tags | JSONField[list[str]] | default=list | 灵活标签 |
 | 19 | public_description | TextField | blank=True | 对外描述（所有用户可见） |
 | 20 | internal_notes | TextField | blank=True | 内部描述（租户内成员可见） |
@@ -132,7 +132,7 @@
 | 8 | deposit | DecimalField | null=True, blank=True | 押金（须 ≥ 0） |
 | 9 | payment_day | int | default=1, 范围 1-31 | 每月付款日 |
 | 10 | status | choices | pending / active / expired / terminated, default=pending | 租约状态 |
-| 11 | contract_file | FK→MediaFile | null=True, blank=True, on_delete=PROTECT | 合同文件 |
+| 11 | contract_files | JSONField[list[dict]] | default=list, 上限 1 | 租约合同媒体引用列表 |
 | 12 | notes | TextField | blank=True | 备注 |
 | 13 | extra | JSONField[dict] | default=dict | 动态扩展（费用、押金条目等后续账单子域预留） |
 
@@ -281,8 +281,9 @@ Organization
       -> House
         -> landlord -> Contact(role=landlord) -> User(延迟认领)
         -> Lease -> Contact(role=tenant)
-        -> image_ids[] -> MediaFile (图片)
-        -> video_ids[] -> MediaFile (视频)
+        -> Lease.contract_files[] -> MediaFile (合同)
+        -> images[] -> MediaFile (图片)
+        -> videos[] -> MediaFile (视频)
         -> status(由 Lease 重算)
 ```
 
@@ -304,11 +305,11 @@ flowchart TD
     user["User<br/>用户"]
     media["MediaFile<br/>媒体文件"]
 
-    estate["Estate<br/>项目片区/小区容器<br/><br/>- organization_id<br/>- name / display_name<br/>- property_type<br/>- address<br/>- image_ids[]<br/>- is_active"]
+    estate["Estate<br/>项目片区/小区容器<br/><br/>- organization_id<br/>- name / display_name<br/>- property_type<br/>- address<br/>- images[]<br/>- is_active"]
     building["Building<br/>楼栋<br/><br/>- organization_id<br/>- estate_id<br/>- name<br/>- floors<br/>- elevator<br/>- is_active"]
-    house["House<br/>房源<br/><br/>- building_id<br/>- landlord_id(nullable)<br/>- room_number<br/>- status<br/>- image_ids[]<br/>- video_ids[]<br/>- public_description<br/>- internal_notes<br/>- extra<br/>- is_active"]
+    house["House<br/>房源<br/><br/>- building_id<br/>- landlord_id(nullable)<br/>- room_number<br/>- status<br/>- images[]<br/>- videos[]<br/>- public_description<br/>- internal_notes<br/>- extra<br/>- is_active"]
     contact["Contact<br/>联系人<br/><br/>- organization_id<br/>- name / phone<br/>- roles[]<br/>- user_id(nullable)<br/>- is_active"]
-    lease["Lease<br/>租约<br/><br/>- organization_id<br/>- house_id<br/>- tenant_id -> Contact<br/>- status<br/>- contract_file_id(nullable)<br/>- start_date / end_date"]
+    lease["Lease<br/>租约<br/><br/>- organization_id<br/>- house_id<br/>- tenant_id -> Contact<br/>- status<br/>- contract_files[]<br/>- start_date / end_date"]
 
     org -->|"1:N"| estate
     org -->|"1:N"| building
@@ -321,10 +322,10 @@ flowchart TD
     house -->|"1:N"| lease
     contact -->|"1:N tenant"| lease
     user -->|"1:N delayed claim"| contact
-    estate -.->|"image_ids[]"| media
-    house -.->|"image_ids[]"| media
-    house -.->|"video_ids[]"| media
-    lease -->|"contract_file_id"| media
+    estate -.->|"images[].media_id"| media
+    house -.->|"images[].media_id"| media
+    house -.->|"videos[].media_id"| media
+    lease -.->|"contract_files[].media_id"| media
 ```
 
 ### 图 2：组织归属与媒体边界图 / Organization & Media Boundary
@@ -358,8 +359,8 @@ flowchart LR
     lease2 --> contact2
     contact2 -->|"delayed claim"| user2
 
-    house2 -.->|"store image_ids + video_ids + order only"| media2
-    lease2 -.->|"FK only"| media2
+    house2 -.->|"store images/videos refs"| media2
+    lease2 -.->|"store contract_files refs"| media2
 ```
 
 ### 图示说明 / Notes
@@ -367,8 +368,8 @@ flowchart LR
 - `Estate / Building / Contact / Lease` 都直接带 `organization_id`。
 - `House` 不带 `organization_id`，组织归属只能通过 `House -> Building -> Estate -> Organization` 推导。
 - `House.landlord` 是单字段绑定，当前版本只支持“单一登记出租方 / single registered landlord”，且允许为空。
-- `Estate.image_ids[]` 与 `House.image_ids[]` 只保存图片 MediaFile 的 id 和顺序；`House.video_ids[]` 只保存视频 MediaFile 的 id 和顺序。三者都不保存 `url`、`caption` 等媒体详情。
-- 图片与合同文件的展示信息必须复用 `apps.media` 能力解析，`house` 域不自行拼接文件地址。
+- `Estate.images[]`、`House.images[]`、`House.videos[]` 与 `Lease.contract_files[]` 保存业务媒体引用对象，每项至少包含 `media_id`，可包含 `media_type`、`label`、`image_role`、`room` 等业务字段。
+- 媒体 URL、文件名、大小、缩略图等展示信息必须通过 `apps.media.services.get_media_refs_info()` 或同等平台能力回显，`house` 域不自行拼接文件地址，也不保存增强后的展示数据。
 
 ## Decisions
 
@@ -531,53 +532,80 @@ Lease 新增、更新、删除时统一调用该入口重算房态：
 
 **理由**：直接过滤 `House.objects.filter(status='vacant')` 比 JOIN Lease 表快；但真相来源是 Lease。把状态重算收口到单一入口，能减少批量更新、admin 保存、后续 API 服务层各写一套逻辑导致的漂移。
 
-### 10. Estate、House 图片与 House 视频采用有序 MediaFile ID 列表
+### 10. Estate、House 图片与 House 视频采用有序媒体引用对象列表
 
-**选择**：不单独创建图片/视频关系表，而是在 `Estate` 与 `House` 上保存有序媒体配置。
+**选择**：参考 `docs/media-platform.md` 的最佳实例，不单独创建图片/视频关系表，而是在 `Estate` 与 `House` 上保存有序媒体引用对象列表。字段名采用业务语义：`images` / `videos`，每个列表项至少包含 `media_id`，可选包含 `media_type`，业务扩展字段直接平铺。
 
-`Estate.image_ids` 示例：
-
-```json
-[
-  101,
-  102,
-  103
-]
-```
-
-`House.image_ids` 示例：
+`Estate.images` 示例：
 
 ```json
 [
-  35,
-  12,
-  48
+  {
+    "media_id": 101,
+    "media_type": "image",
+    "label": "项目封面",
+    "image_role": "cover"
+  },
+  {
+    "media_id": 102,
+    "media_type": "image",
+    "label": "园区环境",
+    "image_role": "gallery"
+  }
 ]
 ```
 
-`House.video_ids` 示例：
+`House.images` 示例：
 
 ```json
 [
-  201
+  {
+    "media_id": 35,
+    "media_type": "image",
+    "label": "房源封面",
+    "image_role": "cover"
+  },
+  {
+    "media_id": 12,
+    "media_type": "image",
+    "label": "客厅实拍",
+    "image_role": "gallery",
+    "room": "living_room"
+  }
 ]
 ```
 
-分别对应 `Estate.image_ids`、`House.image_ids`、`House.video_ids` 三个 JSON 列表字段。
+`House.videos` 示例：
+
+```json
+[
+  {
+    "media_id": 201,
+    "media_type": "video",
+    "label": "房源视频",
+    "video_role": "tour"
+  }
+]
+```
+
+分别对应 `Estate.images`、`House.images`、`House.videos` 三个 JSON 列表字段。
 
 约定：
-- `image_ids` 与 `video_ids` 都允许为空列表，空列表表示"暂无对应媒体"
+- `images` 与 `videos` 都允许为空列表，空列表表示"暂无对应媒体"
+- 每个 item 必须包含 `media_id`，对应 `MediaFile.id`
+- `media_type` 推荐保留，图片为 `image`，视频为 `video`
+- `label`、`image_role`、`video_role`、`room` 等字段属于 house 业务字段，不进入 `MediaFile`，不额外包 `meta`
 - 图片列表默认上限为 9 张；视频列表默认上限为 3 个
 - 列表顺序即展示顺序
-- 第一张图片即封面图
-- 图片列表中的每个 id 都必须指向 `ResourceType.HOUSE_IMAGE` 的 `MediaFile`；视频列表中的每个 id 都必须指向 `ResourceType.HOUSE_VIDEO` 的 `MediaFile`
-- 同一房源的图片或视频列表中不允许重复 `media_file_id`
+- 第一张图片即封面图；也允许通过 `image_role=cover` 显式标记封面，但二者冲突时以列表第一项为准
+- 图片列表中的每个 `media_id` 都必须指向 `ResourceType.HOUSE_IMAGE` 的 `MediaFile`；视频列表中的每个 `media_id` 都必须指向 `ResourceType.HOUSE_VIDEO` 的 `MediaFile`
+- 同一房源的图片或视频列表中不允许重复 `media_id`
 - 同一个 `MediaFile` 允许被多个房源引用，不做跨房源唯一限制
-- 图片说明文字如 `caption` 不在房源域重复存储；若后续需要，由媒体基础层扩展元信息承载
+- 图片/视频说明文字使用业务字段 `label`，不写入 `MediaFile`
 
-**API 读取约定**：`house` 域在 API 层返回房源或项目详情时，将 `image_ids` 解析为 `image_urls=[{"id": 35, "url": "...", ...}]`，将 `video_ids` 解析为 `video_urls=[{"id": 201, "url": "...", ...}]`，复用 `apps.media` 批量解析能力按原顺序重组结果。存储层只存 id 列表，展示层由 media app 负责填充完整信息。
+**API 读取约定**：`house` 域在 API 层返回房源或项目详情时，将 `images` / `videos` 传给 `apps.media.services.get_media_refs_info()`，返回平铺增强后的列表；平台补充 `url`、`thumbnail`、`original_filename`、`file_size`、`created_at` 等展示字段，并保持业务原始顺序。存储层只保存稳定的业务媒体引用列表，不保存增强后的 URL 数据。
 
-**理由**：当前版本对项目图和房源图的核心诉求都是“挂图、排序、封面”，不需要为此单独引入关系表。把图片配置直接挂在 `Estate` 与 `House` 上，可以显著降低模型数量和实现复杂度，同时继续复用现有媒体上传与文件登记能力。
+**理由**：当前版本对项目图和房源图的核心诉求是“挂图、排序、封面、业务标签”。用平铺媒体引用对象能保留 `apps.media` 的通用能力，同时让房源域自行表达 `label`、`image_role`、`room` 等业务语义，避免把房源字段塞进媒体基础层。
 
 ### 11. 关键一致性优先用数据库约束兜底
 
@@ -590,21 +618,21 @@ Lease 新增、更新、删除时统一调用该入口重算房态：
 
 **理由**：`clean()` 适合业务提示，但并发场景仍需数据库保证最终一致性。
 
-### 12. 房源图片和租约合同复用 `apps/media`
+### 12. 房源媒体和租约合同复用 `apps/media`
 
-**选择**：不在 `apps/house` 中直接定义 `ImageField` / `FileField`，也不保存裸 `url`；统一通过 `MediaFile` 引用对象存储中的文件。
+**选择**：不在 `apps/house` 中直接定义 `ImageField` / `FileField`，也不保存裸 `url`；统一通过业务媒体引用对象里的 `media_id` 引用对象存储中的 `MediaFile`。
 
 ```
 Estate
-  image_ids: JSONField[list[int]]
+  images: JSONField[list[dict]]
 
 House
-  image_ids: JSONField[list[int]]
-  video_ids: JSONField[list[int]]
+  images: JSONField[list[dict]]
+  videos: JSONField[list[dict]]
 
 Lease
   sign_at: DateTimeField | null
-  contract_file: FK→MediaFile, null=True, blank=True, on_delete=PROTECT
+  contract_files: JSONField[list[dict]]
   extra: JSONField[dict]
 ```
 
@@ -612,9 +640,11 @@ Lease
 1. 前端或后续 API 使用 `apps/media` 获取组织作用域上传路径，`scope=org`，`object_id=Organization.pk`
 2. 文件上传到 `S3MediaStorage` 管理的对象存储，本地开发落到 MinIO
 3. 调用媒体确认接口登记 `MediaFile`
-4. 更新 `Estate.image_ids` / `House.image_ids` / `House.video_ids`，或创建 `Lease` 时保存 `media_file_id`
+4. 更新 `Estate.images` / `House.images` / `House.videos` / `Lease.contract_files`，保存包含 `media_id` 的业务媒体引用对象
 
-**读取规则**：`house` 域只保存 `media_file_id` 及其顺序，不负责自行拼装 URL 或复制媒体元信息。API 层返回房源或项目详情时，将 `image_ids` 解析为 `image_urls`、将 `video_ids` 解析为 `video_urls`，每项包含 `id`、`url`、文件名、大小、资源类型等媒体详情，复用 `apps.media` 批量解析能力按原顺序重组结果。存储层只存 id 列表，展示层由 media app 负责填充完整信息。
+**保存规则**：业务保存前调用 `apps.media.services.validate_media_refs()` 校验 `media_id` 是否存在、是否重复，并在 `house` 域继续校验资源类型、数量上限和组织权限。若只需要提取 ID，可使用 `extract_media_ids()`。
+
+**读取规则**：`house` 域只保存媒体引用对象及其顺序，不负责自行拼装 URL 或复制媒体元信息。API 层返回详情时，将 `images` / `videos` / `contract_files` 交给 `get_media_refs_info()` 回显增强列表；如果只需要纯媒体信息，也可使用 `get_media_list_info()`。展示层字段由 media app 填充，业务字段由 house 域保留。
 
 **媒体类型**：
 - 房源图片使用 `ResourceType.HOUSE_IMAGE`，允许 `jpg` / `jpeg` / `png` / `webp`
@@ -622,6 +652,8 @@ Lease
 - 租约合同使用 `ResourceType.LEASE_CONTRACT`，至少允许 `pdf`；若业务需要可扩展 `doc` / `docx`
 
 **归属边界**：`MediaFile` 只负责文件元数据和对象存储路径，业务归属仍以 `House.building.estate.organization` / `Lease.organization` 为准。后续 API 在绑定 `media_file` 时必须校验当前用户属于该组织，并优先使用、校验 `uploads/orgs/<organization_id>/...` 路径。
+
+**引用清理**：`apps/house` 应提供 `media_references` provider，收集 `Estate.images`、`House.images`、`House.videos`、`Lease.contract_files` 中的所有 `media_id`，并注册到 `MEDIA_REFERENCE_PROVIDERS`，供媒体平台做延迟清理。
 
 **删除策略**：删除 `House` 时不再有房源图片关系表需要级联删除；`MediaFile` 及对象存储中的文件不在本 change 中物理删除，避免误删仍被其他业务引用的文件。后续可通过媒体清理任务处理孤儿文件。
 
@@ -649,17 +681,18 @@ Lease
 - [跨组织数据串读] 若后续 API 忘记按 organization 过滤会越权 → 第一版就建立组织外键和约束，减少漏过滤概率
 - [组织不一致脏数据] 若 Building/House.landlord/Lease 不校验关联链一致性，后续房东查询可能出现同房异组织的脏记录 → 在模型 clean()、测试和 admin 保存路径中统一校验
 - [未来多主体扩展] 当前 `House.landlord` 单字段方案无法覆盖共有产权或多层委托 → 在文档中明确 V1 只支持单一登记出租方，后续通过独立多主体方案演进
-- [媒体列表约束较弱] `image_ids` / `video_ids` 是 JSON 列表，数据库层无法像关系表那样精细约束封面与顺序 → 在模型校验与测试中保证“首图为封面、无重复 id、只允许合法图片资源类型”
+- [媒体引用列表约束较弱] `images` / `videos` / `contract_files` 是 JSON 列表，数据库层无法像关系表那样精细约束封面与顺序 → 在模型校验与测试中保证“首图为封面、无重复 media_id、只允许合法资源类型”
 - [媒体列表长度失控] 若不限制图片数量，后台编辑和前端展示都可能变重 → 当前版本限制单套房源最多 9 张图、3 个视频
-- [媒体孤儿文件] 从房源图片列表移除 `media_file_id` 不直接删除 MediaFile 或对象存储文件 → 后续通过统一媒体清理任务处理，避免误删共享或误关联文件
+- [媒体孤儿文件] 从房源媒体引用列表移除 `media_id` 不直接删除 MediaFile 或对象存储文件 → 通过 `MEDIA_REFERENCE_PROVIDERS` 延迟清理，避免误删共享或误关联文件
 - [合同扩展名] 当前媒体模块只允许图片扩展名 → 实现本 change 时需扩展 `MediaExtension` 和 `ResourceType`
 
 ## Migration Plan
 
 1. 新建 `apps/house/` app，注册到 `INSTALLED_APPS`
-2. 扩展 `apps/media` 的 `ResourceType`（新增 `HOUSE_VIDEO`）和合同文件扩展名
+2. 扩展 `apps/media` 的 `ResourceType`（新增 `HOUSE_IMAGE`、`HOUSE_VIDEO`、`LEASE_CONTRACT`）和合同文件扩展名
 3. 按依赖顺序建模型：Estate → Building → Contact → House → Lease
 4. 运行 `makemigrations house`
 5. 为唯一约束、检查约束和条件唯一约束生成 migration
-6. 注册 admin
-7. 运行测试确认 migration 正常执行
+6. 提供并注册 `apps.house.media_references` provider，用于媒体延迟清理
+7. 注册 admin
+8. 运行测试确认 migration 正常执行

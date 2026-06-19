@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 项目片区档案管理
-系统 SHALL 提供 Estate 模型，字段：organization(FK→Organization)、name、display_name、developer、built_year、property_type(choices)、province、city、district、address、lat、lng、image_ids(JSONField)、description、is_active。Estate 的定位 SHALL 表示项目片区/小区容器级位置，而非单栋楼的精确门牌点。
+系统 SHALL 提供 Estate 模型，字段：organization(FK→Organization)、name、display_name、developer、built_year、property_type(choices)、province、city、district、address、lat、lng、images(JSONField)、description、is_active。Estate.images SHALL 保存有序媒体引用对象列表，每项至少包含 `media_id`。Estate 的定位 SHALL 表示项目片区/小区容器级位置，而非单栋楼的精确门牌点。
 
 #### Scenario: 创建项目片区
 - **WHEN** 创建 Estate 记录，提供 name
@@ -47,7 +47,7 @@
 - **THEN** 系统仍保留 Estate 作为上层容器，但实际业务定位以 Building 为主
 
 ### Requirement: 房源档案管理
-系统 SHALL 提供 House 模型，字段包含 building(FK→Building, PROTECT)、landlord(FK→Contact, null=True, blank=True, PROTECT)、room_number(自由格式)、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、orientation(choices)、decoration(choices)、has_elevator_access、status(choices, default=vacant)、image_ids(JSONField)、video_ids(JSONField)、tags(JSONField)、public_description、internal_notes、extra(JSONField)、is_active。House 的组织归属 SHALL 通过 `Building -> Estate -> Organization` 推导。
+系统 SHALL 提供 House 模型，字段包含 building(FK→Building, PROTECT)、landlord(FK→Contact, null=True, blank=True, PROTECT)、room_number(自由格式)、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、orientation(choices)、decoration(choices)、has_elevator_access、status(choices, default=vacant)、images(JSONField)、videos(JSONField)、tags(JSONField)、public_description、internal_notes、extra(JSONField)、is_active。House.images 与 House.videos SHALL 保存有序媒体引用对象列表，每项至少包含 `media_id`。House 的组织归属 SHALL 通过 `Building -> Estate -> Organization` 推导。
 
 #### Scenario: 创建房源
 - **WHEN** 创建 House，提供 building 和 room_number

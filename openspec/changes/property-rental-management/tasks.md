@@ -12,24 +12,25 @@
 
 ## 3. 空间层级模型
 
-- [ ] 3.1 创建 `Estate` 模型：organization(FK→Organization, PROTECT)、name、display_name、developer、built_year、property_type(choices)、province、city、district、address、lat、lng、image_ids(JSONField, default=list)、description、is_active，并明确其坐标是项目/小区级定位
+- [ ] 3.1 创建 `Estate` 模型：organization(FK→Organization, PROTECT)、name、display_name、developer、built_year、property_type(choices)、province、city、district、address、lat、lng、images(JSONField, default=list)、description、is_active，并明确其坐标是项目/小区级定位
 - [ ] 3.2 创建 `Building` 模型：organization(FK→Organization, PROTECT)、estate(FK→Estate, PROTECT)、name、floors、under_floors、year_built、elevator(default=False)、lat、lng、address、is_active，并明确其坐标是楼栋级精确定位
-- [ ] 3.3 创建 `House` 模型：building(FK→Building, PROTECT)、landlord(FK→Contact, null=True, blank=True, PROTECT)、room_number、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、orientation(choices)、decoration(choices)、has_elevator_access、status(choices, default=vacant)、image_ids(JSONField, default=list)、video_ids(JSONField, default=list)、tags(JSONField, default=list)、public_description、internal_notes、extra(JSONField, default=dict)、is_active
+- [ ] 3.3 创建 `House` 模型：building(FK→Building, PROTECT)、landlord(FK→Contact, null=True, blank=True, PROTECT)、room_number、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、orientation(choices)、decoration(choices)、has_elevator_access、status(choices, default=vacant)、images(JSONField, default=list)、videos(JSONField, default=list)、tags(JSONField, default=list)、public_description、internal_notes、extra(JSONField, default=dict)、is_active
 - [ ] 3.4 为 Estate/Building/House 添加所有 choices 常量、`__str__` 方法和唯一约束（项目片区名、楼栋名称、房号）
 - [ ] 3.5 为 Building 增加 organization 一致性校验，并明确 House 通过 `Building -> Estate` 推导组织归属
 - [ ] 3.6 明确并实现 Estate 与 Building 的定位分层语义：Estate 用于项目级展示，Building 用于精确导航；城中村场景以 Building 定位为主
 
-## 4. 房源图片配置
+## 4. 房源媒体配置
 
-- [ ] 4.1 在 `Estate` 上实现 `image_ids` 有序列表字段，在 `House` 上实现 `image_ids` 有序列表字段，保存图片的 `MediaFile` ID
-- [ ] 4.2 校验 `image_ids` 中不允许重复 id，且每个 `MediaFile` 的 `resource_type` 必须为 `house_image`
+- [ ] 4.1 在 `Estate` 和 `House` 上实现 `images` 有序媒体引用对象列表字段，每个 item 至少包含 `media_id`，可平铺保存 `media_type`、`label`、`image_role`、`room` 等业务字段
+- [ ] 4.2 保存 `images` 前调用 `apps.media.services.validate_media_refs()` 校验 `media_id` 存在性和重复引用，并在 house 域校验每个 `MediaFile.resource_type` 必须为 `house_image`
 - [ ] 4.3 明确并实现“第一张图片即封面图”的约定
 - [ ] 4.3.1 允许空图片列表，空列表表示“暂无图片”
 - [ ] 4.3.2 限制单套房源图片数量最多 9 张，并允许同一 `MediaFile` 被多个房源复用
-- [ ] 4.4 在 `House` 上实现 `video_ids` 有序列表字段，校验不允许重复 id、上限 3 个、每个 `MediaFile` 的 `resource_type` 必须为 `house_video`，视频格式限制 mp4 / mov / avi
-- [ ] 4.5 视频展示信息复用 `apps.media` 解析 `video_urls=[{"id": ..., "url": ..., ...}]`，不在 `house` 域自行拼装文件地址
-- [ ] 4.6 如后续需要图片说明文字，由媒体基础层扩展元信息承载，不在房源域重复建模 `caption`
-- [ ] 4.7 查询项目图片与房源图片展示信息时，复用 `apps.media` 既有能力按 `media_file_id` 解析 URL 和媒体元信息，不在 `house` 域自行拼装文件地址
+- [ ] 4.4 在 `House` 上实现 `videos` 有序媒体引用对象列表字段，校验不允许重复 `media_id`、上限 3 个、每个 `MediaFile.resource_type` 必须为 `house_video`，视频格式限制 mp4 / mov / avi
+- [ ] 4.5 图片/视频展示信息复用 `apps.media.services.get_media_refs_info()` 回显平铺增强后的 `images` / `videos`，不在 `house` 域自行拼装文件地址或保存增强后的 URL 数据
+- [ ] 4.6 图片/视频说明文字使用业务字段 `label`，不写入 `MediaFile`，且不额外包一层 `meta`
+- [ ] 4.7 创建 `apps/house/media_references.py`，收集 Estate.images、House.images、House.videos、Lease.contract_files 中的所有 `media_id`
+- [ ] 4.8 在 `MEDIA_REFERENCE_PROVIDERS` 中注册 house 域 provider，接入媒体平台延迟清理
 
 ## 5. 联系人模型
 
@@ -52,10 +53,10 @@
 
 ## 7. 租约模型
 
-- [ ] 7.1 创建 `Lease` 模型：organization(FK→Organization, PROTECT)、house(FK→House, PROTECT)、tenant(FK→Contact, PROTECT)、sign_at、start_date、end_date、monthly_rent、deposit、payment_day(default=1)、status(choices: pending/active/expired/terminated, default=pending)、contract_file(FK→apps.media.MediaFile, null=True, blank=True, on_delete=PROTECT)、notes、extra(JSONField, default=dict)
+- [ ] 7.1 创建 `Lease` 模型：organization(FK→Organization, PROTECT)、house(FK→House, PROTECT)、tenant(FK→Contact, PROTECT)、sign_at、start_date、end_date、monthly_rent、deposit、payment_day(default=1)、status(choices: pending/active/expired/terminated, default=pending)、contract_files(JSONField, default=list)、notes、extra(JSONField, default=dict)
 - [ ] 7.2 添加 tenant 角色校验、日期范围校验、金额非负校验、payment_day 范围校验和 `__str__` 方法
 - [ ] 7.3 为同一 House 的 active Lease 添加条件唯一约束
-- [ ] 7.4 校验 Lease.contract_file 为空或 resource_type 必须为 `lease_contract`
+- [ ] 7.4 校验 Lease.contract_files 为空或最多 1 个；保存前调用 `validate_media_refs()`，且每个 `MediaFile.resource_type` 必须为 `lease_contract`
 - [ ] 7.5 添加 Lease.organization、House.building.estate.organization、tenant.organization 一致性校验
 - [ ] 7.6 添加“创建 Lease 前 House.landlord 必须非空”的校验
 
@@ -85,7 +86,7 @@
 
 - [ ] 11.1 注册 `EstateAdmin`：list_display=(name, display_name, property_type, city, is_active)，search_fields=(name, display_name)
 - [ ] 11.2 注册 `BuildingAdmin`：list_display=(name, estate, floors, elevator, lat, lng, is_active)，list_filter=(estate, is_active)
-- [ ] 11.3 注册 `HouseAdmin`：list_display=(room_number, building, landlord, floor, status, is_active)，list_filter=(status, decoration, orientation)，并提供登记出租方与房源图片配置的可读编辑方式
+- [ ] 11.3 注册 `HouseAdmin`：list_display=(room_number, building, landlord, floor, status, is_active)，list_filter=(status, decoration, orientation)，并提供登记出租方与房源媒体引用配置的可读编辑方式
 - [ ] 11.3.1 在 HouseAdmin 中优化管理员建房流程：支持直接选择已有 landlord，或快速新建 landlord Contact 后回填 landlord
 - [ ] 11.4 注册 `ContactAdmin`：list_display=(name, phone, roles, user, is_active)，list_filter=(is_active,)，并提供 roles 可读展示
 - [ ] 11.5 注册 `LeaseAdmin`：list_display=(house, tenant, sign_at, start_date, end_date, monthly_rent, status)，list_filter=(status,)
@@ -108,8 +109,9 @@
 - [ ] 12.6 测试 Lease 重复 active 校验、数据库条件唯一约束和字段合法性校验
 - [ ] 12.6.1 测试 Lease 与 House.building.estate、tenant 的 organization 一致性校验
 - [ ] 12.6.2 测试对 `landlord is null` 的 House 创建 Lease 会被明确阻止
-- [ ] 12.7 测试 `Estate.image_ids` 与 `House.image_ids` 的顺序、首图封面约定、空列表、9 张上限、重复 id 校验、跨对象复用，以及 `house_image` 类型校验
-- [ ] 12.7.1 测试项目图片与房源图片详情查询复用 `apps.media` 能力，并按 `image_ids` 顺序重组返回结果
-- [ ] 12.7.2 测试 `House.video_ids` 的顺序、空列表、3 个上限、重复 id 校验、`house_video` 类型校验，以及视频详情查询复用 `apps.media` 能力
-- [ ] 12.8 测试 Lease.contract_file 可选、MediaFile 引用和 `lease_contract` 类型校验
+- [ ] 12.7 测试 `Estate.images` 与 `House.images` 的顺序、首图封面约定、空列表、9 张上限、重复 `media_id` 校验、跨对象复用、平铺业务字段保留，以及 `house_image` 类型校验
+- [ ] 12.7.1 测试项目图片与房源图片详情查询复用 `get_media_refs_info()`，并按 `images` 顺序回显增强列表
+- [ ] 12.7.2 测试 `House.videos` 的顺序、空列表、3 个上限、重复 `media_id` 校验、`house_video` 类型校验，以及视频详情查询复用 `get_media_refs_info()`
+- [ ] 12.7.3 测试 house 域 `media_references` provider 能收集 Estate.images、House.images、House.videos、Lease.contract_files 中的所有 `media_id`
+- [ ] 12.8 测试 Lease.contract_files 可选、最多 1 个、媒体引用校验和 `lease_contract` 类型校验
 - [ ] 12.9 运行 `pytest tests/house/` 确保全部通过
