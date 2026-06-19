@@ -330,3 +330,45 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(verification.status, RealNameStatus.VERIFIED)
         self.assertEqual(member.real_name_status, RealNameStatus.VERIFIED)
         self.assertEqual(verification.logs.last().action, RealNameLogAction.MANUAL_APPROVED)
+ 
+    def test_get_my_real_name_returns_id_card_media_with_url_after_rejection(self):
+        """驳回后查询实名状态应返回已上传的证件照片 URL，前端据此回显图片。"""
+        self.client.force_login(self.user)
+        id_card_media = self.make_id_card_media()
+        submit_resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": id_card_media,
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(submit_resp.status_code, 200, submit_resp.content)
+        verification = RealNameVerification.objects.get(user=self.user, is_current=True)
+
+        # 模拟驳回
+        from apps.accounts.real_name import admin_transition_real_name
+        admin_transition_real_name(
+            verification,
+            operator=self.admin,
+            to_status=RealNameStatus.REJECTED,
+            action=RealNameLogAction.MANUAL_REJECTED,
+            note="身份证照片不清晰",
+        )
+
+        # 查询当前实名状态
+        get_resp = self.client.get("/api/users/me/real-name/")
+        self.assertEqual(get_resp.status_code, 200, get_resp.content)
+        data = api_data(get_resp)
+        self.assertEqual(data["status"], RealNameStatus.REJECTED)
+        self.assertEqual(len(data["id_card_media"]), 2)
+        front_media = next(item for item in data["id_card_media"] if item["side"] == "front")
+        self.assertIn("url", front_media)
+        self.assertTrue(front_media["url"], "front side url should be non-empty")
+        back_media = next(item for item in data["id_card_media"] if item["side"] == "back")
+        self.assertIn("url", back_media)
+        self.assertTrue(back_media["url"], "back side url should be non-empty")
