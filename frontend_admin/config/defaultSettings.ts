@@ -7,12 +7,13 @@ const Settings: ProLayoutProps & {
   logo?: string;
 } = {
   navTheme: 'light',
-  colorPrimary: '#1677ff',
+  colorPrimary: '#1677FF',
   layout: 'mix',
   contentWidth: 'Fluid',
-  fixedHeader: false,
+  fixedHeader: true,
   fixSiderbar: true,
   colorWeak: false,
+  splitMenus: false,
   title: '链云空间',
   iconfontUrl: '',
   token: {
