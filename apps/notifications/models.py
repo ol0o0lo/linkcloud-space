@@ -1,10 +1,64 @@
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
-from apps.base.mixins import CreateUpdateTimeModelMixin
+from apps.base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from apps.notifications.managers import NotificationQuerySet
+
+
+class NotificationDispatch(BaseModelMixin):
+    class Scope(models.TextChoices):
+        PLATFORM = "platform", _("Platform")
+        ORGANIZATION = "organization", _("Organization")
+        USERS = "users", _("Users")
+
+    class Status(models.TextChoices):
+        PENDING = "pending", _("Pending")
+        SENDING = "sending", _("Sending")
+        SENT = "sent", _("Sent")
+        FAILED = "failed", _("Failed")
+
+    owner_organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="notification_dispatches",
+        null=True,
+        blank=True,
+        help_text="Management owner; null means platform-owned.",
+    )
+    scope = models.CharField(max_length=32, choices=Scope.choices)
+    scope_ids = models.JSONField(default=list, blank=True)
+    category = models.CharField(max_length=64, blank=True, db_index=True)
+    title = models.CharField(max_length=255)
+    body = models.TextField(blank=True)
+    url = models.CharField(max_length=500, null=True, blank=True)
+    data = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    target_count = models.PositiveIntegerField(default=0)
+    delivered_count = models.PositiveIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["owner_organization", "-created_at"], name="notif_dispatch_owner_idx"),
+            models.Index(fields=["scope", "-created_at"], name="notif_dispatch_scope_idx"),
+            models.Index(fields=["status", "-created_at"], name="notif_dispatch_status_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.scope == self.Scope.PLATFORM and self.scope_ids:
+            raise ValidationError({"scope_ids": "Platform dispatches must not include scope_ids."})
+        if self.scope != self.Scope.PLATFORM and not self.scope_ids:
+            raise ValidationError({"scope_ids": "Organization and users dispatches require scope_ids."})
+
+    def __str__(self):
+        return f"{self.get_scope_display()} notification dispatch: {self.title}"
 
 
 class Notification(CreateUpdateTimeModelMixin):
@@ -65,6 +119,14 @@ class Notification(CreateUpdateTimeModelMixin):
     body = models.TextField(blank=True)
     url = models.CharField(max_length=500, null=True, blank=True)
     data = models.JSONField(default=dict, blank=True)
+    dispatch = models.ForeignKey(
+        NotificationDispatch,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="notifications",
+        help_text="The management dispatch that produced this inbox row.",
+    )
     read_at = models.DateTimeField(null=True, blank=True, db_index=True)
     expires_at = models.DateTimeField(
         null=True,
