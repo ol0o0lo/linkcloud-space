@@ -117,3 +117,17 @@ describe('backend capability routes', () => {
     expect(missingKeys).toEqual([]);
   });
 });
+
+describe('个人中心路由', () => {
+  it('个人中心是主入口，个人设置不再作为菜单项显示', () => {
+    const accountGroup = routes.find((route) => route.path === '/account');
+    const namedChildren = accountGroup?.routes?.filter((route) => route.name) ?? [];
+
+    expect(namedChildren.map((route) => route.path)).toEqual([
+      '/account/center',
+    ]);
+
+    expect(accountGroup?.routes?.some((route) => route.path === '/account/settings')).toBe(true);
+    expect(accountGroup?.routes?.find((route) => route.path === '/account/settings')?.name).toBeUndefined();
+  });
+});
