@@ -11,7 +11,7 @@ vi.mock('antd', () => ({
   Menu: ({ items, onClick }: any) => (
     <div>
       {items.map((item: any) => (
-        <button key={item.key} type="button" onClick={() => onClick({ key: item.key })}>
+        <button key={item.key} type="button" role="menuitem" onClick={() => onClick({ key: item.key })}>
           {item.label}
         </button>
       ))}
@@ -19,35 +19,45 @@ vi.mock('antd', () => ({
   ),
 }));
 
-vi.mock('./components/base', () => ({ default: () => <div>基本设置内容</div> }));
+vi.mock('./components/base', () => ({ default: () => <div>个人资料内容</div> }));
 vi.mock('./components/security', () => ({ default: () => <div>安全设置内容</div> }));
 vi.mock('./components/binding', () => ({ default: () => <div>账号绑定内容</div> }));
-vi.mock('./components/notification', () => ({ default: () => <div>消息通知内容</div> }));
+vi.mock('./components/notification', () => ({ default: () => <div>通知设置内容</div> }));
 vi.mock('./style.style', () => ({
   default: () => ({
     styles: { main: 'main', leftMenu: 'leftMenu', right: 'right', title: 'title' },
   }),
 }));
 
-describe('Settings page tab sync', () => {
+describe('Settings page (兼容路由) tab sync', () => {
   beforeEach(() => {
-    window.history.replaceState({}, '', '/account/settings?tab=binding');
+    window.history.replaceState({}, '', '/account/settings?tab=security');
   });
 
-  it('opens binding view when the url tab param is binding', () => {
+  it('opens security view when the url tab param is security', () => {
     render(<Settings />);
 
-    expect(screen.getByRole('button', { name: '账号绑定' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '账号安全' })).toBeInTheDocument();
+    expect(screen.getByText('安全设置内容')).toBeInTheDocument();
     expect(screen.getByText('账号绑定内容')).toBeInTheDocument();
+  });
+
+  it('has four personal center tabs', () => {
+    window.history.replaceState({}, '', '/account/settings');
+    render(<Settings />);
+
+    expect(screen.getByRole('menuitem', { name: '个人资料' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '账号安全' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '偏好设置' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '通知设置' })).toBeInTheDocument();
   });
 
   it('writes the selected tab back to the url', () => {
     window.history.replaceState({}, '', '/account/settings');
     render(<Settings />);
 
-    fireEvent.click(screen.getByRole('button', { name: '安全设置' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '通知设置' }));
 
-    expect(window.location.search).toContain('tab=security');
-    expect(screen.queryByRole('button', { name: '实名认证' })).not.toBeInTheDocument();
+    expect(window.location.search).toContain('tab=notifications');
   });
 });

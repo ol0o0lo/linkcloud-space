@@ -105,7 +105,7 @@ describe('PersonalBusinessPage', () => {
 
     expect(screen.queryByLabelText('真实姓名')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('身份证号')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '去个人设置实名' })).toHaveAttribute('href', '/account/settings?tab=security');
+    expect(screen.getByRole('link', { name: '去个人设置实名' })).toHaveAttribute('href', '/account/center?tab=security');
 
     fireEvent.change(screen.getByLabelText('设置 Key'), { target: { value: 'theme' } });
     fireEvent.change(screen.getByLabelText('设置值'), { target: { value: 'dark' } });

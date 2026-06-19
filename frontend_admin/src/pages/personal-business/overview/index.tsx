@@ -135,7 +135,7 @@ const PersonalBusinessPage: React.FC = () => {
         </Descriptions>
         <Space direction="vertical" size={12} style={{ marginTop: 16 }}>
           <span style={wrapTextStyle}>实名认证入口已统一收口到个人设置，若需提交或重新提交，请前往个人设置完成。</span>
-          <Button type="link" href="/account/settings?tab=security" style={{ paddingInline: 0 }}>
+          <Button type="link" href="/account/center?tab=security" style={{ paddingInline: 0 }}>
             去个人设置实名
           </Button>
         </Space>

@@ -111,7 +111,7 @@ export async function querySocialBindings(): Promise<SocialBindingsResponse> {
 
 export async function startSocialBinding(provider: SocialBindingProvider) {
   const csrfToken = await ensureCsrfToken();
-  const callbackUrl = `${window.location.origin}/account/settings?tab=binding`;
+  const callbackUrl = `${window.location.origin}/account/settings?tab=security`;
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = `${ALLAUTH_BROWSER_BASE}/auth/provider/redirect`;
