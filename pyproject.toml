@@ -218,6 +218,10 @@ SECURE_PROXY_SSL_HEADER = { type = "bool", default = false, help_text = "Trust X
 # Allauth
 ACCOUNT_SIGNUP_OPEN = { type = "bool", default = false, help_text = "Allow new account signups" }
 
+# Amap (高德地图)
+AMAP_JSAPI_KEY = { type = "str", default = "", help_text = "Amap JSAPI key for map rendering" }
+AMAP_SECURITY_JS_CODE = { type = "str", default = "", help_text = "Amap JSAPI security code (required for JSAPI 2.0)" }
+
 # GitHub OAuth
 GITHUB_CLIENT_ID = { type = "str", default = "", help_text = "GitHub OAuth App client ID" }
 GITHUB_CLIENT_SECRET = { type = "str", default = "", help_text = "GitHub OAuth App client secret" }
