@@ -1,0 +1,12 @@
+/* 地图页面全屏布局：覆盖 ProLayout 内容区的默认 padding */
+.geo-map-fullscreen {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 56px);
+  margin: -24px;
+}
+
+.geo-map-fullscreen .ant-spin-nested-loading {
+  width: 100%;
+  height: 100%;
+}

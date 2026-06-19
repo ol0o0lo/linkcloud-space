@@ -1,6 +1,7 @@
 import { EnvironmentOutlined, HomeOutlined } from '@ant-design/icons';
 import { Alert, Card, Empty, Input, Segmented, Spin, Tag, Typography } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import './index.css';
 import { createRoot } from 'react-dom/client';
 import { useAmap } from '@/services/manual/amap';
 import { fetchMockMarkers } from './_mock';
@@ -187,7 +188,7 @@ const MapPage: React.FC = () => {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div className="geo-map-fullscreen">
       <div
         ref={containerRef}
         style={{
