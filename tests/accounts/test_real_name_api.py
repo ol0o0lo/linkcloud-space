@@ -372,3 +372,36 @@ class TestRealNameAPI(TestCase):
         back_media = next(item for item in data["id_card_media"] if item["side"] == "back")
         self.assertIn("url", back_media)
         self.assertTrue(back_media["url"], "back side url should be non-empty")
+
+    def test_get_my_real_name_handles_missing_media_gracefully(self):
+        """当引用的媒体文件已被删除时，API 应返回原始引用而非报错。"""
+        self.client.force_login(self.user)
+        id_card_media = self.make_id_card_media()
+        submit_resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": id_card_media,
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(submit_resp.status_code, 200, submit_resp.content)
+
+        # 删除媒体文件记录，模拟孤立引用
+        from apps.media.models import MediaFile
+        MediaFile.objects.filter(
+            pk__in=[m["media_id"] for m in id_card_media]
+        ).delete()
+
+        # 查询应正常返回，而非 500 报错
+        get_resp = self.client.get("/api/users/me/real-name/")
+        self.assertEqual(get_resp.status_code, 200, get_resp.content)
+        data = api_data(get_resp)
+        # 媒体文件不存在时，返回原始引用（无 url）
+        self.assertEqual(len(data["id_card_media"]), 2)
+        self.assertEqual(data["id_card_media"][0]["side"], "front")
+        self.assertEqual(data["id_card_media"][1]["side"], "back")
