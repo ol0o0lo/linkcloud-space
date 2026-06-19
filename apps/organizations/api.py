@@ -107,6 +107,12 @@ def signout(request):
     return {"success": True}
 
 
+@orgs_router.get("/{slug}/", response=OrganizationOut, summary="获取租户详情")
+def get_organization(request, slug: str):
+    """返回当前选中租户的完整资料，用于后台资料页初始化。"""
+    return _selected_owner_org(request, slug)
+
+
 @orgs_router.patch("/{slug}/", response=OrganizationOut, summary="更新租户资料和限制")
 def patch_organization(request, slug: str, payload: OrganizationPatchIn):
     """更新当前选中租户的基础资料、账单邮箱和成员/团队上限。"""

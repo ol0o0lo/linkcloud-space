@@ -96,6 +96,197 @@ export default [
     ],
   },
   {
+    path: '/tenant',
+    name: 'tenant-workbench',
+    icon: 'apartment',
+    routes: [
+      {
+        path: '/tenant',
+        redirect: '/tenant/overview',
+      },
+      {
+        name: 'overview',
+        icon: 'appstore',
+        path: '/tenant/overview',
+        component: './tenant/overview',
+      },
+      {
+        name: 'profile',
+        icon: 'profile',
+        path: '/tenant/settings',
+        component: './tenant/settings',
+      },
+      {
+        name: 'members',
+        icon: 'team',
+        path: '/tenant/members',
+        component: './tenant/members',
+      },
+      {
+        name: 'invites',
+        icon: 'mail',
+        path: '/tenant/invites',
+        component: './tenant/invites',
+      },
+      {
+        name: 'teams',
+        icon: 'cluster',
+        path: '/tenant/teams',
+        component: './tenant/teams',
+      },
+    ],
+  },
+  {
+    path: '/access',
+    name: 'access-management',
+    icon: 'safetyCertificate',
+    routes: [
+      {
+        path: '/access',
+        redirect: '/access/organization-roles',
+      },
+      {
+        name: 'organization-roles',
+        icon: 'solution',
+        path: '/access/organization-roles',
+        component: './access/organization-roles',
+      },
+      {
+        name: 'organization-bindings',
+        icon: 'audit',
+        path: '/access/organization-bindings',
+        component: './access/organization-bindings',
+      },
+      {
+        name: 'team-roles',
+        icon: 'deploymentUnit',
+        path: '/access/team-roles',
+        component: './access/team-roles',
+      },
+      {
+        name: 'team-bindings',
+        icon: 'partition',
+        path: '/access/team-bindings',
+        component: './access/team-bindings',
+      },
+    ],
+  },
+  {
+    path: '/settings-management',
+    name: 'settings-management',
+    icon: 'setting',
+    routes: [
+      {
+        path: '/settings-management',
+        redirect: '/settings-management/organization',
+      },
+      {
+        name: 'organization-settings',
+        icon: 'control',
+        path: '/settings-management/organization',
+        component: './settings-management/organization',
+      },
+      {
+        name: 'team-settings',
+        icon: 'sliders',
+        path: '/settings-management/team',
+        component: './settings-management/team',
+      },
+    ],
+  },
+  {
+    path: '/wallet-management',
+    name: 'wallet-management',
+    icon: 'wallet',
+    routes: [
+      {
+        path: '/wallet-management',
+        redirect: '/wallet-management/accounts',
+      },
+      {
+        name: 'accounts',
+        icon: 'accountBook',
+        path: '/wallet-management/accounts',
+        component: './wallet-management/accounts',
+      },
+      {
+        name: 'withdrawals',
+        icon: 'transaction',
+        path: '/wallet-management/withdrawals',
+        component: './wallet-management/withdrawals',
+      },
+    ],
+  },
+  {
+    path: '/platform-management',
+    name: 'platform-management',
+    icon: 'control',
+    routes: [
+      {
+        path: '/platform-management',
+        redirect: '/platform-management/users',
+      },
+      {
+        name: 'users',
+        icon: 'user',
+        path: '/platform-management/users',
+        component: './platform-management/users',
+      },
+      {
+        name: 'real-name',
+        icon: 'idcard',
+        path: '/platform-management/real-name',
+        component: './platform-management/real-name',
+      },
+      {
+        name: 'notifications',
+        icon: 'bell',
+        path: '/platform-management/notifications',
+        component: './platform-management/notifications',
+      },
+      {
+        name: 'referrals',
+        icon: 'shareAlt',
+        path: '/platform-management/referrals',
+        component: './platform-management/referrals',
+      },
+    ],
+  },
+  {
+    path: '/system-tools',
+    name: 'system-tools',
+    icon: 'tool',
+    routes: [
+      {
+        path: '/system-tools',
+        redirect: '/system-tools/operations',
+      },
+      {
+        name: 'operations',
+        icon: 'tool',
+        path: '/system-tools/operations',
+        component: './system-tools/operations',
+      },
+    ],
+  },
+  {
+    path: '/personal-business',
+    name: 'personal-business',
+    icon: 'userSwitch',
+    routes: [
+      {
+        path: '/personal-business',
+        redirect: '/personal-business/overview',
+      },
+      {
+        name: 'overview',
+        icon: 'profile',
+        path: '/personal-business/overview',
+        component: './personal-business/overview',
+      },
+    ],
+  },
+  {
     path: '/form',
     icon: 'form',
     name: 'form',

@@ -1,10 +1,11 @@
-import { LinkOutlined } from '@ant-design/icons';
+import { BgColorsOutlined, LinkOutlined } from '@ant-design/icons';
 import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { history, Link } from '@umijs/max';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { Button, Tooltip } from 'antd';
 import React from 'react';
 
 // Initialize dayjs plugins globally
@@ -131,6 +132,19 @@ export const layout: RunTimeLayoutConfig = ({
         <OrgSwitcher key="org-switcher" />,
         <DocLink key="doc" />,
         <VersionDropdown key="version" />,
+        <Tooltip key="theme-settings" title="界面设置">
+          <Button
+            type="text"
+            aria-label="界面设置"
+            icon={<BgColorsOutlined />}
+            onClick={() => {
+              setInitialState((s) => ({
+                ...s,
+                settingDrawerOpen: true,
+              }));
+            }}
+          />
+        </Tooltip>,
         localeEnabled && <LangDropdown key="lang" />,
       ].filter(Boolean);
     },

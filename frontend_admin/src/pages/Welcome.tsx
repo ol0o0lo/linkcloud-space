@@ -23,18 +23,18 @@ const Welcome: React.FC = () => {
   return (
     <PageContainer
       title="后台工作台"
-      content="LinkCloud Space 已接入 Django 后端会话，当前页面展示真实登录用户信息。"
+      content="链云空间 已接入 Django 后端会话，当前页面展示真实登录用户信息。"
     >
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <Alert
           type="success"
           showIcon
-          message="后端连接正常"
+          title="后端连接正常"
           description="登录、退出、当前用户和基础路由鉴权已经通过 Django session 工作。"
         />
 
         <Card>
-          <Space direction="vertical" size={8}>
+          <Space orientation="vertical" size={8}>
             <Title level={4} style={{ margin: 0 }}>
               {displayName}
             </Title>

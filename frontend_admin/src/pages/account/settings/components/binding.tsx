@@ -24,7 +24,7 @@ const BindingView: React.FC = () => {
   }
 
   if (error) {
-    return <Alert message="账号绑定状态加载失败，请刷新重试" type="error" showIcon />;
+    return <Alert title="账号绑定状态加载失败，请刷新重试" type="error" showIcon />;
   }
 
   return (

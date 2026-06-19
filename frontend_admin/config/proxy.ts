@@ -15,6 +15,14 @@ export default {
       target: 'http://127.0.0.1:18000',
       changeOrigin: false,
     },
+    '/_allauth/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
+    '/media/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
   },
   /**
    * @name 详细的代理配置
@@ -25,9 +33,25 @@ export default {
       target: 'http://127.0.0.1:18000',
       changeOrigin: false,
     },
+    '/_allauth/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
+    '/media/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
   },
   pre: {
     '/api/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
+    '/_allauth/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
+    '/media/': {
       target: 'http://127.0.0.1:18000',
       changeOrigin: false,
     },

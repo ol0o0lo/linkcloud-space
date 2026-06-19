@@ -1,5 +1,5 @@
 export default {
-  'pages.layouts.userLayout.title': 'LinkCloud Space 后台管理',
+  'pages.layouts.userLayout.title': '链云空间后台管理',
   'pages.login.accountLogin.tab': '账户密码登录',
   'pages.login.accountLogin.errorMessage':
     '账户或密码错误',

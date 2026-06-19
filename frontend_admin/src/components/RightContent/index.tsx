@@ -1,4 +1,5 @@
 import {
+  ApartmentOutlined,
   BookOutlined,
   CheckOutlined,
   ForkOutlined,
@@ -11,10 +12,16 @@ import {
   setLocale,
   useModel,
 } from '@umijs/max';
+import { useQueryClient } from '@tanstack/react-query';
 import type { MenuProps } from 'antd';
 import { Button, Select, Tooltip } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { useMemo } from 'react';
+import {
+  appsOrganizationsApiSelectOrg,
+  appsOrganizationsApiSignout,
+  appsOrganizationsApiSwitchList,
+} from '@/services/openapi/organizations';
 import { setSelectedOrgSlug } from '@/utils/orgSelection';
 import HeaderDropdown from '../HeaderDropdown';
 
@@ -42,18 +49,82 @@ const useStyles = createStyles(({ token, css }) => ({
     border-radius: ${token.borderRadius}px !important;
   `,
   orgSwitcher: css`
-    min-width: 180px;
+    min-width: 250px;
+
+    .ant-select-prefix {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: ${token.colorText};
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
 
     .ant-select-selector {
+      background: ${token.colorBgContainer} !important;
+      border-color: ${token.colorPrimaryBorder} !important;
       border-radius: ${token.borderRadius}px !important;
+    }
+
+    &:hover .ant-select-selector,
+    &.ant-select-focused .ant-select-selector {
+      border-color: ${token.colorPrimary} !important;
+      box-shadow: 0 0 0 2px ${token.colorPrimaryBg} !important;
     }
   `,
 }));
 
+const orgSwitcherPrefix = (
+  <span>
+    当前空间
+  </span>
+);
+
 export const OrgSwitcher: React.FC = () => {
   const { styles } = useStyles();
+  const queryClient = useQueryClient();
   const { initialState, setInitialState } = useModel('@@initialState');
   const organizations = initialState?.organizations || [];
+
+  const syncOrganizations = async (slug?: string) => {
+    const nextOrganizations = await queryClient.fetchQuery({
+      queryKey: ['tenant', 'organizations'],
+      queryFn: () => appsOrganizationsApiSwitchList({ skipErrorHandler: true }),
+    });
+    const storedSlug = setSelectedOrgSlug(slug);
+    setInitialState((state) => ({
+      ...state,
+      selectedOrgSlug: storedSlug,
+      organizations: nextOrganizations.map((item) => ({
+        ...item,
+        is_current: Boolean(storedSlug) && item.slug === storedSlug,
+      })),
+    }));
+    await queryClient.invalidateQueries({ queryKey: ['tenant', 'app-context', storedSlug] });
+    await queryClient.invalidateQueries({ queryKey: ['tenant', 'organization-detail', storedSlug] });
+    await queryClient.invalidateQueries({ queryKey: ['tenant', 'organization-profile', storedSlug] });
+    await queryClient.invalidateQueries({ queryKey: ['tenant', 'usage', storedSlug] });
+    await queryClient.invalidateQueries({ queryKey: ['tenant', 'members'] });
+    await queryClient.invalidateQueries({ queryKey: ['tenant', 'invites'] });
+    await queryClient.invalidateQueries({ queryKey: ['tenant', 'teams'] });
+    await queryClient.invalidateQueries({ queryKey: ['access'] });
+    await queryClient.invalidateQueries({ queryKey: ['settings-management'] });
+  };
+
+  const handleChange = async (value?: string) => {
+    if (!value) {
+      await appsOrganizationsApiSignout({ skipErrorHandler: true });
+      await syncOrganizations(undefined);
+      return;
+    }
+
+    await appsOrganizationsApiSelectOrg(
+      { slug: value },
+      { skipErrorHandler: true },
+    );
+    await syncOrganizations(value);
+  };
 
   if (organizations.length === 0) {
     return null;
@@ -62,22 +133,20 @@ export const OrgSwitcher: React.FC = () => {
   return (
     <Select
       allowClear
-      aria-label="选择租户"
+      aria-label="当前空间"
       className={styles.orgSwitcher}
       options={organizations.map((item) => ({
         label: item.name,
         value: item.slug,
       }))}
-      placeholder="选择租户"
+      placeholder="选择空间"
+      prefix={orgSwitcherPrefix}
       popupMatchSelectWidth={false}
       size="middle"
+      suffixIcon={null}
       value={initialState?.selectedOrgSlug}
       onChange={(value) => {
-        const nextSlug = setSelectedOrgSlug(value);
-        setInitialState((state) => ({
-          ...state,
-          selectedOrgSlug: nextSlug,
-        }));
+        void handleChange(value);
       }}
     />
   );

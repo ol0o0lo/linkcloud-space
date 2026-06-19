@@ -1,3 +1,5 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock all heavy dependencies before importing app
@@ -42,7 +44,13 @@ vi.mock('@ant-design/pro-components', () => ({
   SettingDrawer: () => null,
 }));
 
+vi.mock('antd', () => ({
+  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  Tooltip: ({ children }: any) => <>{children}</>,
+}));
+
 vi.mock('@ant-design/icons', () => ({
+  BgColorsOutlined: () => null,
   LinkOutlined: () => null,
 }));
 
@@ -215,5 +223,25 @@ describe('app getInitialState', () => {
     expect(user).toEqual(
       expect.objectContaining({ username: 'fetched-user', is_staff: false }),
     );
+  });
+
+  it('layout actions should expose a header button to open theme settings', async () => {
+    const setInitialState = vi.fn();
+    const { layout } = await import('./app');
+
+    const config = layout({
+      initialState: {
+        settings: { navTheme: 'light' },
+      },
+      setInitialState,
+    } as any);
+
+    const actionsRender = config.actionsRender as (() => React.ReactNode[]) | undefined;
+
+    render(<>{actionsRender?.().filter(Boolean)}</>);
+
+    fireEvent.click(screen.getByRole('button', { name: '界面设置' }));
+
+    expect(setInitialState).toHaveBeenCalled();
   });
 });

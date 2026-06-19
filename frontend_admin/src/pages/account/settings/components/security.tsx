@@ -79,7 +79,7 @@ const SecurityView: React.FC = () => {
           showIcon
           style={{ marginBottom: 16 }}
           type="error"
-          message="安全设置加载失败，请稍后重试"
+          title="安全设置加载失败，请稍后重试"
         />
       ) : null}
       <List<SecurityItem>
