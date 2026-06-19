@@ -271,7 +271,7 @@ def patch_member(request, member_id: int, payload: MemberPatchIn):
     return membership
 
 
-@members_router.delete("/{member_id}/", response={204: None}, summary="移除租户成员")
+@members_router.delete("/{member_id}/", response={200: dict}, summary="移除租户成员")
 def delete_member(request, member_id: int):
     """将指定成员从当前租户移除，不允许移除自己。"""
     require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
@@ -280,7 +280,7 @@ def delete_member(request, member_id: int):
         raise HttpError(400, "You're not allowed to remove yourself from the organization.")
     membership.send_removal_email(sending_user=request.user)
     membership.delete()
-    return Status(204, None)
+    return Status(200, {})
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +334,7 @@ def resend_invite(request, invite_id: int):
     return {"success": True}
 
 
-@invites_router.delete("/{invite_id}/", response={204: None}, summary="取消租户邀请")
+@invites_router.delete("/{invite_id}/", response={200: dict}, summary="取消租户邀请")
 def delete_invite(request, invite_id: int):
     """取消一条未处理的租户邀请。"""
     require_org_permission(request, OrganizationPermission.INVITE_MANAGE)
@@ -342,7 +342,7 @@ def delete_invite(request, invite_id: int):
     with transaction.atomic():
         transaction.on_commit(invite.send_cancellation)
         invite.delete()
-    return Status(204, None)
+    return Status(200, {})
 
 
 # ---------------------------------------------------------------------------

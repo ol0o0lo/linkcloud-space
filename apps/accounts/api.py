@@ -231,14 +231,14 @@ def upload_avatar(
     return {"avatar_url": avatar_url}
 
 
-@users_router.delete("/me/avatar/", response={204: None}, summary="删除用户头像")
+@users_router.delete("/me/avatar/", response={200: dict}, summary="删除用户头像")
 def delete_avatar(request):
     """删除当前用户头像并恢复为默认展示状态。"""
     require_authenticated(request)
     from apps.accounts.services import delete_user_avatar
 
     delete_user_avatar(request.user)
-    return Status(204, None)
+    return Status(200, {})
 
 
 @users_router.post("/me/wechat-phone/", response=WechatPhoneOut, summary="绑定微信手机号")
@@ -288,14 +288,14 @@ def get_totp_setup(request):
     }
 
 
-@users_router.delete("/me/mfa/authenticators/{authenticator_type}/", response={204: None}, summary="删除当前用户的 MFA 认证器")
+@users_router.delete("/me/mfa/authenticators/{authenticator_type}/", response={200: dict}, summary="删除当前用户的 MFA 认证器")
 def delete_my_authenticator(request, authenticator_type: str):
     """删除当前登录用户指定类型的 MFA 认证器。"""
     require_authenticated(request)
     deleted, _ = Authenticator.objects.filter(user=request.user, type=authenticator_type).delete()
     if deleted == 0:
         raise HttpError(404, "Authenticator not found.")
-    return Status(204, None)
+    return Status(200, {})
 
 
 def _get_admin_user(request, user_id: int):
@@ -398,17 +398,17 @@ def reset_user_mfa(request, user_id: int):
     return {"deleted_authenticators": deleted_authenticators}
 
 
-@admin_users_router.delete("/{user_id}/phone/", response={204: None}, summary="解绑用户手机号")
+@admin_users_router.delete("/{user_id}/phone/", response={200: dict}, summary="解绑用户手机号")
 def unbind_user_phone(request, user_id: int):
     """清空用户手机号及验证状态。"""
     user = _get_admin_user(request, user_id)
     user.set_phone_number(None)
     user.phone_verified = False
     user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
-    return Status(204, None)
+    return Status(200, {})
 
 
-@admin_users_router.delete("/{user_id}/wechat/", response={204: None}, summary="解绑用户微信账号")
+@admin_users_router.delete("/{user_id}/wechat/", response={200: dict}, summary="解绑用户微信账号")
 def unbind_user_wechat(request, user_id: int):
     """删除用户微信开放平台和小程序 social account 绑定。"""
     user = _get_admin_user(request, user_id)
@@ -423,7 +423,7 @@ def unbind_user_wechat(request, user_id: int):
         raise HttpError(400, "; ".join(str(message) for message in exc.messages)) from exc
     for account in accounts:
         account.delete()
-    return Status(204, None)
+    return Status(200, {})
 
 
 @real_name_router.get("/me/real-name/", response=RealNameVerificationOut, summary="获取当前用户实名认证状态")

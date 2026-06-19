@@ -14,6 +14,7 @@ from model_bakery import baker
 from apps.accounts.models import User
 from apps.organizations.models import OrganizationMember
 from apps.settings.models import DefaultSetting
+from tests.api_helpers import api_data
 
 
 @pytest.fixture()
@@ -110,7 +111,7 @@ def test_app_request_uses_x_org_slug_without_session_org(client, verified_user):
     api_resp = client.get("/api/settings/org/", HTTP_X_SESSION_TOKEN=session_token, HTTP_X_ORG_SLUG=org.slug)
 
     assert api_resp.status_code == 200, api_resp.content
-    assert api_resp.json()[0]["key"] == "site_name"
+    assert api_data(api_resp)[0]["key"] == "site_name"
 
 
 @pytest.mark.django_db
@@ -139,5 +140,6 @@ def test_app_request_prefers_x_org_slug_over_session_org(client, verified_user):
     api_resp = client.get("/api/organizations/switch-list/", HTTP_X_SESSION_TOKEN=session_token, HTTP_X_ORG_SLUG=header_org.slug)
 
     assert api_resp.status_code == 200, api_resp.content
-    assert any(item["slug"] == header_org.slug and item["is_current"] is True for item in api_resp.json())
-    assert any(item["slug"] == session_org.slug and item["is_current"] is False for item in api_resp.json())
+    switch_items = api_data(api_resp)
+    assert any(item["slug"] == header_org.slug and item["is_current"] is True for item in switch_items)
+    assert any(item["slug"] == session_org.slug and item["is_current"] is False for item in switch_items)

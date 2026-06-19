@@ -10,6 +10,7 @@ from apps.accounts.models import User
 from apps.notifications.models import Notification
 from apps.organizations.models import OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
+from tests.api_helpers import api_error
 
 URL = "/api/test-notifications/"
 
@@ -56,7 +57,10 @@ class TestSendTestNotification:
     def test_rejects_when_recipient_not_in_sender_org(self):
         resp = self._post({"user_id": self.recipient.pk, "send_email": False, "send_in_app": True})
         assert resp.status_code == 400
-        assert "Acme" in resp.json()["detail"]
+        error = api_error(resp)
+        assert error["code"] == 400
+        assert error["error"] == "BAD_REQUEST"
+        assert "Acme" in error["message"]
         assert Notification.objects.count() == 0
 
     def test_succeeds_when_recipient_is_in_sender_org(self):

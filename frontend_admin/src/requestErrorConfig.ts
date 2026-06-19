@@ -1,7 +1,7 @@
 import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
-import { message, notification } from 'antd';
+import { message } from 'antd';
 import { getSelectedOrgSlug } from './utils/orgSelection';
 
 const LOGIN_PATH = '/user/login';
@@ -35,21 +35,34 @@ function isSafeMethod(method?: string) {
   return ['GET', 'HEAD', 'OPTIONS'].includes(normalized);
 }
 
-// 错误处理方案： 错误类型
-enum ErrorShowType {
-  SILENT = 0,
-  WARN_MESSAGE = 1,
-  ERROR_MESSAGE = 2,
-  NOTIFICATION = 3,
-  REDIRECT = 9,
+interface ApiEnvelope<T = unknown> {
+  code: number;
+  message?: string;
+  data: T;
+  timestamp: number;
+  traceId: string;
+  error?: string;
 }
-// 与后端约定的响应数据格式
-interface ResponseStructure {
-  success: boolean;
-  data: unknown;
-  errorCode?: number;
-  errorMessage?: string;
-  showType?: ErrorShowType;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function isApiEnvelope(value: unknown): value is ApiEnvelope {
+  return (
+    isPlainObject(value) &&
+    typeof value.code === 'number' &&
+    'data' in value &&
+    typeof value.timestamp === 'number' &&
+    typeof value.traceId === 'string'
+  );
+}
+
+function getApiErrorMessage(data: unknown): string | undefined {
+  if (!isApiEnvelope(data)) {
+    return undefined;
+  }
+  return data.message || data.error || `Response status:${data.code}`;
 }
 
 /**
@@ -62,12 +75,10 @@ export const errorConfig: RequestConfig = {
   errorConfig: {
     // 错误抛出
     errorThrower: (res) => {
-      const { success, data, errorCode, errorMessage, showType } =
-        res as unknown as ResponseStructure;
-      if (success === false) {
-        const error: any = new Error(errorMessage);
+      if (isApiEnvelope(res) && res.code !== 200) {
+        const error: any = new Error(res.message || res.error);
         error.name = 'BizError';
-        error.info = { errorCode, errorMessage, showType, data };
+        error.info = res;
         throw error; // 抛出自制的错误
       }
     },
@@ -76,36 +87,16 @@ export const errorConfig: RequestConfig = {
       if (opts?.skipErrorHandler) throw error;
       // 我们的 errorThrower 抛出的错误。
       if (error.name === 'BizError') {
-        const errorInfo: ResponseStructure | undefined = error.info;
-        if (errorInfo) {
-          const { errorMessage, errorCode } = errorInfo;
-          switch (errorInfo.showType) {
-            case ErrorShowType.SILENT:
-              // do nothing
-              break;
-            case ErrorShowType.WARN_MESSAGE:
-              message.warning(errorMessage);
-              break;
-            case ErrorShowType.ERROR_MESSAGE:
-              message.error(errorMessage);
-              break;
-            case ErrorShowType.NOTIFICATION:
-              notification.open({
-                title: errorCode,
-                description: errorMessage,
-              });
-              break;
-            case ErrorShowType.REDIRECT:
-              history.push(LOGIN_PATH);
-              break;
-            default:
-              message.error(errorMessage);
-          }
+        const errorInfo: ApiEnvelope | undefined = error.info;
+        if (errorInfo?.code === 401) {
+          history.push(LOGIN_PATH);
+        } else if (errorInfo) {
+          message.error(errorInfo.message || errorInfo.error || 'Request error, please retry.');
         }
       } else if (error.response) {
         // Axios 的错误
         // 请求成功发出且服务器也响应了状态码，但状态代码超出了 2xx 的范围
-        message.error(`Response status:${error.response.status}`);
+        message.error(getApiErrorMessage(error.response.data) || `Response status:${error.response.status}`);
       } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
         message.error(
           getIntl().formatMessage({
@@ -152,5 +143,12 @@ export const errorConfig: RequestConfig = {
   ],
 
   // 响应拦截器
-  responseInterceptors: [],
+  responseInterceptors: [
+    (response) => {
+      if (isApiEnvelope(response.data) && response.data.code === 200) {
+        response.data = response.data.data as typeof response.data;
+      }
+      return response;
+    },
+  ],
 };

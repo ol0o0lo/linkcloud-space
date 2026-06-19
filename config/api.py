@@ -3,7 +3,6 @@
 from django.conf import settings
 
 from allauth.headless.contrib.ninja.security import jwt_token_auth
-from ninja import NinjaAPI
 from ninja.security import django_auth
 
 from apps.access.api import org_bindings_router as access_org_bindings_router
@@ -15,6 +14,7 @@ from apps.accounts.api import admin_real_name_router, admin_users_router, real_n
 from apps.base.api import router as base_router
 from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
+from apps.base.responses import EnvelopedNinjaAPI
 from apps.media.api import router as media_router
 from apps.notifications.api import router as notifications_router
 from apps.organizations.api import (
@@ -40,7 +40,7 @@ from apps.wallet.api import admin_router as wallet_admin_router
 from apps.wallet.api import internal_router as wallet_internal_router
 from apps.wallet.api import router as wallet_router
 
-api = NinjaAPI(
+api = EnvelopedNinjaAPI(
     title="Django Base Site API",
     version="1.0.0",
     auth=[jwt_token_auth, x_session_token_user_auth, django_auth],  # 优先支持 JWT Bearer / X-Session-Token，最后回落到 session cookie

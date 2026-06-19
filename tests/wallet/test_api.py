@@ -11,6 +11,7 @@ from apps.wallet.constants import WithdrawalPayChannel
 from apps.wallet.exceptions import UnsupportedWithdrawalChannelException, WechatBindingRequiredException
 from apps.wallet.providers.base import ProviderTransferResult
 from apps.wallet.services import apply_wallet_credit, submit_withdrawal
+from tests.api_helpers import api_data, api_error
 
 
 class WalletUserAPITests(TestCase):
@@ -31,8 +32,9 @@ class WalletUserAPITests(TestCase):
         resp = self.client.get("/api/wallet/me/summary/")
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["available_balance"], 1200)
-        self.assertEqual(resp.json()["frozen_balance"], 0)
+        data = api_data(resp)
+        self.assertEqual(data["available_balance"], 1200)
+        self.assertEqual(data["frozen_balance"], 0)
 
     def test_create_withdrawal_freezes_balance(self):
         baker.make(SocialAccount, user=self.user, provider="weixin", uid="wx-api-user-1")
@@ -60,7 +62,7 @@ class WalletUserAPITests(TestCase):
         )
 
         self.assertEqual(resp.status_code, 201)
-        self.assertEqual(resp.json()["status"], "pending_review")
+        self.assertEqual(api_data(resp)["status"], "pending_review")
 
     def test_create_withdrawal_requires_non_empty_client_request_id(self):
         baker.make(SocialAccount, user=self.user, provider="weixin", uid="wx-api-user-2")
@@ -113,9 +115,11 @@ class WalletUserAPITests(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["detail"], str(UnsupportedWithdrawalChannelException.message))
-        self.assertEqual(resp.json()["code"], UnsupportedWithdrawalChannelException.full_code())
+        self.assertEqual(resp.status_code, 400)
+        error = api_error(resp)
+        self.assertEqual(error["message"], str(UnsupportedWithdrawalChannelException.message))
+        self.assertEqual(error["code"], 400)
+        self.assertEqual(error["error"], UnsupportedWithdrawalChannelException.error)
 
     def test_create_withdrawal_requires_wechat_binding_with_business_code(self):
         apply_wallet_credit(
@@ -141,9 +145,11 @@ class WalletUserAPITests(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["detail"], str(WechatBindingRequiredException.message))
-        self.assertEqual(resp.json()["code"], WechatBindingRequiredException.full_code())
+        self.assertEqual(resp.status_code, 400)
+        error = api_error(resp)
+        self.assertEqual(error["message"], str(WechatBindingRequiredException.message))
+        self.assertEqual(error["code"], 400)
+        self.assertEqual(error["error"], WechatBindingRequiredException.error)
 
     def test_cancel_withdrawal_only_works_for_current_user(self):
         other = baker.make(User)
@@ -184,7 +190,7 @@ class WalletAdminAPITests(TestCase):
         )
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["available_balance_after"], 500)
+        self.assertEqual(api_data(resp)["available_balance_after"], 500)
 
     @patch("apps.wallet.services.get_payout_provider")
     def test_admin_can_review_and_start_payout(self, mock_get_provider):
@@ -220,9 +226,9 @@ class WalletAdminAPITests(TestCase):
         )
 
         self.assertEqual(review_resp.status_code, 200)
-        self.assertEqual(review_resp.json()["status"], "approved")
+        self.assertEqual(api_data(review_resp)["status"], "approved")
         self.assertEqual(payout_resp.status_code, 200)
-        self.assertEqual(payout_resp.json()["status"], "processing")
+        self.assertEqual(api_data(payout_resp)["status"], "processing")
 
 
 class WalletInternalAPITests(TestCase):
@@ -233,7 +239,7 @@ class WalletInternalAPITests(TestCase):
     def test_internal_reconcile_endpoint_returns_diff_summary(self):
         resp = self.client.post("/api/internal/wallet/reconcile/", content_type="application/json")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("diff_count", resp.json())
+        self.assertIn("diff_count", api_data(resp))
 
     @patch("apps.wallet.api.get_payout_provider")
     @patch("apps.wallet.services.get_payout_provider")
@@ -305,7 +311,7 @@ class WalletInternalAPITests(TestCase):
         )
 
         self.assertEqual(retry_resp.status_code, 200)
-        self.assertEqual(retry_resp.json()["status"], "processing")
+        self.assertEqual(api_data(retry_resp)["status"], "processing")
 
 
 class WalletCallbackAPITests(TestCase):

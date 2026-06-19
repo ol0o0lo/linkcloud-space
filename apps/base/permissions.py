@@ -3,7 +3,7 @@ Permission helpers for ninja routes.
 
 These replace DRF's permission_classes with a small set of explicit checks
 that raise ``PermissionDenied`` (which the global error handler in
-apps/base/errors.py converts to a 403 with a ``{detail: ...}`` body).
+apps/base/errors.py converts to a 403 API error envelope).
 """
 
 from typing import Any

@@ -1,4 +1,3 @@
-import pytest
 
 from apps.base.exceptions import QuotaExceededException
 
@@ -15,4 +14,5 @@ def test_quota_exceeded_custom_message():
 
 
 def test_quota_exceeded_code():
-    assert QuotaExceededException.full_code() == "06"
+    assert QuotaExceededException.code == 429
+    assert QuotaExceededException.error == "QUOTA_EXCEEDED"

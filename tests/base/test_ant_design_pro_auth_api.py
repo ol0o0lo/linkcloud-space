@@ -1,6 +1,7 @@
 import pytest
 
 from apps.accounts.models import User
+from tests.api_helpers import api_data, api_error
 
 
 @pytest.mark.django_db
@@ -8,7 +9,10 @@ def test_users_me_requires_login(client):
     response = client.get("/api/users/me/")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Unauthorized"
+    error = api_error(response)
+    assert error["code"] == 401
+    assert error["error"] == "UNAUTHORIZED"
+    assert error["message"] == "Unauthorized"
 
 
 @pytest.mark.django_db
@@ -28,7 +32,7 @@ def test_users_me_returns_current_user_for_existing_session(client):
     current_response = client.get("/api/users/me/")
 
     assert current_response.status_code == 200
-    payload = current_response.json()
+    payload = api_data(current_response)
     assert payload["username"] == "admin"
     assert payload["first_name"] == "Ada"
     assert payload["last_name"] == "Lovelace"

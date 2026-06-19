@@ -1,9 +1,12 @@
+import hashlib
+
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 
 from apps.access.constants import ACCESS_PERMISSION_MODEL
+from apps.access.exceptions import RoleInUseException
 from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
 from apps.organizations.models import OrganizationMember
 
@@ -108,15 +111,18 @@ def list_team_role_bindings(team):
 def create_custom_role(
     org,
     scope: AccessRole.Scope,
-    code: str,
     name: str,
     permission_keys: list[str] | None = None,
     copy_from: AccessRole | None = None,
 ) -> AccessRole:
     if copy_from is not None:
         _validate_copy_source(copy_from, org, scope)
+    name = _normalize_role_name(name)
     permissions = _resolve_permissions(permission_keys) if permission_keys is not None else _copy_permissions(copy_from)
-    group = Group.objects.create(name=_group_name(org, scope, code))
+    code = _generate_custom_role_code(org, scope, name)
+    group_name = _group_name(org, scope, code)
+    _prepare_custom_role_identity(org, scope, name=name, code=code, group_name=group_name)
+    group = Group.objects.create(name=group_name)
     role = AccessRole(
         group=group,
         organization=org,
@@ -136,32 +142,67 @@ def create_custom_role(
 def update_custom_role(
     role: AccessRole,
     *,
-    code: str | None = None,
     name: str | None = None,
     permission_keys: list[str] | None = None,
-    is_active: bool | None = None,
 ) -> AccessRole:
     _validate_custom_role(role)
-    if code is not None:
-        role.code = code
-        role.group.name = _group_name(role.organization, role.scope, code)
     if name is not None:
+        name = _normalize_role_name(name)
+        _validate_unique_role_name(role.organization, role.scope, name, exclude_role=role)
         role.name = name
-    if is_active is not None:
-        role.is_active = is_active
     role.full_clean()
-    role.group.save(update_fields=["name"])
     role.save()
     if permission_keys is not None:
         role.group.permissions.set(_resolve_permissions(permission_keys))
     return role
 
 
-def deactivate_custom_role(role: AccessRole) -> AccessRole:
+def delete_custom_role(role: AccessRole) -> None:
     _validate_custom_role(role)
-    role.is_active = False
-    role.save(update_fields=["is_active", "updated_at"])
-    return role
+    if OrganizationGroupBinding.objects.filter(group=role.group).exists() or TeamGroupBinding.objects.filter(group=role.group).exists():
+        raise RoleInUseException()
+    role.group.delete()
+
+
+def _prepare_custom_role_identity(org, scope: AccessRole.Scope, *, name: str, code: str, group_name: str) -> None:
+    existing_name_roles = AccessRole.objects.select_related("group").filter(scope=scope, name=name).filter(Q(organization__isnull=True) | Q(organization=org))
+    for role in existing_name_roles:
+        _clear_or_reject_existing_role(role)
+    _clear_or_reject_existing_role(AccessRole.objects.select_related("group").filter(organization=org, scope=scope, code=code).first())
+
+    if Group.objects.filter(name=group_name).exists():
+        raise ValidationError({"code": "Role group name already exists. Remove the stale group before creating this role."})
+
+
+def _clear_or_reject_existing_role(role: AccessRole | None) -> None:
+    if role is None:
+        return
+    if role.is_active:
+        raise ValidationError({"name": "Role name already exists in this scope."})
+    delete_custom_role(role)
+
+
+def _validate_unique_role_name(org, scope: AccessRole.Scope, name: str, *, exclude_role: AccessRole | None = None) -> None:
+    qs = AccessRole.objects.filter(scope=scope, name=name).filter(Q(organization__isnull=True) | Q(organization=org))
+    if exclude_role is not None:
+        qs = qs.exclude(pk=exclude_role.pk)
+    existing_role = qs.first()
+    if existing_role is not None:
+        if existing_role.is_active:
+            raise ValidationError({"name": "Role name already exists in this scope."})
+        delete_custom_role(existing_role)
+
+
+def _normalize_role_name(name: str) -> str:
+    normalized = name.strip()
+    if not normalized:
+        raise ValidationError({"name": "Role name is required."})
+    return normalized
+
+
+def _generate_custom_role_code(org, scope: AccessRole.Scope, name: str) -> str:
+    digest = hashlib.sha1(f"{org.pk}:{scope}:{name}".encode(), usedforsecurity=False).hexdigest()[:12]
+    return f"custom_{digest}"
 
 
 def assign_org_role(org, user_or_id, role: AccessRole):

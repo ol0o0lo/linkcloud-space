@@ -86,9 +86,9 @@ def patch_team(request, team_id: int, payload: TeamPatchIn):
     return team
 
 
-@router.delete("/{team_id}/", response={204: None}, summary="删除团队")
+@router.delete("/{team_id}/", response={200: dict}, summary="删除团队")
 def delete_team(request, team_id: int):
     """删除指定团队。"""
     team = require_team_permission(request, team_id, TeamPermission.DELETE)
     team.delete()
-    return Status(204, None)
+    return Status(200, {})

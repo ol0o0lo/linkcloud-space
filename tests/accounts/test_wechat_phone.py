@@ -17,6 +17,8 @@ from django.test import override_settings
 
 import pytest
 
+from tests.api_helpers import api_data
+
 WECHAT_PHONE_SETTINGS = {
     "CACHES": {
         "default": {
@@ -171,7 +173,7 @@ def test_bind_new_phone_to_user(client, db):
     resp = _post_wechat_phone(client, "13800138000")
 
     assert resp.status_code == 200, f"{resp.status_code}: {resp.content[:200]}"
-    body = resp.json()
+    body = api_data(resp)
     assert body["phone_country_code"] == "+86"
     assert body["phone_national_number"] == "13800138000"
     assert body["merged"] is False
@@ -197,7 +199,7 @@ def test_bind_same_phone_is_idempotent(client, db):
     resp = _post_wechat_phone(client, "13800138000")
 
     assert resp.status_code == 200
-    assert resp.json()["merged"] is False
+    assert api_data(resp)["merged"] is False
 
 
 @override_settings(**WECHAT_PHONE_SETTINGS)
@@ -214,7 +216,7 @@ def test_bind_same_unverified_phone_marks_verified(client, db):
     resp = _post_wechat_phone(client, "13800138000")
 
     assert resp.status_code == 200
-    assert resp.json()["merged"] is False
+    assert api_data(resp)["merged"] is False
     user.refresh_from_db()
     assert user.phone_verified is True
 
@@ -241,7 +243,7 @@ def test_bind_phone_claims_inactive_unverified_placeholder(client, db):
     resp = _post_wechat_phone(client, "13800138000")
 
     assert resp.status_code == 200
-    assert resp.json()["merged"] is False
+    assert api_data(resp)["merged"] is False
     user.refresh_from_db()
     placeholder.refresh_from_db()
     assert user.phone == "+8613800138000"
@@ -308,7 +310,7 @@ def test_bind_phone_merges_existing_account(client, db):
     resp = _post_wechat_phone(client, "13800138000")
 
     assert resp.status_code == 200
-    body = resp.json()
+    body = api_data(resp)
     assert body["merged"] is True
     assert body["phone_country_code"] == "+86"
     assert body["phone_national_number"] == "13800138000"

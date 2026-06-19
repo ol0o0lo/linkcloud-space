@@ -6,8 +6,9 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.referrals.constants import ReferralRecordStatus
-from apps.referrals.models import ReferralRecord, ReferralRuleConfig
+from apps.referrals.models import ReferralRuleConfig
 from apps.referrals.services import ensure_referral_link
+from tests.api_helpers import api_data
 
 
 class ReferralUserAPITests(TestCase):
@@ -22,7 +23,7 @@ class ReferralUserAPITests(TestCase):
         resp = self.client.get("/api/referrals/me/summary/")
 
         self.assertEqual(resp.status_code, 200)
-        data = resp.json()
+        data = api_data(resp)
         self.assertEqual(data["invite_code"], link.code)
         self.assertEqual(data["registered_count"], 1)
 
@@ -44,7 +45,7 @@ class ReferralAdminAPITests(TestCase):
 
         self.assertEqual(get_resp.status_code, 200)
         self.assertEqual(patch_resp.status_code, 200)
-        self.assertEqual(patch_resp.json()["inviter_reward_amount"], 888)
+        self.assertEqual(api_data(patch_resp)["inviter_reward_amount"], 888)
 
     def test_admin_can_review_referral_record(self):
         ReferralRuleConfig.objects.create(name="default", inviter_reward_amount=666)

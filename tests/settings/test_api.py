@@ -4,10 +4,11 @@ import pytest
 from model_bakery import baker
 
 from apps.access.models import AccessRole
-from tests.access.helpers import bind_org_role, bind_team_role, make_access_group
 from apps.accounts.models import User
 from apps.organizations.models import OrganizationMember
 from apps.settings.models import DefaultSetting, OrganizationSetting
+from tests.access.helpers import bind_org_role, bind_team_role, make_access_group
+from tests.api_helpers import api_data
 
 ORG_LIST_URL = "/api/settings/org/"
 USER_LIST_URL = "/api/settings/user/"
@@ -97,7 +98,7 @@ class TestOrgSettingList:
         set_session_org(client, org)
         resp = client.get(ORG_LIST_URL)
         assert resp.status_code == 200
-        data = resp.json()
+        data = api_data(resp)
         assert any(item["key"] == "site_name" for item in data)
 
     def test_response_includes_description_and_value_type(self, client, default_text, org, member):
@@ -110,7 +111,7 @@ class TestOrgSettingList:
         client.force_login(member)
         set_session_org(client, org)
         resp = client.get(ORG_LIST_URL)
-        item = next(i for i in resp.json() if i["key"] == "site_name")
+        item = next(i for i in api_data(resp) if i["key"] == "site_name")
         assert item["description"] == "站点名称"
         assert item["value_type"] == "text"
         assert item["is_customized"] is False
@@ -125,7 +126,7 @@ class TestOrgSettingList:
         client.force_login(member)
         set_session_org(client, org)
         resp = client.get(ORG_LIST_URL)
-        item = next(i for i in resp.json() if i["key"] == "api_secret")
+        item = next(i for i in api_data(resp) if i["key"] == "api_secret")
         assert item["value"] == "********"
 
 
@@ -136,8 +137,9 @@ class TestOrgSettingDetail:
         set_session_org(client, org, is_owner=True)
         resp = put_json(client, org_detail_url("site_name"), {"value": "New Name"})
         assert resp.status_code == 200
-        assert resp.json()["value"] == "New Name"
-        assert resp.json()["is_customized"] is True
+        data = api_data(resp)
+        assert data["value"] == "New Name"
+        assert data["is_customized"] is True
 
     def test_member_cannot_put(self, client, default_text, org, member):
         client.force_login(member)
@@ -150,7 +152,8 @@ class TestOrgSettingDetail:
         client.force_login(owner)
         set_session_org(client, org, is_owner=True)
         resp = client.delete(org_detail_url("site_name"))
-        assert resp.status_code == 204
+        assert resp.status_code == 200
+        assert api_data(resp) == {}
         assert not OrganizationSetting.objects.filter(organization=org).exists()
 
     def test_delete_nonexistent_returns_404(self, client, default_text, org, owner):
@@ -209,7 +212,7 @@ class TestTeamSettingDetail:
         resp = put_json(client, team_detail_url(team.pk, "site_name"), {"value": "Team Name"})
 
         assert resp.status_code == 200
-        assert resp.json()["value"] == "Team Name"
+        assert api_data(resp)["value"] == "Team Name"
 
     def test_team_manager_cannot_put_other_team_setting(self, client, default_text, org, member):
         team = baker.make("teams.Team", organization=org)
@@ -244,20 +247,21 @@ class TestUserSettings:
         client.force_login(user)
         resp = client.get(USER_LIST_URL)
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert api_data(resp) == []
 
     def test_put_and_get(self, client, user):
         client.force_login(user)
         put_json(client, user_detail_url("onboarding_done"), {"value": True})
         resp = client.get(user_detail_url("onboarding_done"))
         assert resp.status_code == 200
-        assert resp.json()["value"] is True
+        assert api_data(resp)["value"] is True
 
     def test_delete(self, client, user):
         client.force_login(user)
         put_json(client, user_detail_url("theme"), {"value": "dark"})
         resp = client.delete(user_detail_url("theme"))
-        assert resp.status_code == 204
+        assert resp.status_code == 200
+        assert api_data(resp) == {}
         resp = client.get(user_detail_url("theme"))
         assert resp.status_code == 404
 

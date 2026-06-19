@@ -127,9 +127,9 @@ def patch_notification(
     return notification
 
 
-@router.delete("/{notification_id}/", response={204: None}, summary="删除通知")
+@router.delete("/{notification_id}/", response={200: dict}, summary="删除通知")
 def delete_notification(request, notification_id: int):
     """删除当前用户可访问的单条通知。"""
     notification = get_object_or_404(_base_qs(request), pk=notification_id)
     notification.delete()
-    return Status(204, None)
+    return Status(200, {})

@@ -13,6 +13,7 @@ from apps.accounts.models import User
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
 from tests.access.helpers import bind_org_role, make_access_group
+from tests.api_helpers import api_data
 
 
 class OrganizationAPITestBase(TestCase):
@@ -55,21 +56,22 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organizations/switch-list/")
         self.assertEqual(resp.status_code, 200)
-        slugs = {o["slug"] for o in resp.json()}
+        slugs = {o["slug"] for o in api_data(resp)}
         self.assertEqual(slugs, {self.org.slug, other.slug})
 
     def test_select(self):
         self._login()
         resp = self.client.post(f"/api/organizations/{self.org.slug}/select/")
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["slug"], self.org.slug)
-        self.assertTrue(resp.json()["is_owner"])
+        data = api_data(resp)
+        self.assertEqual(data["slug"], self.org.slug)
+        self.assertTrue(data["is_owner"])
 
     def test_set_primary(self):
         self._login()
         resp = self.client.post(f"/api/organizations/{self.org.slug}/set-primary/")
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()["is_primary"])
+        self.assertTrue(api_data(resp)["is_primary"])
         membership = OrganizationMember.objects.get(organization=self.org, user=self.user)
         self.assertTrue(membership.is_primary)
 
@@ -77,7 +79,7 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.post("/api/organizations/signout/")
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()["success"])
+        self.assertTrue(api_data(resp)["success"])
         self.assertNotIn("organization_data", self.client.session)
 
     def test_owner_can_update_organization_profile_and_limits(self):
@@ -102,6 +104,24 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self.assertEqual(self.org.member_limit, 12)
         self.assertEqual(self.org.team_limit, 3)
 
+    def test_owner_can_read_organization_detail(self):
+        self.org.member_limit = 12
+        self.org.team_limit = 3
+        self.org.is_active = False
+        self.org.save(update_fields=["member_limit", "team_limit", "is_active"])
+        self._login()
+
+        resp = self.client.get(f"/api/organizations/{self.org.slug}/")
+
+        self.assertEqual(resp.status_code, 200)
+        payload = api_data(resp)
+        self.assertEqual(payload["name"], self.org.name)
+        self.assertEqual(payload["slug"], self.org.slug)
+        self.assertEqual(payload["billing_email"], "owner@example.com")
+        self.assertEqual(payload["member_limit"], 12)
+        self.assertEqual(payload["team_limit"], 3)
+        self.assertFalse(payload["is_active"])
+
     def test_owner_can_archive_and_restore_organization(self):
         self._login()
         archive_resp = self.client.patch(
@@ -110,7 +130,7 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
             content_type="application/json",
         )
         self.assertEqual(archive_resp.status_code, 200)
-        self.assertFalse(archive_resp.json()["is_active"])
+        self.assertFalse(api_data(archive_resp)["is_active"])
         self.org.refresh_from_db()
         self.assertFalse(self.org.is_active)
 
@@ -150,10 +170,11 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         resp = self.client.get(f"/api/organizations/{self.org.slug}/usage/")
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["member_count"], 2)
-        self.assertEqual(resp.json()["team_count"], 1)
-        self.assertEqual(resp.json()["member_limit"], 5)
-        self.assertEqual(resp.json()["team_limit"], 2)
+        data = api_data(resp)
+        self.assertEqual(data["member_count"], 2)
+        self.assertEqual(data["team_count"], 1)
+        self.assertEqual(data["member_limit"], 5)
+        self.assertEqual(data["team_limit"], 2)
 
 
 class TestOrganizationMemberViewSet(OrganizationAPITestBase):
@@ -161,7 +182,7 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organization-members/")
         self.assertEqual(resp.status_code, 200)
-        items = resp.json()["items"]
+        items = api_data(resp)["items"]
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["user"]["id"], self.user.pk)
 
@@ -185,7 +206,7 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organization-members/", {"q": "alice"})
         self.assertEqual(resp.status_code, 200)
-        items = resp.json()["items"]
+        items = api_data(resp)["items"]
         usernames = {r["user"]["username"] for r in items}
         self.assertIn("alice", usernames)
         self.assertNotIn("bob", usernames)
@@ -240,7 +261,8 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         membership = baker.make("organizations.OrganizationMember", organization=self.org, user=new_user, is_owner=False)
         self._login()
         resp = self.client.delete(f"/api/organization-members/{membership.pk}/")
-        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(api_data(resp), {})
         self.assertFalse(OrganizationMember.objects.filter(pk=membership.pk).exists())
 
     def test_search(self):
@@ -254,7 +276,7 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organization-members/search/", {"q": "Searchable"})
         self.assertEqual(resp.status_code, 200)
-        usernames = [u["username"] for u in resp.json()]
+        usernames = [u["username"] for u in api_data(resp)]
         self.assertIn("searchable", usernames)
 
 
@@ -269,7 +291,7 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organization-invites/")
         self.assertEqual(resp.status_code, 200)
-        items = resp.json()["items"]
+        items = api_data(resp)["items"]
         ids = {r["pk"] for r in items}
         self.assertIn(invite.pk, ids)
 
@@ -296,7 +318,8 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         )
         self._login()
         resp = self.client.delete(f"/api/organization-invites/{invite.pk}/")
-        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(api_data(resp), {})
         self.assertFalse(OrganizationInvite.objects.filter(pk=invite.pk).exists())
 
     def test_resend_invite(self):
@@ -312,7 +335,7 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
             resp = self.client.post(f"/api/organization-invites/{invite.pk}/resend/")
 
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()["success"])
+        self.assertTrue(api_data(resp)["success"])
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("guest@example.com", mail.outbox[0].to)
 
@@ -346,7 +369,7 @@ class TestOrganizationSettingsViewSet(OrganizationAPITestBase):
         self._login()
         resp = self.client.get("/api/organization-settings/")
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["billing_email"], "owner@example.com")
+        self.assertEqual(api_data(resp)["billing_email"], "owner@example.com")
 
     def test_update_settings(self):
         self._login()

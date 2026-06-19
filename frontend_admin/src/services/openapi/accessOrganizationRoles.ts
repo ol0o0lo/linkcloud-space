@@ -27,7 +27,7 @@ export async function appsAccessApiCreateOrgRole(
   });
 }
 
-/** 停用租户级自定义角色 将当前组织下的 org 级自定义角色标记为停用，不会物理删除历史绑定记录。 DELETE /api/access/organization-roles/${param0}/ */
+/** 删除租户级自定义角色 删除当前组织下未被授权绑定引用的 org 级自定义角色。 DELETE /api/access/organization-roles/${param0}/ */
 export async function appsAccessApiDeleteOrgRole(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsAccessApiDeleteOrgRoleParams,
@@ -41,7 +41,7 @@ export async function appsAccessApiDeleteOrgRole(
   });
 }
 
-/** 更新租户级自定义角色 修改当前组织下的 org 级自定义角色名称、编码、权限列表或启停状态；系统预置角色不能通过该接口修改。 PATCH /api/access/organization-roles/${param0}/ */
+/** 更新租户级自定义角色 修改当前组织下的 org 级自定义角色名称或权限列表；系统预置角色不能通过该接口修改。 PATCH /api/access/organization-roles/${param0}/ */
 export async function appsAccessApiPatchOrgRole(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsAccessApiPatchOrgRoleParams,

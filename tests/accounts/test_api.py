@@ -1,10 +1,12 @@
 import json
 
-from allauth.mfa.models import Authenticator
-from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from django.test import TestCase
 
+from allauth.mfa.models import Authenticator
+from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
+
 from apps.accounts.models import User
+from tests.api_helpers import api_data, api_error
 
 
 def _detail_url(pk: int) -> str:
@@ -53,7 +55,7 @@ class TestUserTimezoneAPI(TestCase):
     def test_get_user_includes_timezone(self):
         resp = self.client.get(_detail_url(self.user.pk))
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["timezone"], "America/Chicago")
+        self.assertEqual(api_data(resp)["timezone"], "America/Chicago")
 
 
 class TestUserTotpSetupAPI(TestCase):
@@ -69,7 +71,7 @@ class TestUserTotpSetupAPI(TestCase):
         resp = self.client.get("/api/users/me/mfa/totp-setup/")
 
         self.assertEqual(resp.status_code, 200)
-        body = resp.json()
+        body = api_data(resp)
         self.assertTrue(body["secret"])
         self.assertTrue(body["totp_url"].startswith("otpauth://"))
         self.assertIn("totp%40example.com", body["totp_url"])
@@ -80,7 +82,10 @@ class TestUserTotpSetupAPI(TestCase):
         resp = self.client.get("/api/users/me/mfa/totp-setup/")
 
         self.assertEqual(resp.status_code, 409)
-        self.assertEqual(resp.json()["detail"], "TOTP is already enabled.")
+        error = api_error(resp)
+        self.assertEqual(error["code"], 409)
+        self.assertEqual(error["error"], "CONFLICT")
+        self.assertEqual(error["message"], "TOTP is already enabled.")
         self.assertEqual(
             Authenticator.objects.filter(user=self.user, type=Authenticator.Type.TOTP).count(),
             1,

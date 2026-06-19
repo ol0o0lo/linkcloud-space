@@ -1,13 +1,4 @@
-"""
-异常体系基类。
-
-code 由 MRO 链上各层的 code 拼接而成：
-    BadRequestError(code="01") + MediaError(code="20")
-    + InvalidExtensionError(code="01") → code="012001"
-
-各 app 在自己的 exceptions.py 中继承对应的大类并定义子类。
-所有 AppException 响应均使用 HTTP 200，由 code 字段区分错误类型。
-"""
+"""异常体系基类。"""
 
 from typing import ClassVar
 
@@ -15,55 +6,61 @@ from django.utils.translation import gettext_lazy as _
 
 
 class AppException(Exception):
-    code: ClassVar[str] = ""
+    error: ClassVar[str] = "APP_ERROR"
+    code: ClassVar[int] = 400
     message: ClassVar[str] = _("服务异常")
 
-    def __init__(self, message: str | None = None):
+    def __init__(self, message: str | None = None, *, fields: dict[str, list[str]] | None = None):
         self.message: str = message if message is not None else self.__class__.message
+        self.fields = fields
         super().__init__(self.message)
-
-    @classmethod
-    def full_code(cls) -> str:
-        return "".join(
-            klass.__dict__["code"]
-            for klass in reversed(cls.__mro__)
-            if "code" in klass.__dict__ and klass.__dict__["code"]
-        )
 
 
 # 通用大类
 
 class BadRequestException(AppException):
     """参数或业务校验失败。"""
-    code = "01"
+
+    error = "BAD_REQUEST"
+    code = 400
     message = _("请求参数错误")
 
 
 class AuthException(AppException):
     """未认证。"""
-    code = "02"
+
+    error = "UNAUTHORIZED"
+    code = 401
     message = _("请先登录")
 
 
 class ForbiddenException(AppException):
     """无权限。"""
-    code = "03"
+
+    error = "FORBIDDEN"
+    code = 403
     message = _("无操作权限")
 
 
 class NotFoundException(AppException):
     """资源不存在。"""
-    code = "04"
+
+    error = "NOT_FOUND"
+    code = 404
     message = _("资源不存在")
 
 
 class ConflictException(AppException):
     """资源冲突（重复创建等）。"""
-    code = "05"
+
+    error = "CONFLICT"
+    code = 409
     message = _("资源已存在")
 
 
 class QuotaExceededException(AppException):
     """超出配额限制。"""
-    code = "06"
+
+    error = "QUOTA_EXCEEDED"
+    code = 429
     message = _("已达到创建上限")

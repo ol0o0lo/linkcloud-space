@@ -17,6 +17,20 @@ export async function appsOrganizationsApiCreateOrganization(
   });
 }
 
+/** 获取租户详情 返回当前选中租户的完整资料，用于后台资料页初始化。 GET /api/organizations/${param0}/ */
+export async function appsOrganizationsApiGetOrganization(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsOrganizationsApiGetOrganizationParams,
+  options?: { [key: string]: any }
+) {
+  const { slug: param0, ...queryParams } = params;
+  return request<API.OrganizationOut>(`/api/organizations/${param0}/`, {
+    method: "GET",
+    params: { ...queryParams },
+    ...(options || {}),
+  });
+}
+
 /** 更新租户资料和限制 更新当前选中租户的基础资料、账单邮箱和成员/团队上限。 PATCH /api/organizations/${param0}/ */
 export async function appsOrganizationsApiPatchOrganization(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

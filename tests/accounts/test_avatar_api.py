@@ -6,6 +6,7 @@ from django.test import TestCase
 from PIL import Image
 
 from apps.accounts.models import User
+from tests.api_helpers import api_data
 
 URL = "/api/users/me/avatar/"
 
@@ -29,7 +30,7 @@ class TestAvatarAPI(TestCase):
         upload = SimpleUploadedFile("avatar.png", _make_png_bytes(), content_type="image/png")
         resp = self.client.post(URL, {"image": upload})
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("avatar_url", resp.json())
+        self.assertIn("avatar_url", api_data(resp))
         self.user.refresh_from_db()
         self.assertTrue(bool(self.user.avatar_thumbnail))
 
@@ -41,7 +42,8 @@ class TestAvatarAPI(TestCase):
         self.assertTrue(bool(self.user.avatar_thumbnail))
 
         resp = self.client.delete(URL)
-        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(api_data(resp), {})
         self.user.refresh_from_db()
         self.assertFalse(bool(self.user.avatar_thumbnail))
         self.assertFalse(bool(self.user.avatar_original))

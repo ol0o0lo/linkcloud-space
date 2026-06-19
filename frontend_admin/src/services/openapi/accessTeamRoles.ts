@@ -35,7 +35,7 @@ export async function appsAccessApiCreateTeamRole(
   });
 }
 
-/** 停用团队级自定义角色 将当前组织下的 team 级自定义角色标记为停用，不会物理删除历史绑定记录。 DELETE /api/access/teams/${param0}/roles/${param1}/ */
+/** 删除团队级自定义角色 删除当前组织下未被授权绑定引用的 team 级自定义角色。 DELETE /api/access/teams/${param0}/roles/${param1}/ */
 export async function appsAccessApiDeleteTeamRole(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsAccessApiDeleteTeamRoleParams,
@@ -49,7 +49,7 @@ export async function appsAccessApiDeleteTeamRole(
   });
 }
 
-/** 更新团队级自定义角色 修改当前组织下的 team 级自定义角色名称、编码、权限列表或启停状态；系统预置角色不能通过该接口修改。 PATCH /api/access/teams/${param0}/roles/${param1}/ */
+/** 更新团队级自定义角色 修改当前组织下的 team 级自定义角色名称或权限列表；系统预置角色不能通过该接口修改。 PATCH /api/access/teams/${param0}/roles/${param1}/ */
 export async function appsAccessApiPatchTeamRole(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsAccessApiPatchTeamRoleParams,

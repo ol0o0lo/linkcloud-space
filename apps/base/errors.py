@@ -1,9 +1,7 @@
 """
 Exception handlers for the ninja API.
 
-Translate ninja/Pydantic/Django errors into the DRF-style
-``{field: [messages, ...]}`` envelope the Vue SPA's parseErrors
-helper (see src/js/utils/api.js) already understands.
+Translate ninja/Pydantic/Django errors into one stable JSON envelope.
 """
 
 from collections import defaultdict
@@ -16,10 +14,42 @@ from ninja.errors import HttpError
 from ninja.errors import ValidationError as NinjaValidationError
 
 from apps.base.exceptions import AppException
+from apps.base.responses import error_envelope
 
 
 def _wrap_field_errors(field_errors: dict[str, list[str]]) -> dict[str, list[str]]:
     return {field: list(messages) for field, messages in field_errors.items() if messages}
+
+
+def _first_field_error(field_errors: dict[str, list[str]], default: str) -> str:
+    for messages in field_errors.values():
+        if messages:
+            return str(messages[0])
+    return default
+
+
+def _error_response(
+    *,
+    error: str,
+    message: str,
+    code: int,
+    fields: dict[str, list[str]] | None = None,
+):
+    data = {"fields": fields} if fields else None
+    payload = error_envelope(code=code, error=error, message=message, data=data)
+    return JsonResponse(payload, status=code)
+
+
+def _http_error_code(status_code: int) -> str:
+    return {
+        400: "BAD_REQUEST",
+        401: "UNAUTHORIZED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        409: "CONFLICT",
+        410: "GONE",
+        422: "UNPROCESSABLE_ENTITY",
+    }.get(status_code, "HTTP_ERROR")
 
 
 def _ninja_validation_to_field_errors(exc: NinjaValidationError) -> dict[str, list[str]]:
@@ -54,24 +84,41 @@ def _django_validation_to_field_errors(exc: DjangoValidationError) -> dict[str, 
 def register_error_handlers(api) -> None:
     @api.exception_handler(AppException)
     def _app_exception(request, exc: AppException):
-        return JsonResponse({"detail": exc.message, "code": exc.__class__.full_code()}, status=200)
+        return _error_response(
+            error=exc.__class__.error,
+            message=str(exc.message),
+            code=exc.__class__.code,
+            fields=exc.fields,
+        )
 
     @api.exception_handler(NinjaValidationError)
     def _ninja_validation(request, exc):
-        return JsonResponse(_ninja_validation_to_field_errors(exc), status=400)
+        fields = _ninja_validation_to_field_errors(exc)
+        return _error_response(
+            error="VALIDATION_ERROR",
+            message=_first_field_error(fields, "请求参数错误。"),
+            code=400,
+            fields=fields,
+        )
 
     @api.exception_handler(DjangoValidationError)
     def _django_validation(request, exc):
-        return JsonResponse(_django_validation_to_field_errors(exc), status=400)
+        fields = _django_validation_to_field_errors(exc)
+        return _error_response(
+            error="VALIDATION_ERROR",
+            message=_first_field_error(fields, "请求参数错误。"),
+            code=400,
+            fields=fields,
+        )
 
     @api.exception_handler(PermissionDenied)
     def _permission_denied(request, exc):
-        return JsonResponse({"detail": str(exc) or "Permission denied."}, status=403)
+        return _error_response(error="FORBIDDEN", message=str(exc) or "Permission denied.", code=403)
 
     @api.exception_handler(Http404)
     def _not_found(request, exc):
-        return JsonResponse({"detail": "Not found."}, status=404)
+        return _error_response(error="NOT_FOUND", message="Not found.", code=404)
 
     @api.exception_handler(HttpError)
     def _http_error(request, exc):
-        return JsonResponse({"detail": exc.message}, status=exc.status_code)
+        return _error_response(error=_http_error_code(exc.status_code), message=str(exc.message), code=exc.status_code)

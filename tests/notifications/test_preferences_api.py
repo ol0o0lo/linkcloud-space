@@ -9,6 +9,7 @@ from apps.accounts.models import User
 from apps.notifications.constants import NotificationChannel
 from apps.notifications.models import NotificationPreference
 from apps.organizations.signals import user_logged_in_receiver
+from tests.api_helpers import api_data
 
 PREFS_URL = "/api/notifications/preferences/"
 
@@ -45,7 +46,7 @@ class TestPreferencesAPI:
     def test_list_returns_registered_categories_with_defaults(self):
         resp = self.client.get(PREFS_URL)
         assert resp.status_code == 200
-        body = resp.json()
+        body = api_data(resp)
         assert len(body) == 1
         assert body[0]["key"] == "comments"
         assert body[0]["in_app"] is True
@@ -54,12 +55,12 @@ class TestPreferencesAPI:
     def test_list_returns_empty_when_no_categories(self, settings):
         settings.NOTIFICATIONS_CATEGORIES = []
         resp = self.client.get(PREFS_URL)
-        assert resp.json() == []
+        assert api_data(resp) == []
 
     def test_patch_creates_preference_row(self):
         resp = self._patch(_detail("comments"), {"email": False})
         assert resp.status_code == 200
-        assert resp.json()["email"] is False
+        assert api_data(resp)["email"] is False
         pref = NotificationPreference.objects.get(user=self.user, category="comments")
         assert pref.email is False
         assert pref.in_app is True

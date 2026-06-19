@@ -1,8 +1,8 @@
 import pytest
-
 from allauth.socialaccount.models import SocialAccount
 
 from apps.accounts.models import User
+from tests.api_helpers import api_data, api_error
 
 
 @pytest.mark.django_db
@@ -10,7 +10,10 @@ def test_social_bindings_requires_login(client):
     response = client.get("/api/users/me/social-bindings/")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Unauthorized"
+    error = api_error(response)
+    assert error["code"] == 401
+    assert error["error"] == "UNAUTHORIZED"
+    assert error["message"] == "Unauthorized"
 
 
 @pytest.mark.django_db
@@ -25,7 +28,7 @@ def test_social_bindings_returns_all_false_when_user_has_no_accounts(client):
     response = client.get("/api/users/me/social-bindings/")
 
     assert response.status_code == 200
-    assert response.json() == {
+    assert api_data(response) == {
         "items": [
             {"provider": "github", "label": "GitHub", "connected": False},
             {"provider": "weixin", "label": "微信", "connected": False},
@@ -43,7 +46,7 @@ def test_social_bindings_marks_github_when_social_account_exists(client):
     SocialAccount.objects.create(user=user, provider="github", uid="gh-001")
     client.force_login(user)
 
-    payload = client.get("/api/users/me/social-bindings/").json()
+    payload = api_data(client.get("/api/users/me/social-bindings/"))
 
     assert payload["items"] == [
         {"provider": "github", "label": "GitHub", "connected": True},
@@ -61,7 +64,7 @@ def test_social_bindings_marks_weixin_when_social_account_exists(client):
     SocialAccount.objects.create(user=user, provider="weixin", uid="wx-001")
     client.force_login(user)
 
-    payload = client.get("/api/users/me/social-bindings/").json()
+    payload = api_data(client.get("/api/users/me/social-bindings/"))
 
     assert payload["items"] == [
         {"provider": "github", "label": "GitHub", "connected": False},
@@ -79,7 +82,7 @@ def test_social_bindings_does_not_treat_wechat_miniprogram_as_weixin(client):
     SocialAccount.objects.create(user=user, provider="wechat_miniprogram", uid="mini-001")
     client.force_login(user)
 
-    payload = client.get("/api/users/me/social-bindings/").json()
+    payload = api_data(client.get("/api/users/me/social-bindings/"))
 
     assert payload["items"] == [
         {"provider": "github", "label": "GitHub", "connected": False},

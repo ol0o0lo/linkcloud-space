@@ -7,6 +7,7 @@ from apps.accounts.models import RealNameVerification, User
 from apps.referrals.constants import ReferralRecordStatus
 from apps.referrals.models import ReferralRecord
 from apps.referrals.services import ensure_referral_link
+from tests.api_helpers import api_data
 
 
 def build_cn_id(prefix17: str) -> str:
@@ -213,12 +214,13 @@ class TestRealNameAPI(TestCase):
         self.client.force_login(self.admin)
         list_resp = self.client.get("/api/admin/real-name-verifications/?status=manual_review")
         self.assertEqual(list_resp.status_code, 200, list_resp.content)
-        self.assertEqual(list_resp.json()["total"], 1)
-        self.assertEqual(list_resp.json()["page"], 1)
+        list_data = api_data(list_resp)
+        self.assertEqual(list_data["total"], 1)
+        self.assertEqual(list_data["page"], 1)
 
         detail_resp = self.client.get(f"/api/admin/real-name-verifications/{verification.pk}/")
         self.assertEqual(detail_resp.status_code, 200, detail_resp.content)
-        self.assertEqual(detail_resp.json()["id_number"], self.valid_id)
+        self.assertEqual(api_data(detail_resp)["id_number"], self.valid_id)
 
         approve_resp = self.client.post(
             f"/api/admin/real-name-verifications/{verification.pk}/approve/",

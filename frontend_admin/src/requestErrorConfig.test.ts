@@ -1,4 +1,4 @@
-import { message, notification } from 'antd';
+import { message } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { errorConfig } from './requestErrorConfig';
 import { setSelectedOrgSlug } from './utils/orgSelection';
@@ -12,9 +12,6 @@ vi.mock('antd', () => ({
   message: {
     warning: vi.fn(),
     error: vi.fn(),
-  },
-  notification: {
-    open: vi.fn(),
   },
 }));
 
@@ -33,6 +30,13 @@ describe('requestErrorConfig', () => {
   const errorThrower = errorConfig.errorConfig!.errorThrower!;
   // biome-ignore lint/style/noNonNullAssertion: config handlers are always defined
   const errorHandler = errorConfig.errorConfig!.errorHandler!;
+  const responseInterceptor = errorConfig.responseInterceptors?.[0] as unknown as (response: {
+    data?: unknown;
+    status?: number;
+  }) => {
+    data?: unknown;
+    status?: number;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -40,24 +44,28 @@ describe('requestErrorConfig', () => {
   });
 
   describe('errorThrower', () => {
-    it('should throw error when success is false', () => {
+    it('should throw error when API envelope code is not 200', () => {
       const response = {
-        success: false,
-        data: null,
-        errorCode: 400,
-        errorMessage: 'Bad Request',
-        showType: 2,
+        code: 409,
+        error: 'ROLE_IN_USE',
+        message: '角色仍被用户引用，无法删除。',
+        data: { fields: { role: ['角色仍被用户引用，无法删除。'] } },
+        timestamp: 1718809200,
+        traceId: '',
       };
 
       expect(() => {
         errorThrower(response);
-      }).toThrow('Bad Request');
+      }).toThrow('角色仍被用户引用，无法删除。');
     });
 
-    it('should not throw error when success is true', () => {
+    it('should not throw error when API envelope code is 200', () => {
       const response = {
-        success: true,
+        code: 200,
+        message: 'success',
         data: { id: 1 },
+        timestamp: 1718809200,
+        traceId: '',
       };
 
       expect(() => {
@@ -67,22 +75,22 @@ describe('requestErrorConfig', () => {
 
     it('should throw BizError with correct info', () => {
       const response = {
-        success: false,
-        data: { detail: 'more info' },
-        errorCode: 403,
-        errorMessage: 'Forbidden',
-        showType: 3,
+        code: 403,
+        error: 'FORBIDDEN',
+        message: 'Forbidden',
+        data: null,
+        timestamp: 1718809200,
+        traceId: '',
       };
 
-      expect.assertions(5);
+      expect.assertions(4);
       try {
         errorThrower(response);
       } catch (error: any) {
         expect(error.name).toBe('BizError');
-        expect(error.info.errorCode).toBe(403);
-        expect(error.info.errorMessage).toBe('Forbidden');
-        expect(error.info.showType).toBe(3);
-        expect(error.info.data).toEqual({ detail: 'more info' });
+        expect(error.info.code).toBe(403);
+        expect(error.info.error).toBe('FORBIDDEN');
+        expect(error.info.message).toBe('Forbidden');
       }
     });
   });
@@ -97,43 +105,16 @@ describe('requestErrorConfig', () => {
       }).toThrow('Test error');
     });
 
-    it('should handle SILENT showType', () => {
-      const error: any = new Error('Silent error');
-      error.name = 'BizError';
-      error.info = {
-        errorCode: 1001,
-        errorMessage: 'Silent error',
-        showType: 0,
-      };
-
-      errorHandler(error, {});
-
-      expect(message.warning).not.toHaveBeenCalled();
-      expect(message.error).not.toHaveBeenCalled();
-      expect(notification.open).not.toHaveBeenCalled();
-    });
-
-    it('should handle WARN_MESSAGE showType', () => {
-      const error: any = new Error('Warning');
-      error.name = 'BizError';
-      error.info = {
-        errorCode: 1002,
-        errorMessage: 'This is a warning',
-        showType: 1,
-      };
-
-      errorHandler(error, {});
-
-      expect(message.warning).toHaveBeenCalledWith('This is a warning');
-    });
-
-    it('should handle ERROR_MESSAGE showType', () => {
+    it('should handle BizError message', () => {
       const error: any = new Error('Error message');
       error.name = 'BizError';
       error.info = {
-        errorCode: 1003,
-        errorMessage: 'This is an error',
-        showType: 2,
+        code: 409,
+        error: 'ROLE_IN_USE',
+        message: 'This is an error',
+        data: null,
+        timestamp: 1718809200,
+        traceId: '',
       };
 
       errorHandler(error, {});
@@ -141,52 +122,22 @@ describe('requestErrorConfig', () => {
       expect(message.error).toHaveBeenCalledWith('This is an error');
     });
 
-    it('should handle NOTIFICATION showType', () => {
-      const error: any = new Error('Notification');
-      error.name = 'BizError';
-      error.info = {
-        errorCode: 1004,
-        errorMessage: 'This is a notification',
-        showType: 3,
-      };
-
-      errorHandler(error, {});
-
-      expect(notification.open).toHaveBeenCalledWith({
-        title: 1004,
-        description: 'This is a notification',
-      });
-    });
-
-    it('should handle REDIRECT showType', () => {
+    it('should redirect login for 401 BizError', () => {
       const error: any = new Error('Redirect');
       error.name = 'BizError';
       error.info = {
-        errorCode: 401,
-        errorMessage: 'Unauthorized',
-        showType: 9,
+        code: 401,
+        error: 'UNAUTHORIZED',
+        message: 'Unauthorized',
+        data: null,
+        timestamp: 1718809200,
+        traceId: '',
       };
 
       errorHandler(error, {});
 
       expect(mockHistoryPush).toHaveBeenCalledWith('/user/login');
-      expect(message.warning).not.toHaveBeenCalled();
       expect(message.error).not.toHaveBeenCalled();
-      expect(notification.open).not.toHaveBeenCalled();
-    });
-
-    it('should handle default case for unknown showType', () => {
-      const error: any = new Error('Unknown type');
-      error.name = 'BizError';
-      error.info = {
-        errorCode: 1005,
-        errorMessage: 'Unknown error type',
-        showType: 99,
-      };
-
-      errorHandler(error, {});
-
-      expect(message.error).toHaveBeenCalledWith('Unknown error type');
     });
 
     it('should handle axios response error', () => {
@@ -199,6 +150,43 @@ describe('requestErrorConfig', () => {
       errorHandler(error, {});
 
       expect(message.error).toHaveBeenCalledWith('Response status:500');
+    });
+
+    it('should show message from API error envelope', () => {
+      const error: any = new Error('API error');
+      error.response = {
+        status: 409,
+        data: {
+          code: 409,
+          error: 'ROLE_IN_USE',
+          message: '角色仍被用户引用，无法删除。',
+          data: {
+            fields: {
+              role: ['角色仍被用户引用，无法删除。'],
+            },
+          },
+          timestamp: 1718809200,
+          traceId: '',
+        },
+      };
+
+      errorHandler(error, {});
+
+      expect(message.error).toHaveBeenCalledWith('角色仍被用户引用，无法删除。');
+    });
+
+    it('should fall back to status for non-envelope error response', () => {
+      const error: any = new Error('Legacy API error');
+      error.response = {
+        status: 400,
+        data: {
+          role: ['Role is still assigned to users and cannot be deleted.'],
+        },
+      };
+
+      errorHandler(error, {});
+
+      expect(message.error).toHaveBeenCalledWith('Response status:400');
     });
 
     it('should handle offline error', () => {
@@ -244,6 +232,36 @@ describe('requestErrorConfig', () => {
       expect(message.error).toHaveBeenCalledWith(
         'Request error, please retry.',
       );
+    });
+  });
+
+  describe('responseInterceptors', () => {
+    it('should unwrap successful API envelope', () => {
+      const response = {
+        status: 200,
+        data: {
+          code: 200,
+          message: 'success',
+          data: { id: 1, name: 'Admin' },
+          timestamp: 1718809200,
+          traceId: '',
+        },
+      };
+
+      const result = responseInterceptor(response);
+
+      expect(result.data).toEqual({ id: 1, name: 'Admin' });
+    });
+
+    it('should keep non-envelope response unchanged', () => {
+      const response = {
+        status: 200,
+        data: { ok: true },
+      };
+
+      const result = responseInterceptor(response);
+
+      expect(result).toBe(response);
     });
   });
 

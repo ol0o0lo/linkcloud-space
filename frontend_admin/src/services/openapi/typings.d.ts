@@ -444,6 +444,10 @@ declare namespace API {
     member_id: number;
   };
 
+  type appsOrganizationsApiGetOrganizationParams = {
+    slug: string;
+  };
+
   type appsOrganizationsApiGetOrganizationUsageParams = {
     slug: string;
   };
@@ -652,9 +656,7 @@ declare namespace API {
   };
 
   type CustomRoleCreateIn = {
-    /** Code 角色编码，需在当前作用域内唯一。 */
-    code: string;
-    /** Name 角色显示名称。 */
+    /** Name 角色显示名称，需在当前作用域内唯一。 */
     name: string;
     /** Permission Keys 角色拥有的权限 key 列表。 */
     permission_keys?: string[] | null;
@@ -663,14 +665,10 @@ declare namespace API {
   };
 
   type CustomRolePatchIn = {
-    /** Code 新的角色编码。 */
-    code?: string | null;
-    /** Name 新的角色显示名称。 */
+    /** Name 新的角色显示名称，需在当前作用域内唯一。 */
     name?: string | null;
     /** Permission Keys 新的权限 key 列表。 */
     permission_keys?: string[] | null;
-    /** Is Active 角色是否启用。 */
-    is_active?: boolean | null;
   };
 
   type ForceLogoutOut = {

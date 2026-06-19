@@ -9,6 +9,7 @@ from allauth.socialaccount.models import SocialAccount
 from allauth.usersessions.models import UserSession
 
 from apps.accounts.models import User
+from tests.api_helpers import api_data
 
 
 class TestAdminUserLifecycleAPI(TestCase):
@@ -37,7 +38,7 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertEqual(disable_resp.status_code, 200)
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_active)
-        self.assertFalse(disable_resp.json()["is_active"])
+        self.assertFalse(api_data(disable_resp)["is_active"])
 
         enable_resp = self.client.patch(
             f"/api/admin/users/{self.user.pk}/status/",
@@ -47,7 +48,7 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertEqual(enable_resp.status_code, 200)
         self.user.refresh_from_db()
         self.assertTrue(self.user.is_active)
-        self.assertTrue(enable_resp.json()["is_active"])
+        self.assertTrue(api_data(enable_resp)["is_active"])
 
     def test_superuser_cannot_disable_self(self):
         resp = self.client.patch(
@@ -68,7 +69,7 @@ class TestAdminUserLifecycleAPI(TestCase):
         resp = self.client.post(f"/api/admin/users/{self.user.pk}/force-logout/")
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["deleted_sessions"], 1)
+        self.assertEqual(api_data(resp)["deleted_sessions"], 1)
         self.assertFalse(UserSession.objects.filter(user=self.user).exists())
         self.assertFalse(import_module(settings.SESSION_ENGINE).SessionStore().exists(session_store.session_key))
 
@@ -78,13 +79,14 @@ class TestAdminUserLifecycleAPI(TestCase):
         resp = self.client.post(f"/api/admin/users/{self.user.pk}/reset-mfa/")
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["deleted_authenticators"], 1)
+        self.assertEqual(api_data(resp)["deleted_authenticators"], 1)
         self.assertFalse(Authenticator.objects.filter(user=self.user).exists())
 
     def test_unbind_phone_clears_phone_fields(self):
         resp = self.client.delete(f"/api/admin/users/{self.user.pk}/phone/")
 
-        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(api_data(resp), {})
         self.user.refresh_from_db()
         self.assertIsNone(self.user.phone)
         self.assertEqual(self.user.phone_country_code, "")
@@ -98,7 +100,8 @@ class TestAdminUserLifecycleAPI(TestCase):
 
         resp = self.client.delete(f"/api/admin/users/{self.user.pk}/wechat/")
 
-        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(api_data(resp), {})
         self.assertFalse(SocialAccount.objects.filter(user=self.user, provider__in=["weixin", "wechat_miniprogram"]).exists())
         self.assertTrue(SocialAccount.objects.filter(user=self.user, provider="github").exists())
 
@@ -131,7 +134,7 @@ class TestAdminUserLifecycleAPI(TestCase):
         resp = self.client.get("/api/admin/users/")
 
         self.assertEqual(resp.status_code, 200)
-        data = resp.json()
+        data = api_data(resp)
         rows = data["items"]
         self.assertEqual(data["total"], 2)
         self.assertEqual(data["page"], 1)

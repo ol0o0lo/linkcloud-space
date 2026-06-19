@@ -4,6 +4,7 @@ from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 
 from apps.accounts.models import User
+from tests.api_helpers import api_data
 
 
 @pytest.mark.django_db
@@ -17,7 +18,8 @@ def test_delete_current_user_totp_authenticator(client):
 
     response = client.delete("/api/users/me/mfa/authenticators/totp/")
 
-    assert response.status_code == 204, response.content
+    assert response.status_code == 200, response.content
+    assert api_data(response) == {}
     assert Authenticator.objects.filter(user=user, type=Authenticator.Type.TOTP).exists() is False
 
 

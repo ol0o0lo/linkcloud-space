@@ -9,6 +9,7 @@ from model_bakery import baker
 from apps.accounts.models import User
 from apps.notifications.models import Notification
 from apps.organizations.signals import user_logged_in_receiver
+from tests.api_helpers import api_data
 
 LIST_URL = "/api/notifications/"
 UNREAD_URL = "/api/notifications/unread-count/"
@@ -65,7 +66,7 @@ class TestNotificationAPI:
         self._login_in_org()
         resp = self.client.get(LIST_URL)
         assert resp.status_code == 200
-        body = resp.json()
+        body = api_data(resp)
         assert body["total"] == 2
         assert body["page"] == 1
         for row in body["items"]:
@@ -83,16 +84,16 @@ class TestNotificationAPI:
         self._login_in_org()
         resp = self.client.get(UNREAD_URL)
         assert resp.status_code == 200
-        assert resp.json()["count"] == 3
+        assert api_data(resp)["count"] == 3
 
     def test_filter_unread(self):
         baker.make(Notification, recipient=self.user, organization=self.org, _quantity=2)
         baker.make(Notification, recipient=self.user, organization=self.org, read_at="2026-01-01T00:00:00Z")
         self._login_in_org()
         resp = self.client.get(LIST_URL, {"is_read": "false"})
-        assert resp.json()["total"] == 2
+        assert api_data(resp)["total"] == 2
         resp = self.client.get(LIST_URL, {"is_read": "true"})
-        assert resp.json()["total"] == 1
+        assert api_data(resp)["total"] == 1
 
     def test_mark_read_sets_read_at(self):
         n = baker.make(Notification, recipient=self.user, organization=self.org)
@@ -110,7 +111,8 @@ class TestNotificationAPI:
         n = baker.make(Notification, recipient=self.user, organization=self.org)
         self._login_in_org()
         resp = self.client.delete(_detail_url(n.pk))
-        assert resp.status_code == 204
+        assert resp.status_code == 200
+        assert api_data(resp) == {}
         assert Notification.objects.count() == 0
 
     def test_cannot_act_on_other_users_notification(self):
@@ -126,7 +128,7 @@ class TestNotificationAPI:
         ids = [n.pk for n in unread[:2]]
         resp = self._post_json(BULK_URL, {"action": "mark_read", "ids": ids})
         assert resp.status_code == 200
-        assert resp.json()["updated"] == 2
+        assert api_data(resp)["updated"] == 2
         assert Notification.objects.filter(read_at__isnull=True).count() == 1
 
     def test_bulk_mark_all_unread(self):
@@ -135,7 +137,7 @@ class TestNotificationAPI:
         self._login_in_org()
         resp = self._post_json(BULK_URL, {"action": "mark_read", "all_unread": True})
         assert resp.status_code == 200
-        assert resp.json()["updated"] == 3
+        assert api_data(resp)["updated"] == 3
         assert Notification.objects.filter(recipient=self.user, read_at__isnull=True).count() == 0
         assert Notification.objects.filter(recipient=self.other_user, read_at__isnull=True).count() == 2
 
@@ -146,7 +148,7 @@ class TestNotificationAPI:
         ids = [n.pk for n in mine]
         resp = self._post_json(BULK_URL, {"action": "delete", "ids": ids})
         assert resp.status_code == 200
-        assert resp.json()["deleted"] == 3
+        assert api_data(resp)["deleted"] == 3
         assert Notification.objects.count() == 1
 
     def test_bulk_delete_cannot_touch_other_users(self):
@@ -154,7 +156,7 @@ class TestNotificationAPI:
         self._login_in_org()
         resp = self._post_json(BULK_URL, {"action": "delete", "ids": [theirs.pk]})
         assert resp.status_code == 200
-        assert resp.json()["deleted"] == 0
+        assert api_data(resp)["deleted"] == 0
         assert Notification.objects.filter(pk=theirs.pk).exists()
 
     def test_bulk_requires_valid_action(self):

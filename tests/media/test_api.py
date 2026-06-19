@@ -6,6 +6,7 @@ import pytest
 from apps.accounts.models import User
 from apps.media.exceptions import InvalidExtensionException
 from apps.organizations.models import Organization, OrganizationMember
+from tests.api_helpers import api_data, api_error
 
 OSS_TOKEN_URL = "/api/media/oss-token/"
 
@@ -51,7 +52,7 @@ class TestOssTokenAPI:
         self._login()
         resp = self._get({"scope": "user", "filename": "photo.jpg"})
         assert resp.status_code == 200
-        data = resp.json()
+        data = api_data(resp)
         assert data["access_key_id"] == "STS.test"
         assert data["path"] == "uploads/users/1/abc.jpg"
         assert "bucket" in data
@@ -69,9 +70,11 @@ class TestOssTokenAPI:
         mock_path.side_effect = InvalidExtensionException()
         self._login()
         resp = self._get({"scope": "user", "filename": "file.exe"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "code" in data
+        assert resp.status_code == 400
+        error = api_error(resp)
+        assert error["code"] == 400
+        assert error["error"] == InvalidExtensionException.error
+        assert error["message"] == str(InvalidExtensionException.message)
 
     @patch("apps.media.services._generate_sts_token")
     @patch("apps.media.services.generate_upload_path", return_value="uploads/orgs/5/abc.jpg")
@@ -115,7 +118,7 @@ class TestConfirmAPI:
         }
         resp = self.client.post(CONFIRM_URL, payload, content_type="application/json")
         assert resp.status_code == 201
-        data = resp.json()
+        data = api_data(resp)
         assert data["original_filename"] == "photo.png"
         assert data["resource_type"] == "avatar"
         assert "url" in data
@@ -160,7 +163,7 @@ class TestUploadAPI:
         file = SimpleUploadedFile("photo.png", b"fakecontent", content_type="image/png")
         resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": "avatar"}, format="multipart")
         assert resp.status_code == 201
-        data = resp.json()
+        data = api_data(resp)
         assert isinstance(data, list)
         assert len(data) == 1
         assert data[0]["original_filename"] == "photo.png"
@@ -196,7 +199,7 @@ class TestUploadAPI:
         f2 = SimpleUploadedFile("b.png", b"content2", content_type="image/png")
         resp = self.client.post(UPLOAD_URL, {"files": [f1, f2], "resource_type": "avatar"}, format="multipart")
         assert resp.status_code == 201
-        assert len(resp.json()) == 2
+        assert len(api_data(resp)) == 2
 
     def test_invalid_resource_type_returns_422(self):
         file = SimpleUploadedFile("photo.png", b"fakecontent", content_type="image/png")

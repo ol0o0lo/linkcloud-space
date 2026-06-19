@@ -89,7 +89,7 @@ def put_org_setting(request, key: str = Path(..., description="设置项 key。"
         raise HttpError(404, "设置项不存在") from exc
 
 
-@org_router.delete("/{key}/", response={204: None}, summary="删除租户设置覆盖")
+@org_router.delete("/{key}/", response={200: dict}, summary="删除租户设置覆盖")
 def delete_org_setting_view(request, key: str = Path(..., description="设置项 key。")):
     """删除当前租户某个设置项的覆盖值，恢复默认设置。"""
     require_org_permission(request, SettingsPermission.ORG_SETTING_MANAGE)
@@ -97,7 +97,7 @@ def delete_org_setting_view(request, key: str = Path(..., description="设置项
         delete_org_setting(request.org.instance, key)
     except (DefaultSetting.DoesNotExist, OrganizationSetting.DoesNotExist) as exc:
         raise HttpError(404, "覆盖设置不存在") from exc
-    return Status(204, None)
+    return Status(200, {})
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ def put_team_setting(request, team_id: int, key: str = Path(..., description="�
         raise HttpError(404, "设置项不存在") from exc
 
 
-@team_router.delete("/{team_id}/{key}/", response={204: None}, summary="删除团队设置覆盖")
+@team_router.delete("/{team_id}/{key}/", response={200: dict}, summary="删除团队设置覆盖")
 def delete_team_setting_view(request, team_id: int, key: str = Path(..., description="设置项 key。")):
     """删除指定团队某个设置项的覆盖值，恢复默认设置。"""
     team = require_team_permission(request, team_id, SettingsPermission.TEAM_SETTING_MANAGE)
@@ -141,7 +141,7 @@ def delete_team_setting_view(request, team_id: int, key: str = Path(..., descrip
         delete_team_setting(team, key)
     except (DefaultSetting.DoesNotExist, TeamSetting.DoesNotExist) as exc:
         raise HttpError(404, "覆盖设置不存在") from exc
-    return Status(204, None)
+    return Status(200, {})
 
 
 # ---------------------------------------------------------------------------
@@ -175,9 +175,9 @@ def put_user_setting(request, key: str = Path(..., description="个人设置 key
     return {"key": key, "value": value}
 
 
-@user_router.delete("/{key}/", response={204: None}, summary="删除个人设置")
+@user_router.delete("/{key}/", response={200: dict}, summary="删除个人设置")
 def delete_user_setting_view(request, key: str = Path(..., description="个人设置 key。")):
     """删除当前用户某个偏好设置。"""
     require_authenticated(request)
     delete_user_setting(request.user, key)
-    return Status(204, None)
+    return Status(200, {})

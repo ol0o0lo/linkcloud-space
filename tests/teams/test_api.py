@@ -10,6 +10,7 @@ from apps.accounts.models import User
 from apps.organizations.signals import user_logged_in_receiver
 from apps.teams.models import Team
 from tests.access.helpers import bind_org_role, bind_team_role, make_access_group
+from tests.api_helpers import api_data
 
 LIST_URL = "/api/teams/"
 
@@ -43,7 +44,7 @@ class TestTeamAPI(TestCase):
         self._login()
         resp = self.client.get(LIST_URL)
         self.assertEqual(resp.status_code, 200)
-        body = resp.json()
+        body = api_data(resp)
         self.assertEqual(len(body["items"]), 1)
         self.assertEqual(body["items"][0]["id"], team.pk)
         self.assertEqual(body["total"], 1)
@@ -54,7 +55,7 @@ class TestTeamAPI(TestCase):
         baker.make("teams.Team", name="Designers", organization=self.org)
         self._login()
         resp = self.client.get(LIST_URL, {"q": "design"})
-        names = [r["name"] for r in resp.json()["items"]]
+        names = [r["name"] for r in api_data(resp)["items"]]
         self.assertEqual(names, ["Designers"])
 
     def test_list_ignores_inactive_team_view_role(self):
@@ -75,7 +76,7 @@ class TestTeamAPI(TestCase):
         resp = self.client.get(LIST_URL)
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["total"], 0)
+        self.assertEqual(api_data(resp)["total"], 0)
 
     def test_create(self):
         self._login()
@@ -116,7 +117,7 @@ class TestTeamAPI(TestCase):
         self._login()
         resp = self.client.get(_detail_url(team.pk))
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["name"], "Engineering")
+        self.assertEqual(api_data(resp)["name"], "Engineering")
 
     def test_update(self):
         team = baker.make("teams.Team", name="Engineering", organization=self.org)
@@ -191,5 +192,6 @@ class TestTeamAPI(TestCase):
         team = baker.make("teams.Team", name="Engineering", organization=self.org)
         self._login()
         resp = self.client.delete(_detail_url(team.pk))
-        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(api_data(resp), {})
         self.assertFalse(Team.objects.filter(pk=team.pk).exists())
