@@ -1,53 +1,137 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Descriptions, Drawer, Space, Switch, Table, Tabs, Tag } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { CheckOutlined, DownOutlined, RightOutlined } from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Empty, List, Pagination, Typography } from 'antd';
+import { createStyles } from 'antd-style';
 import dayjs from 'dayjs';
-import React, { useState } from 'react';
-import { adminTableScroll, drawerWidthMd, fullWidthStyle, ResponsiveActions, wrapTextStyle } from '@/pages/_shared/adminLayout';
+import isToday from 'dayjs/plugin/isToday';
+import React, { useEffect, useState } from 'react';
+import { fullWidthStyle } from '@/pages/_shared/adminLayout';
 import {
   appsNotificationsApiBulkAction,
-  appsNotificationsApiDeleteNotification,
   appsNotificationsApiGetNotification,
   appsNotificationsApiListNotifications,
-  appsNotificationsApiListPreferences,
   appsNotificationsApiPatchNotification,
-  appsNotificationsApiPatchPreference,
   appsNotificationsApiUnreadCount,
 } from '@/services/openapi/notifications';
 import { platformQueryKeys } from '../shared';
 
+dayjs.extend(isToday);
+
+const PAGE_SIZE = 10;
+
+const formatTime = (dateStr: string) => {
+  const d = dayjs(dateStr);
+  if (d.isToday()) return d.format('HH:mm');
+  if (d.isSame(dayjs(), 'year')) return d.format('MM/DD');
+  return d.format('YYYY/MM/DD');
+};
+
+const useStyles = createStyles(({ token, css }) => ({
+  listItem: css`
+    cursor: pointer;
+    padding: 12px 16px !important;
+    border-radius: 8px;
+    margin-bottom: 6px;
+
+    transition: background 0.15s;
+    &:hover { background: ${token.colorBgTextHover}; }
+  `,
+  lastItem: css`
+    margin-bottom: 0;
+  `,
+  unreadDot: css`
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: ${token.colorPrimary};
+    flex-shrink: 0;
+  `,
+  itemRow: css`
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  `,
+  itemTitle: css`
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  `,
+  itemTitleRead: css`
+    font-weight: 400;
+    color: ${token.colorTextSecondary};
+  `,
+  itemTime: css`
+    font-size: 12px;
+    color: ${token.colorTextQuaternary};
+    white-space: nowrap;
+    flex-shrink: 0;
+  `,
+  expandArrow: css`
+    font-size: 12px;
+    color: ${token.colorTextQuaternary};
+    margin-left: 4px;
+    transition: transform 0.2s;
+  `,
+  itemPreview: css`
+    font-size: 13px;
+    color: ${token.colorTextSecondary};
+    line-height: 1.5;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  `,
+  expandedBody: css`
+    font-size: 13px;
+    color: ${token.colorText};
+    line-height: 1.7;
+    margin-top: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  `,
+  toolbar: css`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  `,
+  emptyWrapper: css`
+    padding: 64px 0;
+  `,
+}));
+
 const NotificationsAdminPage: React.FC = () => {
+  const { styles } = useStyles();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [detailId, setDetailId] = useState<number>();
+  const [expandedId, setExpandedId] = useState<number | undefined>();
+
   const notificationsQuery = useQuery({
     queryKey: platformQueryKeys.notifications(page),
-    queryFn: () => appsNotificationsApiListNotifications({ page, page_size: 10 }),
+    queryFn: () => appsNotificationsApiListNotifications({ page, page_size: PAGE_SIZE }),
   });
   const unreadCountQuery = useQuery({
     queryKey: ['platform-management', 'notifications', 'unread-count'],
     queryFn: () => appsNotificationsApiUnreadCount(),
   });
   const detailQuery = useQuery({
-    queryKey: ['platform-management', 'notification-detail', detailId],
-    queryFn: () => appsNotificationsApiGetNotification({ notification_id: detailId! }),
-    enabled: Boolean(detailId),
-  });
-  const preferencesQuery = useQuery({
-    queryKey: platformQueryKeys.notificationPreferences,
-    queryFn: () => appsNotificationsApiListPreferences(),
+    queryKey: ['platform-management', 'notification-detail', expandedId],
+    queryFn: () => appsNotificationsApiGetNotification({ notification_id: expandedId! }),
+    enabled: Boolean(expandedId),
   });
   const patchMutation = useMutation({
-    mutationFn: ({ id, isRead }: { id: number; isRead: boolean }) => appsNotificationsApiPatchNotification({ notification_id: id }, { is_read: isRead }),
+    mutationFn: ({ id, isRead }: { id: number; isRead: boolean }) =>
+      appsNotificationsApiPatchNotification({ notification_id: id }, { is_read: isRead }),
     onSuccess: () => {
       notificationsQuery.refetch();
       unreadCountQuery.refetch();
-    },
-  });
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => appsNotificationsApiDeleteNotification({ notification_id: id }),
-    onSuccess: () => {
-      notificationsQuery.refetch();
-      unreadCountQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ['notification-bell'] });
     },
   });
   const bulkMutation = useMutation({
@@ -55,84 +139,80 @@ const NotificationsAdminPage: React.FC = () => {
     onSuccess: () => {
       notificationsQuery.refetch();
       unreadCountQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ['notification-bell'] });
     },
-  });
-  const preferenceMutation = useMutation({
-    mutationFn: ({ key, body }: { key: string; body: API.NotificationPreferencePatchIn }) => appsNotificationsApiPatchPreference({ category: key }, body),
-    onSuccess: () => preferencesQuery.refetch(),
   });
 
-  const columns: ColumnsType<API.NotificationOut> = [
-    { title: '标题', dataIndex: 'title', width: 220, render: (value) => <span style={wrapTextStyle}>{value}</span> },
-    { title: '内容', dataIndex: 'body', width: 360, render: (value) => <span style={wrapTextStyle}>{value}</span> },
-    { title: '状态', dataIndex: 'is_read', width: 100, render: (value) => (value ? <Tag>已读</Tag> : <Tag color="gold">未读</Tag>) },
-    { title: '时间', dataIndex: 'created_at', width: 170, render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm') },
-    {
-      title: '操作',
-      dataIndex: 'actions',
-      width: 180,
-      render: (_value, record) => (
-        <ResponsiveActions>
-          <a onClick={() => setDetailId(record.id)}>详情</a>
-          <a onClick={() => void patchMutation.mutateAsync({ id: record.id, isRead: !record.is_read })}>{record.is_read ? '标记未读' : '标记已读'}</a>
-          <a onClick={() => void deleteMutation.mutateAsync(record.id)}>删除</a>
-        </ResponsiveActions>
-      ),
-    },
-  ];
+  useEffect(() => {
+    const markAsRead = async () => {
+      if (expandedId != null && detailQuery.data && !detailQuery.data.is_read) {
+        await patchMutation.mutateAsync({ id: expandedId, isRead: true });
+      }
+    };
+    markAsRead();
+  }, [expandedId]);
+
+  const unreadCount = unreadCountQuery.data?.count ?? 0;
+  const items = notificationsQuery.data?.items || [];
+  const isLast = (i: number) => i === items.length - 1;
 
   return (
-    <Card title="我的通知" extra={<Tag color="gold">未读 {unreadCountQuery.data?.count || 0}</Tag>}>
-      <Tabs
-        items={[
-          {
-            key: 'notifications',
-            label: '通知列表',
-            children: (
-              <Space orientation="vertical" style={fullWidthStyle}>
-                <Button onClick={() => void bulkMutation.mutateAsync({ action: 'mark_read', all_unread: true })}>全部未读标记已读</Button>
-                <Table
-                  rowKey="id"
-                  loading={notificationsQuery.isLoading}
-                  columns={columns}
-                  dataSource={notificationsQuery.data?.items || []}
-                  scroll={adminTableScroll}
-                  pagination={{ current: notificationsQuery.data?.page || page, pageSize: notificationsQuery.data?.page_size || 10, total: notificationsQuery.data?.total || 0, onChange: setPage }}
-                />
-              </Space>
-            ),
-          },
-          {
-            key: 'preferences',
-            label: '通知偏好',
-            children: (
-              <Table
-                rowKey="key"
-                loading={preferencesQuery.isLoading}
-                dataSource={preferencesQuery.data || []}
-                pagination={false}
-                scroll={adminTableScroll}
-                columns={[
-                  { title: '类别', dataIndex: 'label', width: 220 },
-                  { title: '站内', dataIndex: 'in_app', width: 100, render: (value, record) => <Switch aria-label={`${record.label}-站内`} checked={value} onChange={(checked) => void preferenceMutation.mutateAsync({ key: record.key, body: { in_app: checked } })} /> },
-                  { title: '邮件', dataIndex: 'email', width: 100, render: (value, record) => <Switch aria-label={`${record.label}-邮件`} checked={value} onChange={(checked) => void preferenceMutation.mutateAsync({ key: record.key, body: { email: checked } })} /> },
-                ]}
-              />
-            ),
-          },
-        ]}
+    <div style={fullWidthStyle}>
+      <div className={styles.toolbar}>
+        <Typography.Text type="secondary">
+          共 {notificationsQuery.data?.total ?? 0} 条通知{unreadCount > 0 ? `，${unreadCount} 条未读` : ''}
+        </Typography.Text>
+        {unreadCount > 0 && (
+          <Button icon={<CheckOutlined />} size="small" onClick={() => void bulkMutation.mutateAsync({ action: 'mark_read', all_unread: true })}>
+            全部已读
+          </Button>
+        )}
+      </div>
+      <List
+        loading={notificationsQuery.isLoading}
+        dataSource={items}
+        locale={{ emptyText: <div className={styles.emptyWrapper}><Empty description="暂无通知" /></div> }}
+        renderItem={(item, i) => {
+          const isExpanded = expandedId === item.id;
+          return (
+            <List.Item
+              className={`${styles.listItem} ${isLast(i) ? styles.lastItem : ''}`}
+              onClick={() => setExpandedId(isExpanded ? undefined : item.id)}
+            >
+              <div style={{ width: '100%' }}>
+                <div className={styles.itemRow}>
+                  {!item.is_read && <span className={styles.unreadDot} />}
+                  <span className={`${styles.itemTitle} ${item.is_read ? styles.itemTitleRead : ''}`}>{item.title || '无标题'}</span>
+                  <span className={styles.expandArrow}>{isExpanded ? <DownOutlined /> : <RightOutlined />}</span>
+                  <span className={styles.itemTime}>{formatTime(item.created_at)}</span>
+                </div>
+                {!isExpanded && item.body && <div className={styles.itemPreview}>{item.body}</div>}
+                {isExpanded && detailQuery.data && (
+                  <>
+                    {detailQuery.data.body && <div className={styles.expandedBody}>{detailQuery.data.body}</div>}
+                    {detailQuery.data.url && (
+                      <div style={{ marginTop: 8 }}>
+                        <Typography.Link href={detailQuery.data.url} target="_blank" onClick={(e) => e.stopPropagation()}>
+                          查看详情 <RightOutlined />
+                        </Typography.Link>
+                      </div>
+                   )}
+                  </>
+                )}
+              </div>
+            </List.Item>
+          );
+        }}
       />
-      <Drawer title="通知详情" open={Boolean(detailId)} onClose={() => setDetailId(undefined)} width={drawerWidthMd}>
-        <Descriptions column={1} bordered size="small">
-          <Descriptions.Item label="标题"><span style={wrapTextStyle}>{detailQuery.data?.title || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="内容"><span style={wrapTextStyle}>{detailQuery.data?.body || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="链接"><span style={wrapTextStyle}>{detailQuery.data?.url || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="状态">{detailQuery.data?.is_read ? '已读' : '未读'}</Descriptions.Item>
-          <Descriptions.Item label="触发人">{detailQuery.data?.actor?.full_name || detailQuery.data?.actor?.username || '-'}</Descriptions.Item>
-          <Descriptions.Item label="时间">{detailQuery.data?.created_at ? dayjs(detailQuery.data.created_at).format('YYYY-MM-DD HH:mm') : '-'}</Descriptions.Item>
-        </Descriptions>
-      </Drawer>
-    </Card>
+      <Pagination
+        style={{ marginTop: 16, textAlign: 'right' }}
+        current={notificationsQuery.data?.page || page}
+        pageSize={notificationsQuery.data?.page_size || PAGE_SIZE}
+        total={notificationsQuery.data?.total || 0}
+        onChange={(p) => setPage(p)}
+        showSizeChanger={false}
+      />
+    </div>
   );
 };
 
