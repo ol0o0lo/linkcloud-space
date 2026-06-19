@@ -8,7 +8,17 @@ import pytest
 from apps.accounts.models import User
 from apps.media.constants import MediaScope, ResourceType
 from apps.media.models import MediaFile
-from apps.media.services import CleanupResult, cleanup_unreferenced_media, collect_referenced_media_ids, get_media_list_info, register_media_file, validate_media_ids
+from apps.media.services import (
+    CleanupResult,
+    cleanup_unreferenced_media,
+    collect_referenced_media_ids,
+    extract_media_ids,
+    get_media_list_info,
+    get_media_refs_info,
+    register_media_file,
+    validate_media_ids,
+    validate_media_refs,
+)
 from apps.organizations.models import Organization
 
 
@@ -122,6 +132,68 @@ class TestMediaListInfo:
         assert result[0]["file_size"] == 200
         assert "order" not in result[0]
 
+    def test_get_media_list_info_accepts_media_ref_dicts(self):
+        user = User.objects.create_user(username="ref_viewer", password="secret")  # noqa: S106
+        first = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/ref-first.png",
+            original_filename="ref-first.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=100,
+        )
+        second = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/ref-second.png",
+            original_filename="ref-second.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=200,
+        )
+
+        result = get_media_list_info(
+            [
+                {"media_id": second.pk, "label": "客厅图"},
+                {"media_id": first.pk, "label": "封面图"},
+            ]
+        )
+
+        assert [item["id"] for item in result] == [second.pk, first.pk]
+
+    def test_get_media_refs_info_flattens_media_info_and_keeps_business_values_on_conflict(self):
+        user = User.objects.create_user(username="flat_viewer", password="secret")  # noqa: S106
+        media = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/flat.png",
+            original_filename="flat.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=300,
+        )
+
+        result = get_media_refs_info(
+            [
+                {
+                    "media_id": media.pk,
+                    "media_type": "image",
+                    "label": "业务标签",
+                    "url": "business-url-kept",
+                    "file_size": 999,
+                }
+            ]
+        )
+
+        assert result == [
+            {
+                "media_id": media.pk,
+                "media_type": "image",
+                "label": "业务标签",
+                "url": "business-url-kept",
+                "file_size": 999,
+                "resource_type": ResourceType.AVATAR,
+                "original_filename": "flat.png",
+                "thumbnail": None,
+                "created_at": media.created_at,
+            }
+        ]
+
 
 @pytest.mark.django_db
 class TestValidateMediaIds:
@@ -163,6 +235,29 @@ class TestValidateMediaIds:
     def test_raises_for_missing_ids(self):
         with pytest.raises(ValueError, match=r"媒体文件不存在: \[999999\]"):
             validate_media_ids([999999])
+
+
+@pytest.mark.django_db
+class TestMediaRefs:
+    def test_extract_media_ids_accepts_ints_and_dicts(self):
+        assert extract_media_ids([1, {"media_id": "2"}, 3]) == [1, 2, 3]
+
+    def test_validate_media_refs_returns_original_refs_after_validating_media_ids(self):
+        user = User.objects.create_user(username="ref_validator", password="secret")  # noqa: S106
+        media = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/ref-validator.png",
+            original_filename="ref-validator.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=100,
+        )
+        refs = [{"media_id": media.pk, "label": "封面"}]
+
+        assert validate_media_refs(refs) == refs
+
+    def test_extract_media_ids_requires_media_id_for_dict_items(self):
+        with pytest.raises(ValueError, match="媒体引用对象必须包含 media_id"):
+            extract_media_ids([{"label": "缺少 ID"}])
 
 
 @pytest.mark.django_db

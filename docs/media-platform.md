@@ -5,13 +5,14 @@
 ## 适用方式
 
 - 平台核心引用始终围绕 `media_id`
-- 业务模型统一保存“平铺后的媒体引用对象列表”
-- 平台接受业务传入整个列表，并兼容从每个 list item 中提取 `media_id` 做校验、回显、引用收集
+- 业务字段名由业务 app 自己决定，例如 `images`、`attachments`、`id_card_images`
+- 平台方法接受 `list[int]` 或平铺后的 `list[dict]`
+- 如果 list item 是 dict，平台默认从每个 item 中提取 `media_id` 做校验、回显、引用收集
 - 顺序以业务保存的数据顺序为准
 - 同一个媒体可被多个业务复用
 - 业务删除引用时，只解除引用，不立即删除物理文件
 
-推荐字段：
+推荐字段示例：
 
 ```python
 from django.db import models
@@ -19,7 +20,7 @@ from django.db import models
 
 class ExampleThing(models.Model):
     title = models.CharField(max_length=100)
-    media_refs = models.JSONField(default=list, blank=True)
+    images = models.JSONField(default=list, blank=True)
 ```
 
 推荐结构：
@@ -53,8 +54,11 @@ class ExampleThing(models.Model):
 - `GET /api/media/oss-token/`：生成直传 OSS/STS 凭证
 - `POST /api/media/confirm/`：登记前端直传完成后的文件
 - `POST /api/media/upload/`：服务端接收文件并上传
-- `validate_media_ids()`：校验从业务列表中提取出的 `media_id` 列表是否重复、是否存在
-- `get_media_list_info()`：按从业务列表中提取出的 `media_id` 列表原顺序返回完整媒体信息
+- `extract_media_ids()`：从 `list[int]` 或 `list[dict]` 中提取媒体 ID
+- `validate_media_ids()`：校验 `list[int]` 或 `list[dict]` 中的媒体 ID 是否重复、是否存在
+- `validate_media_refs()`：校验媒体引用列表并返回原始列表，便于业务继续保存
+- `get_media_list_info()`：按传入列表原顺序返回完整媒体信息
+- `get_media_refs_info()`：返回平铺增强后的媒体引用列表，字段冲突时保留业务方原值
 - 基于 `MEDIA_REFERENCE_PROVIDERS` 做延迟清理
 
 `apps/media` 不负责：
@@ -75,7 +79,7 @@ class ExampleThing(models.Model):
 2. 前端用返回凭证和 `path` 直传对象存储
 3. 上传成功后调用 `POST /api/media/confirm/`
 4. 获取 `media_id`
-5. 业务保存 `media_refs`
+5. 业务保存自己的媒体引用字段，例如 `images`
 
 示例：
 
@@ -99,7 +103,7 @@ Content-Type: application/json
 
 1. 调用 `POST /api/media/upload/`
 2. 获取 `media_id`
-3. 业务保存 `media_refs`
+3. 业务保存自己的媒体引用字段，例如 `images`
 
 示例：
 
@@ -121,62 +125,67 @@ scope=user
 
 ### 3. 保存
 
-业务保存前，推荐直接把列表传给业务侧规范化函数，由它统一提取 `media_id` 再校验：
+业务保存前，推荐直接把列表传给平台校验函数：
 
 ```python
-from apps.media.services import validate_media_ids
+from apps.media.services import validate_media_refs
 
 
-def normalize_media_refs(media_refs: list[dict]) -> list[dict]:
-    media_ids = [int(item["media_id"]) for item in media_refs]
-    validate_media_ids(media_ids)
-    return media_refs
-
-
-def update_example_thing(*, thing, media_refs: list[dict]):
-    thing.media_refs = normalize_media_refs(media_refs)
-    thing.save(update_fields=["media_refs"])
+def update_example_thing(*, thing, images: list[dict]):
+    thing.images = validate_media_refs(images)
+    thing.save(update_fields=["images"])
     return thing
 ```
 
-这里的约定是：业务层对外接受整个 `media_refs` 列表，平台底层兼容从每个 item 里提取 `media_id` 来做统一处理。
+这里的约定是：业务层对外接受自己的媒体引用列表，平台底层兼容 `list[int]`，也兼容从 `list[dict]` 的每个 item 里提取 `media_id` 来做统一处理。
 
 这里平台只校验“存在性、唯一性”；是否允许当前用户使用这些媒体，以及业务扩展字段是否合法，由业务自己校验。
 
 ### 4. 回显
 
-业务详情建议同时返回：
-
-- `media_refs`
-- `media_list`
+业务详情可以直接返回平铺增强后的列表，适合前端展示：
 
 示例：
 
 ```python
-from apps.media.services import get_media_list_info
+from apps.media.services import get_media_refs_info
 
 
 def build_example_thing_payload(thing):
-    media_ids = [int(item["media_id"]) for item in thing.media_refs]
-    media_list = get_media_list_info(media_ids)
-    media_map = {item["id"]: item for item in media_list}
     return {
         "id": thing.pk,
         "title": thing.title,
-        "media_refs": thing.media_refs,
-        "media_list": [media_map[item["media_id"]] for item in thing.media_refs if item["media_id"] in media_map],
+        "images": get_media_refs_info(thing.images),
     }
 ```
 
-`get_media_list_info()` 会保持输入顺序不变。
+`get_media_refs_info()` 会保持输入顺序不变，并补充媒体文件信息：
+
+```json
+[
+  {
+    "media_id": 101,
+    "media_type": "image",
+    "label": "封面图",
+    "resource_type": "avatar",
+    "original_filename": "cover.png",
+    "url": "https://example.com/cover.png",
+    "thumbnail": null,
+    "file_size": 123456,
+    "created_at": "2026-06-20T10:00:00+08:00"
+  }
+]
+```
+
+如果业务原始 item 中已经包含同名字段，例如 `url` 或 `file_size`，平台不会覆盖，返回时以业务方字段为准。
+
+如果业务只需要纯媒体信息，也可以继续使用 `get_media_list_info(images)`；该方法同样兼容 `list[int]` 和 `list[dict]`。
 
 推荐理解方式：
 
-- 业务输入输出始终是 `media_refs`
-- 平台兼容从 `media_refs` 的每个 item 提取 `media_id`
+- 业务输入输出字段名由业务自己决定
+- 平台兼容从业务列表的每个 item 提取 `media_id`
 - `apps/media` 不直接解释 `label`、`side`、`room` 等业务字段
-
-如果前端需要“媒体文件信息 + 业务扩展字段”的单列表，也建议在业务层完成合并，而不是要求 `apps/media` 理解业务字段语义。
 
 ## 返回结构
 
@@ -189,12 +198,12 @@ def build_example_thing_payload(thing):
 - `file_size`
 - `created_at`
 
-业务详情里的 `media_list` 来自 `get_media_list_info()`，主要包含：
+业务详情里的平铺增强列表来自 `get_media_refs_info()`，主要包含业务原始字段，并补充：
 
-- `id`
+- `media_id`
 - `resource_type`
 - `original_filename`
-- `original.url`
+- `url`
 - `thumbnail`
 - `file_size`
 - `created_at`
@@ -208,14 +217,15 @@ def build_example_thing_payload(thing):
 ```python
 # apps/example/media_references.py
 from apps.example.models import ExampleThing
+from apps.media.services import extract_media_ids
 
 
 def collect_example_media_ids():
     media_ids = set()
-    for row in ExampleThing.objects.values_list("media_refs", flat=True):
+    for row in ExampleThing.objects.values_list("images", flat=True):
         if not row:
             continue
-        media_ids.update(int(item["media_id"]) for item in row if item and item.get("media_id"))
+        media_ids.update(extract_media_ids(row))
     return media_ids
 ```
 
@@ -303,10 +313,11 @@ MEDIA_REFERENCE_PROVIDERS = [
 - 业务标准引用对象至少包含 `media_id`
 - 业务扩展字段直接平铺，不额外包 `meta`
 - 只有所有业务都稳定需要的字段，才值得提升为统一约定；目前推荐保留的只有 `media_id`，以及可选的 `media_type`
+- 平铺增强返回时，如果平台字段和业务字段同名，以业务字段为准
 
 ## 注意事项
 
 - 不要把房源、实名等业务语义字段存到 `MediaFile`
 - 不要把顺序、标签、证件面别等业务字段硬编码到 `apps/media`
-- 不要只存 `media_list`，应存稳定的 `media_refs`
+- 不要只存增强后的媒体展示数据，应保存稳定的业务媒体引用列表
 - 不要在业务删除引用时立即删物理文件
