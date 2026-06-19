@@ -32,9 +32,10 @@ const useStyles = createStyles(({ token, css }) => ({
     padding: 12px 16px !important;
     border-radius: 8px;
     margin-bottom: 6px;
+    background: ${token.colorBgContainer};
 
     transition: background 0.15s;
-    &:hover { background: ${token.colorBgTextHover}; }
+    &:hover { background: ${token.colorBgElevated}; }
   `,
   lastItem: css`
     margin-bottom: 0;
