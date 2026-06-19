@@ -71,6 +71,7 @@ export default {
   'menu.platform-management.users': 'User Management',
   'menu.platform-management.real-name': 'Real-Name Review',
   'menu.platform-management.notifications': 'Notification Center',
+  'menu.platform-management.notification-dispatches': 'Notification Dispatches',
   'menu.platform-management.referrals': 'Referral Management',
   'menu.system-tools': 'System Tools',
   'menu.system-tools.operations': 'Operations Tools',

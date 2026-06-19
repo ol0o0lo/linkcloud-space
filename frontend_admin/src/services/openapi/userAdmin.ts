@@ -77,7 +77,7 @@ export async function appsAccountsApiUnbindUserPhone(
   options?: { [key: string]: any }
 ) {
   const { user_id: param0, ...queryParams } = params;
-  return request<any>(`/api/admin/users/${param0}/phone/`, {
+  return request<Record<string, any>>(`/api/admin/users/${param0}/phone/`, {
     method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),
@@ -143,7 +143,7 @@ export async function appsAccountsApiUnbindUserWechat(
   options?: { [key: string]: any }
 ) {
   const { user_id: param0, ...queryParams } = params;
-  return request<any>(`/api/admin/users/${param0}/wechat/`, {
+  return request<Record<string, any>>(`/api/admin/users/${param0}/wechat/`, {
     method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),

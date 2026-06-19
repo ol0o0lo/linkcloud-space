@@ -55,7 +55,7 @@ export async function appsOrganizationsApiDeleteInvite(
   options?: { [key: string]: any }
 ) {
   const { invite_id: param0, ...queryParams } = params;
-  return request<any>(`/api/organization-invites/${param0}/`, {
+  return request<Record<string, any>>(`/api/organization-invites/${param0}/`, {
     method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),

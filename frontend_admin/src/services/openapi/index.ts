@@ -10,6 +10,7 @@ import * as accessTeamRoles from "./accessTeamRoles";
 import * as adminReferrals from "./adminReferrals";
 import * as appSystem from "./appSystem";
 import * as mediaFiles from "./mediaFiles";
+import * as notificationDispatches from "./notificationDispatches";
 import * as notifications from "./notifications";
 import * as organizationInvites from "./organizationInvites";
 import * as organizationMembers from "./organizationMembers";
@@ -38,6 +39,7 @@ export default {
   accessTeamBindings,
   organizationInvites,
   publicOrganizationInvites,
+  notificationDispatches,
   notifications,
   organizationMembers,
   organizationProfile,

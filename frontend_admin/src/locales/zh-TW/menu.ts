@@ -70,6 +70,7 @@ export default {
   'menu.platform-management.users': '用戶管理',
   'menu.platform-management.real-name': '實名審核',
   'menu.platform-management.notifications': '通知中心',
+  'menu.platform-management.notification-dispatches': '通知分發',
   'menu.platform-management.referrals': '裂變管理',
   'menu.system-tools': '系統工具',
   'menu.system-tools.operations': '運維工具',

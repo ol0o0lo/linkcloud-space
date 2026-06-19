@@ -34,11 +34,14 @@ export async function appsAccessApiDeleteOrgRole(
   options?: { [key: string]: any }
 ) {
   const { role_id: param0, ...queryParams } = params;
-  return request<any>(`/api/access/organization-roles/${param0}/`, {
-    method: "DELETE",
-    params: { ...queryParams },
-    ...(options || {}),
-  });
+  return request<Record<string, any>>(
+    `/api/access/organization-roles/${param0}/`,
+    {
+      method: "DELETE",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 更新租户级自定义角色 修改当前组织下的 org 级自定义角色名称或权限列表；系统预置角色不能通过该接口修改。 PATCH /api/access/organization-roles/${param0}/ */

@@ -55,7 +55,7 @@ export async function appsTeamsApiDeleteTeam(
   options?: { [key: string]: any }
 ) {
   const { team_id: param0, ...queryParams } = params;
-  return request<any>(`/api/teams/${param0}/`, {
+  return request<Record<string, any>>(`/api/teams/${param0}/`, {
     method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),

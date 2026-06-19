@@ -42,11 +42,14 @@ export async function appsAccessApiDeleteTeamRole(
   options?: { [key: string]: any }
 ) {
   const { team_id: param0, role_id: param1, ...queryParams } = params;
-  return request<any>(`/api/access/teams/${param0}/roles/${param1}/`, {
-    method: "DELETE",
-    params: { ...queryParams },
-    ...(options || {}),
-  });
+  return request<Record<string, any>>(
+    `/api/access/teams/${param0}/roles/${param1}/`,
+    {
+      method: "DELETE",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 更新团队级自定义角色 修改当前组织下的 team 级自定义角色名称或权限列表；系统预置角色不能通过该接口修改。 PATCH /api/access/teams/${param0}/roles/${param1}/ */

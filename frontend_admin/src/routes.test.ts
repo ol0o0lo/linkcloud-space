@@ -83,15 +83,18 @@ describe('backend capability routes', () => {
 
   it('registers platform management pages', () => {
     const platformGroup = routes.find((route) => route.path === '/platform-management');
+    const paths = platformGroup?.routes?.map((route) => route.path) ?? [];
 
     expect(platformGroup).toBeDefined();
-    expect(platformGroup?.routes?.map((route) => route.path)).toEqual([
+    expect(paths).toEqual([
       '/platform-management',
       '/platform-management/users',
       '/platform-management/real-name',
       '/platform-management/notifications',
+      '/platform-management/notification-dispatches',
       '/platform-management/referrals',
     ]);
+    expect(paths).toContain('/platform-management/notification-dispatches');
   });
 
   it('registers system tools and personal business pages', () => {

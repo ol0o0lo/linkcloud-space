@@ -121,7 +121,7 @@ export async function appsAccountsApiUploadAvatar(
 export async function appsAccountsApiDeleteAvatar(options?: {
   [key: string]: any;
 }) {
-  return request<any>("/api/users/me/avatar/", {
+  return request<Record<string, any>>("/api/users/me/avatar/", {
     method: "DELETE",
     ...(options || {}),
   });
@@ -134,11 +134,14 @@ export async function appsAccountsApiDeleteMyAuthenticator(
   options?: { [key: string]: any }
 ) {
   const { authenticator_type: param0, ...queryParams } = params;
-  return request<any>(`/api/users/me/mfa/authenticators/${param0}/`, {
-    method: "DELETE",
-    params: { ...queryParams },
-    ...(options || {}),
-  });
+  return request<Record<string, any>>(
+    `/api/users/me/mfa/authenticators/${param0}/`,
+    {
+      method: "DELETE",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 获取 TOTP 初始化信息 返回当前用户可用于初始化 TOTP 的密钥和 otpauth URL。 GET /api/users/me/mfa/totp-setup/ */

@@ -71,6 +71,7 @@ export default {
   'menu.platform-management.users': '用户管理',
   'menu.platform-management.real-name': '实名审核',
   'menu.platform-management.notifications': '通知中心',
+  'menu.platform-management.notification-dispatches': '通知分发',
   'menu.platform-management.referrals': '裂变管理',
   'menu.system-tools': '系统工具',
   'menu.system-tools.operations': '运维工具',

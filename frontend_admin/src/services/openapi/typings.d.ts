@@ -393,8 +393,23 @@ declare namespace API {
     notification_id: number;
   };
 
+  type appsNotificationsApiGetDispatchParams = {
+    dispatch_id: number;
+  };
+
   type appsNotificationsApiGetNotificationParams = {
     notification_id: number;
+  };
+
+  type appsNotificationsApiListDispatchesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsNotificationsApiListDispatchNotificationsParams = {
+    dispatch_id: number;
+    page?: number;
+    page_size?: number | null;
   };
 
   type appsNotificationsApiListNotificationsParams = {
@@ -868,6 +883,60 @@ declare namespace API {
     avatar_url?: string | null;
   };
 
+  type NotificationDispatchIn = {
+    /** Scope */
+    scope: "platform" | "organization" | "users";
+    /** Scope Ids */
+    scope_ids?: number[];
+    /** Category */
+    category?: string;
+    /** Title */
+    title: string;
+    /** Body */
+    body?: string;
+    /** Url */
+    url?: string | null;
+    /** Data */
+    data?: Record<string, any>;
+  };
+
+  type NotificationDispatchOut = {
+    /** Id */
+    id: number;
+    /** Scope */
+    scope: string;
+    /** Scope Ids */
+    scope_ids: number[];
+    /** Owner Organization Id */
+    owner_organization_id?: number | null;
+    /** Category */
+    category: string;
+    /** Title */
+    title: string;
+    /** Body */
+    body: string;
+    /** Url */
+    url?: string | null;
+    /** Data */
+    data: Record<string, any>;
+    /** Status */
+    status: string;
+    /** Target Count */
+    target_count: number;
+    /** Delivered Count */
+    delivered_count: number;
+    /** Error Message */
+    error_message: string;
+    /** Sent At */
+    sent_at?: string | null;
+    /** Created By */
+    created_by: string;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
   type NotificationOut = {
     /** Id */
     id: number;
@@ -1072,6 +1141,17 @@ declare namespace API {
   type PagedMemberOut = {
     /** Items */
     items: MemberOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedNotificationDispatchOut = {
+    /** Items */
+    items: NotificationDispatchOut[];
     /** Total */
     total: number;
     /** Page */

@@ -55,7 +55,7 @@ export async function appsOrganizationsApiDeleteMember(
   options?: { [key: string]: any }
 ) {
   const { member_id: param0, ...queryParams } = params;
-  return request<any>(`/api/organization-members/${param0}/`, {
+  return request<Record<string, any>>(`/api/organization-members/${param0}/`, {
     method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),

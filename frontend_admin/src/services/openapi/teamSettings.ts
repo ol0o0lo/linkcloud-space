@@ -56,9 +56,12 @@ export async function appsSettingsApiDeleteTeamSettingView(
   options?: { [key: string]: any }
 ) {
   const { team_id: param0, key: param1, ...queryParams } = params;
-  return request<any>(`/api/settings/teams/${param0}/${param1}/`, {
-    method: "DELETE",
-    params: { ...queryParams },
-    ...(options || {}),
-  });
+  return request<Record<string, any>>(
+    `/api/settings/teams/${param0}/${param1}/`,
+    {
+      method: "DELETE",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }

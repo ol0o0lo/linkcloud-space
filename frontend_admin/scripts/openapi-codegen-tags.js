@@ -12,6 +12,7 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '租户/公开邀请': 'public-organization-invites',
   '租户/档案': 'organization-profile',
   '通知/消息': 'notifications',
+  '通知分发': 'notificationDispatches',
   '团队/基础': 'teams',
   '用户/账户': 'user-account',
   '用户/管理': 'user-admin',

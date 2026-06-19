@@ -52,7 +52,7 @@ export async function appsSettingsApiDeleteUserSettingView(
   options?: { [key: string]: any }
 ) {
   const { key: param0, ...queryParams } = params;
-  return request<any>(`/api/settings/user/${param0}/`, {
+  return request<Record<string, any>>(`/api/settings/user/${param0}/`, {
     method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),

@@ -45,9 +45,12 @@ export async function appsAccessApiDeleteTeamBinding(
   options?: { [key: string]: any }
 ) {
   const { team_id: param0, binding_id: param1, ...queryParams } = params;
-  return request<any>(`/api/access/teams/${param0}/bindings/${param1}/`, {
-    method: "DELETE",
-    params: { ...queryParams },
-    ...(options || {}),
-  });
+  return request<Record<string, any>>(
+    `/api/access/teams/${param0}/bindings/${param1}/`,
+    {
+      method: "DELETE",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }

@@ -40,7 +40,7 @@ export async function appsNotificationsApiDeleteNotification(
   options?: { [key: string]: any }
 ) {
   const { notification_id: param0, ...queryParams } = params;
-  return request<any>(`/api/notifications/${param0}/`, {
+  return request<Record<string, any>>(`/api/notifications/${param0}/`, {
     method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),

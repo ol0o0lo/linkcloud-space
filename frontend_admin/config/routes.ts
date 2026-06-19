@@ -245,6 +245,12 @@ export default [
         component: './platform-management/notifications',
       },
       {
+        name: 'notification-dispatches',
+        icon: 'notification',
+        path: '/platform-management/notification-dispatches',
+        component: './platform-management/notification-dispatches',
+      },
+      {
         name: 'referrals',
         icon: 'shareAlt',
         path: '/platform-management/referrals',
