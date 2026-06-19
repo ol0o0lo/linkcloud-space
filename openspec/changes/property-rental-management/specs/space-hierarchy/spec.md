@@ -34,8 +34,12 @@
 - **WHEN** 尝试删除有关联楼栋的 Community
 - **THEN** 数据库 PROTECT 阻止删除
 
+#### Scenario: 楼栋组织归属必须与小区一致
+- **WHEN** 创建或更新 Building，且 Building.organization 与 Community.organization 不一致
+- **THEN** 系统阻止保存并返回校验错误
+
 ### Requirement: 房源档案管理
-系统 SHALL 提供 House 模型，字段包含 organization(FK→Organization)、building(FK→Building, PROTECT)、room_number(自由格式)、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、layout_desc、orientation(choices)、decoration(choices)、has_elevator_access、house_status(choices, default=vacant)、tags(JSONField)、notes、is_active。
+系统 SHALL 提供 House 模型，字段包含 building(FK→Building, PROTECT)、owner_contact(FK→Contact, null=True, blank=True, PROTECT)、room_number(自由格式)、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、layout_desc、orientation(choices)、decoration(choices)、has_elevator_access、house_status(choices, default=vacant)、image_media_file_ids(JSONField)、tags(JSONField)、notes、is_active。House 的组织归属 SHALL 通过 `Building -> Community -> Organization` 推导。
 
 #### Scenario: 创建房源
 - **WHEN** 创建 House，提供 building 和 room_number
@@ -56,3 +60,42 @@
 #### Scenario: 楼栋内房号唯一
 - **WHEN** 在同一 Building 下创建重复 room_number 的 House
 - **THEN** 数据库唯一约束阻止创建
+
+#### Scenario: 房源组织归属从楼栋和小区推导
+- **WHEN** 查询 House 的组织归属
+- **THEN** 系统通过 `house.building.community.organization` 推导该房源所属组织，而不是在 House 上单独存储 organization 字段
+
+#### Scenario: 房源可直接绑定登记房东
+- **WHEN** 创建或更新 House，并提供 owner_contact
+- **THEN** 系统直接通过 `House.owner_contact` 保存登记房东，不单独创建 Ownership 模型
+
+#### Scenario: 登记房东必须具备 landlord 角色
+- **WHEN** 为 House 设置 owner_contact，但该 Contact 不具备 landlord 角色
+- **THEN** 系统阻止保存并返回校验错误
+
+#### Scenario: 登记房东组织归属必须与房源一致
+- **WHEN** 为 House 设置 owner_contact，且 `owner_contact.organization != house.building.community.organization`
+- **THEN** 系统阻止保存并返回校验错误
+
+#### Scenario: 删除楼栋级联保护
+- **WHEN** 尝试删除有关联房源的 Building
+- **THEN** 数据库 PROTECT 阻止删除
+
+### Requirement: 房源状态作为运营快照
+系统 SHALL 将 House.house_status 作为运营查询快照使用，租赁真相来源 SHALL 为 Lease；当 House 不处于人工锁定状态时，系统根据 Lease 重算房态。
+
+#### Scenario: 新建房源默认空置
+- **WHEN** 创建 House 且未关联生效中的 Lease
+- **THEN** house_status 默认值为 vacant
+
+#### Scenario: 生效租约驱动已租状态
+- **WHEN** 该 House 存在至少一条 active 状态 Lease
+- **THEN** house_status 为 rented
+
+#### Scenario: 无生效租约恢复空置
+- **WHEN** 该 House 不存在 active 状态 Lease，且当前 house_status 不是 locked 或 renovating
+- **THEN** house_status 为 vacant
+
+#### Scenario: 手工封存和装修状态优先级更高
+- **WHEN** 该 House 当前 house_status 为 locked 或 renovating，且不存在 active 状态 Lease
+- **THEN** 系统保留当前 house_status，不自动恢复为 vacant

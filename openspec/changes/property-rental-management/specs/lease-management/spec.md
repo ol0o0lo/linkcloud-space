@@ -23,6 +23,10 @@
 - **WHEN** 创建或更新 Lease，monthly_rent 或 deposit 小于 0，或 payment_day 不在 1 到 31 之间
 - **THEN** 系统阻止保存并返回校验错误
 
+#### Scenario: 租约组织归属必须与房源和租客一致
+- **WHEN** 创建或更新 Lease，且 Lease.organization、House.building.community.organization、tenant.organization 三者任一不一致
+- **THEN** 系统阻止保存并返回校验错误
+
 ### Requirement: 租约合同文件存储
 系统 SHALL 复用现有 `apps.media.MediaFile` 与 `S3MediaStorage` 存储租约合同文件，Lease.contract_file SHALL 引用已登记的 MediaFile。
 
@@ -42,8 +46,12 @@
 - **WHEN** 上传租约合同
 - **THEN** 系统 SHALL 至少允许 pdf 格式；如需编辑文档，可扩展 doc、docx 格式
 
-### Requirement: 租约状态同步 House 状态
-系统 SHALL 在 Lease 新增、更新、删除后重算对应 House.house_status：若存在 active Lease，则设为 rented；若不存在 active Lease，且当前房态不是 locked 或 renovating，则设为 vacant。
+### Requirement: 租约状态通过统一入口同步 House 状态
+系统 SHALL 通过统一的服务层或领域方法重算 House.house_status，并在 Lease 新增、更新、删除后调用该入口：若存在 active Lease，则设为 rented；若不存在 active Lease，且当前房态不是 locked 或 renovating，则设为 vacant。
+
+#### Scenario: 服务层或领域方法作为唯一重算入口
+- **WHEN** 系统因 Lease 新增、更新、删除需要刷新房态
+- **THEN** SHALL 调用统一的重算入口，而不是在多个保存路径中分别直接写 House.house_status
 
 #### Scenario: 租约生效
 - **WHEN** Lease.status 更新为 active
@@ -61,9 +69,17 @@
 - **WHEN** 删除一条 Lease
 - **THEN** 系统重新计算对应 House.house_status
 
+#### Scenario: 信号只作为兜底触发器
+- **WHEN** Django signal 参与 Lease 状态同步
+- **THEN** signal 内部仍调用统一重算入口，而不是维护独立的一套房态判断逻辑
+
 ### Requirement: 一套房同一时间只有一条 active 租约
 系统 SHALL 在创建或激活租约时检查同一 House 是否已有 active 状态租约，并用数据库约束保证并发场景下的最终一致性。
 
 #### Scenario: 重复激活校验
 - **WHEN** 尝试将 Lease.status 设为 active，但该 House 已有另一条 active Lease
 - **THEN** 系统阻止操作并返回错误
+
+#### Scenario: 当前版本不校验非 active 租约的时间重叠
+- **WHEN** 两条 `pending`、历史或未来租约在日期区间上存在重叠，但同一时间没有两条 `active` 租约
+- **THEN** 当前版本允许保存，不额外做时间重叠校验
