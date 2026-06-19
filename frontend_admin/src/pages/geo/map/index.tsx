@@ -59,6 +59,7 @@ const MapPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const markersMapRef = useRef<Map<string, { marker: GeoMarker; instance: any }>>(new Map());
   const infoWindowRef = useRef<any>(null);
 
   const [markers, setMarkers] = useState<GeoMarker[]>([]);
@@ -135,6 +136,7 @@ const MapPage: React.FC = () => {
     // 清除旧标点
     markersRef.current.forEach((m) => { mapRef.current.remove(m); });
     markersRef.current = [];
+    markersMapRef.current.clear();
 
     filteredMarkers.forEach((marker) => {
       const style = MARKER_STYLES[marker.type];
@@ -153,17 +155,32 @@ const MapPage: React.FC = () => {
       });
 
       m.on('click', () => {
-        const container = document.createElement('div');
-        const root = createRoot(container);
-        root.render(<InfoWindowContent marker={marker} />);
-        infoWindowRef.current.setContent(container);
-        infoWindowRef.current.open(mapRef.current, m.getPosition());
+        openInfoWindow(marker, m);
       });
 
       mapRef.current.add(m);
       markersRef.current.push(m);
+      markersMapRef.current.set(marker.id, { marker, instance: m });
     });
   }, [AMap, filteredMarkers]);
+
+  /** 打开 InfoWindow 并平移到指定标点 */
+  const openInfoWindow = (marker: GeoMarker, instance?: any) => {
+    if (!mapRef.current || !infoWindowRef.current) return;
+    const target = instance || markersMapRef.current.get(marker.id)?.instance;
+    if (!target) return;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    root.render(<InfoWindowContent marker={marker} />);
+    infoWindowRef.current.setContent(container);
+    infoWindowRef.current.open(mapRef.current, target.getPosition());
+    mapRef.current.setZoomAndCenter(15, [marker.lng, marker.lat]);
+  };
+
+  /** 列表项点击：聚焦到标点 */
+  const handleListClick = (marker: GeoMarker) => {
+    openInfoWindow(marker);
+  };
 
   const typeOptions = useMemo(
     () => [
@@ -225,7 +242,7 @@ const MapPage: React.FC = () => {
           style={{
             position: 'absolute',
             top: 16,
-            right: 16,
+            left: 16,
             width: 280,
             zIndex: 90,
             boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
@@ -284,6 +301,80 @@ const MapPage: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* 搜索结果列表 */}
+          {!markersLoading && filteredMarkers.length > 0 && (
+            <div
+              style={{
+                marginTop: 12,
+                maxHeight: 320,
+                overflowY: 'auto',
+                borderTop: '1px solid #f0f0f0',
+                paddingTop: 8,
+              }}
+            >
+              {filteredMarkers.map((marker) => {
+                const style = MARKER_STYLES[marker.type];
+                return (
+                  <div
+                    key={marker.id}
+                    onClick={() => handleListClick(marker)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 8px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      transition: 'background 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#f5f5f5';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <span style={{ color: style.color, fontSize: 14, flexShrink: 0 }}>
+                      {style.icon}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {marker.name}
+                      </div>
+                      {marker.description && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: '#999',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {marker.description}
+                        </div>
+                      )}
+                    </div>
+                    <Tag
+                      color={marker.type === 'building' ? 'blue' : 'green'}
+                      style={{ margin: 0, flexShrink: 0 }}
+                    >
+                      {style.label}
+                    </Tag>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {!markersLoading && filteredMarkers.length === 0 && (
             <Empty
