@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 租约管理
-系统 SHALL 提供 Lease 模型，字段包含：organization(FK→Organization)、house(FK→House, PROTECT)、tenant(FK→Contact, PROTECT)、start_date、end_date、monthly_rent、deposit、payment_day(default=1)、status(choices, default=pending)、contract_file(FK→MediaFile, null=True, blank=True, PROTECT)、notes。
+系统 SHALL 提供 Lease 模型，字段包含：organization(FK→Organization)、house(FK→House, PROTECT)、tenant(FK→Contact, PROTECT)、sign_at、start_date、end_date、monthly_rent、deposit、payment_day(default=1)、status(choices, default=pending)、contract_file(FK→MediaFile, null=True, blank=True, PROTECT)、notes、extra(JSONField)。
 
 #### Scenario: 创建租约
 - **WHEN** 创建 Lease，提供 house、tenant、start_date、end_date、monthly_rent
@@ -24,8 +24,12 @@
 - **THEN** 系统阻止保存并返回校验错误
 
 #### Scenario: 租约组织归属必须与房源和租客一致
-- **WHEN** 创建或更新 Lease，且 Lease.organization、House.building.community.organization、tenant.organization 三者任一不一致
+- **WHEN** 创建或更新 Lease，且 Lease.organization、House.building.estate.organization、tenant.organization 三者任一不一致
 - **THEN** 系统阻止保存并返回校验错误
+
+#### Scenario: 创建租约前必须已登记出租方
+- **WHEN** 管理员尝试为 `landlord is null` 的 House 创建 Lease
+- **THEN** 系统阻止保存并返回“需先补齐登记出租方”的校验错误
 
 ### Requirement: 租约合同文件存储
 系统 SHALL 复用现有 `apps.media.MediaFile` 与 `S3MediaStorage` 存储租约合同文件，Lease.contract_file SHALL 引用已登记的 MediaFile。
@@ -47,27 +51,27 @@
 - **THEN** 系统 SHALL 至少允许 pdf 格式；如需编辑文档，可扩展 doc、docx 格式
 
 ### Requirement: 租约状态通过统一入口同步 House 状态
-系统 SHALL 通过统一的服务层或领域方法重算 House.house_status，并在 Lease 新增、更新、删除后调用该入口：若存在 active Lease，则设为 rented；若不存在 active Lease，且当前房态不是 locked 或 renovating，则设为 vacant。
+系统 SHALL 通过统一的服务层或领域方法重算 House.status，并在 Lease 新增、更新、删除后调用该入口：若存在 active Lease，则设为 rented；若不存在 active Lease，且当前房态不是 locked 或 renovating，则设为 vacant。
 
 #### Scenario: 服务层或领域方法作为唯一重算入口
 - **WHEN** 系统因 Lease 新增、更新、删除需要刷新房态
-- **THEN** SHALL 调用统一的重算入口，而不是在多个保存路径中分别直接写 House.house_status
+- **THEN** SHALL 调用统一的重算入口，而不是在多个保存路径中分别直接写 House.status
 
 #### Scenario: 租约生效
 - **WHEN** Lease.status 更新为 active
-- **THEN** 对应 House.house_status 自动更新为 rented
+- **THEN** 对应 House.status 自动更新为 rented
 
 #### Scenario: 租约终止或到期后无其他生效租约
 - **WHEN** Lease.status 更新为 expired 或 terminated，且该 House 不存在其他 active Lease
-- **THEN** 对应 House.house_status 自动更新为 vacant
+- **THEN** 对应 House.status 自动更新为 vacant
 
 #### Scenario: 手工锁房状态不被覆盖
-- **WHEN** Lease.status 更新或删除后，该 House 不存在 active Lease，但当前 house_status 为 locked 或 renovating
-- **THEN** 系统保留原 house_status，不自动改为 vacant
+- **WHEN** Lease.status 更新或删除后，该 House 不存在 active Lease，但当前 status 为 locked 或 renovating
+- **THEN** 系统保留原 status，不自动改为 vacant
 
 #### Scenario: 删除租约后重算房态
 - **WHEN** 删除一条 Lease
-- **THEN** 系统重新计算对应 House.house_status
+- **THEN** 系统重新计算对应 House.status
 
 #### Scenario: 信号只作为兜底触发器
 - **WHEN** Django signal 参与 Lease 状态同步

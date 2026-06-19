@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 联系人统一管理
-系统 SHALL 提供 Contact 模型统一管理房东和租客，字段包含：organization(FK→Organization)、name、phone、id_card、email、roles、user(FK→User, null=True, blank=True)、notes、is_active。
+系统 SHALL 提供 Contact 模型统一管理房东和租客，字段包含：organization(FK→Organization)、name、phone、email、roles、user(FK→User, null=True, blank=True)、notes、is_active。
 
 #### Scenario: 创建联系人
 - **WHEN** 创建 Contact，提供 organization、name、phone

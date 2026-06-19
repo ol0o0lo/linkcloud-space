@@ -1,18 +1,18 @@
 ## Why
 
-系统需要管理住宅房源的出租业务，涵盖小区/楼栋/房源三级空间结构、联系人（房东/租客）、登记房东绑定和租约管理。中介可先录入房东信息，房东注册账号后通过手机号自动关联，登录后只能查看自己名下房源和租约，实现完整的出租管理闭环。
+系统需要管理住宅房源的出租业务，涵盖项目片区/楼栋/房源三级空间结构、联系人（房东/租客）、登记出租方绑定和租约管理。中介可先录入房东信息，房东注册账号后通过手机号自动关联，登录后只能查看自己名下房源和租约，实现完整的出租管理闭环。
 
 现有项目已经具备 `organizations` 多租户基础设施，因此房源相关数据在第一版就应明确归属到组织，避免后续补租户隔离时对唯一约束、查询条件和数据迁移产生大面积返工。
 
 ## What Changes
 
-- 新增 `Community`（小区）模型：基础档案 + 省市区地址 + 坐标
-- 新增 `Building`（楼栋）模型：挂小区，含楼层、电梯、结构类型等
-- 新增 `House`（房源）模型：挂楼栋，含户型、面积、朝向、装修、house_status，以及房源图片 `MediaFile` 有序列表配置
+- 新增 `Estate`（项目片区/小区容器）模型：基础档案 + 展示名 + 省市区 + 详细地址 + 项目级坐标 + 项目图片列表
+- 新增 `Building`（楼栋）模型：挂项目片区，含楼层、电梯，以及楼栋级精确坐标
+- 新增 `House`（房源）模型：挂楼栋，含出租方、户型、面积、朝向、装修、status、房源图片列表、内外描述与扩展字段
 - 新增 `Contact`（联系人）模型：房东/租客统一管理，支持延迟关联 User
-- 在 `House` 上直接新增 `owner_contact`（登记房东）关联到 Contact，当前版本只支持单一登记房东
-- 新增 `Lease`（租约）模型：House 绑定租客 Contact，含租期、租金、状态和合同文件引用
-- 顶层空间模型与核心业务事实纳入 `Organization` 作用域，其中 House 通过 `Building -> Community` 推导组织归属，唯一约束按组织或父级隔离
+- 在 `House` 上直接新增 `landlord`（登记出租方）关联到 Contact，当前版本只支持单一登记出租方
+- 新增 `Lease`（租约）模型：House 绑定租客 Contact，含签约时间、租期、租金、状态、合同文件引用与扩展字段
+- 顶层空间模型与核心业务事实纳入 `Organization` 作用域，其中 House 通过 `Building -> Estate` 推导组织归属，唯一约束按组织或父级隔离
 - 收紧关键数据约束：联系人归属、租约并发、房源状态重算、房源图片仅允许合法 `MediaFile` 引用且首图为封面
 - 复用现有 `apps/media` + `S3MediaStorage` / MinIO 文件体系存储房源图片和租约合同
 - 新增 Django admin 注册
@@ -22,10 +22,10 @@
 
 ### New Capabilities
 
-- `space-hierarchy`: 小区/楼栋/房源三级空间结构管理
+- `space-hierarchy`: 项目片区/楼栋/房源三级空间结构管理
 - `house-image`: 房源图片管理
 - `contact-management`: 联系人管理，支持房东账号延迟关联
-- `ownership`: 房源登记房东绑定，基于 `House.owner_contact` 管理
+- `ownership`: 房源登记出租方绑定，基于 `House.landlord` 管理
 - `lease-management`: 租约管理，关联租客 Contact，含状态流转
 
 ### Modified Capabilities
@@ -34,7 +34,7 @@
 
 ## Impact
 
-- 新增 Django app `apps/properties/`
+- 新增 Django app `apps/house/`
 - 新增 5 张数据库表
 - 依赖现有 `apps/accounts/` 的 User 模型（Contact.user FK）
 - 依赖现有 `apps/organizations/` 的 Organization 模型作为数据归属边界

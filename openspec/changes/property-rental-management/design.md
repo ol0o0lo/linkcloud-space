@@ -1,16 +1,17 @@
 ## Context
 
-项目采用 Django 5 + django-ninja 架构，已有 `apps/accounts/`（User 模型）、`apps/organizations/` 等 app。本次新增房源出租管理数据层，建立空间层级 + 人员 + 登记房东绑定 + 租约的完整闭环，为后续 ninja API 和前端 SPA 提供数据基础。
+项目采用 Django 5 + django-ninja 架构，已有 `apps/accounts/`（User 模型）、`apps/organizations/` 等 app。本次新增房源出租管理数据层，建立空间层级 + 人员 + 登记出租方绑定 + 租约的完整闭环，为后续 ninja API 和前端 SPA 提供数据基础。
 
 ## Goals / Non-Goals
 
 **Goals:**
-- 建立 5 张模型：Community / Building / House / Contact / Lease
-- 顶层空间模型与核心业务事实建立清晰组织归属，其中 House 通过 `Building -> Community` 推导组织边界
+- 建立 5 张模型：Estate / Building / House / Contact / Lease
+- 顶层空间模型与核心业务事实建立清晰组织归属，其中 House 通过 `Building -> Estate` 推导组织边界
+- Estate 与 Building 都有定位字段，但分别承载“项目级定位”和“楼栋级定位”
 - Contact 支持延迟关联 User（房东注册时通过手机号自动认领）
-- House 通过 `owner_contact` 实现房源与房东的绑定，支持房东视角查询
-- House 图片配置和 Lease 合同文件复用现有 `apps.media.MediaFile` 文件登记表
-- House.house_status 作为冗余快照字段，真相来自 Lease 表
+- House 通过 `landlord` 实现房源与房东的绑定，支持房东视角查询
+- House 图片/视频配置和 Lease 合同文件复用现有 `apps.media.MediaFile` 文件登记表
+- House.status 作为冗余快照字段，真相来自 Lease 表
 - 用数据库约束兜底关键唯一性与数据合法性
 - 注册 Django admin，生成完整 migrations
 
@@ -21,26 +22,275 @@
 - 不包含出售相关字段
 - 不包含租金账单、付款流水、催收流程
 
+## Model Field Reference / 模型字段参考
+
+### Estate — 项目片区/小区容器
+
+| # | 字段 | 类型 | 约束 / 默认值 | 说明 |
+|---|------|------|---------------|------|
+| 1 | organization | FK→Organization | | 所属组织 |
+| 2 | name | str | 组织内唯一 | 片区名称 |
+| 3 | display_name | str | | 展示名称 |
+| 4 | developer | str | null=True, blank=True | 开发商（城中村可空） |
+| 5 | built_year | int | null=True, blank=True | 竣工年份 |
+| 6 | property_type | choices | residential / commercial / industrial / mixed | 物业类型 |
+| 7 | province | str | | 省 |
+| 8 | city | str | | 市 |
+| 9 | district | str | | 区 |
+| 10 | address | str | | 详细地址 |
+| 11 | lat | DecimalField | null=True, blank=True | 纬度（项目级定位） |
+| 12 | lng | DecimalField | null=True, blank=True | 经度（项目级定位） |
+| 13 | image_ids | JSONField[list[int]] | default=list, 上限 9 | 项目图片 MediaFile ID 列表，首张为封面 |
+| 14 | description | TextField | blank=True | 项目介绍 |
+| 15 | is_active | bool | default=True | 是否启用 |
+
+唯一约束：`(organization, name)`
+
+组织归属：直接 FK → `Organization`
+
+### Building — 楼栋
+
+| # | 字段 | 类型 | 约束 / 默认值 | 说明 |
+|---|------|------|---------------|------|
+| 1 | organization | FK→Organization | | 所属组织 |
+| 2 | estate | FK→Estate | on_delete=PROTECT | 所属项目片区 |
+| 3 | name | str | 片区内唯一 | 楼栋名称 |
+| 4 | floors | int | | 地上楼层总数 |
+| 5 | under_floors | int | null=True, blank=True | 地下楼层总数 |
+| 6 | year_built | int | null=True, blank=True | 建成年份 |
+| 7 | elevator | bool | default=False | 是否有电梯 |
+| 8 | lat | DecimalField | null=True, blank=True | 纬度（楼栋级精确定位） |
+| 9 | lng | DecimalField | null=True, blank=True | 经度（楼栋级精确定位） |
+| 10 | address | str | blank=True | 楼栋详细地址 |
+| 11 | is_active | bool | default=True | 是否启用 |
+
+唯一约束：`(estate, name)`
+
+一致性约束：`Building.organization == Estate.organization`
+
+### House — 房源
+
+| # | 字段 | 类型 | 约束 / 默认值 | 说明 |
+|---|------|------|---------------|------|
+| 1 | building | FK→Building | on_delete=PROTECT | 所属楼栋 |
+| 2 | landlord | FK→Contact | null=True, blank=True, on_delete=PROTECT | 登记出租方（业主或二房东），签约前必须补齐 |
+| 3 | room_number | str | 楼栋内唯一 | 房号（自由格式） |
+| 4 | floor | int | null=True, blank=True | 所在楼层 |
+| 5 | area | DecimalField | null=True, blank=True | 建筑面积（m²） |
+| 6 | interior_area | DecimalField | null=True, blank=True | 套内面积（m²） |
+| 7 | bedrooms | int | null=True, blank=True | 卧室数 |
+| 8 | living_rooms | int | null=True, blank=True | 客厅数 |
+| 9 | bathrooms | int | null=True, blank=True | 卫生间数 |
+| 10 | kitchens | int | null=True, blank=True | 厨房数 |
+| 11 | balconies | int | null=True, blank=True | 阳台数 |
+| 12 | orientation | choices | south / north / east / west / south_north / east_west, null=True | 朝向 |
+| 13 | decoration | choices | raw（毛坯）/ simple（简装）/ fine（精装）/ luxury（豪装）, null=True | 装修状况 |
+| 14 | has_elevator_access | bool | default=False | 房源是否可直接使用电梯 |
+| 15 | status | choices | vacant / rented / renovating / locked, default=vacant | 房态快照，真相源为 Lease |
+| 16 | image_ids | JSONField[list[int]] | default=list, 上限 9, 首张为封面 | 房源图片 MediaFile ID 列表 |
+| 17 | video_ids | JSONField[list[int]] | default=list, 上限 3 | 房源视频 MediaFile ID 列表 |
+| 18 | tags | JSONField[list[str]] | default=list | 灵活标签 |
+| 19 | public_description | TextField | blank=True | 对外描述（所有用户可见） |
+| 20 | internal_notes | TextField | blank=True | 内部描述（租户内成员可见） |
+| 21 | extra | JSONField[dict] | default=dict | 动态扩展（备注、密码等） |
+| 22 | is_active | bool | default=True | 是否启用 |
+
+唯一约束：`(building, room_number)`
+
+组织归属：通过 `building.estate.organization` 推导，本表不存 `organization` FK
+
+一致性约束：`landlord.organization == building.estate.organization`（当 landlord 非空时）
+
+### Contact — 联系人
+
+| # | 字段 | 类型 | 约束 / 默认值 | 说明 |
+|---|------|------|---------------|------|
+| 1 | organization | FK→Organization | | 所属组织 |
+| 2 | name | str | | 姓名 |
+| 3 | phone | str | 组织内唯一 | 手机号 |
+| 4 | email | str | blank=True | 邮箱（可选） |
+| 5 | roles | JSONField[list[str]] | landlord / tenant，可多选 | 角色 |
+| 6 | user | FK→User | null=True, blank=True | 关联用户（延迟认领） |
+| 7 | notes | TextField | blank=True | 备注（租户内成员可见） |
+| 8 | is_active | bool | default=True | 是否启用 |
+
+唯一约束：`(organization, phone)`
+
+延迟认领规则：用户绑定手机号后，系统在当前组织内查找 `phone` 匹配、`user is null`、含 `landlord` 角色的 Contact，自动设置 `user`。不跨组织、不抢占已有绑定、同用户幂等。
+
+### Lease — 租约
+
+| # | 字段 | 类型 | 约束 / 默认值 | 说明 |
+|---|------|------|---------------|------|
+| 1 | organization | FK→Organization | | 所属组织 |
+| 2 | house | FK→House | on_delete=PROTECT | 关联房源 |
+| 3 | tenant | FK→Contact | on_delete=PROTECT | 租客（须具备 tenant 角色） |
+| 4 | sign_at | DateTimeField | null=True, blank=True | 签约时间 |
+| 5 | start_date | DateField | | 租期开始 |
+| 6 | end_date | DateField | | 租期结束（须 ≥ start_date） |
+| 7 | monthly_rent | DecimalField | | 月租金（须 ≥ 0） |
+| 8 | deposit | DecimalField | null=True, blank=True | 押金（须 ≥ 0） |
+| 9 | payment_day | int | default=1, 范围 1-31 | 每月付款日 |
+| 10 | status | choices | pending / active / expired / terminated, default=pending | 租约状态 |
+| 11 | contract_file | FK→MediaFile | null=True, blank=True, on_delete=PROTECT | 合同文件 |
+| 12 | notes | TextField | blank=True | 备注 |
+| 13 | extra | JSONField[dict] | default=dict | 动态扩展（费用、押金条目等后续账单子域预留） |
+
+唯一约束：同一 `house` 仅允许一条 `status='active'` 的 Lease（数据库级条件唯一约束）
+
+一致性约束：
+- `Lease.organization == house.building.estate.organization == tenant.organization`
+- `house.landlord` 必须非空时才允许创建 Lease
+
+房态联动：Lease 新增/更新/删除后，统一调用 `recalculate_status(house_id)` 重算 `House.status`
+
+---
+
+## Choice Enums / 选项枚举定义
+
+### Estate.property_type
+
+| 值 | 中文 | 说明 |
+|----|------|------|
+| residential | 住宅 | 普通住宅小区 |
+| commercial | 商业 | 写字楼、商铺 |
+| industrial | 工业 | 厂房、仓储 |
+| mixed | 综合 | 商住两用或多业态混合 |
+
+### House.orientation
+
+| 值 | 中文 | 说明 |
+|----|------|------|
+| south | 南 | 朝南 |
+| north | 北 | 朝北 |
+| east | 东 | 朝东 |
+| west | 西 | 朝西 |
+| south_north | 南北 | 南北通透 |
+| east_west | 东西 | 东西向 |
+
+### House.decoration
+
+| 值 | 中文 | 说明 |
+|----|------|------|
+| raw | 毛坯 | 未装修 |
+| simple | 简装 | 基础装修 |
+| fine | 精装 | 中高档装修 |
+| luxury | 豪装 | 豪华装修 |
+
+### House.status — 房态（见下方状态机）
+
+| 值 | 中文 | 说明 |
+|----|------|------|
+| vacant | 空置 | 当前未出租 |
+| rented | 已租 | 存在生效中的租约 |
+| renovating | 装修中 | 人工锁定，不可出租 |
+| locked | 封存 | 人工锁定，不可出租（如纠纷、消防整改等） |
+
+### Contact.roles
+
+| 值 | 说明 |
+|----|------|
+| landlord | 房东/出租方（含业主、二房东） |
+| tenant | 租客/承租方 |
+
+单个 Contact 可同时具备多个角色（如既是 A 房的 landlord 又是 B 房的 tenant）。
+
+### Lease.status — 租约状态（见下方状态机）
+
+| 值 | 中文 | 说明 |
+|----|------|------|
+| pending | 待生效 | 租约已签但尚未到起租日 |
+| active | 生效中 | 租期内 |
+| expired | 已到期 | 租期自然结束 |
+| terminated | 已终止 | 提前解约或签约后作废 |
+
+---
+
+## State Machine / 状态机
+
+### House.status 状态机
+
+管理员操作与后台自动逻辑采用双层设计：
+
+**管理员手动操作**：允许管理员直接设置 House 为任意状态，不受流转限制。例如可将 vacant 直接标为 rented（房源可能通过其他渠道出租、或运维需要强制覆盖），也可将 renovating 直接切到 rented。
+
+```mermaid
+stateDiagram-v2
+    [*] --> vacant: 新建房源默认
+    state "管理员可自由标记任意状态" as any
+    vacant --> any: 管理员手动
+    rented --> any: 管理员手动
+    renovating --> any: 管理员手动
+    locked --> any: 管理员手动
+    note right of any: 管理员可在 admin/API 中<br/>直接将状态设为任意值<br/>不受流转限制
+```
+
+**后台自动重算**：当 Lease 发生新增/更新/删除时，系统通过 `recalculate_status(house_id)` 按规则调整房态。自动逻辑不覆盖人工锁定的 `locked`/`renovating`。
+
+```mermaid
+stateDiagram-v2
+    [*] --> vacant: 新建房源默认
+    vacant --> rented: Lease 激活 (自动)
+    rented --> vacant: 无 active Lease (自动, 且非 locked/renovating)
+    state locked_renovating <<fork>>
+    vacant --> locked_renovating: 管理员手动封存/装修
+    locked_renovating --> vacant: 管理员手动解封/装修完成
+```
+
+**规则**：
+
+- 管理员操作层：允许任意状态切换，不受方向限制。后端实现时仅需校验目标状态属于合法枚举值
+- 自动重算层：`vacant → rented` 由 Lease 激活触发；`rented → vacant` 由统一重算入口驱动（无 active Lease 时）
+- `renovating` 和 `locked` 是人工锁定态，优先级高于 `rented`，禁止被自动重算覆盖
+- 房态优先级（用于快照判定的逻辑层级）：`locked / renovating > rented > vacant`
+- 管理员可以手动将 `renovating` 或 `locked` 直接切到 `rented`，此时后台不会阻拦；但这不代表 House 下一定存在 active Lease
+
+### Lease.status 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending: 创建租约默认
+    pending --> active: 开始租期<br/>(管理员手动激活)
+    pending --> terminated: 签约作废
+    active --> expired: 租期到期
+    active --> terminated: 提前解约
+    expired --> [*]
+    terminated --> [*]
+```
+
+**规则**：
+
+- `pending` 是新建租约的初始状态
+- `pending → active` 仅能由管理员在到达 `start_date` 附近手动触发，或系统定时任务在 `start_date` 当天自动激活；同时触发 House 房态重算（`vacant → rented`）
+- `pending → terminated` 签约后作废（如租客反悔），不进入生效，不触发房态变更
+- `active → expired` 由 `end_date` 到期后系统或定时任务自动推动；同时触发 House 房态重算（无其他 active Lease 则 `rented → vacant`）
+- `active → terminated` 提前解约（如双方协议退租、违约退租）；同时触发 House 房态重算（同上）
+- `expired` 和 `terminated` 是终态，不可再流转
+- 禁止逆向流转：`active → pending`、`expired → active`、`terminated → active` 均不允许
+
+---
+
 ## Domain Flow
 
 本 change 的业务闭环固定为：
 
 ```
 Organization
-  -> Community
+  -> Estate
     -> Building
       -> House
-        -> owner_contact -> Contact(role=landlord) -> User(延迟认领)
+        -> landlord -> Contact(role=landlord) -> User(延迟认领)
         -> Lease -> Contact(role=tenant)
-        -> image_media_file_ids[] -> MediaFile
-        -> house_status(由 Lease 重算)
+        -> image_ids[] -> MediaFile (图片)
+        -> video_ids[] -> MediaFile (视频)
+        -> status(由 Lease 重算)
 ```
 
 其中：
-- `Community / Building / House` 是空间资产主数据，只回答“房子在哪里、长什么样、是否可运营”
-- `House.owner_contact` 表示房源登记归属，不表示当前出租关系
+- `Estate / Building / House` 是空间资产主数据，只回答“房子在哪里、长什么样、是否可运营”
+- `House.landlord` 表示房源登记出租方，不表示当前出租关系
 - `Lease` 表示当前或历史租赁事实，是房态真相来源
-- `house_status` 是面向查询与运营筛选的冗余快照，不是租赁真相来源
+- `status` 是面向查询与运营筛选的冗余快照，不是租赁真相来源
 
 这样可以在第一版就把“建档 -> 认领 -> 出租 -> 退租”闭合起来，同时避免把账单、续租、催收等后续子域过早耦合进主模型
 
@@ -54,24 +304,26 @@ flowchart TD
     user["User<br/>用户"]
     media["MediaFile<br/>媒体文件"]
 
-    community["Community<br/>小区<br/><br/>- organization_id<br/>- name<br/>- property_type<br/>- address fields<br/>- is_active"]
-    building["Building<br/>楼栋<br/><br/>- organization_id<br/>- community_id<br/>- name / code<br/>- total_floors<br/>- is_active"]
-    house["House<br/>房源<br/><br/>- building_id<br/>- owner_contact_id(nullable)<br/>- room_number<br/>- house_status<br/>- image_media_file_ids[]<br/>- tags[]<br/>- is_active"]
+    estate["Estate<br/>项目片区/小区容器<br/><br/>- organization_id<br/>- name / display_name<br/>- property_type<br/>- address<br/>- image_ids[]<br/>- is_active"]
+    building["Building<br/>楼栋<br/><br/>- organization_id<br/>- estate_id<br/>- name<br/>- floors<br/>- elevator<br/>- is_active"]
+    house["House<br/>房源<br/><br/>- building_id<br/>- landlord_id(nullable)<br/>- room_number<br/>- status<br/>- image_ids[]<br/>- video_ids[]<br/>- public_description<br/>- internal_notes<br/>- extra<br/>- is_active"]
     contact["Contact<br/>联系人<br/><br/>- organization_id<br/>- name / phone<br/>- roles[]<br/>- user_id(nullable)<br/>- is_active"]
     lease["Lease<br/>租约<br/><br/>- organization_id<br/>- house_id<br/>- tenant_id -> Contact<br/>- status<br/>- contract_file_id(nullable)<br/>- start_date / end_date"]
 
-    org -->|"1:N"| community
+    org -->|"1:N"| estate
     org -->|"1:N"| building
     org -->|"1:N"| contact
     org -->|"1:N"| lease
 
-    community -->|"1:N"| building
+    estate -->|"1:N"| building
     building -->|"1:N"| house
-    contact -->|"1:N owner_contact"| house
+    contact -->|"1:N landlord"| house
     house -->|"1:N"| lease
     contact -->|"1:N tenant"| lease
     user -->|"1:N delayed claim"| contact
-    house -.->|"image_media_file_ids[]"| media
+    estate -.->|"image_ids[]"| media
+    house -.->|"image_ids[]"| media
+    house -.->|"video_ids[]"| media
     lease -->|"contract_file_id"| media
 ```
 
@@ -79,8 +331,8 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    subgraph property["properties 域 / Property Rental Domain"]
-        community2["Community<br/>小区<br/>direct org FK"]
+    subgraph house_domain["house 域 / House Domain"]
+        estate2["Estate<br/>项目片区/小区容器<br/>direct org FK"]
         building2["Building<br/>楼栋<br/>direct org FK"]
         house2["House<br/>房源<br/>no org FK"]
         contact2["Contact<br/>联系人<br/>direct org FK"]
@@ -94,33 +346,33 @@ flowchart LR
     org2["Organization<br/>组织"]
     user2["User<br/>用户"]
 
-    org2 --> community2
+    org2 --> estate2
     org2 --> building2
     org2 --> contact2
     org2 --> lease2
 
-    community2 --> building2
+    estate2 --> building2
     building2 -->|"derive org"| house2
-    house2 -->|"owner_contact"| contact2
+    house2 -->|"landlord"| contact2
     house2 --> lease2
     lease2 --> contact2
     contact2 -->|"delayed claim"| user2
 
-    house2 -.->|"store ids + order only"| media2
+    house2 -.->|"store image_ids + video_ids + order only"| media2
     lease2 -.->|"FK only"| media2
 ```
 
 ### 图示说明 / Notes
 
-- `Community / Building / Contact / Lease` 都直接带 `organization_id`。
-- `House` 不带 `organization_id`，组织归属只能通过 `House -> Building -> Community -> Organization` 推导。
-- `House.owner_contact` 是单字段绑定，当前版本只支持“单一登记房东 / single registered landlord”，且允许为空。
-- `House.image_media_file_ids[]` 只保存 `MediaFile` 的 id 和顺序，不保存 `url`、`caption` 等媒体详情。
-- 图片与合同文件的展示信息必须复用 `apps.media` 能力解析，`properties` 域不自行拼接文件地址。
+- `Estate / Building / Contact / Lease` 都直接带 `organization_id`。
+- `House` 不带 `organization_id`，组织归属只能通过 `House -> Building -> Estate -> Organization` 推导。
+- `House.landlord` 是单字段绑定，当前版本只支持“单一登记出租方 / single registered landlord”，且允许为空。
+- `Estate.image_ids[]` 与 `House.image_ids[]` 只保存图片 MediaFile 的 id 和顺序；`House.video_ids[]` 只保存视频 MediaFile 的 id 和顺序。三者都不保存 `url`、`caption` 等媒体详情。
+- 图片与合同文件的展示信息必须复用 `apps.media` 能力解析，`house` 域不自行拼接文件地址。
 
 ## Decisions
 
-### 1. 新建独立 app `apps/properties/`
+### 1. 新建独立 app `apps/house/`
 
 **选择**：新建独立 app。
 
@@ -128,25 +380,34 @@ flowchart LR
 
 ### 2. 顶层空间模型与核心业务事实建立组织归属
 
-**选择**：`Community / Building / Contact / Lease` 直接带 `organization` FK；`House` 不直接保存 `organization`，通过 `house.building.community.organization` 推导归属。
+**选择**：`Estate / Building / Contact / Lease` 直接带 `organization` FK；`House` 不直接保存 `organization`，通过 `house.building.estate.organization` 推导归属。
 
-**理由**：项目已有组织维度的权限和上下文，请求期有 `request.org`。对顶层空间模型和核心业务事实显式建立组织边界，可以让 admin、后续 API、唯一约束和查询逻辑保持一致；而 House 作为楼栋下的自然从属对象，可通过 Building/Community 链路推导，减少一层机械冗余。
+**理由**：项目已有组织维度的权限和上下文，请求期有 `request.org`。对顶层空间模型和核心业务事实显式建立组织边界，可以让 admin、后续 API、唯一约束和查询逻辑保持一致；而 House 作为楼栋下的自然从属对象，可通过 Building/Estate 链路推导，减少一层机械冗余。
 
-### 3. 地址字段内嵌于 Community，Building 不重复存地址
+### 3. Estate 与 Building 分层承载定位信息
 
-**选择**：省市区地址和坐标放在 Community，Building 只存楼栋自身属性。
+**选择**：
+- `Estate` 保存项目/小区/片区级的位置与地址信息：`province/city/district/address/lat/lng`
+- `Building` 也保存楼栋级精确定位：`lat/lng`，并可补楼栋详细地址 `address`
+- `House` 当前不单独保存定位，默认继承 `Building` 的定位语义
 
-**理由**：同一小区内所有楼栋地址相同，放 Community 避免重复；楼栋只需要名称、楼层数等自身信息。
+**语义约定**：
+- `Estate.lat/lng` 表示项目中心点、片区中心点或小区级展示点
+- `Building.lat/lng` 表示单栋楼的精确定位，优先用于带看、导航、上门、维修等实际操作
+- 对大型小区，地图列表可先展示 `Estate`，进入楼栋/带看场景后使用 `Building`
+- 对城中村或分散式楼栋场景，业务操作应以 `Building` 定位为主，即便它们仍归在某个 `Estate` 容器下
+
+**理由**：单靠 `Estate` 定位无法覆盖“大型小区不同楼栋相距较远”或“城中村片区内多栋散楼”的现实场景；而完全去掉 `Estate` 又会丢失片区聚合、统一介绍和项目展示能力。分层建模能同时保留项目聚合和楼栋精度。
 
 ### 4. 跨模型 organization 一致性作为业务硬约束
 
 **选择**：除保存 `organization` 外，还要求关联链路中的组织必须一致：
 
 ```
-Building.organization == Community.organization
-House.organization is derived from Building -> Community
-House.owner_contact.organization == House.building.community.organization  (when owner_contact is set)
-Lease.organization == House.building.community.organization == tenant.organization
+Building.organization == Estate.organization
+House.organization is derived from Building -> Estate
+House.landlord.organization == House.building.estate.organization  (when landlord is set)
+Lease.organization == House.building.estate.organization == tenant.organization
 ```
 
 **理由**：仅“部分表有 organization 字段”还不足以防止串租户数据。把组织一致性提升为模型校验和测试要求，才能真正保证后续 admin、API、房东查询都不会读到逻辑上越界的数据。
@@ -169,28 +430,42 @@ Contact
 
 **理由**：统一 Contact 表避免 Landlord/Tenant 分表冗余；联系人在真实业务里可能既是房东又是租客，因此角色不应强制互斥；手机号只在组织内唯一，避免跨组织录入冲突。
 
-### 6. House 直接关联单一登记房东
+### 6. House 直接关联单一登记出租方
 
-**选择**：在 `House` 上直接保存 `owner_contact = ForeignKey(Contact, null=True, blank=True, on_delete=PROTECT)`。
+**选择**：在 `House` 上直接保存 `landlord = ForeignKey(Contact, null=True, blank=True, on_delete=PROTECT)`。
 
-**版本边界**：当前版本仅支持“单一登记房东”。若后续出现共有产权、夫妻共同持有、法人/自然人共同持有等场景，不在本 change 内继续给 `House.owner_contact` 打补丁解决，而应升级为单独的多业主建模方案。
+**版本边界**：当前版本仅支持“单一登记出租方”。这里的 `landlord` 可以表示业主或二房东。若后续出现共有产权、多出租方、复杂委托链等场景，不在本 change 内继续给 `House.landlord` 打补丁解决，而应升级为单独的多主体建模方案。
 
-**理由**：MVP 阶段房东登记只是 House 的一个直接属性，没有独立生命周期、历史、附件或多人关系需求。直接挂在 House 上可以减少一张表、一层 join 和一组一致性维护成本。
+**理由**：MVP 阶段出租方登记只是 House 的一个直接属性，没有独立生命周期、历史、附件或多人关系需求。直接挂在 House 上可以减少一张表、一层 join 和一组一致性维护成本。
 
-### 7. 房东视角通过 House.owner_contact -> Contact.user 推导
+**管理员流程优化**：
+- 创建 House 时，管理员应可直接“选择已有 landlord Contact”或“同页快速新建 landlord Contact”，避免先去 Contact 页面建档、再回到 House 页面绑定的往返操作
+- `House.landlord` 允许为空，因此管理员可以先完成最小房源建档
+- 但进入签约动作前，必须先补齐 `landlord`，不允许对“未登记出租方”的 House 创建 Lease
 
-**选择**：房东可见范围不直接挂在 `User` 上，而是通过 `House.owner_contact -> Contact.user` 反查：
+**推荐管理员闭环**：
+1. 创建 House，并直接选择或新建 landlord Contact
+2. 若暂时缺资料，可先保存为“未登记出租方”的空房
+3. 上架、维护图片、带看
+4. 租客确认承租时，若 `landlord` 为空，先补齐登记出租方
+5. 再创建 Lease，房态转为 `rented`
+
+这样既缩短了管理员操作链路，也避免出现“租约已签但房东归属仍为空”的不完整数据状态。
+
+### 7. 房东视角通过 House.landlord -> Contact.user 推导
+
+**选择**：房东可见范围不直接挂在 `User` 上，而是通过 `House.landlord -> Contact.user` 反查：
 
 ```
 House.objects.filter(
-    building__community__organization=request.org.instance,
-    owner_contact__user=request.user,
+    building__estate__organization=request.org.instance,
+    landlord__user=request.user,
 )
 ```
 
 后续房东端查询 House、Lease 时，都以这条链路作为事实来源。
 
-**理由**：房东账号是延迟认领的，User 不是房源的天然主键。用 `House.owner_contact -> Contact.user` 推导既符合业务事实，也避免在 House 上再冗余 `owner_user` 一类字段。
+**理由**：房东账号是延迟认领的，User 不是房源的天然主键。用 `House.landlord -> Contact.user` 推导既符合业务事实，也避免在 House 上再冗余 `owner_user` 一类字段。
 
 ### 8. Contact 认领流程采用“组织内匹配、未绑定优先、已绑定不抢占”
 
@@ -231,17 +506,17 @@ sequenceDiagram
         end
     end
     P-->>U: 手机号绑定完成
-    Note over H,C: 后续房东可通过 House.owner_contact -> Contact.user 查询名下房源
+    Note over H,C: 后续房东可通过 House.landlord -> Contact.user 查询名下房源
 ```
 
 **理由**：认领流程真正复杂的不是首绑，而是重复绑定、换号、跨组织重号。明确“不抢占、不跨组织、可幂等”三条规则，可以把自动化范围控制在安全区内，把歧义留给人工处理。
 
-### 9. House.house_status 是冗余快照字段，采用“统一重算入口”而不是“散落直写”
+### 9. House.status 是冗余快照字段，采用“统一重算入口”而不是“散落直写”
 
-**选择**：House 上保留 `house_status` 字段，但其更新入口收口到单一的服务层或领域方法，例如：
+**选择**：House 上保留 `status` 字段，但其更新入口收口到单一的服务层或领域方法，例如：
 
 ```
-recalculate_house_status(house_id)
+recalculate_status(house_id)
 # 或 House.refresh_status_from_leases()
 ```
 
@@ -254,11 +529,23 @@ Lease 新增、更新、删除时统一调用该入口重算房态：
 
 **信号角色**：Django signal 只作为兜底触发器或兼容入口，内部仍应委托给统一重算方法，不应在多个保存路径中直接拼写房态更新逻辑。
 
-**理由**：直接过滤 `House.objects.filter(house_status='vacant')` 比 JOIN Lease 表快；但真相来源是 Lease。把状态重算收口到单一入口，能减少批量更新、admin 保存、后续 API 服务层各写一套逻辑导致的漂移。
+**理由**：直接过滤 `House.objects.filter(status='vacant')` 比 JOIN Lease 表快；但真相来源是 Lease。把状态重算收口到单一入口，能减少批量更新、admin 保存、后续 API 服务层各写一套逻辑导致的漂移。
 
-### 10. 房源图片采用 House 持有有序 MediaFile ID 列表
+### 10. Estate、House 图片与 House 视频采用有序 MediaFile ID 列表
 
-**选择**：不单独创建 `HouseImage` 表，而是在 `House` 上保存有序图片配置，例如：
+**选择**：不单独创建图片/视频关系表，而是在 `Estate` 与 `House` 上保存有序媒体配置。
+
+`Estate.image_ids` 示例：
+
+```json
+[
+  101,
+  102,
+  103
+]
+```
+
+`House.image_ids` 示例：
 
 ```json
 [
@@ -268,25 +555,35 @@ Lease 新增、更新、删除时统一调用该入口重算房态：
 ]
 ```
 
-或等价的 `image_media_file_ids` JSON 列表字段。
+`House.video_ids` 示例：
+
+```json
+[
+  201
+]
+```
+
+分别对应 `Estate.image_ids`、`House.image_ids`、`House.video_ids` 三个 JSON 列表字段。
 
 约定：
-- `image_media_file_ids` 允许为空列表，空列表表示“暂无图片”
-- 图片列表默认上限为 9 张
+- `image_ids` 与 `video_ids` 都允许为空列表，空列表表示"暂无对应媒体"
+- 图片列表默认上限为 9 张；视频列表默认上限为 3 个
 - 列表顺序即展示顺序
 - 第一张图片即封面图
-- 列表中的每个 id 都必须指向 `ResourceType.HOUSE_IMAGE` 的 `MediaFile`
-- 同一房源的图片列表中不允许重复 `media_file_id`
+- 图片列表中的每个 id 都必须指向 `ResourceType.HOUSE_IMAGE` 的 `MediaFile`；视频列表中的每个 id 都必须指向 `ResourceType.HOUSE_VIDEO` 的 `MediaFile`
+- 同一房源的图片或视频列表中不允许重复 `media_file_id`
 - 同一个 `MediaFile` 允许被多个房源引用，不做跨房源唯一限制
 - 图片说明文字如 `caption` 不在房源域重复存储；若后续需要，由媒体基础层扩展元信息承载
 
-**理由**：当前版本对房源图片的核心诉求是“挂图、排序、封面”，不需要为此单独引入一张关系表。把图片配置放在 House 上，可以显著降低模型数量和实现复杂度，同时继续复用现有媒体上传与文件登记能力。
+**API 读取约定**：`house` 域在 API 层返回房源或项目详情时，将 `image_ids` 解析为 `image_urls=[{"id": 35, "url": "...", ...}]`，将 `video_ids` 解析为 `video_urls=[{"id": 201, "url": "...", ...}]`，复用 `apps.media` 批量解析能力按原顺序重组结果。存储层只存 id 列表，展示层由 media app 负责填充完整信息。
+
+**理由**：当前版本对项目图和房源图的核心诉求都是“挂图、排序、封面”，不需要为此单独引入关系表。把图片配置直接挂在 `Estate` 与 `House` 上，可以显著降低模型数量和实现复杂度，同时继续复用现有媒体上传与文件登记能力。
 
 ### 11. 关键一致性优先用数据库约束兜底
 
 **选择**：
-- 同一 `organization` 下 `Community.name` 唯一
-- 同一 `community` 下 `Building.code` 唯一
+- 同一 `organization` 下 `Estate.name` 唯一
+- 同一 `estate` 下 `Building.name` 唯一
 - 同一 `building` 下 `House.room_number` 唯一
 - 同一 `organization` 下 `Contact.phone` 唯一
 - 同一 `house` 仅允许一条 `status='active'` 的 Lease
@@ -295,29 +592,36 @@ Lease 新增、更新、删除时统一调用该入口重算房态：
 
 ### 12. 房源图片和租约合同复用 `apps/media`
 
-**选择**：不在 `apps/properties` 中直接定义 `ImageField` / `FileField`，也不保存裸 `url`；统一通过 `MediaFile` 引用对象存储中的文件。
+**选择**：不在 `apps/house` 中直接定义 `ImageField` / `FileField`，也不保存裸 `url`；统一通过 `MediaFile` 引用对象存储中的文件。
 
 ```
+Estate
+  image_ids: JSONField[list[int]]
+
 House
-  image_media_file_ids: JSONField[list[int]]
+  image_ids: JSONField[list[int]]
+  video_ids: JSONField[list[int]]
 
 Lease
+  sign_at: DateTimeField | null
   contract_file: FK→MediaFile, null=True, blank=True, on_delete=PROTECT
+  extra: JSONField[dict]
 ```
 
 **上传流程**：
 1. 前端或后续 API 使用 `apps/media` 获取组织作用域上传路径，`scope=org`，`object_id=Organization.pk`
 2. 文件上传到 `S3MediaStorage` 管理的对象存储，本地开发落到 MinIO
 3. 调用媒体确认接口登记 `MediaFile`
-4. 更新 `House.image_media_file_ids` 或创建 `Lease` 时保存 `media_file_id`
+4. 更新 `Estate.image_ids` / `House.image_ids` / `House.video_ids`，或创建 `Lease` 时保存 `media_file_id`
 
-**读取规则**：`properties` 域只保存 `media_file_id` 及其顺序，不负责自行拼装图片 URL 或复制媒体元信息。查询房源图片展示信息时，必须复用 `apps.media` 现有能力，根据 `media_file_id` 批量解析并返回 `url`、文件名、大小、资源类型等媒体详情，再按 `House.image_media_file_ids` 的顺序重组结果。
+**读取规则**：`house` 域只保存 `media_file_id` 及其顺序，不负责自行拼装 URL 或复制媒体元信息。API 层返回房源或项目详情时，将 `image_ids` 解析为 `image_urls`、将 `video_ids` 解析为 `video_urls`，每项包含 `id`、`url`、文件名、大小、资源类型等媒体详情，复用 `apps.media` 批量解析能力按原顺序重组结果。存储层只存 id 列表，展示层由 media app 负责填充完整信息。
 
 **媒体类型**：
 - 房源图片使用 `ResourceType.HOUSE_IMAGE`，允许 `jpg` / `jpeg` / `png` / `webp`
+- 房源视频使用 `ResourceType.HOUSE_VIDEO`，允许 `mp4` / `mov` / `avi`
 - 租约合同使用 `ResourceType.LEASE_CONTRACT`，至少允许 `pdf`；若业务需要可扩展 `doc` / `docx`
 
-**归属边界**：`MediaFile` 只负责文件元数据和对象存储路径，业务归属仍以 `House.building.community.organization` / `Lease.organization` 为准。后续 API 在绑定 `media_file` 时必须校验当前用户属于该组织，并优先使用、校验 `uploads/orgs/<organization_id>/...` 路径。
+**归属边界**：`MediaFile` 只负责文件元数据和对象存储路径，业务归属仍以 `House.building.estate.organization` / `Lease.organization` 为准。后续 API 在绑定 `media_file` 时必须校验当前用户属于该组织，并优先使用、校验 `uploads/orgs/<organization_id>/...` 路径。
 
 **删除策略**：删除 `House` 时不再有房源图片关系表需要级联删除；`MediaFile` 及对象存储中的文件不在本 change 中物理删除，避免误删仍被其他业务引用的文件。后续可通过媒体清理任务处理孤儿文件。
 
@@ -332,30 +636,30 @@ Lease
 ### 14. 删除策略遵循“删业务关联，不直接删物理文件”
 
 **选择**：
-- `Community / Building / House` 继续使用 `PROTECT` 守住层级完整性
+- `Estate / Building / House` 继续使用 `PROTECT` 守住层级完整性
 - `MediaFile` 与对象存储文件不在本 change 中随业务记录物理删除
 
 **理由**：房源域第一版优先保证可审计和不误删。统一媒体清理应交给后续孤儿文件清理任务，而不是在业务删除时做激进回收。
 
 ## Risks / Trade-offs
 
-- [状态不一致] house_status 与 Lease 状态可能不同步 → 在 Lease save/delete 信号或服务层统一重算
+- [状态不一致] status 与 Lease 状态可能不同步 → 在 Lease save/delete 信号或服务层统一重算
 - [手机号认领边界] 项目同时存在手机注册、验证码登录、微信绑定手机号 → 后续实现需把 Contact 自动认领挂到统一手机号绑定流程
 - [自动认领误绑定] 若换号、重复绑定、跨组织重号时规则不清，可能出现错误认领 → 明确“仅当前组织、仅未绑定 Contact、已绑定不抢占、同用户幂等成功”
 - [跨组织数据串读] 若后续 API 忘记按 organization 过滤会越权 → 第一版就建立组织外键和约束，减少漏过滤概率
-- [组织不一致脏数据] 若 Building/House.owner_contact/Lease 不校验关联链一致性，后续房东查询可能出现同房异组织的脏记录 → 在模型 clean()、测试和 admin 保存路径中统一校验
-- [未来多业主扩展] 当前 `House.owner_contact` 单字段方案无法覆盖共有产权 → 在文档中明确 V1 只支持单一登记房东，后续通过独立多业主方案演进
-- [图片列表约束较弱] `image_media_file_ids` 是 JSON 列表，数据库层无法像关系表那样精细约束封面与顺序 → 在模型校验与测试中保证“首图为封面、无重复 id、只允许合法图片资源类型”
-- [图片列表长度失控] 若不限制图片数量，后台编辑和前端展示都可能变重 → 当前版本限制单套房源最多 9 张图
+- [组织不一致脏数据] 若 Building/House.landlord/Lease 不校验关联链一致性，后续房东查询可能出现同房异组织的脏记录 → 在模型 clean()、测试和 admin 保存路径中统一校验
+- [未来多主体扩展] 当前 `House.landlord` 单字段方案无法覆盖共有产权或多层委托 → 在文档中明确 V1 只支持单一登记出租方，后续通过独立多主体方案演进
+- [媒体列表约束较弱] `image_ids` / `video_ids` 是 JSON 列表，数据库层无法像关系表那样精细约束封面与顺序 → 在模型校验与测试中保证“首图为封面、无重复 id、只允许合法图片资源类型”
+- [媒体列表长度失控] 若不限制图片数量，后台编辑和前端展示都可能变重 → 当前版本限制单套房源最多 9 张图、3 个视频
 - [媒体孤儿文件] 从房源图片列表移除 `media_file_id` 不直接删除 MediaFile 或对象存储文件 → 后续通过统一媒体清理任务处理，避免误删共享或误关联文件
 - [合同扩展名] 当前媒体模块只允许图片扩展名 → 实现本 change 时需扩展 `MediaExtension` 和 `ResourceType`
 
 ## Migration Plan
 
-1. 新建 `apps/properties/` app，注册到 `INSTALLED_APPS`
-2. 扩展 `apps/media` 的 `ResourceType` 和合同文件扩展名
-3. 按依赖顺序建模型：Community → Building → Contact → House → Lease
-4. 运行 `makemigrations properties`
+1. 新建 `apps/house/` app，注册到 `INSTALLED_APPS`
+2. 扩展 `apps/media` 的 `ResourceType`（新增 `HOUSE_VIDEO`）和合同文件扩展名
+3. 按依赖顺序建模型：Estate → Building → Contact → House → Lease
+4. 运行 `makemigrations house`
 5. 为唯一约束、检查约束和条件唯一约束生成 migration
 6. 注册 admin
 7. 运行测试确认 migration 正常执行
