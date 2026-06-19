@@ -77,4 +77,6 @@ export default {
   'menu.system-tools.operations': '运维工具',
   'menu.personal-business': '个人业务',
   'menu.personal-business.overview': '个人业务概览',
+  'menu.geo': '地理',
+  'menu.geo.map': '地图',
 };

@@ -333,6 +333,10 @@ SITE_DOMAIN = env("SITE_DOMAIN", default="localhost:8000")
 SITE_SCHEME = env("SITE_SCHEME", default="http")
 SITE_URL = f"{SITE_SCHEME}://{SITE_DOMAIN}"
 
+# Amap (高德地图)
+AMAP_JSAPI_KEY = env("AMAP_JSAPI_KEY", default="")
+AMAP_SECURITY_JS_CODE = env("AMAP_SECURITY_JS_CODE", default="")
+
 # Default page size used by the ninja LegacyPagination paginator.
 DEFAULT_PAGE_SIZE = 50
 

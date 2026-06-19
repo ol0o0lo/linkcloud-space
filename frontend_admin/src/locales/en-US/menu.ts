@@ -77,4 +77,6 @@ export default {
   'menu.system-tools.operations': 'Operations Tools',
   'menu.personal-business': 'Personal Business',
   'menu.personal-business.overview': 'Personal Business Overview',
+  'menu.geo': 'Geo',
+  'menu.geo.map': 'Map',
 };
