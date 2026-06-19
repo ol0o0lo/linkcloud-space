@@ -57,12 +57,35 @@ body,
 .ant-layout {
   min-height: 100vh;
 }
+
+.ant-pro-layout-content.ant-layout-content {
+  padding-inline: 24px !important;
+}
+
+.ant-pro-sider.ant-layout-sider {
+  border-right: 1px solid rgba(5, 5, 5, 0.06);
+}
+
+.ant-pro-sider .ant-pro-sider-collapsed-button {
+  right: -12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.ant-pro-sider .ant-menu.ant-pro-sider-menu,
+.ant-pro-sider .ant-pro-sider-link-menu {
+  padding-right: 8px;
+}
+
 .ant-pro-sider.ant-layout-sider.ant-pro-sider-fixed {
   left: unset;
 }
 
 .ant-pro-sider-collapsed .ant-pro-sider-link span:not([role='img']) {
   display: none;
+}
+
+.ant-pro-setting-drawer-handle {
+  display: none !important;
 }
 
 canvas {
@@ -75,6 +98,10 @@ ol {
 }
 
 @media (max-width: 768px) {
+  .ant-pro-layout-content.ant-layout-content {
+    padding-inline: 16px !important;
+  }
+
   .ant-table {
     width: 100%;
     overflow-x: auto;
