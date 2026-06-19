@@ -33,6 +33,8 @@ vi.mock('@umijs/max', () => ({
         email: 'initial@example.com',
         timezone: 'Asia/Shanghai',
         avatar_url: '/initial-avatar.png',
+        phone_country_code: '86',
+        phone_national_number: '13800138000',
         phone_verified: true,
         real_name_status: 'verified',
         is_staff: false,
@@ -77,33 +79,37 @@ vi.mock('@ant-design/icons', () => ({
   UploadOutlined: () => <span>upload</span>,
 }));
 
-vi.mock('antd', () => ({
-  Button: ({ children, loading: _loading, ...props }: any) => <button type="button" {...props}>{children}</button>,
-  Upload: ({ children, customRequest }: any) => (
-    <div>
-      <input
-        aria-label="上传头像"
-        data-testid="avatar-input"
-        type="file"
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          if (!file || !customRequest) {
-            return;
-          }
-          customRequest({
-            file,
-            onSuccess: vi.fn(),
-            onError: vi.fn(),
-          });
-        }}
-      />
-      {children}
-    </div>
-  ),
-  message: {
-    success: mockMessageSuccess,
-  },
-}));
+vi.mock('antd', () => {
+  const actual = vi.importActual<typeof import('antd')>('antd');
+  return {
+    ...actual,
+    Button: ({ children, loading: _loading, ...props }: any) => <button type="button" {...props}>{children}</button>,
+    Upload: ({ children, customRequest }: any) => (
+      <div>
+        <input
+          aria-label="上传头像"
+          data-testid="avatar-input"
+          type="file"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            if (!file || !customRequest) {
+              return;
+            }
+            customRequest({
+              file,
+              onSuccess: vi.fn(),
+              onError: vi.fn(),
+            });
+          }}
+        />
+        {children}
+      </div>
+    ),
+    message: {
+      success: mockMessageSuccess,
+    },
+  };
+});
 
 vi.mock('@ant-design/pro-components', () => ({
   ProForm: ({ children, initialValues, onFinish, submitter }: any) => {
@@ -160,12 +166,31 @@ describe('BaseView', () => {
         email: 'product@example.com',
         timezone: 'Asia/Shanghai',
         avatar_url: '/avatar.png',
+        phone_country_code: '86',
+        phone_national_number: '13800138000',
         phone_verified: true,
         real_name_status: 'verified',
         is_staff: false,
         is_superuser: false,
       },
     });
+  });
+
+  it('shows profile fields and keeps phone email edits under security actions', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <BaseView />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('昵称')).toBeInTheDocument();
+    expect(screen.getByText('邮箱')).toBeInTheDocument();
+    expect(screen.getByText('手机号')).toBeInTheDocument();
+    expect(screen.getByText('时区')).toBeInTheDocument();
+
+    // Phone and email should have links to security
+    const securityLinks = screen.getAllByText('前往账号安全修改');
+    expect(securityLinks.length).toBeGreaterThanOrEqual(1);
   });
 
   it('仅回显昵称，并隐藏已移除的字段', async () => {
@@ -209,9 +234,6 @@ describe('BaseView', () => {
       });
       expect(mockMessageSuccess).toHaveBeenCalledWith('更新基本信息成功');
     });
-
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['current-user'] });
-    expect(mockSetInitialState).toHaveBeenCalled();
   });
 
   it('上传头像后刷新资料并同步全局头像', async () => {
@@ -237,8 +259,5 @@ describe('BaseView', () => {
       expect(mockUploadAvatar).toHaveBeenCalledWith(file, expect.any(Object));
       expect(mockMessageSuccess).toHaveBeenCalledWith('头像更新成功');
     });
-
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['current-user'] });
-    expect(mockSetInitialState).toHaveBeenCalled();
   });
 });

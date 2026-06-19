@@ -1,16 +1,30 @@
 import { UploadOutlined } from '@ant-design/icons';
 import { useModel } from '@umijs/max';
-import {
-  ProForm,
-  ProFormText,
-} from '@ant-design/pro-components';
+import { ProForm, ProFormText } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, message, Upload } from 'antd';
+import { Button, Descriptions, message, Typography, Upload } from 'antd';
 import type { UploadProps } from 'antd';
 import React, { startTransition } from 'react';
 import type { CurrentUser } from '../data';
 import { queryCurrent, updateCurrentUser, uploadAvatar } from '../service';
 import useStyles from './index.style';
+
+const { Link } = Typography;
+
+function formatPhone(user?: CurrentUser): string {
+  if (!user?.phone_national_number) {
+    return '-';
+  }
+  const cc = user.phone_country_code ? `+${user.phone_country_code} ` : '';
+  return `${cc}${user.phone_national_number}`;
+}
+
+function goToSecurity(): void {
+  const params = new URLSearchParams(window.location.search);
+  params.set('tab', 'security');
+  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+  window.location.reload();
+}
 
 const BaseView: React.FC = () => {
   const { styles } = useStyles();
@@ -140,6 +154,17 @@ const BaseView: React.FC = () => {
                 ]}
               />
             </ProForm>
+            <Descriptions column={1} size="small" bordered style={{ marginTop: 24 }}>
+              <Descriptions.Item label="邮箱">
+                {currentUser?.email || '-'}{' '}
+                <Link onClick={goToSecurity}>前往账号安全修改</Link>
+              </Descriptions.Item>
+              <Descriptions.Item label="手机号">
+                {formatPhone(currentUser)}{' '}
+                <Link onClick={goToSecurity}>前往账号安全修改</Link>
+              </Descriptions.Item>
+              <Descriptions.Item label="时区">{currentUser?.timezone || '-'}</Descriptions.Item>
+            </Descriptions>
           </div>
           <div className={styles.right}>
             <AvatarView
