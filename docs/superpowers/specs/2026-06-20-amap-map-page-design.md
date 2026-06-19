@@ -1,7 +1,7 @@
 # 高德地图接入 — 管理后台地图页面（Phase 1）
 
 **日期**: 2026-06-20
-**状态**: 设计完成，待实施
+**状态**: 设计完成，待实施（自检修正版）
 
 ## 背景
 
@@ -12,11 +12,12 @@
 ### 本轮（Phase 1）
 
 - frontend_admin 新增 `/geo/map` 路由和页面
-- 接入高德 JSAPI 2.0 SDK（`@amap/amap-jsapi-loader`），真实 API Key
+- 接入高德 JSAPI 2.0 SDK（`@amap/amap-jsapi-loader`），真实 API Key + 安全密钥
 - 前端 mock 数据模拟标点列表（lat/lng/名称/类型）
-- 高德 Key 通过后端 app-context 接口下发，不写死在前端代码中
+- 高德 Key 和安全密钥通过后端 app-context 接口下发，不写死在前端代码中
 - 地图基础交互：缩放、拖拽、标点展示、信息窗点击弹出
 - 悬浮筛选面板（类型筛选、关键词搜索、标点计数）
+- 标点类型视觉区分（building 蓝色、house 绿色）
 - SDK 加载失败和 Key 未配置的错误处理
 
 ### 不在本轮
@@ -44,18 +45,20 @@
 1. **前端页面层** — `src/pages/geo/map/index.tsx` 地图主组件，`components/` 子组件
 2. **SDK 适配层** — `src/services/manual/amap.ts` hook 封装高德加载和实例管理
 3. **数据层 (Mock)** — `src/pages/geo/map/_mock.ts` 标点数据，`data.d.ts` 类型定义
-4. **配置通道** — 后端 `apps/base/api.py` app-context 接口追加 `amap_jsapi_key` 字段
-5. **路由 & 菜单** — `config/routes.ts` 新增 `/geo/map` 路由
+4. **配置通道** — 后端 `apps/base/api.py` app-context 接口追加 `amap_jsapi_key` 和 `amap_security_js_code` 字段
+5. **路由 & 菜单** — `config/routes.ts` 新增 `/geo` 顶级分组 + `/geo/map` 子路由
 
 ### 数据流
 
 1. 用户访问 `/geo/map` → Umi 渲染 GeoMapPage
-2. `useModel('@@initialState')` 取 `amapKey`（来自 getInitialState）
-3. `useAmap(key)` hook 异步加载高德 SDK → 返回 `AMap` 命名空间
+2. 页面组件通过 `useTenantWorkspace().appContext` 或直接调用 `appsBaseApiAppContext()` 获取 `amapJsapiKey` 和 `amapSecurityJsCode`
+3. 设置 `window._AMapSecurityConfig = { securityJsCode }`，然后 `useAmap(key)` hook 异步加载高德 SDK → 返回 `AMap` 命名空间
 4. useEffect 创建地图实例 → 绑定到容器 div#amap-container
-5. 从 mock 数据读取标点列表 → 批量 `AMap.Marker` 渲染
+5. 从 mock 数据读取标点列表 → 批量 `AMap.Marker` 渲染（building 蓝色、house 绿色）
 6. 点击标点 → 打开信息窗 → 展示 mock 详情
 7. 筛选面板切换 → 过滤 mock 数据 → 更新地图标点
+
+> **注意：** 不通过 `getInitialState()` 获取 amapKey。实际代码中 appContext 是 `useTenantWorkspace()` hook 通过 `@tanstack/react-query` 独立查询的，key 为 `['tenant', 'app-context', slug]`。地图页面应直接复用 `useTenantWorkspace().appContext` 或调用 `appsBaseApiAppContext()` 获取。
 
 ## 组件树
 
@@ -70,7 +73,7 @@ GeoMapPage
 │       │   └── antd Badge (标点计数)
 │       ├── ZoomControl (右侧 ± 按钮)
 │       ├── LayerControl (右下图层切换，预留)
-│       ├── AMap.Marker × N (批量标点)
+│       ├── AMap.Marker × N (批量标点，building 蓝色 / house 绿色)
 │       └── InfoWindow (点击标点弹出的详情卡片)
 ```
 
@@ -100,10 +103,22 @@ GeoMapPage
 
 ### useAmap Hook
 
-- 接收 `key: string`，返回 `{ AMap, loading, error }`
+- 接收 `key: string, securityJsCode: string`，返回 `{ AMap, loading, error }`
+- 加载前设置 `window._AMapSecurityConfig = { securityJsCode }`
 - 内部使用 `useEffect` 调用 `AMapLoader.load({ key, version: '2.0' })`
 - SDK 只加载一次，key 变化时不重新加载（正常场景 key 不变）
 - 安装 `@amap/amap-jsapi-loader` npm 包
+
+### 地图初始参数
+
+- 默认中心：[120.15, 30.28]（杭州市区），后续可由后端配置下发
+- 默认缩放级别：12（城市级别视图）
+
+### 标点类型视觉区分
+
+- **building（楼栋）**：蓝色标记 + 🏢 图标，使用 AMap.Marker 的 `content` 属性自定义 HTML
+- **house（住宅）**：绿色标记 + 🏠 图标，同上
+- Phase 2 可扩展更多类型（设备、巡检点等），每种类型在注册表中定义颜色和图标
 
 ## Mock 数据
 
@@ -139,21 +154,39 @@ export interface GeoMarker {
 
 ### 后端
 
-1. `.env` 新增 `AMAP_JSAPI_KEY=<你的高德Key>`
-2. `pyproject.toml` `[tool.epicenv.variables]` 新增配置项
-3. `config/settings/_base.py` 读取环境变量 `AMAP_JSAPI_KEY`
-4. `apps/base/api.py` 的 `AppContextOut` Schema 和 `app_context()` 函数追加 `amapJsapiKey` 字段
+1. `.env` 新增 `AMAP_JSAPI_KEY=<你的高德Key>` 和 `AMAP_SECURITY_JS_CODE=<安全密钥>`
+2. `pyproject.toml` `[tool.epicenv.variables]` 新增两个配置项
+3. `config/settings/_base.py` 读取环境变量 `AMAP_JSAPI_KEY` 和 `AMAP_SECURITY_JS_CODE`
+4. `apps/base/api.py` 的 `AppContextOut` Schema 和 `app_context()` 函数追加 `amapJsapiKey` 和 `amapSecurityJsCode` 字段
+
+### 安全密钥配置
+
+高德 JSAPI 2.0 要求在加载 SDK 前设置安全密钥。前端在调用 `AMapLoader.load()` 前执行：
+
+```typescript
+window._AMapSecurityConfig = { securityJsCode: amapSecurityJsCode };
+```
+
+后端通过 app-context 同时下发 `amapJsapiKey` 和 `amapSecurityJsCode`，各环境独立配置。
 
 ### 前端
 
-1. `src/app.tsx` 的 `getInitialState()` 从 `/api/app-context/` 返回值中提取 `amapJsapiKey`
-2. 页面组件通过 `useModel('@@initialState')` 获取 key
+地图页面不通过 `getInitialState()` 获取 amapKey。实际代码中 `appContext` 是通过 `useTenantWorkspace()` hook 中 `@tanstack/react-query` 独立查询的。
+
+**修正方案：** 地图页面直接调用 `appsBaseApiAppContext()` 或从 `useTenantWorkspace().appContext` 中读取 `amapJsapiKey` 和 `amapSecurityJsCode`，无需修改 `getInitialState()`。
+
+## 路由与菜单
+
+- 新增顶级路由分组 `/geo`（图标 `environment`，i18n key `menu.geo` = "地理"）
+- 子路由 `/geo/map`（i18n key `menu.geo.map` = "地图"）
+- 在 `src/locales/zh-CN/menu.ts` 和 `src/locales/en-US/menu.ts` 中补充翻译条目
 
 ## 错误处理
 
 | 场景 | 处理 |
 |------|------|
 | 高德 Key 未配置 | app-context 无 amapKey → 地图区域显示 antd Result，提示 "请先在 .env 中配置 AMAP_JSAPI_KEY" |
+| 安全密钥未配置 | 同上，amapSecurityJsCode 缺失时也进入错误态 |
 | SDK 加载失败 | useAmap 返回 error → 显示 antd Alert + 重试按钮 |
 | 标点数据为空 | 地图正常显示，FilterPanel 计数为 0，无 Error 态 |
 | 坐标越界 | 渲染标点前校验 lat ∈ [-90, 90], lng ∈ [-180, 180]，非法跳过并 console.warn |
@@ -165,11 +198,13 @@ export interface GeoMarker {
 | 新增 | `src/pages/geo/map/index.tsx` | 地图主页面 |
 | 新增 | `src/pages/geo/map/_mock.ts` | 标点 mock 数据 |
 | 新增 | `src/pages/geo/map/data.d.ts` | 类型定义 |
-| 新增 | `src/services/manual/amap.ts` | 高德 SDK 加载 hook |
+| 新增 | `src/services/manual/amap.ts` | 高德 SDK 加载 hook（含安全密钥设置） |
 | 安装 | `package.json` | `npm install @amap/amap-jsapi-loader` |
-| 修改 | `config/routes.ts` | 新增 `/geo/map` 路由 |
-| 修改 | `src/app.tsx` | getInitialState 追加 amapJsapiKey |
-| 修改 | `apps/base/api.py` | app-context 接口追加 amap_jsapi_key |
-| 修改 | `.env` | 新增 `AMAP_JSAPI_KEY` |
-| 修改 | `pyproject.toml` | 新增 `AMAP_JSAPI_KEY` 配置项 |
-| 修改 | `config/settings/_base.py` | 读取 `AMAP_JSAPI_KEY` |
+| 修改 | `config/routes.ts` | 新增 `/geo` 顶级分组 + `/geo/map` 子路由 |
+| 修改 | `apps/base/api.py` | app-context 接口追加 `amap_jsapi_key` 和 `amap_security_js_code` |
+| 修改 | `.env` | 新增 `AMAP_JSAPI_KEY` 和 `AMAP_SECURITY_JS_CODE` |
+| 修改 | `pyproject.toml` | 新增 `AMAP_JSAPI_KEY` 和 `AMAP_SECURITY_JS_CODE` 配置项 |
+| 修改 | `config/settings/_base.py` | 读取 `AMAP_JSAPI_KEY` 和 `AMAP_SECURITY_JS_CODE` |
+| 修改 | `src/locales/zh-CN/menu.ts` | 补充 `menu.geo` 和 `menu.geo.map` 翻译 |
+| 修改 | `src/locales/en-US/menu.ts` | 补充 `menu.geo` 和 `menu.geo.map` 英文翻译 |
+| 重新生成 | `src/services/openapi/` | 后端 Schema 改动后执行 `nvm use 22 && npm run openapi` |
