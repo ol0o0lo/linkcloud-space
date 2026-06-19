@@ -18,6 +18,7 @@ Django Base Site is an opinionated Django starter template with a production-rea
 - **Local API reference for `frontend_admin` development**: When wiring the admin frontend to real backend APIs, use the locally running API schema at `http://localhost:18000/api/openapi.json` and the interactive docs at `http://localhost:18000/api/docs`.
 - **`frontend_admin` service convention**: auto-generated API clients live in `frontend_admin/src/services/openapi` and `frontend_admin/src/services/allauth`, hand-written adapters live in `frontend_admin/src/services/manual`, and regeneration should use `pnpm --dir frontend_admin openapi` instead of editing generated files manually.
 - **`frontend_admin` Node version**: before running unit tests or other Node-based commands under `frontend_admin/`, always switch to Node 22 first with `nvm use 22`.
+- **`frontend_admin` CSS / 组件约束**: Styling 优先级为 Tailwind CSS v4（布局首选）→ antd-style v4 / `createStyles`（主题 token）→ CSS Modules（备选）→ Less（仅遗留代码）。尽量复用 antd / ProComponents 现有组件，不重复造轮子；自定义 CSS 非必要不写。
 - **Pagination Contract**: All paginated Ninja APIs must use query params `page` and `page_size`, must return the minimal response shape `{ items, total, page, page_size }`, and should declare paginated routes with `response=list[xxx]` together with the project paginator.
 - **URLs** (`config/urls.py`): A re_path catch-all serves the main Vue SPA shell for every non-API path. `/_allauth/` mounts allauth's headless API, `/hijack/` mounts django-hijack, `/admin/` is the Django admin, `/api/` is the ninja API, `/dashboard/` serves the built admin SPA, and `/h5/` serves the built H5 app. A `_public_not_found` shim before the main catch-all keeps stale `/public/static/*` chunks from being answered with HTML.
 - **Frontend**: The main Vue 3 SPA lives in `frontend/` (was `src/` pre-conversion). `frontend/js/app.js` mounts `App.vue`, `frontend/js/router.js` defines all SPA routes (lazy-loaded), and `frontend/js/stores/app.js` populates app context from `/api/app-context/`. `frontend/css/app.css` is Tailwind v4 with Fraunces / IBM Plex Sans / JetBrains Mono via Google Fonts. Additional built frontends live in `frontend_admin/apps/web-antdv-next` (served at `/dashboard/`) and `frontend_miniprogram/` (H5 build served at `/h5/`); `config/base.just` copies their build outputs into `public/static/dist/admin` and `public/static/dist/h5` before Django `collectstatic`.
@@ -79,7 +80,7 @@ Use Just for all development tasks. Common ones:
 - **Ninja**: `[tool.ruff.lint.flake8-bugbear] extend-immutable-calls` includes `ninja.Query/File/Form/Body/Path` so default-arg-with-call patterns don't trip B008.
 - **JavaScript / Vue**: Root ESLint flat config (`eslint.config.mjs`) with `@eslint/js` recommended + `eslint-plugin-vue` flat/recommended applies to `frontend/`. `frontend_admin/` and `frontend_miniprogram/` keep their own package managers and lint configs. 180-char line length.
 - **HTML / Django templates**: djLint for formatting and linting.
-- **CSS**: Tailwind v4 utilities (no separate Sass/Stylelint pipeline anymore — both were dropped during the SPA conversion).
+- **CSS**: `frontend/` 和 `frontend_admin/` 统一使用 Tailwind v4 utilities（无 Sass/Stylelint 管线，SPA 转换时已移除）。`frontend_admin/` 内 antd-style `createStyles` 仅用于主题 token，自定义 CSS 尽量减少。
 - **Line Length**: 180 characters for Python and HTML.
 
 ## Debugging
