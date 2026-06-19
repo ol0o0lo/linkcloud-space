@@ -69,3 +69,33 @@ class NotificationPreferenceOut(Schema):
 class NotificationPreferencePatchIn(Schema):
     in_app: bool | None = Field(None, description="是否接收站内通知。")
     email: bool | None = Field(None, description="是否接收邮件通知。")
+
+
+class NotificationDispatchIn(Schema):
+    scope: Literal["platform", "organization", "users"]
+    scope_ids: list[int] = Field(default_factory=list)
+    category: str = ""
+    title: str
+    body: str = ""
+    url: str | None = None
+    data: dict = Field(default_factory=dict)
+
+
+class NotificationDispatchOut(Schema):
+    id: int
+    scope: str
+    scope_ids: list[int]
+    owner_organization_id: int | None = None
+    category: str
+    title: str
+    body: str
+    url: str | None = None
+    data: dict
+    status: str
+    target_count: int
+    delivered_count: int
+    error_message: str
+    sent_at: datetime | None = None
+    created_by: str
+    created_at: datetime
+    updated_at: datetime

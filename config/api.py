@@ -16,6 +16,7 @@ from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
 from apps.base.responses import EnvelopedNinjaAPI
 from apps.media.api import router as media_router
+from apps.notifications.api import dispatches_router as notification_dispatches_router
 from apps.notifications.api import router as notifications_router
 from apps.organizations.api import (
     invites_router as org_invites_router,
@@ -59,6 +60,7 @@ api.add_router("/access/teams/", access_team_roles_router)
 api.add_router("/access/teams/", access_team_bindings_router)
 api.add_router("/organization-invites/", org_invites_router)
 api.add_router("/invite-by-key/", public_invites_router)
+api.add_router("/notification-dispatches/", notification_dispatches_router)
 api.add_router("/notifications/", notifications_router)
 api.add_router("/organization-members/", org_members_router)
 api.add_router("/organization-settings/", org_settings_router)
