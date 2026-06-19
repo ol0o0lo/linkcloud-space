@@ -8,6 +8,7 @@ export const platformQueryKeys = {
   notifications: (page?: number) => ['platform-management', 'notifications', page],
   notificationDispatches: (page?: number) => ['platform-management', 'notification-dispatches', page],
   notificationDispatchDetail: (id?: number) => ['platform-management', 'notification-dispatch-detail', id],
+  notificationDispatchNotifications: (id?: number, page?: number) => ['platform-management', 'notification-dispatch-notifications', id, page],
   notificationPreferences: ['platform-management', 'notification-preferences'],
   referralConfig: ['platform-management', 'referral-config'],
   referralRecords: (page?: number) => ['platform-management', 'referral-records', page],

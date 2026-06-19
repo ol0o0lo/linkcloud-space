@@ -29,16 +29,28 @@ const SCOPE_LABELS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'gold',
-  success: 'green',
+  sending: 'blue',
+  sent: 'green',
   failed: 'red',
 };
 
-function parseScopeIds(value?: string) {
+const DEFAULT_CREATE_FORM_VALUES: Pick<CreateDispatchFormValues, 'scope' | 'category'> = {
+  scope: 'platform',
+  category: '',
+};
+
+function parseScopeIdTokens(value?: string) {
   if (!value) return [];
-  return value
-    .split(',')
-    .map((item) => Number(item.trim()))
-    .filter((item) => Number.isInteger(item) && item > 0);
+  return value.split(',').map((item) => item.trim());
+}
+
+function hasInvalidScopeIdToken(value?: string) {
+  const tokens = parseScopeIdTokens(value);
+  return tokens.some((item) => !/^[1-9]\d*$/.test(item));
+}
+
+function parseScopeIds(value?: string) {
+  return parseScopeIdTokens(value).map((item) => Number(item));
 }
 
 function formatScope(scope?: string, scopeIds: number[] = []) {
@@ -68,7 +80,7 @@ const NotificationDispatchesPage: React.FC = () => {
     enabled: Boolean(detailId),
   });
   const detailNotificationsQuery = useQuery({
-    queryKey: ['platform-management', 'notification-dispatch-notifications', detailId, detailPage],
+    queryKey: platformQueryKeys.notificationDispatchNotifications(detailId, detailPage),
     queryFn: () => appsNotificationsApiListDispatchNotifications({ dispatch_id: detailId!, page: detailPage, page_size: 10 }),
     enabled: Boolean(detailId),
   });
@@ -119,7 +131,8 @@ const NotificationDispatchesPage: React.FC = () => {
 
   return (
     <Card title="通知分发" extra={<AdminToolbar><Button type="primary" onClick={() => {
-      form.setFieldsValue({ scope: 'platform', category: '' });
+      form.resetFields();
+      form.setFieldsValue(DEFAULT_CREATE_FORM_VALUES);
       setCreateOpen(true);
     }}>新建分发</Button></AdminToolbar>}>
       <Table
@@ -136,23 +149,32 @@ const NotificationDispatchesPage: React.FC = () => {
         okText="确定"
         cancelText="取消"
         confirmLoading={createMutation.isPending}
-        onCancel={() => setCreateOpen(false)}
+        onCancel={() => {
+          form.resetFields();
+          setCreateOpen(false);
+        }}
         onOk={async () => {
-          const values = await form.validateFields();
-          const scopeIds = parseScopeIds(values.scope_ids_text);
-          const payload: API.NotificationDispatchIn = {
-            scope: values.scope,
-            category: values.category || '',
-            title: values.title,
-            body: values.body || '',
-            data: {},
-          };
-          if (values.url) payload.url = values.url;
-          if (values.scope !== 'platform') payload.scope_ids = scopeIds;
-          await createMutation.mutateAsync(payload);
+          try {
+            const values = await form.validateFields();
+            const scopeIds = parseScopeIds(values.scope_ids_text);
+            const payload: API.NotificationDispatchIn = {
+              scope: values.scope,
+              category: values.category || '',
+              title: values.title,
+              body: values.body || '',
+              data: {},
+            };
+            if (values.url) payload.url = values.url;
+            if (values.scope !== 'platform') payload.scope_ids = scopeIds;
+            await createMutation.mutateAsync(payload);
+          } catch (error) {
+            // Form validation errors are already displayed inline by antd.
+            if (!(error instanceof Error)) return;
+            throw error;
+          }
         }}
       >
-        <Form form={form} layout="vertical" initialValues={{ scope: 'platform', category: '' }}>
+        <Form form={form} layout="vertical" initialValues={DEFAULT_CREATE_FORM_VALUES}>
           <Form.Item label="范围" name="scope" rules={[{ required: true, message: '请选择范围' }]}>
             <Radio.Group
               optionType="button"
@@ -167,11 +189,14 @@ const NotificationDispatchesPage: React.FC = () => {
           <Form.Item
             label="目标 ID 列表"
             name="scope_ids_text"
+            dependencies={['scope']}
             extra={scopeValue === 'platform' ? '全平台无需填写目标 ID。' : '使用英文逗号分隔多个正整数 ID。'}
             rules={[
               {
                 validator: async (_rule, value) => {
-                  if (scopeValue === 'platform') return;
+                  if (form.getFieldValue('scope') === 'platform') return;
+                  if (!value?.trim()) throw new Error('请输入至少一个正整数 ID');
+                  if (hasInvalidScopeIdToken(value)) throw new Error('目标 ID 只能填写用英文逗号分隔的正整数');
                   if (!parseScopeIds(value).length) throw new Error('请输入至少一个正整数 ID');
                 },
               },
@@ -206,7 +231,7 @@ const NotificationDispatchesPage: React.FC = () => {
           <Descriptions.Item label="标题"><span style={wrapTextStyle}>{detailQuery.data?.title || '-'}</span></Descriptions.Item>
           <Descriptions.Item label="范围"><span style={wrapTextStyle}>{formatScope(detailQuery.data?.scope, detailQuery.data?.scope_ids)}</span></Descriptions.Item>
           <Descriptions.Item label="状态">{formatStatus(detailQuery.data?.status)}</Descriptions.Item>
-          <Descriptions.Item label="送达">{detailQuery.data ? `${detailQuery.data.delivered_count}/${detailQuery.data.target_count}` : '-'}</Descriptions.Item>
+          <Descriptions.Item label="目标/送达">{detailQuery.data ? `${detailQuery.data.target_count}/${detailQuery.data.delivered_count}` : '-'}</Descriptions.Item>
           <Descriptions.Item label="错误信息"><span style={wrapTextStyle}>{detailQuery.data?.error_message || '-'}</span></Descriptions.Item>
           <Descriptions.Item label="类别"><span style={wrapTextStyle}>{detailQuery.data?.category || '-'}</span></Descriptions.Item>
           <Descriptions.Item label="内容"><span style={wrapTextStyle}>{detailQuery.data?.body || '-'}</span></Descriptions.Item>

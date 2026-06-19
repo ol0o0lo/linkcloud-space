@@ -41,7 +41,7 @@ describe('NotificationDispatchesPage', () => {
           body: 'hello',
           url: null,
           data: {},
-          status: 'success',
+          status: 'sent',
           target_count: 1,
           delivered_count: 1,
           error_message: '',
@@ -84,7 +84,7 @@ describe('NotificationDispatchesPage', () => {
       body: 'hello',
       url: null,
       data: {},
-      status: 'success',
+      status: 'sending',
       target_count: 1,
       delivered_count: 1,
       error_message: '',
@@ -117,6 +117,7 @@ describe('NotificationDispatchesPage', () => {
     await waitFor(() => {
       expect(mockListDispatches).toHaveBeenCalledWith({ page: 1, page_size: 10 });
       expect(screen.getByText('首条分发')).toBeInTheDocument();
+      expect(screen.getByText('sent')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: '新建分发' }));
@@ -141,6 +142,52 @@ describe('NotificationDispatchesPage', () => {
     await waitFor(() => {
       expect(mockGetDispatch).toHaveBeenCalledWith({ dispatch_id: 1 });
       expect(mockListDispatchNotifications).toHaveBeenCalledWith({ dispatch_id: 1, page: 1, page_size: 10 });
+      expect(screen.getByText('sending')).toBeInTheDocument();
     });
+  });
+
+  it('blocks submit when scope_ids_text contains invalid tokens', async () => {
+    render(<QueryClientProvider client={queryClient}><NotificationDispatchesPage /></QueryClientProvider>);
+
+    await screen.findByText('首条分发');
+
+    fireEvent.click(screen.getByRole('button', { name: '新建分发' }));
+    fireEvent.click(screen.getByRole('radio', { name: '指定用户' }));
+    fireEvent.change(screen.getByLabelText('目标 ID 列表'), { target: { value: '1,abc' } });
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '非法目标' } });
+    fireEvent.change(screen.getByLabelText('内容'), { target: { value: 'hello' } });
+    fireEvent.click(screen.getByRole('button', { name: /确\s*定/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/目标 ID 只能填写用英文逗号分隔的正整数/)).toBeInTheDocument();
+      expect(mockCreateDispatch).not.toHaveBeenCalled();
+    });
+  });
+
+  it('resets form after cancelling create modal and reopening it', async () => {
+    render(<QueryClientProvider client={queryClient}><NotificationDispatchesPage /></QueryClientProvider>);
+
+    await screen.findByText('首条分发');
+
+    fireEvent.click(screen.getByRole('button', { name: '新建分发' }));
+    fireEvent.click(screen.getByRole('radio', { name: '指定用户' }));
+    fireEvent.change(screen.getByLabelText('目标 ID 列表'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '待清空标题' } });
+    fireEvent.change(screen.getByLabelText('内容'), { target: { value: '待清空内容' } });
+    fireEvent.click(screen.getByRole('button', { name: /取\s*消/ }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('目标 ID 列表')).toHaveValue('');
+      expect(screen.getByLabelText('标题')).toHaveValue('');
+      expect(screen.getByLabelText('内容')).toHaveValue('');
+      expect(screen.getByRole('radio', { name: '全平台' })).toBeChecked();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '新建分发' }));
+
+    expect(screen.getByRole('radio', { name: '全平台' })).toBeChecked();
+    expect(screen.getByLabelText('目标 ID 列表')).toHaveValue('');
+    expect(screen.getByLabelText('标题')).toHaveValue('');
+    expect(screen.getByLabelText('内容')).toHaveValue('');
   });
 });
