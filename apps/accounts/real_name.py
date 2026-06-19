@@ -185,16 +185,6 @@ def build_real_name_timeline_row(log: RealNameVerificationLog) -> dict:
     }
 
 
-def _safe_get_media_refs_info(id_card_media: list[dict]) -> list[dict]:
-    """安全获取身份证媒体引用信息，媒体文件不存在时保留原始引用但不报错。"""
-    if not id_card_media:
-        return []
-    try:
-        return get_media_refs_info(id_card_media)
-    except (ValueError, TypeError):
-        return [dict(item) for item in id_card_media if isinstance(item, dict)]
-
-
 def serialize_real_name_verification(verification: RealNameVerification, *, include_sensitive: bool = False) -> dict:
     data = {
         "created_at": verification.created_at.isoformat(),
@@ -207,7 +197,7 @@ def serialize_real_name_verification(verification: RealNameVerification, *, incl
         "provider_label": RealNameProvider.get_choice_label(verification.provider),
         "provider_request_id": verification.provider_request_id,
         "provider_result": verification.provider_result,
-        "id_card_media": _safe_get_media_refs_info(verification.id_card_media),
+        "id_card_media": get_media_refs_info(verification.id_card_media) if verification.id_card_media else [],
         "real_name_masked": verification.real_name_masked,
         "review_note": verification.review_note,
         "reviewed_at": verification.reviewed_at.isoformat() if verification.reviewed_at else None,
