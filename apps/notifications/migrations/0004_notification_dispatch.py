@@ -32,7 +32,17 @@ class Migration(migrations.Migration):
                 ('delivered_count', models.PositiveIntegerField(default=0)),
                 ('error_message', models.TextField(blank=True)),
                 ('sent_at', models.DateTimeField(blank=True, null=True)),
-                ('owner_organization', models.ForeignKey(blank=True, help_text='Management owner; null means platform-owned.', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='notification_dispatches', to='organizations.organization')),
+                (
+                    'owner_organization',
+                    models.ForeignKey(
+                        blank=True,
+                        help_text='Management owner; null means platform-owned.',
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name='notification_dispatches',
+                        to='organizations.organization',
+                    ),
+                ),
             ],
             options={
                 'ordering': ('-created_at',),
@@ -41,7 +51,14 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='notification',
             name='dispatch',
-            field=models.ForeignKey(blank=True, help_text='The management dispatch that produced this inbox row.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='notifications', to='notifications.notificationdispatch'),
+            field=models.ForeignKey(
+                blank=True,
+                help_text='The management dispatch that produced this inbox row.',
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name='notifications',
+                to='notifications.notificationdispatch',
+            ),
         ),
         migrations.AddIndex(
             model_name='notificationdispatch',

@@ -62,6 +62,7 @@ class NotificationDispatch(BaseModelMixin):
             raise ValidationError({"scope_ids": "Organization and users dispatches require scope_ids."})
 
     def __str__(self):
+        """Return a readable label for the dispatch."""
         return f"{self.get_scope_display()} notification dispatch: {self.title}"
 
 

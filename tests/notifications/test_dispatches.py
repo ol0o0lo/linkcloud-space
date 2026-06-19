@@ -1,12 +1,12 @@
-import pytest
 from django.core.exceptions import ValidationError
+
+import pytest
 from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.notifications.constants import NotificationChannel
 from apps.notifications.dispatches import execute_dispatch, resolve_dispatch_recipients
-from apps.notifications.models import Notification, NotificationDispatch
-from apps.notifications.models import NotificationPreference
+from apps.notifications.models import Notification, NotificationDispatch, NotificationPreference
 from apps.notifications.tasks import dispatch_notification
 from apps.organizations.models import OrganizationMember
 
