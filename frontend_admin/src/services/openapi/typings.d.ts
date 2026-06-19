@@ -212,6 +212,10 @@ declare namespace API {
     signupOpen: boolean;
     /** Version */
     version: string;
+    /** Amapjsapikey */
+    amapJsapiKey?: string;
+    /** Amapsecurityjscode */
+    amapSecurityJsCode?: string;
   };
 
   type AppContextUserOut = {

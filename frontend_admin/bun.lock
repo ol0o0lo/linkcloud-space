@@ -5,6 +5,7 @@
     "": {
       "name": "ant-design-pro",
       "dependencies": {
+        "@amap/amap-jsapi-loader": "^1.0.1",
         "@ant-design/icons": "^6.2.3",
         "@ant-design/plots": "^2.6.8",
         "@ant-design/pro-components": "^3.1.12-0",
@@ -69,6 +70,7 @@
     },
   },
   "packages": {
+    "@amap/amap-jsapi-loader": ["@amap/amap-jsapi-loader@1.0.1", "", {}, "sha512-nPyLKt7Ow/ThHLkSvn2etQlUzqxmTVgK7bIgwdBRTg2HK5668oN7xVxkaiRe3YZEzGzfV2XgH5Jmu2T73ljejw=="],
     "@adobe/css-tools": ["@adobe/css-tools@4.5.0", "", {}, "sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q=="],
 
     "@ahooksjs/use-request": ["@ahooksjs/use-request@2.8.15", "", { "dependencies": { "lodash.debounce": "^4.0.8", "lodash.throttle": "^4.1.1" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0" } }, "sha512-xhVaM4fyIiAMdVFuuU5i3CFUdFa/IblF+fvITVMFaUEO3w/V5tVCAF6WIA3T03n1/RPuzRkA7Ao1PFtSGtGelw=="],
