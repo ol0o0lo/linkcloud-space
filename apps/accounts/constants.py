@@ -28,3 +28,8 @@ class RealNameLogAction(StrChoices):
     MANUAL_APPROVED = "manual_approved", "人工通过"
     MANUAL_REJECTED = "manual_rejected", "人工驳回"
     REVOKED = "revoked", "撤销实名"
+
+
+class RealNameIdCardSide(StrChoices):
+    FRONT = "front", "人像面"
+    BACK = "back", "国徽面"

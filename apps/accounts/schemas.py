@@ -1,7 +1,11 @@
+from typing import Literal
+
 from ninja import Schema
 from pydantic import Field, field_validator
 
-from apps.accounts.constants import RealNameSource
+from apps.accounts.constants import RealNameIdCardSide, RealNameSource
+from apps.media.constants import MediaType
+from apps.media.schemas import MediaRefIn, ResolvedMediaRefOut
 
 
 class UserOut(Schema):
@@ -141,10 +145,20 @@ class ResetMfaOut(Schema):
     deleted_authenticators: int
 
 
+class RealNameIdCardMediaIn(MediaRefIn):
+    side: Literal[RealNameIdCardSide.FRONT, RealNameIdCardSide.BACK] = Field(..., description="身份证面：front 人像面，back 国徽面。")
+    media_type: Literal[MediaType.IMAGE] = Field(MediaType.IMAGE, description="媒体类型。实名认证固定为 image。")
+
+
+class RealNameIdCardMediaOut(ResolvedMediaRefOut):
+    side: Literal[RealNameIdCardSide.FRONT, RealNameIdCardSide.BACK] = Field(..., description="身份证面：front 人像面，back 国徽面。")
+    media_type: Literal[MediaType.IMAGE] = Field(MediaType.IMAGE, description="媒体类型。实名认证固定为 image。")
+
+
 class RealNamePayloadIn(Schema):
     real_name: str = Field(..., min_length=2, max_length=64, description="真实姓名。")
     id_number: str = Field(..., min_length=15, max_length=18, description="身份证号。")
-    id_card_media: list[dict] = Field(..., min_length=2, max_length=2, description="身份证正反面媒体引用。")
+    id_card_media: list[RealNameIdCardMediaIn] = Field(..., min_length=2, max_length=2, description="身份证正反面媒体引用。")
     source: str = Field("user_submit", description="来源：user_submit 或 business_gate。")
 
     @field_validator("real_name", mode="before")
@@ -172,21 +186,10 @@ class RealNamePayloadIn(Schema):
     @field_validator("id_card_media")
     @classmethod
     def validate_id_card_media(cls, value):
-        required_keys = {"media_id", "media_type", "side"}
-        sides = []
-        for item in value:
-            if not isinstance(item, dict):
-                raise ValueError("身份证材料必须是对象列表。")
-            missing_keys = required_keys - item.keys()
-            if missing_keys:
-                raise ValueError("身份证材料必须包含 media_id、media_type 和 side。")
-            if item.get("media_type") != "image":
-                raise ValueError("身份证材料必须是图片。")
-            sides.append(item.get("side"))
+        sides = [item.side for item in value]
         if sorted(sides) != ["back", "front"]:
             raise ValueError("身份证图片必须包含 side=front 和 side=back。")
         return value
-
 
 class RealNameSubmitIn(RealNamePayloadIn):
     pass
@@ -224,7 +227,7 @@ class RealNameVerificationOut(Schema):
     reviewed_at: str | None = None
     provider_request_id: str = ""
     provider_result: dict = {}
-    id_card_media: list[dict] = []
+    id_card_media: list[RealNameIdCardMediaOut] = []
     is_current: bool
     created_at: str
     updated_at: str

@@ -52,8 +52,8 @@ class TestRealNameAPI(TestCase):
             file_size=124,
         )
         return [
-            {"media_id": front.pk, "media_type": "image", "label": "身份证人像面", "side": "front"},
-            {"media_id": back.pk, "media_type": "image", "label": "身份证国徽面", "side": "back"},
+            {"media_id": front.pk, "media_type": "image", "side": "front"},
+            {"media_id": back.pk, "media_type": "image", "side": "back"},
         ]
 
     def test_submit_valid_real_name_creates_pending_application_with_id_card_media(self):
@@ -301,6 +301,52 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(resp.status_code, 400, resp.content)
         self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
 
+    def test_submit_rejects_non_image_id_card_media_type_in_schema(self):
+        self.client.force_login(self.user)
+        media = self.make_id_card_media()
+
+        resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": [
+                        {**media[0], "media_type": "video"},
+                        media[1],
+                    ],
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
+
+    def test_submit_rejects_same_side_id_card_media_in_schema(self):
+        self.client.force_login(self.user)
+        media = self.make_id_card_media()
+
+        resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": [
+                        {**media[0], "side": "front"},
+                        {**media[1], "side": "front"},
+                    ],
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
+
     def test_duplicate_verified_identity_can_submit_pending_application(self):
         first = self.user
         second = User.objects.create_user(username="bob", email="bob@example.com", password="secret123")  # noqa: S106
@@ -337,8 +383,8 @@ class TestRealNameAPI(TestCase):
                 {
                     "id_number": self.valid_id,
                     "id_card_media": [
-                        {"media_id": second_front.pk, "media_type": "image", "label": "身份证人像面", "side": "front"},
-                        {"media_id": second_back.pk, "media_type": "image", "label": "身份证国徽面", "side": "back"},
+                        {"media_id": second_front.pk, "media_type": "image", "side": "front"},
+                        {"media_id": second_back.pk, "media_type": "image", "side": "back"},
                     ],
                     "real_name": "李四",
                     "source": "business_gate",
@@ -423,8 +469,8 @@ class TestRealNameAPI(TestCase):
                 {
                     "id_number": self.valid_id,
                     "id_card_media": [
-                        {"media_id": member_front.pk, "media_type": "image", "label": "身份证人像面", "side": "front"},
-                        {"media_id": member_back.pk, "media_type": "image", "label": "身份证国徽面", "side": "back"},
+                        {"media_id": member_front.pk, "media_type": "image", "side": "front"},
+                        {"media_id": member_back.pk, "media_type": "image", "side": "back"},
                     ],
                     "real_name": "王五",
                     "source": "business_gate",

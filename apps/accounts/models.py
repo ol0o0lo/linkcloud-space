@@ -44,6 +44,7 @@ class User(AbstractUser):
         ]
 
     def clean(self):
+        # 校验时区并顺手规范化手机号字段。
         super().clean()
         if self.timezone:
             try:
@@ -53,6 +54,7 @@ class User(AbstractUser):
         self._normalize_phone_parts()
 
     def save(self, *args, **kwargs):
+        # 保存前确保手机号拆分字段保持一致。
         changed_fields = self._normalize_phone_parts()
         update_fields = kwargs.get("update_fields")
         if update_fields is not None and changed_fields:
@@ -60,6 +62,7 @@ class User(AbstractUser):
         super().save(*args, **kwargs)
 
     def set_phone_number(self, phone: str | None, verified: bool | None = None) -> None:
+        # 用统一入口写入手机号，避免散落修改拆分字段。
         country_code, national_number = split_phone(phone)
         self.phone_country_code = country_code
         self.phone_national_number = national_number
@@ -79,11 +82,13 @@ class User(AbstractUser):
 
     @property
     def avatar_url(self):
+        # 前端优先展示裁剪后的头像。
         if self.avatar_thumbnail:
             return self.avatar_thumbnail.url
         return None
 
     def _normalize_phone_parts(self) -> set[str]:
+        # 去空格、去短横线，并在无号码时清空区号。
         old_values = {
             "phone_country_code": self.phone_country_code,
             "phone_national_number": self.phone_national_number,

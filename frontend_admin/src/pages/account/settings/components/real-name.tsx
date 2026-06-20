@@ -261,7 +261,6 @@ type IdCardSide = 'front' | 'back';
 type IdCardMediaRef = {
   media_id: number;
   media_type: 'image';
-  label: string;
   side: IdCardSide;
   url?: string;
 };
@@ -269,7 +268,6 @@ type IdCardMediaRef = {
 type IdCardMediaPreviewItem = {
   media_id: number;
   media_type?: string;
-  label?: string;
   side?: IdCardSide;
   url?: string;
   thumbnail?: string | null;
@@ -303,7 +301,6 @@ function buildIdCardMediaRef(
   return {
     media_id: media.id,
     media_type: 'image',
-    label: getIdCardSideLabel(side),
     side,
     url: media.url ?? undefined,
   };
@@ -344,7 +341,7 @@ const IdCardUpload: React.FC<{
     ? [
         {
           uid: String(uploadedMedia.media_id),
-          name: uploadedMedia.label || label,
+          name: label,
           status: 'done',
           url: uploadedMedia.url,
         },
@@ -379,12 +376,10 @@ const IdCardPreview: React.FC<{ items: IdCardMediaPreviewItem[] }> = ({
   const back = items.find((item) => item.side === 'back');
   const previewItems = [
     front || {
-      label: '身份证人像面',
       side: 'front' as IdCardSide,
       url: undefined,
     },
     back || {
-      label: '身份证国徽面',
       side: 'back' as IdCardSide,
       url: undefined,
     },
@@ -399,7 +394,7 @@ const IdCardPreview: React.FC<{ items: IdCardMediaPreviewItem[] }> = ({
             : index === 0
               ? 'front'
               : 'back';
-        const label = item.label || getIdCardSideLabel(side);
+        const label = getIdCardSideLabel(side);
 
         return (
           <div

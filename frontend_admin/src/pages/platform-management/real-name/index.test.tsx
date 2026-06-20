@@ -41,7 +41,7 @@ describe('RealNameAdminPage', () => {
       page: 1,
       page_size: 10,
     });
-    mockGet.mockResolvedValue({ id: 3, status: 'manual_review', status_label: '人工审核', source: 'user_submit', source_label: '用户提交', provider: 'manual', provider_label: '人工', real_name_masked: '张*', id_number_masked: '110***********1234', is_current: true, created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00', real_name: '张三', id_number: '110101199001011234', user: { username: 'alice' }, id_card_media: [{ media_id: 101, media_type: 'image', label: '身份证人像面', side: 'front', url: '/front.png' }, { media_id: 102, media_type: 'image', label: '身份证国徽面', side: 'back', url: '/back.png' }], logs: [] });
+    mockGet.mockResolvedValue({ id: 3, status: 'manual_review', status_label: '人工审核', source: 'user_submit', source_label: '用户提交', provider: 'manual', provider_label: '人工', real_name_masked: '张*', id_number_masked: '110***********1234', is_current: true, created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00', real_name: '张三', id_number: '110101199001011234', user: { username: 'alice' }, id_card_media: [{ media_id: 101, media_type: 'image', side: 'front', url: '/front.png' }, { media_id: 102, media_type: 'image', side: 'back', url: '/back.png' }], logs: [] });
     mockApprove.mockResolvedValue({});
     mockReject.mockResolvedValue({});
     mockManual.mockResolvedValue({});

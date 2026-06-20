@@ -16,6 +16,10 @@ import { IdentityText, NoteModal, StatusTag, personText, platformQueryKeys } fro
 
 type ActionState = { row: API.AdminRealNameVerificationRowOut; action: 'approve' | 'reject' | 'manual' | 'revoke' } | null;
 
+function getIdCardSideLabel(side?: string) {
+  return side === 'front' ? '身份证人像面' : side === 'back' ? '身份证国徽面' : '证件图片';
+}
+
 const RealNameAdminPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [actionState, setActionState] = useState<ActionState>(null);
@@ -106,8 +110,8 @@ const RealNameAdminPage: React.FC = () => {
             <Space wrap>
               {((detailQuery.data as any)?.id_card_media || []).map((item: any) => (
                 <Space key={item.media_id} orientation="vertical" size={4}>
-                  <Typography.Text>{item.label || item.side || '证件图片'}</Typography.Text>
-                  <Image alt={item.label || item.side || '证件图片'} src={item.url} width={180} />
+                  <Typography.Text>{getIdCardSideLabel(item.side)}</Typography.Text>
+                  <Image alt={getIdCardSideLabel(item.side)} src={item.url} width={180} />
                 </Space>
               ))}
               {!((detailQuery.data as any)?.id_card_media || []).length ? '-' : null}

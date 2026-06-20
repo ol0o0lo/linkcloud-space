@@ -1,9 +1,17 @@
+import uuid
+
 from django.conf import settings
 from django.contrib import messages
 from django.http import HttpResponseRedirect
 
 from allauth.account import signals
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.account.utils import get_login_redirect_url
+from allauth.core import context
+from allauth.socialaccount.models import SocialAccount
+
+from apps.accounts.models import User, normalize_phone, split_phone
+from apps.base.sms import send_sms
 
 
 class AccountAdapter(DefaultAccountAdapter):
@@ -11,8 +19,7 @@ class AccountAdapter(DefaultAccountAdapter):
         return getattr(settings, "ACCOUNT_SIGNUP_OPEN", True)
 
     def post_login(self, request, user, *, email_verification, signal_kwargs, email, signup, redirect_url):
-        from allauth.account.utils import get_login_redirect_url
-
+        """登录成功后统一走项目自己的跳转和消息提示。"""
         response = HttpResponseRedirect(get_login_redirect_url(request, redirect_url, signup=signup))
 
         if signal_kwargs is None:
@@ -38,33 +45,23 @@ class AccountAdapter(DefaultAccountAdapter):
     # --- Phone number support (django-allauth) ---
 
     def get_phone(self, user):
-        """Return (phone, verified) tuple or None if no phone set."""
+        """返回手机号和验证状态；未设置时返回 None。"""
         if not user.phone:
             return None
         return (user.phone, user.phone_verified)
 
     def set_phone(self, user, phone, verified):
-        """Store phone number and verification status on the user."""
+        """写回手机号和验证状态到 User。"""
         user.set_phone_number(phone, verified)
         user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
 
     def get_user_by_phone(self, phone):
         """
-        Look up a user by phone number.
+        按手机号查找用户。
 
-        For the phone-code login flow (code/request), if signup is open and the
-        phone is not yet registered, create an inactive placeholder so allauth can
-        generate and send a verification code.  The account is activated only after
-        the code is confirmed (see set_phone_verified).
-
-        For the email+phone signup flow we deliberately do NOT create a placeholder
-        here, because allauth's BaseSignupForm._clean_phone would otherwise treat the
-        returned user as "account_already_exists" and silently abort the signup.
+        仅在验证码登录路径下、且手机号尚未注册时，才创建一个临时占位账号，
+        让 allauth 能继续发验证码。
         """
-        from allauth.core import context
-
-        from apps.accounts.models import User, split_phone
-
         country_code, national_number = split_phone(phone)
         if not national_number:
             return None
@@ -73,7 +70,6 @@ class AccountAdapter(DefaultAccountAdapter):
         except User.DoesNotExist:
             pass
 
-        # Only auto-create a placeholder during the "login by code" request path.
         request = context.request
         is_code_request = request is not None and "code/request" in request.path
         if not is_code_request:
@@ -81,8 +77,6 @@ class AccountAdapter(DefaultAccountAdapter):
 
         if not getattr(settings, "ACCOUNT_SIGNUP_OPEN", False):
             return None
-
-        import uuid
 
         user = User(
             phone_verified=False,
@@ -95,9 +89,7 @@ class AccountAdapter(DefaultAccountAdapter):
         return user
 
     def set_phone_verified(self, user, phone):
-        """Mark the phone number as verified and activate new accounts."""
-        from apps.accounts.models import normalize_phone
-
+        """手机号验证通过后同步激活账号。"""
         if user.phone != normalize_phone(phone):
             user.set_phone_number(phone)
         user.phone_verified = True
@@ -108,32 +100,25 @@ class AccountAdapter(DefaultAccountAdapter):
         user.save(update_fields=update_fields)
 
     def send_verification_code_sms(self, user, phone, code, **kwargs):
-        """Send SMS verification code via configured SMS backend."""
-        from apps.base.sms import send_sms
-
+        """通过项目内短信封装发送验证码。"""
         send_sms(phone, code)
 
     def send_unknown_account_sms(self, phone, **kwargs):
-        """Silently skip SMS for unregistered numbers (enumeration prevention)."""
+        """对未注册手机号静默跳过发送，避免枚举账号。"""
         pass
 
     def pre_social_login(self, request, sociallogin):
-        from allauth.socialaccount.models import SocialAccount
-
-        # 已关联 User 的登录无需合并
+        """按 unionid 合并微信和小程序账号。"""
         if sociallogin.is_existing:
             return
 
-        # 提取 unionid
         unionid = sociallogin.account.extra_data.get("unionid")
         if not unionid:
             return
 
-        # weixin provider 的 uid 就是 unionid
         existing = SocialAccount.objects.filter(provider="weixin", uid=unionid).first()
 
         if not existing:
-            # wechat_miniprogram 的 unionid 存在 extra_data 里
             existing = (
                 SocialAccount.objects.filter(
                     provider="wechat_miniprogram",

@@ -79,7 +79,7 @@ declare namespace API {
     /** Provider Result */
     provider_result?: Record<string, any>;
     /** Id Card Media */
-    id_card_media?: Record<string, any>[];
+    id_card_media?: RealNameIdCardMediaOut[];
     /** Is Current */
     is_current: boolean;
     /** Created At */
@@ -1276,6 +1276,36 @@ declare namespace API {
     is_already_member: boolean;
   };
 
+  type RealNameIdCardMediaIn = {
+    /** Media Id 媒体文件 ID。 */
+    media_id: number;
+    /** Side 身份证面：front 人像面，back 国徽面。 */
+    side: "front" | "back";
+    /** Media Type 媒体类型。实名认证固定为 image。 */
+    media_type?: "image";
+  };
+
+  type RealNameIdCardMediaOut = {
+    /** Media Id */
+    media_id: number;
+    /** Resource Type 媒体资源类型，例如 avatar、real_name_id_card。 */
+    resource_type?: string | null;
+    /** Original Filename 原始文件名。 */
+    original_filename?: string | null;
+    /** Url 动态生成的访问 URL，私有存储通常为临时签名 URL。 */
+    url?: string | null;
+    /** Thumbnail 缩略图 URL，未生成时为 null。 */
+    thumbnail?: string | null;
+    /** File Size 文件大小，单位字节。 */
+    file_size?: number | null;
+    /** Created At 媒体文件创建时间。 */
+    created_at?: string | null;
+    /** Side 身份证面：front 人像面，back 国徽面。 */
+    side: "front" | "back";
+    /** Media Type 媒体类型。实名认证固定为 image。 */
+    media_type?: "image";
+  };
+
   type RealNameLogOut = {
     /** Action */
     action: string;
@@ -1303,7 +1333,7 @@ declare namespace API {
     /** Id Number 身份证号。 */
     id_number: string;
     /** Id Card Media 身份证正反面媒体引用。 */
-    id_card_media: Record<string, any>[];
+    id_card_media: RealNameIdCardMediaIn[];
     /** Source 来源：user_submit 或 business_gate。 */
     source?: string;
   };
@@ -1314,7 +1344,7 @@ declare namespace API {
     /** Id Number 身份证号。 */
     id_number: string;
     /** Id Card Media 身份证正反面媒体引用。 */
-    id_card_media: Record<string, any>[];
+    id_card_media: RealNameIdCardMediaIn[];
     /** Source 来源：user_submit 或 business_gate。 */
     source?: string;
   };
@@ -1351,7 +1381,7 @@ declare namespace API {
     /** Provider Result */
     provider_result?: Record<string, any>;
     /** Id Card Media */
-    id_card_media?: Record<string, any>[];
+    id_card_media?: RealNameIdCardMediaOut[];
     /** Is Current */
     is_current: boolean;
     /** Created At */
@@ -1400,7 +1430,7 @@ declare namespace API {
     /** Provider Result */
     provider_result?: Record<string, any>;
     /** Id Card Media */
-    id_card_media?: Record<string, any>[];
+    id_card_media?: RealNameIdCardMediaOut[];
     /** Is Current */
     is_current: boolean;
     /** Created At */

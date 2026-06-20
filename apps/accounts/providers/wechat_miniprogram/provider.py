@@ -1,5 +1,14 @@
+import random
+import string
+import uuid
+
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+
 from allauth.socialaccount.adapter import get_adapter
 from allauth.socialaccount.providers.base import Provider, ProviderAccount
+
+from apps.accounts.providers.wechat_miniprogram.client import jscode2session
 
 
 class WechatMiniprogramAccount(ProviderAccount):
@@ -26,12 +35,7 @@ class WechatMiniprogramProvider(Provider):
         return {"username": self._generate_wx_username()}
 
     def _generate_wx_username(self):
-        import random
-        import string
-        import uuid
-
-        from django.contrib.auth import get_user_model
-
+        # 生成不冲突的微信侧默认用户名。
         User = get_user_model()
         for _ in range(10):
             suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))  # noqa: S311
@@ -41,17 +45,14 @@ class WechatMiniprogramProvider(Provider):
         return f"wx_{uuid.uuid4().hex[:12]}"
 
     def verify_token(self, request, token):
+        # 用微信接口把前端传来的 code 换成登录载荷。
         code = token.get("id_token")
         if not code:
             raise get_adapter().validation_error("invalid_token", "缺少 code 参数。")
 
-        from apps.accounts.providers.wechat_miniprogram.client import jscode2session
-
         try:
             data = jscode2session(self.app, code)
         except ValueError as e:
-            from django.core.exceptions import ValidationError
-
             raise ValidationError(str(e)) from e
 
         return self.sociallogin_from_response(request, data)

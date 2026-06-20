@@ -130,14 +130,12 @@ describe('RealNameView', () => {
           {
             media_id: 101,
             media_type: 'image',
-            label: '身份证人像面',
             side: 'front',
             url: '/front.png',
           },
           {
             media_id: 102,
             media_type: 'image',
-            label: '身份证国徽面',
             side: 'back',
             url: '/back.png',
           },

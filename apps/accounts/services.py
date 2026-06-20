@@ -3,14 +3,18 @@
 import io
 from dataclasses import dataclass
 
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 from django.utils import timezone
 
+from allauth.account.internal.flows.login import Login, perform_login
+from allauth.socialaccount.models import SocialAccount
 from ninja.errors import HttpError
+from PIL import Image
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
-from apps.accounts.models import RealNameVerification, RealNameVerificationLog
+from apps.accounts.models import RealNameVerification, RealNameVerificationLog, normalize_phone, split_phone
 from apps.accounts.utils import (
     decrypt_identity_value,
     encrypt_identity_value,
@@ -42,8 +46,7 @@ class RealNameEvaluation:
 
 def process_and_save_avatar(user, image_file, crop_data: dict) -> str:
     """裁剪、缩放、存储头像，返回 avatar_url。失败抛 ValueError。"""
-    from PIL import Image
-
+    # 头像处理先做安全校验，再裁剪为统一尺寸保存。
     if image_file.content_type not in ALLOWED_IMAGE_TYPES:
         raise ValueError("Unsupported image type. Use JPEG, PNG, or WebP.")
     if image_file.size > MAX_UPLOAD_SIZE:
@@ -109,6 +112,7 @@ def process_and_save_avatar(user, image_file, crop_data: dict) -> str:
 
 def delete_user_avatar(user) -> None:
     """删除用户头像文件及字段。"""
+    # 清理头像时同时删除原图、缩略图和裁剪数据。
     if user.avatar_original:
         user.avatar_original.delete(save=False)
     if user.avatar_thumbnail:
@@ -119,14 +123,7 @@ def delete_user_avatar(user) -> None:
 
 def bind_phone_to_user(request, user, phone: str):
     """绑定手机号到 user。若已有其他账号使用此手机号，执行合并。"""
-    from django.contrib.auth import get_user_model
-    from django.db import transaction
-
-    from allauth.account.internal.flows.login import Login, perform_login
-    from allauth.socialaccount.models import SocialAccount
-
-    from apps.accounts.models import normalize_phone, split_phone
-
+    # 统一处理手机号绑定、账号合并和登录态切换。
     User = get_user_model()
     phone = normalize_phone(phone)
     country_code, national_number = split_phone(phone)
@@ -165,6 +162,7 @@ def bind_phone_to_user(request, user, phone: str):
 
 
 def build_real_name_timeline_row(log: RealNameVerificationLog) -> dict:
+    # 把实名日志整理成前端时间线需要的展示结构。
     return {
         "action": log.action,
         "action_label": RealNameLogAction.get_choice_label(log.action),
@@ -179,6 +177,7 @@ def build_real_name_timeline_row(log: RealNameVerificationLog) -> dict:
 
 
 def evaluate_real_name_submission(*, user, real_name: str, id_number: str) -> RealNameEvaluation:
+    # 先做实名提交的静态规则判断，再看是否存在重复实名。
     normalized_id = normalize_id_number(id_number)
     if len(real_name.strip()) < 2:
         return RealNameEvaluation(
@@ -211,24 +210,22 @@ def evaluate_real_name_submission(*, user, real_name: str, id_number: str) -> Re
     )
 
 
+def _to_plain_media_ref(item):
+    if hasattr(item, "model_dump"):
+        return item.model_dump(exclude_none=True)
+    return item
+
+
 def normalize_id_card_media(*, user, id_card_media: list[dict]) -> list[dict]:
     """校验并规范化身份证正反面媒体引用。"""
+    # 这里只处理动态规则：查媒体是否存在、是否属于本人、类型是否匹配。
+    plain_id_card_media = [_to_plain_media_ref(item) for item in id_card_media]
     try:
-        media_refs = validate_media_refs(id_card_media)
+        media_refs = validate_media_refs(plain_id_card_media)
     except (TypeError, ValueError) as exc:
         raise HttpError(400, str(exc)) from exc
 
     normalized = [dict(item) for item in media_refs if isinstance(item, dict)]
-    if len(normalized) != 2:
-        raise HttpError(400, "请上传身份证人像面和国徽面。")
-
-    sides = [item.get("side") for item in normalized]
-    if sorted(sides) != ["back", "front"]:
-        raise HttpError(400, "身份证图片必须包含 side=front 和 side=back。")
-
-    for item in normalized:
-        if item.get("media_type") != "image":
-            raise HttpError(400, "身份证材料必须是图片。")
 
     media_ids = extract_media_ids(normalized)
     media_by_id = MediaFile.objects.in_bulk(media_ids)
@@ -243,6 +240,7 @@ def normalize_id_card_media(*, user, id_card_media: list[dict]) -> list[dict]:
 
 
 def serialize_real_name_verification(verification: RealNameVerification, *, include_sensitive: bool = False) -> dict:
+    # 统一把实名模型转成 API 返回结构。
     data = {
         "created_at": verification.created_at.isoformat(),
         "failure_reason": verification.failure_reason,
@@ -278,6 +276,7 @@ def serialize_real_name_verification(verification: RealNameVerification, *, incl
 
 @transaction.atomic
 def submit_real_name_verification(*, user, real_name: str, id_number: str, id_card_media: list[dict], source: str) -> RealNameVerification:
+    # 提交时先锁当前记录，再落库新的 current 记录。
     current = RealNameVerification.objects.select_for_update().filter(user=user, is_current=True).first()
     if current and current.status in {RealNameStatus.PENDING, RealNameStatus.MANUAL_REVIEW, RealNameStatus.VERIFIED}:
         raise HttpError(400, "当前实名状态不允许重复提交。")
@@ -318,6 +317,7 @@ def submit_real_name_verification(*, user, real_name: str, id_number: str, id_ca
 
 
 def sync_user_real_name_summary(user, verification: RealNameVerification) -> None:
+    # 把实名状态同步回 User，供全站统一展示。
     user.real_name_status = verification.status
     user.real_name_masked = verification.real_name_masked
     user.id_number_masked = verification.id_number_masked
@@ -336,6 +336,7 @@ def append_real_name_log(
     operator=None,
     to_status: str,
 ) -> None:
+    # 追加实名状态流转日志。
     RealNameVerificationLog.objects.create(
         verification=verification,
         action=action,
@@ -347,10 +348,12 @@ def append_real_name_log(
 
 
 def get_current_real_name_verification(user):
+    # 只取当前生效的实名记录。
     return RealNameVerification.objects.filter(user=user, is_current=True).first()
 
 
 def collect_real_name_media_ids():
+    # 收集所有仍被实名记录引用的媒体 ID，供清理任务使用。
     media_ids = set()
     for row in RealNameVerification.objects.values_list("id_card_media", flat=True):
         if not row:
@@ -369,6 +372,7 @@ def admin_transition_real_name(
     note: str = "",
     provider: str = RealNameProvider.MANUAL_ADMIN,
 ) -> RealNameVerification:
+    # 后台审核时统一更新状态、备注和日志。
     from_status = verification.status
     verification.status = to_status
     verification.provider = provider

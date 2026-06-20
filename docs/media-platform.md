@@ -300,13 +300,11 @@ MEDIA_REFERENCE_PROVIDERS = [
   {
     "media_id": 4001,
     "media_type": "image",
-    "label": "身份证人像面",
     "side": "front"
   },
   {
     "media_id": 4002,
     "media_type": "image",
-    "label": "身份证国徽面",
     "side": "back"
   }
 ]
@@ -315,6 +313,7 @@ MEDIA_REFERENCE_PROVIDERS = [
 建议：
 
 - `id_card_media` 字段已经表达身份证材料语义，列表项里保留 `side` 区分人像面和国徽面即可
+- `side` 的合法值应由业务 schema 明确定义并校验，例如 `front` / `back`
 - 审核状态、审核原因、OCR 标记等也放在业务模型自己的结构中
 - 不要把身份证号、姓名明文等高敏感信息塞进媒体引用结构
 

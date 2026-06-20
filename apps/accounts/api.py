@@ -7,10 +7,14 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 import requests as http_requests
+from allauth.account.adapter import get_adapter as get_social_adapter
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
 from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal.auth import generate_totp_secret
 from allauth.mfa.utils import is_mfa_enabled
+from allauth.socialaccount.internal.flows.connect import validate_disconnect
+from allauth.socialaccount.models import SocialAccount, SocialApp
+from allauth.usersessions.models import UserSession
 from ninja import File, Form, Query, Router, Status
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
@@ -18,6 +22,7 @@ from ninja.pagination import paginate
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification
+from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
 from apps.accounts.schemas import (
     AdminRealNameDecisionIn,
     AdminRealNameVerificationRowOut,
@@ -135,7 +140,6 @@ def get_me(request):
 def get_social_bindings(request):
     """返回管理端账号绑定页需要展示的当前用户社交绑定状态。"""
     require_authenticated(request)
-    from allauth.socialaccount.models import SocialAccount
 
     connected_providers = set(
         SocialAccount.objects.filter(user=request.user, provider__in=["github", "weixin"]).values_list("provider", flat=True)
@@ -255,15 +259,10 @@ def delete_avatar(request):
 def bind_wechat_phone(request, payload: WechatPhoneIn):
     """通过微信小程序手机号凭证为当前用户绑定手机号。"""
     require_authenticated(request)
-    from allauth.socialaccount.models import SocialApp
-
-    from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
 
     try:
         app = SocialApp.objects.get(provider="wechat_miniprogram")
     except SocialApp.DoesNotExist:
-        from allauth.socialaccount.adapter import get_adapter as get_social_adapter
-
         provider = get_social_adapter().get_provider(request, "wechat_miniprogram")
         app = provider.app
 
@@ -388,7 +387,6 @@ def set_admin_user_password(request, user_id: int, payload: AdminUserPasswordIn)
 def force_logout_user(request, user_id: int):
     """删除 allauth 记录的用户会话，使用户需要重新登录。"""
     user = _get_admin_user(request, user_id)
-    from allauth.usersessions.models import UserSession
 
     user_sessions = list(UserSession.objects.filter(user=user))
     for user_session in user_sessions:
@@ -401,7 +399,6 @@ def force_logout_user(request, user_id: int):
 def reset_user_mfa(request, user_id: int):
     """删除用户已配置的 allauth MFA authenticators。"""
     user = _get_admin_user(request, user_id)
-    from allauth.mfa.models import Authenticator
 
     deleted_authenticators, _ = Authenticator.objects.filter(user=user).delete()
     return {"deleted_authenticators": deleted_authenticators}
@@ -421,8 +418,6 @@ def unbind_user_phone(request, user_id: int):
 def unbind_user_wechat(request, user_id: int):
     """删除用户微信开放平台和小程序 social account 绑定。"""
     user = _get_admin_user(request, user_id)
-    from allauth.socialaccount.internal.flows.connect import validate_disconnect
-    from allauth.socialaccount.models import SocialAccount
 
     accounts = list(SocialAccount.objects.filter(user=user, provider__in=["weixin", "wechat_miniprogram"]))
     try:
