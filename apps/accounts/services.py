@@ -24,9 +24,7 @@ from apps.accounts.utils import (
     mask_real_name,
     normalize_id_number,
 )
-from apps.media.constants import ResourceType
-from apps.media.models import MediaFile
-from apps.media.services import extract_media_ids, resolve_media_refs, validate_media_refs
+from apps.media.services import extract_media_ids, to_plain_media_ref
 from apps.referrals.services import mark_referral_as_qualified
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -210,33 +208,21 @@ def evaluate_real_name_submission(*, user, real_name: str, id_number: str) -> Re
     )
 
 
-def _to_plain_media_ref(item):
-    if hasattr(item, "model_dump"):
-        return item.model_dump(exclude_none=True)
-    return item
+def validate_id_card_media_owner(*, instance, refs, media_by_id, field):
+    for ref in refs:
+        media = media_by_id[ref["media_id"]]
+        if media.uploader_id != instance.user_id:
+            raise ValueError("身份证图片只能引用当前用户上传的媒体。")
 
 
 def normalize_id_card_media(*, user, id_card_media: list[dict]) -> list[dict]:
     """校验并规范化身份证正反面媒体引用。"""
-    # 这里只处理动态规则：查媒体是否存在、是否属于本人、类型是否匹配。
-    plain_id_card_media = [_to_plain_media_ref(item) for item in id_card_media]
+    plain_id_card_media = [to_plain_media_ref(item) for item in id_card_media]
+    verification = RealNameVerification(user=user, id_card_media=plain_id_card_media)
     try:
-        media_refs = validate_media_refs(plain_id_card_media)
+        return RealNameVerification._meta.get_field("id_card_media").clean_media_refs(plain_id_card_media, model_instance=verification)
     except (TypeError, ValueError) as exc:
         raise HttpError(400, str(exc)) from exc
-
-    normalized = [dict(item) for item in media_refs if isinstance(item, dict)]
-
-    media_ids = extract_media_ids(normalized)
-    media_by_id = MediaFile.objects.in_bulk(media_ids)
-    for media_id in media_ids:
-        media = media_by_id[media_id]
-        if media.uploader_id != user.pk:
-            raise HttpError(400, "身份证图片只能引用当前用户上传的媒体。")
-        if media.resource_type != ResourceType.REAL_NAME_ID_CARD:
-            raise HttpError(400, "身份证图片资源类型不正确。")
-
-    return normalized
 
 
 def serialize_real_name_verification(verification: RealNameVerification, *, include_sensitive: bool = False) -> dict:
@@ -251,7 +237,7 @@ def serialize_real_name_verification(verification: RealNameVerification, *, incl
         "provider_label": RealNameProvider.get_choice_label(verification.provider),
         "provider_request_id": verification.provider_request_id,
         "provider_result": verification.provider_result,
-        "id_card_media": resolve_media_refs(verification.id_card_media),
+        "id_card_media": verification.id_card_media_resolved,
         "real_name_masked": verification.real_name_masked,
         "review_note": verification.review_note,
         "reviewed_at": verification.reviewed_at.isoformat() if verification.reviewed_at else None,

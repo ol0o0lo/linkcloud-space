@@ -4,8 +4,7 @@ from uuid import UUID
 import pytest
 
 from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
-from apps.media.services import _generate_sts_token as generate_sts_token
-from apps.media.services import generate_upload_path
+from apps.media.services import generate_upload_path, get_oss_token
 
 
 class TestGenerateUploadPath:
@@ -38,7 +37,7 @@ class TestGenerateUploadPath:
         assert path.endswith(".jpg")
 
 
-class TestGenerateStsToken:
+class TestGetOssToken:
     @patch("apps.media.services.StsClient")
     def test_returns_credentials(self, mock_client_cls):
         mock_response = MagicMock()
@@ -51,11 +50,14 @@ class TestGenerateStsToken:
         mock_client.assume_role.return_value = mock_response
         mock_client_cls.return_value = mock_client
 
-        result = generate_sts_token(path="uploads/users/1/abc.jpg")
+        result = get_oss_token(scope="user", object_id=1, filename="abc.jpg")
 
         assert result["access_key_id"] == "STS.xxx"
         assert result["access_key_secret"] == "secret"
         assert result["security_token"] == "token"
+        assert result["path"].startswith("uploads/users/1/")
+        assert result["bucket"]
+        assert result["endpoint"]
         assert result["expires_at"] == "2026-05-16T08:30:00Z"
 
     @patch("apps.media.services.StsClient")
@@ -69,11 +71,11 @@ class TestGenerateStsToken:
         )
         mock_client_cls.return_value = mock_client
 
-        generate_sts_token(path="uploads/users/1/abc.jpg")
+        result = get_oss_token(scope="user", object_id=1, filename="abc.jpg")
 
         call_args = mock_client.assume_role.call_args
         request = call_args[0][0]
         import json
         policy = json.loads(request.policy)
         resource = policy["Statement"][0]["Resource"][0]
-        assert "uploads/users/1/abc.jpg" in resource
+        assert result["path"] in resource

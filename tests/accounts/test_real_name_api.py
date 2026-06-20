@@ -152,10 +152,41 @@ class TestRealNameAPI(TestCase):
         )
 
         resolved = serialize_real_name_verification(verification)["id_card_media"]
+        verification.refresh_from_db()
 
-        self.assertEqual(verification.id_card_media[0]["url"], "stale-signed-url")
+        self.assertNotIn("url", verification.id_card_media[0])
+        self.assertNotIn("file_size", verification.id_card_media[0])
         self.assertNotEqual(resolved[0]["url"], "stale-signed-url")
         self.assertEqual(resolved[0]["file_size"], 123)
+        self.assertEqual(verification.id_card_media_resolved[0]["file_size"], 123)
+
+    def test_real_name_media_field_rejects_wrong_resource_type(self):
+        id_card_media = self.make_id_card_media()
+        wrong_media = MediaFile.objects.create(
+            uploader=self.user,
+            resource_type="avatar",
+            original_filename="avatar.png",
+            file="uploads/users/1/avatar.png",
+            file_size=123,
+        )
+
+        with self.assertRaisesMessage(ValueError, "身份证图片资源类型不正确。"):
+            RealNameVerification.objects.create(
+                user=self.user,
+                status=RealNameStatus.PENDING,
+                source="user_submit",
+                provider="mock_auto",
+                real_name_encrypted="encrypted-name",
+                id_number_encrypted="encrypted-id",
+                real_name_masked="张*",
+                id_number_masked="110***********0019",
+                id_number_hash="hash-pending",
+                id_card_media=[
+                    {"media_id": wrong_media.pk, "media_type": "image", "side": "front"},
+                    id_card_media[1],
+                ],
+                is_current=True,
+            )
 
     def test_admin_approval_marks_referral_record_pending_review(self):
         inviter = User.objects.create_user(username="inviter", email="inviter@example.com", password="secret123")  # noqa: S106

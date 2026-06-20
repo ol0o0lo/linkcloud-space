@@ -1,3 +1,4 @@
+import importlib
 from datetime import timedelta
 
 from django.test import override_settings
@@ -10,14 +11,14 @@ from apps.media.constants import MediaScope, ResourceType
 from apps.media.models import MediaFile
 from apps.media.services import (
     CleanupResult,
+    clean_media_refs_in_json,
     cleanup_unreferenced_media,
+    collect_media_ref_field_ids,
     collect_referenced_media_ids,
     extract_media_ids,
-    get_media_list_info,
-    get_media_refs_info,
     register_media_file,
     resolve_media_refs,
-    validate_media_ids,
+    resolve_media_refs_in_json,
     validate_media_refs,
 )
 from apps.organizations.models import Organization
@@ -106,60 +107,17 @@ class TestUploadAndRegister:
         assert saved_path.startswith(f"uploads/orgs/{org.pk}/")
 
 
+class TestPublicServiceSurface:
+    def test_removed_helpers_are_not_publicly_exposed(self):
+        services = importlib.import_module("apps.media.services")
+
+        assert not hasattr(services, "validate_media_ids")
+        assert not hasattr(services, "get_media_list_info")
+
+
 @pytest.mark.django_db
-class TestMediaListInfo:
-    def test_get_media_list_info_preserves_requested_id_order(self):
-        user = User.objects.create_user(username="viewer", password="secret")  # noqa: S106
-        first = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/first.png",
-            original_filename="first.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-        second = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/second.png",
-            original_filename="second.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=200,
-        )
-
-        result = get_media_list_info([second.pk, first.pk])
-
-        assert [item["id"] for item in result] == [second.pk, first.pk]
-        assert result[0]["original"]["url"]
-        assert result[0]["thumbnail"] is None
-        assert result[0]["file_size"] == 200
-        assert "order" not in result[0]
-
-    def test_get_media_list_info_accepts_media_ref_dicts(self):
-        user = User.objects.create_user(username="ref_viewer", password="secret")  # noqa: S106
-        first = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/ref-first.png",
-            original_filename="ref-first.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-        second = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/ref-second.png",
-            original_filename="ref-second.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=200,
-        )
-
-        result = get_media_list_info(
-            [
-                {"media_id": second.pk, "label": "客厅图"},
-                {"media_id": first.pk, "label": "封面图"},
-            ]
-        )
-
-        assert [item["id"] for item in result] == [second.pk, first.pk]
-
-    def test_get_media_refs_info_flattens_media_info_and_refreshes_platform_fields(self):
+class TestMediaRefsInfo:
+    def test_resolve_media_refs_flattens_media_info_and_refreshes_platform_fields(self):
         user = User.objects.create_user(username="flat_viewer", password="secret")  # noqa: S106
         media = register_media_file(
             uploader=user,
@@ -169,7 +127,7 @@ class TestMediaListInfo:
             file_size=300,
         )
 
-        result = get_media_refs_info(
+        result = resolve_media_refs(
             [
                 {
                     "media_id": media.pk,
@@ -213,48 +171,6 @@ class TestMediaListInfo:
 
 
 @pytest.mark.django_db
-class TestValidateMediaIds:
-    def test_returns_ids_in_original_order(self):
-        user = User.objects.create_user(username="validator", password="secret")  # noqa: S106
-        first = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/first.png",
-            original_filename="first.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-        second = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/second.png",
-            original_filename="second.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-
-        assert validate_media_ids([second.pk, first.pk]) == [second.pk, first.pk]
-
-    def test_returns_empty_list_for_empty_input(self):
-        assert validate_media_ids([]) == []
-
-    def test_raises_for_duplicate_ids(self):
-        user = User.objects.create_user(username="validator_dup", password="secret")  # noqa: S106
-        media = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/dup.png",
-            original_filename="dup.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-
-        with pytest.raises(ValueError, match="media_ids 不能包含重复 ID"):
-            validate_media_ids([media.pk, media.pk])
-
-    def test_raises_for_missing_ids(self):
-        with pytest.raises(ValueError, match=r"媒体文件不存在: \[999999\]"):
-            validate_media_ids([999999])
-
-
-@pytest.mark.django_db
 class TestMediaRefs:
     def test_extract_media_ids_accepts_ints_and_dicts(self):
         assert extract_media_ids([1, {"media_id": "2"}, 3]) == [1, 2, 3]
@@ -286,6 +202,58 @@ class TestMediaRefs:
     def test_extract_media_ids_requires_media_id_for_dict_items(self):
         with pytest.raises(ValueError, match="媒体引用对象必须包含 media_id"):
             extract_media_ids([{"label": "缺少 ID"}])
+
+    def test_clean_media_refs_in_json_handles_configured_extra_paths(self):
+        user = User.objects.create_user(username="extra_cleaner", password="secret")  # noqa: S106
+        media = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/floor-plan.png",
+            original_filename="floor-plan.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=100,
+        )
+        extra = {
+            "floor_plan": [
+                {
+                    "media_id": str(media.pk),
+                    "label": "A 户型",
+                    "url": "stale-url",
+                    "file_size": 999,
+                }
+            ],
+            "description": "南北通透",
+        }
+
+        cleaned = clean_media_refs_in_json(extra, media_paths=["floor_plan"])
+
+        assert cleaned == {
+            "floor_plan": [{"media_id": media.pk, "label": "A 户型"}],
+            "description": "南北通透",
+        }
+        assert extra["floor_plan"][0]["url"] == "stale-url"
+
+    def test_resolve_media_refs_in_json_handles_configured_extra_paths(self):
+        user = User.objects.create_user(username="extra_resolver", password="secret")  # noqa: S106
+        media = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/contract.png",
+            original_filename="contract.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=256,
+        )
+        extra = {
+            "contract_file": {
+                "media_id": media.pk,
+                "label": "租赁合同",
+            },
+        }
+
+        resolved = resolve_media_refs_in_json(extra, media_paths=["contract_file"])
+
+        assert resolved["contract_file"]["media_id"] == media.pk
+        assert resolved["contract_file"]["label"] == "租赁合同"
+        assert resolved["contract_file"]["url"] == media.file.url
+        assert resolved["contract_file"]["file_size"] == 256
 
 
 @pytest.mark.django_db
@@ -326,13 +294,14 @@ class TestCleanupUnreferencedMedia:
 
 
 @override_settings(MEDIA_REFERENCE_PROVIDERS=["tests.media.test_media_file.fake_media_provider"])
+@pytest.mark.django_db
 def test_collect_referenced_media_ids_supports_import_string():
     assert collect_referenced_media_ids() == {101, 102}
 
 
 @pytest.mark.django_db
 @override_settings(MEDIA_REFERENCE_PROVIDERS=[])
-def test_cleanup_is_noop_when_no_providers_configured():
+def test_cleanup_uses_media_ref_fields_when_no_providers_configured():
     user = User.objects.create_user(username="cleanup_guard", password="secret")  # noqa: S106
     orphan = register_media_file(
         uploader=user,
@@ -345,5 +314,12 @@ def test_cleanup_is_noop_when_no_providers_configured():
 
     result = cleanup_unreferenced_media(older_than=timedelta(days=1))
 
-    assert result == CleanupResult(deleted_count=0, deleted_ids=[])
-    assert MediaFile.objects.filter(pk=orphan.pk).exists()
+    assert result == CleanupResult(deleted_count=1, deleted_ids=[orphan.pk])
+    assert not MediaFile.objects.filter(pk=orphan.pk).exists()
+
+
+@pytest.mark.django_db
+def test_collect_media_ref_field_ids_detects_registered_fields():
+    _, has_media_ref_fields = collect_media_ref_field_ids()
+
+    assert has_media_ref_fields is True

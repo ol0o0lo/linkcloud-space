@@ -1,12 +1,14 @@
 """OSS 上传路径生成和 STS 临时凭证."""
 import json
 from collections.abc import Callable, Iterable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
 from importlib import import_module
 from typing import Any
 from uuid import uuid4
 
+from django.apps import apps
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.utils import timezone
@@ -30,6 +32,13 @@ MEDIA_DERIVED_REF_FIELDS = {
 }
 
 
+@dataclass(frozen=True)
+class MediaRefBatch:
+    refs: list[int | Mapping[str, Any]]
+    ids: list[int]
+    media_by_id: dict[int, MediaFile]
+
+
 def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
     if scope not in MediaScope.values:
         raise InvalidScopeException()
@@ -47,7 +56,8 @@ def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
     return f"uploads/orgs/{object_id}/{uid}.{ext}"
 
 
-def _generate_sts_token(*, path: str, duration_seconds: int = 900) -> dict:
+def get_oss_token(scope: str, object_id: int, filename: str) -> dict:
+    path = generate_upload_path(scope=scope, object_id=object_id, filename=filename)
     policy = {
         "Version": "1",
         "Statement": [
@@ -58,6 +68,7 @@ def _generate_sts_token(*, path: str, duration_seconds: int = 900) -> dict:
             }
         ],
     }
+    duration_seconds = 900
     config = TeaConfig(
         access_key_id=settings.ALIYUN_STS_ACCESS_KEY_ID,
         access_key_secret=settings.ALIYUN_STS_ACCESS_KEY_SECRET,
@@ -76,21 +87,10 @@ def _generate_sts_token(*, path: str, duration_seconds: int = 900) -> dict:
         "access_key_id": creds.access_key_id,
         "access_key_secret": creds.access_key_secret,
         "security_token": creds.security_token,
-        "expires_at": creds.expiration,
-    }
-
-
-def get_oss_token(scope: str, object_id: int, filename: str) -> dict:
-    path = generate_upload_path(scope=scope, object_id=object_id, filename=filename)
-    token = _generate_sts_token(path=path)
-    return {
-        "access_key_id": token["access_key_id"],
-        "access_key_secret": token["access_key_secret"],
-        "security_token": token["security_token"],
         "endpoint": settings.MEDIA_S3_ENDPOINT_URL,
         "bucket": settings.MEDIA_S3_BUCKET_NAME,
         "path": path,
-        "expires_at": token["expires_at"],
+        "expires_at": creds.expiration,
     }
 
 
@@ -163,7 +163,7 @@ def get_media_file_info(media_file: MediaFile) -> dict:
     }
 
 
-def _extract_media_id(media_ref: int | Mapping[str, Any]) -> int:
+def extract_media_id(media_ref: int | Mapping[str, Any]) -> int:
     if isinstance(media_ref, Mapping):
         if "media_id" not in media_ref:
             raise ValueError("媒体引用对象必须包含 media_id")
@@ -171,89 +171,164 @@ def _extract_media_id(media_ref: int | Mapping[str, Any]) -> int:
     return int(media_ref)
 
 
+def to_plain_media_ref(media_ref):
+    if hasattr(media_ref, "model_dump"):
+        return media_ref.model_dump(exclude_none=True)
+    return media_ref
+
+
 def extract_media_ids(media_refs: Iterable[int | Mapping[str, Any]]) -> list[int]:
     """从 list[int] 或 list[dict] 中提取媒体 ID，保持原顺序返回。"""
-    return [_extract_media_id(media_ref) for media_ref in media_refs]
+    return [extract_media_id(media_ref) for media_ref in media_refs]
 
 
-def validate_media_ids(media_ids: Iterable[int | Mapping[str, Any]]) -> list[int]:
-    """校验媒体 ID 或媒体引用对象列表，保持原顺序返回媒体 ID。"""
-    ordered_ids = extract_media_ids(media_ids)
+def load_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> MediaRefBatch:
+    """校验媒体引用是否存在且不重复，并返回按原顺序的 ID 与媒体映射。"""
+    refs = [to_plain_media_ref(media_ref) for media_ref in media_refs]
+    ordered_ids = extract_media_ids(refs)
     if len(ordered_ids) != len(set(ordered_ids)):
         raise ValueError("media_ids 不能包含重复 ID")
     if not ordered_ids:
-        return []
+        return MediaRefBatch(refs=refs, ids=[], media_by_id={})
 
     media_by_id = MediaFile.objects.in_bulk(ordered_ids)
     missing_ids = [media_id for media_id in ordered_ids if media_id not in media_by_id]
     if missing_ids:
         raise ValueError(f"媒体文件不存在: {missing_ids}")
-    return ordered_ids
+    return MediaRefBatch(refs=refs, ids=ordered_ids, media_by_id=media_by_id)
 
 
-def validate_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> list[int | Mapping[str, Any]]:
+def validate_media_refs(
+    media_refs: Iterable[int | Mapping[str, Any]],
+    *,
+    allowed_media_types: Iterable[str] | None = None,
+    allowed_resource_types: Iterable[str] | None = None,
+    business_validators: Iterable[str | Callable] | None = None,
+    instance=None,
+    field=None,
+    media_type_error_message: str = "媒体类型不正确。",
+    resource_type_error_message: str = "媒体资源类型不正确。",
+) -> list[int | Mapping[str, Any]]:
     """校验业务媒体引用列表，返回可安全入库的稳定引用。"""
-    ordered_refs = list(media_refs)
-    validate_media_ids(ordered_refs)
-
+    batch = load_media_refs(media_refs)
+    media_type_set = set(allowed_media_types or [])
+    resource_type_set = set(allowed_resource_types or [])
     normalized_refs: list[int | Mapping[str, Any]] = []
-    for media_ref in ordered_refs:
+
+    for media_ref in batch.refs:
+        media_id = extract_media_id(media_ref)
+        if resource_type_set and batch.media_by_id[media_id].resource_type not in resource_type_set:
+            raise ValueError(resource_type_error_message)
         if not isinstance(media_ref, Mapping):
-            normalized_refs.append(_extract_media_id(media_ref))
+            normalized_refs.append(media_id)
             continue
+        if media_type_set and media_ref.get("media_type") not in media_type_set:
+            raise ValueError(media_type_error_message)
 
         item = {key: value for key, value in media_ref.items() if key not in MEDIA_DERIVED_REF_FIELDS}
-        item["media_id"] = _extract_media_id(media_ref)
+        item["media_id"] = media_id
         normalized_refs.append(item)
+
+    for validator in business_validators or []:
+        if isinstance(validator, str):
+            module_path, func_name = validator.rsplit(".", 1)
+            callback = getattr(import_module(module_path), func_name)
+        else:
+            callback = validator
+        callback(instance=instance, refs=normalized_refs, media_by_id=batch.media_by_id, field=field)
     return normalized_refs
 
 
-def get_media_list_info(media_ids: Iterable[int | Mapping[str, Any]]) -> list[dict]:
-    """按传入引用顺序返回媒体信息，兼容 list[int] 和 list[dict]。"""
-    ordered_ids = validate_media_ids(media_ids)
-    if not ordered_ids:
-        return []
-
-    media_by_id = MediaFile.objects.in_bulk(ordered_ids)
-    return [get_media_file_info(media_by_id[media_id]) for media_id in ordered_ids]
-
-
-def _flatten_media_info(media_info: dict) -> dict:
-    return {
-        "media_id": media_info["id"],
-        "resource_type": media_info["resource_type"],
-        "original_filename": media_info["original_filename"],
-        "url": media_info["original"]["url"],
-        "thumbnail": media_info["thumbnail"],
-        "file_size": media_info["file_size"],
-        "created_at": media_info["created_at"],
-    }
-
-
-def get_media_refs_info(media_refs: Iterable[int | Mapping[str, Any]]) -> list[dict]:
-    """返回平铺增强后的媒体引用列表；平台派生字段始终动态刷新。"""
-    ordered_refs = list(media_refs)
-    media_infos = get_media_list_info(ordered_refs)
+def resolve_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> list[dict]:
+    """解析媒体引用为前端展示结构，平台派生字段始终动态刷新。"""
+    batch = load_media_refs(media_refs)
+    media_infos = [get_media_file_info(batch.media_by_id[media_id]) for media_id in batch.ids]
 
     result = []
-    for media_ref, media_info in zip(ordered_refs, media_infos, strict=True):
-        media_id = _extract_media_id(media_ref)
+    for media_ref, media_info in zip(batch.refs, media_infos, strict=True):
+        media_id = extract_media_id(media_ref)
         item = dict(media_ref) if isinstance(media_ref, Mapping) else {"media_id": media_id}
         item["media_id"] = media_id
-        item.update(_flatten_media_info(media_info))
+        item.update(
+            {
+                "media_id": media_info["id"],
+                "resource_type": media_info["resource_type"],
+                "original_filename": media_info["original_filename"],
+                "url": media_info["original"]["url"],
+                "thumbnail": media_info["thumbnail"],
+                "file_size": media_info["file_size"],
+                "created_at": media_info["created_at"],
+            }
+        )
         result.append(item)
     return result
 
 
-def resolve_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> list[dict]:
-    """解析媒体引用为前端展示结构，兼容 list[int] 和 list[dict]。"""
-    return get_media_refs_info(media_refs)
+def map_media_refs_in_json(value: Mapping[str, Any], *, media_paths: Iterable[str], transform: Callable[[Any], Any]) -> dict:
+    """对 JSON 中指定 path 的媒体引用执行转换。"""
+    data = deepcopy(dict(value or {}))
+
+    def update_path(target, parts: list[str]):
+        if not parts:
+            return transform(target)
+        if not isinstance(target, dict):
+            return target
+        key = parts[0]
+        if key not in target:
+            return target
+        target[key] = update_path(target[key], parts[1:])
+        return target
+
+    for path in media_paths:
+        update_path(data, [part for part in path.split(".") if part])
+    return data
 
 
-def _import_from_string(path: str) -> Callable[[], Iterable[int]]:
-    module_path, func_name = path.rsplit(".", 1)
-    module = import_module(module_path)
-    return getattr(module, func_name)
+def clean_media_refs_in_json(value: Mapping[str, Any], *, media_paths: Iterable[str], **kwargs) -> dict:
+    """清洗 JSON 中指定路径上的媒体引用，适合业务 extra 字段单独调用。"""
+    def clean_value(target):
+        if target in (None, ""):
+            return target
+        if isinstance(target, Mapping) and "media_id" in target:
+            cleaned = validate_media_refs([target], **kwargs)
+            return cleaned[0] if cleaned else {}
+        if isinstance(target, list):
+            return validate_media_refs(target, **kwargs)
+        return target
+
+    return map_media_refs_in_json(value, media_paths=media_paths, transform=clean_value)
+
+
+def resolve_media_refs_in_json(value: Mapping[str, Any], *, media_paths: Iterable[str]) -> dict:
+    """解析 JSON 中指定路径上的媒体引用，返回适合 API 回显的增强结构。"""
+    def resolve_value(target):
+        if target in (None, ""):
+            return target
+        if isinstance(target, Mapping) and "media_id" in target:
+            resolved = resolve_media_refs([target])
+            return resolved[0] if resolved else {}
+        if isinstance(target, list):
+            return resolve_media_refs(target)
+        return target
+
+    return map_media_refs_in_json(value, media_paths=media_paths, transform=resolve_value)
+
+
+def collect_media_ref_field_ids() -> tuple[set[int], bool]:
+    """收集所有 MediaRefsField 中仍被引用的媒体 ID。"""
+    from apps.media.fields import MediaRefsField
+
+    referenced_ids: set[int] = set()
+    has_media_ref_fields = False
+    for model in apps.get_models():
+        for field in model._meta.get_fields():
+            if not isinstance(field, MediaRefsField):
+                continue
+            has_media_ref_fields = True
+            for row in model.objects.values_list(field.attname, flat=True).iterator():
+                if row:
+                    referenced_ids.update(extract_media_ids(row))
+    return referenced_ids, has_media_ref_fields
 
 
 def collect_referenced_media_ids(providers: Iterable[str | Callable[[], Iterable[int]]] | None = None) -> set[int]:
@@ -262,9 +337,13 @@ def collect_referenced_media_ids(providers: Iterable[str | Callable[[], Iterable
 
     业务 app 可以在 settings.MEDIA_REFERENCE_PROVIDERS 注册函数路径，函数返回媒体 ID 集合。
     """
-    referenced_ids: set[int] = set()
+    referenced_ids, _ = collect_media_ref_field_ids()
     for provider in providers or getattr(settings, "MEDIA_REFERENCE_PROVIDERS", []):
-        callback = _import_from_string(provider) if isinstance(provider, str) else provider
+        if isinstance(provider, str):
+            module_path, func_name = provider.rsplit(".", 1)
+            callback = getattr(import_module(module_path), func_name)
+        else:
+            callback = provider
         referenced_ids.update(int(media_id) for media_id in callback() if media_id)
     return referenced_ids
 
@@ -285,9 +364,17 @@ def cleanup_unreferenced_media(
         referenced_ids = set(referenced_media_ids)
     else:
         providers = list(getattr(settings, "MEDIA_REFERENCE_PROVIDERS", []))
-        if not providers:
+        field_referenced_ids, has_media_ref_fields = collect_media_ref_field_ids()
+        if not providers and not has_media_ref_fields:
             return CleanupResult(deleted_count=0, deleted_ids=[])
-        referenced_ids = collect_referenced_media_ids(providers)
+        referenced_ids = set(field_referenced_ids)
+        for provider in providers:
+            if isinstance(provider, str):
+                module_path, func_name = provider.rsplit(".", 1)
+                callback = getattr(import_module(module_path), func_name)
+            else:
+                callback = provider
+            referenced_ids.update(int(media_id) for media_id in callback() if media_id)
 
     cutoff = timezone.now() - older_than
     candidates = MediaFile.objects.filter(created_at__lt=cutoff).exclude(pk__in=referenced_ids).order_by("pk")

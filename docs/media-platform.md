@@ -55,9 +55,7 @@ class ExampleThing(models.Model):
 - `POST /api/media/confirm/`：登记前端直传完成后的文件
 - `POST /api/media/upload/`：服务端接收文件并上传
 - `extract_media_ids()`：从 `list[int]` 或 `list[dict]` 中提取媒体 ID
-- `validate_media_ids()`：校验 `list[int]` 或 `list[dict]` 中的媒体 ID 是否重复、是否存在
 - `validate_media_refs()`：校验媒体引用列表并返回可安全入库的稳定引用
-- `get_media_list_info()`：按传入列表原顺序返回完整媒体信息
 - `resolve_media_refs()`：返回平铺增强后的媒体引用列表，平台派生字段会动态刷新
 - 基于 `MEDIA_REFERENCE_PROVIDERS` 做延迟清理
 
@@ -123,47 +121,53 @@ scope=user
 
 建议用户私有素材使用 `user`，组织共享素材使用 `org`。
 
-### 3. 保存
+### 3. 固定字段保存
 
-业务保存前，推荐直接把列表传给平台校验函数：
-
-```python
-from apps.media.services import validate_media_refs
-
-
-def update_example_thing(*, thing, images: list[dict]):
-    thing.images = validate_media_refs(images)
-    thing.save(update_fields=["images"])
-    return thing
-```
-
-这里的约定是：业务层对外接受自己的媒体引用列表，平台底层兼容 `list[int]`，也兼容从 `list[dict]` 的每个 item 里提取 `media_id` 来做统一处理。
-
-`validate_media_refs()` 会剔除 `url`、`resource_type`、`original_filename`、`thumbnail`、`file_size`、`created_at` 这些平台派生字段，避免把临时签名 URL 或展示数据保存进业务表。
-
-这里平台只校验“存在性、唯一性”并清理平台派生字段；是否允许当前用户使用这些媒体，以及业务扩展字段是否合法，由业务自己校验。
-
-### 4. 回显
-
-业务详情可以直接返回平铺增强后的列表，适合前端展示。推荐在业务模型上提供一个只读展示属性，字段原值继续保持稳定引用：
-
-示例：
+固定的业务媒体字段推荐使用 `MediaRefsField`，它仍然是 JSONField 存储，但保存时会自动校验、清洗并剔除平台派生字段。
 
 ```python
 from django.db import models
 
-from apps.media.services import resolve_media_refs
+from apps.media.constants import MediaType, ResourceType
+from apps.media.fields import MediaRefsField
 
 
 class ExampleThing(models.Model):
     title = models.CharField(max_length=100)
-    images = models.JSONField(default=list, blank=True)
+    images = MediaRefsField(
+        default=list,
+        blank=True,
+        max_items=20,
+        allowed_media_types=[MediaType.IMAGE],
+        allowed_resource_types=[ResourceType.AVATAR],
+    )
+```
 
-    @property
-    def images_resolved(self):
-        return resolve_media_refs(self.images)
+业务代码可以直接赋值并保存：
 
+```python
+thing.images = payload.images
+thing.save(update_fields=["images"])
+```
 
+`MediaRefsField` 会剔除 `url`、`resource_type`、`original_filename`、`thumbnail`、`file_size`、`created_at` 这些平台派生字段，避免把临时签名 URL 或展示数据保存进业务表。
+
+字段参数用于声明平台可统一执行的规则：
+
+- `min_items` / `max_items`：数量约束；空列表仍允许保存，接口必填约束交给业务 schema
+- `allowed_media_types`：校验引用 item 里的 `media_type`
+- `allowed_resource_types`：校验对应 `MediaFile.resource_type`
+- `business_validators`：可选业务 validator 路径，适合“只能引用当前模型关联用户/组织上传的媒体”这类不依赖 request 的规则
+
+如果校验依赖当前请求操作者，例如管理员和普通用户权限不同，仍然应放在业务 service/view 层显式处理。
+
+### 4. 回显
+
+`MediaRefsField` 会自动给模型挂一个只读属性 `<field_name>_resolved`。字段原值继续保持稳定引用，回显属性负责动态补全平台字段。
+
+示例：
+
+```python
 def build_example_thing_payload(thing):
     return {
         "id": thing.pk,
@@ -192,13 +196,36 @@ def build_example_thing_payload(thing):
 
 如果业务原始 item 中已经包含 `url`、`file_size` 等平台派生字段，`resolve_media_refs()` 会使用当前 `MediaFile` 重新生成并覆盖这些值。这样私有 OSS 的临时签名 URL 会随接口响应刷新。
 
-如果业务只需要纯媒体信息，也可以继续使用 `get_media_list_info(images)`；该方法同样兼容 `list[int]` 和 `list[dict]`。
-
 推荐理解方式：
 
 - 业务输入输出字段名由业务自己决定
 - 平台兼容从业务列表的每个 item 提取 `media_id`
 - `apps/media` 不直接解释 `label`、`side`、`room` 等业务字段
+
+### 5. 动态 extra JSON
+
+如果业务模型有动态字段，例如 `PropertyListing.extra = JSONField(...)`，不要强行使用 `MediaRefsField`。这类字段推荐继续保留业务 JSON，只在指定 path 上复用 media 的独立工具入口。
+
+```python
+from apps.media.services import clean_media_refs_in_json, resolve_media_refs_in_json
+
+
+MEDIA_EXTRA_PATHS = ["floor_plan", "contract_file"]
+
+
+def update_listing_extra(*, listing, extra):
+    listing.extra = clean_media_refs_in_json(extra, media_paths=MEDIA_EXTRA_PATHS)
+    listing.save(update_fields=["extra"])
+
+
+def build_listing_payload(listing):
+    return {
+        "id": listing.pk,
+        "extra": resolve_media_refs_in_json(listing.extra, media_paths=MEDIA_EXTRA_PATHS),
+    }
+```
+
+指定 path 支持单个媒体引用对象，也支持媒体引用列表。未声明的动态字段保持原样。
 
 ## 返回结构
 
@@ -210,6 +237,8 @@ def build_example_thing_payload(thing):
 - `url`
 - `file_size`
 - `created_at`
+
+`/api/media/confirm/` 返回单个 `MediaFileOut`；`/api/media/upload/` 支持多文件上传，返回 `list[MediaFileOut]`。
 
 业务详情里的平铺增强列表来自 `resolve_media_refs()`，主要包含业务原始字段，并补充：
 
@@ -223,7 +252,9 @@ def build_example_thing_payload(thing):
 
 ## Provider 接入
 
-只要业务模型保存了媒体引用，就应该提供一个 provider，并注册到 `MEDIA_REFERENCE_PROVIDERS`。
+使用 `MediaRefsField` 的固定字段会被清理任务自动收集，不需要手写 provider。
+
+动态 `extra` JSON、普通 `JSONField` 或其他非 `MediaRefsField` 的保存方式，仍然需要提供 provider 并注册到 `MEDIA_REFERENCE_PROVIDERS`。
 
 示例：
 
@@ -251,7 +282,7 @@ MEDIA_REFERENCE_PROVIDERS = [
 ## 当前实现边界
 
 - `resource_type` 需要先在 `apps/media/constants.py` 的 `ResourceType` 中声明
-- 目前内置值只有 `avatar`、`org_logo`
+- 目前内置值有 `avatar`、`org_logo`、`real_name_id_card`
 - 如果新业务需要商品图、内容图、附件等类型，需要先扩展 `ResourceType`
 
 ## 推荐最佳实例

@@ -8,6 +8,8 @@ from django.db import models
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.base.mixins import CreateUpdateTimeModelMixin
+from apps.media.constants import MediaType, ResourceType
+from apps.media.fields import MediaRefsField
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +149,18 @@ class RealNameVerification(CreateUpdateTimeModelMixin):
     review_note = models.TextField(blank=True, default="")
     provider_request_id = models.CharField(max_length=128, blank=True, default="")
     provider_result = models.JSONField(blank=True, default=dict)
-    id_card_media = models.JSONField(blank=True, default=list)
+    id_card_media = MediaRefsField(
+        blank=True,
+        default=list,
+        min_items=2,
+        max_items=2,
+        allowed_media_types=[MediaType.IMAGE],
+        allowed_resource_types=[ResourceType.REAL_NAME_ID_CARD],
+        business_validators=["apps.accounts.services.validate_id_card_media_owner"],
+        media_type_error_message="身份证图片媒体类型不正确。",
+        resource_type_error_message="身份证图片资源类型不正确。",
+        verbose_name="身份证图片",
+    )
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_real_name_verifications")
     reviewed_at = models.DateTimeField(null=True, blank=True)
     is_current = models.BooleanField(default=True, db_index=True)
