@@ -49,6 +49,29 @@ def test_signup_triggers_phone_verification(client):
 
 
 @pytest.mark.django_db
+def test_split_signup_wrapper_triggers_phone_verification(client):
+    """拆分手机号注册接口应在内部转成完整手机号并触发验证流程。"""
+    with patch("apps.accounts.auth_adapter.AccountAdapter.send_verification_code_sms") as mock_send:
+        resp = client.post(
+            "/api/users/auth/browser/signup/",
+            data={
+                "email": "split-signup@example.com",
+                "password": "testpw123!",
+                "phone_country_code": "+86",
+                "phone_national_number": "13800138009",
+            },
+            content_type="application/json",
+        )
+
+    assert resp.status_code == 401, resp.content
+    flows = {f["id"]: f for f in resp.json()["data"]["flows"]}
+    assert "verify_phone" in flows
+    assert flows["verify_phone"]["is_pending"] is True
+    mock_send.assert_called_once()
+    assert mock_send.call_args.kwargs["phone"] == "+8613800138009"
+
+
+@pytest.mark.django_db
 def test_signup_then_verify_phone_completes_login(client):
     """注册后提交正确验证码，登录完成。"""
     captured_code = {}

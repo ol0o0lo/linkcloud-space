@@ -6,7 +6,6 @@ import {
   postBrowserV1AccountEmail,
 } from '@/services/allauth/accountEmail';
 import { postBrowserV1AccountPasswordChange } from '@/services/allauth/accountPassword';
-import { postBrowserV1AccountPhone } from '@/services/allauth/accountPhone';
 import {
   getBrowserV1AccountAuthenticators,
   getBrowserV1AccountAuthenticatorsRecoveryCodes,
@@ -14,10 +13,13 @@ import {
   postBrowserV1AccountAuthenticatorsTotp,
 } from '@/services/allauth/accountTwoFactor';
 import {
-  postBrowserV1AuthPhoneVerify,
   postBrowserV1AuthReauthenticate,
 } from '@/services/allauth/authAccount';
 import { getBrowserV1Config } from '@/services/allauth/configuration';
+import {
+  postBrowserPhoneChangeWithSplit,
+  postBrowserPhoneVerifyWithCode,
+} from '@/services/manual/phoneAuth';
 import {
   appsAccountsApiDeleteMyAuthenticator,
   appsAccountsApiGetMe,
@@ -159,12 +161,13 @@ export async function requestPhoneChangeCode(
   countryCode: string,
   nationalNumber: string,
 ) {
-  const phone = `${countryCode}${nationalNumber}`;
   const csrfToken = await ensureCsrfToken();
-  return postBrowserV1AccountPhone({ client: 'browser' }, { phone }, {
+  return postBrowserPhoneChangeWithSplit({
+    phone_country_code: countryCode,
+    phone_national_number: nationalNumber,
+  }, {
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
       'X-CSRFToken': csrfToken,
     },
   } as any);
@@ -172,10 +175,9 @@ export async function requestPhoneChangeCode(
 
 export async function confirmPhoneChange(code: string) {
   const csrfToken = await ensureCsrfToken();
-  return postBrowserV1AuthPhoneVerify({ client: 'browser' }, { code }, {
+  return postBrowserPhoneVerifyWithCode({ code }, {
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
       'X-CSRFToken': csrfToken,
     },
   } as any);

@@ -85,6 +85,35 @@ class SocialBindingsOut(Schema):
     items: list[SocialBindingItemOut]
 
 
+class SplitPhoneIn(Schema):
+    phone_country_code: str = Field("", description="手机号国家区号。")
+    phone_national_number: str = Field(..., description="手机号本地号码。")
+
+    @field_validator("phone_country_code", "phone_national_number", mode="before")
+    @classmethod
+    def normalize_phone_parts(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class SplitPhoneSignupIn(SplitPhoneIn):
+    email: str = Field(..., description="邮箱。")
+    password: str = Field(..., min_length=8, description="密码。")
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class PhoneCodeVerifyIn(Schema):
+    code: str = Field(..., description="短信验证码。")
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def normalize_code(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
 class WechatPhoneIn(Schema):
     phone_code: str = Field(..., description="微信小程序获取手机号接口返回的 phone code。")
 

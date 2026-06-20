@@ -349,14 +349,19 @@ NOTIFICATIONS_TARGET_MODELS: list[str] = []
 # management command deletes anything older than this.
 NOTIFICATIONS_RETENTION_DAYS = env.int("NOTIFICATIONS_RETENTION_DAYS", default=90)
 
-# Media files that are not reported by MEDIA_REFERENCE_PROVIDERS are treated as
-# orphan candidates only after this retention window.
+# Media cleanup is delayed by this retention window. After the window expires,
+# any MediaFile that is not discovered from a MediaRefsField and is not
+# reported by MEDIA_REFERENCE_PROVIDERS becomes an orphan candidate.
 MEDIA_ORPHAN_RETENTION_HOURS = env.int("MEDIA_ORPHAN_RETENTION_HOURS", default=24)
 
-# Register one function path per business module that stores JSON list[int]
-# media references. Each provider must return the MediaFile IDs that are still
-# referenced by active business records. Keep this list empty until the first
-# business consumer is actually wired; cleanup will safely no-op in that case.
+# Cross-app contract between business domains and the media platform.
+# Register one import-string provider per business module that stores media IDs
+# outside MediaRefsField, for example in plain JSONField / extra JSON blobs.
+# Each provider must return the MediaFile IDs that are still referenced by
+# active business records. The media cleanup task merges these IDs with
+# MediaRefsField auto-discovery and only deletes files missing from both sets.
+# Keep this list empty until the first business consumer is actually wired;
+# cleanup will safely no-op in that case.
 MEDIA_REFERENCE_PROVIDERS: list[str] = [
     "apps.accounts.services.collect_real_name_media_ids",
 ]

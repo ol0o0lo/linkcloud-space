@@ -282,9 +282,15 @@ def collect_media_ref_field_ids() -> tuple[set[int], bool]:
 
 def collect_referenced_media_ids(providers: Iterable[str | Callable[[], Iterable[int]]] | None = None) -> set[int]:
     """
-    收集业务侧仍在引用的 MediaFile ID。
+    收集当前仍被业务引用的 MediaFile ID。
 
-    业务 app 可以在 settings.MEDIA_REFERENCE_PROVIDERS 注册函数路径，函数返回媒体 ID 集合。
+    来源分两部分：
+    1. 所有 MediaRefsField 字段里的自动扫描结果
+    2. settings.MEDIA_REFERENCE_PROVIDERS 里注册的 provider 返回结果
+
+    provider 是媒体平台和业务模块之间的边界协议，适用于业务把 media_id
+    存在普通 JSONField、extra JSON 或其他非 MediaRefsField 结构里的场景。
+    provider 只负责上报“哪些 MediaFile 仍被业务引用”，不负责删除媒体。
     """
     referenced_ids, _ = collect_media_ref_field_ids()
     for provider in providers or getattr(settings, "MEDIA_REFERENCE_PROVIDERS", []):

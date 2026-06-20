@@ -1,71 +1,64 @@
 # 环境变量说明
 
-项目使用 epicenv 管理 `.env`，变量 schema 定义在 [pyproject.toml](../pyproject.toml) 的 `[tool.epicenv.variables]` 中。新项目优先用以下命令生成真实 `.env`：
+`.env` 由 epicenv 管理；schema 在 [pyproject.toml](../pyproject.toml) 的 `[tool.epicenv.variables]`。
+
+生成本地 `.env`：
 
 ```bash
 just create_env
 ```
 
-[.env.example](../.env.example) 只作为阅读和 CI 配置参考，不应该直接提交真实密钥。
+`[.env.example](../.env.example)` 只作参考，不放真实密钥。
 
-## 本地开发最小配置
+## 1. 本地最小配置
 
-本地 Docker 开发通常只需要确认这些变量：
+本地 Docker 开发通常只需确认：
 
 - `DEBUG=on`
-- `SECRET_KEY`：每个项目重新生成
+- `SECRET_KEY`
 - `POSTGRES_USER`、`POSTGRES_DB`、`POSTGRES_PASSWORD`
-- `DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}`
+- `DATABASE_URL`
 - `SITE_DOMAIN=localhost:8000`
 - `SITE_SCHEME=http`
 - `ACCOUNT_SIGNUP_OPEN=true`
-- `MEDIA_S3_*` 和 `MINIO_ROOT_*` 使用 MinIO 默认值即可
+- `MEDIA_S3_*`、`MINIO_ROOT_*`
 
-WebAuthn / passkey 本地调试要求站点域名使用 `localhost`，不要使用 `127.0.0.1`。
+WebAuthn / passkey 本地只用 `localhost`，不要用 `127.0.0.1`。
 
-## 第三方能力如何处理
+## 2. 第三方配置
 
-新项目第一天可以先关闭或留空这些配置：
+新项目初期可先留空或关闭：
 
-- GitHub 登录：`GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`
-- 微信登录/小程序：`WECHAT_*`
+- GitHub 登录：`GITHUB_CLIENT_*`
+- 微信：`WECHAT_*`
 - 邮件：`EMAIL_URL`、`DEFAULT_FROM_EMAIL`
 - 短信：`ALIYUN_SMS_*`、`TENCENT_SMS_*`
-- 真实对象存储：`AWS_*` 或云厂商 STS 配置
+- 真实对象存储 / STS：`AWS_*` 或云厂商配置
 
-如果还没有短信供应商，建议使用：
+没有短信供应商时可用：
 
 ```env
 SMS_BACKEND=apps.base.sms.console.ConsoleSMSBackend
 ```
 
-这样验证码会输出到日志，适合本地开发。
-
-## 生产配置检查
-
-上线前至少检查：
+## 3. 生产前检查
 
 - `DEBUG=off`
-- `SECRET_KEY` 已更换，且不在代码仓库中
-- `ALLOWED_HOSTS` 包含真实域名
-- `CSRF_TRUSTED_ORIGINS` 包含 `https://真实域名`
+- `SECRET_KEY` 已更换
+- `ALLOWED_HOSTS`、`CSRF_TRUSTED_ORIGINS` 正确
 - `SITE_SCHEME=https`
-- `SECURE_PROXY_SSL_HEADER` 只在可信反向代理后启用
-- `DATABASE_URL` 指向生产数据库
-- `REDIS_URL` 指向生产 Redis
-- `MEDIA_S3_*` 指向生产对象存储
-- 邮件和短信凭据已经配置并验证
-- Celery worker 和 beat 在生产环境分离运行
+- `DATABASE_URL`、`REDIS_URL`、`MEDIA_S3_*` 指向生产环境
+- 邮件、短信、OAuth、微信等凭据已配置
+- Celery worker / beat 分离运行
 
-## 配置隔离原则
+## 4. 隔离原则
 
-从模板启动新项目时，务必更换：
+新项目必须更换：
 
 - `SECRET_KEY`
-- 数据库名和数据库密码
-- Redis 前缀或连接
-- 对象存储 bucket
-- 邮件、短信、OAuth、微信等第三方凭据
-- Docker 镜像名和项目 slug
+- 数据库名和密码
+- Redis 连接或前缀
+- bucket
+- 第三方凭据
 
-不要复用旧项目 `.env`，也不要把真实 `.env` 提交进仓库。
+不要复用旧项目 `.env`，不要提交真实 `.env`。
