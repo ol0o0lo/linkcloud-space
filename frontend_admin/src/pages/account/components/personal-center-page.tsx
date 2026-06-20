@@ -2,12 +2,15 @@ import { GridContent } from '@ant-design/pro-components';
 import { Menu } from 'antd';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import BaseView from '../settings/components/base';
-import BindingView from '../settings/components/binding';
 import NotificationView from '../settings/components/notification';
-import SecurityView from '../settings/components/security';
+import SecurityOverview from '../settings/components/security-overview';
 import useStyles from '../settings/style.style';
 
-type PersonalCenterTab = 'profile' | 'security' | 'preferences' | 'notifications';
+type PersonalCenterTab =
+  | 'profile'
+  | 'security'
+  | 'preferences'
+  | 'notifications';
 
 type PageState = {
   mode: 'inline' | 'horizontal';
@@ -21,8 +24,15 @@ const menuMap: Record<PersonalCenterTab, string> = {
   notifications: '通知设置',
 };
 
-const isPersonalCenterTab = (value: string | null): value is PersonalCenterTab => {
-  return value === 'profile' || value === 'security' || value === 'preferences' || value === 'notifications';
+const isPersonalCenterTab = (
+  value: string | null,
+): value is PersonalCenterTab => {
+  return (
+    value === 'profile' ||
+    value === 'security' ||
+    value === 'preferences' ||
+    value === 'notifications'
+  );
 };
 
 const getInitialSelectKey = (): PersonalCenterTab => {
@@ -30,17 +40,14 @@ const getInitialSelectKey = (): PersonalCenterTab => {
   return isPersonalCenterTab(tab) ? tab : 'profile';
 };
 
-const PersonalCenterContent: React.FC<{ selectKey: PersonalCenterTab }> = ({ selectKey }) => {
+const PersonalCenterContent: React.FC<{ selectKey: PersonalCenterTab }> = ({
+  selectKey,
+}) => {
   switch (selectKey) {
     case 'profile':
       return <BaseView />;
     case 'security':
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <SecurityView />
-          <BindingView />
-        </div>
-      );
+      return <SecurityOverview />;
     case 'preferences':
       return <div>偏好设置（即将接入）</div>;
     case 'notifications':
@@ -93,7 +100,11 @@ export const PersonalCenterPage: React.FC = () => {
   useLayoutEffect(() => {
     const params = new URLSearchParams(window.location.search);
     params.set('tab', initConfig.selectKey);
-    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}?${params.toString()}`,
+    );
   }, [initConfig.selectKey]);
 
   const getMenu = () => {
