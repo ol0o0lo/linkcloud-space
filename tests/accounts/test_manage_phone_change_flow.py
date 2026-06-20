@@ -42,6 +42,38 @@ def test_manage_phone_starts_verification_stage(signed_in_client):
 
 
 @pytest.mark.django_db
+def test_split_phone_change_wrapper_updates_current_user(signed_in_client):
+    client, user = signed_in_client
+    captured = {}
+
+    def capture_sms(*_args, **kwargs):
+        captured["code"] = kwargs["code"]
+        captured["phone"] = kwargs["phone"]
+
+    with patch("apps.accounts.auth_adapter.AccountAdapter.send_verification_code_sms", side_effect=capture_sms):
+        start = client.post(
+            "/api/users/auth/browser/account/phone/",
+            data={"phone_country_code": "+86", "phone_national_number": "13800138009"},
+            content_type="application/json",
+        )
+
+    assert start.status_code == 202, start.content
+    assert captured["phone"] == "+8613800138009"
+
+    response = client.post(
+        "/api/users/auth/browser/phone/verify/",
+        data={"code": captured["code"]},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200, response.content
+    user.refresh_from_db()
+    assert user.phone_country_code == "+86"
+    assert user.phone_national_number == "13800138009"
+    assert user.phone_verified is True
+
+
+@pytest.mark.django_db
 def test_verify_phone_change_rejects_wrong_code(signed_in_client):
     client, _user = signed_in_client
 

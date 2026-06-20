@@ -93,7 +93,7 @@ describe('account settings service', () => {
     ).toBe('test-token');
     expect(
       form?.querySelector('input[name="callback_url"]')?.getAttribute('value'),
-    ).toBe(`${window.location.origin}/account/settings?tab=binding`);
+    ).toBe(`${window.location.origin}/account/settings?tab=security`);
     expect(submit).toHaveBeenCalledTimes(1);
   });
 
@@ -112,7 +112,7 @@ describe('account settings service', () => {
     );
   });
 
-  it('uses allauth phone change endpoints', async () => {
+  it('uses split-phone wrapper endpoints for phone change', async () => {
     mockRequest
       .mockResolvedValueOnce({
         data: [{ phone: '+8613800138001', verified: false }],
@@ -124,15 +124,15 @@ describe('account settings service', () => {
 
     expect(mockRequest).toHaveBeenNthCalledWith(
       1,
-      '/api/allauth/browser/v1/account/phone',
+      '/api/users/auth/browser/account/phone/',
       expect.objectContaining({
         method: 'POST',
-        data: { phone: '+8613800138001' },
+        data: { phone_country_code: '+86', phone_national_number: '13800138001' },
       }),
     );
     expect(mockRequest).toHaveBeenNthCalledWith(
       2,
-      '/api/allauth/browser/v1/auth/phone/verify',
+      '/api/users/auth/browser/phone/verify/',
       expect.objectContaining({
         method: 'POST',
         data: { code: '123456' },

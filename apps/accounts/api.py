@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.test import Client as DjangoClient
 
 import requests as http_requests
 from allauth.account.adapter import get_adapter as get_social_adapter
@@ -21,7 +22,7 @@ from ninja.files import UploadedFile
 from ninja.pagination import paginate
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
-from apps.accounts.models import RealNameVerification
+from apps.accounts.models import RealNameVerification, compose_phone
 from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
 from apps.accounts.schemas import (
     AdminRealNameDecisionIn,
@@ -34,12 +35,15 @@ from apps.accounts.schemas import (
     ForceLogoutOut,
     ImpersonateUserOut,
     MeOut,
+    PhoneCodeVerifyIn,
     RealNameLogOut,
     RealNameRetryIn,
     RealNameSubmitIn,
     RealNameVerificationDetailOut,
     RealNameVerificationOut,
     ResetMfaOut,
+    SplitPhoneIn,
+    SplitPhoneSignupIn,
     SocialBindingsOut,
     TotpSetupOut,
     UserOut,
@@ -77,6 +81,49 @@ def _users_qs(request):
     else:
         filter_kwargs["organizationmember__organization"] = request.org.pk
     return User.objects.filter(**filter_kwargs).only("id", "username", "first_name", "last_name", "timezone").order_by("first_name")
+
+
+def _proxy_allauth_post(request, path: str, payload: dict):
+    """转发到现有 allauth headless 端点，复用其流程与响应格式。"""
+    client = DjangoClient(SERVER_NAME=request.get_host().split(":", 1)[0] or "localhost")
+    for cookie_name, cookie_value in request.COOKIES.items():
+        client.cookies[cookie_name] = cookie_value
+
+    extra = {}
+    session_token = request.headers.get("X-Session-Token")
+    if session_token:
+        extra["HTTP_X_SESSION_TOKEN"] = session_token
+
+    query_string = request.META.get("QUERY_STRING", "")
+    target = f"{path}?{query_string}" if query_string else path
+    return client.post(target, data=payload, content_type="application/json", **extra)
+
+
+@users_router.post("/auth/browser/signup/", auth=None, summary="拆分手机号注册")
+def signup_with_split_phone(request, payload: SplitPhoneSignupIn):
+    phone = compose_phone(payload.phone_country_code, payload.phone_national_number)
+    return _proxy_allauth_post(
+        request,
+        "/api/allauth/browser/v1/auth/signup",
+        {"email": payload.email, "password": payload.password, "phone": phone},
+    )
+
+
+@users_router.post("/auth/browser/account/phone/", auth=None, summary="拆分手机号发起换绑")
+def change_phone_with_split_phone(request, payload: SplitPhoneIn):
+    phone = compose_phone(payload.phone_country_code, payload.phone_national_number)
+    return _proxy_allauth_post(request, "/api/allauth/browser/v1/account/phone", {"phone": phone})
+
+
+@users_router.post("/auth/browser/phone/verify/", auth=None, summary="确认手机号验证码")
+def verify_phone_with_code(request, payload: PhoneCodeVerifyIn):
+    return _proxy_allauth_post(request, "/api/allauth/browser/v1/auth/phone/verify", {"code": payload.code})
+
+
+@users_router.post("/auth/app/code/request/", auth=None, summary="拆分手机号请求登录验证码")
+def request_login_code_with_split_phone(request, payload: SplitPhoneIn):
+    phone = compose_phone(payload.phone_country_code, payload.phone_national_number)
+    return _proxy_allauth_post(request, "/api/allauth/app/v1/auth/code/request", {"phone": phone})
 
 
 @users_router.get("/me/", response=MeOut, summary="获取当前用户信息")

@@ -55,6 +55,20 @@ def test_code_request_triggers_sms(client, phone_user):
 
 
 @pytest.mark.django_db
+def test_split_code_request_wrapper_triggers_sms(client, phone_user):
+    """拆分手机号验证码登录接口应在内部转成完整手机号并触发发码。"""
+    with patch("apps.accounts.auth_adapter.AccountAdapter.send_verification_code_sms") as mock_sms:
+        resp = client.post(
+            "/api/users/auth/app/code/request/",
+            data={"phone_country_code": "+86", "phone_national_number": "13800138000"},
+            content_type="application/json",
+        )
+    assert resp.status_code in (200, 401), resp.content
+    assert mock_sms.called, "拆分手机号包装接口没有调用 send_verification_code_sms！"
+    assert mock_sms.call_args.kwargs["phone"] == phone_user.phone
+
+
+@pytest.mark.django_db
 def test_code_request_returns_session_token(client, phone_user):
     """code/request 成功后，响应里应包含 session_token。"""
     with patch("apps.accounts.auth_adapter.AccountAdapter.send_verification_code_sms"):
