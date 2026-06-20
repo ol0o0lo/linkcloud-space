@@ -245,4 +245,3 @@
 - [environment.md](./environment.md)
 - [frontend-structure.md](./frontend-structure.md)
 - [media-platform.md](./media-platform.md)
-- [template-initialization.md](./template-initialization.md)
