@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 房源图片管理
-系统 SHALL 不提供独立的 HouseImage 模型，而是在 House 上通过 `images` 字段保存有序的房源图片媒体引用对象列表。每个 item SHALL 至少包含 `media_id`，并 MAY 包含 `media_type`、`label`、`image_role`、`room` 等房源业务字段。
+系统 SHALL 不提供独立的 HouseImage 模型，而是在 House 上通过 `images` 的 `MediaRefsField` 保存有序的房源图片媒体引用对象列表。每个 item SHALL 至少包含 `media_id`，并 MAY 包含 `media_type`、`label`、`image_role`、`room` 等房源业务字段。
 
 #### Scenario: 保存图片列表
 - **WHEN** 为 House 保存 `images`，提供已登记的媒体引用对象数组
@@ -25,7 +25,7 @@
 
 #### Scenario: 图片详情通过 media app 解析
 - **WHEN** 查询某套房源的图片展示信息
-- **THEN** 系统 SHALL 复用 `apps.media.services.get_media_refs_info()`，根据 `images[].media_id` 按原顺序返回平铺增强后的 `images=[{"media_id": ..., "url": ..., ...}]`，而不是在房源域自行拼装文件 URL
+- **THEN** 系统 SHALL 优先使用 `images_resolved`，或复用 `apps.media.services.resolve_media_refs()`，根据 `images[].media_id` 按原顺序返回平铺增强后的 `images=[{"media_id": ..., "url": ..., ...}]`，而不是在房源域自行拼装文件 URL
 
 #### Scenario: 第一张图片视为封面
 - **WHEN** 查询某套房源的图片列表
@@ -48,7 +48,7 @@
 - **THEN** 系统阻止保存并返回校验错误
 
 ### Requirement: 房源视频管理
-系统 SHALL 在 House 上通过 `videos` 字段保存有序的房源视频媒体引用对象列表。每个 item SHALL 至少包含 `media_id`，并 SHOULD 包含 `media_type="video"`。
+系统 SHALL 在 House 上通过 `videos` 的 `MediaRefsField` 保存有序的房源视频媒体引用对象列表。每个 item SHALL 至少包含 `media_id`，并 SHOULD 包含 `media_type="video"`。
 
 #### Scenario: 保存视频列表
 - **WHEN** 为 House 保存 `videos`，提供已登记的媒体引用对象数组
@@ -64,7 +64,7 @@
 
 #### Scenario: 视频详情通过 media app 解析
 - **WHEN** 查询某套房源的视频展示信息
-- **THEN** 系统 SHALL 复用 `apps.media.services.get_media_refs_info()`，根据 `videos[].media_id` 按原顺序返回平铺增强后的 `videos=[{"media_id": ..., "url": ..., ...}]`
+- **THEN** 系统 SHALL 优先使用 `videos_resolved`，或复用 `apps.media.services.resolve_media_refs()`，根据 `videos[].media_id` 按原顺序返回平铺增强后的 `videos=[{"media_id": ..., "url": ..., ...}]`
 
 #### Scenario: 房源视频不允许重复引用
 - **WHEN** 为同一 House 保存包含重复 `media_id` 的视频列表
@@ -78,16 +78,28 @@
 - **WHEN** 为 House 保存视频列表，且其中某个 MediaFile 不是 `house_video` 资源类型
 - **THEN** 系统阻止保存并返回校验错误
 
-### Requirement: 房源媒体文件存储
-系统 SHALL 复用现有 `apps.media.MediaFile` 与 `S3MediaStorage` 存储房源图片和视频文件，文件使用组织作用域上传路径。
+### Requirement: 项目与房源媒体文件存储
+系统 SHALL 复用现有 `apps.media.MediaFile` 与 `S3MediaStorage` 存储项目图片、房源图片和房源视频文件，文件使用组织作用域上传路径。
 
-#### Scenario: 保存前校验媒体引用
+#### Scenario: MediaRefsField 保存前校验媒体引用
 - **WHEN** 保存 House.images 或 House.videos
-- **THEN** 系统 SHALL 调用 `apps.media.services.validate_media_refs()` 校验 `media_id` 存在性和重复引用，并在 house 域继续校验资源类型、数量上限和组织权限
+- **THEN** 系统 SHALL 通过 `MediaRefsField` 调用 `apps.media.services.validate_media_refs()` 校验 `media_id` 存在性和重复引用，剔除平台派生字段，并在 house 域继续校验组织权限
+
+#### Scenario: MediaRefsField 声明资源类型
+- **WHEN** 定义 House.images 和 House.videos 字段
+- **THEN** images SHALL 声明 `allowed_media_types=[MediaType.IMAGE]` 和 `allowed_resource_types=[ResourceType.HOUSE_IMAGE]`，videos SHALL 声明 `allowed_media_types=[MediaType.VIDEO]` 和 `allowed_resource_types=[ResourceType.HOUSE_VIDEO]`
+
+#### Scenario: 项目图片使用独立资源类型
+- **WHEN** 定义 Estate.images 字段
+- **THEN** Estate.images SHALL 声明 `allowed_media_types=[MediaType.IMAGE]` 和 `allowed_resource_types=[ResourceType.ESTATE_IMAGE]`
 
 #### Scenario: 使用组织作用域上传路径
-- **WHEN** 上传房源图片或视频
+- **WHEN** 上传项目图片、房源图片或房源视频
 - **THEN** 文件路径 SHALL 使用并校验为 `uploads/orgs/<organization_id>/...`
+
+#### Scenario: 项目图片资源类型
+- **WHEN** 登记项目图片 MediaFile
+- **THEN** resource_type SHALL 为 `estate_image`
 
 #### Scenario: 房源图片资源类型
 - **WHEN** 登记房源图片 MediaFile
@@ -116,9 +128,13 @@
 - **WHEN** 房源媒体配置移除某个 `media_id`
 - **THEN** 关联的 MediaFile 记录和对象存储文件保持不变，等待统一媒体延迟清理流程处理
 
-### Requirement: 媒体引用清理 Provider
-系统 SHALL 为 `apps/house` 提供 media reference provider，收集 Estate.images、House.images、House.videos、Lease.contract_files 中的所有 `media_id`，并注册到 `MEDIA_REFERENCE_PROVIDERS`。
+### Requirement: 媒体引用自动清理收集
+系统 SHALL 使用 `MediaRefsField` 保存 Estate.images、House.images、House.videos、Lease.contract_files，使媒体平台可自动收集这些固定字段中的所有 `media_id`。当前版本 SHALL NOT 为这些固定字段额外注册 `MEDIA_REFERENCE_PROVIDERS`。
 
-#### Scenario: 收集媒体引用
+#### Scenario: 自动收集固定媒体字段引用
 - **WHEN** 媒体平台执行延迟清理前收集引用
-- **THEN** house 域 provider 返回所有仍被 Estate、House、Lease 引用的 `media_id`
+- **THEN** 媒体平台通过 `MediaRefsField` 自动收集所有仍被 Estate、House、Lease 引用的 `media_id`
+
+#### Scenario: 动态 JSON 媒体引用才需要 provider
+- **WHEN** 后续在 `extra` 等动态 JSON 或普通 JSONField 中保存媒体引用
+- **THEN** house 域才需要新增 provider 并注册到 `MEDIA_REFERENCE_PROVIDERS`

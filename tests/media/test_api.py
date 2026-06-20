@@ -16,6 +16,9 @@ def _make_sts_response():
         "access_key_id": "STS.test",
         "access_key_secret": "secret",
         "security_token": "token",
+        "endpoint": "https://oss.example.com",
+        "bucket": "test-bucket",
+        "path": "uploads/users/1/abc.jpg",
         "expires_at": "2026-05-16T08:30:00Z",
     }
 
@@ -45,10 +48,9 @@ class TestOssTokenAPI:
         resp = self._get({"scope": "user", "filename": "photo.jpg"})
         assert resp.status_code == 401
 
-    @patch("apps.media.services._generate_sts_token")
-    @patch("apps.media.services.generate_upload_path", return_value="uploads/users/1/abc.jpg")
-    def test_user_scope_returns_token(self, mock_path, mock_sts):
-        mock_sts.return_value = _make_sts_response()
+    @patch("apps.media.api.get_oss_token")
+    def test_user_scope_returns_token(self, mock_get_oss_token):
+        mock_get_oss_token.return_value = _make_sts_response()
         self._login()
         resp = self._get({"scope": "user", "filename": "photo.jpg"})
         assert resp.status_code == 200
@@ -63,11 +65,9 @@ class TestOssTokenAPI:
         resp = self._get({"scope": "admin", "filename": "photo.jpg"})
         assert resp.status_code == 400
 
-    @patch("apps.media.services._generate_sts_token")
-    @patch("apps.media.services.generate_upload_path")
-    def test_invalid_extension_returns_400(self, mock_path, mock_sts):
-        mock_sts.return_value = _make_sts_response()
-        mock_path.side_effect = InvalidExtensionException()
+    @patch("apps.media.api.get_oss_token")
+    def test_invalid_extension_returns_400(self, mock_get_oss_token):
+        mock_get_oss_token.side_effect = InvalidExtensionException()
         self._login()
         resp = self._get({"scope": "user", "filename": "file.exe"})
         assert resp.status_code == 400
@@ -76,10 +76,7 @@ class TestOssTokenAPI:
         assert error["error"] == InvalidExtensionException.error
         assert error["message"] == str(InvalidExtensionException.message)
 
-    @patch("apps.media.services._generate_sts_token")
-    @patch("apps.media.services.generate_upload_path", return_value="uploads/orgs/5/abc.jpg")
-    def test_org_scope_requires_active_org(self, mock_path, mock_sts):
-        mock_sts.return_value = _make_sts_response()
+    def test_org_scope_requires_active_org(self):
         self._login()
         resp = self._get({"scope": "org", "filename": "room.jpg"})
         assert resp.status_code == 403

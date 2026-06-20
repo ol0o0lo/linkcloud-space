@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 租约管理
-系统 SHALL 提供 Lease 模型，字段包含：organization(FK→Organization)、house(FK→House, PROTECT)、tenant(FK→Contact, PROTECT)、sign_at、start_date、end_date、monthly_rent、deposit、payment_day(default=1)、status(choices, default=pending)、contract_files(JSONField)、notes、extra(JSONField)。Lease.contract_files SHALL 保存有序合同媒体引用对象列表，每项至少包含 `media_id`。
+系统 SHALL 提供 Lease 模型，字段包含：organization(FK→Organization)、house(FK→House, PROTECT)、tenant(FK→Contact, PROTECT)、sign_at、start_date、end_date、monthly_rent、deposit、payment_day(default=1)、status(choices, default=pending)、contract_files(MediaRefsField)、notes、extra(JSONField)。Lease.contract_files SHALL 保存有序合同媒体引用对象列表，每项至少包含 `media_id`。
 
 #### Scenario: 创建租约
 - **WHEN** 创建 Lease，提供 house、tenant、start_date、end_date、monthly_rent
@@ -32,7 +32,7 @@
 - **THEN** 系统阻止保存并返回“需先补齐登记出租方”的校验错误
 
 ### Requirement: 租约合同文件存储
-系统 SHALL 复用现有 `apps.media.MediaFile` 与 `S3MediaStorage` 存储租约合同文件，Lease.contract_files SHALL 通过 `media_id` 引用已登记的 MediaFile，默认上限为 1 个。
+系统 SHALL 复用现有 `apps.media.MediaFile` 与 `S3MediaStorage` 存储租约合同文件，Lease.contract_files SHALL 通过 `MediaRefsField` 保存引用已登记 MediaFile 的 `media_id`，默认上限为 1 个。
 
 #### Scenario: 创建带合同文件的租约
 - **WHEN** 创建 Lease 并提供 `contract_files`
@@ -46,9 +46,13 @@
 - **WHEN** 为 Lease 保存超过 1 个合同媒体引用对象
 - **THEN** 系统阻止保存并返回校验错误
 
+#### Scenario: 合同文件字段声明
+- **WHEN** 定义 Lease.contract_files 字段
+- **THEN** 系统 SHALL 声明 `max_items=1`、`allowed_media_types=[MediaType.FILE]` 和 `allowed_resource_types=[ResourceType.LEASE_CONTRACT]`
+
 #### Scenario: 合同文件详情通过 media app 解析
 - **WHEN** 查询某份租约的合同文件展示信息
-- **THEN** 系统 SHALL 复用 `apps.media.services.get_media_refs_info()`，根据 `contract_files[].media_id` 按原顺序返回平铺增强后的 `contract_files=[{"media_id": ..., "url": ..., ...}]`
+- **THEN** 系统 SHALL 优先使用 `contract_files_resolved`，或复用 `apps.media.services.resolve_media_refs()`，根据 `contract_files[].media_id` 按原顺序返回平铺增强后的 `contract_files=[{"media_id": ..., "url": ..., ...}]`
 
 #### Scenario: 合同文件资源类型
 - **WHEN** 登记租约合同 MediaFile
