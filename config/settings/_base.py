@@ -358,7 +358,7 @@ MEDIA_ORPHAN_RETENTION_HOURS = env.int("MEDIA_ORPHAN_RETENTION_HOURS", default=2
 # referenced by active business records. Keep this list empty until the first
 # business consumer is actually wired; cleanup will safely no-op in that case.
 MEDIA_REFERENCE_PROVIDERS: list[str] = [
-    "apps.accounts.media_references.collect_real_name_media_ids",
+    "apps.accounts.services.collect_real_name_media_ids",
 ]
 
 # Notification categories shown on the account-settings Notifications tab and

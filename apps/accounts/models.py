@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
+from apps.base.mixins import CreateUpdateTimeModelMixin
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,7 @@ def compose_phone(country_code: str, national_number: str) -> str | None:
     return f"{country_code}{national_number}" if country_code else national_number
 
 
-class RealNameVerification(models.Model):
+class RealNameVerification(CreateUpdateTimeModelMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="real_name_verifications")
     status = models.CharField(max_length=32, choices=RealNameStatus.choices, default=RealNameStatus.PENDING, db_index=True)
     source = models.CharField(max_length=32, choices=RealNameSource.choices, default=RealNameSource.USER_SUBMIT)
@@ -136,7 +137,6 @@ class RealNameVerification(models.Model):
     id_number_encrypted = models.TextField()
     real_name_masked = models.CharField(max_length=64)
     id_number_masked = models.CharField(max_length=32)
-    id_number_last4 = models.CharField(max_length=4, blank=True, default="", db_index=True)
     id_number_hash = models.CharField(max_length=64, db_index=True)
     failure_reason = models.CharField(max_length=255, blank=True, default="")
     review_note = models.TextField(blank=True, default="")
@@ -146,8 +146,6 @@ class RealNameVerification(models.Model):
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_real_name_verifications")
     reviewed_at = models.DateTimeField(null=True, blank=True)
     is_current = models.BooleanField(default=True, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]

@@ -74,7 +74,7 @@ describe('PersonalBusinessPage', () => {
     mockWithdrawalDetail.mockResolvedValue({ id: 2, amount: 500, fee_amount: 0, net_amount: 500, status: 'pending', pay_channel: 'alipay', payee_account_snapshot: {}, reject_reason: '', created_at: '2026-06-16T10:00:00+08:00' });
     mockReferralSummary.mockResolvedValue({ invite_code: 'ABC', share_link: 'https://example.com/i/ABC', registered_count: 1, pending_review_count: 1, rewarded_count: 0 });
     mockReferralRecords.mockResolvedValue({ items: [{ id: 3, inviter_id: 1, invitee_id: 2, invitee_display: 'bob', status: 'pending', created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00' }], total: 1, page: 1, page_size: 10 });
-    mockRealName.mockResolvedValue({ id: 4, status: 'unverified', status_label: '未认证', source: 'user_submit', source_label: '用户提交', provider: 'manual', provider_label: '人工', real_name_masked: '', id_number_masked: '', id_number_last4: '', is_current: true, created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00' });
+    mockRealName.mockResolvedValue({ id: 4, status: 'unverified', status_label: '未认证', source: 'user_submit', source_label: '用户提交', provider: 'manual', provider_label: '人工', real_name_masked: '', id_number_masked: '', is_current: true, created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00' });
     mockRealNameLogs.mockResolvedValue([]);
     mockUserSettings.mockResolvedValue([{ key: 'theme', value: 'light' }]);
     mockGetUserSetting.mockResolvedValue({ key: 'theme', value: 'light' });

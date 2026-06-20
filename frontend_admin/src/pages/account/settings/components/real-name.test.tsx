@@ -41,7 +41,6 @@ describe('RealNameView', () => {
       provider_label: '模拟校验',
       real_name_masked: '',
       id_number_masked: '',
-      id_number_last4: '',
       is_current: false,
       created_at: '',
       updated_at: '',

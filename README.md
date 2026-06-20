@@ -164,7 +164,6 @@ just format                # 格式化代码
 - [docs/environment.md](docs/environment.md)：环境变量说明
 - [docs/frontend-structure.md](docs/frontend-structure.md)：前端工程结构与边界
 - [docs/media-platform.md](docs/media-platform.md)：媒体平台接入约定
-- [docs/real-name-verification.md](docs/real-name-verification.md)：实名认证流程与设计
 - [docs/template-initialization.md](docs/template-initialization.md)：模板初始化与改名指南
 
 ## 适合继续扩展的方向

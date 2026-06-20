@@ -4,6 +4,7 @@ from django.test import TestCase
 
 from apps.accounts.constants import RealNameLogAction, RealNameStatus
 from apps.accounts.models import RealNameVerification, User
+from apps.accounts.services import serialize_real_name_verification
 from apps.media.models import MediaFile
 from apps.referrals.constants import ReferralRecordStatus
 from apps.referrals.models import ReferralRecord
@@ -84,9 +85,77 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(verification.logs.last().action, RealNameLogAction.SUBMITTED)
         data = api_data(resp)
         self.assertEqual(data["status"], RealNameStatus.PENDING)
+        self.assertNotIn("id_number_last4", data)
         self.assertEqual(data["id_card_media"][0]["side"], "front")
         self.assertEqual(data["id_card_media"][0]["media_id"], id_card_media[0]["media_id"])
         self.assertIn("url", data["id_card_media"][0])
+
+    def test_submit_strips_platform_media_fields_before_storing_id_card_media(self):
+        self.client.force_login(self.user)
+        id_card_media = self.make_id_card_media()
+        submitted_media = [
+            {
+                **id_card_media[0],
+                "url": "stale-signed-url",
+                "resource_type": "wrong",
+                "original_filename": "wrong.png",
+                "thumbnail": "wrong-thumbnail",
+                "file_size": 999,
+                "created_at": "stale-created-at",
+            },
+            id_card_media[1],
+        ]
+
+        resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": submitted_media,
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        verification = RealNameVerification.objects.get(user=self.user, is_current=True)
+        self.assertEqual(verification.id_card_media[0], id_card_media[0])
+        response_front = api_data(resp)["id_card_media"][0]
+        self.assertNotEqual(response_front["url"], "stale-signed-url")
+        self.assertEqual(response_front["resource_type"], "real_name_id_card")
+        self.assertEqual(response_front["original_filename"], "front.png")
+        self.assertEqual(response_front["file_size"], 123)
+
+    def test_real_name_verification_resolves_id_card_media_without_mutating_storage_value(self):
+        id_card_media = self.make_id_card_media()
+        verification = RealNameVerification.objects.create(
+            user=self.user,
+            status=RealNameStatus.PENDING,
+            source="user_submit",
+            provider="mock_auto",
+            real_name_encrypted="encrypted-name",
+            id_number_encrypted="encrypted-id",
+            real_name_masked="张*",
+            id_number_masked="110***********0019",
+            id_number_hash="hash-pending",
+            id_card_media=[
+                {
+                    **id_card_media[0],
+                    "url": "stale-signed-url",
+                    "file_size": 999,
+                },
+                id_card_media[1],
+            ],
+            is_current=True,
+        )
+
+        resolved = serialize_real_name_verification(verification)["id_card_media"]
+
+        self.assertEqual(verification.id_card_media[0]["url"], "stale-signed-url")
+        self.assertNotEqual(resolved[0]["url"], "stale-signed-url")
+        self.assertEqual(resolved[0]["file_size"], 123)
 
     def test_admin_approval_marks_referral_record_pending_review(self):
         inviter = User.objects.create_user(username="inviter", email="inviter@example.com", password="secret123")  # noqa: S106
@@ -170,6 +239,68 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(resp.status_code, 400, resp.content)
         self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
 
+    def test_submit_rejects_invalid_source_in_schema(self):
+        self.client.force_login(self.user)
+        media = self.make_id_card_media()
+
+        resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": media,
+                    "real_name": "张三",
+                    "source": "unknown",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
+
+    def test_submit_rejects_more_than_two_id_card_media_in_schema(self):
+        self.client.force_login(self.user)
+        media = self.make_id_card_media()
+
+        resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": [*media, media[0]],
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
+
+    def test_submit_rejects_incomplete_id_card_media_in_schema(self):
+        self.client.force_login(self.user)
+
+        resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": [
+                        {"media_id": 1, "media_type": "image", "side": "front"},
+                        {"media_id": 2, "media_type": "image"},
+                    ],
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertFalse(RealNameVerification.objects.filter(user=self.user, is_current=True).exists())
+
     def test_duplicate_verified_identity_can_submit_pending_application(self):
         first = self.user
         second = User.objects.create_user(username="bob", email="bob@example.com", password="secret123")  # noqa: S106
@@ -233,7 +364,6 @@ class TestRealNameAPI(TestCase):
             id_number_encrypted="encrypted-id",
             real_name_masked="张*",
             id_number_masked="110***********0019",
-            id_number_last4="0019",
             id_number_hash="hash-rejected",
             failure_reason="身份证号格式或校验位无效。",
             is_current=True,
@@ -351,7 +481,7 @@ class TestRealNameAPI(TestCase):
         verification = RealNameVerification.objects.get(user=self.user, is_current=True)
 
         # 模拟驳回
-        from apps.accounts.real_name import admin_transition_real_name
+        from apps.accounts.services import admin_transition_real_name
         admin_transition_real_name(
             verification,
             operator=self.admin,

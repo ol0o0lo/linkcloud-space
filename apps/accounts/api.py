@@ -16,6 +16,8 @@ from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.pagination import paginate
 
+from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
+from apps.accounts.models import RealNameVerification
 from apps.accounts.schemas import (
     AdminRealNameDecisionIn,
     AdminRealNameVerificationRowOut,
@@ -40,6 +42,16 @@ from apps.accounts.schemas import (
     UserStatusPatchIn,
     WechatPhoneIn,
     WechatPhoneOut,
+)
+from apps.accounts.services import (
+    admin_transition_real_name,
+    bind_phone_to_user,
+    build_real_name_timeline_row,
+    delete_user_avatar,
+    get_current_real_name_verification,
+    process_and_save_avatar,
+    serialize_real_name_verification,
+    submit_real_name_verification,
 )
 from apps.base.ninja_pagination import make_pagination
 from apps.base.permissions import require_authenticated, require_superuser
@@ -214,7 +226,6 @@ def upload_avatar(
 ):
     """上传并裁剪当前用户头像，返回新的头像地址。"""
     require_authenticated(request)
-    from apps.accounts.services import process_and_save_avatar
 
     try:
         crop = json.loads(crop_data or "{}")
@@ -235,7 +246,6 @@ def upload_avatar(
 def delete_avatar(request):
     """删除当前用户头像并恢复为默认展示状态。"""
     require_authenticated(request)
-    from apps.accounts.services import delete_user_avatar
 
     delete_user_avatar(request.user)
     return Status(200, {})
@@ -248,7 +258,6 @@ def bind_wechat_phone(request, payload: WechatPhoneIn):
     from allauth.socialaccount.models import SocialApp
 
     from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
-    from apps.accounts.services import bind_phone_to_user
 
     try:
         app = SocialApp.objects.get(provider="wechat_miniprogram")
@@ -429,8 +438,6 @@ def unbind_user_wechat(request, user_id: int):
 @real_name_router.get("/me/real-name/", response=RealNameVerificationOut, summary="获取当前用户实名认证状态")
 def get_my_real_name(request):
     require_authenticated(request)
-    from apps.accounts.constants import RealNameProvider, RealNameSource, RealNameStatus
-    from apps.accounts.real_name import get_current_real_name_verification, serialize_real_name_verification
 
     verification = get_current_real_name_verification(request.user)
     if verification:
@@ -439,7 +446,6 @@ def get_my_real_name(request):
         "created_at": "",
         "failure_reason": "",
         "id": 0,
-        "id_number_last4": "",
         "id_number_masked": request.user.id_number_masked,
         "is_current": False,
         "provider": RealNameProvider.MOCK_AUTO,
@@ -462,7 +468,6 @@ def get_my_real_name(request):
 @real_name_router.get("/me/real-name/logs/", response=list[RealNameLogOut], summary="获取当前用户实名认证时间线")
 def list_my_real_name_logs(request):
     require_authenticated(request)
-    from apps.accounts.real_name import build_real_name_timeline_row, get_current_real_name_verification
 
     verification = get_current_real_name_verification(request.user)
     if not verification:
@@ -473,7 +478,6 @@ def list_my_real_name_logs(request):
 @real_name_router.post("/me/real-name/submit/", response=RealNameVerificationOut, summary="提交实名认证申请")
 def submit_my_real_name(request, payload: RealNameSubmitIn):
     require_authenticated(request)
-    from apps.accounts.real_name import serialize_real_name_verification, submit_real_name_verification
 
     verification = submit_real_name_verification(
         user=request.user,
@@ -488,8 +492,6 @@ def submit_my_real_name(request, payload: RealNameSubmitIn):
 @real_name_router.post("/me/real-name/retry/", response=RealNameVerificationOut, summary="重新提交实名认证申请")
 def retry_my_real_name(request, payload: RealNameRetryIn):
     require_authenticated(request)
-    from apps.accounts.constants import RealNameStatus
-    from apps.accounts.real_name import get_current_real_name_verification, serialize_real_name_verification, submit_real_name_verification
 
     current = get_current_real_name_verification(request.user)
     if current and current.status not in {RealNameStatus.REJECTED, RealNameStatus.REVOKED}:
@@ -508,11 +510,10 @@ def retry_my_real_name(request, payload: RealNameRetryIn):
 @paginate(make_pagination(default_page_size=50))
 def list_admin_real_name_verifications(
     request,
-    q: str | None = Query(None, description="按用户名、邮箱、手机号、实名脱敏或身份证后四位搜索。"),
+    q: str | None = Query(None, description="按用户名、邮箱、手机号、实名或身份证脱敏值搜索。"),
     status: str | None = Query(None, description="按实名状态筛选。"),
 ):
     require_superuser(request)
-    from apps.accounts.models import RealNameVerification
 
     qs = RealNameVerification.objects.select_related("user", "reviewed_by").filter(is_current=True).order_by("-created_at")
     if status:
@@ -523,9 +524,8 @@ def list_admin_real_name_verifications(
             | Q(user__email__icontains=q)
             | Q(user__phone__icontains=q)
             | Q(real_name_masked__icontains=q)
-            | Q(id_number_last4__icontains=q)
+            | Q(id_number_masked__icontains=q)
         )
-    from apps.accounts.real_name import serialize_real_name_verification
 
     return [serialize_real_name_verification(item) for item in qs]
 
@@ -533,8 +533,6 @@ def list_admin_real_name_verifications(
 @admin_real_name_router.get("/{verification_id}/", response=RealNameVerificationDetailOut, summary="获取实名认证详情")
 def get_admin_real_name_verification(request, verification_id: int):
     require_superuser(request)
-    from apps.accounts.models import RealNameVerification
-    from apps.accounts.real_name import build_real_name_timeline_row, serialize_real_name_verification
 
     verification = get_object_or_404(RealNameVerification.objects.select_related("user", "reviewed_by"), pk=verification_id)
     payload = serialize_real_name_verification(verification, include_sensitive=True)
@@ -544,16 +542,12 @@ def get_admin_real_name_verification(request, verification_id: int):
 
 def _get_admin_real_name_verification(request, verification_id: int):
     require_superuser(request)
-    from apps.accounts.models import RealNameVerification
 
     return get_object_or_404(RealNameVerification.objects.select_related("user", "reviewed_by"), pk=verification_id)
 
 
 @admin_real_name_router.post("/{verification_id}/manual-review/", response=RealNameVerificationDetailOut, summary="转人工复核")
 def move_admin_real_name_to_manual_review(request, verification_id: int, payload: AdminRealNameDecisionIn):
-    from apps.accounts.constants import RealNameLogAction, RealNameStatus
-    from apps.accounts.real_name import admin_transition_real_name, build_real_name_timeline_row, serialize_real_name_verification
-
     verification = _get_admin_real_name_verification(request, verification_id)
     verification = admin_transition_real_name(
         verification,
@@ -569,9 +563,6 @@ def move_admin_real_name_to_manual_review(request, verification_id: int, payload
 
 @admin_real_name_router.post("/{verification_id}/approve/", response=RealNameVerificationDetailOut, summary="人工通过实名认证")
 def approve_admin_real_name(request, verification_id: int, payload: AdminRealNameDecisionIn):
-    from apps.accounts.constants import RealNameLogAction, RealNameStatus
-    from apps.accounts.real_name import admin_transition_real_name, build_real_name_timeline_row, serialize_real_name_verification
-
     verification = _get_admin_real_name_verification(request, verification_id)
     verification = admin_transition_real_name(
         verification,
@@ -587,9 +578,6 @@ def approve_admin_real_name(request, verification_id: int, payload: AdminRealNam
 
 @admin_real_name_router.post("/{verification_id}/reject/", response=RealNameVerificationDetailOut, summary="人工驳回实名认证")
 def reject_admin_real_name(request, verification_id: int, payload: AdminRealNameDecisionIn):
-    from apps.accounts.constants import RealNameLogAction, RealNameStatus
-    from apps.accounts.real_name import admin_transition_real_name, build_real_name_timeline_row, serialize_real_name_verification
-
     verification = _get_admin_real_name_verification(request, verification_id)
     verification = admin_transition_real_name(
         verification,
@@ -605,9 +593,6 @@ def reject_admin_real_name(request, verification_id: int, payload: AdminRealName
 
 @admin_real_name_router.post("/{verification_id}/revoke/", response=RealNameVerificationDetailOut, summary="撤销实名认证")
 def revoke_admin_real_name(request, verification_id: int, payload: AdminRealNameDecisionIn):
-    from apps.accounts.constants import RealNameLogAction, RealNameStatus
-    from apps.accounts.real_name import admin_transition_real_name, build_real_name_timeline_row, serialize_real_name_verification
-
     verification = _get_admin_real_name_verification(request, verification_id)
     verification = admin_transition_real_name(
         verification,

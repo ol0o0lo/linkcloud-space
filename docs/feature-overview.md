@@ -51,7 +51,7 @@
 
 ## 3. 实名认证
 
-对应模块：`apps/accounts`、`docs/real-name-verification.md`
+对应模块：`apps/accounts`
 
 ### 已有能力
 
@@ -245,5 +245,4 @@
 - [environment.md](./environment.md)
 - [frontend-structure.md](./frontend-structure.md)
 - [media-platform.md](./media-platform.md)
-- [real-name-verification.md](./real-name-verification.md)
 - [template-initialization.md](./template-initialization.md)

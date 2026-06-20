@@ -1,5 +1,7 @@
 from ninja import Schema
-from pydantic import Field
+from pydantic import Field, field_validator
+
+from apps.accounts.constants import RealNameSource
 
 
 class UserOut(Schema):
@@ -139,18 +141,59 @@ class ResetMfaOut(Schema):
     deleted_authenticators: int
 
 
-class RealNameSubmitIn(Schema):
-    real_name: str = Field(..., min_length=2, description="真实姓名。")
-    id_number: str = Field(..., min_length=15, description="身份证号。")
-    id_card_media: list[dict] = Field(..., min_length=2, description="身份证正反面媒体引用。")
+class RealNamePayloadIn(Schema):
+    real_name: str = Field(..., min_length=2, max_length=64, description="真实姓名。")
+    id_number: str = Field(..., min_length=15, max_length=18, description="身份证号。")
+    id_card_media: list[dict] = Field(..., min_length=2, max_length=2, description="身份证正反面媒体引用。")
     source: str = Field("user_submit", description="来源：user_submit 或 business_gate。")
 
+    @field_validator("real_name", mode="before")
+    @classmethod
+    def normalize_real_name(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
-class RealNameRetryIn(Schema):
-    real_name: str = Field(..., min_length=2, description="真实姓名。")
-    id_number: str = Field(..., min_length=15, description="身份证号。")
-    id_card_media: list[dict] = Field(..., min_length=2, description="身份证正反面媒体引用。")
-    source: str = Field("user_submit", description="来源：user_submit 或 business_gate。")
+    @field_validator("id_number", mode="before")
+    @classmethod
+    def normalize_id_number(cls, value):
+        return value.strip().upper() if isinstance(value, str) else value
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def normalize_source(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value):
+        if value not in RealNameSource.values:
+            raise ValueError("来源必须是 user_submit 或 business_gate。")
+        return value
+
+    @field_validator("id_card_media")
+    @classmethod
+    def validate_id_card_media(cls, value):
+        required_keys = {"media_id", "media_type", "side"}
+        sides = []
+        for item in value:
+            if not isinstance(item, dict):
+                raise ValueError("身份证材料必须是对象列表。")
+            missing_keys = required_keys - item.keys()
+            if missing_keys:
+                raise ValueError("身份证材料必须包含 media_id、media_type 和 side。")
+            if item.get("media_type") != "image":
+                raise ValueError("身份证材料必须是图片。")
+            sides.append(item.get("side"))
+        if sorted(sides) != ["back", "front"]:
+            raise ValueError("身份证图片必须包含 side=front 和 side=back。")
+        return value
+
+
+class RealNameSubmitIn(RealNamePayloadIn):
+    pass
+
+
+class RealNameRetryIn(RealNamePayloadIn):
+    pass
 
 
 class RealNameLogOut(Schema):
@@ -175,7 +218,6 @@ class RealNameVerificationOut(Schema):
     provider_label: str
     real_name_masked: str
     id_number_masked: str
-    id_number_last4: str
     failure_reason: str = ""
     review_note: str = ""
     reviewed_by: str | None = None

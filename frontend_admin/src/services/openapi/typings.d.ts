@@ -66,8 +66,6 @@ declare namespace API {
     real_name_masked: string;
     /** Id Number Masked */
     id_number_masked: string;
-    /** Id Number Last4 */
-    id_number_last4: string;
     /** Failure Reason */
     failure_reason?: string;
     /** Review Note */
@@ -326,7 +324,7 @@ declare namespace API {
   };
 
   type appsAccountsApiListAdminRealNameVerificationsParams = {
-    /** 按用户名、邮箱、手机号、实名脱敏或身份证后四位搜索。 */
+    /** 按用户名、邮箱、手机号、实名或身份证脱敏值搜索。 */
     q?: string | null;
     /** 按实名状态筛选。 */
     status?: string | null;
@@ -1340,8 +1338,6 @@ declare namespace API {
     real_name_masked: string;
     /** Id Number Masked */
     id_number_masked: string;
-    /** Id Number Last4 */
-    id_number_last4: string;
     /** Failure Reason */
     failure_reason?: string;
     /** Review Note */
@@ -1391,8 +1387,6 @@ declare namespace API {
     real_name_masked: string;
     /** Id Number Masked */
     id_number_masked: string;
-    /** Id Number Last4 */
-    id_number_last4: string;
     /** Failure Reason */
     failure_reason?: string;
     /** Review Note */

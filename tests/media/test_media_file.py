@@ -16,6 +16,7 @@ from apps.media.services import (
     get_media_list_info,
     get_media_refs_info,
     register_media_file,
+    resolve_media_refs,
     validate_media_ids,
     validate_media_refs,
 )
@@ -158,7 +159,7 @@ class TestMediaListInfo:
 
         assert [item["id"] for item in result] == [second.pk, first.pk]
 
-    def test_get_media_refs_info_flattens_media_info_and_keeps_business_values_on_conflict(self):
+    def test_get_media_refs_info_flattens_media_info_and_refreshes_platform_fields(self):
         user = User.objects.create_user(username="flat_viewer", password="secret")  # noqa: S106
         media = register_media_file(
             uploader=user,
@@ -174,7 +175,7 @@ class TestMediaListInfo:
                     "media_id": media.pk,
                     "media_type": "image",
                     "label": "业务标签",
-                    "url": "business-url-kept",
+                    "url": "stale-url",
                     "file_size": 999,
                 }
             ]
@@ -185,14 +186,30 @@ class TestMediaListInfo:
                 "media_id": media.pk,
                 "media_type": "image",
                 "label": "业务标签",
-                "url": "business-url-kept",
-                "file_size": 999,
+                "url": media.file.url,
+                "file_size": 300,
                 "resource_type": ResourceType.AVATAR,
                 "original_filename": "flat.png",
                 "thumbnail": None,
                 "created_at": media.created_at,
             }
         ]
+
+    def test_resolve_media_refs_aliases_flattened_media_ref_response(self):
+        user = User.objects.create_user(username="resolve_viewer", password="secret")  # noqa: S106
+        media = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/resolve.png",
+            original_filename="resolve.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=300,
+        )
+
+        result = resolve_media_refs([{"media_id": media.pk, "label": "封面"}])
+
+        assert result[0]["media_id"] == media.pk
+        assert result[0]["label"] == "封面"
+        assert result[0]["url"] == media.file.url
 
 
 @pytest.mark.django_db
@@ -242,7 +259,7 @@ class TestMediaRefs:
     def test_extract_media_ids_accepts_ints_and_dicts(self):
         assert extract_media_ids([1, {"media_id": "2"}, 3]) == [1, 2, 3]
 
-    def test_validate_media_refs_returns_original_refs_after_validating_media_ids(self):
+    def test_validate_media_refs_returns_storage_safe_refs_after_validating_media_ids(self):
         user = User.objects.create_user(username="ref_validator", password="secret")  # noqa: S106
         media = register_media_file(
             uploader=user,
@@ -251,9 +268,20 @@ class TestMediaRefs:
             resource_type=ResourceType.AVATAR,
             file_size=100,
         )
-        refs = [{"media_id": media.pk, "label": "封面"}]
+        refs = [
+            {
+                "media_id": str(media.pk),
+                "label": "封面",
+                "url": "stale-url",
+                "resource_type": "wrong",
+                "original_filename": "wrong.png",
+                "thumbnail": "wrong-thumbnail",
+                "file_size": 999,
+                "created_at": "stale-created-at",
+            }
+        ]
 
-        assert validate_media_refs(refs) == refs
+        assert validate_media_refs(refs) == [{"media_id": media.pk, "label": "封面"}]
 
     def test_extract_media_ids_requires_media_id_for_dict_items(self):
         with pytest.raises(ValueError, match="媒体引用对象必须包含 media_id"):

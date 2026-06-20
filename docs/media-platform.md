@@ -56,9 +56,9 @@ class ExampleThing(models.Model):
 - `POST /api/media/upload/`：服务端接收文件并上传
 - `extract_media_ids()`：从 `list[int]` 或 `list[dict]` 中提取媒体 ID
 - `validate_media_ids()`：校验 `list[int]` 或 `list[dict]` 中的媒体 ID 是否重复、是否存在
-- `validate_media_refs()`：校验媒体引用列表并返回原始列表，便于业务继续保存
+- `validate_media_refs()`：校验媒体引用列表并返回可安全入库的稳定引用
 - `get_media_list_info()`：按传入列表原顺序返回完整媒体信息
-- `get_media_refs_info()`：返回平铺增强后的媒体引用列表，字段冲突时保留业务方原值
+- `resolve_media_refs()`：返回平铺增强后的媒体引用列表，平台派生字段会动态刷新
 - 基于 `MEDIA_REFERENCE_PROVIDERS` 做延迟清理
 
 `apps/media` 不负责：
@@ -139,27 +139,40 @@ def update_example_thing(*, thing, images: list[dict]):
 
 这里的约定是：业务层对外接受自己的媒体引用列表，平台底层兼容 `list[int]`，也兼容从 `list[dict]` 的每个 item 里提取 `media_id` 来做统一处理。
 
-这里平台只校验“存在性、唯一性”；是否允许当前用户使用这些媒体，以及业务扩展字段是否合法，由业务自己校验。
+`validate_media_refs()` 会剔除 `url`、`resource_type`、`original_filename`、`thumbnail`、`file_size`、`created_at` 这些平台派生字段，避免把临时签名 URL 或展示数据保存进业务表。
+
+这里平台只校验“存在性、唯一性”并清理平台派生字段；是否允许当前用户使用这些媒体，以及业务扩展字段是否合法，由业务自己校验。
 
 ### 4. 回显
 
-业务详情可以直接返回平铺增强后的列表，适合前端展示：
+业务详情可以直接返回平铺增强后的列表，适合前端展示。推荐在业务模型上提供一个只读展示属性，字段原值继续保持稳定引用：
 
 示例：
 
 ```python
-from apps.media.services import get_media_refs_info
+from django.db import models
+
+from apps.media.services import resolve_media_refs
+
+
+class ExampleThing(models.Model):
+    title = models.CharField(max_length=100)
+    images = models.JSONField(default=list, blank=True)
+
+    @property
+    def images_resolved(self):
+        return resolve_media_refs(self.images)
 
 
 def build_example_thing_payload(thing):
     return {
         "id": thing.pk,
         "title": thing.title,
-        "images": get_media_refs_info(thing.images),
+        "images": thing.images_resolved,
     }
 ```
 
-`get_media_refs_info()` 会保持输入顺序不变，并补充媒体文件信息：
+`resolve_media_refs()` 会保持输入顺序不变，并补充媒体文件信息：
 
 ```json
 [
@@ -177,7 +190,7 @@ def build_example_thing_payload(thing):
 ]
 ```
 
-如果业务原始 item 中已经包含同名字段，例如 `url` 或 `file_size`，平台不会覆盖，返回时以业务方字段为准。
+如果业务原始 item 中已经包含 `url`、`file_size` 等平台派生字段，`resolve_media_refs()` 会使用当前 `MediaFile` 重新生成并覆盖这些值。这样私有 OSS 的临时签名 URL 会随接口响应刷新。
 
 如果业务只需要纯媒体信息，也可以继续使用 `get_media_list_info(images)`；该方法同样兼容 `list[int]` 和 `list[dict]`。
 
@@ -198,7 +211,7 @@ def build_example_thing_payload(thing):
 - `file_size`
 - `created_at`
 
-业务详情里的平铺增强列表来自 `get_media_refs_info()`，主要包含业务原始字段，并补充：
+业务详情里的平铺增强列表来自 `resolve_media_refs()`，主要包含业务原始字段，并补充：
 
 - `media_id`
 - `resource_type`
@@ -215,7 +228,7 @@ def build_example_thing_payload(thing):
 示例：
 
 ```python
-# apps/example/media_references.py
+# apps/example/services.py
 from apps.example.models import ExampleThing
 from apps.media.services import extract_media_ids
 
@@ -231,7 +244,7 @@ def collect_example_media_ids():
 
 ```python
 MEDIA_REFERENCE_PROVIDERS = [
-    "apps.example.media_references.collect_example_media_ids",
+    "apps.example.services.collect_example_media_ids",
 ]
 ```
 
@@ -311,11 +324,13 @@ MEDIA_REFERENCE_PROVIDERS = [
 - 业务标准引用对象至少包含 `media_id`
 - 业务扩展字段直接平铺，不额外包 `meta`
 - 只有所有业务都稳定需要的字段，才值得提升为统一约定；目前推荐保留的只有 `media_id`，以及可选的 `media_type`
-- 平铺增强返回时，如果平台字段和业务字段同名，以业务字段为准
+- 平台派生字段包括 `url`、`resource_type`、`original_filename`、`thumbnail`、`file_size`、`created_at`
+- 平台派生字段不入库，响应时由平台动态生成并覆盖同名输入
 
 ## 注意事项
 
 - 不要把房源、实名等业务语义字段存到 `MediaFile`
 - 不要把顺序、标签、证件面别等业务字段硬编码到 `apps/media`
 - 不要只存增强后的媒体展示数据，应保存稳定的业务媒体引用列表
+- 不要把临时签名 URL 当作业务字段保存
 - 不要在业务删除引用时立即删物理文件

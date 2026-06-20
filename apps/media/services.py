@@ -20,6 +20,14 @@ from apps.media.exceptions import InvalidExtensionException, InvalidScopeExcepti
 from apps.media.models import MediaFile
 
 DEFAULT_ORPHAN_RETENTION = timedelta(hours=24)
+MEDIA_DERIVED_REF_FIELDS = {
+    "created_at",
+    "file_size",
+    "original_filename",
+    "resource_type",
+    "thumbnail",
+    "url",
+}
 
 
 def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
@@ -184,10 +192,20 @@ def validate_media_ids(media_ids: Iterable[int | Mapping[str, Any]]) -> list[int
 
 
 def validate_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> list[int | Mapping[str, Any]]:
-    """校验业务媒体引用列表，返回原始列表供业务继续保存。"""
+    """校验业务媒体引用列表，返回可安全入库的稳定引用。"""
     ordered_refs = list(media_refs)
     validate_media_ids(ordered_refs)
-    return ordered_refs
+
+    normalized_refs: list[int | Mapping[str, Any]] = []
+    for media_ref in ordered_refs:
+        if not isinstance(media_ref, Mapping):
+            normalized_refs.append(_extract_media_id(media_ref))
+            continue
+
+        item = {key: value for key, value in media_ref.items() if key not in MEDIA_DERIVED_REF_FIELDS}
+        item["media_id"] = _extract_media_id(media_ref)
+        normalized_refs.append(item)
+    return normalized_refs
 
 
 def get_media_list_info(media_ids: Iterable[int | Mapping[str, Any]]) -> list[dict]:
@@ -213,7 +231,7 @@ def _flatten_media_info(media_info: dict) -> dict:
 
 
 def get_media_refs_info(media_refs: Iterable[int | Mapping[str, Any]]) -> list[dict]:
-    """返回平铺增强后的媒体引用列表；字段冲突时保留业务方原值。"""
+    """返回平铺增强后的媒体引用列表；平台派生字段始终动态刷新。"""
     ordered_refs = list(media_refs)
     media_infos = get_media_list_info(ordered_refs)
 
@@ -222,10 +240,14 @@ def get_media_refs_info(media_refs: Iterable[int | Mapping[str, Any]]) -> list[d
         media_id = _extract_media_id(media_ref)
         item = dict(media_ref) if isinstance(media_ref, Mapping) else {"media_id": media_id}
         item["media_id"] = media_id
-        for key, value in _flatten_media_info(media_info).items():
-            item.setdefault(key, value)
+        item.update(_flatten_media_info(media_info))
         result.append(item)
     return result
+
+
+def resolve_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> list[dict]:
+    """解析媒体引用为前端展示结构，兼容 list[int] 和 list[dict]。"""
+    return get_media_refs_info(media_refs)
 
 
 def _import_from_string(path: str) -> Callable[[], Iterable[int]]:
