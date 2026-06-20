@@ -18,8 +18,6 @@ class MediaRefsField(models.JSONField):
         allowed_media_types: list[str] | tuple[str, ...] | None = None,
         allowed_resource_types: list[str] | tuple[str, ...] | None = None,
         business_validators: list[str] | tuple[str, ...] | None = None,
-        media_type_error_message: str = "媒体类型不正确。",
-        resource_type_error_message: str = "媒体资源类型不正确。",
         resolved_property_name: str | None = None,
         **kwargs,
     ):
@@ -28,8 +26,6 @@ class MediaRefsField(models.JSONField):
         self.allowed_media_types = tuple(allowed_media_types or ())
         self.allowed_resource_types = tuple(allowed_resource_types or ())
         self.business_validators = tuple(business_validators or ())
-        self.media_type_error_message = media_type_error_message
-        self.resource_type_error_message = resource_type_error_message
         self.resolved_property_name = resolved_property_name
         super().__init__(*args, **kwargs)
 
@@ -45,10 +41,6 @@ class MediaRefsField(models.JSONField):
             kwargs["allowed_resource_types"] = list(self.allowed_resource_types)
         if self.business_validators:
             kwargs["business_validators"] = list(self.business_validators)
-        if self.media_type_error_message != "媒体类型不正确。":
-            kwargs["media_type_error_message"] = self.media_type_error_message
-        if self.resource_type_error_message != "媒体资源类型不正确。":
-            kwargs["resource_type_error_message"] = self.resource_type_error_message
         if self.resolved_property_name is not None:
             kwargs["resolved_property_name"] = self.resolved_property_name
         return name, path, args, kwargs
@@ -81,8 +73,8 @@ class MediaRefsField(models.JSONField):
             business_validators=self.business_validators,
             instance=model_instance,
             field=self,
-            media_type_error_message=self.media_type_error_message,
-            resource_type_error_message=self.resource_type_error_message,
+            media_type_error_message=f"{self.verbose_name}媒体类型不正确。",
+            resource_type_error_message=f"{self.verbose_name}资源类型不正确。",
         )
 
     def pre_save(self, model_instance, add):

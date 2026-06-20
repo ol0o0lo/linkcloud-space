@@ -1,7 +1,6 @@
 """OSS 上传路径生成和 STS 临时凭证."""
 import json
 from collections.abc import Callable, Iterable, Mapping
-from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
 from importlib import import_module
@@ -262,56 +261,6 @@ def resolve_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> list[di
         )
         result.append(item)
     return result
-
-
-def map_media_refs_in_json(value: Mapping[str, Any], *, media_paths: Iterable[str], transform: Callable[[Any], Any]) -> dict:
-    """对 JSON 中指定 path 的媒体引用执行转换。"""
-    data = deepcopy(dict(value or {}))
-
-    def update_path(target, parts: list[str]):
-        if not parts:
-            return transform(target)
-        if not isinstance(target, dict):
-            return target
-        key = parts[0]
-        if key not in target:
-            return target
-        target[key] = update_path(target[key], parts[1:])
-        return target
-
-    for path in media_paths:
-        update_path(data, [part for part in path.split(".") if part])
-    return data
-
-
-def clean_media_refs_in_json(value: Mapping[str, Any], *, media_paths: Iterable[str], **kwargs) -> dict:
-    """清洗 JSON 中指定路径上的媒体引用，适合业务 extra 字段单独调用。"""
-    def clean_value(target):
-        if target in (None, ""):
-            return target
-        if isinstance(target, Mapping) and "media_id" in target:
-            cleaned = validate_media_refs([target], **kwargs)
-            return cleaned[0] if cleaned else {}
-        if isinstance(target, list):
-            return validate_media_refs(target, **kwargs)
-        return target
-
-    return map_media_refs_in_json(value, media_paths=media_paths, transform=clean_value)
-
-
-def resolve_media_refs_in_json(value: Mapping[str, Any], *, media_paths: Iterable[str]) -> dict:
-    """解析 JSON 中指定路径上的媒体引用，返回适合 API 回显的增强结构。"""
-    def resolve_value(target):
-        if target in (None, ""):
-            return target
-        if isinstance(target, Mapping) and "media_id" in target:
-            resolved = resolve_media_refs([target])
-            return resolved[0] if resolved else {}
-        if isinstance(target, list):
-            return resolve_media_refs(target)
-        return target
-
-    return map_media_refs_in_json(value, media_paths=media_paths, transform=resolve_value)
 
 
 def collect_media_ref_field_ids() -> tuple[set[int], bool]:

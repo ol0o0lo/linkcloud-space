@@ -157,8 +157,6 @@ class RealNameVerification(CreateUpdateTimeModelMixin):
         allowed_media_types=[MediaType.IMAGE],
         allowed_resource_types=[ResourceType.REAL_NAME_ID_CARD],
         business_validators=["apps.accounts.services.validate_id_card_media_owner"],
-        media_type_error_message="身份证图片媒体类型不正确。",
-        resource_type_error_message="身份证图片资源类型不正确。",
         verbose_name="身份证图片",
     )
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_real_name_verifications")

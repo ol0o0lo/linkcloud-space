@@ -204,28 +204,9 @@ def build_example_thing_payload(thing):
 
 ### 5. 动态 extra JSON
 
-如果业务模型有动态字段，例如 `PropertyListing.extra = JSONField(...)`，不要强行使用 `MediaRefsField`。这类字段推荐继续保留业务 JSON，只在指定 path 上复用 media 的独立工具入口。
+如果业务模型有动态字段，例如 `PropertyListing.extra = JSONField(...)`，不要强行使用 `MediaRefsField`。这类字段推荐继续保留业务 JSON，只保存稳定的 `media_id` 引用和业务元数据，不保存 `url`、`file_size` 等平台派生字段。
 
-```python
-from apps.media.services import clean_media_refs_in_json, resolve_media_refs_in_json
-
-
-MEDIA_EXTRA_PATHS = ["floor_plan", "contract_file"]
-
-
-def update_listing_extra(*, listing, extra):
-    listing.extra = clean_media_refs_in_json(extra, media_paths=MEDIA_EXTRA_PATHS)
-    listing.save(update_fields=["extra"])
-
-
-def build_listing_payload(listing):
-    return {
-        "id": listing.pk,
-        "extra": resolve_media_refs_in_json(listing.extra, media_paths=MEDIA_EXTRA_PATHS),
-    }
-```
-
-指定 path 支持单个媒体引用对象，也支持媒体引用列表。未声明的动态字段保持原样。
+当前 `apps/media` 暂不提供通用 JSON path 清洗工具。等具体业务的 `extra` 字段结构落地后，再按真实字段定义补独立入口，避免提前做一层过宽的动态 JSON 抽象。
 
 ## 返回结构
 

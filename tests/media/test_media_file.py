@@ -11,14 +11,12 @@ from apps.media.constants import MediaScope, ResourceType
 from apps.media.models import MediaFile
 from apps.media.services import (
     CleanupResult,
-    clean_media_refs_in_json,
     cleanup_unreferenced_media,
     collect_media_ref_field_ids,
     collect_referenced_media_ids,
     extract_media_ids,
     register_media_file,
     resolve_media_refs,
-    resolve_media_refs_in_json,
     validate_media_refs,
 )
 from apps.organizations.models import Organization
@@ -202,59 +200,6 @@ class TestMediaRefs:
     def test_extract_media_ids_requires_media_id_for_dict_items(self):
         with pytest.raises(ValueError, match="媒体引用对象必须包含 media_id"):
             extract_media_ids([{"label": "缺少 ID"}])
-
-    def test_clean_media_refs_in_json_handles_configured_extra_paths(self):
-        user = User.objects.create_user(username="extra_cleaner", password="secret")  # noqa: S106
-        media = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/floor-plan.png",
-            original_filename="floor-plan.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=100,
-        )
-        extra = {
-            "floor_plan": [
-                {
-                    "media_id": str(media.pk),
-                    "label": "A 户型",
-                    "url": "stale-url",
-                    "file_size": 999,
-                }
-            ],
-            "description": "南北通透",
-        }
-
-        cleaned = clean_media_refs_in_json(extra, media_paths=["floor_plan"])
-
-        assert cleaned == {
-            "floor_plan": [{"media_id": media.pk, "label": "A 户型"}],
-            "description": "南北通透",
-        }
-        assert extra["floor_plan"][0]["url"] == "stale-url"
-
-    def test_resolve_media_refs_in_json_handles_configured_extra_paths(self):
-        user = User.objects.create_user(username="extra_resolver", password="secret")  # noqa: S106
-        media = register_media_file(
-            uploader=user,
-            oss_path="uploads/users/1/contract.png",
-            original_filename="contract.png",
-            resource_type=ResourceType.AVATAR,
-            file_size=256,
-        )
-        extra = {
-            "contract_file": {
-                "media_id": media.pk,
-                "label": "租赁合同",
-            },
-        }
-
-        resolved = resolve_media_refs_in_json(extra, media_paths=["contract_file"])
-
-        assert resolved["contract_file"]["media_id"] == media.pk
-        assert resolved["contract_file"]["label"] == "租赁合同"
-        assert resolved["contract_file"]["url"] == media.file.url
-        assert resolved["contract_file"]["file_size"] == 256
-
 
 @pytest.mark.django_db
 class TestCleanupUnreferencedMedia:
