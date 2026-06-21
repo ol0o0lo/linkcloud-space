@@ -43,9 +43,9 @@ describe('TeamSettingsPage', () => {
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     mockListTeams.mockResolvedValue({ items: [{ id: 3, name: 'Growth' }], total: 1, page: 1, page_size: 100 });
     mockListSettings.mockResolvedValue([
-      { key: 'review.required', value: false, value_type: 'bool', description: '需要审核', is_customized: true },
+      { key: 'review.required', label: '需要审核', value: false, value_type: 'boolean', widget: 'switch', ui: {}, description: '需要审核', is_customized: true },
     ]);
-    mockGetSetting.mockResolvedValue({ key: 'review.required', value: false, value_type: 'bool', description: '需要审核', is_customized: true });
+    mockGetSetting.mockResolvedValue({ key: 'review.required', label: '需要审核', value: false, value_type: 'boolean', widget: 'switch', ui: {}, description: '需要审核', is_customized: true });
     mockPutSetting.mockResolvedValue({});
     mockDeleteSetting.mockResolvedValue({});
   });
@@ -64,11 +64,11 @@ describe('TeamSettingsPage', () => {
     });
 
     fireEvent.click(screen.getByText('编辑'));
-    fireEvent.change(screen.getByLabelText('设置值'), { target: { value: 'true' } });
+    expect(screen.getByRole('switch')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
 
     await waitFor(() => {
-      expect(mockPutSetting).toHaveBeenCalledWith({ team_id: 3, key: 'review.required' }, { value: true });
+      expect(mockPutSetting).toHaveBeenCalledWith({ team_id: 3, key: 'review.required' }, { value: false });
     });
 
     fireEvent.click(screen.getByText('恢复默认'));

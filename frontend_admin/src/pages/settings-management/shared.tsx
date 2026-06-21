@@ -1,8 +1,32 @@
 import { Button, Card, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
+import type { FormInstance } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import React from 'react';
 import { adminTableScroll, ResponsiveActions, wrapTextStyle } from '@/pages/_shared/adminLayout';
 import { TenantSectionHint } from '@/pages/tenant/shared';
+
+export type SettingOption = { label: string; value: string | number | boolean };
+
+type SettingUi = {
+  options?: SettingOption[];
+  options_source?: string;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+};
+
+type SettingWithSchema = API.SettingOut & {
+  label?: string;
+  widget?: string;
+  ui?: SettingUi;
+};
+
+export type SettingCustomControlProps = {
+  value?: unknown;
+  onChange?: (value: unknown) => void;
+};
+
+export type SettingCustomControls = Record<string, React.ComponentType<SettingCustomControlProps>>;
 
 export const settingsManagementQueryKeys = {
   organization: (slug?: string) => ['settings-management', 'organization', slug],
@@ -41,6 +65,14 @@ export function stringifySettingValue(value: unknown, pretty = true) {
   return JSON.stringify(value, null, pretty ? 2 : 0);
 }
 
+export function settingFormValue(setting: SettingWithSchema) {
+  const widget = setting.widget || defaultWidget(setting.value_type);
+  if (setting.value_type === 'json' || widget === 'json_editor') {
+    return stringifySettingValue(setting.value);
+  }
+  return setting.value;
+}
+
 function summarizeSettingValue(value: unknown) {
   const text = stringifySettingValue(value, false);
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
@@ -60,25 +92,50 @@ export const SettingValue: React.FC<{ value: unknown }> = ({ value }) => (
 
 export const SettingEditModal: React.FC<{
   open: boolean;
-  setting?: API.SettingOut | null;
+  setting?: SettingWithSchema | null;
   loading?: boolean;
-  form: ReturnType<typeof Form.useForm<{ value: string }>>[0];
+  form: FormInstance<{ value: unknown }>;
+  optionSources?: Record<string, SettingOption[]>;
+  customControls?: SettingCustomControls;
   onCancel: () => void;
   onOk: () => void;
-}> = ({ open, setting, loading, form, onCancel, onOk }) => (
-  <Modal title={setting ? `编辑 ${setting.key}` : '编辑设置'} open={open} confirmLoading={loading} onCancel={onCancel} onOk={onOk}>
-    <Form form={form} layout="vertical">
-      <Form.Item label="设置值" name="value" rules={[{ required: true, message: '请输入设置值' }]}>
-        <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
-      </Form.Item>
-      {setting ? (
-        <Typography.Paragraph type="secondary">
-          当前类型：{setting.value_type}
-        </Typography.Paragraph>
-      ) : null}
-    </Form>
-  </Modal>
-);
+}> = ({ open, setting, loading, form, optionSources, customControls, onCancel, onOk }) => {
+  const widget = setting?.widget || defaultWidget(setting?.value_type);
+  const options = setting?.ui?.options || (setting?.ui?.options_source ? optionSources?.[setting.ui.options_source] : undefined);
+  const CustomControl = setting ? customControls?.[setting.key] : undefined;
+
+  return (
+    <Modal title={setting ? `编辑 ${setting.label || setting.key}` : '编辑设置'} open={open} confirmLoading={loading} onCancel={onCancel} onOk={onOk}>
+      <Form form={form} layout="vertical">
+        <Form.Item label={setting?.label || '设置值'} name="value" valuePropName={widget === 'switch' ? 'checked' : 'value'} rules={widget === 'switch' ? [] : [{ required: true, message: '请输入设置值' }]}>
+          {CustomControl ? <CustomControl /> : renderSettingControl(widget, setting?.ui, options)}
+        </Form.Item>
+        {setting ? (
+          <Typography.Paragraph type="secondary">
+            当前类型：{setting.value_type} / 组件：{widget}
+          </Typography.Paragraph>
+        ) : null}
+      </Form>
+    </Modal>
+  );
+};
+
+function defaultWidget(valueType?: string) {
+  if (valueType === 'bool' || valueType === 'boolean') return 'switch';
+  if (valueType === 'int' || valueType === 'integer' || valueType === 'float' || valueType === 'number') return 'input_number';
+  if (valueType === 'password') return 'password';
+  if (valueType === 'json') return 'json_editor';
+  return 'input';
+}
+
+function renderSettingControl(widget: string, ui?: SettingUi, options?: SettingOption[]) {
+  if (widget === 'switch') return <Switch />;
+  if (widget === 'input_number') return <InputNumber min={ui?.min} max={ui?.max} placeholder={ui?.placeholder} style={{ width: '100%' }} />;
+  if (widget === 'select') return <Select options={options || []} placeholder={ui?.placeholder} />;
+  if (widget === 'password') return <Input.Password placeholder={ui?.placeholder} />;
+  if (widget === 'textarea' || widget === 'json_editor') return <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} placeholder={ui?.placeholder} />;
+  return <Input placeholder={ui?.placeholder} />;
+}
 
 function settingOptions(setting: API.SettingOut) {
   const rawOptions = Array.isArray(setting.ui?.options) ? setting.ui.options : [];
@@ -139,10 +196,10 @@ export const SettingSchemaControl: React.FC<{
 };
 
 export function buildSettingColumns(
-  onEdit: (setting: API.SettingOut) => void,
-  onRestore: (setting: API.SettingOut) => void,
-  onView?: (setting: API.SettingOut) => void,
-): ColumnsType<API.SettingOut> {
+  onEdit: (setting: SettingWithSchema) => void,
+  onRestore: (setting: SettingWithSchema) => void,
+  onView?: (setting: SettingWithSchema) => void,
+): ColumnsType<SettingWithSchema> {
   return [
     {
       title: '设置项',
@@ -151,7 +208,7 @@ export function buildSettingColumns(
       render: (_value, record) => (
         <Space orientation="vertical" size={0}>
           <Typography.Text>{record.key}</Typography.Text>
-          <Typography.Text type="secondary" style={wrapTextStyle}>{record.description || '无描述'}</Typography.Text>
+          <Typography.Text type="secondary" style={wrapTextStyle}>{record.label || record.description || '无描述'}</Typography.Text>
         </Space>
       ),
     },
@@ -186,10 +243,10 @@ export const SettingsTableCard: React.FC<{
   title: string;
   hint: string;
   loading?: boolean;
-  data?: API.SettingOut[];
-  onEdit: (setting: API.SettingOut) => void;
-  onRestore: (setting: API.SettingOut) => void;
-  onView?: (setting: API.SettingOut) => void;
+  data?: SettingWithSchema[];
+  onEdit: (setting: SettingWithSchema) => void;
+  onRestore: (setting: SettingWithSchema) => void;
+  onView?: (setting: SettingWithSchema) => void;
 }> = ({ title, hint, loading, data, onEdit, onRestore, onView }) => (
   <Card title={title}>
     <TenantSectionHint text={hint} />

@@ -16,8 +16,8 @@ import {
   SettingsTableCard,
   SettingsToolbarCard,
   parseSettingValue,
+  settingFormValue,
   settingsManagementQueryKeys,
-  stringifySettingValue,
 } from '../shared';
 
 const TeamSettingsPage: React.FC = () => {
@@ -25,7 +25,7 @@ const TeamSettingsPage: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<number>();
   const [editingSetting, setEditingSetting] = useState<API.SettingOut | null>(null);
   const [detailKey, setDetailKey] = useState<string>();
-  const [form] = Form.useForm<{ value: string }>();
+  const [form] = Form.useForm<{ value: unknown }>();
 
   const teamsQuery = useQuery({
     queryKey: settingsManagementQueryKeys.teams(workspace.selectedOrgSlug),
@@ -53,7 +53,7 @@ const TeamSettingsPage: React.FC = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ setting, value }: { setting: API.SettingOut; value: string }) =>
+    mutationFn: ({ setting, value }: { setting: API.SettingOut; value: unknown }) =>
       appsSettingsApiPutTeamSetting({ team_id: selectedTeamId!, key: setting.key }, { value: parseSettingValue(value, setting.value_type) }),
     onSuccess: async () => {
       setEditingSetting(null);
@@ -95,7 +95,7 @@ const TeamSettingsPage: React.FC = () => {
         data={settingsQuery.data}
         onEdit={(setting) => {
           setEditingSetting(setting);
-          form.setFieldsValue({ value: stringifySettingValue(setting.value) });
+          form.setFieldsValue({ value: settingFormValue(setting) });
         }}
         onView={(setting) => setDetailKey(setting.key)}
         onRestore={(setting) => void restoreMutation.mutateAsync(setting)}
