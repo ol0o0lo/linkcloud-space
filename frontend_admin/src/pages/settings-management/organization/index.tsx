@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Divider, Form, Input, Modal, Select, Space, Tag, Typography, message } from 'antd';
+import { Button, Card, Divider, Form, Input, Modal, Select, Space, Tabs, Tag, Typography, message } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { wrapTextStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
@@ -24,21 +24,11 @@ const categoryTitles: Record<string, string> = {
 };
 const categoryOrder = ['property_rental', 'general'];
 const defaultBuildingSettingKey = 'property_rental.default_building_id';
-const categorySectionStyle: React.CSSProperties = {
-  border: '1px solid var(--ant-color-border-secondary)',
-  borderRadius: 8,
-  overflow: 'hidden',
-};
-const categoryHeaderStyle: React.CSSProperties = {
-  padding: '10px 16px',
-  background: 'var(--ant-color-fill-tertiary)',
-  borderBottom: '1px solid var(--ant-color-border-secondary)',
-};
 const settingRowStyle: React.CSSProperties = {
   display: 'flex',
   gap: 16,
   alignItems: 'flex-start',
-  padding: 16,
+  padding: '18px 0',
   borderTop: '1px solid var(--ant-color-border-secondary)',
   flexWrap: 'wrap',
 };
@@ -119,6 +109,7 @@ const OrganizationSettingsPage: React.FC = () => {
   const [draftValues, setDraftValues] = useState<DraftValues>({});
   const [buildingOpen, setBuildingOpen] = useState(false);
   const [createdBuildings, setCreatedBuildings] = useState<BuildingItem[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>();
   const [buildingForm] = Form.useForm();
 
   const settingsQuery = useQuery({
@@ -145,7 +136,14 @@ const OrganizationSettingsPage: React.FC = () => {
   useEffect(() => {
     setDraftValues({});
     setCreatedBuildings([]);
+    setActiveCategory(undefined);
   }, [workspace.selectedOrgSlug]);
+
+  useEffect(() => {
+    if (sections.length > 0 && !sections.some((section) => section.category === activeCategory)) {
+      setActiveCategory(sections[0].category);
+    }
+  }, [activeCategory, sections]);
 
   useEffect(() => {
     setDraftValues((currentValues) => {
@@ -209,38 +207,42 @@ const OrganizationSettingsPage: React.FC = () => {
   return (
     <TenantSelectionGuard title="空间设置" subtitle="按业务功能管理当前空间的设置。">
       <Card loading={settingsQuery.isLoading}>
-        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-          {sections.map((section) => (
-            <div key={section.category} style={categorySectionStyle}>
-              <div style={categoryHeaderStyle}>
-                <Typography.Text strong>{section.title}</Typography.Text>
-              </div>
-              {section.rows.map((setting, settingIndex) => {
-                const title = setting.label || setting.key;
-                const description = setting.description && setting.description !== title ? setting.description : undefined;
+        <Tabs
+          tabPlacement="start"
+          activeKey={activeCategory || sections[0]?.category}
+          onChange={setActiveCategory}
+          items={sections.map((section) => ({
+            key: section.category,
+            label: section.title,
+            children: (
+              <div style={{ paddingLeft: 8 }}>
+                {section.rows.map((setting, settingIndex) => {
+                  const title = setting.label || setting.key;
+                  const description = setting.description && setting.description !== title ? setting.description : undefined;
 
-                return (
-                  <div key={setting.key} style={{ ...settingRowStyle, borderTop: settingIndex === 0 ? 0 : settingRowStyle.borderTop }}>
-                    <Space orientation="vertical" size={4} style={settingMetaStyle}>
-                      <Space wrap align="center">
-                        <Typography.Text strong>{title}</Typography.Text>
-                        {setting.is_customized ? <Tag color="gold">已自定义</Tag> : <Tag>默认值</Tag>}
+                  return (
+                    <div key={setting.key} style={{ ...settingRowStyle, borderTop: settingIndex === 0 ? 0 : settingRowStyle.borderTop }}>
+                      <Space orientation="vertical" size={4} style={settingMetaStyle}>
+                        <Space wrap align="center">
+                          <Typography.Text strong>{title}</Typography.Text>
+                          {setting.is_customized ? <Tag color="gold">已自定义</Tag> : <Tag>默认值</Tag>}
+                        </Space>
+                        {description ? (
+                          <Typography.Text type="secondary" style={wrapTextStyle}>
+                            {description}
+                          </Typography.Text>
+                        ) : null}
                       </Space>
-                      {description ? (
-                        <Typography.Text type="secondary" style={wrapTextStyle}>
-                          {description}
-                        </Typography.Text>
-                      ) : null}
-                    </Space>
-                    <Form layout="vertical" style={{ ...settingControlStyle, maxWidth: setting.value_type === 'json' ? 900 : 520 }}>
-                      <Form.Item style={{ marginBottom: 0 }}>{renderControl(setting)}</Form.Item>
-                    </Form>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </Space>
+                      <Form layout="vertical" style={{ ...settingControlStyle, maxWidth: setting.value_type === 'json' ? 900 : 520 }}>
+                        <Form.Item style={{ marginBottom: 0 }}>{renderControl(setting)}</Form.Item>
+                      </Form>
+                    </div>
+                  );
+                })}
+              </div>
+            ),
+          }))}
+        />
       </Card>
       <Modal title="新建楼栋" open={buildingOpen} onCancel={() => setBuildingOpen(false)} footer={null} destroyOnHidden>
         <Form

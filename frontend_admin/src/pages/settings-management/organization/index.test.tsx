@@ -162,7 +162,6 @@ describe('OrganizationSettingsPage', () => {
     expect(screen.getByText('按业务功能管理当前空间的设置。')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '设置项' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '新建楼栋' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('未知设置')).toHaveProperty('tagName', 'TEXTAREA');
     expect(screen.queryByText('保存设置')).not.toBeInTheDocument();
     expect(screen.queryByText('恢复默认值')).not.toBeInTheDocument();
     fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
@@ -174,6 +173,10 @@ describe('OrganizationSettingsPage', () => {
     expect(settingsPanel).not.toBeNull();
     expect(within(settingsPanel!).getByText('房源租赁设置')).toBeInTheDocument();
     expect(within(settingsPanel!).getByText('通用设置')).toBeInTheDocument();
+    expect(within(settingsPanel!).getByRole('tablist')).toHaveAttribute('aria-orientation', 'vertical');
+
+    fireEvent.click(within(settingsPanel!).getByRole('tab', { name: '通用设置' }));
+    expect(screen.getByLabelText('未知设置')).toHaveProperty('tagName', 'TEXTAREA');
     expect(within(settingsPanel!).getByLabelText('未知分类设置')).toBeInTheDocument();
   });
 
@@ -185,6 +188,7 @@ describe('OrganizationSettingsPage', () => {
     );
 
     await screen.findByText('通用设置');
+    fireEvent.click(screen.getByRole('tab', { name: '通用设置' }));
     fireEvent.change(screen.getByLabelText('成员上限'), { target: { value: '18' } });
     fireEvent.blur(screen.getByLabelText('成员上限'));
 
@@ -222,6 +226,7 @@ describe('OrganizationSettingsPage', () => {
     );
 
     await screen.findByText('通用设置');
+    fireEvent.click(screen.getByRole('tab', { name: '通用设置' }));
     fireEvent.change(screen.getByLabelText('成员上限'), { target: { value: '18' } });
     fireEvent.click(screen.getByRole('switch', { name: '启用账单' }));
 
@@ -240,6 +245,7 @@ describe('OrganizationSettingsPage', () => {
     );
 
     await screen.findByText('通用设置');
+    fireEvent.click(screen.getByRole('tab', { name: '通用设置' }));
     fireEvent.change(screen.getByLabelText('成员上限'), { target: { value: '18' } });
 
     selectedOrgSlug = 'beta';
@@ -250,6 +256,7 @@ describe('OrganizationSettingsPage', () => {
     );
 
     await waitFor(() => expect(mockListSettings).toHaveBeenCalledTimes(2));
+    fireEvent.click(await screen.findByRole('tab', { name: '通用设置' }));
     await waitFor(() => expect(screen.getByLabelText('成员上限')).toHaveValue('30'));
   });
 
