@@ -2,7 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.base.mixins import BaseModelMixin
-from apps.settings.constants import ValueType
+from apps.settings.constants import SettingWidget, ValueType
 
 
 class DefaultSetting(BaseModelMixin):
@@ -12,6 +12,9 @@ class DefaultSetting(BaseModelMixin):
     value = models.JSONField()
     value_type = models.CharField(max_length=20, choices=ValueType.choices, default=ValueType.TEXT)
     description = models.TextField(blank=True)
+    label = models.CharField(max_length=100, blank=True)
+    widget = models.CharField(max_length=20, choices=SettingWidget.choices, blank=True)
+    ui = models.JSONField(default=dict, blank=True)
     category = models.CharField(max_length=50, blank=True)
 
     class Meta:

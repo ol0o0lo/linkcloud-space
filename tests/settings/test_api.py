@@ -45,7 +45,14 @@ def put_json(client, url, data):
 @pytest.fixture
 def default_text(db):
     return DefaultSetting.objects.create(
-        key="site_name", value="My SaaS", value_type="text", description="站点名称", category="general"
+        key="site_name",
+        value="My SaaS",
+        value_type="text",
+        description="站点名称",
+        label="站点名称",
+        widget="input",
+        ui={"placeholder": "请输入站点名称"},
+        category="general",
     )
 
 
@@ -112,8 +119,11 @@ class TestOrgSettingList:
         set_session_org(client, org)
         resp = client.get(ORG_LIST_URL)
         item = next(i for i in api_data(resp) if i["key"] == "site_name")
+        assert item["label"] == "站点名称"
         assert item["description"] == "站点名称"
         assert item["value_type"] == "text"
+        assert item["widget"] == "input"
+        assert item["ui"] == {"placeholder": "请输入站点名称"}
         assert item["category"] == "general"
         assert item["is_customized"] is False
 
@@ -155,7 +165,7 @@ class TestOrgSettingDetail:
         resp = client.delete(org_detail_url("site_name"))
         assert resp.status_code == 200
         assert api_data(resp) == {}
-        assert not OrganizationSetting.objects.filter(organization=org).exists()
+        assert not OrganizationSetting.objects.filter(organization=org, setting=default_text).exists()
 
     def test_delete_nonexistent_returns_404(self, client, default_text, org, owner):
         client.force_login(owner)

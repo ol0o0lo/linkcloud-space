@@ -20,7 +20,15 @@ from apps.settings.service import (
 
 @pytest.fixture
 def default_text(db):
-    return DefaultSetting.objects.create(key="site_name", value="My SaaS", value_type="text", category="general")
+    return DefaultSetting.objects.create(
+        key="site_name",
+        value="My SaaS",
+        value_type="text",
+        label="站点名称",
+        widget="input",
+        ui={"placeholder": "请输入站点名称"},
+        category="general",
+    )
 
 
 @pytest.fixture
@@ -36,6 +44,11 @@ def default_boolean(db):
 @pytest.fixture
 def default_integer(db):
     return DefaultSetting.objects.create(key="max_members", value=100, value_type="integer")
+
+
+@pytest.fixture
+def default_float(db):
+    return DefaultSetting.objects.create(key="commission_rate", value="0.12", value_type="float")
 
 
 @pytest.fixture
@@ -89,6 +102,11 @@ class TestGetOrgSetting:
         assert result["value"] == 100
         assert isinstance(result["value"], int)
 
+    def test_float_type_returned_as_float(self, default_float, org):
+        result = get_org_setting(org, "commission_rate")
+        assert result["value"] == 0.12
+        assert isinstance(result["value"], float)
+
 
 @pytest.mark.django_db
 class TestGetAllOrgSettings:
@@ -106,12 +124,22 @@ class TestGetAllOrgSettings:
 
     def test_includes_label_widget_ui_and_category_metadata(self, db, org):
         DefaultSetting.objects.create(
-            key="smtp_host", value="localhost", value_type="text", description="SMTP 服务器地址", category="general"
+            key="smtp_host",
+            value="localhost",
+            value_type="text",
+            description="SMTP 服务器地址",
+            label="SMTP 地址",
+            widget="input",
+            ui={"placeholder": "smtp.example.com"},
+            category="general",
         )
         results = get_all_org_settings(org)
         result = next(r for r in results if r["key"] == "smtp_host")
+        assert result["label"] == "SMTP 地址"
         assert result["description"] == "SMTP 服务器地址"
         assert result["value_type"] == "text"
+        assert result["widget"] == "input"
+        assert result["ui"] == {"placeholder": "smtp.example.com"}
         assert result["category"] == "general"
 
 

@@ -1,5 +1,15 @@
-from apps.settings.constants import ValueType
+from apps.settings.constants import SettingWidget, ValueType
 from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting
+
+
+DEFAULT_WIDGET_BY_VALUE_TYPE = {
+    ValueType.TEXT: SettingWidget.INPUT,
+    ValueType.PASSWORD: SettingWidget.PASSWORD,
+    ValueType.JSON: SettingWidget.JSON_EDITOR,
+    ValueType.BOOLEAN: SettingWidget.SWITCH,
+    ValueType.INTEGER: SettingWidget.INPUT_NUMBER,
+    ValueType.FLOAT: SettingWidget.INPUT_NUMBER,
+}
 
 
 def _serialize_value(value, value_type: str):
@@ -10,15 +20,20 @@ def _serialize_value(value, value_type: str):
         return bool(value)
     if value_type == ValueType.INTEGER:
         return int(value)
+    if value_type == ValueType.FLOAT:
+        return float(value)
     return value
 
 
 def _build_result(default: DefaultSetting, value, is_customized: bool) -> dict:
     return {
         "key": default.key,
+        "label": default.label or default.key,
         "value": _serialize_value(value, default.value_type),
         "value_type": default.value_type,
         "description": default.description,
+        "widget": default.widget or DEFAULT_WIDGET_BY_VALUE_TYPE.get(default.value_type, SettingWidget.INPUT),
+        "ui": default.ui,
         "category": default.category,
         "is_customized": is_customized,
     }

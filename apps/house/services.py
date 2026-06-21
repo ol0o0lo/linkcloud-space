@@ -76,7 +76,15 @@ def _default_building_setting():
 
     return DefaultSetting.objects.get_or_create(
         key=DEFAULT_BUILDING_SETTING_KEY,
-        defaults={"value": 0, "value_type": ValueType.INTEGER, "description": "房源租赁默认楼栋", "category": "property_rental"},
+        defaults={
+            "value": 0,
+            "value_type": ValueType.INTEGER,
+            "description": "房源租赁默认楼栋",
+            "label": "默认楼栋",
+            "widget": "select",
+            "ui": {},
+            "category": "property_rental",
+        },
     )[0]
 
 

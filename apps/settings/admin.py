@@ -5,8 +5,8 @@ from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSettin
 
 @admin.register(DefaultSetting)
 class DefaultSettingAdmin(admin.ModelAdmin):
-    list_display = ("key", "value_type", "description", "updated_at")
-    search_fields = ("key", "description")
+    list_display = ("key", "label", "value_type", "widget", "description", "updated_at")
+    search_fields = ("key", "label", "description")
     readonly_fields = ("created_at", "updated_at", "created_by", "updated_by")
 
     def save_model(self, request, obj, form, change):

@@ -32,9 +32,12 @@ from apps.settings.service import (
 
 class SettingOut(Schema):
     key: str
+    label: str
     value: Any
     value_type: str
     description: str
+    widget: str
+    ui: dict[str, Any]
     category: str
     is_customized: bool
 
