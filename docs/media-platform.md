@@ -156,6 +156,12 @@ def build_example_thing_payload(thing):
 - 前端直传 OSS：先取 `/api/media/oss-token/`，上传后调 `/api/media/confirm/`
 - 服务端上传：直接调 `/api/media/upload/`
 
+直传凭证可以带 `resource_type`，平台会在签发前校验作用域和文件扩展名：
+
+```http
+GET /api/media/oss-token/?scope=org&filename=cover.png&resource_type=house_image
+```
+
 服务端上传示例：
 
 ```http
@@ -245,7 +251,9 @@ provider 约束建议明确写在业务代码注释里：
 ## 7. 当前边界
 
 - `resource_type` 必须先在 `apps/media/constants.py` 的 `ResourceType` 中声明
-- 目前内置值有 `avatar`、`org_logo`、`real_name_id_card`
+- 目前内置值有 `avatar`、`org_logo`、`real_name_id_card`、`estate_image`、`house_image`、`house_video`、`lease_contract`
+- 平台会按资源类型限制作用域和扩展名，例如房源图片/视频/租约合同必须走组织作用域
+- 图片类支持 `jpg`、`jpeg`、`png`、`webp`；视频类支持 `mp4`、`mov`、`avi`；租约合同支持 `pdf`、`doc`、`docx`
 - 如果新业务需要商品图、内容图、附件等类型，需要先扩展 `ResourceType`
 
 ## 8. 最佳实践

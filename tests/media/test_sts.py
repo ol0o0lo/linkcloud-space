@@ -3,6 +3,7 @@ from uuid import UUID
 
 import pytest
 
+from apps.media.constants import ResourceType
 from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
 from apps.media.services import generate_upload_path, get_oss_token
 
@@ -35,6 +36,13 @@ class TestGenerateUploadPath:
     def test_extension_case_insensitive(self):
         path = generate_upload_path(scope="user", object_id=1, filename="photo.JPG")
         assert path.endswith(".jpg")
+
+    def test_resource_type_restricts_scope_and_extension(self):
+        with pytest.raises(InvalidScopeException):
+            generate_upload_path(scope="user", object_id=1, filename="house.jpg", resource_type=ResourceType.HOUSE_IMAGE)
+
+        with pytest.raises(InvalidExtensionException):
+            generate_upload_path(scope="org", object_id=1, filename="house.mp4", resource_type=ResourceType.HOUSE_IMAGE)
 
 
 class TestGetOssToken:

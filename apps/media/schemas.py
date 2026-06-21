@@ -10,6 +10,7 @@ from apps.media.constants import MediaType
 class OssTokenIn(Schema):
     scope: Literal["user", "org"] = Field(..., description="上传作用域，user 表示个人，org 表示当前租户。")
     filename: str = Field(..., description="原始文件名，用于生成上传路径。")
+    resource_type: str | None = Field(None, description="可选资源类型，用于在签发上传凭证前校验作用域与扩展名。")
 
 
 class OssTokenOut(Schema):

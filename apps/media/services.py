@@ -1,4 +1,5 @@
 """OSS 上传路径生成和 STS 临时凭证."""
+
 import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -16,11 +17,23 @@ from alibabacloud_sts20150401.client import Client as StsClient
 from alibabacloud_sts20150401.models import AssumeRoleRequest
 from alibabacloud_tea_openapi.models import Config as TeaConfig
 
-from apps.media.constants import MediaExtension, MediaScope
+from apps.media.constants import MediaExtension, MediaScope, ResourceType
 from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
 from apps.media.models import MediaFile
 
 DEFAULT_ORPHAN_RETENTION = timedelta(hours=24)
+IMAGE_EXTENSIONS = {MediaExtension.JPG, MediaExtension.JPEG, MediaExtension.PNG, MediaExtension.WEBP}
+VIDEO_EXTENSIONS = {MediaExtension.MP4, MediaExtension.MOV, MediaExtension.AVI}
+CONTRACT_EXTENSIONS = {MediaExtension.PDF, MediaExtension.DOC, MediaExtension.DOCX}
+RESOURCE_TYPE_RULES = {
+    ResourceType.AVATAR: {"scopes": {MediaScope.USER}, "extensions": IMAGE_EXTENSIONS},
+    ResourceType.ORG_LOGO: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
+    ResourceType.REAL_NAME_ID_CARD: {"scopes": {MediaScope.USER}, "extensions": IMAGE_EXTENSIONS},
+    ResourceType.ESTATE_IMAGE: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
+    ResourceType.HOUSE_IMAGE: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
+    ResourceType.HOUSE_VIDEO: {"scopes": {MediaScope.ORG}, "extensions": VIDEO_EXTENSIONS},
+    ResourceType.LEASE_CONTRACT: {"scopes": {MediaScope.ORG}, "extensions": CONTRACT_EXTENSIONS},
+}
 MEDIA_DERIVED_REF_FIELDS = {
     "created_at",
     "file_size",
@@ -38,7 +51,7 @@ class MediaRefBatch:
     media_by_id: dict[int, MediaFile]
 
 
-def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
+def generate_upload_path(scope: str, object_id: int, filename: str, resource_type: str | None = None) -> str:
     if scope not in MediaScope.values:
         raise InvalidScopeException()
 
@@ -48,6 +61,13 @@ def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
     ext = parts[1].lower()
     if ext not in MediaExtension.values:
         raise InvalidExtensionException(f"不支持的扩展名 '.{ext}'，允许：{MediaExtension.values}")
+    if resource_type:
+        validate_resource_type_upload(
+            resource_type=resource_type,
+            scope=scope,
+            object_id=object_id,
+            filename=filename,
+        )
 
     uid = uuid4().hex
     if scope == MediaScope.USER:
@@ -55,8 +75,51 @@ def generate_upload_path(scope: str, object_id: int, filename: str) -> str:
     return f"uploads/orgs/{object_id}/{uid}.{ext}"
 
 
-def get_oss_token(scope: str, object_id: int, filename: str) -> dict:
-    path = generate_upload_path(scope=scope, object_id=object_id, filename=filename)
+def _extract_extension(path: str) -> str:
+    parts = path.rsplit(".", 1)
+    if len(parts) != 2 or not parts[1]:
+        raise InvalidExtensionException("文件名必须包含有效扩展名")
+    return parts[1].lower()
+
+
+def _scope_prefix(scope: str, object_id: int | None = None) -> str:
+    if scope == MediaScope.USER:
+        return f"uploads/users/{object_id}/" if object_id is not None else "uploads/users/"
+    if scope == MediaScope.ORG:
+        return f"uploads/orgs/{object_id}/" if object_id is not None else "uploads/orgs/"
+    raise InvalidScopeException()
+
+
+def validate_resource_type_upload(
+    *,
+    resource_type: str,
+    scope: str,
+    filename: str,
+    object_id: int | None = None,
+    path: str | None = None,
+) -> None:
+    """校验资源类型对应的上传作用域、路径前缀和文件扩展名。"""
+    if scope not in MediaScope.values:
+        raise InvalidScopeException()
+
+    rule = RESOURCE_TYPE_RULES.get(resource_type)
+    if rule is None:
+        return
+
+    if scope not in rule["scopes"]:
+        raise InvalidScopeException()
+
+    if path is not None and not path.startswith(_scope_prefix(scope, object_id)):
+        raise InvalidScopeException()
+
+    ext = _extract_extension(path or filename)
+    if ext not in rule["extensions"]:
+        allowed = sorted(rule["extensions"])
+        raise InvalidExtensionException(f"资源类型 {resource_type} 不支持 '.{ext}'，允许：{allowed}")
+
+
+def get_oss_token(scope: str, object_id: int, filename: str, resource_type: str | None = None) -> dict:
+    path = generate_upload_path(scope=scope, object_id=object_id, filename=filename, resource_type=resource_type)
     policy = {
         "Version": "1",
         "Statement": [
@@ -100,8 +163,24 @@ def register_media_file(
     original_filename: str,
     resource_type: str,
     file_size: int,
+    scope: str | None = None,
+    object_id: int | None = None,
 ) -> MediaFile:
     """将已存在于 OSS 的文件路径登记为 MediaFile 记录。"""
+    if scope is None:
+        if oss_path.startswith("uploads/users/"):
+            scope = MediaScope.USER
+        elif oss_path.startswith("uploads/orgs/"):
+            scope = MediaScope.ORG
+        else:
+            raise InvalidScopeException()
+    validate_resource_type_upload(
+        resource_type=resource_type,
+        scope=scope,
+        object_id=object_id,
+        filename=original_filename,
+        path=oss_path,
+    )
     mf = MediaFile(
         uploader=uploader,
         resource_type=resource_type,
@@ -127,6 +206,13 @@ def upload_and_register(
     if target_object_id is None:
         raise ValueError("scope=org 时必须提供 object_id")
 
+    validate_resource_type_upload(
+        resource_type=resource_type,
+        scope=scope,
+        object_id=target_object_id,
+        filename=file.name,
+    )
+
     oss_path = generate_upload_path(
         scope=scope,
         object_id=target_object_id,
@@ -139,6 +225,7 @@ def upload_and_register(
         original_filename=file.name,
         resource_type=resource_type,
         file_size=file.size,
+        scope=scope,
     )
 
 

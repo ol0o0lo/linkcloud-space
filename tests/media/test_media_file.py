@@ -8,6 +8,7 @@ import pytest
 
 from apps.accounts.models import User
 from apps.media.constants import MediaScope, ResourceType
+from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
 from apps.media.models import MediaFile
 from apps.media.services import (
     CleanupResult,
@@ -53,6 +54,48 @@ class TestRegisterMediaFile:
             file_size=1024,
         )
         assert mf.file.name == "uploads/users/1/abc.png"
+
+    def test_house_media_resource_types_must_use_org_scope_paths(self):
+        user = User.objects.create_user(username="house_media_scope", password="secret")  # noqa: S106
+
+        with pytest.raises(InvalidScopeException):
+            register_media_file(
+                uploader=user,
+                oss_path="uploads/users/1/house.png",
+                original_filename="house.png",
+                resource_type=ResourceType.HOUSE_IMAGE,
+                file_size=1024,
+            )
+
+    def test_resource_type_restricts_file_extension(self):
+        user = User.objects.create_user(username="house_media_extension", password="secret")  # noqa: S106
+
+        with pytest.raises(InvalidExtensionException):
+            register_media_file(
+                uploader=user,
+                oss_path="uploads/orgs/1/house.mp4",
+                original_filename="house.mp4",
+                resource_type=ResourceType.HOUSE_IMAGE,
+                file_size=1024,
+            )
+
+        with pytest.raises(InvalidExtensionException):
+            register_media_file(
+                uploader=user,
+                oss_path="uploads/orgs/1/tour.png",
+                original_filename="tour.png",
+                resource_type=ResourceType.HOUSE_VIDEO,
+                file_size=1024,
+            )
+
+        with pytest.raises(InvalidExtensionException):
+            register_media_file(
+                uploader=user,
+                oss_path="uploads/orgs/1/lease.png",
+                original_filename="lease.png",
+                resource_type=ResourceType.LEASE_CONTRACT,
+                file_size=1024,
+            )
 
 
 from unittest.mock import MagicMock, patch  # noqa: E402
@@ -103,6 +146,51 @@ class TestUploadAndRegister:
         assert mf.resource_type == ResourceType.ORG_LOGO
         saved_path = mock_storage.save.call_args[0][0]
         assert saved_path.startswith(f"uploads/orgs/{org.pk}/")
+
+    def test_house_media_upload_rejects_user_scope(self):
+        user = User.objects.create_user(username="house_media_upload_scope", password="secret")  # noqa: S106
+
+        fake_file = MagicMock()
+        fake_file.name = "room.png"
+        fake_file.size = 2048
+
+        with pytest.raises(InvalidScopeException):
+            upload_and_register(
+                uploader=user,
+                file=fake_file,
+                resource_type=ResourceType.HOUSE_IMAGE,
+                scope=MediaScope.USER,
+            )
+
+    def test_contract_upload_allows_pdf_doc_and_docx_only(self):
+        user = User.objects.create_user(username="contract_upload", password="secret")  # noqa: S106
+
+        for filename in ["lease.pdf", "lease.doc", "lease.docx"]:
+            fake_file = MagicMock()
+            fake_file.name = filename
+            fake_file.size = 2048
+            with patch("apps.media.services.default_storage") as mock_storage:
+                mock_storage.save.return_value = f"uploads/orgs/1/{filename}"
+                mf = upload_and_register(
+                    uploader=user,
+                    file=fake_file,
+                    resource_type=ResourceType.LEASE_CONTRACT,
+                    scope=MediaScope.ORG,
+                    object_id=1,
+                )
+                assert mf.original_filename == filename
+
+        invalid_file = MagicMock()
+        invalid_file.name = "lease.png"
+        invalid_file.size = 2048
+        with pytest.raises(InvalidExtensionException):
+            upload_and_register(
+                uploader=user,
+                file=invalid_file,
+                resource_type=ResourceType.LEASE_CONTRACT,
+                scope=MediaScope.ORG,
+                object_id=1,
+            )
 
 
 class TestPublicServiceSurface:
@@ -200,6 +288,7 @@ class TestMediaRefs:
     def test_extract_media_ids_requires_media_id_for_dict_items(self):
         with pytest.raises(ValueError, match="媒体引用对象必须包含 media_id"):
             extract_media_ids([{"label": "缺少 ID"}])
+
 
 @pytest.mark.django_db
 class TestCleanupUnreferencedMedia:

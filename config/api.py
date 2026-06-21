@@ -15,6 +15,8 @@ from apps.base.api import router as base_router
 from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
 from apps.base.responses import EnvelopedNinjaAPI
+from apps.house.api import landlord_router as house_landlord_router
+from apps.house.api import router as house_router
 from apps.media.api import router as media_router
 from apps.notifications.api import dispatches_router as notification_dispatches_router
 from apps.notifications.api import router as notifications_router
@@ -78,3 +80,5 @@ api.add_router("/admin/referrals/", referrals_admin_router)
 api.add_router("/settings/org/", settings_org_router)
 api.add_router("/settings/teams/", settings_team_router)
 api.add_router("/settings/user/", settings_user_router)
+api.add_router("/house/", house_router)
+api.add_router("/house/landlord/", house_landlord_router)

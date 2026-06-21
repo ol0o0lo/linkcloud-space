@@ -4,6 +4,8 @@ from unittest.mock import patch
 from django.conf import settings
 from django.test import override_settings
 
+import pytest
+
 from apps.media.tasks import cleanup_unreferenced_media_files
 
 
@@ -24,5 +26,6 @@ def test_cleanup_task_is_registered_in_celery_beat_schedule():
 
 
 @override_settings(MEDIA_REFERENCE_PROVIDERS=[])
+@pytest.mark.django_db
 def test_cleanup_task_returns_zero_when_no_provider_configured():
     assert cleanup_unreferenced_media_files() == 0

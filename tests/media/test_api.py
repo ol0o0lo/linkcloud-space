@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from apps.accounts.models import User
+from apps.media.constants import ResourceType
 from apps.media.exceptions import InvalidExtensionException
 from apps.organizations.models import Organization, OrganizationMember
 from tests.api_helpers import api_data, api_error
@@ -25,9 +26,7 @@ def _make_sts_response():
 
 def set_session_org(client, org, is_owner=False):
     session = client.session
-    session["organization_data"] = json.dumps(
-        {"pk": org.pk, "id": org.pk, "name": org.name, "slug": org.slug, "is_owner": is_owner}
-    )
+    session["organization_data"] = json.dumps({"pk": org.pk, "id": org.pk, "name": org.name, "slug": org.slug, "is_owner": is_owner})
     session.save()
 
 
@@ -81,6 +80,18 @@ class TestOssTokenAPI:
         resp = self._get({"scope": "org", "filename": "room.jpg"})
         assert resp.status_code == 403
 
+    def test_resource_type_scope_and_extension_are_validated_before_issuing_token(self):
+        self._login()
+
+        wrong_scope_resp = self._get({"scope": "user", "filename": "house.jpg", "resource_type": ResourceType.HOUSE_IMAGE})
+        assert wrong_scope_resp.status_code == 400
+
+        org = Organization.objects.create(name="Token Media Org", slug="token-media-org")
+        OrganizationMember.objects.create(organization=org, user=self.user, is_owner=True)
+        set_session_org(self.client, org, is_owner=True)
+        wrong_extension_resp = self._get({"scope": "org", "filename": "house.mp4", "resource_type": ResourceType.HOUSE_IMAGE})
+        assert wrong_extension_resp.status_code == 400
+
 
 from apps.media.models import MediaFile  # noqa: E402
 
@@ -131,6 +142,65 @@ class TestConfirmAPI:
         }
         resp = self.client.post(CONFIRM_URL, payload, content_type="application/json")
         assert resp.status_code == 422
+
+    def test_org_scoped_house_media_confirm_requires_active_org_and_matching_org_path(self):
+        org = Organization.objects.create(name="House Media Org", slug="house-media-org")
+        OrganizationMember.objects.create(organization=org, user=self.user, is_owner=True)
+
+        no_org_payload = {
+            "oss_path": f"uploads/orgs/{org.pk}/house.png",
+            "original_filename": "house.png",
+            "resource_type": ResourceType.HOUSE_IMAGE,
+            "file_size": 1024,
+        }
+        no_org_resp = self.client.post(CONFIRM_URL, no_org_payload, content_type="application/json")
+        assert no_org_resp.status_code == 403
+
+        set_session_org(self.client, org, is_owner=True)
+        user_path_resp = self.client.post(
+            CONFIRM_URL,
+            {
+                "oss_path": "uploads/users/1/house.png",
+                "original_filename": "house.png",
+                "resource_type": ResourceType.HOUSE_IMAGE,
+                "file_size": 1024,
+            },
+            content_type="application/json",
+        )
+        assert user_path_resp.status_code == 400
+
+        wrong_org_resp = self.client.post(
+            CONFIRM_URL,
+            {
+                "oss_path": f"uploads/orgs/{org.pk + 999}/house.png",
+                "original_filename": "house.png",
+                "resource_type": ResourceType.HOUSE_IMAGE,
+                "file_size": 1024,
+            },
+            content_type="application/json",
+        )
+        assert wrong_org_resp.status_code == 400
+
+        valid_resp = self.client.post(CONFIRM_URL, no_org_payload, content_type="application/json")
+        assert valid_resp.status_code == 201
+
+    def test_confirm_rejects_resource_type_extension_mismatch(self):
+        org = Organization.objects.create(name="Media Extension Org", slug="media-extension-org")
+        OrganizationMember.objects.create(organization=org, user=self.user, is_owner=True)
+        set_session_org(self.client, org, is_owner=True)
+
+        resp = self.client.post(
+            CONFIRM_URL,
+            {
+                "oss_path": f"uploads/orgs/{org.pk}/house.mp4",
+                "original_filename": "house.mp4",
+                "resource_type": ResourceType.HOUSE_IMAGE,
+                "file_size": 1024,
+            },
+            content_type="application/json",
+        )
+
+        assert resp.status_code == 400
 
 
 from django.core.files.uploadedfile import SimpleUploadedFile  # noqa: E402
@@ -202,3 +272,18 @@ class TestUploadAPI:
         file = SimpleUploadedFile("photo.png", b"fakecontent", content_type="image/png")
         resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": "bad_type"}, format="multipart")
         assert resp.status_code == 422
+
+    def test_upload_rejects_house_media_with_user_scope(self):
+        file = SimpleUploadedFile("house.png", b"fakecontent", content_type="image/png")
+        resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": ResourceType.HOUSE_IMAGE, "scope": "user"}, format="multipart")
+        assert resp.status_code == 400
+
+    def test_upload_rejects_resource_type_extension_mismatch(self):
+        org = Organization.objects.create(name="Upload Extension Org", slug="upload-extension-org")
+        OrganizationMember.objects.create(organization=org, user=self.user, is_owner=True)
+        set_session_org(self.client, org, is_owner=True)
+
+        file = SimpleUploadedFile("house.mp4", b"fakecontent", content_type="video/mp4")
+        resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": ResourceType.HOUSE_IMAGE, "scope": "org"}, format="multipart")
+
+        assert resp.status_code == 400

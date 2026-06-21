@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -80,7 +81,10 @@ class MediaRefsField(models.JSONField):
     def pre_save(self, model_instance, add):
         value = getattr(model_instance, self.attname)
         if value is not None:
-            cleaned = self.clean_media_refs(value, model_instance=model_instance)
+            try:
+                cleaned = self.clean_media_refs(value, model_instance=model_instance)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({self.attname: [str(exc)]}) from exc
             setattr(model_instance, self.attname, cleaned)
             return cleaned
         return super().pre_save(model_instance, add)
