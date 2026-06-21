@@ -161,10 +161,12 @@ describe('OrganizationSettingsPage', () => {
     expect(screen.getByRole('heading', { name: '空间设置' })).toBeInTheDocument();
     expect(screen.getByText('按业务功能管理当前空间的设置。')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '设置项' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '新建楼栋' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '新建楼栋' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('未知设置')).toHaveProperty('tagName', 'TEXTAREA');
-    expect(screen.queryByText('保存成员上限')).not.toBeInTheDocument();
-    expect(screen.getAllByText('保存设置').length).toBeGreaterThan(0);
+    expect(screen.queryByText('保存设置')).not.toBeInTheDocument();
+    expect(screen.queryByText('恢复默认值')).not.toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
+    expect(await screen.findByRole('button', { name: '新建楼栋' })).toBeInTheDocument();
 
     expect(container.querySelectorAll('.ant-card')).toHaveLength(1);
     const settingsPanel = screen.getByText('租户设置').closest('.ant-card') as HTMLElement | null;
@@ -174,7 +176,7 @@ describe('OrganizationSettingsPage', () => {
     expect(within(settingsPanel!).getByLabelText('未知分类设置')).toBeInTheDocument();
   });
 
-  it('saves and restores setting drafts through organization settings api', async () => {
+  it('saves text-like setting drafts on blur through organization settings api', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
@@ -183,18 +185,12 @@ describe('OrganizationSettingsPage', () => {
 
     await screen.findByText('通用设置');
     fireEvent.change(screen.getByLabelText('成员上限'), { target: { value: '18' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存成员上限' }));
+    fireEvent.blur(screen.getByLabelText('成员上限'));
 
     await waitFor(() => {
       expect(mockPutSetting).toHaveBeenCalledWith({ key: 'quota.member_limit' }, { value: 18 });
     });
-
-    fireEvent.click(screen.getByRole('button', { name: '恢复启用账单默认值' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
-
-    await waitFor(() => {
-      expect(mockDeleteSetting).toHaveBeenCalledWith({ key: 'billing.enabled' });
-    });
+    expect(mockDeleteSetting).not.toHaveBeenCalled();
   });
 
   it('keeps unsaved drafts when another setting save refetches settings', async () => {
@@ -226,7 +222,7 @@ describe('OrganizationSettingsPage', () => {
 
     await screen.findByText('通用设置');
     fireEvent.change(screen.getByLabelText('成员上限'), { target: { value: '18' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存启用账单' }));
+    fireEvent.click(screen.getByRole('switch', { name: '启用账单' }));
 
     await waitFor(() => expect(mockListSettings).toHaveBeenCalledTimes(2));
     await screen.findByLabelText('刷新后设置');
@@ -257,20 +253,21 @@ describe('OrganizationSettingsPage', () => {
   });
 
   it('clears locally created building options when switching organizations', async () => {
-    const { rerender } = render(
+    const { container, rerender } = render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
       </QueryClientProvider>,
     );
 
     await screen.findByText('房源租赁设置');
+    fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
     fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
     fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
 
     await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalled());
-    await screen.findByText('2 栋');
+    await waitFor(() => expect(container.querySelector('[title="2 栋"]')).toBeInTheDocument());
 
     selectedOrgSlug = 'beta';
     rerender(
@@ -279,11 +276,13 @@ describe('OrganizationSettingsPage', () => {
       </QueryClientProvider>,
     );
 
-    await waitFor(() => expect(mockListSettings).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.queryByText('2 栋')).not.toBeInTheDocument());
+    await waitFor(() => expect(mockListSettings.mock.calls.length).toBeGreaterThanOrEqual(3));
+    await waitFor(() => expect(container.querySelector('[title="2 栋"]')).not.toBeInTheDocument());
   });
 
   it('saves default building through organization settings api', async () => {
+    mockListBuildings.mockResolvedValue({ items: [{ id: 10, name: '1 栋', estate_id: 1 }, { id: 12, name: '2 栋', estate_id: 1 }], total: 2, page: 1, page_size: 100 });
+
     render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
@@ -291,9 +290,10 @@ describe('OrganizationSettingsPage', () => {
     );
 
     await screen.findByText('房源租赁设置');
-    fireEvent.click(screen.getByRole('button', { name: '保存默认楼栋' }));
+    fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
+    fireEvent.click(await screen.findByText('2 栋'));
 
-    await waitFor(() => expect(mockPutSetting).toHaveBeenCalledWith({ key: 'property_rental.default_building_id' }, { value: 10 }));
+    await waitFor(() => expect(mockPutSetting).toHaveBeenCalledWith({ key: 'property_rental.default_building_id' }, { value: 12 }));
     expect(mockSetDefaultBuilding).not.toHaveBeenCalled();
   });
 
@@ -305,6 +305,7 @@ describe('OrganizationSettingsPage', () => {
     );
 
     await screen.findByText('房源租赁设置');
+    fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
     fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
@@ -312,8 +313,6 @@ describe('OrganizationSettingsPage', () => {
 
     await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalledWith(expect.objectContaining({ estate_id: 1, name: '2 栋', floors: 28 })));
     expect(mockSetDefaultBuilding).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: '保存默认楼栋' }));
 
     await waitFor(() => expect(mockPutSetting).toHaveBeenCalledWith({ key: 'property_rental.default_building_id' }, { value: 11 }));
   });

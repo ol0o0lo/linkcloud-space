@@ -1,11 +1,10 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Divider, Form, Input, Modal, Popconfirm, Select, Space, Tag, Typography, message } from 'antd';
+import { Button, Card, Divider, Form, Input, Modal, Select, Space, Tag, Typography, message } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { wrapTextStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi } from '@/services/manual/house';
 import {
-  appsSettingsApiDeleteOrgSettingView,
   appsSettingsApiListOrgSettings,
   appsSettingsApiPutOrgSetting,
 } from '@/services/openapi/organizationSettings';
@@ -25,17 +24,26 @@ const categoryTitles: Record<string, string> = {
 };
 const categoryOrder = ['property_rental', 'general'];
 const defaultBuildingSettingKey = 'property_rental.default_building_id';
-const settingCardStyle: React.CSSProperties = {
+const categorySectionStyle: React.CSSProperties = {
   border: '1px solid var(--ant-color-border-secondary)',
   borderRadius: 8,
   overflow: 'hidden',
 };
-const settingCardBodyStyle: React.CSSProperties = { padding: 24 };
-const settingCardFooterStyle: React.CSSProperties = {
-  padding: '12px 24px',
-  borderTop: '1px solid var(--ant-color-border-secondary)',
-  background: 'var(--ant-color-fill-alter)',
+const categoryHeaderStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  background: 'var(--ant-color-fill-tertiary)',
+  borderBottom: '1px solid var(--ant-color-border-secondary)',
 };
+const settingRowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 16,
+  alignItems: 'flex-start',
+  padding: 16,
+  borderTop: '1px solid var(--ant-color-border-secondary)',
+  flexWrap: 'wrap',
+};
+const settingMetaStyle: React.CSSProperties = { flex: '0 0 240px', minWidth: 200 };
+const settingControlStyle: React.CSSProperties = { flex: '1 1 320px', minWidth: 280 };
 
 function initialDraftValue(setting: API.SettingOut) {
   if (setting.widget === 'switch') {
@@ -69,19 +77,42 @@ const DefaultBuildingControl: React.FC<{
   buildings: BuildingItem[];
   onChange: (value: unknown) => void;
   onCreate: () => void;
-}> = ({ value, loading, buildings, onChange, onCreate }) => (
-  <Space wrap>
+}> = ({ value, loading, buildings, onChange, onCreate }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
     <Select
       aria-label="默认楼栋"
       loading={loading}
+      open={open}
+      onOpenChange={setOpen}
       value={value as number | undefined}
-      onChange={onChange}
+      onChange={(nextValue) => {
+        onChange(nextValue);
+        setOpen(false);
+      }}
       options={buildings.map((item) => ({ value: item.id, label: item.name }))}
+      popupRender={(menu) => (
+        <>
+          {menu}
+          <Divider style={{ margin: '8px 0' }} />
+          <Button
+            type="text"
+            block
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              setOpen(false);
+              onCreate();
+            }}
+          >
+            新建楼栋
+          </Button>
+        </>
+      )}
       style={{ width: 320, maxWidth: '100%' }}
     />
-    <Button onClick={onCreate}>新建楼栋</Button>
-  </Space>
-);
+  );
+};
 
 const OrganizationSettingsPage: React.FC = () => {
   const workspace = useTenantWorkspace();
@@ -129,19 +160,12 @@ const OrganizationSettingsPage: React.FC = () => {
   }, [settingsQuery.data]);
 
   const updateMutation = useMutation({
-    mutationFn: (setting: API.SettingOut) =>
-      appsSettingsApiPutOrgSetting({ key: setting.key }, { value: parseSettingValue(draftValues[setting.key], setting.value_type) }),
+    mutationFn: ({ setting, value }: { setting: API.SettingOut; value: unknown }) =>
+      appsSettingsApiPutOrgSetting({ key: setting.key }, { value: parseSettingValue(value, setting.value_type) }),
     onSuccess: async () => {
       await workspace.queryClient.invalidateQueries({ queryKey: settingsManagementQueryKeys.organization(workspace.selectedOrgSlug) });
     },
-  });
-
-  const restoreMutation = useMutation({
-    mutationFn: (setting: API.SettingOut) => appsSettingsApiDeleteOrgSettingView({ key: setting.key }),
-    onSuccess: async (_data, setting) => {
-      setDraftValues(({ [setting.key]: _restoredValue, ...restValues }) => restValues);
-      await workspace.queryClient.invalidateQueries({ queryKey: settingsManagementQueryKeys.organization(workspace.selectedOrgSlug) });
-    },
+    onError: () => message.error('设置保存失败，请检查输入内容'),
   });
 
   const createBuildingMutation = useMutation({
@@ -149,6 +173,10 @@ const OrganizationSettingsPage: React.FC = () => {
     onSuccess: (building) => {
       setCreatedBuildings((items) => [building, ...items]);
       setDraftValues((values) => ({ ...values, 'property_rental.default_building_id': building.id }));
+      const defaultBuildingSetting = settingsQuery.data?.find((setting) => setting.key === defaultBuildingSettingKey);
+      if (defaultBuildingSetting) {
+        updateMutation.mutate({ setting: defaultBuildingSetting, value: building.id });
+      }
       setBuildingOpen(false);
       buildingForm.resetFields();
       message.success('楼栋已创建');
@@ -158,6 +186,10 @@ const OrganizationSettingsPage: React.FC = () => {
   const renderControl = (setting: API.SettingOut) => {
     const value = draftValues[setting.key];
     const onChange = (nextValue: unknown) => setDraftValues((values) => ({ ...values, [setting.key]: nextValue }));
+    const onCommit = (nextValue: unknown) => {
+      setDraftValues((values) => ({ ...values, [setting.key]: nextValue }));
+      updateMutation.mutate({ setting, value: nextValue });
+    };
 
     if (setting.key === defaultBuildingSettingKey) {
       return (
@@ -165,72 +197,47 @@ const OrganizationSettingsPage: React.FC = () => {
           value={value}
           loading={buildingsQuery.isLoading}
           buildings={buildingItems}
-          onChange={onChange}
+          onChange={onCommit}
           onCreate={() => setBuildingOpen(true)}
         />
       );
     }
 
-    return <SettingSchemaControl setting={setting} value={value} onChange={onChange} />;
+    return <SettingSchemaControl setting={setting} value={value} onChange={onChange} onCommit={onCommit} />;
   };
 
   return (
     <TenantSelectionGuard title="空间设置" subtitle="按业务功能管理当前空间的设置。">
       <Card title="租户设置" loading={settingsQuery.isLoading}>
-        <Space orientation="vertical" size={24} style={{ width: '100%' }}>
-          {sections.map((section, sectionIndex) => (
-            <div key={section.category}>
-              {sectionIndex > 0 ? <Divider style={{ margin: '4px 0 24px' }} /> : null}
-              <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-                <Typography.Title level={4} style={{ margin: 0 }}>
-                  {section.title}
-                </Typography.Title>
-                <Space orientation="vertical" size={20} style={{ width: '100%' }}>
-                  {section.rows.map((setting) => {
-                    const title = setting.label || setting.key;
-                    const description = setting.description && setting.description !== title ? setting.description : undefined;
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          {sections.map((section) => (
+            <div key={section.category} style={categorySectionStyle}>
+              <div style={categoryHeaderStyle}>
+                <Typography.Text strong>{section.title}</Typography.Text>
+              </div>
+              {section.rows.map((setting, settingIndex) => {
+                const title = setting.label || setting.key;
+                const description = setting.description && setting.description !== title ? setting.description : undefined;
 
-                    return (
-                      <div key={setting.key} style={settingCardStyle}>
-                        <div style={settingCardBodyStyle}>
-                          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-                            <Space orientation="vertical" size={4} style={{ width: '100%' }}>
-                              <Space wrap align="center">
-                                <Typography.Title level={5} style={{ margin: 0 }}>
-                                  {title}
-                                </Typography.Title>
-                                {setting.is_customized ? <Tag color="gold">已自定义</Tag> : <Tag>默认值</Tag>}
-                              </Space>
-                              {description ? (
-                                <Typography.Text type="secondary" style={wrapTextStyle}>
-                                  {description}
-                                </Typography.Text>
-                              ) : null}
-                            </Space>
-                            <Form layout="vertical" style={{ maxWidth: setting.value_type === 'json' ? 760 : 520 }}>
-                              <Form.Item style={{ marginBottom: 0 }}>{renderControl(setting)}</Form.Item>
-                            </Form>
-                          </Space>
-                        </div>
-                        <div style={settingCardFooterStyle}>
-                          <Space wrap>
-                            <Button aria-label={`保存${title}`} type="primary" loading={updateMutation.isPending} onClick={() => updateMutation.mutate(setting)}>
-                              保存设置
-                            </Button>
-                            {setting.is_customized ? (
-                              <Popconfirm title="确认恢复该设置默认值？" onConfirm={() => restoreMutation.mutate(setting)}>
-                                <Button aria-label={`恢复${title}默认值`} loading={restoreMutation.isPending}>
-                                  恢复默认值
-                                </Button>
-                              </Popconfirm>
-                            ) : null}
-                          </Space>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </Space>
-              </Space>
+                return (
+                  <div key={setting.key} style={{ ...settingRowStyle, borderTop: settingIndex === 0 ? 0 : settingRowStyle.borderTop }}>
+                    <Space orientation="vertical" size={4} style={settingMetaStyle}>
+                      <Space wrap align="center">
+                        <Typography.Text strong>{title}</Typography.Text>
+                        {setting.is_customized ? <Tag color="gold">已自定义</Tag> : <Tag>默认值</Tag>}
+                      </Space>
+                      {description ? (
+                        <Typography.Text type="secondary" style={wrapTextStyle}>
+                          {description}
+                        </Typography.Text>
+                      ) : null}
+                    </Space>
+                    <Form layout="vertical" style={{ ...settingControlStyle, maxWidth: setting.value_type === 'json' ? 900 : 520 }}>
+                      <Form.Item style={{ marginBottom: 0 }}>{renderControl(setting)}</Form.Item>
+                    </Form>
+                  </div>
+                );
+              })}
             </div>
           ))}
         </Space>

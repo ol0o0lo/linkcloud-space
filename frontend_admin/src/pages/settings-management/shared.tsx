@@ -151,11 +151,21 @@ export const SettingSchemaControl: React.FC<{
   setting: API.SettingOut;
   value: unknown;
   onChange: (value: unknown) => void;
-}> = ({ setting, value, onChange }) => {
+  onCommit?: (value: unknown) => void;
+}> = ({ setting, value, onChange, onCommit }) => {
   const widget = setting.widget || 'textarea';
 
   if (widget === 'switch') {
-    return <Switch aria-label={setting.label || setting.key} checked={Boolean(value)} onChange={onChange} />;
+    return (
+      <Switch
+        aria-label={setting.label || setting.key}
+        checked={Boolean(value)}
+        onChange={(nextValue) => {
+          onChange(nextValue);
+          onCommit?.(nextValue);
+        }}
+      />
+    );
   }
   if (widget === 'input_number') {
     return (
@@ -163,6 +173,7 @@ export const SettingSchemaControl: React.FC<{
         aria-label={setting.label || setting.key}
         value={typeof value === 'number' ? value : Number(value)}
         onChange={(nextValue) => onChange(nextValue)}
+        onBlur={(event) => onCommit?.(event.target.value)}
         style={{ width: 240, maxWidth: '100%' }}
       />
     );
@@ -172,17 +183,34 @@ export const SettingSchemaControl: React.FC<{
       <Select
         aria-label={setting.label || setting.key}
         value={value as string | number | boolean | undefined}
-        onChange={onChange}
+        onChange={(nextValue) => {
+          onChange(nextValue);
+          onCommit?.(nextValue);
+        }}
         options={settingOptions(setting)}
         style={{ width: 320, maxWidth: '100%' }}
       />
     );
   }
   if (widget === 'input') {
-    return <Input aria-label={setting.label || setting.key} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />;
+    return (
+      <Input
+        aria-label={setting.label || setting.key}
+        value={String(value ?? '')}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => onCommit?.(event.target.value)}
+      />
+    );
   }
   if (widget === 'password') {
-    return <Input.Password aria-label={setting.label || setting.key} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />;
+    return (
+      <Input.Password
+        aria-label={setting.label || setting.key}
+        value={String(value ?? '')}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => onCommit?.(event.target.value)}
+      />
+    );
   }
 
   return (
@@ -190,6 +218,7 @@ export const SettingSchemaControl: React.FC<{
       aria-label={setting.label || setting.key}
       value={stringifySettingValue(value)}
       onChange={(event) => onChange(event.target.value)}
+      onBlur={(event) => onCommit?.(event.target.value)}
       autoSize={{ minRows: widget === 'json_editor' ? 4 : 3, maxRows: 10 }}
     />
   );
