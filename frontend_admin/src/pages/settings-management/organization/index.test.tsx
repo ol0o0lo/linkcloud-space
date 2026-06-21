@@ -29,7 +29,13 @@ const {
 }));
 
 vi.mock('@/pages/tenant/shared', () => ({
-  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TenantSelectionGuard: ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
+    <section>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+      {children}
+    </section>
+  ),
   TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
   useTenantWorkspace: mockUseTenantWorkspace,
 }));
@@ -139,7 +145,7 @@ describe('OrganizationSettingsPage', () => {
     mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1 });
   });
 
-  it('renders organization settings as business sections with schema controls', async () => {
+  it('renders organization settings as user-friendly business sections with schema controls', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
@@ -152,9 +158,13 @@ describe('OrganizationSettingsPage', () => {
       expect(screen.getByText('通用设置')).toBeInTheDocument();
     });
 
+    expect(screen.getByRole('heading', { name: '空间设置' })).toBeInTheDocument();
+    expect(screen.getByText('按业务功能管理当前空间的设置。')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '设置项' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '新建楼栋' })).toBeInTheDocument();
     expect(screen.getByLabelText('未知设置')).toHaveProperty('tagName', 'TEXTAREA');
+    expect(screen.queryByText('保存成员上限')).not.toBeInTheDocument();
+    expect(screen.getAllByText('保存设置').length).toBeGreaterThan(0);
 
     const generalSection = screen.getByText('通用设置').closest('.ant-card') as HTMLElement | null;
     expect(generalSection).not.toBeNull();
