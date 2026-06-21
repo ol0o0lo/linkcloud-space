@@ -74,18 +74,29 @@ def get_landlord_leases(user: User, organization: Organization):
 def _default_building_setting():
     from apps.settings.models import DefaultSetting
 
-    return DefaultSetting.objects.get_or_create(
+    metadata = {
+        "description": "房源租赁默认楼栋",
+        "label": "默认楼栋",
+        "widget": "select",
+        "ui": {"options_source": "house.buildings"},
+        "category": "property_rental",
+    }
+    setting, _ = DefaultSetting.objects.get_or_create(
         key=DEFAULT_BUILDING_SETTING_KEY,
         defaults={
             "value": 0,
             "value_type": ValueType.INTEGER,
-            "description": "房源租赁默认楼栋",
-            "label": "默认楼栋",
-            "widget": "select",
-            "ui": {"options_source": "house.buildings"},
-            "category": "property_rental",
+            **metadata,
         },
-    )[0]
+    )
+    update_fields = []
+    for field, value in metadata.items():
+        if getattr(setting, field) != value:
+            setattr(setting, field, value)
+            update_fields.append(field)
+    if update_fields:
+        setting.save(update_fields=update_fields)
+    return setting
 
 
 @transaction.atomic

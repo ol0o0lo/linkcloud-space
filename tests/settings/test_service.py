@@ -1,6 +1,7 @@
 import pytest
 from model_bakery import baker
 
+from apps.house.services import DEFAULT_BUILDING_SETTING_KEY, _default_building_setting
 from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting
 from apps.settings.service import (
     delete_org_setting,
@@ -221,3 +222,22 @@ class TestUserSettings:
         assert len(results) == 2
         keys = [r["key"] for r in results]
         assert "theme" in keys
+
+
+@pytest.mark.django_db
+class TestDefaultBuildingSetting:
+    def test_existing_setting_metadata_is_filled_without_overwriting_value(self):
+        DefaultSetting.objects.create(
+            key=DEFAULT_BUILDING_SETTING_KEY,
+            value=123,
+            value_type="integer",
+        )
+
+        setting = _default_building_setting()
+
+        assert setting.value == 123
+        assert setting.description == "房源租赁默认楼栋"
+        assert setting.label == "默认楼栋"
+        assert setting.widget == "select"
+        assert setting.ui == {"options_source": "house.buildings"}
+        assert setting.category == "property_rental"
