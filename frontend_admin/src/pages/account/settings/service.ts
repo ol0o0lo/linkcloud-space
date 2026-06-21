@@ -25,8 +25,8 @@ import {
   appsAccountsApiGetMe,
   appsAccountsApiGetSocialBindings,
   appsAccountsApiPatchUser,
-  appsAccountsApiUploadAvatar,
 } from '@/services/openapi/userAccount';
+import { appsMediaApiUploadFiles } from '@/services/openapi/mediaFiles';
 import { normalizeEmailLikeInput } from '@/utils/email';
 import type {
   CurrentUser,
@@ -40,7 +40,8 @@ import province from './geographic/province.json';
 const ALLAUTH_BROWSER_BASE = '/api/allauth/browser/v1';
 
 export type UpdateProfilePayload = {
-  last_name: string;
+  last_name?: string;
+  avatar?: API.MediaRefIn[] | null;
 };
 
 export type UploadAvatarResponse = {
@@ -88,14 +89,28 @@ export async function updateCurrentUser(
   });
 }
 
-export async function uploadAvatar(file: File): Promise<UploadAvatarResponse> {
+export async function uploadAvatar(
+  userId: number,
+  file: File,
+): Promise<UploadAvatarResponse> {
   const csrfToken = await ensureCsrfToken();
-  return appsAccountsApiUploadAvatar({}, file, {
+  const [media] = await appsMediaApiUploadFiles({
+    resource_type: 'avatar',
+    scope: 'user',
+  }, [file], {
     credentials: 'include',
     headers: {
       'X-CSRFToken': csrfToken,
     },
   });
+  return appsAccountsApiPatchUser({ user_id: userId }, {
+    avatar: [{ media_id: media.id, media_type: 'image' }],
+  }, {
+    credentials: 'include',
+    headers: {
+      'X-CSRFToken': csrfToken,
+    },
+  }) as Promise<UploadAvatarResponse>;
 }
 
 export async function querySocialBindings(): Promise<SocialBindingsResponse> {

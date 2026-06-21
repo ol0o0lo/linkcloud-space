@@ -75,55 +75,6 @@ export async function appsAccountsApiGetMe(options?: { [key: string]: any }) {
   });
 }
 
-/** 上传用户头像 上传当前用户头像，返回新的头像地址。 POST /api/users/me/avatar/ */
-export async function appsAccountsApiUploadAvatar(
-  body: {},
-  image?: File,
-  options?: { [key: string]: any }
-) {
-  const formData = new FormData();
-
-  if (image) {
-    formData.append("image", image);
-  }
-
-  Object.keys(body).forEach((ele) => {
-    const item = (body as any)[ele];
-
-    if (item !== undefined && item !== null) {
-      if (typeof item === "object" && !(item instanceof File)) {
-        if (item instanceof Array) {
-          item.forEach((f) => formData.append(ele, f || ""));
-        } else {
-          formData.append(
-            ele,
-            new Blob([JSON.stringify(item)], { type: "application/json" })
-          );
-        }
-      } else {
-        formData.append(ele, item);
-      }
-    }
-  });
-
-  return request<API.AvatarOut>("/api/users/me/avatar/", {
-    method: "POST",
-    data: formData,
-    requestType: "form",
-    ...(options || {}),
-  });
-}
-
-/** 删除用户头像 删除当前用户头像并恢复为默认展示状态。 DELETE /api/users/me/avatar/ */
-export async function appsAccountsApiDeleteAvatar(options?: {
-  [key: string]: any;
-}) {
-  return request<Record<string, any>>("/api/users/me/avatar/", {
-    method: "DELETE",
-    ...(options || {}),
-  });
-}
-
 /** 删除当前用户的 MFA 认证器 删除当前登录用户指定类型的 MFA 认证器。 DELETE /api/users/me/mfa/authenticators/${param0}/ */
 export async function appsAccountsApiDeleteMyAuthenticator(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

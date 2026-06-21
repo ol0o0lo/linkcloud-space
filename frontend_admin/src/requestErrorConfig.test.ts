@@ -311,7 +311,7 @@ describe('requestErrorConfig', () => {
       const config = {
         headers: {},
         method: 'POST',
-        url: '/api/users/me/avatar/',
+        url: '/api/media/upload/',
       };
 
       const result = await interceptor(config);

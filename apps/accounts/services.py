@@ -21,9 +21,9 @@ from apps.accounts.utils import (
     mask_real_name,
     normalize_id_number,
 )
-from apps.media.constants import MediaScope, ResourceType
+from apps.media.constants import ResourceType
 from apps.media.models import MediaFile
-from apps.media.services import extract_media_id, extract_media_ids, to_plain_media_ref, upload_and_register
+from apps.media.services import extract_media_id, extract_media_ids, to_plain_media_ref
 from apps.referrals.services import mark_referral_as_qualified
 
 
@@ -44,32 +44,25 @@ def _delete_media_file(media_id: int) -> None:
     media.delete()
 
 
-def upload_user_avatar(user, image_file) -> str:
-    """上传用户头像并把用户头像引用切换到新的 MediaFile。"""
-    old_avatar = list(user.avatar or [])
-    media = upload_and_register(
-        uploader=user,
-        file=image_file,
-        resource_type=ResourceType.AVATAR,
-        scope=MediaScope.USER,
-    )
-    user.avatar = [{"media_id": media.pk, "media_type": "image"}]
-    user.save(update_fields=["avatar"])
-
-    for item in old_avatar:
-        old_media_id = extract_media_id(item)
-        if old_media_id != media.pk:
-            _delete_media_file(old_media_id)
-    return user.avatar_url
+def validate_avatar_media_owner(*, instance, refs, media_by_id, field):
+    for ref in refs:
+        media = media_by_id[extract_media_id(ref)]
+        if media.uploader_id != instance.pk:
+            raise ValueError("头像只能引用当前用户上传的媒体。")
 
 
-def delete_user_avatar(user) -> None:
-    """清空用户头像引用并删除对应媒体文件。"""
-    old_avatar = list(user.avatar or [])
-    user.avatar = []
-    user.save(update_fields=["avatar"])
-    for item in old_avatar:
-        _delete_media_file(extract_media_id(item))
+def set_user_avatar(user, avatar_refs: list[dict], *, update_fields=None) -> None:
+    """统一写入用户头像媒体引用，并回收被替换的旧头像媒体。"""
+    old_media_ids = {extract_media_id(item) for item in user.avatar or []}
+    user.avatar = [to_plain_media_ref(item) for item in avatar_refs]
+    user.full_clean()
+    save_fields = set(update_fields or [])
+    save_fields.add("avatar")
+    user.save(update_fields=save_fields)
+
+    next_media_ids = {extract_media_id(item) for item in user.avatar or []}
+    for media_id in old_media_ids - next_media_ids:
+        _delete_media_file(media_id)
 
 
 def bind_phone_to_user(request, user, phone: str):

@@ -82,7 +82,12 @@ const BaseView: React.FC = () => {
   });
 
   const { mutateAsync: saveAvatar, isPending: savingAvatar } = useMutation({
-    mutationFn: uploadAvatar,
+    mutationFn: async (file: File) => {
+      if (!currentUser?.id) {
+        throw new Error('当前用户信息不存在，无法更新头像');
+      }
+      return uploadAvatar(currentUser.id, file);
+    },
     onSuccess: (result) => {
       syncCurrentUser({
         avatar_url: result.avatar_url,

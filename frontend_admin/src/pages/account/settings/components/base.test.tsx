@@ -80,10 +80,18 @@ vi.mock('@ant-design/icons', () => ({
 }));
 
 vi.mock('antd', () => {
+  const Descriptions = ({ children }: any) => <div>{children}</div>;
+  Descriptions.Item = ({ children, label }: any) => (
+    <div>
+      <span>{label}</span>
+      <span>{children}</span>
+    </div>
+  );
   const actual = vi.importActual<typeof import('antd')>('antd');
   return {
     ...actual,
     Button: ({ children, loading: _loading, ...props }: any) => <button type="button" {...props}>{children}</button>,
+    Descriptions,
     Upload: ({ children, customRequest }: any) => (
       <div>
         <input
@@ -107,6 +115,9 @@ vi.mock('antd', () => {
     ),
     message: {
       success: mockMessageSuccess,
+    },
+    Typography: {
+      Link: ({ children }: any) => <a>{children}</a>,
     },
   };
 });
@@ -256,7 +267,7 @@ describe('BaseView', () => {
     });
 
     await waitFor(() => {
-      expect(mockUploadAvatar).toHaveBeenCalledWith(file, expect.any(Object));
+      expect(mockUploadAvatar).toHaveBeenCalledWith(7, file);
       expect(mockMessageSuccess).toHaveBeenCalledWith('头像更新成功');
     });
   });

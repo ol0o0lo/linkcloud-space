@@ -113,24 +113,38 @@ describe('account settings service', () => {
     );
   });
 
-  it('uploads avatar without crop_data', async () => {
-    mockRequest.mockResolvedValueOnce({ avatar_url: '/media/avatar.png' });
+  it('uploads avatar through media app then patches user avatar ref', async () => {
+    mockRequest
+      .mockResolvedValueOnce([{ id: 42, url: '/media/avatar.png', resource_type: 'avatar' }])
+      .mockResolvedValueOnce({ avatar_url: '/media/avatar.png' });
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
 
-    await uploadAvatar(file);
+    const result = await uploadAvatar(7, file);
 
-    const [, options] = mockRequest.mock.calls[0];
+    const [, options] = mockRequest.mock.calls[0] as unknown as [string, { data: FormData }];
     const formData = options?.data as FormData;
-    expect(mockRequest).toHaveBeenCalledWith(
-      '/api/users/me/avatar/',
+    expect(mockRequest).toHaveBeenNthCalledWith(
+      1,
+      '/api/media/upload/',
       expect.objectContaining({
         method: 'POST',
         requestType: 'form',
         headers: expect.objectContaining({ 'X-CSRFToken': 'test-token' }),
       }),
     );
-    expect(formData.get('image')).toBe(file);
+    expect(formData.getAll('files')).toEqual([file]);
     expect(formData.has('crop_data')).toBe(false);
+    expect(formData.get('resource_type')).toBe('avatar');
+    expect(formData.get('scope')).toBe('user');
+    expect(mockRequest).toHaveBeenNthCalledWith(
+      2,
+      '/api/users/7/',
+      expect.objectContaining({
+        method: 'PATCH',
+        data: { avatar: [{ media_id: 42, media_type: 'image' }] },
+      }),
+    );
+    expect(result).toEqual({ avatar_url: '/media/avatar.png' });
   });
 
   it('uses split-phone wrapper endpoints for phone change', async () => {

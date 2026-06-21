@@ -59,6 +59,7 @@ class UserPatchIn(Schema):
     first_name: str | None = Field(None, description="用户名字。")
     last_name: str | None = Field(None, description="用户姓氏。")
     timezone: str | None = Field(None, description="用户时区标识。")
+    avatar: list[MediaRefIn] | None = Field(None, max_length=1, description="用户头像媒体引用，最多 1 个。")
 
 
 class ImpersonateUserOut(Schema):
@@ -69,10 +70,6 @@ class ImpersonateUserOut(Schema):
     last_name: str = ""
     full_name: str
     avatar_url: str | None = None
-
-
-class AvatarOut(Schema):
-    avatar_url: str | None
 
 
 class SocialBindingItemOut(Schema):

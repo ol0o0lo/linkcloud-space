@@ -653,11 +653,6 @@ declare namespace API {
     page_size?: number | null;
   };
 
-  type AvatarOut = {
-    /** Avatar Url */
-    avatar_url: string | null;
-  };
-
   type BulkActionIn = {
     /** Action 批量操作类型。 */
     action: "mark_read" | "mark_unread" | "delete";
@@ -1306,6 +1301,13 @@ declare namespace API {
     media_type?: "image";
   };
 
+  type MediaRefIn = {
+    /** Media Id 媒体文件 ID。 */
+    media_id: number;
+    /** Media Type 媒体类型。 */
+    media_type?: "image";
+  };
+
   type RealNameLogOut = {
     /** Action */
     action: string;
@@ -1692,6 +1694,8 @@ declare namespace API {
     last_name?: string | null;
     /** Timezone 用户时区标识。 */
     timezone?: string | null;
+    /** Avatar 用户头像媒体引用，最多 1 个。 */
+    avatar?: API.MediaRefIn[] | null;
   };
 
   type UserSettingOut = {

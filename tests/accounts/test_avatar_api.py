@@ -1,4 +1,5 @@
 import io
+import json
 
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -10,7 +11,11 @@ from apps.accounts.models import User
 from apps.media.models import MediaFile
 from tests.api_helpers import api_data
 
-URL = "/api/users/me/avatar/"
+MEDIA_UPLOAD_URL = "/api/media/upload/"
+
+
+def _detail_url(pk: int) -> str:
+    return f"/api/users/{pk}/"
 
 
 def _make_png_bytes(size=(512, 512), color="red"):
@@ -27,12 +32,20 @@ class TestAvatarAPI(TestCase):
             password="secret",  # noqa: S106
         )
 
-    def test_upload_avatar_persists_media_ref_and_returns_avatar_url(self):
+    def _upload_avatar_media(self, filename="avatar.png", color="red"):
         self.client.force_login(self.user)
-        upload = SimpleUploadedFile("avatar.png", _make_png_bytes(), content_type="image/png")
+        upload = SimpleUploadedFile(filename, _make_png_bytes(color=color), content_type="image/png")
+        resp = self.client.post(MEDIA_UPLOAD_URL, {"files": [upload], "resource_type": "avatar"}, format="multipart")
+        self.assertEqual(resp.status_code, 201)
+        return api_data(resp)[0]
 
-        resp = self.client.post(URL, {"image": upload})
-
+    def test_patch_avatar_persists_media_ref_and_returns_avatar_url(self):
+        media = self._upload_avatar_media()
+        resp = self.client.patch(
+            _detail_url(self.user.pk),
+            data=json.dumps({"avatar": [{"media_id": media["id"], "media_type": "image"}]}),
+            content_type="application/json",
+        )
         self.assertEqual(resp.status_code, 200)
         data = api_data(resp)
         self.assertIn("avatar_url", data)
@@ -56,17 +69,23 @@ class TestAvatarAPI(TestCase):
 
         self.assertEqual(self.user.avatar_url, media.file.url)
 
-    def test_reupload_avatar_replaces_ref_and_deletes_old_media(self):
-        self.client.force_login(self.user)
-        first = SimpleUploadedFile("first.png", _make_png_bytes(color="red"), content_type="image/png")
-        second = SimpleUploadedFile("second.png", _make_png_bytes(color="blue"), content_type="image/png")
-
-        self.client.post(URL, {"image": first})
+    def test_patch_avatar_replaces_ref_and_deletes_old_media(self):
+        first = self._upload_avatar_media("first.png", "red")
+        second = self._upload_avatar_media("second.png", "blue")
+        self.client.patch(
+            _detail_url(self.user.pk),
+            data=json.dumps({"avatar": [{"media_id": first["id"], "media_type": "image"}]}),
+            content_type="application/json",
+        )
         self.user.refresh_from_db()
         first_media_id = self.user.avatar[0]["media_id"]
         first_media_path = MediaFile.objects.get(pk=first_media_id).file.name
 
-        resp = self.client.post(URL, {"image": second})
+        resp = self.client.patch(
+            _detail_url(self.user.pk),
+            data=json.dumps({"avatar": [{"media_id": second["id"], "media_type": "image"}]}),
+            content_type="application/json",
+        )
 
         self.assertEqual(resp.status_code, 200)
         self.user.refresh_from_db()
@@ -75,35 +94,44 @@ class TestAvatarAPI(TestCase):
         self.assertFalse(MediaFile.objects.filter(pk=first_media_id).exists())
         self.assertFalse(default_storage.exists(first_media_path))
 
-    def test_delete_avatar_clears_ref_and_deletes_media(self):
-        self.client.force_login(self.user)
-        upload = SimpleUploadedFile("avatar.png", _make_png_bytes(), content_type="image/png")
-        self.client.post(URL, {"image": upload})
+    def test_patch_avatar_empty_clears_ref_and_deletes_media(self):
+        media = self._upload_avatar_media()
+        self.client.patch(
+            _detail_url(self.user.pk),
+            data=json.dumps({"avatar": [{"media_id": media["id"], "media_type": "image"}]}),
+            content_type="application/json",
+        )
         self.user.refresh_from_db()
         media_id = self.user.avatar[0]["media_id"]
         media_path = MediaFile.objects.get(pk=media_id).file.name
 
-        resp = self.client.delete(URL)
+        resp = self.client.patch(
+            _detail_url(self.user.pk),
+            data=json.dumps({"avatar": []}),
+            content_type="application/json",
+        )
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(api_data(resp), {})
         self.user.refresh_from_db()
         self.assertEqual(self.user.avatar, [])
         self.assertIsNone(self.user.avatar_url)
         self.assertFalse(MediaFile.objects.filter(pk=media_id).exists())
         self.assertFalse(default_storage.exists(media_path))
 
-    def test_delete_avatar_is_safe_when_user_has_no_avatar(self):
+    def test_patch_avatar_empty_is_safe_when_user_has_no_avatar(self):
         self.client.force_login(self.user)
 
-        resp = self.client.delete(URL)
+        resp = self.client.patch(
+            _detail_url(self.user.pk),
+            data=json.dumps({"avatar": []}),
+            content_type="application/json",
+        )
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(api_data(resp), {})
         self.user.refresh_from_db()
         self.assertEqual(self.user.avatar, [])
 
-    def test_delete_avatar_is_safe_when_media_record_is_missing(self):
+    def test_patch_avatar_empty_is_safe_when_media_record_is_missing(self):
         media = MediaFile.objects.create(
             uploader=self.user,
             resource_type="avatar",
@@ -116,8 +144,39 @@ class TestAvatarAPI(TestCase):
         media.delete()
         self.client.force_login(self.user)
 
-        resp = self.client.delete(URL)
+        resp = self.client.patch(
+            _detail_url(self.user.pk),
+            data=json.dumps({"avatar": []}),
+            content_type="application/json",
+        )
 
         self.assertEqual(resp.status_code, 200)
         self.user.refresh_from_db()
         self.assertEqual(self.user.avatar, [])
+
+    def test_patch_avatar_rejects_media_uploaded_by_another_user(self):
+        other = User.objects.create_user(username="other", password="secret")  # noqa: S106
+        media = MediaFile.objects.create(
+            uploader=other,
+            resource_type="avatar",
+            original_filename="avatar.png",
+            file="uploads/users/2/avatar.png",
+            file_size=123,
+        )
+        self.client.force_login(self.user)
+
+        resp = self.client.patch(
+            _detail_url(self.user.pk),
+            data=json.dumps({"avatar": [{"media_id": media.pk, "media_type": "image"}]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+
+    def test_dedicated_avatar_upload_endpoint_is_removed(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("avatar.png", _make_png_bytes(), content_type="image/png")
+
+        resp = self.client.post("/api/users/me/avatar/", {"image": upload})
+
+        self.assertEqual(resp.status_code, 404)

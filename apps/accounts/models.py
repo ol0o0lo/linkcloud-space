@@ -32,6 +32,7 @@ class User(AbstractUser):
         max_items=1,
         allowed_media_types=[MediaType.IMAGE],
         allowed_resource_types=[ResourceType.AVATAR],
+        business_validators=["apps.accounts.services.validate_avatar_media_owner"],
         verbose_name="头像",
     )
     phone_country_code = models.CharField(max_length=8, blank=True, default="")

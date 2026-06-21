@@ -15,9 +15,8 @@ from allauth.socialaccount.adapter import get_adapter as get_social_adapter
 from allauth.socialaccount.internal.flows.connect import validate_disconnect
 from allauth.socialaccount.models import SocialAccount, SocialApp
 from allauth.usersessions.models import UserSession
-from ninja import File, Query, Router, Status
+from ninja import Query, Router, Status
 from ninja.errors import HttpError
-from ninja.files import UploadedFile
 from ninja.pagination import paginate
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
@@ -30,7 +29,6 @@ from apps.accounts.schemas import (
     AdminUserOut,
     AdminUserPasswordIn,
     AdminUserPatchIn,
-    AvatarOut,
     ForceLogoutOut,
     ImpersonateUserOut,
     MeOut,
@@ -55,11 +53,10 @@ from apps.accounts.services import (
     admin_transition_real_name,
     bind_phone_to_user,
     build_real_name_timeline_row,
-    delete_user_avatar,
     get_current_real_name_verification,
     serialize_real_name_verification,
+    set_user_avatar,
     submit_real_name_verification,
-    upload_user_avatar,
 )
 from apps.base.ninja_pagination import make_pagination
 from apps.base.permissions import require_authenticated, require_superuser
@@ -259,38 +256,20 @@ def patch_user(request, user_id: int, payload: UserPatchIn):
         raise HttpError(403, "You can only update your own profile.")
     old_tz = user.timezone
     data = payload.dict(exclude_unset=True)
+    avatar = data.pop("avatar", None)
     for field, value in data.items():
         setattr(user, field, value)
-    user.full_clean()
-    user.save()
+    if avatar is not None:
+        try:
+            set_user_avatar(user, avatar, update_fields=data.keys())
+        except (TypeError, ValueError) as exc:
+            raise HttpError(400, str(exc)) from exc
+    else:
+        user.full_clean()
+        user.save()
     if user.timezone != old_tz:
         logger.info("User %s timezone changed from %s to %s", user.pk, old_tz, user.timezone)
     return user
-
-
-@users_router.post("/me/avatar/", response=AvatarOut, summary="上传用户头像")
-def upload_avatar(
-    request,
-    image: UploadedFile = File(..., description="头像图片文件。"),
-):
-    """上传当前用户头像，返回新的头像地址。"""
-    require_authenticated(request)
-
-    try:
-        avatar_url = upload_user_avatar(request.user, image)
-    except ValueError as exc:
-        raise HttpError(400, str(exc)) from exc
-
-    return {"avatar_url": avatar_url}
-
-
-@users_router.delete("/me/avatar/", response={200: dict}, summary="删除用户头像")
-def delete_avatar(request):
-    """删除当前用户头像并恢复为默认展示状态。"""
-    require_authenticated(request)
-
-    delete_user_avatar(request.user)
-    return Status(200, {})
 
 
 @users_router.post("/me/wechat-phone/", response=WechatPhoneOut, summary="绑定微信手机号")
