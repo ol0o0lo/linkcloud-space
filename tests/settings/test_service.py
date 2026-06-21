@@ -20,7 +20,7 @@ from apps.settings.service import (
 
 @pytest.fixture
 def default_text(db):
-    return DefaultSetting.objects.create(key="site_name", value="My SaaS", value_type="text")
+    return DefaultSetting.objects.create(key="site_name", value="My SaaS", value_type="text", category="general")
 
 
 @pytest.fixture
@@ -104,14 +104,15 @@ class TestGetAllOrgSettings:
         result = next(r for r in results if r["key"] == "site_name")
         assert result["is_customized"] is True
 
-    def test_includes_description_and_value_type(self, db, org):
+    def test_includes_label_widget_ui_and_category_metadata(self, db, org):
         DefaultSetting.objects.create(
-            key="smtp_host", value="localhost", value_type="text", description="SMTP 服务器地址"
+            key="smtp_host", value="localhost", value_type="text", description="SMTP 服务器地址", category="general"
         )
         results = get_all_org_settings(org)
         result = next(r for r in results if r["key"] == "smtp_host")
         assert result["description"] == "SMTP 服务器地址"
         assert result["value_type"] == "text"
+        assert result["category"] == "general"
 
 
 @pytest.mark.django_db

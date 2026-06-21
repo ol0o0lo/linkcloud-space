@@ -35,6 +35,7 @@ class SettingOut(Schema):
     value: Any
     value_type: str
     description: str
+    category: str
     is_customized: bool
 
 

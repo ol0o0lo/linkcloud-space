@@ -12,6 +12,7 @@ class DefaultSetting(BaseModelMixin):
     value = models.JSONField()
     value_type = models.CharField(max_length=20, choices=ValueType.choices, default=ValueType.TEXT)
     description = models.TextField(blank=True)
+    category = models.CharField(max_length=50, blank=True)
 
     class Meta:
         db_table = "settings_default"

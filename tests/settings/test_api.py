@@ -45,7 +45,7 @@ def put_json(client, url, data):
 @pytest.fixture
 def default_text(db):
     return DefaultSetting.objects.create(
-        key="site_name", value="My SaaS", value_type="text", description="站点名称"
+        key="site_name", value="My SaaS", value_type="text", description="站点名称", category="general"
     )
 
 
@@ -114,6 +114,7 @@ class TestOrgSettingList:
         item = next(i for i in api_data(resp) if i["key"] == "site_name")
         assert item["description"] == "站点名称"
         assert item["value_type"] == "text"
+        assert item["category"] == "general"
         assert item["is_customized"] is False
 
     def test_password_value_masked(self, client, default_password, org, member):

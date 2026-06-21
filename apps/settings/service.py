@@ -19,6 +19,7 @@ def _build_result(default: DefaultSetting, value, is_customized: bool) -> dict:
         "value": _serialize_value(value, default.value_type),
         "value_type": default.value_type,
         "description": default.description,
+        "category": default.category,
         "is_customized": is_customized,
     }
 
