@@ -1,17 +1,14 @@
 """accounts 业务服务层。"""
 
-import io
 from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 from django.utils import timezone
 
 from allauth.account.internal.flows.login import Login, perform_login
 from allauth.socialaccount.models import SocialAccount
 from ninja.errors import HttpError
-from PIL import Image
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification, RealNameVerificationLog, normalize_phone, split_phone
@@ -24,14 +21,10 @@ from apps.accounts.utils import (
     mask_real_name,
     normalize_id_number,
 )
-from apps.media.services import extract_media_ids, to_plain_media_ref
+from apps.media.constants import MediaScope, ResourceType
+from apps.media.models import MediaFile
+from apps.media.services import extract_media_id, extract_media_ids, to_plain_media_ref, upload_and_register
 from apps.referrals.services import mark_referral_as_qualified
-
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-ALLOWED_PIL_FORMATS = {"JPEG", "PNG", "WEBP"}
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
-MAX_IMAGE_PIXELS = 32 * 1024 * 1024
-THUMBNAIL_SIZE = 256
 
 
 @dataclass
@@ -42,81 +35,41 @@ class RealNameEvaluation:
     status: str = RealNameStatus.PENDING
 
 
-def process_and_save_avatar(user, image_file, crop_data: dict) -> str:
-    """裁剪、缩放、存储头像，返回 avatar_url。失败抛 ValueError。"""
-    # 头像处理先做安全校验，再裁剪为统一尺寸保存。
-    if image_file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise ValueError("Unsupported image type. Use JPEG, PNG, or WebP.")
-    if image_file.size > MAX_UPLOAD_SIZE:
-        raise ValueError("Image must be under 10 MB.")
+def _delete_media_file(media_id: int) -> None:
+    media = MediaFile.objects.filter(pk=media_id).first()
+    if media is None:
+        return
+    if media.file:
+        media.file.delete(save=False)
+    media.delete()
 
-    crop_box = None
-    if crop_data.get("width") and crop_data.get("height"):
-        try:
-            left = int(crop_data["left"])
-            top = int(crop_data["top"])
-            width = int(crop_data["width"])
-            height = int(crop_data["height"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError("Invalid crop_data: left/top/width/height must be numbers.") from exc
-        crop_box = (left, top, left + width, top + height)
 
-    image_file.seek(0)
-    try:
-        probe = Image.open(image_file)
-        probe_format = probe.format
-        probe.verify()
-    except Exception as exc:
-        raise ValueError("Could not decode the uploaded image.") from exc
-    if probe_format not in ALLOWED_PIL_FORMATS:
-        raise ValueError("Unsupported image format. Use JPEG, PNG, or WebP.")
+def upload_user_avatar(user, image_file) -> str:
+    """上传用户头像并把用户头像引用切换到新的 MediaFile。"""
+    old_avatar = list(user.avatar or [])
+    media = upload_and_register(
+        uploader=user,
+        file=image_file,
+        resource_type=ResourceType.AVATAR,
+        scope=MediaScope.USER,
+    )
+    user.avatar = [{"media_id": media.pk, "media_type": "image"}]
+    user.save(update_fields=["avatar"])
 
-    image_file.seek(0)
-    try:
-        img = Image.open(image_file)
-        if (img.width * img.height) > MAX_IMAGE_PIXELS:
-            raise ValueError("Image dimensions are too large.")
-        img = img.convert("RGB")
-    except ValueError:
-        raise
-    except Exception as exc:
-        raise ValueError("Could not decode the uploaded image.") from exc
-
-    if crop_box is not None:
-        img = img.crop(crop_box)
-    img = img.resize((THUMBNAIL_SIZE, THUMBNAIL_SIZE), Image.LANCZOS)
-    thumb_io = io.BytesIO()
-    img.save(thumb_io, format="JPEG", quality=90)
-    thumb_file = InMemoryUploadedFile(thumb_io, None, "thumbnail.jpg", "image/jpeg", thumb_io.tell(), None)
-
-    old_original = user.avatar_original.name if user.avatar_original else None
-    old_thumb = user.avatar_thumbnail.name if user.avatar_thumbnail else None
-    old_original_storage = user.avatar_original.storage if user.avatar_original else None
-    old_thumb_storage = user.avatar_thumbnail.storage if user.avatar_thumbnail else None
-
-    image_file.seek(0)
-    user.avatar_original.save(image_file.name, image_file, save=False)
-    user.avatar_thumbnail.save("thumbnail.jpg", thumb_file, save=False)
-    user.avatar_crop_data = crop_data
-    user.save(update_fields=["avatar_original", "avatar_thumbnail", "avatar_crop_data"])
-
-    if old_original and old_original != user.avatar_original.name:
-        old_original_storage.delete(old_original)
-    if old_thumb and old_thumb != user.avatar_thumbnail.name:
-        old_thumb_storage.delete(old_thumb)
-
+    for item in old_avatar:
+        old_media_id = extract_media_id(item)
+        if old_media_id != media.pk:
+            _delete_media_file(old_media_id)
     return user.avatar_url
 
 
 def delete_user_avatar(user) -> None:
-    """删除用户头像文件及字段。"""
-    # 清理头像时同时删除原图、缩略图和裁剪数据。
-    if user.avatar_original:
-        user.avatar_original.delete(save=False)
-    if user.avatar_thumbnail:
-        user.avatar_thumbnail.delete(save=False)
-    user.avatar_crop_data = None
-    user.save(update_fields=["avatar_original", "avatar_thumbnail", "avatar_crop_data"])
+    """清空用户头像引用并删除对应媒体文件。"""
+    old_avatar = list(user.avatar or [])
+    user.avatar = []
+    user.save(update_fields=["avatar"])
+    for item in old_avatar:
+        _delete_media_file(extract_media_id(item))
 
 
 def bind_phone_to_user(request, user, phone: str):
@@ -130,6 +83,7 @@ def bind_phone_to_user(request, user, phone: str):
         if not user.phone_verified:
             user.phone_verified = True
             user.save(update_fields=["phone_verified"])
+        _claim_landlord_contact_after_phone_bind(request, user, phone)
         return user, False
 
     existing = User.objects.filter(phone_country_code=country_code, phone_national_number=national_number).exclude(pk=user.pk).first()
@@ -142,6 +96,7 @@ def bind_phone_to_user(request, user, phone: str):
                 user.set_phone_number(phone)
                 user.phone_verified = True
                 user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
+                _claim_landlord_contact_after_phone_bind(request, user, phone)
             return user, False
         if not existing.is_active:
             raise ValueError("This phone number belongs to a disabled account.")
@@ -151,12 +106,24 @@ def bind_phone_to_user(request, user, phone: str):
             user.is_active = False
             user.save(update_fields=["is_active"])
         perform_login(request, Login(user=existing))
+        _claim_landlord_contact_after_phone_bind(request, existing, phone)
         return existing, True
     else:
         user.set_phone_number(phone)
         user.phone_verified = True
         user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
+        _claim_landlord_contact_after_phone_bind(request, user, phone)
         return user, False
+
+
+def _claim_landlord_contact_after_phone_bind(request, user, phone: str | None) -> None:
+    org_ctx = getattr(request, "org", None)
+    organization = org_ctx.instance if org_ctx is not None else None
+    if organization is None:
+        return
+    from apps.house.services import claim_landlord_contact_for_bound_phone
+
+    claim_landlord_contact_for_bound_phone(user, organization, phone)
 
 
 def build_real_name_timeline_row(log: RealNameVerificationLog) -> dict:

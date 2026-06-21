@@ -90,7 +90,7 @@ export async function updateCurrentUser(
 
 export async function uploadAvatar(file: File): Promise<UploadAvatarResponse> {
   const csrfToken = await ensureCsrfToken();
-  return appsAccountsApiUploadAvatar({ crop_data: '{}' }, file, {
+  return appsAccountsApiUploadAvatar({}, file, {
     credentials: 'include',
     headers: {
       'X-CSRFToken': csrfToken,

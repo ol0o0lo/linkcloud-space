@@ -75,12 +75,9 @@ export async function appsAccountsApiGetMe(options?: { [key: string]: any }) {
   });
 }
 
-/** 上传用户头像 上传并裁剪当前用户头像，返回新的头像地址。 POST /api/users/me/avatar/ */
+/** 上传用户头像 上传当前用户头像，返回新的头像地址。 POST /api/users/me/avatar/ */
 export async function appsAccountsApiUploadAvatar(
-  body: {
-    /** 头像裁剪参数 JSON 字符串。 */
-    crop_data?: string;
-  },
+  body: {},
   image?: File,
   options?: { [key: string]: any }
 ) {

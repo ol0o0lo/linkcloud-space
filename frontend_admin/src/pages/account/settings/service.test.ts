@@ -16,6 +16,7 @@ import {
   requestPhoneChangeCode,
   setPrimaryAccountEmail,
   startSocialBinding,
+  uploadAvatar,
   updatePassword,
 } from './service';
 
@@ -110,6 +111,26 @@ describe('account settings service', () => {
         headers: expect.objectContaining({ 'X-CSRFToken': 'test-token' }),
       }),
     );
+  });
+
+  it('uploads avatar without crop_data', async () => {
+    mockRequest.mockResolvedValueOnce({ avatar_url: '/media/avatar.png' });
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
+
+    await uploadAvatar(file);
+
+    const [, options] = mockRequest.mock.calls[0];
+    const formData = options?.data as FormData;
+    expect(mockRequest).toHaveBeenCalledWith(
+      '/api/users/me/avatar/',
+      expect.objectContaining({
+        method: 'POST',
+        requestType: 'form',
+        headers: expect.objectContaining({ 'X-CSRFToken': 'test-token' }),
+      }),
+    );
+    expect(formData.get('image')).toBe(file);
+    expect(formData.has('crop_data')).toBe(false);
   });
 
   it('uses split-phone wrapper endpoints for phone change', async () => {

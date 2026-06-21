@@ -14,6 +14,7 @@ from apps.media.fields import MediaRefsField
 logger = logging.getLogger(__name__)
 
 
+# Kept for historical migrations that reference these upload_to callables.
 def avatar_original_path(instance, filename):
     ext = filename.rsplit(".", 1)[-1].lower()
     return f"avatars/originals/{instance.pk}/{uuid4().hex}.{ext}"
@@ -25,9 +26,14 @@ def avatar_thumbnail_path(instance, filename):
 
 class User(AbstractUser):
     timezone = models.CharField(max_length=63, default="Asia/Shanghai")
-    avatar_original = models.ImageField(upload_to=avatar_original_path, blank=True)
-    avatar_thumbnail = models.ImageField(upload_to=avatar_thumbnail_path, blank=True)
-    avatar_crop_data = models.JSONField(blank=True, null=True)
+    avatar = MediaRefsField(
+        blank=True,
+        default=list,
+        max_items=1,
+        allowed_media_types=[MediaType.IMAGE],
+        allowed_resource_types=[ResourceType.AVATAR],
+        verbose_name="头像",
+    )
     phone_country_code = models.CharField(max_length=8, blank=True, default="")
     phone_national_number = models.CharField(max_length=32, blank=True, default="")
     phone_verified = models.BooleanField(default=False)
@@ -84,10 +90,10 @@ class User(AbstractUser):
 
     @property
     def avatar_url(self):
-        # 前端优先展示裁剪后的头像。
-        if self.avatar_thumbnail:
-            return self.avatar_thumbnail.url
-        return None
+        # media 平台补齐缩略图后，调用方无需再改头像读取逻辑。
+        if not self.avatar_resolved:
+            return None
+        return self.avatar_resolved[0].get("thumbnail") or self.avatar_resolved[0].get("url")
 
     def _normalize_phone_parts(self) -> set[str]:
         # 去空格、去短横线，并在无号码时清空区号。

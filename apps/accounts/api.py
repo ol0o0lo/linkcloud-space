@@ -1,4 +1,3 @@
-import json
 import logging
 
 from django.contrib.auth import get_user_model
@@ -8,15 +7,15 @@ from django.shortcuts import get_object_or_404
 from django.test import Client as DjangoClient
 
 import requests as http_requests
-from allauth.account.adapter import get_adapter as get_social_adapter
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
 from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal.auth import generate_totp_secret
 from allauth.mfa.utils import is_mfa_enabled
+from allauth.socialaccount.adapter import get_adapter as get_social_adapter
 from allauth.socialaccount.internal.flows.connect import validate_disconnect
 from allauth.socialaccount.models import SocialAccount, SocialApp
 from allauth.usersessions.models import UserSession
-from ninja import File, Form, Query, Router, Status
+from ninja import File, Query, Router, Status
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.pagination import paginate
@@ -58,9 +57,9 @@ from apps.accounts.services import (
     build_real_name_timeline_row,
     delete_user_avatar,
     get_current_real_name_verification,
-    process_and_save_avatar,
     serialize_real_name_verification,
     submit_real_name_verification,
+    upload_user_avatar,
 )
 from apps.base.ninja_pagination import make_pagination
 from apps.base.permissions import require_authenticated, require_superuser
@@ -273,20 +272,12 @@ def patch_user(request, user_id: int, payload: UserPatchIn):
 def upload_avatar(
     request,
     image: UploadedFile = File(..., description="头像图片文件。"),
-    crop_data: str = Form("{}", description="头像裁剪参数 JSON 字符串。"),
 ):
-    """上传并裁剪当前用户头像，返回新的头像地址。"""
+    """上传当前用户头像，返回新的头像地址。"""
     require_authenticated(request)
 
     try:
-        crop = json.loads(crop_data or "{}")
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise HttpError(400, "Invalid crop_data: must be JSON.") from exc
-    if not isinstance(crop, dict):
-        raise HttpError(400, "Invalid crop_data: must be a JSON object.")
-
-    try:
-        avatar_url = process_and_save_avatar(request.user, image, crop)
+        avatar_url = upload_user_avatar(request.user, image)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
