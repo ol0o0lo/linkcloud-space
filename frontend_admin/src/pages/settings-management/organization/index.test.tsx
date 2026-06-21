@@ -169,7 +169,8 @@ describe('OrganizationSettingsPage', () => {
     expect(await screen.findByRole('button', { name: '新建楼栋' })).toBeInTheDocument();
 
     expect(container.querySelectorAll('.ant-card')).toHaveLength(1);
-    const settingsPanel = screen.getByText('租户设置').closest('.ant-card') as HTMLElement | null;
+    expect(screen.queryByText('租户设置')).not.toBeInTheDocument();
+    const settingsPanel = container.querySelector('.ant-card') as HTMLElement | null;
     expect(settingsPanel).not.toBeNull();
     expect(within(settingsPanel!).getByText('房源租赁设置')).toBeInTheDocument();
     expect(within(settingsPanel!).getByText('通用设置')).toBeInTheDocument();

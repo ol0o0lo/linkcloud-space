@@ -208,7 +208,7 @@ const OrganizationSettingsPage: React.FC = () => {
 
   return (
     <TenantSelectionGuard title="空间设置" subtitle="按业务功能管理当前空间的设置。">
-      <Card title="租户设置" loading={settingsQuery.isLoading}>
+      <Card loading={settingsQuery.isLoading}>
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           {sections.map((section) => (
             <div key={section.category} style={categorySectionStyle}>
