@@ -56,10 +56,62 @@ describe('OrganizationSettingsPage', () => {
     vi.clearAllMocks();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     mockListSettings.mockResolvedValue([
-      { key: 'billing.enabled', value: true, value_type: 'bool', description: '启用账单', is_customized: true },
-      { key: 'quota.member_limit', value: 12, value_type: 'int', description: '成员上限', is_customized: false },
+      {
+        key: 'billing.enabled',
+        label: '启用账单',
+        value: true,
+        value_type: 'boolean',
+        description: '启用账单',
+        widget: 'switch',
+        ui: {},
+        category: 'general',
+        is_customized: true,
+      },
+      {
+        key: 'quota.member_limit',
+        label: '成员上限',
+        value: 12,
+        value_type: 'integer',
+        description: '成员上限',
+        widget: 'input_number',
+        ui: {},
+        category: 'general',
+        is_customized: false,
+      },
+      {
+        key: 'property_rental.default_building_id',
+        label: '默认楼栋',
+        value: 10,
+        value_type: 'integer',
+        description: '默认楼栋',
+        widget: 'select',
+        ui: { options_source: 'house.buildings' },
+        category: 'property_rental',
+        is_customized: true,
+      },
+      {
+        key: 'unknown.raw',
+        label: '未知设置',
+        value: { a: 1 },
+        value_type: 'json',
+        description: '未知设置',
+        widget: 'not_real',
+        ui: {},
+        category: '',
+        is_customized: false,
+      },
     ]);
-    mockGetSetting.mockResolvedValue({ key: 'billing.enabled', value: true, value_type: 'bool', description: '启用账单', is_customized: true });
+    mockGetSetting.mockResolvedValue({
+      key: 'billing.enabled',
+      label: '启用账单',
+      value: true,
+      value_type: 'boolean',
+      description: '启用账单',
+      widget: 'switch',
+      ui: {},
+      category: 'general',
+      is_customized: true,
+    });
     mockPutSetting.mockResolvedValue({});
     mockDeleteSetting.mockResolvedValue({});
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: '星河湾' }], total: 1, page: 1, page_size: 100 });
@@ -69,7 +121,7 @@ describe('OrganizationSettingsPage', () => {
     mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1 });
   });
 
-  it('loads organization settings and triggers update / restore actions', async () => {
+  it('renders organization settings as business sections with schema controls', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
@@ -78,18 +130,31 @@ describe('OrganizationSettingsPage', () => {
 
     await waitFor(() => {
       expect(mockListSettings).toHaveBeenCalled();
-      expect(screen.getByText('billing.enabled')).toBeInTheDocument();
+      expect(screen.getByText('房源租赁设置')).toBeInTheDocument();
+      expect(screen.getByText('通用设置')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByText('编辑')[0]);
-    fireEvent.change(screen.getByLabelText('设置值'), { target: { value: 'false' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
+    expect(screen.queryByRole('columnheader', { name: '设置项' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '新建楼栋' })).toBeInTheDocument();
+    expect(screen.getByLabelText('未知设置')).toBeInTheDocument();
+  });
+
+  it('saves and restores setting drafts through organization settings api', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('通用设置');
+    fireEvent.change(screen.getByLabelText('成员上限'), { target: { value: '18' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存成员上限' }));
 
     await waitFor(() => {
-      expect(mockPutSetting).toHaveBeenCalledWith({ key: 'billing.enabled' }, { value: false });
+      expect(mockPutSetting).toHaveBeenCalledWith({ key: 'quota.member_limit' }, { value: 18 });
     });
 
-    fireEvent.click(screen.getByText('恢复默认'));
+    fireEvent.click(screen.getByRole('button', { name: '恢复启用账单默认值' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
 
     await waitFor(() => {
@@ -97,7 +162,7 @@ describe('OrganizationSettingsPage', () => {
     });
   });
 
-  it('saves default building from organization settings', async () => {
+  it('saves default building through organization settings api', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
@@ -105,13 +170,13 @@ describe('OrganizationSettingsPage', () => {
     );
 
     await screen.findByText('房源租赁设置');
-    await waitFor(() => expect(mockGetDefaultBuilding).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: '保存默认楼栋' }));
 
-    await waitFor(() => expect(mockSetDefaultBuilding).toHaveBeenCalledWith(10));
+    await waitFor(() => expect(mockPutSetting).toHaveBeenCalledWith({ key: 'property_rental.default_building_id' }, { value: 10 }));
+    expect(mockSetDefaultBuilding).not.toHaveBeenCalled();
   });
 
-  it('creates building from organization settings and saves it as default', async () => {
+  it('creates building from organization settings and updates default building draft', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
@@ -125,6 +190,10 @@ describe('OrganizationSettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
 
     await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalledWith(expect.objectContaining({ estate_id: 1, name: '2 栋', floors: 28 })));
-    expect(mockSetDefaultBuilding).toHaveBeenCalledWith(11);
+    expect(mockSetDefaultBuilding).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '保存默认楼栋' }));
+
+    await waitFor(() => expect(mockPutSetting).toHaveBeenCalledWith({ key: 'property_rental.default_building_id' }, { value: 11 }));
   });
 });

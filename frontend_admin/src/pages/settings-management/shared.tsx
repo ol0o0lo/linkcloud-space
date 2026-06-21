@@ -1,4 +1,4 @@
-import { Button, Card, Empty, Form, Input, Modal, Popconfirm, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { Button, Card, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import React from 'react';
 import { adminTableScroll, ResponsiveActions, wrapTextStyle } from '@/pages/_shared/adminLayout';
@@ -10,7 +10,10 @@ export const settingsManagementQueryKeys = {
   team: (slug?: string, teamId?: number) => ['settings-management', 'team', slug, teamId],
 };
 
-export function parseSettingValue(rawValue: string, valueType: string) {
+export function parseSettingValue(rawValue: unknown, valueType: string) {
+  if (typeof rawValue !== 'string') {
+    return rawValue;
+  }
   if (valueType === 'bool' || valueType === 'boolean') {
     return ['true', '1', 'yes', 'on'].includes(rawValue.trim().toLowerCase());
   }
@@ -76,6 +79,64 @@ export const SettingEditModal: React.FC<{
     </Form>
   </Modal>
 );
+
+function settingOptions(setting: API.SettingOut) {
+  const rawOptions = Array.isArray(setting.ui?.options) ? setting.ui.options : [];
+  return rawOptions.map((option) => {
+    if (typeof option === 'object' && option !== null && 'value' in option) {
+      return option as { label?: React.ReactNode; value: string | number | boolean };
+    }
+    return { label: String(option), value: option as string | number | boolean };
+  });
+}
+
+export const SettingSchemaControl: React.FC<{
+  setting: API.SettingOut;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}> = ({ setting, value, onChange }) => {
+  const widget = setting.widget || 'textarea';
+
+  if (widget === 'switch') {
+    return <Switch aria-label={setting.label || setting.key} checked={Boolean(value)} onChange={onChange} />;
+  }
+  if (widget === 'input_number') {
+    return (
+      <InputNumber
+        aria-label={setting.label || setting.key}
+        value={typeof value === 'number' ? value : Number(value)}
+        onChange={(nextValue) => onChange(nextValue)}
+        style={{ width: 240, maxWidth: '100%' }}
+      />
+    );
+  }
+  if (widget === 'select') {
+    return (
+      <Select
+        aria-label={setting.label || setting.key}
+        value={value as string | number | boolean | undefined}
+        onChange={onChange}
+        options={settingOptions(setting)}
+        style={{ width: 320, maxWidth: '100%' }}
+      />
+    );
+  }
+  if (widget === 'input') {
+    return <Input aria-label={setting.label || setting.key} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />;
+  }
+  if (widget === 'password') {
+    return <Input.Password aria-label={setting.label || setting.key} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />;
+  }
+
+  return (
+    <Input.TextArea
+      aria-label={setting.label || setting.key}
+      value={stringifySettingValue(value)}
+      onChange={(event) => onChange(event.target.value)}
+      autoSize={{ minRows: widget === 'json_editor' ? 4 : 3, maxRows: 10 }}
+    />
+  );
+};
 
 export function buildSettingColumns(
   onEdit: (setting: API.SettingOut) => void,

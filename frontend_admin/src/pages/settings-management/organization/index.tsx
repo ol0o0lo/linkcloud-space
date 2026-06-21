@@ -1,32 +1,106 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Descriptions, Drawer, Form, Input, Modal, Select, Space, message } from 'antd';
+import { Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Tag, Typography, message } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
-import { drawerWidthMd, wrapTextStyle } from '@/pages/_shared/adminLayout';
+import { wrapTextStyle } from '@/pages/_shared/adminLayout';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi } from '@/services/manual/house';
 import {
   appsSettingsApiDeleteOrgSettingView,
-  appsSettingsApiGetOrgSettingView,
   appsSettingsApiListOrgSettings,
   appsSettingsApiPutOrgSetting,
 } from '@/services/openapi/organizationSettings';
-import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import {
-  SettingEditModal,
-  SettingValue,
-  SettingsTableCard,
+  SettingSchemaControl,
   parseSettingValue,
   settingsManagementQueryKeys,
   stringifySettingValue,
 } from '../shared';
 
+type DraftValues = Record<string, unknown>;
+type BuildingItem = { id: number; name: string; estate_id: number };
+
+type SectionRegistryItem = {
+  key: string;
+  control?: 'default_building';
+};
+
+const sectionRegistry: Record<string, { title: string; items: SectionRegistryItem[] }> = {
+  property_rental: {
+    title: '房源租赁设置',
+    items: [{ key: 'property_rental.default_building_id', control: 'default_building' }],
+  },
+  general: {
+    title: '通用设置',
+    items: [],
+  },
+};
+
+function initialDraftValue(setting: API.SettingOut) {
+  if (setting.widget === 'switch') {
+    return Boolean(setting.value);
+  }
+  if (setting.widget === 'input_number') {
+    return typeof setting.value === 'number' ? setting.value : Number(setting.value);
+  }
+  return setting.value;
+}
+
+function resolveSettingCategory(setting: API.SettingOut) {
+  return setting.category && sectionRegistry[setting.category] ? setting.category : 'general';
+}
+
+function buildSettingSections(settings: API.SettingOut[] = []) {
+  const byKey = new Map(settings.map((setting) => [setting.key, setting]));
+  const usedKeys = new Set<string>();
+  const sections = Object.entries(sectionRegistry).map(([category, registry]) => {
+    const rows = registry.items.flatMap((item) => {
+      const setting = byKey.get(item.key);
+      if (!setting) {
+        return [];
+      }
+      usedKeys.add(setting.key);
+      return [{ setting, control: item.control }];
+    });
+    return { category, title: registry.title, rows };
+  });
+
+  settings.forEach((setting) => {
+    if (usedKeys.has(setting.key)) {
+      return;
+    }
+    const category = resolveSettingCategory(setting);
+    const section = sections.find((item) => item.category === category) || sections.find((item) => item.category === 'general');
+    section?.rows.push({ setting, control: undefined });
+  });
+
+  return sections.filter((section) => section.rows.length > 0);
+}
+
+const DefaultBuildingControl: React.FC<{
+  value: unknown;
+  loading?: boolean;
+  buildings: BuildingItem[];
+  onChange: (value: unknown) => void;
+  onCreate: () => void;
+}> = ({ value, loading, buildings, onChange, onCreate }) => (
+  <Space wrap>
+    <Select
+      aria-label="默认楼栋"
+      loading={loading}
+      value={value as number | undefined}
+      onChange={onChange}
+      options={buildings.map((item) => ({ value: item.id, label: item.name }))}
+      style={{ width: 240, maxWidth: '100%' }}
+    />
+    <Button onClick={onCreate}>新建楼栋</Button>
+  </Space>
+);
+
 const OrganizationSettingsPage: React.FC = () => {
   const workspace = useTenantWorkspace();
-  const [editingSetting, setEditingSetting] = useState<API.SettingOut | null>(null);
-  const [detailKey, setDetailKey] = useState<string>();
+  const [draftValues, setDraftValues] = useState<DraftValues>({});
   const [buildingOpen, setBuildingOpen] = useState(false);
-  const [selectedBuildingId, setSelectedBuildingId] = useState<number>();
-  const [createdBuildings, setCreatedBuildings] = useState<{ id: number; name: string; estate_id: number }[]>([]);
-  const [form] = Form.useForm<{ value: string }>();
+  const [createdBuildings, setCreatedBuildings] = useState<BuildingItem[]>([]);
   const [buildingForm] = Form.useForm();
 
   const settingsQuery = useQuery({
@@ -35,62 +109,36 @@ const OrganizationSettingsPage: React.FC = () => {
     enabled: Boolean(workspace.selectedOrgSlug),
   });
 
-  const detailQuery = useQuery({
-    queryKey: ['settings-management', 'organization-detail', workspace.selectedOrgSlug, detailKey],
-    queryFn: () => appsSettingsApiGetOrgSettingView({ key: detailKey! }),
-    enabled: Boolean(workspace.selectedOrgSlug && detailKey),
-  });
   const estatesQuery = useQuery({
     queryKey: ['settings-management', 'organization', 'house-estates', workspace.selectedOrgSlug],
     queryFn: () => houseApi.listEstates({ page: 1, page_size: 100 }),
     enabled: Boolean(workspace.selectedOrgSlug),
   });
+
   const buildingsQuery = useQuery({
     queryKey: ['settings-management', 'organization', 'house-buildings', workspace.selectedOrgSlug],
     queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100 }),
     enabled: Boolean(workspace.selectedOrgSlug),
   });
-  const defaultBuildingQuery = useQuery({
-    queryKey: ['settings-management', 'organization', 'default-building', workspace.selectedOrgSlug],
-    queryFn: () => houseApi.getDefaultBuilding(),
-    enabled: Boolean(workspace.selectedOrgSlug),
-  });
-  const buildingItems = useMemo(() => [...createdBuildings, ...(buildingsQuery.data?.items || [])], [buildingsQuery.data, createdBuildings]);
 
-  const updateMutation = useMutation({
-    mutationFn: ({ setting, value }: { setting: API.SettingOut; value: string }) =>
-      appsSettingsApiPutOrgSetting({ key: setting.key }, { value: parseSettingValue(value, setting.value_type) }),
-    onSuccess: async () => {
-      setEditingSetting(null);
-      form.resetFields();
-      await workspace.queryClient.invalidateQueries({ queryKey: settingsManagementQueryKeys.organization(workspace.selectedOrgSlug) });
-    },
-  });
-  const setDefaultBuildingMutation = useMutation({
-    mutationFn: (buildingId: number) => houseApi.setDefaultBuilding(buildingId),
-    onSuccess: async () => {
-      message.success('默认楼栋已保存');
-      await workspace.queryClient.invalidateQueries({ queryKey: ['settings-management', 'organization', 'default-building', workspace.selectedOrgSlug] });
-      await workspace.queryClient.invalidateQueries({ queryKey: settingsManagementQueryKeys.organization(workspace.selectedOrgSlug) });
-    },
-  });
-  const createBuildingMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => houseApi.createBuilding(values),
-    onSuccess: async (building) => {
-      setCreatedBuildings((items) => [building, ...items]);
-      setSelectedBuildingId(building.id);
-      await houseApi.setDefaultBuilding(building.id);
-      setBuildingOpen(false);
-      buildingForm.resetFields();
-      message.success('楼栋已创建并设为默认');
-    },
-  });
+  const buildingItems = useMemo(() => [...createdBuildings, ...(buildingsQuery.data?.items || [])], [buildingsQuery.data, createdBuildings]);
+  const sections = useMemo(() => buildSettingSections(settingsQuery.data), [settingsQuery.data]);
 
   useEffect(() => {
-    if (defaultBuildingQuery.data?.id) {
-      setSelectedBuildingId(defaultBuildingQuery.data.id);
-    }
-  }, [defaultBuildingQuery.data]);
+    const nextDrafts: DraftValues = {};
+    (settingsQuery.data || []).forEach((setting) => {
+      nextDrafts[setting.key] = initialDraftValue(setting);
+    });
+    setDraftValues(nextDrafts);
+  }, [settingsQuery.data]);
+
+  const updateMutation = useMutation({
+    mutationFn: (setting: API.SettingOut) =>
+      appsSettingsApiPutOrgSetting({ key: setting.key }, { value: parseSettingValue(draftValues[setting.key], setting.value_type) }),
+    onSuccess: async () => {
+      await workspace.queryClient.invalidateQueries({ queryKey: settingsManagementQueryKeys.organization(workspace.selectedOrgSlug) });
+    },
+  });
 
   const restoreMutation = useMutation({
     mutationFn: (setting: API.SettingOut) => appsSettingsApiDeleteOrgSettingView({ key: setting.key }),
@@ -99,57 +147,76 @@ const OrganizationSettingsPage: React.FC = () => {
     },
   });
 
+  const createBuildingMutation = useMutation({
+    mutationFn: (values: Record<string, unknown>) => houseApi.createBuilding(values),
+    onSuccess: (building) => {
+      setCreatedBuildings((items) => [building, ...items]);
+      setDraftValues((values) => ({ ...values, 'property_rental.default_building_id': building.id }));
+      setBuildingOpen(false);
+      buildingForm.resetFields();
+      message.success('楼栋已创建');
+    },
+  });
+
+  const renderControl = (setting: API.SettingOut, control?: SectionRegistryItem['control']) => {
+    const value = draftValues[setting.key];
+    const onChange = (nextValue: unknown) => setDraftValues((values) => ({ ...values, [setting.key]: nextValue }));
+
+    if (control === 'default_building') {
+      return (
+        <DefaultBuildingControl
+          value={value}
+          loading={buildingsQuery.isLoading}
+          buildings={buildingItems}
+          onChange={onChange}
+          onCreate={() => setBuildingOpen(true)}
+        />
+      );
+    }
+
+    return <SettingSchemaControl setting={setting} value={value} onChange={onChange} />;
+  };
+
   return (
     <TenantSelectionGuard title="租户设置" subtitle="管理当前租户的动态设置覆盖值。">
-      <Card title="房源租赁设置" style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Select
-            loading={buildingsQuery.isLoading || defaultBuildingQuery.isLoading}
-            value={selectedBuildingId}
-            onChange={setSelectedBuildingId}
-            options={buildingItems.map((item) => ({ value: item.id, label: item.name }))}
-            style={{ width: 240 }}
-          />
-          <Button type="primary" disabled={!selectedBuildingId} loading={setDefaultBuildingMutation.isPending} onClick={() => selectedBuildingId && setDefaultBuildingMutation.mutate(selectedBuildingId)}>
-            保存默认楼栋
-          </Button>
-          <Button onClick={() => setBuildingOpen(true)}>新建楼栋</Button>
-        </Space>
-      </Card>
-      <SettingsTableCard
-        title="租户设置项"
-        hint="这里承接后端 settings/org 接口，只管理当前租户维度的设置覆盖，不占用原有个人设置 tab。"
-        loading={settingsQuery.isLoading}
-        data={settingsQuery.data}
-        onEdit={(setting) => {
-          setEditingSetting(setting);
-          form.setFieldsValue({ value: stringifySettingValue(setting.value) });
-        }}
-        onView={(setting) => setDetailKey(setting.key)}
-        onRestore={(setting) => void restoreMutation.mutateAsync(setting)}
-      />
-      <SettingEditModal
-        open={Boolean(editingSetting)}
-        setting={editingSetting}
-        loading={updateMutation.isPending}
-        form={form}
-        onCancel={() => setEditingSetting(null)}
-        onOk={async () => {
-          const values = await form.validateFields();
-          if (editingSetting) {
-            await updateMutation.mutateAsync({ setting: editingSetting, value: values.value });
-          }
-        }}
-      />
-      <Drawer title="租户设置详情" open={Boolean(detailKey)} onClose={() => setDetailKey(undefined)} width={drawerWidthMd}>
-        <Descriptions column={1} bordered size="small">
-          <Descriptions.Item label="Key">{detailQuery.data?.key || '-'}</Descriptions.Item>
-          <Descriptions.Item label="类型">{detailQuery.data?.value_type || '-'}</Descriptions.Item>
-          <Descriptions.Item label="说明"><span style={wrapTextStyle}>{detailQuery.data?.description || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="状态">{detailQuery.data?.is_customized ? '已覆盖' : '默认值'}</Descriptions.Item>
-          <Descriptions.Item label="当前值">{detailQuery.data ? <SettingValue value={detailQuery.data.value} /> : '-'}</Descriptions.Item>
-        </Descriptions>
-      </Drawer>
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+        {sections.map((section) => (
+          <Card key={section.category} title={section.title} loading={settingsQuery.isLoading}>
+            <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+              {section.rows.map(({ setting, control }) => (
+                <div key={setting.key} style={{ border: '1px solid var(--ant-color-border-secondary)', borderRadius: 6, padding: 16 }}>
+                  <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                    <Space orientation="vertical" size={2} style={{ width: '100%' }}>
+                      <Space wrap>
+                        <Typography.Text strong>{setting.label || setting.key}</Typography.Text>
+                        {setting.is_customized ? <Tag color="gold">已覆盖</Tag> : <Tag>默认值</Tag>}
+                      </Space>
+                      <Typography.Text type="secondary" style={wrapTextStyle}>
+                        {setting.description || setting.key}
+                      </Typography.Text>
+                    </Space>
+                    <Form layout="vertical">
+                      <Form.Item label={setting.label || setting.key}>
+                        {renderControl(setting, control)}
+                      </Form.Item>
+                    </Form>
+                    <Space wrap>
+                      <Button type="primary" loading={updateMutation.isPending} onClick={() => updateMutation.mutate(setting)}>
+                        保存{setting.label || setting.key}
+                      </Button>
+                      {setting.is_customized ? (
+                        <Popconfirm title="确认恢复该设置默认值？" onConfirm={() => restoreMutation.mutate(setting)}>
+                          <Button loading={restoreMutation.isPending}>恢复{setting.label || setting.key}默认值</Button>
+                        </Popconfirm>
+                      ) : null}
+                    </Space>
+                  </Space>
+                </div>
+              ))}
+            </Space>
+          </Card>
+        ))}
+      </Space>
       <Modal title="新建楼栋" open={buildingOpen} onCancel={() => setBuildingOpen(false)} footer={null} destroyOnHidden>
         <Form
           form={buildingForm}
