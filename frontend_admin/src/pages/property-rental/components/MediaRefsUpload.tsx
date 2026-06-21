@@ -65,7 +65,7 @@ const MediaRefsUpload: React.FC<Props> = ({ value = [], onChange, resourceType, 
   };
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }}>
+    <Space orientation="vertical" style={{ width: '100%' }}>
       <input
         aria-label="选择文件"
         type="file"
@@ -93,7 +93,7 @@ const MediaRefsUpload: React.FC<Props> = ({ value = [], onChange, resourceType, 
               style={{ width: 160 }}
             >
               {mediaType === 'image' && item.url ? <Image width={144} height={96} style={{ objectFit: 'cover' }} src={item.url} alt={title} /> : <div>{title}</div>}
-              <Space direction="vertical" size={4}>
+              <Space orientation="vertical" size={4}>
                 <Select
                   aria-label={`${title}角色`}
                   size="small"
