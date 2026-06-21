@@ -4,12 +4,11 @@ import {
   EllipsisOutlined,
   ShareAltOutlined,
 } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
 import { Avatar, Card, Dropdown, List, Tooltip } from 'antd';
 import React from 'react';
 import { formatNumber } from '@/utils/format';
+import { buildMockListData } from '../../mock-data';
 import type { ListItemDataType } from '../../data.d';
-import { queryFakeList } from '../../service';
 import useStyles from './index.style';
 
 function formatWan(val: number) {
@@ -58,11 +57,7 @@ const CardInfo: React.FC<{
 
 const Applications: React.FC = () => {
   const { styles: stylesApplications } = useStyles();
-  // 获取tab列表数据
-  const { data: listData } = useQuery({
-    queryKey: ['applications-list', 30],
-    queryFn: () => queryFakeList({ count: 30 }).then((res) => res.data),
-  });
+  const listData = buildMockListData(30);
 
   return (
     <List<ListItemDataType>
@@ -77,7 +72,7 @@ const Applications: React.FC = () => {
         sm: 2,
         xs: 1,
       }}
-      dataSource={listData?.list || []}
+      dataSource={listData}
       renderItem={(item) => (
         <List.Item key={item.id}>
           <Card

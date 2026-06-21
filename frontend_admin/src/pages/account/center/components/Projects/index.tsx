@@ -1,19 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
 import { Card, List } from 'antd';
 import dayjs from 'dayjs';
 import React from 'react';
 import { AvatarList } from '@/components';
+import { buildMockListData } from '../../mock-data';
 import type { ListItemDataType } from '../../data.d';
-import { queryFakeList } from '../../service';
 import useStyles from './index.style';
 
 const Projects: React.FC = () => {
   const { styles } = useStyles();
-  // 获取tab列表数据
-  const { data: listData } = useQuery({
-    queryKey: ['projects-list', 30],
-    queryFn: () => queryFakeList({ count: 30 }).then((res) => res.data),
-  });
+  const listData = buildMockListData(30);
   return (
     <List<ListItemDataType>
       className={styles.coverCardList}
@@ -27,7 +22,7 @@ const Projects: React.FC = () => {
         sm: 2,
         xs: 1,
       }}
-      dataSource={listData?.list || []}
+      dataSource={listData}
       renderItem={(item) => (
         <List.Item>
           <Card

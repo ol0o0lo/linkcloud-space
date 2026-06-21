@@ -1,10 +1,9 @@
 import { LikeOutlined, MessageFilled, StarTwoTone } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
 import { Flex, List, Tag } from 'antd';
 import React from 'react';
 import { ArticleListContent } from '@/components';
+import { buildMockListData } from '../../mock-data';
 import type { ListItemDataType } from '../../data.d';
-import { queryFakeList } from '../../service';
 import useStyles from './index.style';
 
 const IconText: React.FC<{
@@ -18,19 +17,14 @@ const IconText: React.FC<{
 
 const Articles: React.FC = () => {
   const { styles } = useStyles();
-
-  // 获取tab列表数据
-  const { data: listData } = useQuery({
-    queryKey: ['articles-list', 30],
-    queryFn: () => queryFakeList({ count: 30 }).then((res) => res.data),
-  });
+  const listData = buildMockListData(30);
   return (
     <List<ListItemDataType>
       size="large"
       className={styles.articleList}
       rowKey="id"
       itemLayout="vertical"
-      dataSource={listData?.list || []}
+      dataSource={listData}
       style={{
         margin: '0 -24px',
       }}

@@ -487,6 +487,8 @@ export default [
         component: './account/center',
       },
       {
+        name: 'settings',
+        icon: 'setting',
         path: '/account/settings',
         component: './account/settings',
       },
