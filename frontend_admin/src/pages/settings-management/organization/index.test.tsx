@@ -9,11 +9,21 @@ const {
   mockGetSetting,
   mockPutSetting,
   mockDeleteSetting,
+  mockListEstates,
+  mockListBuildings,
+  mockGetDefaultBuilding,
+  mockSetDefaultBuilding,
+  mockCreateBuilding,
 } = vi.hoisted(() => ({
   mockListSettings: vi.fn(),
   mockGetSetting: vi.fn(),
   mockPutSetting: vi.fn(),
   mockDeleteSetting: vi.fn(),
+  mockListEstates: vi.fn(),
+  mockListBuildings: vi.fn(),
+  mockGetDefaultBuilding: vi.fn(),
+  mockSetDefaultBuilding: vi.fn(),
+  mockCreateBuilding: vi.fn(),
 }));
 
 vi.mock('@/pages/tenant/shared', () => ({
@@ -29,6 +39,16 @@ vi.mock('@/services/openapi/organizationSettings', () => ({
   appsSettingsApiDeleteOrgSettingView: mockDeleteSetting,
 }));
 
+vi.mock('@/services/manual/house', () => ({
+  houseApi: {
+    listEstates: mockListEstates,
+    listBuildings: mockListBuildings,
+    getDefaultBuilding: mockGetDefaultBuilding,
+    setDefaultBuilding: mockSetDefaultBuilding,
+    createBuilding: mockCreateBuilding,
+  },
+}));
+
 describe('OrganizationSettingsPage', () => {
   let queryClient: QueryClient;
 
@@ -42,6 +62,11 @@ describe('OrganizationSettingsPage', () => {
     mockGetSetting.mockResolvedValue({ key: 'billing.enabled', value: true, value_type: 'bool', description: '启用账单', is_customized: true });
     mockPutSetting.mockResolvedValue({});
     mockDeleteSetting.mockResolvedValue({});
+    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: '星河湾' }], total: 1, page: 1, page_size: 100 });
+    mockListBuildings.mockResolvedValue({ items: [{ id: 10, name: '1 栋', estate_id: 1 }], total: 1, page: 1, page_size: 100 });
+    mockGetDefaultBuilding.mockResolvedValue({ id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾', floors: 20, address: '' });
+    mockSetDefaultBuilding.mockResolvedValue({ id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾', floors: 20, address: '' });
+    mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1 });
   });
 
   it('loads organization settings and triggers update / restore actions', async () => {
@@ -70,5 +95,36 @@ describe('OrganizationSettingsPage', () => {
     await waitFor(() => {
       expect(mockDeleteSetting).toHaveBeenCalledWith({ key: 'billing.enabled' });
     });
+  });
+
+  it('saves default building from organization settings', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('房源租赁设置');
+    await waitFor(() => expect(mockGetDefaultBuilding).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: '保存默认楼栋' }));
+
+    await waitFor(() => expect(mockSetDefaultBuilding).toHaveBeenCalledWith(10));
+  });
+
+  it('creates building from organization settings and saves it as default', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('房源租赁设置');
+    fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
+    fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
+    fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
+
+    await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalledWith(expect.objectContaining({ estate_id: 1, name: '2 栋', floors: 28 })));
+    expect(mockSetDefaultBuilding).toHaveBeenCalledWith(11);
   });
 });
