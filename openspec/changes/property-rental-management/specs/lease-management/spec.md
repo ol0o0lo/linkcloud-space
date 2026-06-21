@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 租约管理
-系统 SHALL 提供 Lease 模型，字段包含：organization(FK→Organization)、house(FK→House, PROTECT)、tenant(FK→Contact, PROTECT)、sign_at、start_date、end_date、monthly_rent、deposit、payment_day(default=1)、status(choices, default=pending)、contract_files(MediaRefsField)、notes、extra(JSONField)。Lease.contract_files SHALL 保存有序合同媒体引用对象列表，每项至少包含 `media_id`。
+系统 SHALL 提供 Lease 模型，字段包含：organization(FK→Organization)、house(FK→House, PROTECT)、tenant(FK→Contact, PROTECT)、source_viewing_record(FK→ViewingRecord, null=True, blank=True, PROTECT)、sign_at、start_date、end_date、monthly_rent、deposit、payment_day(default=1)、status(choices, default=pending)、contract_files(MediaRefsField)、notes、extra(JSONField)。Lease.contract_files SHALL 保存有序合同媒体引用对象列表，每项至少包含 `media_id`。
 
 #### Scenario: 创建租约
 - **WHEN** 创建 Lease，提供 house、tenant、start_date、end_date、monthly_rent
@@ -30,6 +30,14 @@
 #### Scenario: 创建租约前必须已登记出租方
 - **WHEN** 管理员尝试为 `landlord is null` 的 House 创建 Lease
 - **THEN** 系统阻止保存并返回“需先补齐登记出租方”的校验错误
+
+#### Scenario: 租约可追溯成交来源带看
+- **WHEN** 管理员从已成交 ViewingRecord 显式创建 Lease
+- **THEN** 系统 SHALL 允许通过 `source_viewing_record` 保存该租约的成交来源带看记录
+
+#### Scenario: 成交来源带看必须匹配租约上下文
+- **WHEN** 创建或更新 Lease 并提供 `source_viewing_record`
+- **THEN** 该 ViewingRecord 必须属于同一 organization、同一 House、状态为 converted；若 ViewingRecord.contact 非空，还必须与 Lease.tenant 一致
 
 ### Requirement: 租约合同文件存储
 系统 SHALL 复用现有 `apps.media.MediaFile` 与 `S3MediaStorage` 存储租约合同文件，Lease.contract_files SHALL 通过 `MediaRefsField` 保存引用已登记 MediaFile 的 `media_id`，默认上限为 1 个。

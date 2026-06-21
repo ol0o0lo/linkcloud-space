@@ -33,7 +33,7 @@
 
 #### Scenario: 带看成交后创建租约
 - **WHEN** 管理员将 ViewingRecord 标记为 converted
-- **THEN** 系统不自动创建 Lease；管理员应显式创建或选择 tenant Contact 后再创建 Lease，并可将该 ViewingRecord 作为成交来源记录
+- **THEN** 系统不自动创建 Lease；管理员应显式创建或选择 tenant Contact 后再创建 Lease，并可通过 Lease.source_viewing_record 将该 ViewingRecord 作为成交来源记录
 
 #### Scenario: V1 不提供完整 CRM 能力
 - **WHEN** 用户需要线索池、渠道归因、多次跟进任务、佣金结算或转介绍统计

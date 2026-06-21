@@ -151,22 +151,24 @@
 | 1 | organization | FK→Organization | | 所属组织 |
 | 2 | house | FK→House | on_delete=PROTECT | 关联房源 |
 | 3 | tenant | FK→Contact | on_delete=PROTECT | 租客（须具备 tenant 角色） |
-| 4 | sign_at | DateTimeField | null=True, blank=True | 签约时间 |
-| 5 | start_date | DateField | | 租期开始 |
-| 6 | end_date | DateField | | 租期结束（须 ≥ start_date） |
-| 7 | monthly_rent | DecimalField | | 月租金（须 ≥ 0） |
-| 8 | deposit | DecimalField | null=True, blank=True | 押金（须 ≥ 0） |
-| 9 | payment_day | int | default=1, 范围 1-31 | 每月付款日 |
-| 10 | status | choices | pending / active / expired / terminated, default=pending | 租约状态 |
-| 11 | contract_files | MediaRefsField[list[dict]] | default=list, 上限 1 | 租约合同媒体引用列表 |
-| 12 | notes | TextField | blank=True | 备注 |
-| 13 | extra | JSONField[dict] | default=dict | 动态扩展（费用、押金条目等后续账单子域预留） |
+| 4 | source_viewing_record | FK→ViewingRecord | null=True, blank=True, on_delete=PROTECT | 成交来源带看记录 |
+| 5 | sign_at | DateTimeField | null=True, blank=True | 签约时间 |
+| 6 | start_date | DateField | | 租期开始 |
+| 7 | end_date | DateField | | 租期结束（须 ≥ start_date） |
+| 8 | monthly_rent | DecimalField | | 月租金（须 ≥ 0） |
+| 9 | deposit | DecimalField | null=True, blank=True | 押金（须 ≥ 0） |
+| 10 | payment_day | int | default=1, 范围 1-31 | 每月付款日 |
+| 11 | status | choices | pending / active / expired / terminated, default=pending | 租约状态 |
+| 12 | contract_files | MediaRefsField[list[dict]] | default=list, 上限 1 | 租约合同媒体引用列表 |
+| 13 | notes | TextField | blank=True | 备注 |
+| 14 | extra | JSONField[dict] | default=dict | 动态扩展（费用、押金条目等后续账单子域预留） |
 
 唯一约束：同一 `house` 仅允许一条 `status='active'` 的 Lease（数据库级条件唯一约束）
 
 一致性约束：
 - `Lease.organization == house.building.estate.organization == tenant.organization`
 - `house.landlord` 必须非空时才允许创建 Lease
+- 当 `source_viewing_record` 非空时，必须属于同 organization、同 House、状态为 `converted`；若其 `contact` 非空，还必须等于 `tenant`
 
 房态联动：Lease 新增/更新/删除后，统一调用 `recalculate_status(house_id)` 重算 `House.status`
 
@@ -318,6 +320,7 @@ Organization
         -> landlord -> Contact(role=landlord) -> User(延迟认领)
         -> ViewingRecord -> Contact(role=tenant, optional)
         -> Lease -> Contact(role=tenant)
+        -> Lease.source_viewing_record -> ViewingRecord(status=converted, optional)
         -> Lease.contract_files[] -> MediaFile (合同)
         -> images[] -> MediaFile (图片)
         -> videos[] -> MediaFile (视频)
@@ -348,7 +351,7 @@ flowchart TD
     house["House<br/>房源<br/><br/>- building_id<br/>- landlord_id(nullable)<br/>- room_number<br/>- status<br/>- images[]<br/>- videos[]<br/>- public_description<br/>- internal_notes<br/>- extra<br/>- is_active"]
     contact["Contact<br/>联系人<br/><br/>- organization_id<br/>- name / phone<br/>- roles[]<br/>- user_id(nullable)<br/>- is_active"]
     viewing["ViewingRecord<br/>带看记录<br/><br/>- organization_id<br/>- house_id<br/>- contact_id(nullable)<br/>- customer_name / customer_phone<br/>- scheduled_at / viewed_at<br/>- status"]
-    lease["Lease<br/>租约<br/><br/>- organization_id<br/>- house_id<br/>- tenant_id -> Contact<br/>- status<br/>- contract_files[]<br/>- start_date / end_date"]
+    lease["Lease<br/>租约<br/><br/>- organization_id<br/>- house_id<br/>- tenant_id -> Contact<br/>- source_viewing_record_id(nullable)<br/>- status<br/>- contract_files[]<br/>- start_date / end_date"]
 
     org -->|"1:N"| estate
     org -->|"1:N"| building
@@ -363,6 +366,7 @@ flowchart TD
     contact -->|"1:N prospect tenant"| viewing
     house -->|"1:N"| lease
     contact -->|"1:N tenant"| lease
+    viewing -->|"1:N source"| lease
     user -->|"1:N delayed claim"| contact
     estate -.->|"images[].media_id"| media
     house -.->|"images[].media_id"| media
@@ -402,6 +406,7 @@ flowchart LR
     house2 --> viewing2
     viewing2 -->|"optional prospect tenant"| contact2
     house2 --> lease2
+    lease2 -->|"optional source"| viewing2
     lease2 --> contact2
     contact2 -->|"delayed claim"| user2
 
