@@ -29,13 +29,13 @@ def claim_landlord_contact_for_bound_phone(user: User, organization: Organizatio
     qs = Contact.objects.filter(
         organization=organization,
         phone__in=phone_candidates,
-        roles__contains=[ContactRole.LANDLORD],
     )
-    existing = qs.filter(user=user).first()
+    landlord_contacts = [contact for contact in qs if ContactRole.LANDLORD in contact.roles]
+    existing = next((contact for contact in landlord_contacts if contact.user_id == user.pk), None)
     if existing is not None:
         return existing
 
-    contact = qs.filter(user__isnull=True).order_by("id").first()
+    contact = next((contact for contact in landlord_contacts if contact.user_id is None), None)
     if contact is None:
         return None
 

@@ -1,5 +1,6 @@
 import json
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.accounts.constants import RealNameLogAction, RealNameStatus
@@ -170,7 +171,7 @@ class TestRealNameAPI(TestCase):
             file_size=123,
         )
 
-        with self.assertRaisesMessage(ValueError, "身份证图片资源类型不正确。"):
+        with self.assertRaisesMessage(ValidationError, "身份证图片资源类型不正确。"):
             RealNameVerification.objects.create(
                 user=self.user,
                 status=RealNameStatus.PENDING,
@@ -537,7 +538,7 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(verification.status, RealNameStatus.VERIFIED)
         self.assertEqual(member.real_name_status, RealNameStatus.VERIFIED)
         self.assertEqual(verification.logs.last().action, RealNameLogAction.MANUAL_APPROVED)
- 
+
     def test_get_my_real_name_returns_id_card_media_with_url_after_rejection(self):
         """驳回后查询实名状态应返回已上传的证件照片 URL，前端据此回显图片。"""
         self.client.force_login(self.user)
@@ -559,6 +560,7 @@ class TestRealNameAPI(TestCase):
 
         # 模拟驳回
         from apps.accounts.services import admin_transition_real_name
+
         admin_transition_real_name(
             verification,
             operator=self.admin,
