@@ -53,8 +53,9 @@ vi.mock('@/services/manual/house', () => ({
 
 describe('OrganizationSettingsPage', () => {
   let queryClient: QueryClient;
+  let selectedOrgSlug: string;
 
-  const buildSettingsFixture = () => [
+  const buildSettingsFixture = (overrides?: Partial<Record<'memberLimit', number>>) => [
     {
       key: 'billing.enabled',
       label: '启用账单',
@@ -69,7 +70,7 @@ describe('OrganizationSettingsPage', () => {
     {
       key: 'quota.member_limit',
       label: '成员上限',
-      value: 12,
+      value: overrides?.memberLimit ?? 12,
       value_type: 'integer',
       description: '成员上限',
       widget: 'input_number',
@@ -114,8 +115,9 @@ describe('OrganizationSettingsPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    selectedOrgSlug = 'acme';
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    mockUseTenantWorkspace.mockImplementation(() => ({ selectedOrgSlug: 'acme', queryClient }));
+    mockUseTenantWorkspace.mockImplementation(() => ({ selectedOrgSlug, queryClient }));
     mockListSettings.mockImplementation(() => Promise.resolve(buildSettingsFixture()));
     mockGetSetting.mockResolvedValue({
       key: 'billing.enabled',
@@ -216,6 +218,29 @@ describe('OrganizationSettingsPage', () => {
     await waitFor(() => expect(mockListSettings).toHaveBeenCalledTimes(2));
     await screen.findByLabelText('刷新后设置');
     expect(screen.getByLabelText('成员上限')).toHaveValue('18');
+  });
+
+  it('resets setting drafts when switching organizations', async () => {
+    mockListSettings.mockImplementation(() => Promise.resolve(buildSettingsFixture({ memberLimit: selectedOrgSlug === 'acme' ? 12 : 30 })));
+
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('通用设置');
+    fireEvent.change(screen.getByLabelText('成员上限'), { target: { value: '18' } });
+
+    selectedOrgSlug = 'beta';
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(mockListSettings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByLabelText('成员上限')).toHaveValue('30'));
   });
 
   it('saves default building through organization settings api', async () => {

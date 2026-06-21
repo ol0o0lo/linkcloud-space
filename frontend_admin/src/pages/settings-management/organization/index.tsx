@@ -101,6 +101,10 @@ const OrganizationSettingsPage: React.FC = () => {
   const sections = useMemo(() => buildSettingSections(settingsQuery.data), [settingsQuery.data]);
 
   useEffect(() => {
+    setDraftValues({});
+  }, [workspace.selectedOrgSlug]);
+
+  useEffect(() => {
     setDraftValues((currentValues) => {
       const nextDrafts = { ...currentValues };
       (settingsQuery.data || []).forEach((setting) => {
