@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Tag, Typography, message } from 'antd';
+import { Button, Card, Divider, Form, Input, Modal, Popconfirm, Select, Space, Tag, Typography, message } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { wrapTextStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
@@ -176,57 +176,65 @@ const OrganizationSettingsPage: React.FC = () => {
 
   return (
     <TenantSelectionGuard title="空间设置" subtitle="按业务功能管理当前空间的设置。">
-      <Space orientation="vertical" size={24} style={{ width: '100%' }}>
-        {sections.map((section) => (
-          <Card key={section.category} title={section.title} loading={settingsQuery.isLoading}>
-            <Space orientation="vertical" size={20} style={{ width: '100%' }}>
-              {section.rows.map((setting) => {
-                const title = setting.label || setting.key;
-                const description = setting.description && setting.description !== title ? setting.description : undefined;
+      <Card title="租户设置" loading={settingsQuery.isLoading}>
+        <Space orientation="vertical" size={24} style={{ width: '100%' }}>
+          {sections.map((section, sectionIndex) => (
+            <div key={section.category}>
+              {sectionIndex > 0 ? <Divider style={{ margin: '4px 0 24px' }} /> : null}
+              <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+                <Typography.Title level={4} style={{ margin: 0 }}>
+                  {section.title}
+                </Typography.Title>
+                <Space orientation="vertical" size={20} style={{ width: '100%' }}>
+                  {section.rows.map((setting) => {
+                    const title = setting.label || setting.key;
+                    const description = setting.description && setting.description !== title ? setting.description : undefined;
 
-                return (
-                  <div key={setting.key} style={settingCardStyle}>
-                    <div style={settingCardBodyStyle}>
-                      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-                        <Space orientation="vertical" size={4} style={{ width: '100%' }}>
-                          <Space wrap align="center">
-                            <Typography.Title level={5} style={{ margin: 0 }}>
-                              {title}
-                            </Typography.Title>
-                            {setting.is_customized ? <Tag color="gold">已自定义</Tag> : <Tag>默认值</Tag>}
+                    return (
+                      <div key={setting.key} style={settingCardStyle}>
+                        <div style={settingCardBodyStyle}>
+                          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+                            <Space orientation="vertical" size={4} style={{ width: '100%' }}>
+                              <Space wrap align="center">
+                                <Typography.Title level={5} style={{ margin: 0 }}>
+                                  {title}
+                                </Typography.Title>
+                                {setting.is_customized ? <Tag color="gold">已自定义</Tag> : <Tag>默认值</Tag>}
+                              </Space>
+                              {description ? (
+                                <Typography.Text type="secondary" style={wrapTextStyle}>
+                                  {description}
+                                </Typography.Text>
+                              ) : null}
+                            </Space>
+                            <Form layout="vertical" style={{ maxWidth: setting.value_type === 'json' ? 760 : 520 }}>
+                              <Form.Item style={{ marginBottom: 0 }}>{renderControl(setting)}</Form.Item>
+                            </Form>
                           </Space>
-                          {description ? (
-                            <Typography.Text type="secondary" style={wrapTextStyle}>
-                              {description}
-                            </Typography.Text>
-                          ) : null}
-                        </Space>
-                        <Form layout="vertical" style={{ maxWidth: setting.value_type === 'json' ? 760 : 520 }}>
-                          <Form.Item style={{ marginBottom: 0 }}>{renderControl(setting)}</Form.Item>
-                        </Form>
-                      </Space>
-                    </div>
-                    <div style={settingCardFooterStyle}>
-                      <Space wrap>
-                        <Button aria-label={`保存${title}`} type="primary" loading={updateMutation.isPending} onClick={() => updateMutation.mutate(setting)}>
-                          保存设置
-                        </Button>
-                        {setting.is_customized ? (
-                          <Popconfirm title="确认恢复该设置默认值？" onConfirm={() => restoreMutation.mutate(setting)}>
-                            <Button aria-label={`恢复${title}默认值`} loading={restoreMutation.isPending}>
-                              恢复默认值
+                        </div>
+                        <div style={settingCardFooterStyle}>
+                          <Space wrap>
+                            <Button aria-label={`保存${title}`} type="primary" loading={updateMutation.isPending} onClick={() => updateMutation.mutate(setting)}>
+                              保存设置
                             </Button>
-                          </Popconfirm>
-                        ) : null}
-                      </Space>
-                    </div>
-                  </div>
-                );
-              })}
-            </Space>
-          </Card>
-        ))}
-      </Space>
+                            {setting.is_customized ? (
+                              <Popconfirm title="确认恢复该设置默认值？" onConfirm={() => restoreMutation.mutate(setting)}>
+                                <Button aria-label={`恢复${title}默认值`} loading={restoreMutation.isPending}>
+                                  恢复默认值
+                                </Button>
+                              </Popconfirm>
+                            ) : null}
+                          </Space>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </Space>
+              </Space>
+            </div>
+          ))}
+        </Space>
+      </Card>
       <Modal title="新建楼栋" open={buildingOpen} onCancel={() => setBuildingOpen(false)} footer={null} destroyOnHidden>
         <Form
           form={buildingForm}

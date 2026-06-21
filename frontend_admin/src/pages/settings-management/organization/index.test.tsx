@@ -146,7 +146,7 @@ describe('OrganizationSettingsPage', () => {
   });
 
   it('renders organization settings as user-friendly business sections with schema controls', async () => {
-    render(
+    const { container } = render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
       </QueryClientProvider>,
@@ -166,9 +166,12 @@ describe('OrganizationSettingsPage', () => {
     expect(screen.queryByText('保存成员上限')).not.toBeInTheDocument();
     expect(screen.getAllByText('保存设置').length).toBeGreaterThan(0);
 
-    const generalSection = screen.getByText('通用设置').closest('.ant-card') as HTMLElement | null;
-    expect(generalSection).not.toBeNull();
-    expect(within(generalSection!).getByLabelText('未知分类设置')).toBeInTheDocument();
+    expect(container.querySelectorAll('.ant-card')).toHaveLength(1);
+    const settingsPanel = screen.getByText('租户设置').closest('.ant-card') as HTMLElement | null;
+    expect(settingsPanel).not.toBeNull();
+    expect(within(settingsPanel!).getByText('房源租赁设置')).toBeInTheDocument();
+    expect(within(settingsPanel!).getByText('通用设置')).toBeInTheDocument();
+    expect(within(settingsPanel!).getByLabelText('未知分类设置')).toBeInTheDocument();
   });
 
   it('saves and restores setting drafts through organization settings api', async () => {
