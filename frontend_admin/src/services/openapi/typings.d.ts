@@ -837,6 +837,8 @@ declare namespace API {
     last_name: string;
     /** Timezone */
     timezone: string;
+    /** Avatar */
+    avatar?: API.ResolvedMediaRefOut[];
     /** Avatar Url */
     avatar_url: string | null;
     /** Phone Country Code */

@@ -69,6 +69,30 @@ class TestAvatarAPI(TestCase):
 
         self.assertEqual(self.user.avatar_url, media.file.url)
 
+    def test_me_returns_resolved_avatar_media_ref(self):
+        media = MediaFile.objects.create(
+            uploader=self.user,
+            resource_type="avatar",
+            original_filename="avatar.png",
+            file="uploads/users/1/avatar.png",
+            file_size=123,
+        )
+        self.user.avatar = [{"media_id": media.pk, "media_type": "image"}]
+        self.user.save(update_fields=["avatar"])
+        self.client.force_login(self.user)
+
+        resp = self.client.get("/api/users/me/")
+
+        self.assertEqual(resp.status_code, 200)
+        data = api_data(resp)
+        self.assertEqual(data["avatar_url"], media.file.url)
+        self.assertEqual(data["avatar"][0]["media_id"], media.pk)
+        self.assertEqual(data["avatar"][0]["resource_type"], "avatar")
+        self.assertEqual(data["avatar"][0]["original_filename"], "avatar.png")
+        self.assertEqual(data["avatar"][0]["url"], media.file.url)
+        self.assertIsNone(data["avatar"][0]["thumbnail"])
+        self.assertEqual(data["avatar"][0]["file_size"], 123)
+
     def test_patch_avatar_replaces_ref_and_deletes_old_media(self):
         first = self._upload_avatar_media("first.png", "red")
         second = self._upload_avatar_media("second.png", "blue")

@@ -160,6 +160,7 @@ def get_me(request):
     }
     return {
         "avatar_url": request.user.avatar_url,
+        "avatar": request.user.avatar_resolved,
         "email": request.user.email,
         "first_name": request.user.first_name,
         "id": request.user.id,
