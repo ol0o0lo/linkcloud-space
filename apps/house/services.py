@@ -82,7 +82,7 @@ def _default_building_setting():
             "description": "房源租赁默认楼栋",
             "label": "默认楼栋",
             "widget": "select",
-            "ui": {},
+            "ui": {"options_source": "house.buildings"},
             "category": "property_rental",
         },
     )[0]
