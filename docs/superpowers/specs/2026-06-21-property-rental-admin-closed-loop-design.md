@@ -31,7 +31,6 @@
 - `/property-rental/contacts`：房东与租客联系人管理
 - `/property-rental/viewings`：带看管理
 - `/property-rental/leases`：租约管理
-- `/property-rental/media-tasks`：房源媒体待办
 
 默认入口为 `/property-rental/workbench`，但房源列表和房源详情是最高频工作区。
 
@@ -53,7 +52,7 @@
 状态必须分离，避免把所有生命周期塞进一个 `status`。
 
 - `House.status` 继续表达租赁房态：空置、已租、装修中、锁定。
-- 新增房源发布状态，例如 `publish_status`：草稿、已发布、已下架、已归档。
+- 新增房源发布状态 `publish_status`：草稿、已发布、已下架。
 - 资料完整度和媒体完整度用于运营提示，可以前端按返回数据计算；如果后续需要筛选和排序，再补后端字段或聚合接口。
 - `ViewingRecord.status` 继续表达预约、已看、取消、爽约、成交。
 - `Lease.status` 继续表达待生效、生效中、已到期、已终止。
@@ -78,7 +77,7 @@
 - 租约即将到期
 - 空置超过 30 天
 
-待办点击后进入对应房源详情或列表筛选结果。`media-tasks` 是房源媒体待办页，不是通用媒体库。
+待办点击后进入对应房源详情或列表筛选结果。媒体待办先放在工作台和房源列表筛选里，不单独做页面。
 
 ## 房源列表
 
@@ -128,9 +127,6 @@
 - 带看记录
 - 租约合同
 - 内部备注
-- 操作日志
-
-第一阶段操作日志可以先记录关键前端可见动作的展示需求，后端日志实现放入实现计划评估；如果没有现成审计模型，不阻塞房源详情主流程。
 
 ## 新建房源向导
 
@@ -210,9 +206,9 @@
 
 - `House.publish_status`
 - `House.asking_rent`、`House.deposit_amount`、`House.available_from`
-- 房源发布/下架/归档的 PATCH 能力
-- 房源详情聚合输出：房源、项目、楼栋、房东、最近带看、当前租约、媒体完整度
-- 工作台聚合输出：待办计数和待办列表
+- 房源发布和下架的 PATCH 能力
+- 房源详情先用现有详情、列表和按 `house_id` 筛选接口组合；性能或分页体验不够时再补聚合接口
+- 工作台先用现有列表数据计算待办；数据量导致体验变差时再补待办聚合接口
 - 带看、租约、联系人在详情页的按房源筛选能力
 - 租约生效、到期、终止时的房态同步规则
 
@@ -231,7 +227,6 @@
 - `pages/property-rental/contacts/index.tsx`
 - `pages/property-rental/viewings/index.tsx`
 - `pages/property-rental/leases/index.tsx`
-- `pages/property-rental/media-tasks/index.tsx`
 - `pages/property-rental/components/MediaRefsUpload.tsx`
 
 如果实现时文件过大，再继续拆局部组件。不要提前做复杂状态管理层；React Query 和表单本地状态足够。
@@ -267,4 +262,5 @@
 - 不做通用媒体资产库。
 - 不做移动端页面。
 - 不做复杂 BI 大屏。
+- 不做操作日志。
 - 不为了兼容旧 `property-rental/index.tsx` 保留适配层。
