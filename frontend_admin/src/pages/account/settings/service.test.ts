@@ -115,8 +115,8 @@ describe('account settings service', () => {
 
   it('uploads avatar through media app then patches user avatar ref', async () => {
     mockRequest
-      .mockResolvedValueOnce([{ id: 42, url: '/media/avatar.png', resource_type: 'avatar' }])
-      .mockResolvedValueOnce({ avatar_url: '/media/avatar.png' });
+      .mockResolvedValueOnce([{ id: 42, url: '/media/avatar.png', resource_type: 'avatar', original_filename: 'avatar.png', file_size: 123, created_at: '2026-01-01T00:00:00Z' }])
+      .mockResolvedValueOnce({});
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
 
     const result = await uploadAvatar(7, file);
@@ -144,7 +144,17 @@ describe('account settings service', () => {
         data: { avatar: [{ media_id: 42, media_type: 'image' }] },
       }),
     );
-    expect(result).toEqual({ avatar_url: '/media/avatar.png' });
+    expect(result).toEqual({
+      avatar: [{
+        media_id: 42,
+        resource_type: 'avatar',
+        original_filename: 'avatar.png',
+        url: '/media/avatar.png',
+        thumbnail: null,
+        file_size: 123,
+        created_at: '2026-01-01T00:00:00Z',
+      }],
+    });
   });
 
   it('uses split-phone wrapper endpoints for phone change', async () => {

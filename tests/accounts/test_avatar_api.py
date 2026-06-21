@@ -85,7 +85,7 @@ class TestAvatarAPI(TestCase):
 
         self.assertEqual(resp.status_code, 200)
         data = api_data(resp)
-        self.assertEqual(data["avatar_url"], media.file.url)
+        self.assertNotIn("avatar_url", data)
         self.assertEqual(data["avatar"][0]["media_id"], media.pk)
         self.assertEqual(data["avatar"][0]["resource_type"], "avatar")
         self.assertEqual(data["avatar"][0]["original_filename"], "avatar.png")

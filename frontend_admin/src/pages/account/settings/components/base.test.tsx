@@ -32,7 +32,7 @@ vi.mock('@umijs/max', () => ({
         last_name: '旧昵称',
         email: 'initial@example.com',
         timezone: 'Asia/Shanghai',
-        avatar_url: '/initial-avatar.png',
+        avatar: [{ media_id: 1, url: '/initial-avatar.png', thumbnail: null }],
         phone_country_code: '86',
         phone_national_number: '13800138000',
         phone_verified: true,
@@ -176,7 +176,7 @@ describe('BaseView', () => {
         last_name: '产品昵称',
         email: 'product@example.com',
         timezone: 'Asia/Shanghai',
-        avatar_url: '/avatar.png',
+        avatar: [{ media_id: 2, url: '/avatar.png', thumbnail: null }],
         phone_country_code: '86',
         phone_national_number: '13800138000',
         phone_verified: true,
@@ -248,7 +248,7 @@ describe('BaseView', () => {
   });
 
   it('上传头像后刷新资料并同步全局头像', async () => {
-    mockUploadAvatar.mockResolvedValue({ avatar_url: '/uploaded-avatar.png' });
+    mockUploadAvatar.mockResolvedValue({ avatar: [{ media_id: 42, url: '/uploaded-avatar.png', thumbnail: null }] });
 
     render(
       <QueryClientProvider client={queryClient}>

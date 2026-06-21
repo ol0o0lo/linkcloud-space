@@ -159,7 +159,6 @@ def get_me(request):
         "unread_count": 1,
     }
     return {
-        "avatar_url": request.user.avatar_url,
         "avatar": request.user.avatar_resolved,
         "email": request.user.email,
         "first_name": request.user.first_name,

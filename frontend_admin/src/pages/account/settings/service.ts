@@ -45,7 +45,7 @@ export type UpdateProfilePayload = {
 };
 
 export type UploadAvatarResponse = {
-  avatar_url: string | null;
+  avatar: API.ResolvedMediaRefOut[];
 };
 
 export type SocialBindingsResponse = {
@@ -103,14 +103,25 @@ export async function uploadAvatar(
       'X-CSRFToken': csrfToken,
     },
   });
-  return appsAccountsApiPatchUser({ user_id: userId }, {
+  await appsAccountsApiPatchUser({ user_id: userId }, {
     avatar: [{ media_id: media.id, media_type: 'image' }],
   }, {
     credentials: 'include',
     headers: {
       'X-CSRFToken': csrfToken,
     },
-  }) as Promise<UploadAvatarResponse>;
+  });
+  return {
+    avatar: [{
+      media_id: media.id,
+      resource_type: media.resource_type,
+      original_filename: media.original_filename,
+      url: media.url,
+      thumbnail: null,
+      file_size: media.file_size,
+      created_at: media.created_at,
+    }],
+  };
 }
 
 export async function querySocialBindings(): Promise<SocialBindingsResponse> {

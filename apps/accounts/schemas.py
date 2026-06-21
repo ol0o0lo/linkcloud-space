@@ -38,7 +38,6 @@ class MeOut(Schema):
     last_name: str
     timezone: str
     avatar: list[ResolvedMediaRefOut] = []
-    avatar_url: str | None
     phone_country_code: str = ""
     phone_national_number: str = ""
     phone_verified: bool

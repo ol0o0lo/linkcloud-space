@@ -149,7 +149,7 @@ export const layout: RunTimeLayoutConfig = ({
       ].filter(Boolean);
     },
     avatarProps: {
-      src: initialState?.currentUser?.avatar_url || undefined,
+      src: initialState?.currentUser?.avatar?.[0]?.thumbnail || initialState?.currentUser?.avatar?.[0]?.url || undefined,
       title: getUserDisplayName(initialState?.currentUser),
       render: (_, avatarChildren) => (
         <AvatarDropdown>{avatarChildren}</AvatarDropdown>

@@ -19,6 +19,10 @@ function formatPhone(user?: CurrentUser): string {
   return `${cc}${user.phone_national_number}`;
 }
 
+function avatarURL(user?: Pick<CurrentUser, 'avatar'>): string {
+  return user?.avatar?.[0]?.thumbnail || user?.avatar?.[0]?.url || 'https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png';
+}
+
 function goToSecurity(): void {
   const params = new URLSearchParams(window.location.search);
   params.set('tab', 'security');
@@ -90,24 +94,12 @@ const BaseView: React.FC = () => {
     },
     onSuccess: (result) => {
       syncCurrentUser({
-        avatar_url: result.avatar_url,
+        avatar: result.avatar,
       });
       message.success('头像更新成功');
       queryClient.invalidateQueries({ queryKey: ['current-user'] });
     },
   });
-
-  const getAvatarURL = () => {
-    if (currentUser) {
-      if (currentUser.avatar_url) {
-        return currentUser.avatar_url;
-      }
-      const url =
-        'https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png';
-      return url;
-    }
-    return '';
-  };
 
   const handleFinish = async (values: { name?: string }) => {
     const nickname = (values.name || '').trim();
@@ -173,7 +165,7 @@ const BaseView: React.FC = () => {
           </div>
           <div className={styles.right}>
             <AvatarView
-              avatar={getAvatarURL()}
+              avatar={avatarURL(currentUser)}
               loading={savingAvatar}
               onUpload={handleAvatarUpload}
             />
