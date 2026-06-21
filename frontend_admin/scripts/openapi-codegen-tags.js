@@ -26,6 +26,8 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '设置/租户设置': 'organization-settings',
   '设置/团队设置': 'team-settings',
   '设置/个人设置': 'user-settings',
+  '房源/房东': 'property-rental-landlord',
+  '房源/管理': 'property-rental-management',
 };
 
 const ALLAUTH_TAG_CODEGEN_MAP = {

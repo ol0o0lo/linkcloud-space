@@ -386,11 +386,110 @@ declare namespace API {
     user_id: number;
   };
 
+  type appsHouseApiGetBuildingParams = {
+    building_id: number;
+  };
+
+  type appsHouseApiGetContactParams = {
+    contact_id: number;
+  };
+
+  type appsHouseApiGetEstateParams = {
+    estate_id: number;
+  };
+
+  type appsHouseApiGetHouseParams = {
+    house_id: number;
+  };
+
+  type appsHouseApiGetLeaseParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiListBuildingsParams = {
+    estate_id?: number | null;
+    q?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListContactsParams = {
+    role?: string | null;
+    q?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListEstatesParams = {
+    q?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListHousesParams = {
+    building_id?: number | null;
+    status?: string | null;
+    publish_status?: string | null;
+    q?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListLeasesParams = {
+    house_id?: number | null;
+    status?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListMyHousesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListMyLeasesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListViewingRecordsParams = {
+    house_id?: number | null;
+    status?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiPatchBuildingParams = {
+    building_id: number;
+  };
+
+  type appsHouseApiPatchContactParams = {
+    contact_id: number;
+  };
+
+  type appsHouseApiPatchEstateParams = {
+    estate_id: number;
+  };
+
+  type appsHouseApiPatchHouseParams = {
+    house_id: number;
+  };
+
+  type appsHouseApiPatchLeaseParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiPatchViewingRecordParams = {
+    record_id: number;
+  };
+
   type appsMediaApiOssTokenParams = {
     /** 上传作用域，user 表示个人，org 表示当前租户。 */
     scope: "user" | "org";
     /** 原始文件名，用于生成上传路径。 */
     filename: string;
+    /** 可选资源类型，用于在签发上传凭证前校验作用域与扩展名。 */
+    resource_type?: string | null;
   };
 
   type appsNotificationsApiDeleteNotificationParams = {
@@ -653,6 +752,77 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type BuildingIn = {
+    /** Estate Id */
+    estate_id: number;
+    /** Name */
+    name: string;
+    /** Floors */
+    floors: number;
+    /** Under Floors */
+    under_floors?: number | null;
+    /** Year Built */
+    year_built?: number | null;
+    /** Elevator */
+    elevator?: boolean;
+    /** Lat */
+    lat?: number | string | null;
+    /** Lng */
+    lng?: number | string | null;
+    /** Address */
+    address?: string;
+    /** Is Active */
+    is_active?: boolean;
+  };
+
+  type BuildingOut = {
+    /** Id */
+    id: number;
+    /** Estate Id */
+    estate_id: number;
+    /** Name */
+    name: string;
+    /** Floors */
+    floors: number;
+    /** Under Floors */
+    under_floors: number | null;
+    /** Year Built */
+    year_built: number | null;
+    /** Elevator */
+    elevator: boolean;
+    /** Lat */
+    lat: string | null;
+    /** Lng */
+    lng: string | null;
+    /** Address */
+    address: string;
+    /** Is Active */
+    is_active: boolean;
+  };
+
+  type BuildingPatchIn = {
+    /** Estate Id */
+    estate_id?: number | null;
+    /** Name */
+    name?: string | null;
+    /** Floors */
+    floors?: number | null;
+    /** Under Floors */
+    under_floors?: number | null;
+    /** Year Built */
+    year_built?: number | null;
+    /** Elevator */
+    elevator?: boolean | null;
+    /** Lat */
+    lat?: number | string | null;
+    /** Lng */
+    lng?: number | string | null;
+    /** Address */
+    address?: string | null;
+    /** Is Active */
+    is_active?: boolean | null;
+  };
+
   type BulkActionIn = {
     /** Action 批量操作类型。 */
     action: "mark_read" | "mark_unread" | "delete";
@@ -667,6 +837,55 @@ declare namespace API {
     updated?: number;
     /** Deleted */
     deleted?: number;
+  };
+
+  type ContactIn = {
+    /** Name */
+    name: string;
+    /** Phone */
+    phone: string;
+    /** Email */
+    email?: string;
+    /** Roles */
+    roles?: string[];
+    /** Notes */
+    notes?: string;
+    /** Is Active */
+    is_active?: boolean;
+  };
+
+  type ContactOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Phone */
+    phone: string;
+    /** Email */
+    email: string;
+    /** Roles */
+    roles: string[];
+    /** User Id */
+    user_id: number | null;
+    /** Notes */
+    notes: string;
+    /** Is Active */
+    is_active: boolean;
+  };
+
+  type ContactPatchIn = {
+    /** Name */
+    name?: string | null;
+    /** Phone */
+    phone?: string | null;
+    /** Email */
+    email?: string | null;
+    /** Roles */
+    roles?: string[] | null;
+    /** Notes */
+    notes?: string | null;
+    /** Is Active */
+    is_active?: boolean | null;
   };
 
   type CustomRoleCreateIn = {
@@ -685,9 +904,275 @@ declare namespace API {
     permission_keys?: string[] | null;
   };
 
+  type DefaultBuildingIn = {
+    /** Building Id */
+    building_id: number;
+  };
+
+  type DefaultBuildingOut = {
+    /** Id */
+    id: number;
+    /** Estate Id */
+    estate_id: number;
+    /** Estate Name */
+    estate_name: string;
+    /** Name */
+    name: string;
+    /** Floors */
+    floors: number;
+    /** Address */
+    address: string;
+  };
+
+  type EstateIn = {
+    /** Name */
+    name: string;
+    /** Display Name */
+    display_name: string;
+    /** Developer */
+    developer?: string | null;
+    /** Built Year */
+    built_year?: number | null;
+    /** Property Type */
+    property_type?: string;
+    /** Province */
+    province: string;
+    /** City */
+    city: string;
+    /** District */
+    district: string;
+    /** Address */
+    address: string;
+    /** Lat */
+    lat?: number | string | null;
+    /** Lng */
+    lng?: number | string | null;
+    /** Images */
+    images?: Record<string, any>[];
+    /** Description */
+    description?: string;
+    /** Is Active */
+    is_active?: boolean;
+  };
+
+  type EstateOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Display Name */
+    display_name: string;
+    /** Property Type */
+    property_type: string;
+    /** Province */
+    province: string;
+    /** City */
+    city: string;
+    /** District */
+    district: string;
+    /** Address */
+    address: string;
+    /** Lat */
+    lat: string | null;
+    /** Lng */
+    lng: string | null;
+    /** Images */
+    images: Record<string, any>[];
+    /** Is Active */
+    is_active: boolean;
+  };
+
+  type EstatePatchIn = {
+    /** Name */
+    name?: string | null;
+    /** Display Name */
+    display_name?: string | null;
+    /** Developer */
+    developer?: string | null;
+    /** Built Year */
+    built_year?: number | null;
+    /** Property Type */
+    property_type?: string | null;
+    /** Province */
+    province?: string | null;
+    /** City */
+    city?: string | null;
+    /** District */
+    district?: string | null;
+    /** Address */
+    address?: string | null;
+    /** Lat */
+    lat?: number | string | null;
+    /** Lng */
+    lng?: number | string | null;
+    /** Images */
+    images?: Record<string, any>[] | null;
+    /** Description */
+    description?: string | null;
+    /** Is Active */
+    is_active?: boolean | null;
+  };
+
   type ForceLogoutOut = {
     /** Deleted Sessions */
     deleted_sessions: number;
+  };
+
+  type HouseIn = {
+    /** Building Id */
+    building_id: number;
+    /** Landlord Id */
+    landlord_id?: number | null;
+    /** Room Number */
+    room_number: string;
+    /** Floor */
+    floor?: number | null;
+    /** Area */
+    area?: number | string | null;
+    /** Interior Area */
+    interior_area?: number | string | null;
+    /** Asking Rent */
+    asking_rent?: number | string | null;
+    /** Deposit Amount */
+    deposit_amount?: number | string | null;
+    /** Available From */
+    available_from?: string | null;
+    /** Bedrooms */
+    bedrooms?: number | null;
+    /** Living Rooms */
+    living_rooms?: number | null;
+    /** Bathrooms */
+    bathrooms?: number | null;
+    /** Kitchens */
+    kitchens?: number | null;
+    /** Balconies */
+    balconies?: number | null;
+    /** Orientation */
+    orientation?: string | null;
+    /** Decoration */
+    decoration?: string | null;
+    /** Has Elevator Access */
+    has_elevator_access?: boolean;
+    /** Images */
+    images?: Record<string, any>[];
+    /** Videos */
+    videos?: Record<string, any>[];
+    /** Tags */
+    tags?: string[];
+    /** Public Description */
+    public_description?: string;
+  };
+
+  type HouseOut = {
+    /** Id */
+    id: number;
+    /** Building Id */
+    building_id: number;
+    /** Landlord Id */
+    landlord_id: number | null;
+    /** Room Number */
+    room_number: string;
+    /** Floor */
+    floor: number | null;
+    /** Area */
+    area: string | null;
+    /** Interior Area */
+    interior_area: string | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Deposit Amount */
+    deposit_amount: string | null;
+    /** Available From */
+    available_from: string | null;
+    /** Bedrooms */
+    bedrooms: number | null;
+    /** Living Rooms */
+    living_rooms: number | null;
+    /** Bathrooms */
+    bathrooms: number | null;
+    /** Kitchens */
+    kitchens: number | null;
+    /** Balconies */
+    balconies: number | null;
+    /** Orientation */
+    orientation: string | null;
+    /** Decoration */
+    decoration: string | null;
+    /** Has Elevator Access */
+    has_elevator_access: boolean;
+    /** Status */
+    status: string;
+    /** Publish Status */
+    publish_status: string;
+    /** Images */
+    images: Record<string, any>[];
+    /** Videos */
+    videos: Record<string, any>[];
+    /** Tags */
+    tags: string[];
+    /** Public Description */
+    public_description: string;
+    /** Internal Notes */
+    internal_notes: string;
+    /** Extra */
+    extra: Record<string, any>;
+    /** Is Active */
+    is_active: boolean;
+  };
+
+  type HousePatchIn = {
+    /** Building Id */
+    building_id?: number | null;
+    /** Landlord Id */
+    landlord_id?: number | null;
+    /** Room Number */
+    room_number?: string | null;
+    /** Floor */
+    floor?: number | null;
+    /** Area */
+    area?: number | string | null;
+    /** Interior Area */
+    interior_area?: number | string | null;
+    /** Asking Rent */
+    asking_rent?: number | string | null;
+    /** Deposit Amount */
+    deposit_amount?: number | string | null;
+    /** Available From */
+    available_from?: string | null;
+    /** Bedrooms */
+    bedrooms?: number | null;
+    /** Living Rooms */
+    living_rooms?: number | null;
+    /** Bathrooms */
+    bathrooms?: number | null;
+    /** Kitchens */
+    kitchens?: number | null;
+    /** Balconies */
+    balconies?: number | null;
+    /** Orientation */
+    orientation?: string | null;
+    /** Decoration */
+    decoration?: string | null;
+    /** Has Elevator Access */
+    has_elevator_access?: boolean | null;
+    /** Status */
+    status?: string | null;
+    /** Publish Status */
+    publish_status?: string | null;
+    /** Images */
+    images?: Record<string, any>[] | null;
+    /** Videos */
+    videos?: Record<string, any>[] | null;
+    /** Tags */
+    tags?: string[] | null;
+    /** Public Description */
+    public_description?: string | null;
+    /** Internal Notes */
+    internal_notes?: string | null;
+    /** Extra */
+    extra?: Record<string, any> | null;
+    /** Is Active */
+    is_active?: boolean | null;
   };
 
   type ImpersonateUserOut = {
@@ -744,6 +1229,93 @@ declare namespace API {
     updated_at: string;
   };
 
+  type LeaseIn = {
+    /** House Id */
+    house_id: number;
+    /** Tenant Id */
+    tenant_id: number;
+    /** Source Viewing Record Id */
+    source_viewing_record_id?: number | null;
+    /** Sign At */
+    sign_at?: string | null;
+    /** Start Date */
+    start_date: string;
+    /** End Date */
+    end_date: string;
+    /** Monthly Rent */
+    monthly_rent: number | string;
+    /** Deposit */
+    deposit?: number | string | null;
+    /** Payment Day */
+    payment_day?: number;
+    /** Contract Files */
+    contract_files?: Record<string, any>[];
+    /** Notes */
+    notes?: string;
+    /** Extra */
+    extra?: Record<string, any>;
+  };
+
+  type LeaseOut = {
+    /** Id */
+    id: number;
+    /** House Id */
+    house_id: number;
+    /** Tenant Id */
+    tenant_id: number;
+    /** Source Viewing Record Id */
+    source_viewing_record_id: number | null;
+    /** Sign At */
+    sign_at: string | null;
+    /** Start Date */
+    start_date: string;
+    /** End Date */
+    end_date: string;
+    /** Monthly Rent */
+    monthly_rent: string;
+    /** Deposit */
+    deposit: string | null;
+    /** Payment Day */
+    payment_day: number;
+    /** Status */
+    status: string;
+    /** Contract Files */
+    contract_files: Record<string, any>[];
+    /** Notes */
+    notes: string;
+    /** Extra */
+    extra: Record<string, any>;
+  };
+
+  type LeasePatchIn = {
+    /** House Id */
+    house_id?: number | null;
+    /** Tenant Id */
+    tenant_id?: number | null;
+    /** Source Viewing Record Id */
+    source_viewing_record_id?: number | null;
+    /** Sign At */
+    sign_at?: string | null;
+    /** Start Date */
+    start_date?: string | null;
+    /** End Date */
+    end_date?: string | null;
+    /** Monthly Rent */
+    monthly_rent?: number | string | null;
+    /** Deposit */
+    deposit?: number | string | null;
+    /** Payment Day */
+    payment_day?: number | null;
+    /** Status */
+    status?: string | null;
+    /** Contract Files */
+    contract_files?: Record<string, any>[] | null;
+    /** Notes */
+    notes?: string | null;
+    /** Extra */
+    extra?: Record<string, any> | null;
+  };
+
   type MediaFileConfirmIn = {
     /** Oss Path 对象存储中的文件路径。 */
     oss_path: string;
@@ -768,6 +1340,13 @@ declare namespace API {
     file_size: number;
     /** Created At */
     created_at: string;
+  };
+
+  type MediaRefIn = {
+    /** Media Id 媒体文件 ID。 */
+    media_id: number;
+    /** Media Type 媒体类型，例如 image、video、file。 */
+    media_type?: "image" | "video" | "file";
   };
 
   type MemberDetailOut = {
@@ -838,7 +1417,7 @@ declare namespace API {
     /** Timezone */
     timezone: string;
     /** Avatar */
-    avatar?: API.ResolvedMediaRefOut[];
+    avatar?: ResolvedMediaRefOut[];
     /** Phone Country Code */
     phone_country_code?: string;
     /** Phone National Number */
@@ -1085,6 +1664,8 @@ declare namespace API {
     scope: "user" | "org";
     /** Filename 原始文件名，用于生成上传路径。 */
     filename: string;
+    /** Resource Type 可选资源类型，用于在签发上传凭证前校验作用域与扩展名。 */
+    resource_type?: string | null;
   };
 
   type OssTokenOut = {
@@ -1126,9 +1707,64 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedBuildingOut = {
+    /** Items */
+    items: BuildingOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedContactOut = {
+    /** Items */
+    items: ContactOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedEstateOut = {
+    /** Items */
+    items: EstateOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedHouseOut = {
+    /** Items */
+    items: HouseOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedInviteOut = {
     /** Items */
     items: InviteOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedLeaseOut = {
+    /** Items */
+    items: LeaseOut[];
     /** Total */
     total: number;
     /** Page */
@@ -1203,6 +1839,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedViewingRecordOut = {
+    /** Items */
+    items: ViewingRecordOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedWalletAccountAdminOut = {
     /** Items */
     items: WalletAccountAdminOut[];
@@ -1258,6 +1905,11 @@ declare namespace API {
     codename: string;
   };
 
+  type PhoneCodeVerifyIn = {
+    /** Code 短信验证码。 */
+    code: string;
+  };
+
   type PublicInviteOut = {
     /** Organization Name */
     organization_name: string;
@@ -1274,10 +1926,10 @@ declare namespace API {
   type RealNameIdCardMediaIn = {
     /** Media Id 媒体文件 ID。 */
     media_id: number;
+    /** Media Type 媒体类型。实名认证固定为 image。 */
+    media_type?: string;
     /** Side 身份证面：front 人像面，back 国徽面。 */
     side: "front" | "back";
-    /** Media Type 媒体类型。实名认证固定为 image。 */
-    media_type?: "image";
   };
 
   type RealNameIdCardMediaOut = {
@@ -1298,31 +1950,7 @@ declare namespace API {
     /** Side 身份证面：front 人像面，back 国徽面。 */
     side: "front" | "back";
     /** Media Type 媒体类型。实名认证固定为 image。 */
-    media_type?: "image";
-  };
-
-  type MediaRefIn = {
-    /** Media Id 媒体文件 ID。 */
-    media_id: number;
-    /** Media Type 媒体类型。 */
-    media_type?: "image";
-  };
-
-  type ResolvedMediaRefOut = {
-    /** Media Id */
-    media_id: number;
-    /** Resource Type 媒体资源类型，例如 avatar、real_name_id_card。 */
-    resource_type?: string | null;
-    /** Original Filename 原始文件名。 */
-    original_filename?: string | null;
-    /** Url 动态生成的访问 URL，私有存储通常为临时签名 URL。 */
-    url?: string | null;
-    /** Thumbnail 缩略图 URL，未生成时为 null。 */
-    thumbnail?: string | null;
-    /** File Size 文件大小，单位字节。 */
-    file_size?: number | null;
-    /** Created At 媒体文件创建时间。 */
-    created_at?: string | null;
+    media_type?: string;
   };
 
   type RealNameLogOut = {
@@ -1541,6 +2169,23 @@ declare namespace API {
     deleted_authenticators: number;
   };
 
+  type ResolvedMediaRefOut = {
+    /** Media Id */
+    media_id: number;
+    /** Resource Type 媒体资源类型，例如 avatar、real_name_id_card。 */
+    resource_type?: string | null;
+    /** Original Filename 原始文件名。 */
+    original_filename?: string | null;
+    /** Url 动态生成的访问 URL，私有存储通常为临时签名 URL。 */
+    url?: string | null;
+    /** Thumbnail 缩略图 URL，未生成时为 null。 */
+    thumbnail?: string | null;
+    /** File Size 文件大小，单位字节。 */
+    file_size?: number | null;
+    /** Created At 媒体文件创建时间。 */
+    created_at?: string | null;
+  };
+
   type RoleBindingIn = {
     /** User 要授权的用户 ID。 */
     user: number;
@@ -1563,12 +2208,20 @@ declare namespace API {
   type SettingOut = {
     /** Key */
     key: string;
+    /** Label */
+    label: string;
     /** Value */
     value: any;
     /** Value Type */
     value_type: string;
     /** Description */
     description: string;
+    /** Widget */
+    widget: string;
+    /** Ui */
+    ui: Record<string, any>;
+    /** Category */
+    category: string;
     /** Is Customized */
     is_customized: boolean;
   };
@@ -1595,6 +2248,24 @@ declare namespace API {
   type SocialBindingsOut = {
     /** Items */
     items: SocialBindingItemOut[];
+  };
+
+  type SplitPhoneIn = {
+    /** Phone Country Code 手机号国家区号。 */
+    phone_country_code?: string;
+    /** Phone National Number 手机号本地号码。 */
+    phone_national_number: string;
+  };
+
+  type SplitPhoneSignupIn = {
+    /** Phone Country Code 手机号国家区号。 */
+    phone_country_code?: string;
+    /** Phone National Number 手机号本地号码。 */
+    phone_national_number: string;
+    /** Email 邮箱。 */
+    email: string;
+    /** Password 密码。 */
+    password: string;
   };
 
   type SuccessOut = {
@@ -1712,7 +2383,7 @@ declare namespace API {
     /** Timezone 用户时区标识。 */
     timezone?: string | null;
     /** Avatar 用户头像媒体引用，最多 1 个。 */
-    avatar?: API.MediaRefIn[] | null;
+    avatar?: MediaRefIn[] | null;
   };
 
   type UserSettingOut = {
@@ -1725,6 +2396,75 @@ declare namespace API {
   type UserStatusPatchIn = {
     /** Is Active 是否启用用户。 */
     is_active: boolean;
+  };
+
+  type ViewingRecordIn = {
+    /** House Id */
+    house_id: number;
+    /** Contact Id */
+    contact_id?: number | null;
+    /** Customer Name */
+    customer_name: string;
+    /** Customer Phone */
+    customer_phone: string;
+    /** Scheduled At */
+    scheduled_at: string;
+    /** Assigned To Id */
+    assigned_to_id?: number | null;
+    /** Notes */
+    notes?: string;
+  };
+
+  type ViewingRecordOut = {
+    /** Id */
+    id: number;
+    /** House Id */
+    house_id: number;
+    /** Contact Id */
+    contact_id: number | null;
+    /** Customer Name */
+    customer_name: string;
+    /** Customer Phone */
+    customer_phone: string;
+    /** Scheduled At */
+    scheduled_at: string;
+    /** Viewed At */
+    viewed_at: string | null;
+    /** Status */
+    status: string;
+    /** Assigned To Id */
+    assigned_to_id: number | null;
+    /** Notes */
+    notes: string;
+    /** Extra */
+    extra: Record<string, any>;
+    /** Is Active */
+    is_active: boolean;
+  };
+
+  type ViewingRecordPatchIn = {
+    /** House Id */
+    house_id?: number | null;
+    /** Contact Id */
+    contact_id?: number | null;
+    /** Customer Name */
+    customer_name?: string | null;
+    /** Customer Phone */
+    customer_phone?: string | null;
+    /** Scheduled At */
+    scheduled_at?: string | null;
+    /** Viewed At */
+    viewed_at?: string | null;
+    /** Status */
+    status?: string | null;
+    /** Assigned To Id */
+    assigned_to_id?: number | null;
+    /** Notes */
+    notes?: string | null;
+    /** Extra */
+    extra?: Record<string, any> | null;
+    /** Is Active */
+    is_active?: boolean | null;
   };
 
   type WalletAccountAdminOut = {

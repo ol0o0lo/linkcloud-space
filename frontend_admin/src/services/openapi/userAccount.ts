@@ -52,6 +52,66 @@ export async function appsAccountsApiPatchUser(
   });
 }
 
+/** 拆分手机号请求登录验证码 POST /api/users/auth/app/code/request/ */
+export async function appsAccountsApiRequestLoginCodeWithSplitPhone(
+  body: API.SplitPhoneIn,
+  options?: { [key: string]: any }
+) {
+  return request<any>("/api/users/auth/app/code/request/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 拆分手机号发起换绑 POST /api/users/auth/browser/account/phone/ */
+export async function appsAccountsApiChangePhoneWithSplitPhone(
+  body: API.SplitPhoneIn,
+  options?: { [key: string]: any }
+) {
+  return request<any>("/api/users/auth/browser/account/phone/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 确认手机号验证码 POST /api/users/auth/browser/phone/verify/ */
+export async function appsAccountsApiVerifyPhoneWithCode(
+  body: API.PhoneCodeVerifyIn,
+  options?: { [key: string]: any }
+) {
+  return request<any>("/api/users/auth/browser/phone/verify/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 拆分手机号注册 POST /api/users/auth/browser/signup/ */
+export async function appsAccountsApiSignupWithSplitPhone(
+  body: API.SplitPhoneSignupIn,
+  options?: { [key: string]: any }
+) {
+  return request<any>("/api/users/auth/browser/signup/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 搜索可代登录用户 供超级管理员搜索可用于 impersonate 的用户候选列表。 GET /api/users/impersonate-search/ */
 export async function appsAccountsApiImpersonateSearch(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

@@ -17,6 +17,8 @@ import * as organizationMembers from "./organizationMembers";
 import * as organizationProfile from "./organizationProfile";
 import * as organizations from "./organizations";
 import * as organizationSettings from "./organizationSettings";
+import * as propertyRentalLandlord from "./propertyRentalLandlord";
+import * as propertyRentalManagement from "./propertyRentalManagement";
 import * as publicOrganizationInvites from "./publicOrganizationInvites";
 import * as realName from "./realName";
 import * as realNameAdmin from "./realNameAdmin";
@@ -57,4 +59,6 @@ export default {
   organizationSettings,
   teamSettings,
   userSettings,
+  propertyRentalManagement,
+  propertyRentalLandlord,
 };
