@@ -1,4 +1,7 @@
+import importlib
+
 import pytest
+from django.apps import apps as django_apps
 from model_bakery import baker
 
 from apps.house.services import DEFAULT_BUILDING_SETTING_KEY, _default_building_setting
@@ -236,6 +239,24 @@ class TestDefaultBuildingSetting:
         setting = _default_building_setting()
 
         assert setting.value == 123
+        assert setting.description == "房源租赁默认楼栋"
+        assert setting.label == "默认楼栋"
+        assert setting.widget == "select"
+        assert setting.ui == {"options_source": "house.buildings"}
+        assert setting.category == "property_rental"
+
+    def test_default_building_metadata_migration_backfill_keeps_value(self):
+        setting = DefaultSetting.objects.create(
+            key=DEFAULT_BUILDING_SETTING_KEY,
+            value=456,
+            value_type="integer",
+        )
+        migration = importlib.import_module("apps.settings.migrations.0004_defaultsetting_category")
+
+        migration.backfill_default_building_metadata(django_apps, None)
+
+        setting.refresh_from_db()
+        assert setting.value == 456
         assert setting.description == "房源租赁默认楼栋"
         assert setting.label == "默认楼栋"
         assert setting.widget == "select"

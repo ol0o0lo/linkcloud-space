@@ -243,6 +243,33 @@ describe('OrganizationSettingsPage', () => {
     await waitFor(() => expect(screen.getByLabelText('成员上限')).toHaveValue('30'));
   });
 
+  it('clears locally created building options when switching organizations', async () => {
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('房源租赁设置');
+    fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
+    fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
+    fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
+
+    await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalled());
+    await screen.findByText('2 栋');
+
+    selectedOrgSlug = 'beta';
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(mockListSettings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('2 栋')).not.toBeInTheDocument());
+  });
+
   it('saves default building through organization settings api', async () => {
     render(
       <QueryClientProvider client={queryClient}>

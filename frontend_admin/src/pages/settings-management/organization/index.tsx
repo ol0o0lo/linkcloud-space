@@ -102,6 +102,7 @@ const OrganizationSettingsPage: React.FC = () => {
 
   useEffect(() => {
     setDraftValues({});
+    setCreatedBuildings([]);
   }, [workspace.selectedOrgSlug]);
 
   useEffect(() => {
