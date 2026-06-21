@@ -218,6 +218,65 @@ export default [
     ],
   },
   {
+    path: '/property-rental',
+    name: 'property-rental',
+    icon: 'home',
+    routes: [
+      {
+        path: '/property-rental',
+        redirect: '/property-rental/workbench',
+      },
+      {
+        name: 'workbench',
+        icon: 'appstore',
+        path: '/property-rental/workbench',
+        component: './property-rental/workbench',
+      },
+      {
+        name: 'houses',
+        icon: 'home',
+        path: '/property-rental/houses',
+        component: './property-rental/houses',
+      },
+      {
+        name: 'house-new',
+        icon: 'plusCircle',
+        path: '/property-rental/houses/new',
+        component: './property-rental/houses/new',
+      },
+      {
+        name: 'house-detail',
+        icon: 'profile',
+        path: '/property-rental/houses/:id',
+        component: './property-rental/houses/detail',
+      },
+      {
+        name: 'estates',
+        icon: 'apartment',
+        path: '/property-rental/estates',
+        component: './property-rental/estates',
+      },
+      {
+        name: 'contacts',
+        icon: 'contacts',
+        path: '/property-rental/contacts',
+        component: './property-rental/contacts',
+      },
+      {
+        name: 'viewings',
+        icon: 'calendar',
+        path: '/property-rental/viewings',
+        component: './property-rental/viewings',
+      },
+      {
+        name: 'leases',
+        icon: 'fileText',
+        path: '/property-rental/leases',
+        component: './property-rental/leases',
+      },
+    ],
+  },
+  {
     path: '/platform-management',
     name: 'platform-management',
     icon: 'control',
