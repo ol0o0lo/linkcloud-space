@@ -19,21 +19,12 @@ import {
 type DraftValues = Record<string, unknown>;
 type BuildingItem = { id: number; name: string; estate_id: number };
 
-type SectionRegistryItem = {
-  key: string;
-  control?: 'default_building';
+const categoryTitles: Record<string, string> = {
+  property_rental: '房源租赁设置',
+  general: '通用设置',
 };
-
-const sectionRegistry: Record<string, { title: string; items: SectionRegistryItem[] }> = {
-  property_rental: {
-    title: '房源租赁设置',
-    items: [{ key: 'property_rental.default_building_id', control: 'default_building' }],
-  },
-  general: {
-    title: '通用设置',
-    items: [],
-  },
-};
+const categoryOrder = ['property_rental', 'general'];
+const defaultBuildingSettingKey = 'property_rental.default_building_id';
 
 function initialDraftValue(setting: API.SettingOut) {
   if (setting.widget === 'switch') {
@@ -46,34 +37,19 @@ function initialDraftValue(setting: API.SettingOut) {
 }
 
 function resolveSettingCategory(setting: API.SettingOut) {
-  return setting.category && sectionRegistry[setting.category] ? setting.category : 'general';
+  return setting.category && categoryTitles[setting.category] ? setting.category : 'general';
 }
 
 function buildSettingSections(settings: API.SettingOut[] = []) {
-  const byKey = new Map(settings.map((setting) => [setting.key, setting]));
-  const usedKeys = new Set<string>();
-  const sections = Object.entries(sectionRegistry).map(([category, registry]) => {
-    const rows = registry.items.flatMap((item) => {
-      const setting = byKey.get(item.key);
-      if (!setting) {
-        return [];
-      }
-      usedKeys.add(setting.key);
-      return [{ setting, control: item.control }];
-    });
-    return { category, title: registry.title, rows };
-  });
-
+  const sections = new Map<string, API.SettingOut[]>();
   settings.forEach((setting) => {
-    if (usedKeys.has(setting.key)) {
-      return;
-    }
     const category = resolveSettingCategory(setting);
-    const section = sections.find((item) => item.category === category) || sections.find((item) => item.category === 'general');
-    section?.rows.push({ setting, control: undefined });
+    sections.set(category, [...(sections.get(category) || []), setting]);
   });
 
-  return sections.filter((section) => section.rows.length > 0);
+  return categoryOrder
+    .filter((category) => sections.has(category))
+    .map((category) => ({ category, title: categoryTitles[category], rows: sections.get(category) || [] }));
 }
 
 const DefaultBuildingControl: React.FC<{
@@ -125,11 +101,15 @@ const OrganizationSettingsPage: React.FC = () => {
   const sections = useMemo(() => buildSettingSections(settingsQuery.data), [settingsQuery.data]);
 
   useEffect(() => {
-    const nextDrafts: DraftValues = {};
-    (settingsQuery.data || []).forEach((setting) => {
-      nextDrafts[setting.key] = initialDraftValue(setting);
+    setDraftValues((currentValues) => {
+      const nextDrafts = { ...currentValues };
+      (settingsQuery.data || []).forEach((setting) => {
+        if (!(setting.key in nextDrafts)) {
+          nextDrafts[setting.key] = initialDraftValue(setting);
+        }
+      });
+      return nextDrafts;
     });
-    setDraftValues(nextDrafts);
   }, [settingsQuery.data]);
 
   const updateMutation = useMutation({
@@ -142,7 +122,8 @@ const OrganizationSettingsPage: React.FC = () => {
 
   const restoreMutation = useMutation({
     mutationFn: (setting: API.SettingOut) => appsSettingsApiDeleteOrgSettingView({ key: setting.key }),
-    onSuccess: async () => {
+    onSuccess: async (_data, setting) => {
+      setDraftValues(({ [setting.key]: _restoredValue, ...restValues }) => restValues);
       await workspace.queryClient.invalidateQueries({ queryKey: settingsManagementQueryKeys.organization(workspace.selectedOrgSlug) });
     },
   });
@@ -158,11 +139,11 @@ const OrganizationSettingsPage: React.FC = () => {
     },
   });
 
-  const renderControl = (setting: API.SettingOut, control?: SectionRegistryItem['control']) => {
+  const renderControl = (setting: API.SettingOut) => {
     const value = draftValues[setting.key];
     const onChange = (nextValue: unknown) => setDraftValues((values) => ({ ...values, [setting.key]: nextValue }));
 
-    if (control === 'default_building') {
+    if (setting.key === defaultBuildingSettingKey) {
       return (
         <DefaultBuildingControl
           value={value}
@@ -183,7 +164,7 @@ const OrganizationSettingsPage: React.FC = () => {
         {sections.map((section) => (
           <Card key={section.category} title={section.title} loading={settingsQuery.isLoading}>
             <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-              {section.rows.map(({ setting, control }) => (
+              {section.rows.map((setting) => (
                 <div key={setting.key} style={{ border: '1px solid var(--ant-color-border-secondary)', borderRadius: 6, padding: 16 }}>
                   <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                     <Space orientation="vertical" size={2} style={{ width: '100%' }}>
@@ -197,7 +178,7 @@ const OrganizationSettingsPage: React.FC = () => {
                     </Space>
                     <Form layout="vertical">
                       <Form.Item label={setting.label || setting.key}>
-                        {renderControl(setting, control)}
+                        {renderControl(setting)}
                       </Form.Item>
                     </Form>
                     <Space wrap>

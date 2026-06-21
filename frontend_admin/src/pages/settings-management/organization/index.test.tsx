@@ -14,6 +14,7 @@ const {
   mockGetDefaultBuilding,
   mockSetDefaultBuilding,
   mockCreateBuilding,
+  mockUseTenantWorkspace,
 } = vi.hoisted(() => ({
   mockListSettings: vi.fn(),
   mockGetSetting: vi.fn(),
@@ -24,12 +25,13 @@ const {
   mockGetDefaultBuilding: vi.fn(),
   mockSetDefaultBuilding: vi.fn(),
   mockCreateBuilding: vi.fn(),
+  mockUseTenantWorkspace: vi.fn(),
 }));
 
 vi.mock('@/pages/tenant/shared', () => ({
   TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
-  useTenantWorkspace: () => ({ selectedOrgSlug: 'acme', queryClient: { invalidateQueries: vi.fn() } }),
+  useTenantWorkspace: mockUseTenantWorkspace,
 }));
 
 vi.mock('@/services/openapi/organizationSettings', () => ({
@@ -52,66 +54,69 @@ vi.mock('@/services/manual/house', () => ({
 describe('OrganizationSettingsPage', () => {
   let queryClient: QueryClient;
 
+  const buildSettingsFixture = () => [
+    {
+      key: 'billing.enabled',
+      label: '启用账单',
+      value: true,
+      value_type: 'boolean',
+      description: '启用账单',
+      widget: 'switch',
+      ui: {},
+      category: 'general',
+      is_customized: true,
+    },
+    {
+      key: 'quota.member_limit',
+      label: '成员上限',
+      value: 12,
+      value_type: 'integer',
+      description: '成员上限',
+      widget: 'input_number',
+      ui: {},
+      category: 'general',
+      is_customized: false,
+    },
+    {
+      key: 'property_rental.default_building_id',
+      label: '默认楼栋',
+      value: 10,
+      value_type: 'integer',
+      description: '默认楼栋',
+      widget: 'select',
+      ui: { options_source: 'house.buildings' },
+      category: 'property_rental',
+      is_customized: true,
+    },
+    {
+      key: 'unknown.raw',
+      label: '未知设置',
+      value: { a: 1 },
+      value_type: 'json',
+      description: '未知设置',
+      widget: 'not_real',
+      ui: {},
+      category: '',
+      is_customized: false,
+    },
+    {
+      key: 'unknown.category.setting',
+      label: '未知分类设置',
+      value: 'abc',
+      value_type: 'text',
+      description: '未知分类设置',
+      widget: 'input',
+      ui: {},
+      category: 'unknown_category',
+      is_customized: false,
+    },
+  ];
+
   beforeEach(() => {
     vi.clearAllMocks();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    mockListSettings.mockResolvedValue([
-      {
-        key: 'billing.enabled',
-        label: '启用账单',
-        value: true,
-        value_type: 'boolean',
-        description: '启用账单',
-        widget: 'switch',
-        ui: {},
-        category: 'general',
-        is_customized: true,
-      },
-      {
-        key: 'quota.member_limit',
-        label: '成员上限',
-        value: 12,
-        value_type: 'integer',
-        description: '成员上限',
-        widget: 'input_number',
-        ui: {},
-        category: 'general',
-        is_customized: false,
-      },
-      {
-        key: 'property_rental.default_building_id',
-        label: '默认楼栋',
-        value: 10,
-        value_type: 'integer',
-        description: '默认楼栋',
-        widget: 'select',
-        ui: { options_source: 'house.buildings' },
-        category: 'property_rental',
-        is_customized: true,
-      },
-      {
-        key: 'unknown.raw',
-        label: '未知设置',
-        value: { a: 1 },
-        value_type: 'json',
-        description: '未知设置',
-        widget: 'not_real',
-        ui: {},
-        category: '',
-        is_customized: false,
-      },
-      {
-        key: 'unknown.category.setting',
-        label: '未知分类设置',
-        value: 'abc',
-        value_type: 'text',
-        description: '未知分类设置',
-        widget: 'input',
-        ui: {},
-        category: 'unknown_category',
-        is_customized: false,
-      },
-    ]);
+    mockUseTenantWorkspace.mockImplementation(() => ({ selectedOrgSlug: 'acme', queryClient }));
+    mockListSettings.mockImplementation(() => Promise.resolve(buildSettingsFixture()));
     mockGetSetting.mockResolvedValue({
       key: 'billing.enabled',
       label: '启用账单',
@@ -175,6 +180,42 @@ describe('OrganizationSettingsPage', () => {
     await waitFor(() => {
       expect(mockDeleteSetting).toHaveBeenCalledWith({ key: 'billing.enabled' });
     });
+  });
+
+  it('keeps unsaved drafts when another setting save refetches settings', async () => {
+    let listCalls = 0;
+    mockListSettings.mockImplementation(() => {
+      listCalls += 1;
+      const settings = buildSettingsFixture();
+      if (listCalls > 1) {
+        settings.push({
+          key: 'refetched.setting',
+          label: '刷新后设置',
+          value: 'refetched',
+          value_type: 'text',
+          description: '刷新后设置',
+          widget: 'input',
+          ui: {},
+          category: 'general',
+          is_customized: false,
+        });
+      }
+      return Promise.resolve(settings);
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('通用设置');
+    fireEvent.change(screen.getByLabelText('成员上限'), { target: { value: '18' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存启用账单' }));
+
+    await waitFor(() => expect(mockListSettings).toHaveBeenCalledTimes(2));
+    await screen.findByLabelText('刷新后设置');
+    expect(screen.getByLabelText('成员上限')).toHaveValue('18');
   });
 
   it('saves default building through organization settings api', async () => {
