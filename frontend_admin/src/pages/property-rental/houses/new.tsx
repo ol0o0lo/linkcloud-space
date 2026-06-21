@@ -14,9 +14,9 @@ const HouseNewPage: React.FC = () => {
   const [createdBuildings, setCreatedBuildings] = useState<{ id: number; name: string; estate_id: number }[]>([]);
   const workspace = useTenantWorkspace();
   const enabled = Boolean(workspace.selectedOrgSlug);
-  const lastBuildingKey = `property-rental:${workspace.selectedOrgSlug}:last-building-id`;
   const estates = useQuery({ queryKey: ['house', 'new', 'estates', workspace.selectedOrgSlug], queryFn: () => houseApi.listEstates({ page: 1, page_size: 100 }), enabled });
   const buildings = useQuery({ queryKey: ['house', 'new', 'buildings', workspace.selectedOrgSlug], queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100 }), enabled });
+  const defaultBuilding = useQuery({ queryKey: ['house', 'new', 'default-building', workspace.selectedOrgSlug], queryFn: () => houseApi.getDefaultBuilding(), enabled });
   const contacts = useQuery({ queryKey: ['house', 'new', 'contacts', workspace.selectedOrgSlug], queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, role: 'landlord' }), enabled });
   const buildingItems = useMemo(() => [...createdBuildings, ...(buildings.data?.items || [])], [buildings.data, createdBuildings]);
   const createHouse = useMutation({
@@ -31,21 +31,24 @@ const HouseNewPage: React.FC = () => {
     onSuccess: (building) => {
       setCreatedBuildings((items) => [building, ...items]);
       form.setFieldValue('building_id', building.id);
-      localStorage.setItem(lastBuildingKey, String(building.id));
+      houseApi.setDefaultBuilding(building.id);
       setBuildingOpen(false);
       buildingForm.resetFields();
     },
   });
+  const setDefaultBuilding = useMutation({
+    mutationFn: (buildingId: number) => houseApi.setDefaultBuilding(buildingId),
+    onSuccess: () => message.success('默认楼栋已更新'),
+  });
 
   useEffect(() => {
-    const savedBuildingId = Number(localStorage.getItem(lastBuildingKey));
-    const firstBuilding = buildingItems.find((item) => item.id === savedBuildingId) || buildingItems[0];
+    const firstBuilding = buildingItems.find((item) => item.id === defaultBuilding.data?.id) || buildingItems[0];
     const firstContact = contacts.data?.items?.[0];
     form.setFieldsValue({
       building_id: form.getFieldValue('building_id') || firstBuilding?.id,
       landlord_id: form.getFieldValue('landlord_id') || firstContact?.id,
     });
-  }, [buildingItems, contacts.data, form, lastBuildingKey]);
+  }, [buildingItems, contacts.data, defaultBuilding.data, form]);
 
   const submit = (values: Record<string, unknown>) => {
     const buildingId = values.building_id || buildingItems[0]?.id;
@@ -58,7 +61,6 @@ const HouseNewPage: React.FC = () => {
       building_id: buildingId,
       landlord_id: values.landlord_id || contacts.data?.items?.[0]?.id,
     };
-    localStorage.setItem(lastBuildingKey, String(buildingId));
     createHouse.mutate(payload);
   };
 
@@ -72,6 +74,9 @@ const HouseNewPage: React.FC = () => {
                 <Form.Item name="building_id" noStyle>
                   <Select loading={buildings.isLoading} options={buildingItems.map((item) => ({ value: item.id, label: item.name }))} />
                 </Form.Item>
+                <Button onClick={() => setDefaultBuilding.mutate(form.getFieldValue('building_id'))} disabled={!form.getFieldValue('building_id')} loading={setDefaultBuilding.isPending}>
+                  设为默认
+                </Button>
                 <Button onClick={() => setBuildingOpen(true)}>新建楼栋</Button>
               </Space.Compact>
             </Form.Item>

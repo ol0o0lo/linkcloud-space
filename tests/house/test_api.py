@@ -13,6 +13,7 @@ from apps.house.schemas import ContactIn, ContactPatchIn, HouseIn, LeaseIn, View
 from apps.media.constants import MediaType, ResourceType
 from apps.media.services import register_media_file
 from apps.organizations.signals import user_logged_in_receiver
+from apps.settings.models import OrganizationSetting
 from tests.api_helpers import api_data, api_error
 
 
@@ -178,6 +179,49 @@ class HouseApiTestCase(TestCase):
         ids = {item["id"] for item in api_data(response)["items"]}
         self.assertIn(published_house.pk, ids)
         self.assertNotIn(draft_house.pk, ids)
+
+    def test_default_building_creates_fallback_building_and_setting(self):
+        empty_org = baker.make("organizations.Organization", name="空房源组织", slug="empty-house-org")
+        baker.make("organizations.OrganizationMember", organization=empty_org, user=self.user, is_owner=True)
+        session = self.client.session
+        session["organization_data"] = json.dumps({"pk": empty_org.pk, "id": empty_org.pk, "name": empty_org.name, "slug": empty_org.slug, "is_owner": True})
+        session.save()
+
+        response = self.client.get("/api/house/default-building/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        self.assertEqual(payload["name"], "默认楼栋")
+        self.assertEqual(payload["estate_name"], "默认项目")
+        self.assertEqual(Building.objects.get(pk=payload["id"]).organization, empty_org)
+        self.assertTrue(OrganizationSetting.objects.filter(organization=empty_org, value=payload["id"]).exists())
+
+    def test_org_creation_initializes_default_building_setting(self):
+        org = baker.make("organizations.Organization", name="新租户默认楼栋", slug="new-org-default-building")
+
+        building = Building.objects.get(organization=org, name="默认楼栋")
+        self.assertTrue(OrganizationSetting.objects.filter(organization=org, value=building.pk).exists())
+
+    def test_default_building_can_be_changed_to_org_building_only(self):
+        other_building = Building.objects.create(organization=self.org, estate=self.estate, name="2栋", floors=18)
+
+        response = self.client.put(
+            "/api/house/default-building/",
+            data=json.dumps({"building_id": other_building.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(api_data(response)["id"], other_building.pk)
+
+        _other_org, other_house, _other_landlord, _other_tenant = self.make_other_org_house()
+        self.client.raise_request_exception = False
+        rejected = self.client.put(
+            "/api/house/default-building/",
+            data=json.dumps({"building_id": other_house.building_id}),
+            content_type="application/json",
+        )
+        self.assertEqual(rejected.status_code, 404)
 
     def test_contact_input_schema_does_not_expose_user_binding(self):
         self.assertNotIn("user_id", ContactIn.model_fields)

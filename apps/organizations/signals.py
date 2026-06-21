@@ -1,4 +1,5 @@
 from django.contrib.auth import user_logged_in as django_user_logged_in
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from allauth.account.signals import user_logged_in
@@ -38,3 +39,12 @@ def hijack_started_receiver(sender, **kwargs):
 def hijack_ended_receiver(sender, **kwargs):
     request = kwargs["request"]
     _switch_to_primary_org(request, request.user)
+
+
+@receiver(post_save, sender="organizations.Organization")
+def organization_created_receiver(sender, instance, created, **kwargs):
+    if not created:
+        return
+    from apps.house.services import ensure_default_building
+
+    ensure_default_building(instance)

@@ -37,6 +37,15 @@ export interface BuildingOut {
   is_active: boolean;
 }
 
+export interface DefaultBuildingOut {
+  id: number;
+  estate_id: number;
+  estate_name: string;
+  name: string;
+  floors: number;
+  address: string;
+}
+
 export interface ContactOut {
   id: number;
   name: string;
@@ -123,6 +132,8 @@ export const houseApi = {
   getBuilding: (buildingId: number) => request<BuildingOut>(`/api/house/buildings/${buildingId}/`, { method: 'GET' }),
   createBuilding: (data: Record<string, unknown>) => create<BuildingOut>('/api/house/buildings/', data),
   patchBuilding: (buildingId: number, data: Record<string, unknown>) => patch<BuildingOut>(`/api/house/buildings/${buildingId}/`, data),
+  getDefaultBuilding: () => request<DefaultBuildingOut>('/api/house/default-building/', { method: 'GET' }),
+  setDefaultBuilding: (buildingId: number) => request<DefaultBuildingOut>('/api/house/default-building/', { method: 'PUT', data: { building_id: buildingId } }),
   listContacts: (params?: Record<string, unknown>) => list<ContactOut>('/api/house/contacts/', params),
   getContact: (contactId: number) => request<ContactOut>(`/api/house/contacts/${contactId}/`, { method: 'GET' }),
   createContact: (data: Record<string, unknown>) => create<ContactOut>('/api/house/contacts/', data),

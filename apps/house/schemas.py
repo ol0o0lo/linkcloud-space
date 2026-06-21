@@ -101,6 +101,19 @@ class BuildingOut(Schema):
     is_active: bool
 
 
+class DefaultBuildingIn(Schema):
+    building_id: int
+
+
+class DefaultBuildingOut(Schema):
+    id: int
+    estate_id: int
+    estate_name: str
+    name: str
+    floors: int
+    address: str
+
+
 class ContactIn(Schema):
     model_config = ConfigDict(extra="forbid")
 

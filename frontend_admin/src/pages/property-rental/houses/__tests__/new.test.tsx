@@ -3,10 +3,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HouseNewPage from '../new';
 
-const { mockPush, mockListEstates, mockListBuildings, mockListContacts, mockCreateBuilding, mockCreateHouse } = vi.hoisted(() => ({
+const { mockPush, mockListEstates, mockListBuildings, mockGetDefaultBuilding, mockSetDefaultBuilding, mockListContacts, mockCreateBuilding, mockCreateHouse } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockListEstates: vi.fn(),
   mockListBuildings: vi.fn(),
+  mockGetDefaultBuilding: vi.fn(),
+  mockSetDefaultBuilding: vi.fn(),
   mockListContacts: vi.fn(),
   mockCreateBuilding: vi.fn(),
   mockCreateHouse: vi.fn(),
@@ -25,6 +27,8 @@ vi.mock('@/services/manual/house', () => ({
   houseApi: {
     listEstates: mockListEstates,
     listBuildings: mockListBuildings,
+    getDefaultBuilding: mockGetDefaultBuilding,
+    setDefaultBuilding: mockSetDefaultBuilding,
     listContacts: mockListContacts,
     createBuilding: mockCreateBuilding,
     createHouse: mockCreateHouse,
@@ -33,10 +37,11 @@ vi.mock('@/services/manual/house', () => ({
 
 describe('House new page', () => {
   beforeEach(() => {
-    localStorage.clear();
     mockPush.mockReset();
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: '星河湾' }], total: 1, page: 1, page_size: 100 });
     mockListBuildings.mockResolvedValue({ items: [{ id: 10, name: '1 栋', estate_id: 1 }], total: 1, page: 1, page_size: 100 });
+    mockGetDefaultBuilding.mockResolvedValue({ id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾', floors: 20, address: '' });
+    mockSetDefaultBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1, estate_name: '星河湾', floors: 28, address: '' });
     mockListContacts.mockResolvedValue({ items: [{ id: 20, name: '张房东', roles: ['landlord'] }], total: 1, page: 1, page_size: 100 });
     mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1 });
     mockCreateHouse.mockResolvedValue({ id: 99 });
@@ -76,6 +81,7 @@ describe('House new page', () => {
       name: '2 栋',
       floors: 28,
     })));
+    expect(mockSetDefaultBuilding).toHaveBeenCalledWith(11);
     await screen.findByText('2 栋');
   });
 });

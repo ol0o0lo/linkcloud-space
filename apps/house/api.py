@@ -13,6 +13,8 @@ from apps.house.schemas import (
     ContactIn,
     ContactOut,
     ContactPatchIn,
+    DefaultBuildingIn,
+    DefaultBuildingOut,
     EstateIn,
     EstateOut,
     EstatePatchIn,
@@ -26,7 +28,7 @@ from apps.house.schemas import (
     ViewingRecordOut,
     ViewingRecordPatchIn,
 )
-from apps.house.services import get_landlord_houses, get_landlord_leases
+from apps.house.services import ensure_default_building, get_landlord_houses, get_landlord_leases, set_default_building
 from apps.organizations.models import OrganizationMember
 
 router = Router(tags=["房源/管理"])
@@ -125,6 +127,35 @@ def patch_building(request, building_id: int, payload: BuildingPatchIn):
         setattr(building, field, value)
     building.save()
     return building
+
+
+@router.get("/default-building/", response=DefaultBuildingOut, summary="获取默认楼栋")
+def get_default_building(request):
+    org = require_org_selected(request)
+    building = ensure_default_building(org)
+    return {
+        "id": building.pk,
+        "estate_id": building.estate_id,
+        "estate_name": building.estate.name,
+        "name": building.name,
+        "floors": building.floors,
+        "address": building.address,
+    }
+
+
+@router.put("/default-building/", response=DefaultBuildingOut, summary="设置默认楼栋")
+def put_default_building(request, payload: DefaultBuildingIn):
+    org = require_org_selected(request)
+    get_object_or_404(Building, pk=payload.building_id, organization=org)
+    building = set_default_building(org, payload.building_id)
+    return {
+        "id": building.pk,
+        "estate_id": building.estate_id,
+        "estate_name": building.estate.name,
+        "name": building.name,
+        "floors": building.floors,
+        "address": building.address,
+    }
 
 
 @router.get("/contacts/", response=list[ContactOut], summary="获取联系人列表")

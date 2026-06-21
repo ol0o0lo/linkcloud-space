@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 
 from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
+from apps.settings.constants import ValueType
+
+DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
 
 if TYPE_CHECKING:
     from apps.accounts.models import User
@@ -66,6 +69,58 @@ def get_landlord_leases(user: User, organization: Organization):
         )
         .order_by("-start_date", "-id")
     )
+
+
+def _default_building_setting():
+    from apps.settings.models import DefaultSetting
+
+    return DefaultSetting.objects.get_or_create(
+        key=DEFAULT_BUILDING_SETTING_KEY,
+        defaults={"value": 0, "value_type": ValueType.INTEGER, "description": "房源租赁默认楼栋"},
+    )[0]
+
+
+@transaction.atomic
+def ensure_default_building(organization: Organization):
+    from apps.house.models import Building, Estate
+    from apps.settings.models import OrganizationSetting
+
+    setting = _default_building_setting()
+    override = OrganizationSetting.objects.select_for_update().filter(organization=organization, setting=setting).first()
+    if override:
+        building = Building.objects.select_related("estate").filter(pk=override.value, organization=organization).first()
+        if building:
+            return building
+
+    estate, _ = Estate.objects.get_or_create(
+        organization=organization,
+        name="默认项目",
+        defaults={
+            "display_name": "默认项目",
+            "province": "默认",
+            "city": "默认",
+            "district": "默认",
+            "address": "默认",
+        },
+    )
+    building, _ = Building.objects.get_or_create(
+        organization=organization,
+        estate=estate,
+        name="默认楼栋",
+        defaults={"floors": 1, "address": ""},
+    )
+    OrganizationSetting.objects.update_or_create(organization=organization, setting=setting, defaults={"value": building.pk})
+    return building
+
+
+def set_default_building(organization: Organization, building_id: int):
+    from apps.house.models import Building
+    from apps.settings.models import OrganizationSetting
+
+    setting = _default_building_setting()
+    building = Building.objects.select_related("estate").get(pk=building_id, organization=organization)
+    OrganizationSetting.objects.update_or_create(organization=organization, setting=setting, defaults={"value": building.pk})
+    return building
 
 
 @transaction.atomic
