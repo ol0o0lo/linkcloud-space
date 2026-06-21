@@ -54,16 +54,30 @@ describe('MediaRefsUpload', () => {
   it('uploads selected files and appends media refs', async () => {
     mockUploadFiles.mockResolvedValue([{ id: 3, original_filename: 'kitchen.png', url: '/kitchen.png' }]);
     const onChange = vi.fn();
-    render(<MediaRefsUpload mediaType="image" resourceType="house_image" value={[]} onChange={onChange} />);
+    const { container } = render(<MediaRefsUpload mediaType="image" resourceType="house_image" value={[]} onChange={onChange} />);
 
     const file = new File(['x'], 'kitchen.png', { type: 'image/png' });
-    fireEvent.change(screen.getByLabelText('选择文件'), { target: { files: [file] } });
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } });
 
     await waitFor(() => expect(mockUploadFiles).toHaveBeenCalledWith({ resource_type: 'house_image', scope: 'org' }, [file]));
     expect(onChange).toHaveBeenCalledWith([{ media_id: 3, media_type: 'image', label: 'kitchen.png' }]);
   });
 
-  it('reorders items by native drag and drop', () => {
+  it('uses picture-card list and hides upload button at max count', () => {
+    render(
+      <MediaRefsUpload
+        mediaType="image"
+        resourceType="house_image"
+        maxCount={1}
+        value={[{ media_id: 1, media_type: 'image', label: '客厅', url: '/living.png' }]}
+      />,
+    );
+
+    expect(document.querySelector('.ant-upload-list-picture-card')).toBeInTheDocument();
+    expect(document.querySelector('.ant-upload-select')).toHaveClass('ant-upload-hidden');
+  });
+
+  it('reorders items with move buttons', () => {
     const onChange = vi.fn();
     render(
       <MediaRefsUpload
@@ -77,9 +91,7 @@ describe('MediaRefsUpload', () => {
       />,
     );
 
-    fireEvent.dragStart(screen.getByLabelText('客厅媒体项'));
-    fireEvent.dragOver(screen.getByLabelText('卧室媒体项'));
-    fireEvent.drop(screen.getByLabelText('卧室媒体项'));
+    fireEvent.click(screen.getByRole('button', { name: '上移卧室' }));
 
     expect(onChange).toHaveBeenCalledWith([
       { media_id: 2, media_type: 'image', label: '卧室' },

@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { history } from '@umijs/max';
-import { Button, Card, Form, Input, Select, Space, Steps, message } from 'antd';
-import React, { useEffect } from 'react';
+import { Button, Card, Form, Input, Modal, Select, Space, message } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi } from '@/services/manual/house';
 import MediaRefsUpload from '../components/MediaRefsUpload';
@@ -9,10 +9,16 @@ import { HOUSE_MEDIA_RESOURCE_TYPE, HOUSE_MEDIA_TYPE } from '../constants';
 
 const HouseNewPage: React.FC = () => {
   const [form] = Form.useForm();
+  const [buildingForm] = Form.useForm();
+  const [buildingOpen, setBuildingOpen] = useState(false);
+  const [createdBuildings, setCreatedBuildings] = useState<{ id: number; name: string; estate_id: number }[]>([]);
   const workspace = useTenantWorkspace();
   const enabled = Boolean(workspace.selectedOrgSlug);
+  const lastBuildingKey = `property-rental:${workspace.selectedOrgSlug}:last-building-id`;
+  const estates = useQuery({ queryKey: ['house', 'new', 'estates', workspace.selectedOrgSlug], queryFn: () => houseApi.listEstates({ page: 1, page_size: 100 }), enabled });
   const buildings = useQuery({ queryKey: ['house', 'new', 'buildings', workspace.selectedOrgSlug], queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100 }), enabled });
   const contacts = useQuery({ queryKey: ['house', 'new', 'contacts', workspace.selectedOrgSlug], queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, role: 'landlord' }), enabled });
+  const buildingItems = useMemo(() => [...createdBuildings, ...(buildings.data?.items || [])], [buildings.data, createdBuildings]);
   const createHouse = useMutation({
     mutationFn: (values: Record<string, unknown>) => houseApi.createHouse(values),
     onSuccess: (house) => {
@@ -20,36 +26,54 @@ const HouseNewPage: React.FC = () => {
       history.push(`/property-rental/houses/${house.id}`);
     },
   });
+  const createBuilding = useMutation({
+    mutationFn: (values: Record<string, unknown>) => houseApi.createBuilding(values),
+    onSuccess: (building) => {
+      setCreatedBuildings((items) => [building, ...items]);
+      form.setFieldValue('building_id', building.id);
+      localStorage.setItem(lastBuildingKey, String(building.id));
+      setBuildingOpen(false);
+      buildingForm.resetFields();
+    },
+  });
 
   useEffect(() => {
-    const firstBuilding = buildings.data?.items?.[0];
+    const savedBuildingId = Number(localStorage.getItem(lastBuildingKey));
+    const firstBuilding = buildingItems.find((item) => item.id === savedBuildingId) || buildingItems[0];
     const firstContact = contacts.data?.items?.[0];
     form.setFieldsValue({
       building_id: form.getFieldValue('building_id') || firstBuilding?.id,
       landlord_id: form.getFieldValue('landlord_id') || firstContact?.id,
     });
-  }, [buildings.data, contacts.data, form]);
+  }, [buildingItems, contacts.data, form, lastBuildingKey]);
 
   const submit = (values: Record<string, unknown>) => {
+    const buildingId = values.building_id || buildingItems[0]?.id;
+    if (!buildingId) {
+      setBuildingOpen(true);
+      return;
+    }
     const payload = {
       ...values,
-      building_id: values.building_id || buildings.data?.items?.[0]?.id,
+      building_id: buildingId,
       landlord_id: values.landlord_id || contacts.data?.items?.[0]?.id,
     };
+    localStorage.setItem(lastBuildingKey, String(buildingId));
     createHouse.mutate(payload);
   };
 
   return (
     <TenantSelectionGuard title="新建房源" subtitle="先完成可保存的建档，再进入详情页继续补媒体和发布。">
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-        <Steps
-          current={0}
-          items={[{ title: '位置' }, { title: '基础资料' }, { title: '房东' }, { title: '媒体' }, { title: '保存' }]}
-        />
         <Card title="房源建档">
           <Form form={form} layout="vertical" onFinish={submit}>
-            <Form.Item label="楼栋" name="building_id">
-              <Select loading={buildings.isLoading} options={(buildings.data?.items || []).map((item) => ({ value: item.id, label: item.name }))} />
+            <Form.Item label="楼栋">
+              <Space.Compact style={{ width: '100%' }}>
+                <Form.Item name="building_id" noStyle>
+                  <Select loading={buildings.isLoading} options={buildingItems.map((item) => ({ value: item.id, label: item.name }))} />
+                </Form.Item>
+                <Button onClick={() => setBuildingOpen(true)}>新建楼栋</Button>
+              </Space.Compact>
             </Form.Item>
             <Form.Item label="房东" name="landlord_id">
               <Select allowClear loading={contacts.isLoading} options={(contacts.data?.items || []).map((item) => ({ value: item.id, label: item.name }))} />
@@ -78,6 +102,36 @@ const HouseNewPage: React.FC = () => {
           </Form>
         </Card>
       </Space>
+      <Modal
+        title="新建楼栋"
+        open={buildingOpen}
+        onCancel={() => setBuildingOpen(false)}
+        footer={null}
+        destroyOnHidden
+      >
+        <Form
+          form={buildingForm}
+          layout="vertical"
+          initialValues={{ estate_id: estates.data?.items?.[0]?.id, floors: 1 }}
+          onFinish={(values) => createBuilding.mutate({ ...values, estate_id: values.estate_id || estates.data?.items?.[0]?.id, floors: Number(values.floors) })}
+        >
+          <Form.Item label="项目小区" name="estate_id">
+            <Select loading={estates.isLoading} options={(estates.data?.items || []).map((item) => ({ value: item.id, label: item.name }))} />
+          </Form.Item>
+          <Form.Item label="楼栋名" name="name" rules={[{ required: true, message: '请输入楼栋名' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="地址" name="address">
+            <Input />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={createBuilding.isPending}>
+            保存楼栋
+          </Button>
+        </Form>
+      </Modal>
     </TenantSelectionGuard>
   );
 };

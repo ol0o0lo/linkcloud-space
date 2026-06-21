@@ -3,10 +3,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HouseNewPage from '../new';
 
-const { mockPush, mockListBuildings, mockListContacts, mockCreateHouse } = vi.hoisted(() => ({
+const { mockPush, mockListEstates, mockListBuildings, mockListContacts, mockCreateBuilding, mockCreateHouse } = vi.hoisted(() => ({
   mockPush: vi.fn(),
+  mockListEstates: vi.fn(),
   mockListBuildings: vi.fn(),
   mockListContacts: vi.fn(),
+  mockCreateBuilding: vi.fn(),
   mockCreateHouse: vi.fn(),
 }));
 
@@ -21,17 +23,22 @@ vi.mock('@/pages/tenant/shared', () => ({
 
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
+    listEstates: mockListEstates,
     listBuildings: mockListBuildings,
     listContacts: mockListContacts,
+    createBuilding: mockCreateBuilding,
     createHouse: mockCreateHouse,
   },
 }));
 
 describe('House new page', () => {
   beforeEach(() => {
+    localStorage.clear();
     mockPush.mockReset();
+    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: '星河湾' }], total: 1, page: 1, page_size: 100 });
     mockListBuildings.mockResolvedValue({ items: [{ id: 10, name: '1 栋', estate_id: 1 }], total: 1, page: 1, page_size: 100 });
     mockListContacts.mockResolvedValue({ items: [{ id: 20, name: '张房东', roles: ['landlord'] }], total: 1, page: 1, page_size: 100 });
+    mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1 });
     mockCreateHouse.mockResolvedValue({ id: 99 });
   });
 
@@ -51,5 +58,24 @@ describe('House new page', () => {
       asking_rent: '4200',
     })));
     expect(mockPush).toHaveBeenCalledWith('/property-rental/houses/99');
+  });
+
+  it('creates a building in a dialog and keeps the house form on one page', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect(screen.queryByText('基础资料')).not.toBeInTheDocument();
+    await screen.findByText('1 栋');
+
+    fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
+    fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
+    fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
+
+    await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalledWith(expect.objectContaining({
+      estate_id: 1,
+      name: '2 栋',
+      floors: 28,
+    })));
+    await screen.findByText('2 栋');
   });
 });
