@@ -3,15 +3,17 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HouseNewPage from '../new';
 
-const { mockPush, mockListEstates, mockListBuildings, mockGetDefaultBuilding, mockSetDefaultBuilding, mockListContacts, mockCreateBuilding, mockCreateHouse } = vi.hoisted(() => ({
+const { mockPush, mockListEstates, mockListBuildings, mockGetDefaultBuilding, mockSetDefaultBuilding, mockListContacts, mockCreateContact, mockCreateBuilding, mockCreateHouse, mockListOrgSettings } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockListEstates: vi.fn(),
   mockListBuildings: vi.fn(),
   mockGetDefaultBuilding: vi.fn(),
   mockSetDefaultBuilding: vi.fn(),
   mockListContacts: vi.fn(),
+  mockCreateContact: vi.fn(),
   mockCreateBuilding: vi.fn(),
   mockCreateHouse: vi.fn(),
+  mockListOrgSettings: vi.fn(),
 }));
 
 vi.mock('@umijs/max', () => ({
@@ -30,48 +32,321 @@ vi.mock('@/services/manual/house', () => ({
     getDefaultBuilding: mockGetDefaultBuilding,
     setDefaultBuilding: mockSetDefaultBuilding,
     listContacts: mockListContacts,
+    createContact: mockCreateContact,
     createBuilding: mockCreateBuilding,
     createHouse: mockCreateHouse,
   },
 }));
 
+vi.mock('@/services/openapi/organizationSettings', () => ({
+  appsSettingsApiListOrgSettings: mockListOrgSettings,
+}));
+
+async function clickNextWhenEnabled() {
+  const nextButton = screen.getByRole('button', { name: '下一步' });
+  await waitFor(() => expect(nextButton).toBeEnabled());
+  fireEvent.click(nextButton);
+}
+
 describe('House new page', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mockPush.mockReset();
-    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: '星河湾' }], total: 1, page: 1, page_size: 100 });
-    mockListBuildings.mockResolvedValue({ items: [{ id: 10, name: '1 栋', estate_id: 1 }], total: 1, page: 1, page_size: 100 });
+    window.history.pushState({}, '', '/');
+    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园' }], total: 1, page: 1, page_size: 100 });
+    mockListBuildings.mockResolvedValue({ items: [{ id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾' }], total: 1, page: 1, page_size: 100 });
     mockGetDefaultBuilding.mockResolvedValue({ id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾', floors: 20, address: '' });
     mockSetDefaultBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1, estate_name: '星河湾', floors: 28, address: '' });
-    mockListContacts.mockResolvedValue({ items: [{ id: 20, name: '张房东', roles: ['landlord'] }], total: 1, page: 1, page_size: 100 });
+    mockListContacts.mockResolvedValue({ items: [{ id: 20, name: '张房东', phone: '13800000000', roles: ['landlord'] }], total: 1, page: 1, page_size: 100 });
+    mockCreateContact.mockResolvedValue({ id: 21, name: '李房东', phone: '13900000000', roles: ['landlord'], is_active: true });
     mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1 });
     mockCreateHouse.mockResolvedValue({ id: 99 });
+    mockListOrgSettings.mockResolvedValue([
+      {
+        key: 'property_rental.publish_rules',
+        value: {
+          landlord: { mode: 'required' },
+          rent: { mode: 'required' },
+          cover: { mode: 'warn' },
+          images: { mode: 'warn', min_count: 3 },
+          floor_plan: { mode: 'warn' },
+          video: { mode: 'off', min_count: 1 },
+        },
+      },
+    ]);
   });
 
-  it('creates a house with the first building and landlord as defaults', async () => {
+  it('walks through a four-step wizard and creates a house draft without forcing a landlord', async () => {
     render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
 
     await waitFor(() => expect(mockListBuildings).toHaveBeenCalledTimes(1));
-    await screen.findByText('1 栋');
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.getByText('详情承接')).toBeInTheDocument();
+    expect(screen.getByText('带看基础')).toBeInTheDocument();
+    expect(screen.getByText('发布准备')).toBeInTheDocument();
+    expect(screen.getByText('当前缺口清单')).toBeInTheDocument();
+    expect(screen.getAllByText('建档').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('补充资料').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('媒体资料').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('确认保存').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1801' } });
+    await clickNextWhenEnabled();
+    await screen.findByText('补充挂牌与户型');
+    expect(screen.getByText('挂牌信息')).toBeInTheDocument();
+    expect(screen.getByText('户型与面积')).toBeInTheDocument();
+    expect(screen.getByText('房源卖点')).toBeInTheDocument();
+    expect(screen.getByText('带看资料仍待补齐')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('挂牌租金'), { target: { value: '4200' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存房源' }));
+    await clickNextWhenEnabled();
+    await screen.findByText('上传图片与视频');
+    expect(screen.getByText('图片资料')).toBeInTheDocument();
+    expect(screen.getByText('视频资料')).toBeInTheDocument();
+    await clickNextWhenEnabled();
+    await screen.findByText('确认房源草稿');
+    expect(screen.getByText('保存后建议动作')).toBeInTheDocument();
+    expect(screen.getAllByText('待补房东').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
 
     await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({
       building_id: 10,
-      landlord_id: 20,
       room_number: '1801',
       asking_rent: '4200',
+    })));
+    expect(mockCreateHouse.mock.calls.at(-1)?.[0]).not.toHaveProperty('landlord_id');
+    expect(mockPush).toHaveBeenCalledWith('/property-rental/houses/99');
+  });
+
+  it('shows carried-in source context when entering from building and landlord flows', async () => {
+    window.history.pushState({}, '', '/property-rental/houses/new?building_id=10&landlord_id=20');
+
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    expect(screen.getByText('已带入楼栋，当前建档会直接挂到这栋楼下。')).toBeInTheDocument();
+    expect(screen.getByText('已带入房东，当前录入会沿用该出租方主体。')).toBeInTheDocument();
+  });
+
+  it('restores wizard step from URL search params', async () => {
+    window.history.pushState({}, '', '/property-rental/houses/new?step=2');
+
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect(await screen.findByText('上传图片与视频')).toBeInTheDocument();
+    expect(screen.getByText('图片资料')).toBeInTheDocument();
+    expect(screen.getByText('发布规则摘要')).toBeInTheDocument();
+    expect(screen.queryByText('当前缺口清单')).not.toBeInTheDocument();
+    expect(screen.queryByText('媒体状态')).not.toBeInTheDocument();
+  });
+
+  it('keeps the sidebar focused on listing fields instead of repeating full publish gaps', async () => {
+    window.history.pushState({}, '', '/property-rental/houses/new?step=1');
+
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect(await screen.findByText('补充挂牌与户型')).toBeInTheDocument();
+    expect(screen.getByText('当前步骤重点')).toBeInTheDocument();
+    expect(screen.queryByText('发布规则摘要')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前缺口清单')).not.toBeInTheDocument();
+  });
+
+  it('syncs wizard step back to URL', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1801' } });
+    await clickNextWhenEnabled();
+
+    await screen.findByText('补充挂牌与户型');
+    expect(window.location.search).toBe('?step=1');
+  });
+
+  it('keeps the user on step one when draft essentials are missing', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: '下一步' })).toBeDisabled();
+    expect(screen.getByText('选择楼栋与房东')).toBeInTheDocument();
+    expect(screen.getByText('先完成最小建档')).toBeInTheDocument();
+  });
+
+  it('uses the selected building when setting the default building', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+
+    const button = screen.getByRole('button', { name: '设为默认' });
+    expect(button).toBeEnabled();
+
+    fireEvent.click(button);
+
+    await waitFor(() => expect(mockSetDefaultBuilding).toHaveBeenCalledWith(10));
+  });
+
+  it('shows landlord phone in the landlord selector', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    fireEvent.mouseDown(screen.getByLabelText('房东'));
+
+    expect((await screen.findAllByText('张房东 / 13800000000')).at(-1)).toBeDefined();
+  });
+
+  it('prefills landlord from query param', async () => {
+    window.history.pushState({}, '', '/property-rental/houses/new?landlord_id=20');
+
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('张房东 / 13800000000').length).toBeGreaterThan(0);
+  });
+
+  it('prefills building from query param', async () => {
+    window.history.pushState({}, '', '/property-rental/houses/new?building_id=11');
+    mockListBuildings.mockResolvedValue({
+      items: [
+        { id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾' },
+        { id: 11, name: '2 栋', estate_id: 1, estate_name: '星河湾' },
+      ],
+      total: 2,
+      page: 1,
+      page_size: 100,
+    });
+
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 2 栋')).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('房号'), { target: { value: '2801' } });
+    await clickNextWhenEnabled();
+    await screen.findByText('补充挂牌与户型');
+    await clickNextWhenEnabled();
+    await screen.findByText('上传图片与视频');
+    await clickNextWhenEnabled();
+    await screen.findByText('确认房源草稿');
+    fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
+
+    await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({
+      building_id: 11,
+      room_number: '2801',
+    })));
+  });
+
+  it('does not auto-bind the first landlord when the user has not selected one', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1901' } });
+    await clickNextWhenEnabled();
+    await screen.findByText('补充挂牌与户型');
+    await clickNextWhenEnabled();
+    await screen.findByText('上传图片与视频');
+    await clickNextWhenEnabled();
+    await screen.findByText('确认房源草稿');
+    expect(screen.getAllByText('待补房东').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
+
+    await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.not.objectContaining({
+      landlord_id: 20,
+    })));
+  });
+
+  it('treats warning-only media gaps as publishable under organization publish rules', async () => {
+    window.history.pushState({}, '', '/property-rental/houses/new?landlord_id=20');
+
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1902' } });
+    await clickNextWhenEnabled();
+    await screen.findByText('补充挂牌与户型');
+    fireEvent.change(screen.getByLabelText('挂牌租金'), { target: { value: '5200' } });
+    fireEvent.change(screen.getByLabelText('可租日期'), { target: { value: '2026-07-01' } });
+    await clickNextWhenEnabled();
+    await screen.findByText('上传图片与视频');
+    await clickNextWhenEnabled();
+
+    expect(await screen.findByText('确认房源草稿')).toBeInTheDocument();
+    expect(screen.getByText('保存后可直接进入发布流程')).toBeInTheDocument();
+    expect(screen.getByText('提醒项：缺封面、图片不足、缺户型图')).toBeInTheDocument();
+    expect(screen.queryByText('阻断项：')).not.toBeInTheDocument();
+  });
+
+  it('shows a publish-rule summary instead of repeating the draft summary on the final step', async () => {
+    window.history.pushState({}, '', '/property-rental/houses/new?step=3');
+
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect(await screen.findByText('发布规则摘要')).toBeInTheDocument();
+    expect(screen.getByText('当前缺口清单')).toBeInTheDocument();
+    expect(screen.getByText('媒体状态')).toBeInTheDocument();
+    expect(screen.getAllByText('草稿必补：楼栋')).toHaveLength(1);
+    expect(screen.queryByText('当前摘要')).not.toBeInTheDocument();
+  });
+
+  it('allows saving a draft as soon as the minimum draft fields are complete', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    expect(screen.getByText('当前步骤重点')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存草稿' })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1701' } });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: '保存草稿' })).toBeEnabled());
+    expect(screen.getByText('当前已满足草稿保存门槛')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+
+    await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({
+      building_id: 10,
+      room_number: '1701',
     })));
     expect(mockPush).toHaveBeenCalledWith('/property-rental/houses/99');
   });
 
-  it('creates a building in a dialog and keeps the house form on one page', async () => {
+  it('creates a landlord from the house form and selects it', async () => {
+    mockListContacts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 });
     render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
 
-    expect(screen.queryByText('基础资料')).not.toBeInTheDocument();
-    await screen.findByText('1 栋');
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: '新建房东' }));
+    fireEvent.change(screen.getByLabelText('姓名'), { target: { value: '李房东' } });
+    fireEvent.change(screen.getByLabelText('手机'), { target: { value: '13900000000' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存房东' }));
+
+    await waitFor(() => expect(mockCreateContact).toHaveBeenCalledWith(expect.objectContaining({
+      name: '李房东',
+      phone: '13900000000',
+      roles: ['landlord'],
+      is_active: true,
+    })));
+    expect((await screen.findAllByText('李房东 / 13900000000')).length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1802' } });
+    await clickNextWhenEnabled();
+    await screen.findByText('补充挂牌与户型');
+    await clickNextWhenEnabled();
+    await screen.findByText('上传图片与视频');
+    await clickNextWhenEnabled();
+    await screen.findByText('确认房源草稿');
+    fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
+
+    await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({
+      building_id: 10,
+      landlord_id: 21,
+      room_number: '1802',
+    })));
+  });
+
+  it('creates a building in a dialog from the first step of the wizard', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    expect(screen.getByText('选择楼栋与房东')).toBeInTheDocument();
+    expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
+    fireEvent.mouseDown(screen.getByLabelText('项目小区'));
+    expect((await screen.findAllByText('星河湾花园')).at(-1)).toBeDefined();
+    expect(screen.queryByText('xinghewan')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
     fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
@@ -82,6 +357,6 @@ describe('House new page', () => {
       floors: 28,
     })));
     expect(mockSetDefaultBuilding).toHaveBeenCalledWith(11);
-    await screen.findByText('2 栋');
+    expect((await screen.findAllByText('2 栋')).length).toBeGreaterThan(0);
   });
 });

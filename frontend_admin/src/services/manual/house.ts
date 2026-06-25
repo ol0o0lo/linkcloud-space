@@ -26,6 +26,7 @@ export interface EstateOut {
 export interface BuildingOut {
   id: number;
   estate_id: number;
+  estate_name?: string;
   name: string;
   floors: number;
   under_floors?: number | null;
@@ -60,7 +61,12 @@ export interface ContactOut {
 export interface HouseOut {
   id: number;
   building_id: number;
+  building_name?: string;
+  estate_name?: string;
   landlord_id?: number | null;
+  landlord_name?: string | null;
+  landlord_phone?: string | null;
+  house_label?: string;
   room_number: string;
   floor?: number | null;
   area?: string | null;
@@ -85,12 +91,19 @@ export interface HouseOut {
   internal_notes: string;
   extra: Record<string, unknown>;
   is_active: boolean;
+  publish_can_publish: boolean;
+  publish_blocking_issues: string[];
+  publish_warning_issues: string[];
+  publish_rule_snapshot: Record<string, unknown>;
 }
 
 export interface ViewingRecordOut {
   id: number;
   house_id: number;
+  house_label?: string;
   contact_id?: number | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
   customer_name: string;
   customer_phone: string;
   scheduled_at: string;
@@ -100,13 +113,18 @@ export interface ViewingRecordOut {
   notes: string;
   extra?: Record<string, unknown>;
   is_active: boolean;
+  signed_lease_id?: number | null;
 }
 
 export interface LeaseOut {
   id: number;
   house_id: number;
+  house_label?: string;
   tenant_id: number;
+  tenant_name?: string;
+  tenant_phone?: string;
   source_viewing_record_id?: number | null;
+  source_viewing_record_label?: string | null;
   sign_at?: string | null;
   start_date: string;
   end_date: string;

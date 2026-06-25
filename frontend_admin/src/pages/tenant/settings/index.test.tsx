@@ -8,6 +8,7 @@ const {
   mockGetOrganization,
   mockGetOrganizationUsage,
   mockGetSettings,
+  mockListOrgSettings,
   mockUpdateSettings,
   mockPatchOrganization,
   mockPatchOrganizationStatus,
@@ -18,6 +19,7 @@ const {
   mockGetOrganization: vi.fn(),
   mockGetOrganizationUsage: vi.fn(),
   mockGetSettings: vi.fn(),
+  mockListOrgSettings: vi.fn(),
   mockUpdateSettings: vi.fn(),
   mockPatchOrganization: vi.fn(),
   mockPatchOrganizationStatus: vi.fn(),
@@ -58,6 +60,10 @@ vi.mock('@/services/openapi/organizationProfile', () => ({
   appsOrganizationsApiUpdateSettings: mockUpdateSettings,
 }));
 
+vi.mock('@/services/openapi/organizationSettings', () => ({
+  appsSettingsApiListOrgSettings: mockListOrgSettings,
+}));
+
 vi.mock('@/services/openapi/organizationMembers', () => ({
   appsOrganizationsApiListMembers: mockListMembers,
 }));
@@ -92,6 +98,21 @@ describe('TenantSettingsPage', () => {
     mockGetSettings.mockResolvedValue({
       billing_email: 'billing@example.com',
     });
+    mockListOrgSettings.mockResolvedValue([
+      {
+        key: 'property_rental.publish_rules',
+        label: '房源发布规则',
+        value_type: 'json',
+        value: {
+          landlord: { mode: 'required' },
+          rent: { mode: 'required' },
+          cover: { mode: 'warn' },
+          images: { mode: 'warn', min_count: 3 },
+          floor_plan: { mode: 'warn' },
+          video: { mode: 'off', min_count: 1 },
+        },
+      },
+    ]);
     mockPatchOrganization.mockResolvedValue({
       id: 1,
       name: 'Acme Saved',
@@ -132,6 +153,7 @@ describe('TenantSettingsPage', () => {
     await waitFor(() => {
       expect(mockGetOrganization).toHaveBeenCalledWith({ slug: 'acme' });
       expect(mockGetSettings).toHaveBeenCalled();
+      expect(mockGetOrganizationUsage).toHaveBeenCalledWith({ slug: 'acme' });
     });
 
     await waitFor(() => {
@@ -139,12 +161,26 @@ describe('TenantSettingsPage', () => {
       expect(screen.getByDisplayValue('billing@example.com')).toBeInTheDocument();
     });
 
+    expect(screen.getByText('空间治理概览')).toBeInTheDocument();
+    expect(screen.getByText('容量与水位')).toBeInTheDocument();
+    expect(screen.getByText('Owner 治理')).toBeInTheDocument();
+    expect(screen.getByText('业务策略')).toBeInTheDocument();
+    expect(screen.getByText('房源发布规则')).toBeInTheDocument();
+    expect(screen.getAllByText('标准发布').length).toBeGreaterThan(0);
+    expect(screen.getByText('执行与配置分工')).toBeInTheDocument();
+    expect(screen.getByText('风险操作')).toBeInTheDocument();
+    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '去空间设置调整发布规则' })).toHaveAttribute('href', '/dashboard/settings-management/organization#setting-property_rental-publish_rules');
+
     await waitFor(() => {
       const spinButtons = screen.getAllByRole('spinbutton');
       expect(spinButtons[0]).toHaveValue('12');
       expect(spinButtons[1]).toHaveValue('3');
       expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
     });
+
+    expect(screen.getByText('成员上限 12')).toBeInTheDocument();
+    expect(screen.getByText('团队上限 3')).toBeInTheDocument();
   });
 
   it('saves organization profile and toggles archive status', async () => {

@@ -1,3 +1,19 @@
+export {
+  HOUSE_PUBLISH_RULE_LABELS,
+  HOUSE_PUBLISH_RULE_MODE,
+  canHousePublish,
+  DEFAULT_HOUSE_PUBLISH_RULES,
+  evaluateHousePublishState,
+  getHouseBlockingIssues,
+  getHouseIssueActionHint,
+  getHousePublishIssues,
+  getHouseWarningIssues,
+  getTrackedHousePublishIssues,
+  houseMediaReadinessText,
+  normalizeHousePublishRules,
+} from './publish-rules';
+export type { HousePublishRuleKey, HousePublishRuleMode, HousePublishRuleSnapshot } from './publish-rules';
+
 export const PROPERTY_TYPE_OPTIONS = [
   { value: 'residential', label: '住宅' },
   { value: 'commercial', label: '商业' },
@@ -96,12 +112,35 @@ export const VIEWING_STATUS_OPTIONS = [
   { value: VIEWING_STATUS.CONVERTED, label: '已成交' },
 ];
 
+export const VIEWING_STATUS_FLOW_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  [VIEWING_STATUS.SCHEDULED]: [
+    { value: VIEWING_STATUS.VIEWED, label: '已带看' },
+    { value: VIEWING_STATUS.CONVERTED, label: '已成交' },
+    { value: VIEWING_STATUS.CANCELED, label: '已取消' },
+    { value: VIEWING_STATUS.NO_SHOW, label: '爽约' },
+  ],
+  [VIEWING_STATUS.VIEWED]: [
+    { value: VIEWING_STATUS.CONVERTED, label: '已成交' },
+    { value: VIEWING_STATUS.CANCELED, label: '已取消' },
+  ],
+  [VIEWING_STATUS.CANCELED]: [],
+  [VIEWING_STATUS.NO_SHOW]: [],
+  [VIEWING_STATUS.CONVERTED]: [],
+};
+
 export const LEASE_STATUS = {
   PENDING: 'pending',
   ACTIVE: 'active',
   EXPIRED: 'expired',
   TERMINATED: 'terminated',
 } as const;
+
+export const LEASE_STATUS_OPTIONS = [
+  { value: LEASE_STATUS.PENDING, label: '待生效' },
+  { value: LEASE_STATUS.ACTIVE, label: '生效中' },
+  { value: LEASE_STATUS.EXPIRED, label: '已到期' },
+  { value: LEASE_STATUS.TERMINATED, label: '已终止' },
+];
 
 export const STATUS_TEXT: Record<string, string> = {
   [HOUSE_STATUS.VACANT]: '空置',
@@ -175,10 +214,6 @@ export function stripDerivedMediaFields(items: MediaRefValue[]) {
   }));
 }
 
-export function getCoverImage(images: Record<string, unknown>[] = []) {
-  return images.find((item) => item.image_role === 'cover') || images[0] || null;
-}
-
 export function getHouseMediaCompleteness(house: { images?: Record<string, unknown>[]; videos?: Record<string, unknown>[]; landlord_id?: number | null }) {
   const images = house.images || [];
   const hasCover = images.some((item) => item.image_role === 'cover');
@@ -190,4 +225,48 @@ export function getHouseMediaCompleteness(house: { images?: Record<string, unkno
     hasFloorPlan,
     hasLandlord: Boolean(house.landlord_id),
   };
+}
+
+export function labelOf(options: { value: string; label: string }[], value?: string | null) {
+  return options.find((item) => item.value === value)?.label || value || '-';
+}
+
+export function moneyText(value?: string | number | null) {
+  return value ? `¥${value}` : '-';
+}
+
+export function dateTimeText(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '-');
+}
+
+export function dateTimeInputValue(value?: string | null) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16);
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return offsetDate.toISOString().slice(0, 16);
+}
+
+export function houseLabel(house?: { id?: number; room_number?: string | null; house_label?: string | null; estate_name?: string | null; building_name?: string | null }) {
+  if (!house) return '-';
+  if (house.house_label) return house.house_label;
+  const scopedLabel = [house.estate_name, house.building_name, house.room_number].filter(Boolean).join(' / ');
+  if (scopedLabel) return scopedLabel;
+  return house.room_number || `房源 #${house.id}`;
+}
+
+export function buildingLabel(building?: { id?: number; name?: string | null; estate_name?: string | null }) {
+  if (!building) return '-';
+  const name = building.name || `楼栋 #${building.id}`;
+  return [building.estate_name, name].filter(Boolean).join(' / ');
+}
+
+export function contactLabel(contact?: { id?: number; name?: string | null; phone?: string | null; landlord_name?: string | null; landlord_phone?: string | null; tenant_name?: string | null; tenant_phone?: string | null; contact_name?: string | null; contact_phone?: string | null }) {
+  if (!contact) return '-';
+  const name = contact.name || contact.landlord_name || contact.tenant_name || contact.contact_name || `联系人 #${contact.id}`;
+  const phone = contact.phone || contact.landlord_phone || contact.tenant_phone || contact.contact_phone;
+  return [name, phone].filter(Boolean).join(' / ');
 }

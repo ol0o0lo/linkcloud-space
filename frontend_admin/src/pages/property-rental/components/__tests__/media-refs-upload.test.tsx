@@ -24,7 +24,8 @@ describe('MediaRefsUpload', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '设为卧室' }));
+    fireEvent.mouseDown(screen.getByLabelText('客厅角色').closest('.ant-select')!);
+    fireEvent.click(screen.getByText('卧室'));
 
     expect(onChange).toHaveBeenCalledWith([{ media_id: 1, media_type: 'image', label: '客厅', image_role: 'bedroom' }]);
   });
@@ -51,6 +52,30 @@ describe('MediaRefsUpload', () => {
     ]);
   });
 
+  it('keeps image action button text compact for long filenames', () => {
+    render(
+      <MediaRefsUpload
+        mediaType="image"
+        resourceType="house_image"
+        value={[
+          { media_id: 1, media_type: 'image', label: '客厅' },
+          { media_id: 2, media_type: 'image', label: 'IMG_8EB13C6F0C70-1.jpeg', image_role: 'bedroom' },
+        ]}
+      />,
+    );
+
+    const coverButton = screen.getByRole('button', { name: '将IMG_8EB13C6F0C70-1.jpeg设为封面' });
+    const moveUpButton = screen.getByRole('button', { name: '上移IMG_8EB13C6F0C70-1.jpeg' });
+    const moveDownButton = screen.getByRole('button', { name: '下移IMG_8EB13C6F0C70-1.jpeg' });
+
+    expect(coverButton).toHaveAttribute('aria-label', '将IMG_8EB13C6F0C70-1.jpeg设为封面');
+    expect(moveUpButton).toHaveAttribute('aria-label', '上移IMG_8EB13C6F0C70-1.jpeg');
+    expect(moveDownButton).toHaveAttribute('aria-label', '下移IMG_8EB13C6F0C70-1.jpeg');
+    expect(coverButton).toHaveTextContent('');
+    expect(moveUpButton).toHaveTextContent('');
+    expect(moveDownButton).toHaveTextContent('');
+  });
+
   it('uploads selected files and appends media refs', async () => {
     mockUploadFiles.mockResolvedValue([{ id: 3, original_filename: 'kitchen.png', url: '/kitchen.png' }]);
     const onChange = vi.fn();
@@ -63,7 +88,7 @@ describe('MediaRefsUpload', () => {
     expect(onChange).toHaveBeenCalledWith([{ media_id: 3, media_type: 'image', label: 'kitchen.png' }]);
   });
 
-  it('uses picture-card list and hides upload button at max count', () => {
+  it('hides upload button at max count', () => {
     render(
       <MediaRefsUpload
         mediaType="image"
@@ -73,8 +98,7 @@ describe('MediaRefsUpload', () => {
       />,
     );
 
-    expect(document.querySelector('.ant-upload-list-picture-card')).toBeInTheDocument();
-    expect(document.querySelector('.ant-upload-select')).toHaveClass('ant-upload-hidden');
+    expect(screen.queryByRole('button', { name: '上传图片' })).not.toBeInTheDocument();
   });
 
   it('reorders items with move buttons', () => {
