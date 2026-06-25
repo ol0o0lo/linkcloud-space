@@ -1,4 +1,4 @@
-import { BgColorsOutlined, LinkOutlined } from '@ant-design/icons';
+import { BgColorsOutlined } from '@ant-design/icons';
 import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
@@ -13,23 +13,19 @@ dayjs.extend(relativeTime);
 
 import {
   AvatarDropdown,
-  DocLink,
   ErrorBoundary,
   Footer,
   LangDropdown,
   OfflineBanner,
   OrgSwitcher,
-  VersionDropdown,
 } from '@/components';
 import { appsAccountsApiGetMe } from '@/services/openapi/userAccount';
 import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations';
+import { buildAdminPath, isAuthPagePath, LOGIN_PATH } from '@/utils/adminRouting';
 import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import defaultSettings from '../config/defaultSettings';
 import logoUrl from '../public/logo.svg';
 import { errorConfig } from './requestErrorConfig';
-
-const isDev = process.env.NODE_ENV === 'development';
-const loginPath = '/user/login';
 
 type InitialState = {
   settings?: Partial<LayoutSettings>;
@@ -65,9 +61,11 @@ export async function getInitialState(): Promise<InitialState> {
       });
     } catch (_error) {
       const { pathname, search, hash } = history.location;
-      history.replace(
-        `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
-      );
+      if (!isAuthPagePath(pathname)) {
+        history.replace(
+          `${LOGIN_PATH}?redirect=${encodeURIComponent(buildAdminPath(pathname, search, hash))}`,
+        );
+      }
     }
     return undefined;
   };
@@ -82,11 +80,7 @@ export async function getInitialState(): Promise<InitialState> {
   };
   // 如果不是登录页面，执行
   const { location } = history;
-  if (
-    ![loginPath, '/user/register', '/user/register-result'].includes(
-      location.pathname,
-    )
-  ) {
+  if (!isAuthPagePath(location.pathname)) {
     const currentUser = await fetchUserInfo();
     const organizations = currentUser ? await fetchOrganizations() : [];
     const selectedOrgSlug = resolveSelectedOrgSlug(organizations);
@@ -130,8 +124,6 @@ export const layout: RunTimeLayoutConfig = ({
         (initialState?.settings as { locale?: boolean })?.locale !== false;
       return [
         <OrgSwitcher key="org-switcher" />,
-        <DocLink key="doc" />,
-        <VersionDropdown key="version" />,
         <Tooltip key="theme-settings" title="界面设置">
           <Button
             type="text"
@@ -163,40 +155,14 @@ export const layout: RunTimeLayoutConfig = ({
     onPageChange: () => {
       const { location } = history;
       // 如果没有登录，重定向到 login
-      if (!initialState?.currentUser && location.pathname !== loginPath) {
+      if (!initialState?.currentUser && !isAuthPagePath(location.pathname)) {
         history.replace(
-          `${loginPath}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
+          `${LOGIN_PATH}?redirect=${encodeURIComponent(buildAdminPath(location.pathname, location.search, location.hash))}`,
         );
       }
     },
-    bgLayoutImgList: [
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/D2LWSqNny4sAAAAAAAAAAAAAFl94AQBr',
-        left: 85,
-        bottom: 100,
-        height: '303px',
-      },
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/C2TWRpJpiC0AAAAAAAAAAAAAFl94AQBr',
-        bottom: -68,
-        right: -45,
-        height: '303px',
-      },
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/F6vSTbj8KpYAAAAAAAAAAAAAFl94AQBr',
-        bottom: 0,
-        left: 0,
-        width: '331px',
-      },
-    ],
-    links: isDev
-      ? [
-          <Link key="openapi" to="/umi/plugin/openapi" target="_blank">
-            <LinkOutlined />
-            <span>OpenAPI 文档</span>
-          </Link>,
-        ]
-      : [],
+    bgLayoutImgList: [],
+    links: [],
     // Replace ProLayout's default ErrorBoundary with our offline-aware version,
     // so chunk load errors show friendly messages instead of "Something went wrong."
     ErrorBoundary,

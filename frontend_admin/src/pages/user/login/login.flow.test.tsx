@@ -6,7 +6,9 @@ const mockLogin = vi.fn();
 const mockTwoFactorAuthenticate = vi.fn();
 const mockTwoFactorTrust = vi.fn();
 const mockFetchUserInfo = vi.fn();
+const mockSwitchList = vi.fn();
 const mockSetInitialState = vi.fn();
+const mockHistoryPush = vi.fn();
 const mockSuccess = vi.fn();
 const mockError = vi.fn();
 const mockFormattedMessage = ({ defaultMessage }: { defaultMessage: string }) => defaultMessage;
@@ -15,6 +17,9 @@ vi.mock('@umijs/max', () => ({
   FormattedMessage: mockFormattedMessage,
   Helmet: ({ children }: any) => <>{children}</>,
   SelectLang: () => null,
+  history: {
+    push: mockHistoryPush,
+  },
   useIntl: () => ({
     formatMessage: ({ defaultMessage }: { defaultMessage: string }) => defaultMessage,
   }),
@@ -135,6 +140,10 @@ vi.mock('@/services/allauth/authTwoFactor', () => ({
   postBrowserV1AuthTwofaTrust: mockTwoFactorTrust,
 }));
 
+vi.mock('@/services/openapi/organizations', () => ({
+  appsOrganizationsApiSwitchList: mockSwitchList,
+}));
+
 vi.mock('../../../../config/defaultSettings', () => ({
   default: { title: 'LinkCloud Admin' },
 }));
@@ -146,10 +155,20 @@ vi.mock('../../../../public/logo.svg', () => ({
 describe('admin 登录 MFA 流程', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     mockFetchUserInfo.mockResolvedValue({
       id: 1,
       username: 'admin',
     });
+    mockSwitchList.mockResolvedValue([
+      {
+        id: 1,
+        name: 'LAN',
+        slug: 'lan',
+        is_primary: true,
+        is_current: true,
+      },
+    ]);
     window.history.replaceState({}, '', '/user/login');
   });
 
@@ -209,6 +228,7 @@ describe('admin 登录 MFA 流程', () => {
     });
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockFetchUserInfo).toHaveBeenCalled();
+    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/workbench');
   });
 
   it('遇到未知 allauth flow 时应提示具体 flow id', async () => {
@@ -263,6 +283,47 @@ describe('admin 登录 MFA 流程', () => {
         { skipErrorHandler: true },
       );
     });
+    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/workbench');
+  });
+
+  it('登录成功后应同步当前空间到 initialState', async () => {
+    mockLogin.mockResolvedValueOnce({});
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    fireEvent.change(screen.getByPlaceholderText('邮箱 / 手机号'), {
+      target: { value: 'admin@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('密码'), {
+      target: { value: 'secret123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '提交' }));
+
+    await waitFor(() => {
+      expect(mockSwitchList).toHaveBeenCalledWith({ skipErrorHandler: true });
+    });
+
+    const stateUpdater = mockSetInitialState.mock.calls.at(-1)?.[0];
+    expect(stateUpdater).toBeTypeOf('function');
+
+    const nextState = stateUpdater({
+      fetchUserInfo: mockFetchUserInfo,
+    });
+    expect(nextState.currentUser).toEqual({
+      id: 1,
+      username: 'admin',
+    });
+    expect(nextState.organizations).toEqual([
+      {
+        id: 1,
+        name: 'LAN',
+        slug: 'lan',
+        is_primary: true,
+        is_current: true,
+      },
+    ]);
+    expect(nextState.selectedOrgSlug).toBe('lan');
   });
 
   it('二步验证后返回 mfa_trust 时应继续完成登录', async () => {
@@ -324,5 +385,6 @@ describe('admin 登录 MFA 流程', () => {
     });
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockFetchUserInfo).toHaveBeenCalled();
+    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/workbench');
   });
 });

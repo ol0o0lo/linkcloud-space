@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockSetInitialState = vi.fn();
 const mockSelectOrg = vi.fn();
-const mockSignout = vi.fn();
 const mockSwitchList = vi.fn();
 const mockSetSelectedOrgSlug = vi.fn((value) => value);
 const mockFetchQuery = vi.fn();
@@ -35,8 +34,14 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('antd', () => ({
-  Select: ({ 'aria-label': ariaLabel, options, placeholder, prefix, suffixIcon, value, onChange }: any) => (
-    <div aria-label={ariaLabel} data-suffix-icon={suffixIcon === null ? 'none' : 'default'} role="combobox">
+  Select: ({ allowClear, 'aria-label': ariaLabel, options, placeholder, prefix, suffixIcon, value, onChange }: any) => (
+    <div
+      aria-expanded={false}
+      aria-label={ariaLabel}
+      data-suffix-icon={suffixIcon === null ? 'none' : 'default'}
+      role="combobox"
+      tabIndex={0}
+    >
       {prefix}
       <span>{placeholder}</span>
       <div data-testid="org-value">{value ?? ''}</div>
@@ -45,9 +50,11 @@ vi.mock('antd', () => ({
           {option.label}
         </button>
       ))}
-      <button type="button" onClick={() => onChange(undefined)}>
-        清空
-      </button>
+      {allowClear ? (
+        <button type="button" onClick={() => onChange(undefined)}>
+          清空
+        </button>
+      ) : null}
     </div>
   ),
   Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
@@ -56,7 +63,6 @@ vi.mock('antd', () => ({
 
 vi.mock('@/services/openapi/organizations', () => ({
   appsOrganizationsApiSelectOrg: mockSelectOrg,
-  appsOrganizationsApiSignout: mockSignout,
   appsOrganizationsApiSwitchList: mockSwitchList,
 }));
 
@@ -72,7 +78,6 @@ describe('OrgSwitcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSelectOrg.mockResolvedValue({ success: true });
-    mockSignout.mockResolvedValue({ success: true });
     mockSwitchList.mockResolvedValue([
       { id: 1, name: 'Acme', slug: 'acme', is_current: false, is_primary: false },
       { id: 2, name: 'Beta', slug: 'beta', is_current: true, is_primary: false },
@@ -111,21 +116,11 @@ describe('OrgSwitcher', () => {
     expect(screen.getByRole('combobox', { name: '当前空间' })).toHaveAttribute('data-suffix-icon', 'none');
   });
 
-  it('signs out the organization context when cleared and refreshes tenant caches', async () => {
+  it('does not expose a clear action for the current space selector', async () => {
     const { OrgSwitcher } = await import('./index');
 
     render(<OrgSwitcher />);
 
-    fireEvent.click(screen.getByRole('button', { name: '清空' }));
-
-    await waitFor(() => {
-      expect(mockSignout).toHaveBeenCalledWith({ skipErrorHandler: true });
-    });
-    await waitFor(() => {
-      expect(mockSwitchList).toHaveBeenCalledWith({ skipErrorHandler: true });
-      expect(mockSetSelectedOrgSlug).toHaveBeenCalledWith(undefined);
-      expect(mockSetInitialState).toHaveBeenCalled();
-      expect(mockInvalidateQueries).toHaveBeenCalled();
-    });
+    expect(screen.queryByRole('button', { name: '清空' })).not.toBeInTheDocument();
   });
 });

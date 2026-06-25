@@ -41,12 +41,17 @@ export function setSelectedOrgSlug(slug?: string | null) {
   return selectedOrgSlug;
 }
 
-export function resolveSelectedOrgSlug<T extends { slug: string }>(
+export function resolveSelectedOrgSlug<T extends { slug: string; is_current?: boolean }>(
   organizations: T[],
 ) {
   const storedSlug = getSelectedOrgSlug();
   if (storedSlug && organizations.some((item) => item.slug === storedSlug)) {
     return storedSlug;
+  }
+
+  const currentSlug = organizations.find((item) => item.is_current)?.slug;
+  if (currentSlug) {
+    return setSelectedOrgSlug(currentSlug);
   }
 
   if (organizations.length === 1) {

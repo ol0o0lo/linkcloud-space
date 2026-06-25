@@ -69,4 +69,26 @@ describe('orgSelection', () => {
     expect(slug).toBe('beta');
     expect(localStorage.getItem('frontend-admin-org-slug')).toBe('beta');
   });
+
+  it('falls back to the backend current org when multiple options exist', () => {
+    const slug = resolveSelectedOrgSlug([
+      {
+        id: 2,
+        name: 'Beta',
+        slug: 'beta',
+        is_current: false,
+        isPrimary: false,
+      },
+      {
+        id: 3,
+        name: 'Gamma',
+        slug: 'gamma',
+        is_current: true,
+        isPrimary: false,
+      },
+    ]);
+
+    expect(slug).toBe('gamma');
+    expect(localStorage.getItem('frontend-admin-org-slug')).toBe('gamma');
+  });
 });

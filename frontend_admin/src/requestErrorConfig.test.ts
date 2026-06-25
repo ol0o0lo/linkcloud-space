@@ -3,10 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { errorConfig } from './requestErrorConfig';
 import { setSelectedOrgSlug } from './utils/orgSelection';
 
-const { mockHistoryPush, mockRequest } = vi.hoisted(() => ({
+const { mockHistory, mockHistoryPush, mockRequest } = vi.hoisted(() => ({
+  mockHistory: {
+    location: {
+      pathname: '/property-rental/workbench',
+      search: '',
+      hash: '',
+    },
+    push: vi.fn(),
+  },
   mockHistoryPush: vi.fn(),
   mockRequest: vi.fn(),
 }));
+mockHistory.push = mockHistoryPush;
 
 vi.mock('antd', () => ({
   message: {
@@ -19,9 +28,7 @@ vi.mock('@umijs/max', () => ({
   getIntl: vi.fn(() => ({
     formatMessage: vi.fn(({ defaultMessage }) => defaultMessage),
   })),
-  history: {
-    push: mockHistoryPush,
-  },
+  history: mockHistory,
   request: mockRequest,
 }));
 
@@ -41,6 +48,11 @@ describe('requestErrorConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setSelectedOrgSlug(undefined);
+    mockHistory.location = {
+      pathname: '/property-rental/workbench',
+      search: '',
+      hash: '',
+    };
   });
 
   describe('errorThrower', () => {
@@ -136,7 +148,30 @@ describe('requestErrorConfig', () => {
 
       errorHandler(error, {});
 
-      expect(mockHistoryPush).toHaveBeenCalledWith('/user/login');
+      expect(mockHistoryPush).toHaveBeenCalledWith('/user/login?redirect=%2Fproperty-rental%2Fworkbench');
+      expect(message.error).not.toHaveBeenCalled();
+    });
+
+    it('should not redirect again when already on login page', () => {
+      mockHistory.location = {
+        pathname: '/dashboard/user/login',
+        search: '',
+        hash: '',
+      };
+      const error: any = new Error('Redirect');
+      error.name = 'BizError';
+      error.info = {
+        code: 401,
+        error: 'UNAUTHORIZED',
+        message: 'Unauthorized',
+        data: null,
+        timestamp: 1718809200,
+        traceId: '',
+      };
+
+      errorHandler(error, {});
+
+      expect(mockHistoryPush).not.toHaveBeenCalled();
       expect(message.error).not.toHaveBeenCalled();
     });
 

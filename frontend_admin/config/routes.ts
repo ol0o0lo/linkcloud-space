@@ -44,58 +44,6 @@ export default [
     ],
   },
   {
-    path: '/welcome',
-    name: 'welcome',
-    icon: 'home',
-    component: './Welcome',
-  },
-  {
-    path: '/admin',
-    name: 'admin',
-    icon: 'crown',
-    access: 'canAdmin',
-    routes: [
-      {
-        path: '/admin',
-        redirect: '/admin/sub-page',
-      },
-      {
-        path: '/admin/sub-page',
-        name: 'sub-page',
-        component: './Admin',
-      },
-    ],
-  },
-  {
-    path: '/dashboard',
-    name: 'dashboard',
-    icon: 'dashboard',
-    routes: [
-      {
-        path: '/dashboard',
-        redirect: '/welcome',
-      },
-      {
-        name: 'analysis',
-        icon: 'barChart',
-        path: '/dashboard/analysis',
-        component: './dashboard/analysis',
-      },
-      {
-        name: 'monitor',
-        icon: 'monitor',
-        path: '/dashboard/monitor',
-        component: './dashboard/monitor',
-      },
-      {
-        name: 'workplace',
-        icon: 'desktop',
-        path: '/dashboard/workplace',
-        component: './dashboard/workplace',
-      },
-    ],
-  },
-  {
     path: '/tenant',
     name: 'tenant-workbench',
     icon: 'apartment',
@@ -143,7 +91,7 @@ export default [
     routes: [
       {
         path: '/access',
-        redirect: '/access/organization-roles',
+        component: './access',
       },
       {
         name: 'organization-roles',
@@ -243,12 +191,14 @@ export default [
         icon: 'plusCircle',
         path: '/property-rental/houses/new',
         component: './property-rental/houses/new',
+        hideInMenu: true,
       },
       {
         name: 'house-detail',
         icon: 'profile',
         path: '/property-rental/houses/:id',
         component: './property-rental/houses/detail',
+        hideInMenu: true,
       },
       {
         name: 'estates',
@@ -337,7 +287,7 @@ export default [
   {
     path: '/personal-business',
     name: 'personal-business',
-    icon: 'userSwitch',
+    icon: 'solution',
     routes: [
       {
         path: '/personal-business',
@@ -345,188 +295,9 @@ export default [
       },
       {
         name: 'overview',
-        icon: 'profile',
+        icon: 'fundProjectionScreen',
         path: '/personal-business/overview',
         component: './personal-business/overview',
-      },
-    ],
-  },
- {
-    path: '/geo',
-    name: 'geo',
-    icon: 'environment',
-    routes: [
-      {
-        path: '/geo',
-        redirect: '/geo/map',
-      },
-      {
-        name: 'map',
-        icon: 'global',
-        path: '/geo/map',
-        component: './geo/map',
-      },
-    ],
-  },
-  {
-   path: '/form',
-    icon: 'form',
-    name: 'form',
-    routes: [
-      {
-        path: '/form',
-        redirect: '/form/basic-form',
-      },
-      {
-        name: 'basic-form',
-        icon: 'form',
-        path: '/form/basic-form',
-        component: './form/basic-form',
-      },
-      {
-        name: 'step-form',
-        icon: 'orderedList',
-        path: '/form/step-form',
-        component: './form/step-form',
-      },
-      {
-        name: 'advanced-form',
-        icon: 'profile',
-        path: '/form/advanced-form',
-        component: './form/advanced-form',
-      },
-    ],
-  },
-  {
-    path: '/list',
-    icon: 'table',
-    name: 'list',
-    routes: [
-      {
-        path: '/list/search',
-        name: 'search-list',
-        component: './list/search',
-        routes: [
-          {
-            path: '/list/search',
-            redirect: '/list/search/articles',
-          },
-          {
-            name: 'articles',
-            icon: 'read',
-            path: '/list/search/articles',
-            component: './list/search/articles',
-          },
-          {
-            name: 'projects',
-            icon: 'project',
-            path: '/list/search/projects',
-            component: './list/search/projects',
-          },
-          {
-            name: 'applications',
-            icon: 'appstore',
-            path: '/list/search/applications',
-            component: './list/search/applications',
-          },
-        ],
-      },
-      {
-        path: '/list',
-        redirect: '/list/table-list',
-      },
-      {
-        name: 'table-list',
-        icon: 'table',
-        path: '/list/table-list',
-        component: './table-list',
-      },
-      {
-        name: 'basic-list',
-        icon: 'unorderedList',
-        path: '/list/basic-list',
-        component: './list/basic-list',
-      },
-      {
-        name: 'card-list',
-        icon: 'creditCard',
-        path: '/list/card-list',
-        component: './list/card-list',
-      },
-    ],
-  },
-  {
-    path: '/profile',
-    name: 'profile',
-    icon: 'profile',
-    routes: [
-      {
-        path: '/profile',
-        redirect: '/profile/basic',
-      },
-      {
-        name: 'basic',
-        icon: 'idcard',
-        path: '/profile/basic',
-        component: './profile/basic',
-      },
-      {
-        name: 'advanced',
-        icon: 'crown',
-        path: '/profile/advanced',
-        component: './profile/advanced',
-      },
-    ],
-  },
-  {
-    name: 'result',
-    icon: 'checkCircle',
-    path: '/result',
-    routes: [
-      {
-        path: '/result',
-        redirect: '/result/success',
-      },
-      {
-        name: 'success',
-        icon: 'checkCircle',
-        path: '/result/success',
-        component: './result/success',
-      },
-      {
-        name: 'fail',
-        icon: 'closeCircle',
-        path: '/result/fail',
-        component: './result/fail',
-      },
-    ],
-  },
-  {
-    name: 'exception',
-    icon: 'warning',
-    path: '/exception',
-    routes: [
-      {
-        path: '/exception',
-        redirect: '/exception/403',
-      },
-      {
-        name: '403',
-        icon: 'stop',
-        path: '/exception/403',
-        component: './exception/403',
-      },
-      {
-        name: '404',
-        icon: 'warning',
-        path: '/exception/404',
-        component: './exception/404',
-      },
-      {
-        name: '500',
-        icon: 'bug',
-        path: '/exception/500',
-        component: './exception/500',
       },
     ],
   },
@@ -534,6 +305,7 @@ export default [
     name: 'account',
     icon: 'user',
     path: '/account',
+    hideInMenu: true,
     routes: [
       {
         path: '/account',
@@ -546,22 +318,14 @@ export default [
         component: './account/center',
       },
       {
-        name: 'settings',
-        icon: 'setting',
         path: '/account/settings',
         component: './account/settings',
       },
     ],
   },
   {
-    path: '/chatbot',
-    name: 'chatbot',
-    icon: 'robot',
-    component: './chatbot',
-  },
-  {
     path: '/',
-    redirect: '/welcome',
+    redirect: '/property-rental/workbench',
   },
   {
     component: './exception/404',

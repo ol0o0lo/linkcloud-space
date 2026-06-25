@@ -1,5 +1,4 @@
 import {
-  ApartmentOutlined,
   BookOutlined,
   CheckOutlined,
   ForkOutlined,
@@ -19,7 +18,6 @@ import { createStyles } from 'antd-style';
 import React, { useMemo } from 'react';
 import {
   appsOrganizationsApiSelectOrg,
-  appsOrganizationsApiSignout,
   appsOrganizationsApiSwitchList,
 } from '@/services/openapi/organizations';
 import { setSelectedOrgSlug } from '@/utils/orgSelection';
@@ -112,13 +110,7 @@ export const OrgSwitcher: React.FC = () => {
     await queryClient.invalidateQueries({ queryKey: ['settings-management'] });
   };
 
-  const handleChange = async (value?: string) => {
-    if (!value) {
-      await appsOrganizationsApiSignout({ skipErrorHandler: true });
-      await syncOrganizations(undefined);
-      return;
-    }
-
+  const handleChange = async (value: string) => {
     await appsOrganizationsApiSelectOrg(
       { slug: value },
       { skipErrorHandler: true },
@@ -132,7 +124,6 @@ export const OrgSwitcher: React.FC = () => {
 
   return (
     <Select
-      allowClear
       aria-label="当前空间"
       className={styles.orgSwitcher}
       options={organizations.map((item) => ({

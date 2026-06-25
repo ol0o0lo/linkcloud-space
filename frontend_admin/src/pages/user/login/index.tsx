@@ -6,6 +6,7 @@ import { LoginForm, ProFormCheckbox, ProFormText } from '@ant-design/pro-compone
 import {
   FormattedMessage,
   Helmet,
+  history,
   SelectLang,
   useIntl,
   useModel,
@@ -19,11 +20,14 @@ import {
   postBrowserV1AuthTwofaAuthenticate,
   postBrowserV1AuthTwofaTrust,
 } from '@/services/allauth/authTwoFactor';
+import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations';
 import {
   formatUnsupportedFlowMessage,
   parseLoginFlowState,
 } from '@/services/manual/allauthFlow';
+import { DEFAULT_POST_LOGIN_PATH, normalizeAdminPath } from '@/utils/adminRouting';
 import { normalizeEmailLikeInput } from '@/utils/email';
+import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import Settings from '../../../../config/defaultSettings';
 import logoUrl from '../../../../public/logo.svg';
 
@@ -131,39 +135,55 @@ const Login: React.FC = () => {
   const { styles } = useStyles();
   const { message } = App.useApp();
   const intl = useIntl();
-  const welcomePath = '/welcome';
 
   /**
    * Validate redirect URL to prevent open redirect attacks
    * Only allow same-origin relative paths starting with '/'
    */
   const getSafeRedirectUrl = (redirect: string | null): string => {
-    if (!redirect?.startsWith('/')) return welcomePath;
+    if (!redirect?.startsWith('/')) return DEFAULT_POST_LOGIN_PATH;
 
     // Block protocol-relative URLs (//example.com)
-    if (redirect.startsWith('//')) return welcomePath;
+    if (redirect.startsWith('//')) return DEFAULT_POST_LOGIN_PATH;
 
     try {
       const parsed = new URL(redirect, window.location.origin);
       // Only allow same-origin URLs
-      if (parsed.origin !== window.location.origin) return welcomePath;
+      if (parsed.origin !== window.location.origin) return DEFAULT_POST_LOGIN_PATH;
       // Return the path with query and hash preserved
-      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+      return `${normalizeAdminPath(parsed.pathname)}${parsed.search}${parsed.hash}`;
     } catch {
-      return welcomePath;
+      return DEFAULT_POST_LOGIN_PATH;
     }
   };
 
-  const fetchUserInfo = async () => {
-    const userInfo = await initialState?.fetchUserInfo?.();
-    if (userInfo) {
-      startTransition(() => {
-        setInitialState((s) => ({
-          ...s,
-          currentUser: userInfo,
-        }));
+  const fetchOrganizations = async () => {
+    try {
+      return await appsOrganizationsApiSwitchList({
+        skipErrorHandler: true,
       });
+    } catch {
+      return [];
     }
+  };
+
+  const hydrateAuthenticatedState = async () => {
+    const userInfo = await initialState?.fetchUserInfo?.();
+    if (!userInfo) {
+      return;
+    }
+
+    const organizations = await fetchOrganizations();
+    const selectedOrgSlug = resolveSelectedOrgSlug(organizations);
+
+    startTransition(() => {
+      setInitialState((s) => ({
+        ...s,
+        currentUser: userInfo,
+        organizations,
+        selectedOrgSlug,
+      }));
+    });
   };
 
   const finishLogin = async () => {
@@ -172,13 +192,13 @@ const Login: React.FC = () => {
       defaultMessage: '登录成功！',
     });
     message.success(defaultLoginSuccessMessage);
-    await fetchUserInfo();
+    await hydrateAuthenticatedState();
     const currentHref = window.location.href || '/user/login';
     const currentOrigin = window.location.origin || 'http://localhost';
     const currentUrl = new URL(currentHref, currentOrigin);
     const urlParams = currentUrl.searchParams;
     const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
-    window.location.href = redirectUrl;
+    history.push(redirectUrl);
   };
 
   const handleSubmit = async (values: LoginFormValues) => {

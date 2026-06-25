@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setSelectedOrgSlug } from './utils/orgSelection';
 
 // Mock all heavy dependencies before importing app
 const mockReplace = vi.fn();
@@ -66,6 +67,7 @@ describe('app getInitialState', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    setSelectedOrgSlug(undefined);
     mockGetOrganizationSwitchList.mockResolvedValue([]);
     mockHistory.location = {
       pathname: '/welcome',
@@ -139,6 +141,42 @@ describe('app getInitialState', () => {
     expect(state.selectedOrgSlug).toBe('acme');
   });
 
+  it('should prefer the backend current organization when multiple orgs are available', async () => {
+    const { getInitialState } = await import('./app');
+    mockQueryCurrentUser.mockResolvedValue({
+      first_name: 'Tenant',
+      last_name: 'User',
+      username: 'tenant-user',
+      email: 'tenant@example.com',
+      avatar_url: null,
+      timezone: 'Asia/Shanghai',
+      phone_verified: true,
+      real_name_status: 'unverified',
+      is_staff: true,
+      is_superuser: false,
+    });
+    mockGetOrganizationSwitchList.mockResolvedValue([
+      {
+        id: 1,
+        name: 'Acme',
+        slug: 'acme',
+        is_current: false,
+        is_primary: true,
+      },
+      {
+        id: 2,
+        name: 'Beta',
+        slug: 'beta',
+        is_current: true,
+        is_primary: false,
+      },
+    ]);
+
+    const state = await getInitialState();
+
+    expect(state.selectedOrgSlug).toBe('beta');
+  });
+
   it('should redirect to login when currentUser fetch fails (401)', async () => {
     const { getInitialState } = await import('./app');
     mockQueryCurrentUser.mockRejectedValue(new Error('401 Unauthorized'));
@@ -164,6 +202,20 @@ describe('app getInitialState', () => {
     expect(mockQueryCurrentUser).not.toHaveBeenCalled();
     expect(state.currentUser).toBeUndefined();
     expect(state.fetchUserInfo).toBeDefined();
+  });
+
+  it('should not fetch currentUser on dashboard login page', async () => {
+    const { getInitialState } = await import('./app');
+    mockHistory.location = {
+      pathname: '/dashboard/user/login',
+      search: '',
+      hash: '',
+    };
+
+    const state = await getInitialState();
+
+    expect(mockQueryCurrentUser).not.toHaveBeenCalled();
+    expect(state.currentUser).toBeUndefined();
   });
 
   it('should encode redirect path correctly on 401', async () => {

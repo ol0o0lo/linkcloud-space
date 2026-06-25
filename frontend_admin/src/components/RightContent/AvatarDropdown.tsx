@@ -8,6 +8,7 @@ import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
 import React, { startTransition } from 'react';
 import { deleteBrowserV1AuthSession } from '@/services/allauth/authSession';
+import { buildAdminPath, isAuthPagePath, LOGIN_PATH } from '@/utils/adminRouting';
 import HeaderDropdown from '../HeaderDropdown';
 
 type GlobalHeaderRightProps = {
@@ -31,12 +32,12 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     const { search, pathname } = window.location;
     const urlParams = new URL(window.location.href).searchParams;
     const searchParams = new URLSearchParams({
-      redirect: pathname + search,
+      redirect: buildAdminPath(pathname, search),
     });
     const redirect = urlParams.get('redirect');
-    if (window.location.pathname !== '/user/login' && !redirect) {
+    if (!isAuthPagePath(window.location.pathname) && !redirect) {
       history.replace({
-        pathname: '/user/login',
+        pathname: LOGIN_PATH,
         search: searchParams.toString(),
       });
     }
@@ -73,7 +74,7 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     {
       key: 'settings',
       icon: <SettingOutlined />,
-      label: '个人设置',
+      label: '账号设置',
     },
     {
       key: 'theme',

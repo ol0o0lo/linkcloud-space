@@ -2,9 +2,8 @@ import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
 import { message } from 'antd';
+import { buildAdminPath, isAuthPagePath, LOGIN_PATH } from './utils/adminRouting';
 import { getSelectedOrgSlug } from './utils/orgSelection';
-
-const LOGIN_PATH = '/user/login';
 const ALLAUTH_BROWSER_BASE = '/api/allauth/browser/v1';
 
 function getCookie(name: string) {
@@ -89,7 +88,14 @@ export const errorConfig: RequestConfig = {
       if (error.name === 'BizError') {
         const errorInfo: ApiEnvelope | undefined = error.info;
         if (errorInfo?.code === 401) {
-          history.push(LOGIN_PATH);
+          const currentPath = history.location
+            ? buildAdminPath(history.location.pathname, history.location.search, history.location.hash)
+            : undefined;
+          if (!isAuthPagePath(currentPath)) {
+            history.push(
+              `${LOGIN_PATH}?redirect=${encodeURIComponent(currentPath || '/')}`,
+            );
+          }
         } else if (errorInfo) {
           message.error(errorInfo.message || errorInfo.error || 'Request error, please retry.');
         }
