@@ -4,14 +4,19 @@ import { http } from './http'
 /*
  * openapi-ts-request 工具的 request 跨客户端适配方法
  */
-export default function request<T extends { data?: any }>(
+type OpenApiRequestOptions = Omit<CustomRequestOptions, 'url'> & {
+  params?: Record<string, unknown>
+  headers?: Record<string, unknown>
+}
+
+export default function request<T>(
   url: string,
-  options: Omit<CustomRequestOptions, 'url'> & {
+  options: OpenApiRequestOptions,
+) {
+  const requestOptions: CustomRequestOptions & {
     params?: Record<string, unknown>
     headers?: Record<string, unknown>
-  },
-) {
-  const requestOptions = {
+  } = {
     url,
     ...options,
   }
@@ -26,5 +31,5 @@ export default function request<T extends { data?: any }>(
     delete requestOptions.headers
   }
 
-  return http<T['data']>(requestOptions)
+  return http<T>(requestOptions)
 }

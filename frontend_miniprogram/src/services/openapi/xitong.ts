@@ -1,0 +1,60 @@
+/* eslint-disable */
+// @ts-ignore
+import request from '@/http/vue-query';
+import { CustomRequestOptions_ } from '@/http/types';
+
+import * as API from './types';
+
+/** 获取应用上下文 返回当前用户、当前租户和前端初始化所需的全局上下文信息。 GET /api/app-context/ */
+export function appContextUsingGet({
+  options,
+}: {
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.AppContextOut>('/api/app-context/', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 发送测试通知 向指定 staff 用户发送测试邮件或站内通知，仅超级管理员可用。 POST /api/test-notifications/ */
+export function testNotificationsUsingPost({
+  body,
+  options,
+}: {
+  body: API.TestNotificationIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<unknown>('/api/test-notifications/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 获取测试通知收件人列表 返回可用于发送测试通知的 staff 用户列表，仅超级管理员可用。 GET /api/test-notifications/staff-users/ */
+export function testNotificationsStaffUsersUsingGet({
+  options,
+}: {
+  options?: CustomRequestOptions_;
+}) {
+  return request<unknown>('/api/test-notifications/staff-users/', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 获取应用版本 返回当前前端构建版本标识，用于客户端版本展示与调试。 GET /api/version/ */
+export function versionUsingGet({
+  options,
+}: {
+  options?: CustomRequestOptions_;
+}) {
+  return request<unknown>('/api/version/', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
