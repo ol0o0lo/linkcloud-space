@@ -141,6 +141,12 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         with self.assertRaises(ValidationError):
             building.full_clean()
 
+    def test_estate_address_can_be_left_blank_for_governance_follow_up(self):
+        estate = self.make_estate(name="待补地址项目", display_name="待补地址项目", address="")
+
+        estate.refresh_from_db()
+        self.assertEqual(estate.address, "")
+
     def test_contact_phone_unique_inside_org_but_reusable_across_orgs(self):
         contact = self.make_contact(phone="13800138001")
         Contact.objects.create(organization=self.other_org, name="异租户", phone="13800138001", roles=[Contact.Role.LANDLORD])
@@ -444,6 +450,42 @@ class TestViewingAndLease(HouseDomainTestCase):
         )
 
         self.assertEqual(lease.source_viewing_record, viewing)
+
+    def test_lease_source_viewing_record_cannot_be_reused_for_another_lease(self):
+        landlord = self.make_contact(phone="13800138016")
+        tenant = self.make_tenant(phone="13900139016")
+        house = self.make_house(room_number="1405", landlord=landlord)
+        viewing = ViewingRecord.objects.create(
+            organization=self.org,
+            house=house,
+            contact=tenant,
+            customer_name="重复成交客户",
+            customer_phone="13900139016",
+            scheduled_at="2026-07-01T10:00:00+08:00",
+            status=ViewingRecord.Status.CONVERTED,
+        )
+        Lease.objects.create(
+            organization=self.org,
+            house=house,
+            tenant=tenant,
+            source_viewing_record=viewing,
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=365),
+            monthly_rent=Decimal("5000"),
+        )
+
+        duplicate = Lease(
+            organization=self.org,
+            house=house,
+            tenant=tenant,
+            source_viewing_record=viewing,
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=180),
+            monthly_rent=Decimal("5100"),
+        )
+
+        with self.assertRaises(ValidationError):
+            duplicate.full_clean()
 
     def test_lease_source_viewing_record_must_match_closed_loop_context(self):
         landlord = self.make_contact(phone="13800138014")

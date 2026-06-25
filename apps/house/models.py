@@ -37,7 +37,7 @@ class Estate(CreateUpdateTimeModelMixin):
     province = models.CharField(max_length=64)
     city = models.CharField(max_length=64)
     district = models.CharField(max_length=64)
-    address = models.CharField(max_length=255)
+    address = models.CharField(max_length=255, blank=True, default="")
     lat = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="项目/小区级展示点定位")
     lng = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="项目/小区级展示点定位")
     images = MediaRefsField(
@@ -315,6 +315,11 @@ class Lease(CreateUpdateTimeModelMixin):
                 errors["source_viewing_record"] = "成交来源带看记录必须处于 converted 状态。"
             if self.tenant_id and self.source_viewing_record.contact_id and self.source_viewing_record.contact_id != self.tenant_id:
                 errors["source_viewing_record"] = "成交来源带看记录关联租客必须与租约租客一致。"
+            qs = type(self).objects.filter(source_viewing_record_id=self.source_viewing_record_id)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                errors["source_viewing_record"] = "该成交带看已生成租约，请直接维护现有租约。"
         if self.status == self.Status.ACTIVE and self.house_id:
             qs = type(self).objects.filter(house_id=self.house_id, status=self.Status.ACTIVE)
             if self.pk:

@@ -17,7 +17,7 @@ class EstateIn(Schema):
     province: str
     city: str
     district: str
-    address: str
+    address: str = ""
     lat: Decimal | None = None
     lng: Decimal | None = None
     images: list[dict[str, Any]] = Field(default_factory=list)
@@ -90,6 +90,7 @@ class BuildingPatchIn(Schema):
 class BuildingOut(Schema):
     id: int
     estate_id: int
+    estate_name: str
     name: str
     floors: int
     under_floors: int | None
@@ -99,6 +100,10 @@ class BuildingOut(Schema):
     lng: Decimal | None
     address: str
     is_active: bool
+
+    @staticmethod
+    def resolve_estate_name(obj):
+        return obj.estate.display_name or obj.estate.name
 
 
 class DefaultBuildingIn(Schema):
@@ -205,7 +210,12 @@ class HousePatchIn(Schema):
 class HouseOut(Schema):
     id: int
     building_id: int
+    building_name: str
+    estate_name: str
     landlord_id: int | None
+    landlord_name: str | None
+    landlord_phone: str | None
+    house_label: str
     room_number: str
     floor: int | None
     area: Decimal | None
@@ -230,6 +240,46 @@ class HouseOut(Schema):
     internal_notes: str
     extra: dict[str, Any]
     is_active: bool
+    publish_can_publish: bool
+    publish_blocking_issues: list[str]
+    publish_warning_issues: list[str]
+    publish_rule_snapshot: dict[str, Any]
+
+    @staticmethod
+    def resolve_building_name(obj):
+        return obj.building.name
+
+    @staticmethod
+    def resolve_estate_name(obj):
+        return obj.building.estate.display_name or obj.building.estate.name
+
+    @staticmethod
+    def resolve_landlord_name(obj):
+        return obj.landlord.name if obj.landlord_id else None
+
+    @staticmethod
+    def resolve_landlord_phone(obj):
+        return obj.landlord.phone if obj.landlord_id else None
+
+    @staticmethod
+    def resolve_publish_can_publish(obj):
+        return bool(getattr(obj, "publish_can_publish", True))
+
+    @staticmethod
+    def resolve_publish_blocking_issues(obj):
+        return list(getattr(obj, "publish_blocking_issues", []))
+
+    @staticmethod
+    def resolve_publish_warning_issues(obj):
+        return list(getattr(obj, "publish_warning_issues", []))
+
+    @staticmethod
+    def resolve_publish_rule_snapshot(obj):
+        return dict(getattr(obj, "publish_rule_snapshot", {}))
+
+    @staticmethod
+    def resolve_house_label(obj):
+        return f"{obj.building.estate.display_name or obj.building.estate.name} / {obj.building.name} / {obj.room_number}"
 
     @staticmethod
     def resolve_images(obj):
@@ -269,7 +319,10 @@ class ViewingRecordPatchIn(Schema):
 class ViewingRecordOut(Schema):
     id: int
     house_id: int
+    house_label: str
     contact_id: int | None
+    contact_name: str | None
+    contact_phone: str | None
     customer_name: str
     customer_phone: str
     scheduled_at: datetime
@@ -279,6 +332,27 @@ class ViewingRecordOut(Schema):
     notes: str
     extra: dict[str, Any]
     is_active: bool
+    signed_lease_id: int | None = None
+
+    @staticmethod
+    def resolve_house_label(obj):
+        house = obj.house
+        return f"{house.building.estate.display_name or house.building.estate.name} / {house.building.name} / {house.room_number}"
+
+    @staticmethod
+    def resolve_contact_name(obj):
+        return obj.contact.name if obj.contact_id else None
+
+    @staticmethod
+    def resolve_contact_phone(obj):
+        return obj.contact.phone if obj.contact_id else None
+
+    @staticmethod
+    def resolve_signed_lease_id(obj):
+        annotated = getattr(obj, "signed_lease_id", None)
+        if annotated is not None:
+            return annotated
+        return obj.converted_leases.order_by("id").values_list("id", flat=True).first()
 
 
 class LeaseIn(Schema):
@@ -317,8 +391,12 @@ class LeasePatchIn(Schema):
 class LeaseOut(Schema):
     id: int
     house_id: int
+    house_label: str
     tenant_id: int
+    tenant_name: str
+    tenant_phone: str
     source_viewing_record_id: int | None
+    source_viewing_record_label: str | None
     sign_at: datetime | None
     start_date: date
     end_date: date
@@ -329,6 +407,26 @@ class LeaseOut(Schema):
     contract_files: list[dict[str, Any]]
     notes: str
     extra: dict[str, Any]
+
+    @staticmethod
+    def resolve_house_label(obj):
+        house = obj.house
+        return f"{house.building.estate.display_name or house.building.estate.name} / {house.building.name} / {house.room_number}"
+
+    @staticmethod
+    def resolve_tenant_name(obj):
+        return obj.tenant.name
+
+    @staticmethod
+    def resolve_tenant_phone(obj):
+        return obj.tenant.phone
+
+    @staticmethod
+    def resolve_source_viewing_record_label(obj):
+        if not obj.source_viewing_record_id:
+            return None
+        record = obj.source_viewing_record
+        return f"{record.customer_name} / {record.customer_phone}"
 
     @staticmethod
     def resolve_contract_files(obj):

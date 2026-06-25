@@ -4,7 +4,15 @@ import pytest
 from django.apps import apps as django_apps
 from model_bakery import baker
 
-from apps.house.services import DEFAULT_BUILDING_SETTING_KEY, _default_building_setting
+from apps.house.services import (
+    DEFAULT_BUILDING_SETTING_KEY,
+    DEFAULT_HOUSE_PUBLISH_RULES,
+    PUBLISH_RULES_SETTING_KEY,
+    _default_building_setting,
+    _publish_rules_setting,
+    evaluate_house_publish_state,
+    normalize_house_publish_rules,
+)
 from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting
 from apps.settings.service import (
     delete_org_setting,
@@ -261,4 +269,69 @@ class TestDefaultBuildingSetting:
         assert setting.label == "默认楼栋"
         assert setting.widget == "select"
         assert setting.ui == {"options_source": "house.buildings"}
+        assert setting.category == "property_rental"
+
+
+@pytest.mark.django_db
+class TestPublishRulesSetting:
+    def test_existing_setting_metadata_is_filled_without_overwriting_value(self):
+        DefaultSetting.objects.create(
+            key=PUBLISH_RULES_SETTING_KEY,
+            value={"rent": {"mode": "warn"}},
+            value_type="json",
+        )
+
+        setting = _publish_rules_setting()
+
+        assert setting.value == {"rent": {"mode": "warn"}}
+        assert setting.description == "控制房源发布时哪些资料缺失会阻断发布，哪些仅做提醒。"
+        assert setting.label == "房源发布规则"
+        assert setting.widget == "json_editor"
+        assert setting.ui == {"options_source": "house.publish_rules"}
+        assert setting.category == "property_rental"
+
+    def test_normalize_publish_rules_merges_defaults(self):
+        rules = normalize_house_publish_rules({"rent": {"mode": "warn"}, "images": {"mode": "required", "min_count": "5"}})
+
+        assert rules["rent"]["mode"] == "warn"
+        assert rules["images"]["mode"] == "required"
+        assert rules["images"]["min_count"] == 5
+        assert rules["video"] == DEFAULT_HOUSE_PUBLISH_RULES["video"]
+
+    def test_evaluate_publish_state_splits_blocking_and_warning_issues(self, org):
+        estate = baker.make("house.Estate", organization=org)
+        building = baker.make("house.Building", organization=org, estate=estate)
+        house = baker.make(
+            "house.House",
+            building=building,
+            landlord=None,
+            asking_rent=None,
+            images=[],
+            videos=[],
+        )
+
+        result = evaluate_house_publish_state(
+            house,
+            rules={
+                "landlord": {"mode": "required"},
+                "rent": {"mode": "required"},
+                "cover": {"mode": "warn"},
+                "images": {"mode": "warn", "min_count": 3},
+                "floor_plan": {"mode": "off"},
+                "video": {"mode": "off", "min_count": 1},
+            },
+        )
+
+        assert result["can_publish"] is False
+        assert result["blocking_issues"] == ["缺房东", "缺租金"]
+        assert result["warning_issues"] == ["缺封面", "图片不足"]
+
+    def test_publish_rules_migration_backfill(self):
+        migration = importlib.import_module("apps.settings.migrations.0005_property_rental_publish_rules")
+
+        migration.ensure_property_rental_publish_rules(django_apps, None)
+
+        setting = DefaultSetting.objects.get(key=PUBLISH_RULES_SETTING_KEY)
+        assert setting.value == DEFAULT_HOUSE_PUBLISH_RULES
+        assert setting.value_type == "json"
         assert setting.category == "property_rental"

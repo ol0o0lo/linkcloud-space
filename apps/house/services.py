@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from django.db import transaction
@@ -8,6 +9,37 @@ from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
+PUBLISH_RULES_SETTING_KEY = "property_rental.publish_rules"
+PUBLISH_RULE_MODE_REQUIRED = "required"
+PUBLISH_RULE_MODE_WARNING = "warn"
+PUBLISH_RULE_MODE_OFF = "off"
+
+HOUSE_PUBLISH_RULE_LABELS = {
+    "landlord": "房东主体",
+    "rent": "租金",
+    "cover": "封面图",
+    "images": "房源图片",
+    "floor_plan": "户型图",
+    "video": "视频",
+}
+
+HOUSE_PUBLISH_ISSUE_LABELS = {
+    "landlord": "缺房东",
+    "rent": "缺租金",
+    "cover": "缺封面",
+    "images": "图片不足",
+    "floor_plan": "缺户型图",
+    "video": "视频不足",
+}
+
+DEFAULT_HOUSE_PUBLISH_RULES = {
+    "landlord": {"mode": PUBLISH_RULE_MODE_REQUIRED, "label": HOUSE_PUBLISH_RULE_LABELS["landlord"]},
+    "rent": {"mode": PUBLISH_RULE_MODE_REQUIRED, "label": HOUSE_PUBLISH_RULE_LABELS["rent"]},
+    "cover": {"mode": PUBLISH_RULE_MODE_WARNING, "label": HOUSE_PUBLISH_RULE_LABELS["cover"]},
+    "images": {"mode": PUBLISH_RULE_MODE_WARNING, "label": HOUSE_PUBLISH_RULE_LABELS["images"], "min_count": 3},
+    "floor_plan": {"mode": PUBLISH_RULE_MODE_WARNING, "label": HOUSE_PUBLISH_RULE_LABELS["floor_plan"]},
+    "video": {"mode": PUBLISH_RULE_MODE_OFF, "label": HOUSE_PUBLISH_RULE_LABELS["video"], "min_count": 1},
+}
 
 if TYPE_CHECKING:
     from apps.accounts.models import User
@@ -97,6 +129,113 @@ def _default_building_setting():
     if update_fields:
         setting.save(update_fields=update_fields)
     return setting
+
+
+def normalize_house_publish_rules(value):
+    rules = deepcopy(DEFAULT_HOUSE_PUBLISH_RULES)
+    if not isinstance(value, dict):
+        return rules
+
+    for key, default_rule in DEFAULT_HOUSE_PUBLISH_RULES.items():
+        raw_rule = value.get(key)
+        if not isinstance(raw_rule, dict):
+            continue
+        mode = raw_rule.get("mode")
+        if mode in {PUBLISH_RULE_MODE_REQUIRED, PUBLISH_RULE_MODE_WARNING, PUBLISH_RULE_MODE_OFF}:
+            rules[key]["mode"] = mode
+        if "min_count" in default_rule:
+            raw_count = raw_rule.get("min_count", default_rule["min_count"])
+            try:
+                rules[key]["min_count"] = max(int(raw_count), 0)
+            except (TypeError, ValueError):
+                rules[key]["min_count"] = default_rule["min_count"]
+
+    return rules
+
+
+def _publish_rules_setting():
+    from apps.settings.models import DefaultSetting
+
+    metadata = {
+        "description": "控制房源发布时哪些资料缺失会阻断发布，哪些仅做提醒。",
+        "label": "房源发布规则",
+        "widget": "json_editor",
+        "ui": {"options_source": "house.publish_rules"},
+        "category": "property_rental",
+    }
+    setting, _ = DefaultSetting.objects.get_or_create(
+        key=PUBLISH_RULES_SETTING_KEY,
+        defaults={
+            "value": deepcopy(DEFAULT_HOUSE_PUBLISH_RULES),
+            "value_type": ValueType.JSON,
+            **metadata,
+        },
+    )
+    update_fields = []
+    if setting.value_type != ValueType.JSON:
+        setting.value_type = ValueType.JSON
+        update_fields.append("value_type")
+    if not setting.value:
+        setting.value = deepcopy(DEFAULT_HOUSE_PUBLISH_RULES)
+        update_fields.append("value")
+    for field, value in metadata.items():
+        if getattr(setting, field) != value:
+            setattr(setting, field, value)
+            update_fields.append(field)
+    if update_fields:
+        setting.save(update_fields=update_fields)
+    return setting
+
+
+def get_org_house_publish_rules(organization: Organization):
+    from apps.settings.models import OrganizationSetting
+
+    setting = _publish_rules_setting()
+    override = OrganizationSetting.objects.filter(organization=organization, setting=setting).first()
+    return normalize_house_publish_rules(override.value if override else setting.value)
+
+
+def evaluate_house_publish_state(house, rules=None):
+    publish_rules = normalize_house_publish_rules(rules)
+    images = house.images or []
+    image_roles = {item.get("image_role") for item in images if isinstance(item, dict)}
+    image_count = len(images)
+    video_count = len(house.videos or [])
+    issue_flags = {
+        "landlord": not bool(house.landlord_id),
+        "rent": not bool(house.asking_rent),
+        "cover": "cover" not in image_roles,
+        "images": image_count < publish_rules["images"]["min_count"],
+        "floor_plan": "floor_plan" not in image_roles,
+        "video": video_count < publish_rules["video"]["min_count"],
+    }
+
+    blocking_issues: list[str] = []
+    warning_issues: list[str] = []
+    for key, is_missing in issue_flags.items():
+        if not is_missing:
+            continue
+        rule = publish_rules[key]
+        if rule["mode"] == PUBLISH_RULE_MODE_OFF:
+            continue
+        target = blocking_issues if rule["mode"] == PUBLISH_RULE_MODE_REQUIRED else warning_issues
+        target.append(HOUSE_PUBLISH_ISSUE_LABELS[key])
+
+    return {
+        "can_publish": not blocking_issues,
+        "blocking_issues": blocking_issues,
+        "warning_issues": warning_issues,
+        "rule_snapshot": publish_rules,
+    }
+
+
+def attach_house_publish_state(house, organization: Organization, rules=None):
+    state = evaluate_house_publish_state(house, rules=rules or get_org_house_publish_rules(organization))
+    house.publish_can_publish = state["can_publish"]
+    house.publish_blocking_issues = state["blocking_issues"]
+    house.publish_warning_issues = state["warning_issues"]
+    house.publish_rule_snapshot = state["rule_snapshot"]
+    return house
 
 
 @transaction.atomic
