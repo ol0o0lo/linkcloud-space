@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import NotificationDispatchesPage from './index';
@@ -111,14 +111,26 @@ describe('NotificationDispatchesPage', () => {
     });
   });
 
-  it('loads dispatches, creates a users dispatch, and fetches detail data', async () => {
-    render(<QueryClientProvider client={queryClient}><NotificationDispatchesPage /></QueryClientProvider>);
+  it('renders governance layout, creates dispatches, and opens detail data', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationDispatchesPage />
+      </QueryClientProvider>,
+    );
 
     await waitFor(() => {
       expect(mockListDispatches).toHaveBeenCalledWith({ page: 1, page_size: 10 });
+      expect(screen.getByText('分发治理概览')).toBeInTheDocument();
+      expect(screen.getByText('当前投放执行面')).toBeInTheDocument();
+      expect(screen.getByText('闭环信号')).toBeInTheDocument();
+      expect(screen.getByText('分发治理台账')).toBeInTheDocument();
       expect(screen.getByText('首条分发')).toBeInTheDocument();
-      expect(screen.getByText('sent')).toBeInTheDocument();
     });
+
+    const row = screen.getByText('首条分发').closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText('已送达')).toBeInTheDocument();
+    expect(within(row!).getByText('指定用户 (10)')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '新建分发' }));
     fireEvent.click(screen.getByRole('radio', { name: '指定用户' }));
@@ -138,16 +150,21 @@ describe('NotificationDispatchesPage', () => {
       }),
     );
 
-    fireEvent.click(screen.getByText('详情'));
+    fireEvent.click(within(row!).getByText('详情'));
     await waitFor(() => {
       expect(mockGetDispatch).toHaveBeenCalledWith({ dispatch_id: 1 });
       expect(mockListDispatchNotifications).toHaveBeenCalledWith({ dispatch_id: 1, page: 1, page_size: 10 });
-      expect(screen.getByText('sending')).toBeInTheDocument();
+      expect(screen.getByText('分发详情')).toBeInTheDocument();
+      expect(screen.getByText('发送中')).toBeInTheDocument();
     });
   });
 
   it('blocks submit when scope_ids_text contains invalid tokens', async () => {
-    render(<QueryClientProvider client={queryClient}><NotificationDispatchesPage /></QueryClientProvider>);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationDispatchesPage />
+      </QueryClientProvider>,
+    );
 
     await screen.findByText('首条分发');
 
@@ -165,7 +182,11 @@ describe('NotificationDispatchesPage', () => {
   });
 
   it('resets form after cancelling create modal and reopening it', async () => {
-    render(<QueryClientProvider client={queryClient}><NotificationDispatchesPage /></QueryClientProvider>);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationDispatchesPage />
+      </QueryClientProvider>,
+    );
 
     await screen.findByText('首条分发');
 

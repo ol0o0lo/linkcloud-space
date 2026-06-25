@@ -27,8 +27,13 @@ describe('WalletAccountsPage', () => {
     vi.clearAllMocks();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     mockListAccounts.mockResolvedValue({
-      items: [{ id: 1, user_id: 7, available_balance: 1200, frozen_balance: 100, total_income: 3000, total_withdrawn: 800 }],
-      total: 1,
+      items: [
+        { id: 1, user_id: 7, available_balance: 1200, frozen_balance: 100, total_income: 3000, total_withdrawn: 800 },
+        { id: 2, user_id: 8, available_balance: 0, frozen_balance: 0, total_income: 0, total_withdrawn: 0 },
+        { id: 3, user_id: 9, available_balance: 0, frozen_balance: 900, total_income: 1800, total_withdrawn: 900 },
+        { id: 4, user_id: 10, available_balance: 1600, frozen_balance: 0, total_income: 2000, total_withdrawn: 300 },
+      ],
+      total: 4,
       page: 1,
       page_size: 10,
     });
@@ -41,7 +46,7 @@ describe('WalletAccountsPage', () => {
     mockAdjust.mockResolvedValue({});
   });
 
-  it('loads wallet accounts and triggers ledger / adjustment actions', async () => {
+  it('renders wallet governance overview and preserves ledger / adjustment actions', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <WalletAccountsPage />
@@ -51,13 +56,21 @@ describe('WalletAccountsPage', () => {
     await waitFor(() => {
       expect(mockListAccounts).toHaveBeenCalledWith({ page: 1, page_size: 10 });
       expect(screen.getByText('用户 #7')).toBeInTheDocument();
+      expect(screen.getByText('账户治理概览')).toBeInTheDocument();
+      expect(screen.getByText('当前账户执行面')).toBeInTheDocument();
+      expect(screen.getByText('闭环信号')).toBeInTheDocument();
+      expect(screen.getByText('账户治理台账')).toBeInTheDocument();
+      expect(screen.getAllByText('冻结资金账户').length).toBeGreaterThan(0);
+      expect(screen.getByText('待激活账户')).toBeInTheDocument();
+      expect(screen.getByText('余额沉淀账户')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText('查看流水'));
+    fireEvent.click(screen.getAllByText('查看流水')[0]!);
 
     await waitFor(() => {
       expect(mockLedger).toHaveBeenCalledWith({ user_id: 7, page: 1, page_size: 10 });
       expect(screen.getByText('补贴')).toBeInTheDocument();
+      expect(screen.getByText('账户资金概览')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: '创建调账' }));

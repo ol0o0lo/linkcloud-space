@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Form, Modal, Popconfirm, Select, Table } from 'antd';
+import { Alert, Button, Card, Col, Empty, Form, Modal, Popconfirm, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
@@ -12,7 +12,31 @@ import {
 } from '@/services/openapi/accessTeamBindings';
 import { appsOrganizationsApiListMembers } from '@/services/openapi/organizationMembers';
 import { TenantSectionHint, TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/tenant/shared';
-import { EmptyTeamHint, RoleSummary, TeamContextCard, accessQueryKeys } from '../shared';
+import { EmptyTeamHint, RoleSummary, TeamContextCard, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
+
+type TeamBindingSignal = {
+  key: string;
+  title: string;
+  emphasis: string;
+  summary: string;
+  description: string;
+  actionLabel: string;
+  actionHref: string;
+};
+
+const sectionStyle: React.CSSProperties = {
+  padding: 20,
+  border: '1px solid var(--ant-color-border-secondary)',
+  borderRadius: 8,
+  background: 'var(--ant-color-fill-quaternary)',
+};
+const overviewTileStyle: React.CSSProperties = {
+  height: '100%',
+  padding: 16,
+  borderRadius: 8,
+  border: '1px solid var(--ant-color-border-secondary)',
+  background: 'var(--ant-color-bg-container)',
+};
 
 const TeamBindingsPage: React.FC = () => {
   const workspace = useTenantWorkspace();
@@ -33,7 +57,7 @@ const TeamBindingsPage: React.FC = () => {
   const membersQuery = useQuery({
     queryKey: ['access', 'team-binding-members', workspace.selectedOrgSlug, selectedTeamId],
     queryFn: () => appsOrganizationsApiListMembers({ page: 1, page_size: 100 }),
-    enabled: open && Boolean(workspace.selectedOrgSlug && selectedTeamId),
+    enabled: Boolean(workspace.selectedOrgSlug && selectedTeamId),
   });
 
   const createMutation = useMutation({
@@ -63,10 +87,108 @@ const TeamBindingsPage: React.FC = () => {
     () => (rolesQuery.data || []).filter((item) => item.is_active).map((item) => ({ label: item.name, value: item.id })),
     [rolesQuery.data],
   );
+  const memberItems = membersQuery.data?.items || [];
+  const bindingItems = bindingsQuery.data || [];
+  const activeRoles = (rolesQuery.data || []).filter((item) => item.is_active);
+  const customRoles = activeRoles.filter((item) => !item.is_system);
+  const roleMap = new Map((rolesQuery.data || []).map((item) => [item.id, item]));
+  const boundUserIds = new Set(bindingItems.map((item) => item.user.id));
+  const boundRoleIds = new Set(bindingItems.map((item) => item.role.id));
+  const pendingMembers = memberItems.filter((item) => !boundUserIds.has(item.user.id));
+  const unusedRoles = activeRoles.filter((item) => !boundRoleIds.has(item.id));
+  const assignedMemberPreview = bindingItems.slice(0, 3).map((item) => formatPersonLabel(item.user));
+  const pendingMemberPreview = pendingMembers.slice(0, 3).map((item) => formatPersonLabel(item.user));
+  const bindingSignals = useMemo<TeamBindingSignal[]>(
+    () => [
+      {
+        key: 'execution',
+        title: '执行承接',
+        emphasis: boundUserIds.size ? `${boundUserIds.size} 人已承接` : '待建立承接',
+        summary: boundUserIds.size
+          ? `${boundUserIds.size} 名成员已经拿到团队级角色，开始承接发布、审核或资料补齐动作。`
+          : '当前没有任何成员拿到团队级角色，团队策略无法真正落到执行层。',
+        description: '先把首批执行人绑定到角色，再去要求团队对房源发布和治理结果负责。',
+        actionLabel: '立即分配角色',
+        actionHref: '#assign-role',
+      },
+      {
+        key: 'coverage',
+        title: '待分配成员',
+        emphasis: pendingMembers.length ? `${pendingMembers.length} 人待补` : '已全部覆盖',
+        summary: pendingMembers.length
+          ? `还有 ${pendingMembers.length} 名团队成员尚未拿到角色，容易形成“在团队里但没人负责”的灰区。`
+          : '当前团队成员都已有角色承接，授权覆盖相对完整。',
+        description: '建议优先把参与发房、跟进房东、补资料的人补上角色，再逐步细化权限边界。',
+        actionLabel: '查看团队成员',
+        actionHref: '/dashboard/tenant/teams',
+      },
+      {
+        key: 'roles',
+        title: '角色覆盖',
+        emphasis: unusedRoles.length ? `${unusedRoles.length} 个角色闲置` : '角色都在使用',
+        summary: unusedRoles.length
+          ? `当前有 ${unusedRoles.length} 个可用角色还没有成员承接，说明角色设计和实际执行之间可能脱节。`
+          : '可用角色都已经被实际成员承接，角色设计和执行组织基本对齐。',
+        description: '如果角色长期没人用，要么删掉冗余角色，要么重新梳理团队职责分配。',
+        actionLabel: '进入团队角色',
+        actionHref: '/dashboard/access/team-roles',
+      },
+      {
+        key: 'policy',
+        title: '策略联动',
+        emphasis: '授权跟策略走',
+        summary: '团队授权不只是配权限，还决定谁来处理发布阻断、谁来维护例外策略、谁来收口异常。',
+        description: '如果团队设置已经做了差异化覆盖，授权页也应该同步补齐执行人，否则策略只会停留在配置层。',
+        actionLabel: '查看团队设置',
+        actionHref: '/dashboard/settings-management/team',
+      },
+    ],
+    [boundUserIds.size, pendingMembers.length, unusedRoles.length],
+  );
 
   const columns: ColumnsType<API.TeamBindingOut> = [
-    { title: '成员', dataIndex: 'user', width: 180, render: (user) => formatPersonLabel(user) },
+    {
+      title: '成员',
+      dataIndex: 'user',
+      width: 220,
+      render: (user) => (
+        <Space orientation="vertical" size={0}>
+          <Typography.Text>{formatPersonLabel(user)}</Typography.Text>
+          <Typography.Text type="secondary">{user.username}</Typography.Text>
+        </Space>
+      ),
+    },
     { title: '角色', dataIndex: 'role', width: 220, render: (role) => <RoleSummary role={role} /> },
+    {
+      title: '权限范围',
+      dataIndex: 'role_scope',
+      width: 220,
+      render: (_value, record) => {
+        const role = roleMap.get(record.role.id);
+        if (!role) {
+          return <Typography.Text type="secondary">角色详情缺失</Typography.Text>;
+        }
+        return (
+          <Space orientation="vertical" size={4}>
+            {roleStatusTag(role)}
+            <Typography.Text type="secondary">{rolePermissionText(role)}</Typography.Text>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '执行说明',
+      dataIndex: 'execution',
+      width: 280,
+      render: (_value, record) => {
+        const role = roleMap.get(record.role.id);
+        return (
+          <Typography.Text type="secondary">
+            {role?.is_system ? '适合稳定的基础职责承接。' : '适合团队内部的局部职责或短期试点。'}
+          </Typography.Text>
+        );
+      },
+    },
     { title: '授权时间', dataIndex: 'created_at', width: 170, render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm') },
     {
       title: '操作',
@@ -86,19 +208,157 @@ const TeamBindingsPage: React.FC = () => {
     <TenantSelectionGuard title="团队授权" subtitle="为指定团队成员分配团队级角色。">
       <TeamContextCard selectedTeamId={selectedTeamId} onChange={setSelectedTeamId} />
       {selectedTeamId ? (
-        <Card
-          title="授权列表"
-          extra={
-            <AdminToolbar>
-              <Button type="primary" onClick={() => setOpen(true)}>
-                分配角色
-              </Button>
-            </AdminToolbar>
-          }
-        >
-          <TenantSectionHint text="团队级授权只在所选团队内生效，不影响成员在其它团队或租户层级的权限。" />
-          <Table rowKey="id" loading={bindingsQuery.isLoading} columns={columns} dataSource={bindingsQuery.data || []} pagination={false} scroll={adminTableScroll} />
-        </Card>
+        <>
+          <Card loading={bindingsQuery.isLoading || rolesQuery.isLoading || membersQuery.isLoading}>
+            <div style={sectionStyle}>
+              <Typography.Text strong>授权概览</Typography.Text>
+              <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+                <Col xs={24} sm={12} xl={6}>
+                  <div style={overviewTileStyle}>
+                    <Statistic title="团队成员" value={memberItems.length} />
+                    <Typography.Text type="secondary">当前团队内可被纳入角色分工的成员数。</Typography.Text>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} xl={6}>
+                  <div style={overviewTileStyle}>
+                    <Statistic title="已授权成员" value={boundUserIds.size} />
+                    <Typography.Text type="secondary">{boundUserIds.size ? `${boundUserIds.size} 名成员已拿到团队级角色。` : '当前还没有成员被正式授权。'}</Typography.Text>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} xl={6}>
+                  <div style={overviewTileStyle}>
+                    <Statistic title="待分配成员" value={pendingMembers.length} />
+                    <Typography.Text type="secondary">{pendingMembers.length ? '这些成员还没有被明确纳入执行分工。' : '当前成员都已有角色承接。'}</Typography.Text>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} xl={6}>
+                  <div style={overviewTileStyle}>
+                    <Statistic title="可用角色" value={activeRoles.length} />
+                    <Typography.Text type="secondary">{customRoles.length ? `${customRoles.length} 个自定义角色，适合团队差异化分工。` : '当前主要依赖系统角色承接职责。'}</Typography.Text>
+                  </div>
+                </Col>
+              </Row>
+            </div>
+
+            <div style={{ ...sectionStyle, marginTop: 16 }}>
+              <Typography.Text strong>角色覆盖与待分配</Typography.Text>
+              <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+                <Col xs={24} md={12} xl={8}>
+                  <div style={overviewTileStyle}>
+                    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                      <Space wrap size={[8, 8]}>
+                        <Typography.Text strong>已承接成员</Typography.Text>
+                        <Tag color={boundUserIds.size ? 'blue' : 'default'}>{boundUserIds.size ? `${boundUserIds.size} 人` : '暂无'}</Tag>
+                      </Space>
+                      <Typography.Text>{boundUserIds.size ? '这些成员已经正式进入团队执行链路。' : '当前还没有任何成员接住团队级职责。'}</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {assignedMemberPreview.length ? assignedMemberPreview.join('、') : '建议先补上负责发房、审核、补资料的首批执行人。'}
+                      </Typography.Text>
+                    </Space>
+                  </div>
+                </Col>
+                <Col xs={24} md={12} xl={8}>
+                  <div style={overviewTileStyle}>
+                    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                      <Space wrap size={[8, 8]}>
+                        <Typography.Text strong>待分配成员</Typography.Text>
+                        <Tag color={pendingMembers.length ? 'gold' : 'green'}>{pendingMembers.length ? `${pendingMembers.length} 人待补` : '已覆盖'}</Tag>
+                      </Space>
+                      <Typography.Text>{pendingMembers.length ? '这些成员在团队内但还没有明确的授权归属。' : '当前没有悬空成员。'}</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {pendingMemberPreview.length ? pendingMemberPreview.join('、') : '授权覆盖已经完整，可以继续细化角色边界。'}
+                      </Typography.Text>
+                    </Space>
+                  </div>
+                </Col>
+                <Col xs={24} md={12} xl={8}>
+                  <div style={overviewTileStyle}>
+                    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                      <Space wrap size={[8, 8]}>
+                        <Typography.Text strong>角色覆盖</Typography.Text>
+                        <Tag color={unusedRoles.length ? 'purple' : 'green'}>{unusedRoles.length ? `${unusedRoles.length} 个闲置` : '全部启用中'}</Tag>
+                      </Space>
+                      <Typography.Text>{unusedRoles.length ? '有角色已经设计出来，但还没有被任何成员承接。' : '角色设计和成员承接当前是一致的。'}</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {unusedRoles.length ? unusedRoles.slice(0, 3).map((item) => item.name).join('、') : '如果后续要拆运营、审核、主管职责，可以继续在团队角色页细化。'}
+                      </Typography.Text>
+                    </Space>
+                  </div>
+                </Col>
+              </Row>
+            </div>
+
+            <div style={{ ...sectionStyle, marginTop: 16 }}>
+              <Typography.Text strong>闭环信号</Typography.Text>
+              <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+                {bindingSignals.map((signal) => (
+                  <Col key={signal.key} xs={24} sm={12} xl={6}>
+                    <div style={overviewTileStyle}>
+                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                        <Space wrap size={[8, 8]}>
+                          <Typography.Text strong>{signal.title}</Typography.Text>
+                          <Tag color="blue">{signal.emphasis}</Tag>
+                        </Space>
+                        <Typography.Text>{signal.summary}</Typography.Text>
+                        <Typography.Text type="secondary">{signal.description}</Typography.Text>
+                        {signal.actionHref === '#assign-role' ? (
+                          <a
+                            href={signal.actionHref}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              setOpen(true);
+                            }}
+                          >
+                            {signal.actionLabel}
+                          </a>
+                        ) : (
+                          <a href={signal.actionHref}>{signal.actionLabel}</a>
+                        )}
+                      </Space>
+                    </div>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginTop: 16 }}
+              title="团队授权决定谁来承接房源发布、资料补齐和异常收口"
+              description="如果团队设置已经做了差异化规则，但授权页没有同步补人，最终只会出现“策略存在、没人执行”的管理断层。"
+            />
+          </Card>
+          <Card
+            title="团队授权台账"
+            style={{ marginTop: 16 }}
+            extra={
+              <AdminToolbar>
+                <Button id="assign-role" type="primary" onClick={() => setOpen(true)}>
+                  分配角色
+                </Button>
+              </AdminToolbar>
+            }
+          >
+            <TenantSectionHint text="团队级授权只在所选团队内生效，不影响成员在其它团队或租户层级的权限；先在上面看覆盖缺口，再在这里处理具体授权。 " />
+            <Table
+              rowKey="id"
+              loading={bindingsQuery.isLoading}
+              columns={columns}
+              dataSource={bindingItems}
+              pagination={false}
+              scroll={adminTableScroll}
+              locale={{
+                emptyText: (
+                  <Empty
+                    description="当前团队还没有任何授权记录，先分配首批执行人。"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  />
+                ),
+              }}
+            />
+          </Card>
+        </>
       ) : (
         <EmptyTeamHint />
       )}
@@ -114,10 +374,10 @@ const TeamBindingsPage: React.FC = () => {
       >
         <Form form={form} layout="vertical">
           <Form.Item label="成员" name="user" rules={[{ required: true, message: '请选择成员' }]}>
-            <Select showSearch optionFilterProp="label" options={memberOptions} placeholder="选择成员" />
+            <Select showSearch optionFilterProp="label" options={memberOptions} placeholder="选择成员" loading={membersQuery.isLoading} />
           </Form.Item>
           <Form.Item label="角色" name="role" rules={[{ required: true, message: '请选择角色' }]}>
-            <Select showSearch optionFilterProp="label" options={roleOptions} placeholder="选择角色" />
+            <Select showSearch optionFilterProp="label" options={roleOptions} placeholder="选择角色" loading={rolesQuery.isLoading} />
           </Form.Item>
         </Form>
       </Modal>

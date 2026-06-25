@@ -10,6 +10,8 @@ const {
   mockResendInvite,
   mockDeleteInvite,
   mockGetInvite,
+  mockListMembers,
+  mockSearchMembers,
   mockWorkspace,
 } = vi.hoisted(() => ({
   mockListInvites: vi.fn(),
@@ -17,6 +19,8 @@ const {
   mockResendInvite: vi.fn(),
   mockDeleteInvite: vi.fn(),
   mockGetInvite: vi.fn(),
+  mockListMembers: vi.fn(),
+  mockSearchMembers: vi.fn(),
   mockWorkspace: {
     selectedOrgSlug: 'acme',
     queryClient: { invalidateQueries: vi.fn() },
@@ -38,6 +42,11 @@ vi.mock('@/services/openapi/organizationInvites', () => ({
   appsOrganizationsApiResendInvite: mockResendInvite,
   appsOrganizationsApiDeleteInvite: mockDeleteInvite,
   appsOrganizationsApiGetInvite: mockGetInvite,
+}));
+
+vi.mock('@/services/openapi/organizationMembers', () => ({
+  appsOrganizationsApiListMembers: mockListMembers,
+  appsOrganizationsApiSearchMembers: mockSearchMembers,
 }));
 
 describe('TenantInvitesPage', () => {
@@ -76,17 +85,52 @@ describe('TenantInvitesPage', () => {
           created_at: '2026-06-15T11:00:00+08:00',
           updated_at: '2026-06-15T11:00:00+08:00',
         },
+        {
+          pk: 3,
+          organization: 1,
+          sender: 7,
+          invitee: 8,
+          invitee_email: null,
+          is_owner: true,
+          key: 'invite-key-2',
+          created_at: '2026-06-24T11:00:00+08:00',
+          updated_at: '2026-06-24T11:00:00+08:00',
+        },
+      ],
+      total: 2,
+      page: 1,
+      page_size: 100,
+    });
+    mockListMembers.mockResolvedValue({
+      items: [
+        {
+          pk: 1,
+          organization: 1,
+          is_owner: true,
+          created_at: '2026-06-15T10:00:00+08:00',
+          updated_at: '2026-06-15T10:00:00+08:00',
+          user: { id: 7, username: 'alice', first_name: 'Alice', last_name: 'Zhang', email: 'alice@example.com' },
+        },
       ],
       total: 1,
       page: 1,
-      page_size: 10,
+      page_size: 100,
     });
+    mockSearchMembers.mockResolvedValue([
+      {
+        pk: 8,
+        username: 'bob',
+        first_name: 'Bob',
+        last_name: 'Li',
+        email: 'bob@example.com',
+      },
+    ]);
     mockCreateInvite.mockResolvedValue({});
     mockResendInvite.mockResolvedValue({});
     mockDeleteInvite.mockResolvedValue({});
   });
 
-  it('loads invites and triggers create / resend / delete actions', async () => {
+  it('renders governance overview and triggers create / resend / delete actions', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <TenantInvitesPage />
@@ -94,24 +138,32 @@ describe('TenantInvitesPage', () => {
     );
 
     await waitFor(() => {
-      expect(mockListInvites).toHaveBeenCalledWith({ page: 1, page_size: 10 });
-      expect(screen.getByText('member@example.com')).toBeInTheDocument();
+      expect(mockListInvites).toHaveBeenCalledWith({ page: 1, page_size: 100 });
+      expect(mockListMembers).toHaveBeenCalledWith({ page: 1, page_size: 100 });
+      expect(screen.getAllByText('member@example.com').length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getByText('重发'));
+    expect(screen.getByText('邀请治理概览')).toBeInTheDocument();
+    expect(screen.getByText('当前邀请执行面')).toBeInTheDocument();
+    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.getByText('邀请治理台账')).toBeInTheDocument();
+    expect(screen.getByText('1 条 Owner 预设邀请')).toBeInTheDocument();
+    expect(screen.getByText('1 条长时间未处理')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByText('重发')[0]!);
 
     await waitFor(() => {
       expect(mockResendInvite).toHaveBeenCalledWith({ invite_id: 2 });
     });
 
-    fireEvent.click(screen.getByText('取消'));
+    fireEvent.click(screen.getAllByText('取消')[0]!);
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
       expect(mockDeleteInvite).toHaveBeenCalledWith({ invite_id: 2 });
     });
 
-    fireEvent.click(screen.getByText('新建邀请'));
+    fireEvent.click(screen.getAllByText('新建邀请')[0]!);
     fireEvent.change(screen.getByLabelText('邀请邮箱'), {
       target: { value: 'new@example.com' },
     });
@@ -121,6 +173,7 @@ describe('TenantInvitesPage', () => {
       expect(mockCreateInvite).toHaveBeenCalledWith({
         invitee_email: 'new@example.com',
       });
+      expect(mockWorkspace.queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['tenant', 'invites'] });
     });
   });
 });

@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Descriptions, Drawer, Form, Input, Modal, Radio, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Drawer, Form, Input, Modal, Radio, Row, Space, Statistic, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
-import { AdminToolbar, adminTableScroll, drawerWidthMd, ResponsiveActions, wrapTextStyle } from '@/pages/_shared/adminLayout';
+import { AdminToolbar, adminTableScroll, drawerWidthMd, fullWidthStyle, ResponsiveActions, toolbarControlStyle, wrapTextStyle } from '@/pages/_shared/adminLayout';
 import {
   appsNotificationsApiCreateDispatch,
   appsNotificationsApiGetDispatch,
@@ -21,22 +21,59 @@ type CreateDispatchFormValues = {
   url?: string;
 };
 
+type GovernanceSignal = {
+  key: string;
+  title: string;
+  emphasis: string;
+  summary: string;
+  description: string;
+  actionLabel: string;
+  actionHref: string;
+};
+
+type DispatchInsight = API.NotificationDispatchOut & {
+  scope_label: string;
+  scope_summary: string;
+  status_label: string;
+  status_color: string;
+  status_summary: string;
+  execution_summary: string;
+  delivery_ratio: string;
+  action_summary: string;
+};
+
 const SCOPE_LABELS: Record<string, string> = {
   platform: '全平台',
   organization: '指定租户',
   users: '指定用户',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'gold',
-  sending: 'blue',
-  sent: 'green',
-  failed: 'red',
-};
-
 const DEFAULT_CREATE_FORM_VALUES: Pick<CreateDispatchFormValues, 'scope' | 'category'> = {
   scope: 'platform',
   category: '',
+};
+
+const sectionStyle: React.CSSProperties = {
+  padding: 20,
+  border: '1px solid var(--ant-color-border-secondary)',
+  borderRadius: 8,
+  background: 'var(--ant-color-fill-quaternary)',
+};
+
+const overviewTileStyle: React.CSSProperties = {
+  height: '100%',
+  padding: 16,
+  borderRadius: 8,
+  border: '1px solid var(--ant-color-border-secondary)',
+  background: 'var(--ant-color-bg-container)',
+};
+
+const contentPreviewStyle: React.CSSProperties = {
+  ...wrapTextStyle,
+  display: '-webkit-box',
+  overflow: 'hidden',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
 };
 
 function parseScopeIdTokens(value?: string) {
@@ -59,8 +96,65 @@ function formatScope(scope?: string, scopeIds: number[] = []) {
   return scopeIds.length ? `${label} (${scopeIds.join(', ')})` : label;
 }
 
-function formatStatus(status?: string) {
-  return <Tag color={STATUS_COLORS[status || '']}>{status || 'unknown'}</Tag>;
+function buildDispatchInsight(item: API.NotificationDispatchOut): DispatchInsight {
+  const scopeLabel = formatScope(item.scope, item.scope_ids);
+  const delivered = item.delivered_count || 0;
+  const target = item.target_count || 0;
+  const ratio = target ? `${delivered}/${target}` : '0/0';
+
+  if (item.status === 'failed') {
+    return {
+      ...item,
+      scope_label: scopeLabel,
+      scope_summary: item.scope === 'platform' ? '面向全平台广播，失败影响面通常最大。' : '失败的定向分发更需要回看目标范围是否填对。',
+      status_label: '分发失败',
+      status_color: 'red',
+      status_summary: item.error_message || '当前分发没有成功送达，应该继续排查失败原因与影响范围。',
+      execution_summary: '失败不是终点，至少要能解释失败发生在哪个范围、是否影响核心经营通知。',
+      delivery_ratio: ratio,
+      action_summary: '优先查看错误信息与投递明细',
+    };
+  }
+
+  if (item.status === 'sending') {
+    return {
+      ...item,
+      scope_label: scopeLabel,
+      scope_summary: '这条分发仍在执行中，适合继续关注送达进度和积压情况。',
+      status_label: '发送中',
+      status_color: 'blue',
+      status_summary: '系统仍在投递，后台应判断它是正常执行还是卡在中间状态。',
+      execution_summary: '执行中的分发更适合作为值班追踪对象，不能只看创建时间。',
+      delivery_ratio: ratio,
+      action_summary: '继续追踪送达进度',
+    };
+  }
+
+  if (item.status === 'pending') {
+    return {
+      ...item,
+      scope_label: scopeLabel,
+      scope_summary: '分发已创建但尚未真正开始送达，适合关注是否存在排队积压。',
+      status_label: '待发送',
+      status_color: 'gold',
+      status_summary: '这类记录还没有进入真正的送达阶段，优先关注是否存在队列堆积。',
+      execution_summary: '待发送越多，越说明平台通知链路有排队风险。',
+      delivery_ratio: ratio,
+      action_summary: '关注是否进入投递',
+    };
+  }
+
+  return {
+    ...item,
+    scope_label: scopeLabel,
+    scope_summary: item.scope === 'platform' ? '全平台分发已经送达，适合继续观察通知页的确认收口。': '定向分发已经送达，更适合回看目标对象是否真正收到并确认。',
+    status_label: '已送达',
+    status_color: 'green',
+    status_summary: '当前分发已经完成送达，后续重点是回看通知确认与已读收口。',
+    execution_summary: '已送达不是结束，平台还需要知道这些通知有没有变成真正的业务确认。',
+    delivery_ratio: ratio,
+    action_summary: '可联动通知治理继续确认',
+  };
 }
 
 const NotificationDispatchesPage: React.FC = () => {
@@ -94,57 +188,295 @@ const NotificationDispatchesPage: React.FC = () => {
   });
 
   const scopeValue = Form.useWatch('scope', form) || 'platform';
-  const dispatchColumns: ColumnsType<API.NotificationDispatchOut> = useMemo(
+  const insights = useMemo(() => (listQuery.data?.items || []).map(buildDispatchInsight), [listQuery.data?.items]);
+  const sentDispatches = insights.filter((item) => item.status === 'sent');
+  const failedDispatches = insights.filter((item) => item.status === 'failed');
+  const executingDispatches = insights.filter((item) => ['pending', 'sending'].includes(item.status));
+  const platformDispatches = insights.filter((item) => item.scope === 'platform');
+  const linkedDispatches = insights.filter((item) => Boolean(item.url));
+
+  const signals = useMemo<GovernanceSignal[]>(
     () => [
-      { title: '标题', dataIndex: 'title', width: 220, render: (value) => <span style={wrapTextStyle}>{value}</span> },
-      { title: '范围', dataIndex: 'scope', width: 220, render: (_value, record) => <span style={wrapTextStyle}>{formatScope(record.scope, record.scope_ids)}</span> },
-      { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatStatus(value) },
-      { title: '目标/送达', dataIndex: 'target_count', width: 120, render: (_value, record) => `${record.target_count}/${record.delivered_count}` },
-      { title: '创建时间', dataIndex: 'created_at', width: 170, render: (value) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-') },
       {
-        title: '操作',
-        dataIndex: 'actions',
-        width: 120,
-        render: (_value, record) => (
-          <ResponsiveActions>
-            <a
-              onClick={() => {
-                setDetailId(record.id);
-                setDetailPage(1);
-              }}
-            >
-              详情
-            </a>
-          </ResponsiveActions>
-        ),
+        key: 'executing',
+        title: '执行中积压',
+        emphasis: executingDispatches.length ? `${executingDispatches.length} 条仍在执行` : '当前执行较平稳',
+        summary: executingDispatches.length ? '待发送与发送中的分发共同构成当前通知链路的执行压力。' : '当前通知分发没有明显积压。',
+        description: '通知分发页至少要让人知道当前有没有排队、卡住或长时间未收口的发送任务。',
+        actionLabel: '继续查看分发',
+        actionHref: '/dashboard/platform-management/notification-dispatches',
+      },
+      {
+        key: 'failed',
+        title: '失败收口',
+        emphasis: failedDispatches.length ? `${failedDispatches.length} 条失败待解释` : '当前无失败分发',
+        summary: failedDispatches.length ? '失败分发比单条通知更严重，因为它意味着整批目标可能都没有触达。' : '当前没有明显失败收口问题。',
+        description: '平台要分清是通知内容问题、范围问题，还是投递执行链路问题。',
+        actionLabel: '回看通知治理',
+        actionHref: '/dashboard/platform-management/notifications',
+      },
+      {
+        key: 'platform',
+        title: '全平台广播',
+        emphasis: platformDispatches.length ? `${platformDispatches.length} 条平台广播` : '当前无平台广播',
+        summary: platformDispatches.length ? '面向全平台的广播影响范围最大，更需要谨慎看标题、正文和送达结果。' : '当前没有面向全平台的广播分发。',
+        description: '全平台分发不是普通消息，它更像运营或治理层面的批量动作。',
+        actionLabel: '联动通知治理',
+        actionHref: '/dashboard/platform-management/notifications',
+      },
+      {
+        key: 'linked',
+        title: '带入口分发',
+        emphasis: linkedDispatches.length ? `${linkedDispatches.length} 条附带跳转` : '当前少见跳转分发',
+        summary: linkedDispatches.length ? '带链接的分发不只是提示，更应该承担业务承接或跳转执行作用。' : '当前分发以纯文本提醒为主。',
+        description: '如果分发里已经放了入口，通知页和分发页都应该把它视作后续动作链的一部分。',
+        actionLabel: '查看通知页',
+        actionHref: '/dashboard/platform-management/notifications',
       },
     ],
-    [],
+    [executingDispatches.length, failedDispatches.length, linkedDispatches.length, platformDispatches.length],
   );
 
-  const detailNotificationColumns: ColumnsType<API.NotificationOut> = [
-    { title: '标题', dataIndex: 'title', width: 180, render: (value) => <span style={wrapTextStyle}>{value}</span> },
-    { title: '内容', dataIndex: 'body', width: 260, render: (value) => <span style={wrapTextStyle}>{value}</span> },
-    { title: '状态', dataIndex: 'is_read', width: 100, render: (value) => (value ? <Tag>已读</Tag> : <Tag color="gold">未读</Tag>) },
-    { title: '时间', dataIndex: 'created_at', width: 170, render: (value) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-') },
+  const dispatchColumns: ColumnsType<DispatchInsight> = [
+    {
+      title: '分发主题',
+      dataIndex: 'title',
+      width: 280,
+      render: (_value, record) => (
+        <Space direction="vertical" size={4}>
+          <Typography.Text style={wrapTextStyle}>{record.title}</Typography.Text>
+          <Typography.Text type="secondary" style={contentPreviewStyle}>
+            {record.body || '无正文'}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '目标范围',
+      dataIndex: 'scope',
+      width: 260,
+      render: (_value, record) => (
+        <Space direction="vertical" size={6}>
+          <Tag color={record.scope === 'platform' ? 'purple' : record.scope === 'organization' ? 'blue' : 'default'}>{record.scope_label}</Tag>
+          <Typography.Text type="secondary">{record.scope_summary}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '投递状态',
+      dataIndex: 'status',
+      width: 280,
+      render: (_value, record) => (
+        <Space direction="vertical" size={6}>
+          <Tag color={record.status_color}>{record.status_label}</Tag>
+          <Typography.Text type="secondary">{record.status_summary}</Typography.Text>
+          <Typography.Text type="secondary">{record.execution_summary}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '目标与结果',
+      dataIndex: 'target_count',
+      width: 220,
+      render: (_value, record) => (
+        <Space direction="vertical" size={6}>
+          <Typography.Text>{`送达 ${record.delivery_ratio}`}</Typography.Text>
+          <Typography.Text type="secondary">{record.action_summary}</Typography.Text>
+          {record.url ? <Typography.Text type="secondary">附带跳转入口</Typography.Text> : null}
+        </Space>
+      ),
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'created_at',
+      width: 200,
+      render: (_value, record) => (
+        <Space direction="vertical" size={6}>
+          <Typography.Text>{dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}</Typography.Text>
+          <Typography.Text type="secondary">{record.sent_at ? `发送于 ${dayjs(record.sent_at).format('YYYY-MM-DD HH:mm')}` : '尚未完成发送'}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '操作',
+      dataIndex: 'actions',
+      width: 140,
+      render: (_value, record) => (
+        <ResponsiveActions>
+          <a
+            onClick={() => {
+              setDetailId(record.id);
+              setDetailPage(1);
+            }}
+          >
+            详情
+          </a>
+        </ResponsiveActions>
+      ),
+    },
   ];
 
+  const detailNotificationColumns: ColumnsType<API.NotificationOut> = [
+    { title: '通知标题', dataIndex: 'title', width: 200, render: (value) => <span style={wrapTextStyle}>{value}</span> },
+    { title: '通知正文', dataIndex: 'body', width: 260, render: (value) => <span style={wrapTextStyle}>{value}</span> },
+    { title: '确认状态', dataIndex: 'is_read', width: 120, render: (value) => (value ? <Tag color="default">已读</Tag> : <Tag color="gold">未读</Tag>) },
+    { title: '到达时间', dataIndex: 'created_at', width: 180, render: (value) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-') },
+  ];
+
+  const detailInsight = detailQuery.data ? buildDispatchInsight(detailQuery.data) : undefined;
+
   return (
-    <Card title="通知分发" extra={<AdminToolbar><Button type="primary" onClick={() => {
-      form.resetFields();
-      form.setFieldsValue(DEFAULT_CREATE_FORM_VALUES);
-      setCreateOpen(true);
-    }}>新建分发</Button></AdminToolbar>}>
-      <Table
-        rowKey="id"
-        loading={listQuery.isLoading}
-        columns={dispatchColumns}
-        dataSource={listQuery.data?.items || []}
-        scroll={adminTableScroll}
-        pagination={{ current: listQuery.data?.page || page, pageSize: listQuery.data?.page_size || 10, total: listQuery.data?.total || 0, onChange: setPage }}
-      />
+    <Card
+      title="通知分发治理"
+      extra={(
+        <AdminToolbar>
+          <Button style={toolbarControlStyle} href="/dashboard/platform-management/notifications">
+            回到通知治理
+          </Button>
+          <Button
+            type="primary"
+            onClick={() => {
+              form.resetFields();
+              form.setFieldsValue(DEFAULT_CREATE_FORM_VALUES);
+              setCreateOpen(true);
+            }}
+          >
+            新建分发
+          </Button>
+        </AdminToolbar>
+      )}
+    >
+      <div style={sectionStyle}>
+        <Typography.Text strong>分发治理概览</Typography.Text>
+        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+          <Col xs={24} sm={12} xl={6}>
+            <div style={overviewTileStyle}>
+              <Statistic title="当前分发" value={insights.length} />
+              <Typography.Text type="secondary">当前页纳入治理视角的通知分发总量。</Typography.Text>
+            </div>
+          </Col>
+          <Col xs={24} sm={12} xl={6}>
+            <div style={overviewTileStyle}>
+              <Statistic title="执行中" value={executingDispatches.length} />
+              <Typography.Text type="secondary">待发送与发送中的分发共同构成执行压力。</Typography.Text>
+            </div>
+          </Col>
+          <Col xs={24} sm={12} xl={6}>
+            <div style={overviewTileStyle}>
+              <Statistic title="已送达" value={sentDispatches.length} />
+              <Typography.Text type="secondary">已送达意味着通知已进入后续确认与已读收口阶段。</Typography.Text>
+            </div>
+          </Col>
+          <Col xs={24} sm={12} xl={6}>
+            <div style={overviewTileStyle}>
+              <Statistic title="失败分发" value={failedDispatches.length} />
+              <Typography.Text type="secondary">失败的是一整批触达，不只是单条消息。</Typography.Text>
+            </div>
+          </Col>
+        </Row>
+      </div>
+
+      <div style={{ ...sectionStyle, marginTop: 16 }}>
+        <Typography.Text strong>当前投放执行面</Typography.Text>
+        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+          <Col xs={24} md={12} xl={6}>
+            <div style={overviewTileStyle}>
+              <Space direction="vertical" size={8}>
+                <Space wrap size={[8, 8]}>
+                  <Typography.Text strong>全平台广播</Typography.Text>
+                  <Tag color={platformDispatches.length ? 'purple' : 'default'}>{platformDispatches.length ? `${platformDispatches.length} 条广播` : '当前无广播'}</Tag>
+                </Space>
+                <Typography.Text>面向全平台的广播影响范围最大，更适合作为治理动作而不是简单公告。</Typography.Text>
+                <a href="/dashboard/platform-management/notifications">联动通知治理</a>
+              </Space>
+            </div>
+          </Col>
+          <Col xs={24} md={12} xl={6}>
+            <div style={overviewTileStyle}>
+              <Space direction="vertical" size={8}>
+                <Space wrap size={[8, 8]}>
+                  <Typography.Text strong>用户定向</Typography.Text>
+                  <Tag color={insights.filter((item) => item.scope === 'users').length ? 'blue' : 'default'}>
+                    {insights.filter((item) => item.scope === 'users').length ? `${insights.filter((item) => item.scope === 'users').length} 条定向` : '当前较少'}
+                  </Tag>
+                </Space>
+                <Typography.Text>指定用户分发更像精准承接动作，重点在于目标是否填对、内容是否可执行。</Typography.Text>
+                <a href="/dashboard/platform-management/users">查看用户治理</a>
+              </Space>
+            </div>
+          </Col>
+          <Col xs={24} md={12} xl={6}>
+            <div style={overviewTileStyle}>
+              <Space direction="vertical" size={8}>
+                <Space wrap size={[8, 8]}>
+                  <Typography.Text strong>执行中队列</Typography.Text>
+                  <Tag color={executingDispatches.length ? 'gold' : 'green'}>{executingDispatches.length ? `${executingDispatches.length} 条待收口` : '当前较平稳'}</Tag>
+                </Space>
+                <Typography.Text>执行中的分发更需要值班追踪，因为它直接反映通知链路是否卡住或排队。</Typography.Text>
+                <a href="/dashboard/platform-management/notification-dispatches">继续查看分发</a>
+              </Space>
+            </div>
+          </Col>
+          <Col xs={24} md={12} xl={6}>
+            <div style={overviewTileStyle}>
+              <Space direction="vertical" size={8}>
+                <Space wrap size={[8, 8]}>
+                  <Typography.Text strong>失败收口</Typography.Text>
+                  <Tag color={failedDispatches.length ? 'red' : 'green'}>{failedDispatches.length ? `${failedDispatches.length} 条失败` : '当前无失败'}</Tag>
+                </Space>
+                <Typography.Text>失败分发至少要能解释失败原因与影响范围，否则平台连谁没收到都说不清。</Typography.Text>
+                <a href="/dashboard/platform-management/notifications">回看通知页</a>
+              </Space>
+            </div>
+          </Col>
+        </Row>
+      </div>
+
+      <div style={{ ...sectionStyle, marginTop: 16 }}>
+        <Typography.Text strong>闭环信号</Typography.Text>
+        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+          {signals.map((signal) => (
+            <Col key={signal.key} xs={24} sm={12} xl={6}>
+              <div style={overviewTileStyle}>
+                <Space direction="vertical" size={8}>
+                  <Typography.Text strong>{signal.title}</Typography.Text>
+                  <Tag color="blue">{signal.emphasis}</Tag>
+                  <Typography.Text>{signal.summary}</Typography.Text>
+                  <Typography.Text type="secondary">{signal.description}</Typography.Text>
+                  <a href={signal.actionHref}>{signal.actionLabel}</a>
+                </Space>
+              </div>
+            </Col>
+          ))}
+        </Row>
+      </div>
+
+      <div style={{ ...sectionStyle, marginTop: 16 }}>
+        <Space direction="vertical" size={12} style={fullWidthStyle}>
+          <div>
+            <Typography.Text strong>分发治理台账</Typography.Text>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
+              分发页不该只是发送记录清单，它至少要解释这批通知发给了谁、发得怎么样、失败后怎么收口，以及后续该去哪一页继续确认。
+            </Typography.Paragraph>
+          </div>
+          <Table
+            rowKey="id"
+            loading={listQuery.isLoading}
+            columns={dispatchColumns}
+            dataSource={insights}
+            scroll={adminTableScroll}
+            pagination={{
+              current: listQuery.data?.page || page,
+              pageSize: listQuery.data?.page_size || 10,
+              total: listQuery.data?.total || 0,
+              onChange: setPage,
+            }}
+          />
+        </Space>
+      </div>
+
       <Modal
-        title="新建分发"
+        title="新建通知分发"
         open={createOpen}
         okText="确定"
         cancelText="取消"
@@ -168,56 +500,59 @@ const NotificationDispatchesPage: React.FC = () => {
             if (values.scope !== 'platform') payload.scope_ids = scopeIds;
             await createMutation.mutateAsync(payload);
           } catch (error) {
-            // Form validation errors are already displayed inline by antd.
             if (!(error instanceof Error)) return;
             throw error;
           }
         }}
       >
-        <Form form={form} layout="vertical" initialValues={DEFAULT_CREATE_FORM_VALUES}>
-          <Form.Item label="范围" name="scope" rules={[{ required: true, message: '请选择范围' }]}>
-            <Radio.Group
-              optionType="button"
-              buttonStyle="solid"
-              options={[
-                { value: 'platform', label: '全平台' },
-                { value: 'organization', label: '指定租户' },
-                { value: 'users', label: '指定用户' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item
-            label="目标 ID 列表"
-            name="scope_ids_text"
-            dependencies={['scope']}
-            extra={scopeValue === 'platform' ? '全平台无需填写目标 ID。' : '使用英文逗号分隔多个正整数 ID。'}
-            rules={[
-              {
-                validator: async (_rule, value) => {
-                  if (form.getFieldValue('scope') === 'platform') return;
-                  if (!value?.trim()) throw new Error('请输入至少一个正整数 ID');
-                  if (hasInvalidScopeIdToken(value)) throw new Error('目标 ID 只能填写用英文逗号分隔的正整数');
-                  if (!parseScopeIds(value).length) throw new Error('请输入至少一个正整数 ID');
+        <Space direction="vertical" size={12} style={fullWidthStyle}>
+          <Alert type="info" showIcon title="分发动作一旦发出，影响的不是单条消息，而是一整批目标对象的触达体验和业务承接链路。" />
+          <Form form={form} layout="vertical" initialValues={DEFAULT_CREATE_FORM_VALUES}>
+            <Form.Item label="范围" name="scope" rules={[{ required: true, message: '请选择范围' }]}>
+              <Radio.Group
+                optionType="button"
+                buttonStyle="solid"
+                options={[
+                  { value: 'platform', label: '全平台' },
+                  { value: 'organization', label: '指定租户' },
+                  { value: 'users', label: '指定用户' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item
+              label="目标 ID 列表"
+              name="scope_ids_text"
+              dependencies={['scope']}
+              extra={scopeValue === 'platform' ? '全平台无需填写目标 ID。' : '使用英文逗号分隔多个正整数 ID。'}
+              rules={[
+                {
+                  validator: async (_rule, value) => {
+                    if (form.getFieldValue('scope') === 'platform') return;
+                    if (!value?.trim()) throw new Error('请输入至少一个正整数 ID');
+                    if (hasInvalidScopeIdToken(value)) throw new Error('目标 ID 只能填写用英文逗号分隔的正整数');
+                    if (!parseScopeIds(value).length) throw new Error('请输入至少一个正整数 ID');
+                  },
                 },
-              },
-            ]}
-          >
-            <Input placeholder={scopeValue === 'organization' ? '例如 1,2' : '例如 10,11'} />
-          </Form.Item>
-          <Form.Item label="类别" name="category">
-            <Input placeholder="可选，例如 marketing" />
-          </Form.Item>
-          <Form.Item label="标题" name="title" rules={[{ required: true, message: '请输入标题' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="内容" name="body" rules={[{ required: true, message: '请输入内容' }]}>
-            <Input.TextArea rows={4} />
-          </Form.Item>
-          <Form.Item label="链接" name="url">
-            <Input placeholder="可选链接" />
-          </Form.Item>
-        </Form>
+              ]}
+            >
+              <Input placeholder={scopeValue === 'organization' ? '例如 1,2' : '例如 10,11'} />
+            </Form.Item>
+            <Form.Item label="类别" name="category">
+              <Input placeholder="可选，例如 marketing" />
+            </Form.Item>
+            <Form.Item label="标题" name="title" rules={[{ required: true, message: '请输入标题' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item label="内容" name="body" rules={[{ required: true, message: '请输入内容' }]}>
+              <Input.TextArea rows={4} />
+            </Form.Item>
+            <Form.Item label="链接" name="url">
+              <Input placeholder="可选链接" />
+            </Form.Item>
+          </Form>
+        </Space>
       </Modal>
+
       <Drawer
         title="分发详情"
         open={Boolean(detailId)}
@@ -227,33 +562,36 @@ const NotificationDispatchesPage: React.FC = () => {
         }}
         width={drawerWidthMd}
       >
-        <Descriptions column={1} bordered size="small">
-          <Descriptions.Item label="标题"><span style={wrapTextStyle}>{detailQuery.data?.title || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="范围"><span style={wrapTextStyle}>{formatScope(detailQuery.data?.scope, detailQuery.data?.scope_ids)}</span></Descriptions.Item>
-          <Descriptions.Item label="状态">{formatStatus(detailQuery.data?.status)}</Descriptions.Item>
-          <Descriptions.Item label="目标/送达">{detailQuery.data ? `${detailQuery.data.target_count}/${detailQuery.data.delivered_count}` : '-'}</Descriptions.Item>
-          <Descriptions.Item label="错误信息"><span style={wrapTextStyle}>{detailQuery.data?.error_message || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="类别"><span style={wrapTextStyle}>{detailQuery.data?.category || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="内容"><span style={wrapTextStyle}>{detailQuery.data?.body || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="链接"><span style={wrapTextStyle}>{detailQuery.data?.url || '-'}</span></Descriptions.Item>
-        </Descriptions>
+        <Space direction="vertical" size={12} style={fullWidthStyle}>
+          <Alert type="info" showIcon title="分发详情要一起看范围、送达结果、失败原因和投递明细，不能只盯着标题和正文。" />
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="分发标题"><span style={wrapTextStyle}>{detailQuery.data?.title || '-'}</span></Descriptions.Item>
+            <Descriptions.Item label="目标范围">{detailInsight ? <Tag color={detailInsight.scope === 'platform' ? 'purple' : detailInsight.scope === 'organization' ? 'blue' : 'default'}>{detailInsight.scope_label}</Tag> : '-'}</Descriptions.Item>
+            <Descriptions.Item label="投递状态">{detailInsight ? <Tag color={detailInsight.status_color}>{detailInsight.status_label}</Tag> : '-'}</Descriptions.Item>
+            <Descriptions.Item label="目标/送达">{detailQuery.data ? `${detailQuery.data.target_count}/${detailQuery.data.delivered_count}` : '-'}</Descriptions.Item>
+            <Descriptions.Item label="错误信息"><span style={wrapTextStyle}>{detailQuery.data?.error_message || '-'}</span></Descriptions.Item>
+            <Descriptions.Item label="类别"><span style={wrapTextStyle}>{detailQuery.data?.category || '-'}</span></Descriptions.Item>
+            <Descriptions.Item label="正文"><span style={wrapTextStyle}>{detailQuery.data?.body || '-'}</span></Descriptions.Item>
+            <Descriptions.Item label="链接"><span style={wrapTextStyle}>{detailQuery.data?.url || '-'}</span></Descriptions.Item>
+            <Descriptions.Item label="创建人"><span style={wrapTextStyle}>{detailQuery.data?.created_by || '-'}</span></Descriptions.Item>
+            <Descriptions.Item label="创建时间">{detailQuery.data?.created_at ? dayjs(detailQuery.data.created_at).format('YYYY-MM-DD HH:mm') : '-'}</Descriptions.Item>
+            <Descriptions.Item label="发送时间">{detailQuery.data?.sent_at ? dayjs(detailQuery.data.sent_at).format('YYYY-MM-DD HH:mm') : '-'}</Descriptions.Item>
+          </Descriptions>
 
-        <Typography.Title level={5} style={{ marginTop: 16 }}>
-          投递明细
-        </Typography.Title>
-        <Table
-          rowKey="id"
-          loading={detailNotificationsQuery.isLoading}
-          columns={detailNotificationColumns}
-          dataSource={detailNotificationsQuery.data?.items || []}
-          scroll={adminTableScroll}
-          pagination={{
-            current: detailNotificationsQuery.data?.page || detailPage,
-            pageSize: detailNotificationsQuery.data?.page_size || 10,
-            total: detailNotificationsQuery.data?.total || 0,
-            onChange: setDetailPage,
-          }}
-        />
+          <Table
+            rowKey="id"
+            loading={detailNotificationsQuery.isLoading}
+            columns={detailNotificationColumns}
+            dataSource={detailNotificationsQuery.data?.items || []}
+            scroll={adminTableScroll}
+            pagination={{
+              current: detailNotificationsQuery.data?.page || detailPage,
+              pageSize: detailNotificationsQuery.data?.page_size || 10,
+              total: detailNotificationsQuery.data?.total || 0,
+              onChange: setDetailPage,
+            }}
+          />
+        </Space>
       </Drawer>
     </Card>
   );

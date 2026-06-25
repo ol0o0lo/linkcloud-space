@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, Row, Space, Table, Tag } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, Row, Space, Statistic, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { adminTableScroll, codeWrapStyle, drawerWidthMd, drawerWidthSm, fullWidthStyle, responsiveDescriptionColumns, twoColumnDescription, ResponsiveActions, WrappedCodeText, wrapTextStyle } from '@/pages/_shared/adminLayout';
 import {
   appsWalletApiCancelUserWithdrawal,
@@ -16,6 +16,58 @@ import { appsReferralsApiMyReferralRecords, appsReferralsApiMyReferralSummary } 
 import { appsAccountsApiGetMyRealName, appsAccountsApiListMyRealNameLogs } from '@/services/openapi/realName';
 import { appsSettingsApiDeleteUserSettingView, appsSettingsApiGetUserSettingView, appsSettingsApiListUserSettings, appsSettingsApiPutUserSetting } from '@/services/openapi/userSettings';
 import { formatWalletAmount } from '@/pages/wallet-management/shared';
+
+type BusinessSignal = {
+  key: string;
+  title: string;
+  emphasis: string;
+  summary: string;
+  description: string;
+  actionLabel: string;
+  actionHref: string;
+};
+
+type WithdrawalInsight = API.WithdrawalOut & {
+  status_label: string;
+  status_color: string;
+  governance_summary: string;
+};
+
+const sectionStyle: React.CSSProperties = {
+  padding: 20,
+  border: '1px solid var(--ant-color-border-secondary)',
+  borderRadius: 8,
+  background: 'var(--ant-color-fill-quaternary)',
+};
+
+const overviewTileStyle: React.CSSProperties = {
+  height: '100%',
+  padding: 16,
+  borderRadius: 8,
+  border: '1px solid var(--ant-color-border-secondary)',
+  background: 'var(--ant-color-bg-container)',
+};
+
+function buildWithdrawalInsight(withdrawal: API.WithdrawalOut): WithdrawalInsight {
+  switch (withdrawal.status) {
+    case 'pending_review':
+      return { ...withdrawal, status_label: '待审核', status_color: 'gold', governance_summary: '资金已冻结，等待平台审核决定是否继续进入出款链路。' };
+    case 'approved':
+      return { ...withdrawal, status_label: '待打款', status_color: 'blue', governance_summary: '审核已经通过，但尚未真正完成出款。' };
+    case 'paying':
+      return { ...withdrawal, status_label: '打款中', status_color: 'cyan', governance_summary: '代付已发起，当前重点是等待回调并确认状态同步。' };
+    case 'failed':
+      return { ...withdrawal, status_label: '失败待处理', status_color: 'red', governance_summary: '申请已经失败，先核查失败原因和余额回流，再决定是否继续操作。' };
+    case 'rejected':
+      return { ...withdrawal, status_label: '已驳回', status_color: 'default', governance_summary: '申请已被退回，后续重点是补资料和重新发起。' };
+    case 'cancelled':
+      return { ...withdrawal, status_label: '已撤销', status_color: 'default', governance_summary: '申请已由本人撤销，资金通常已回流到可用余额。' };
+    case 'paid':
+      return { ...withdrawal, status_label: '已打款', status_color: 'green', governance_summary: '申请已经完成打款，后续重点转到到账与对账确认。' };
+    default:
+      return { ...withdrawal, status_label: withdrawal.status, status_color: 'default', governance_summary: '当前申请处于未归类状态，建议补充统一业务语义。' };
+  }
+}
 
 const PersonalBusinessPage: React.FC = () => {
   const [withdrawalDetailId, setWithdrawalDetailId] = useState<number>();
@@ -60,16 +112,98 @@ const PersonalBusinessPage: React.FC = () => {
     onSuccess: () => userSettingsQuery.refetch(),
   });
 
+  const walletSummary = walletSummaryQuery.data;
+  const withdrawals = useMemo(() => (withdrawalsQuery.data?.items || []).map(buildWithdrawalInsight), [withdrawalsQuery.data?.items]);
+  const pendingWithdrawals = withdrawals.filter((item) => item.status === 'pending_review');
+  const failedWithdrawals = withdrawals.filter((item) => item.status === 'failed');
+  const activeWithdrawals = withdrawals.filter((item) => ['pending_review', 'approved', 'paying', 'failed'].includes(item.status));
+  const userSettings = userSettingsQuery.data || [];
+  const referralSummary = referralSummaryQuery.data;
+  const realName = realNameQuery.data;
+
+  const signals = useMemo<BusinessSignal[]>(
+    () => [
+      {
+        key: 'wallet',
+        title: '资金状态',
+        emphasis: walletSummary?.frozen_balance ? `冻结 ${formatWalletAmount(walletSummary.frozen_balance)}` : '冻结资金较低',
+        summary: walletSummary?.frozen_balance
+          ? '当前有部分资金仍处于冻结状态，通常对应待审核或处理中提现。'
+          : '当前冻结资金压力较轻，资金可用性相对健康。',
+        description: '个人经营页需要先解释钱现在在哪，而不是只展示几个金额字段。',
+        actionLabel: '查看提现申请',
+        actionHref: '/dashboard/personal-business/overview',
+      },
+      {
+        key: 'withdrawal',
+        title: '提现推进',
+        emphasis: activeWithdrawals.length ? `${activeWithdrawals.length} 条申请在途` : '暂无在途申请',
+        summary: activeWithdrawals.length
+          ? '提现从发起到收口还未完成，接下来要看审核、出款或失败重试在哪一环停住。'
+          : '当前没有在途提现申请，资金链路较为干净。',
+        description: '个人经营页里的提现申请，更适合解释进度，而不是只堆一个明细表。',
+        actionLabel: '查看钱包流水',
+        actionHref: '/dashboard/personal-business/overview',
+      },
+      {
+        key: 'growth',
+        title: '增长转化',
+        emphasis: referralSummary?.pending_review_count ? `${referralSummary.pending_review_count} 条裂变待审核` : '裂变审核压力较低',
+        summary: referralSummary?.pending_review_count
+          ? '邀请已经带来转化，但奖励承接还没有完全收口。'
+          : '当前裂变链路没有明显积压。',
+        description: '邀请码、分享链接、注册量和奖励承接应该在一个增长视角下看，而不是单独一张卡片。',
+        actionLabel: '查看裂变记录',
+        actionHref: '/dashboard/personal-business/overview',
+      },
+      {
+        key: 'identity',
+        title: '实名与偏好',
+        emphasis: realName?.status_label || '未识别',
+        summary: realName?.status_label === '未认证'
+          ? '实名尚未完成，某些提现或激励场景可能因此受限。'
+          : '实名状态看起来已进入可用阶段，可继续关注后续资料维护。',
+        description: '实名状态和个人偏好一起决定这个经营账号能否稳定参与平台业务。',
+        actionLabel: '前往个人设置',
+        actionHref: '/account/center?tab=security',
+      },
+    ],
+    [activeWithdrawals.length, realName?.status_label, referralSummary?.pending_review_count, walletSummary?.frozen_balance],
+  );
+
   const ledgerColumns: ColumnsType<API.WalletLedgerOut> = [
-    { title: '类型', dataIndex: 'entry_type', width: 120 },
+    { title: '类型', dataIndex: 'entry_type', width: 140 },
     { title: '变动', dataIndex: 'amount_delta', width: 120, render: formatWalletAmount },
-    { title: '备注', dataIndex: 'remark', width: 220, render: (value) => <span style={wrapTextStyle}>{value || '-'}</span> },
+    { title: '备注', dataIndex: 'remark', width: 240, render: (value) => <span style={wrapTextStyle}>{value || '-'}</span> },
     { title: '时间', dataIndex: 'created_at', width: 170, render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm') },
   ];
-  const withdrawalColumns: ColumnsType<API.WithdrawalOut> = [
-    { title: '状态', dataIndex: 'status', width: 120, render: (value) => <Tag>{value}</Tag> },
-    { title: '金额', dataIndex: 'amount', width: 120, render: formatWalletAmount },
-    { title: '渠道', dataIndex: 'pay_channel', width: 140 },
+
+  const withdrawalColumns: ColumnsType<WithdrawalInsight> = [
+    { title: '申请 ID', dataIndex: 'id', width: 100 },
+    {
+      title: '当前状态',
+      dataIndex: 'status_label',
+      width: 180,
+      render: (_value, record) => (
+        <Space orientation="vertical" size={6}>
+          <Tag color={record.status_color}>{record.status_label}</Tag>
+          <Typography.Text type="secondary">{record.governance_summary}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '金额结果',
+      dataIndex: 'amount',
+      width: 190,
+      render: (_value, record) => (
+        <Space orientation="vertical" size={4}>
+          <Typography.Text>{`申请 ${formatWalletAmount(record.amount)}`}</Typography.Text>
+          <Typography.Text type="secondary">{`到账 ${formatWalletAmount(record.net_amount)}`}</Typography.Text>
+        </Space>
+      ),
+    },
+    { title: '渠道', dataIndex: 'pay_channel', width: 120 },
+    { title: '创建时间', dataIndex: 'created_at', width: 170, render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm') },
     {
       title: '操作',
       dataIndex: 'actions',
@@ -77,108 +211,287 @@ const PersonalBusinessPage: React.FC = () => {
       render: (_value, record) => (
         <ResponsiveActions>
           <a onClick={() => setWithdrawalDetailId(record.id)}>详情</a>
-          <a onClick={() => void cancelWithdrawalMutation.mutateAsync(record.id)}>撤销提现</a>
+          {['pending_review', 'failed'].includes(record.status) ? <a onClick={() => void cancelWithdrawalMutation.mutateAsync(record.id)}>撤销提现</a> : null}
         </ResponsiveActions>
       ),
     },
   ];
 
   return (
-    <Space orientation="vertical" style={fullWidthStyle}>
-      <Card title="我的钱包">
-        <Descriptions column={responsiveDescriptionColumns} size="small">
-          <Descriptions.Item label="可用余额">{formatWalletAmount(walletSummaryQuery.data?.available_balance || 0)}</Descriptions.Item>
-          <Descriptions.Item label="冻结余额">{formatWalletAmount(walletSummaryQuery.data?.frozen_balance || 0)}</Descriptions.Item>
-          <Descriptions.Item label="累计收入">{formatWalletAmount(walletSummaryQuery.data?.total_income || 0)}</Descriptions.Item>
-          <Descriptions.Item label="累计提现">{formatWalletAmount(walletSummaryQuery.data?.total_withdrawn || 0)}</Descriptions.Item>
-        </Descriptions>
-        <Form form={withdrawalForm} layout="vertical" style={{ marginTop: 16 }} onFinish={(values) => createWithdrawalMutation.mutate(values)}>
-          <Row gutter={16} align="bottom">
-            <Col xs={24} md={12} xl={6}>
-              <Form.Item label="提现金额" name="amount" rules={[{ required: true, message: '请输入提现金额' }]}><InputNumber min={1} style={fullWidthStyle} /></Form.Item>
+    <Space orientation="vertical" size={16} style={fullWidthStyle}>
+      <Card title="个人业务概览">
+        <div style={sectionStyle}>
+          <Typography.Text strong>个人经营概览</Typography.Text>
+          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+            <Col xs={24} sm={12} xl={6}>
+              <div style={overviewTileStyle}>
+                <Statistic title="可用余额" value={walletSummary?.available_balance || 0} formatter={(value) => formatWalletAmount(Number(value || 0))} />
+                <Typography.Text type="secondary">当前可直接用于提现或后续经营动作的余额。</Typography.Text>
+              </div>
             </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Form.Item label="提现渠道" name="pay_channel" rules={[{ required: true, message: '请输入提现渠道' }]}><Input /></Form.Item>
+            <Col xs={24} sm={12} xl={6}>
+              <div style={overviewTileStyle}>
+                <Statistic title="冻结余额" value={walletSummary?.frozen_balance || 0} formatter={(value) => formatWalletAmount(Number(value || 0))} />
+                <Typography.Text type="secondary">通常对应待审核、处理中或失败待解释的提现申请。</Typography.Text>
+              </div>
             </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Form.Item label="收款账号" name="account" rules={[{ required: true, message: '请输入收款账号' }]}><Input /></Form.Item>
+            <Col xs={24} sm={12} xl={6}>
+              <div style={overviewTileStyle}>
+                <Statistic title="在途提现" value={activeWithdrawals.length} />
+                <Typography.Text type="secondary">这些申请决定了个人经营资金何时能真正完成结算。</Typography.Text>
+              </div>
             </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Form.Item label="提现请求 ID" name="client_request_id" rules={[{ required: true, message: '请输入请求 ID' }]}><Input /></Form.Item>
-            </Col>
-            <Col xs={24}>
-              <Button type="primary" htmlType="submit">提交提现</Button>
-            </Col>
-          </Row>
-        </Form>
-      </Card>
-      <Card title="钱包流水">
-        <Table rowKey="id" loading={ledgerQuery.isLoading} columns={ledgerColumns} dataSource={ledgerQuery.data?.items || []} pagination={false} scroll={adminTableScroll} />
-      </Card>
-      <Card title="提现申请">
-        <Table rowKey="id" loading={withdrawalsQuery.isLoading} columns={withdrawalColumns} dataSource={withdrawalsQuery.data?.items || []} pagination={false} scroll={adminTableScroll} />
-      </Card>
-      <Card title="我的裂变">
-        <Descriptions column={responsiveDescriptionColumns} size="small">
-          <Descriptions.Item label="邀请码">{referralSummaryQuery.data?.invite_code || '-'}</Descriptions.Item>
-          <Descriptions.Item label="分享链接"><span style={wrapTextStyle}>{referralSummaryQuery.data?.share_link || '-'}</span></Descriptions.Item>
-          <Descriptions.Item label="注册数">{referralSummaryQuery.data?.registered_count || 0}</Descriptions.Item>
-          <Descriptions.Item label="待审核">{referralSummaryQuery.data?.pending_review_count || 0}</Descriptions.Item>
-        </Descriptions>
-        <Table rowKey="id" dataSource={referralRecordsQuery.data?.items || []} pagination={false} scroll={adminTableScroll} columns={[{ title: '被邀请人', dataIndex: 'invitee_display', width: 180 }, { title: '状态', dataIndex: 'status', width: 120 }]} />
-      </Card>
-      <Card title="我的实名">
-        <Descriptions column={twoColumnDescription} size="small">
-          <Descriptions.Item label="状态">{realNameQuery.data?.status_label || '-'}</Descriptions.Item>
-          <Descriptions.Item label="姓名">{realNameQuery.data?.real_name_masked || '-'}</Descriptions.Item>
-          <Descriptions.Item label="证件">{realNameQuery.data?.id_number_masked || '-'}</Descriptions.Item>
-        </Descriptions>
-        <Space direction="vertical" size={12} style={{ marginTop: 16 }}>
-          <span style={wrapTextStyle}>实名认证入口已统一收口到个人设置，若需提交或重新提交，请前往个人设置完成。</span>
-          <Button type="link" href="/account/center?tab=security" style={{ paddingInline: 0 }}>
-            去个人设置实名
-          </Button>
-        </Space>
-        <Table rowKey="created_at" dataSource={realNameLogsQuery.data || []} pagination={false} scroll={adminTableScroll} columns={[{ title: '动作', dataIndex: 'action_label', width: 160 }, { title: '备注', dataIndex: 'note', width: 260, render: (value) => <span style={wrapTextStyle}>{value || '-'}</span> }]} />
-      </Card>
-      <Card title="个人设置">
-        <Form form={settingForm} layout="vertical" onFinish={(values) => putSettingMutation.mutate(values)}>
-          <Row gutter={16} align="bottom">
-            <Col xs={24} md={8}>
-              <Form.Item label="设置 Key" name="key" rules={[{ required: true, message: '请输入设置 Key' }]}><Input /></Form.Item>
-            </Col>
-            <Col xs={24} md={10}>
-              <Form.Item label="设置值" name="value" rules={[{ required: true, message: '请输入设置值' }]}><Input /></Form.Item>
-            </Col>
-            <Col xs={24} md={6}>
-              <Form.Item label=" " colon={false}>
-                <Button type="primary" htmlType="submit">保存个人设置</Button>
-              </Form.Item>
+            <Col xs={24} sm={12} xl={6}>
+              <div style={overviewTileStyle}>
+                <Statistic title="裂变注册" value={referralSummary?.registered_count || 0} />
+                <Typography.Text type="secondary">邀请码带来的实际注册转化数量。</Typography.Text>
+              </div>
             </Col>
           </Row>
-        </Form>
-        <Table
-          rowKey="key"
-          dataSource={userSettingsQuery.data || []}
-          pagination={false}
-          scroll={adminTableScroll}
-          columns={[
-            { title: 'Key', dataIndex: 'key', width: 180 },
-            { title: 'Value', dataIndex: 'value', width: 260, render: (value) => <span style={wrapTextStyle}>{String(value)}</span> },
-            {
-              title: '操作',
-              dataIndex: 'actions',
-              width: 120,
-              render: (_value, record) => (
-                <ResponsiveActions>
-                  <a onClick={() => setSettingDetailKey(record.key)}>详情</a>
-                  <a onClick={() => void deleteSettingMutation.mutateAsync(record.key)}>删除</a>
-                </ResponsiveActions>
-              ),
-            },
-          ]}
-        />
+        </div>
+
+        <div style={{ ...sectionStyle, marginTop: 16 }}>
+          <Typography.Text strong>当前经营执行面</Typography.Text>
+          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+            <Col xs={24} lg={14}>
+              <div style={overviewTileStyle}>
+                <Space orientation="vertical" size={12} style={fullWidthStyle}>
+                  <div>
+                    <Space wrap size={[8, 8]}>
+                      <Typography.Text strong>发起提现</Typography.Text>
+                      <Tag color={pendingWithdrawals.length ? 'gold' : 'blue'}>{pendingWithdrawals.length ? `${pendingWithdrawals.length} 条待审核` : '可继续申请'}</Tag>
+                    </Space>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
+                      把提现作为资金推进动作来处理，而不是单纯填写一个表单。申请提交后，重点是跟踪审核与收口。
+                    </Typography.Paragraph>
+                  </div>
+                  <Form form={withdrawalForm} layout="vertical" onFinish={(values) => createWithdrawalMutation.mutate(values)}>
+                    <Row gutter={16} align="bottom">
+                      <Col xs={24} md={12} xl={6}>
+                        <Form.Item label="提现金额" name="amount" rules={[{ required: true, message: '请输入提现金额' }]}>
+                          <InputNumber min={1} style={fullWidthStyle} />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12} xl={6}>
+                        <Form.Item label="提现渠道" name="pay_channel" rules={[{ required: true, message: '请输入提现渠道' }]}>
+                          <Input />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12} xl={6}>
+                        <Form.Item label="收款账号" name="account" rules={[{ required: true, message: '请输入收款账号' }]}>
+                          <Input />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12} xl={6}>
+                        <Form.Item label="提现请求 ID" name="client_request_id" rules={[{ required: true, message: '请输入请求 ID' }]}>
+                          <Input />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24}>
+                        <Button type="primary" htmlType="submit" loading={createWithdrawalMutation.isPending}>
+                          提交提现
+                        </Button>
+                      </Col>
+                    </Row>
+                  </Form>
+                </Space>
+              </div>
+            </Col>
+            <Col xs={24} lg={10}>
+              <div style={overviewTileStyle}>
+                <Space orientation="vertical" size={10} style={fullWidthStyle}>
+                  <Space wrap size={[8, 8]}>
+                    <Typography.Text strong>提现推进提醒</Typography.Text>
+                    <Tag color={failedWithdrawals.length ? 'red' : 'green'}>{failedWithdrawals.length ? `${failedWithdrawals.length} 条失败待解释` : '暂无失败'} </Tag>
+                  </Space>
+                  <Typography.Text>失败提现不只是一个状态，它通常意味着余额解释、用户预期和后续重提策略都需要重新说明。</Typography.Text>
+                  {failedWithdrawals.length ? (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      title={`当前有 ${failedWithdrawals.length} 条失败提现待处理，优先查看详情并确认是否需要撤销或重新发起。`}
+                    />
+                  ) : (
+                    <Alert type="success" showIcon title="当前没有失败提现，资金推进链路相对健康。" />
+                  )}
+                </Space>
+              </div>
+            </Col>
+          </Row>
+        </div>
+
+        <div style={{ ...sectionStyle, marginTop: 16 }}>
+          <Typography.Text strong>增长与身份</Typography.Text>
+          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+            <Col xs={24} xl={12}>
+              <div style={overviewTileStyle}>
+                <Space orientation="vertical" size={12} style={fullWidthStyle}>
+                  <Space wrap size={[8, 8]}>
+                    <Typography.Text strong>我的裂变</Typography.Text>
+                    <Tag color={referralSummary?.pending_review_count ? 'gold' : 'blue'}>{referralSummary?.invite_code || '未生成邀请码'}</Tag>
+                  </Space>
+                  <Descriptions column={responsiveDescriptionColumns} size="small">
+                    <Descriptions.Item label="分享链接"><span style={wrapTextStyle}>{referralSummary?.share_link || '-'}</span></Descriptions.Item>
+                    <Descriptions.Item label="注册数">{referralSummary?.registered_count || 0}</Descriptions.Item>
+                    <Descriptions.Item label="待审核">{referralSummary?.pending_review_count || 0}</Descriptions.Item>
+                    <Descriptions.Item label="已奖励">{referralSummary?.rewarded_count || 0}</Descriptions.Item>
+                  </Descriptions>
+                  <Table
+                    rowKey="id"
+                    dataSource={referralRecordsQuery.data?.items || []}
+                    pagination={false}
+                    scroll={adminTableScroll}
+                    columns={[
+                      { title: '被邀请人', dataIndex: 'invitee_display', width: 180 },
+                      { title: '状态', dataIndex: 'status', width: 120 },
+                    ]}
+                  />
+                </Space>
+              </div>
+            </Col>
+            <Col xs={24} xl={12}>
+              <div style={overviewTileStyle}>
+                <Space orientation="vertical" size={12} style={fullWidthStyle}>
+                  <Space wrap size={[8, 8]}>
+                    <Typography.Text strong>我的实名</Typography.Text>
+                    <Tag color={realName?.status_label === '未认证' ? 'gold' : 'green'}>{realName?.status_label || '未知'}</Tag>
+                  </Space>
+                  <Descriptions column={twoColumnDescription} size="small">
+                    <Descriptions.Item label="状态">{realName?.status_label || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="姓名">{realName?.real_name_masked || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="证件">{realName?.id_number_masked || '-'}</Descriptions.Item>
+                  </Descriptions>
+                  <Typography.Text type="secondary" style={wrapTextStyle}>
+                    实名入口已统一收口到个人设置，若需提交或重新提交，请前往个人设置完成。
+                  </Typography.Text>
+                  <Button type="link" href="/account/center?tab=security" style={{ paddingInline: 0 }}>
+                    去个人设置实名
+                  </Button>
+                  <Table
+                    rowKey="created_at"
+                    dataSource={realNameLogsQuery.data || []}
+                    pagination={false}
+                    scroll={adminTableScroll}
+                    columns={[
+                      { title: '动作', dataIndex: 'action_label', width: 160 },
+                      { title: '备注', dataIndex: 'note', width: 260, render: (value) => <span style={wrapTextStyle}>{value || '-'}</span> },
+                    ]}
+                  />
+                </Space>
+              </div>
+            </Col>
+          </Row>
+        </div>
+
+        <div style={{ ...sectionStyle, marginTop: 16 }}>
+          <Typography.Text strong>偏好与资料</Typography.Text>
+          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+            <Col xs={24} lg={10}>
+              <div style={overviewTileStyle}>
+                <Space orientation="vertical" size={12} style={fullWidthStyle}>
+                  <Typography.Text strong>个人设置维护</Typography.Text>
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                    这里维护的是个人经营偏好和平台侧配置，不应和账户安全或实名认证入口混在一起。
+                  </Typography.Paragraph>
+                  <Form form={settingForm} layout="vertical" onFinish={(values) => putSettingMutation.mutate(values)}>
+                    <Row gutter={16} align="bottom">
+                      <Col xs={24} md={10}>
+                        <Form.Item label="设置 Key" name="key" rules={[{ required: true, message: '请输入设置 Key' }]}>
+                          <Input />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={10}>
+                        <Form.Item label="设置值" name="value" rules={[{ required: true, message: '请输入设置值' }]}>
+                          <Input />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={4}>
+                        <Form.Item label=" " colon={false}>
+                          <Button type="primary" htmlType="submit" loading={putSettingMutation.isPending}>
+                            保存个人设置
+                          </Button>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </Form>
+                </Space>
+              </div>
+            </Col>
+            <Col xs={24} lg={14}>
+              <div style={overviewTileStyle}>
+                <Space orientation="vertical" size={12} style={fullWidthStyle}>
+                  <Typography.Text strong>设置台账</Typography.Text>
+                  <Table
+                    rowKey="key"
+                    dataSource={userSettings}
+                    pagination={false}
+                    scroll={adminTableScroll}
+                    columns={[
+                      { title: 'Key', dataIndex: 'key', width: 180 },
+                      { title: 'Value', dataIndex: 'value', width: 260, render: (value) => <span style={wrapTextStyle}>{String(value)}</span> },
+                      {
+                        title: '操作',
+                        dataIndex: 'actions',
+                        width: 120,
+                        render: (_value, record) => (
+                          <ResponsiveActions>
+                            <a onClick={() => setSettingDetailKey(record.key)}>详情</a>
+                            <a onClick={() => void deleteSettingMutation.mutateAsync(record.key)}>删除</a>
+                          </ResponsiveActions>
+                        ),
+                      },
+                    ]}
+                  />
+                </Space>
+              </div>
+            </Col>
+          </Row>
+        </div>
+
+        <div style={{ ...sectionStyle, marginTop: 16 }}>
+          <Space orientation="vertical" size={12} style={fullWidthStyle}>
+            <Typography.Text strong>资金执行台账</Typography.Text>
+            <Row gutter={[12, 12]}>
+              <Col xs={24} xl={10}>
+                <div style={overviewTileStyle}>
+                  <Space orientation="vertical" size={12} style={fullWidthStyle}>
+                    <Typography.Text strong>钱包流水</Typography.Text>
+                    <Table rowKey="id" loading={ledgerQuery.isLoading} columns={ledgerColumns} dataSource={ledgerQuery.data?.items || []} pagination={false} scroll={adminTableScroll} />
+                  </Space>
+                </div>
+              </Col>
+              <Col xs={24} xl={14}>
+                <div style={overviewTileStyle}>
+                  <Space orientation="vertical" size={12} style={fullWidthStyle}>
+                    <Typography.Text strong>提现申请</Typography.Text>
+                    <Table rowKey="id" loading={withdrawalsQuery.isLoading} columns={withdrawalColumns} dataSource={withdrawals} pagination={false} scroll={adminTableScroll} />
+                  </Space>
+                </div>
+              </Col>
+            </Row>
+          </Space>
+        </div>
+
+        <div style={{ ...sectionStyle, marginTop: 16 }}>
+          <Typography.Text strong>闭环信号</Typography.Text>
+          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+            {signals.map((signal) => (
+              <Col key={signal.key} xs={24} sm={12} xl={6}>
+                <div style={overviewTileStyle}>
+                  <Space orientation="vertical" size={8}>
+                    <Typography.Text strong>{signal.title}</Typography.Text>
+                    <Tag color="blue">{signal.emphasis}</Tag>
+                    <Typography.Text>{signal.summary}</Typography.Text>
+                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
+                    <a href={signal.actionHref}>{signal.actionLabel}</a>
+                  </Space>
+                </div>
+              </Col>
+            ))}
+          </Row>
+        </div>
       </Card>
+
       <Drawer title="提现详情" open={Boolean(withdrawalDetailId)} onClose={() => setWithdrawalDetailId(undefined)} width={drawerWidthMd}>
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="提现 ID">{withdrawalDetailQuery.data?.id || '-'}</Descriptions.Item>
@@ -195,6 +508,7 @@ const PersonalBusinessPage: React.FC = () => {
           <Descriptions.Item label="审核时间">{withdrawalDetailQuery.data?.reviewed_at ? dayjs(withdrawalDetailQuery.data.reviewed_at).format('YYYY-MM-DD HH:mm') : '-'}</Descriptions.Item>
         </Descriptions>
       </Drawer>
+
       <Drawer title="个人设置详情" open={Boolean(settingDetailKey)} onClose={() => setSettingDetailKey(undefined)} width={drawerWidthSm}>
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="Key">{settingDetailQuery.data?.key || '-'}</Descriptions.Item>

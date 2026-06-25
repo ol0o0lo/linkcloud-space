@@ -32,6 +32,16 @@ vi.mock('../shared', () => ({
   useTenantWorkspace: () => mockWorkspace,
 }));
 
+vi.mock('@ant-design/pro-components', () => ({
+  PageContainer: ({ title, subTitle, children }: { title?: string; subTitle?: React.ReactNode; children: React.ReactNode }) => (
+    <section>
+      {title ? <h1>{title}</h1> : null}
+      {subTitle ? <p>{subTitle}</p> : null}
+      {children}
+    </section>
+  ),
+}));
+
 vi.mock('@/services/openapi/organizations', () => ({
   appsOrganizationsApiCreateOrganization: mockCreateOrganization,
   appsOrganizationsApiGetOrganizationUsage: mockGetOrganizationUsage,
@@ -64,7 +74,7 @@ describe('OverviewPage', () => {
     mockSetPrimary.mockResolvedValue({ success: true, is_primary: true });
   });
 
-  it('loads organizations and triggers create / set-primary / signout actions', async () => {
+  it('renders a tenant workbench and triggers create / set-primary / signout actions', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <OverviewPage />
@@ -76,6 +86,21 @@ describe('OverviewPage', () => {
       expect(screen.getAllByText('Acme').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Beta').length).toBeGreaterThan(0);
     });
+
+    expect(screen.getByText('空间工作台')).toBeInTheDocument();
+    expect(screen.getByText('空间治理概览')).toBeInTheDocument();
+    expect(screen.getByText('当前执行面')).toBeInTheDocument();
+    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.getByText('我的空间台账')).toBeInTheDocument();
+    expect(screen.getByText('主空间治理')).toBeInTheDocument();
+    expect(screen.getAllByText('当前空间').length).toBeGreaterThan(0);
+    expect(screen.getByText('可切换空间')).toBeInTheDocument();
+    expect(screen.getAllByText('成员容量').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('团队容量').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: '进入成员管理' })[0]).toHaveAttribute('href', '/dashboard/tenant/members');
+    expect(screen.getAllByRole('link', { name: '进入团队管理' })[0]).toHaveAttribute('href', '/dashboard/tenant/teams');
+    expect(screen.getAllByRole('link', { name: '进入空间设置' })[0]).toHaveAttribute('href', '/dashboard/tenant/settings');
+    expect(screen.getByRole('link', { name: '查看空间授权' })).toHaveAttribute('href', '/dashboard/access/organization-bindings');
 
     fireEvent.click(screen.getAllByText('设为主租户')[0]);
 

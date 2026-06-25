@@ -61,11 +61,19 @@ describe('OrganizationBindingsPage', () => {
 
     await waitFor(() => {
       expect(mockListBindings).toHaveBeenCalled();
-      expect(screen.getByText('Alice Zhang')).toBeInTheDocument();
+      expect(mockListRoles).toHaveBeenCalled();
+      expect(mockListMembers).toHaveBeenCalledWith({ page: 1, page_size: 100 });
+      expect(screen.getAllByText('Alice Zhang').length).toBeGreaterThan(0);
     });
 
+    expect(screen.getByText('授权概览')).toBeInTheDocument();
+    expect(screen.getByText('覆盖情况')).toBeInTheDocument();
+    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.getByText('空间授权台账')).toBeInTheDocument();
+    expect(screen.getAllByText('待分配成员').length).toBeGreaterThan(0);
+    expect(screen.getByText('全局承接')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: '分配角色' }));
-    await waitFor(() => expect(mockListMembers).toHaveBeenCalledWith({ page: 1, page_size: 100 }));
     fireEvent.mouseDown(screen.getByLabelText('成员').closest('.ant-select')!);
     fireEvent.click(await screen.findByText('Alice Zhang (alice)'));
     fireEvent.mouseDown(screen.getByLabelText('角色').closest('.ant-select')!);

@@ -7,12 +7,14 @@ import OrganizationRolesPage from './index';
 const {
   mockListPermissions,
   mockListOrgRoles,
+  mockListBindings,
   mockCreateOrgRole,
   mockPatchOrgRole,
   mockDeleteOrgRole,
 } = vi.hoisted(() => ({
   mockListPermissions: vi.fn(),
   mockListOrgRoles: vi.fn(),
+  mockListBindings: vi.fn(),
   mockCreateOrgRole: vi.fn(),
   mockPatchOrgRole: vi.fn(),
   mockDeleteOrgRole: vi.fn(),
@@ -35,6 +37,10 @@ vi.mock('@/services/openapi/accessOrganizationRoles', () => ({
   appsAccessApiDeleteOrgRole: mockDeleteOrgRole,
 }));
 
+vi.mock('@/services/openapi/accessOrganizationBindings', () => ({
+  appsAccessApiListOrganizationBindings: mockListBindings,
+}));
+
 describe('OrganizationRolesPage', () => {
   let queryClient: QueryClient;
 
@@ -45,6 +51,9 @@ describe('OrganizationRolesPage', () => {
     mockListOrgRoles.mockResolvedValue([
       { id: 1, code: 'owner', name: 'Owner', scope: 'org', is_system: true, is_active: true, permission_keys: ['organizations.member.view'] },
       { id: 2, code: 'ops', name: '运营', scope: 'org', is_system: false, is_active: true, permission_keys: [] },
+    ]);
+    mockListBindings.mockResolvedValue([
+      { id: 9, user: { id: 7, username: 'alice', first_name: 'Alice', last_name: 'Zhang' }, role: { id: 2, name: '运营', code: 'ops', scope: 'org' }, created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00' },
     ]);
     mockCreateOrgRole.mockResolvedValue({});
     mockPatchOrgRole.mockResolvedValue({});
@@ -61,8 +70,16 @@ describe('OrganizationRolesPage', () => {
     await waitFor(() => {
       expect(mockListPermissions).toHaveBeenCalled();
       expect(mockListOrgRoles).toHaveBeenCalled();
-      expect(screen.getByText('运营')).toBeInTheDocument();
+      expect(mockListBindings).toHaveBeenCalled();
+      expect(screen.getAllByText('运营').length).toBeGreaterThan(0);
     });
+
+    expect(screen.getByText('角色概览')).toBeInTheDocument();
+    expect(screen.getByText('角色覆盖情况')).toBeInTheDocument();
+    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.getByText('空间角色台账')).toBeInTheDocument();
+    expect(screen.getAllByText('执行编组').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('角色治理').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: '新建角色' }));
     fireEvent.change(screen.getByLabelText('角色名称'), { target: { value: '财务' } });

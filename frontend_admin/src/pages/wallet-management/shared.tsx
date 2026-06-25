@@ -41,7 +41,7 @@ function summarizeJsonValue(value: unknown) {
 export const JsonText: React.FC<{ value: unknown }> = ({ value }) => (
   <Tooltip
     placement="topLeft"
-    overlayStyle={{ maxWidth: 520 }}
+    styles={{ root: { maxWidth: 520 } }}
     title={<pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{stringifyJsonValue(value, true)}</pre>}
   >
     <Typography.Text code ellipsis style={{ display: 'inline-block', width: '100%', maxWidth: 360, verticalAlign: 'bottom' }}>

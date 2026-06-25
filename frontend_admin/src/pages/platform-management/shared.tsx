@@ -3,9 +3,9 @@ import type { FormInstance } from 'antd';
 import React from 'react';
 
 export const platformQueryKeys = {
-  users: (page?: number) => ['platform-management', 'users', page],
-  realName: (page?: number) => ['platform-management', 'real-name', page],
-  notifications: (page?: number) => ['platform-management', 'notifications', page],
+  users: (page?: number, q?: string) => ['platform-management', 'users', page, q],
+  realName: (page?: number, q?: string, status?: string) => ['platform-management', 'real-name', page, q, status],
+  notifications: (page?: number, isRead?: string) => ['platform-management', 'notifications', page, isRead],
   notificationDispatches: (page?: number) => ['platform-management', 'notification-dispatches', page],
   notificationDispatchDetail: (id?: number) => ['platform-management', 'notification-dispatch-detail', id],
   notificationDispatchNotifications: (id?: number, page?: number) => ['platform-management', 'notification-dispatch-notifications', id, page],
@@ -31,12 +31,18 @@ export const NoteModal: React.FC<{
   open: boolean;
   title: string;
   loading?: boolean;
+  description?: React.ReactNode;
   form: FormInstance<{ note: string }>;
   onCancel: () => void;
   onOk: () => void;
-}> = ({ open, title, loading, form, onCancel, onOk }) => (
+}> = ({ open, title, loading, description, form, onCancel, onOk }) => (
   <Modal title={title} open={open} confirmLoading={loading} onCancel={onCancel} onOk={onOk}>
     <Form form={form} layout="vertical">
+      {description ? (
+        <Form.Item>
+          <Typography.Text type="secondary">{description}</Typography.Text>
+        </Form.Item>
+      ) : null}
       <Form.Item label="备注" name="note">
         <Input />
       </Form.Item>
