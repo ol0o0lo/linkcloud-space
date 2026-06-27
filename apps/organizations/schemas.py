@@ -131,6 +131,7 @@ class InviteOut(Schema):
     invitee: int | None = None
     invitee_email: str = ""
     is_owner: bool
+    access_role: int | None = None
     key: str
     created_at: datetime
     updated_at: datetime
@@ -147,11 +148,16 @@ class InviteOut(Schema):
     def resolve_invitee(obj) -> int | None:
         return obj.invitee_id
 
+    @staticmethod
+    def resolve_access_role(obj) -> int | None:
+        return obj.access_role_id
+
 
 class InviteIn(Schema):
     invitee_email: str = Field("", description="被邀请人邮箱，可用于未注册用户邀请。")
     invitee: int | None = Field(None, description="被邀请用户 ID，可用于站内已存在用户邀请。")
     is_owner: bool = Field(False, description="接受邀请后是否授予租户 owner 权限。")
+    access_role: int | None = Field(None, description="接受邀请后预设绑定的组织级访问角色。")
 
 
 class PublicInviteOut(Schema):

@@ -9,6 +9,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.access.constants import AccessScope
+
 from ..base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from ..base.utils.email import send_email
 from .managers import OrganizationInviteQuerySet, OrganizationMemberQuerySet, OrganizationQuerySet
@@ -116,6 +118,7 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE)
     invitee = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="invitees", null=True, blank=True, on_delete=models.CASCADE)
     invitee_email = models.EmailField(null=True, blank=True)
+    access_role = models.ForeignKey("access.AccessRole", null=True, blank=True, on_delete=models.SET_NULL)
     key = models.CharField(max_length=32, editable=False)
     objects = OrganizationInviteQuerySet.as_manager()
 
@@ -150,6 +153,14 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
 
         if self.invitee and self.organization.is_member(self.invitee) is True:
             raise ValidationError(_(f'User "{self.invitee}" is already a member of this organization.'))
+
+        if self.access_role_id:
+            if self.access_role.scope != AccessScope.ORG:
+                raise ValidationError({"access_role": _("Only organization roles can be preset on invitations.")})
+            if self.access_role.organization_id is not None and self.access_role.organization_id != self.organization_id:
+                raise ValidationError({"access_role": _("Custom roles can only be used inside their organization.")})
+            if not self.access_role.is_active:
+                raise ValidationError({"access_role": _("Inactive roles cannot be preset on invitations.")})
 
         # For some reason `unique_together = ('organization', 'sender', 'invitee', 'invitee_email')` didn't work so in
         # the meta class, so do it manually

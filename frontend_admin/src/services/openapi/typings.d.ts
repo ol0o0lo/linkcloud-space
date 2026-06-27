@@ -415,6 +415,7 @@ declare namespace API {
 
   type appsHouseApiListContactsParams = {
     role?: string | null;
+    task?: string | null;
     q?: string | null;
     page?: number;
     page_size?: number | null;
@@ -427,9 +428,13 @@ declare namespace API {
   };
 
   type appsHouseApiListHousesParams = {
+    estate_id?: number | null;
     building_id?: number | null;
     status?: string | null;
     publish_status?: string | null;
+    publish_issue?: string | null;
+    publish_blocked?: boolean | null;
+    publish_ready?: boolean | null;
     q?: string | null;
     page?: number;
     page_size?: number | null;
@@ -438,6 +443,7 @@ declare namespace API {
   type appsHouseApiListLeasesParams = {
     house_id?: number | null;
     status?: string | null;
+    contract_missing?: boolean | null;
     page?: number;
     page_size?: number | null;
   };
@@ -455,6 +461,8 @@ declare namespace API {
   type appsHouseApiListViewingRecordsParams = {
     house_id?: number | null;
     status?: string | null;
+    pending_lease?: boolean | null;
+    contact_missing?: boolean | null;
     page?: number;
     page_size?: number | null;
   };
@@ -780,6 +788,8 @@ declare namespace API {
     id: number;
     /** Estate Id */
     estate_id: number;
+    /** Estate Name */
+    estate_name: string;
     /** Name */
     name: string;
     /** Floors */
@@ -942,7 +952,7 @@ declare namespace API {
     /** District */
     district: string;
     /** Address */
-    address: string;
+    address?: string;
     /** Lat */
     lat?: number | string | null;
     /** Lng */
@@ -1068,8 +1078,18 @@ declare namespace API {
     id: number;
     /** Building Id */
     building_id: number;
+    /** Building Name */
+    building_name: string;
+    /** Estate Name */
+    estate_name: string;
     /** Landlord Id */
     landlord_id: number | null;
+    /** Landlord Name */
+    landlord_name: string | null;
+    /** Landlord Phone */
+    landlord_phone: string | null;
+    /** House Label */
+    house_label: string;
     /** Room Number */
     room_number: string;
     /** Floor */
@@ -1118,6 +1138,14 @@ declare namespace API {
     extra: Record<string, any>;
     /** Is Active */
     is_active: boolean;
+    /** Publish Can Publish */
+    publish_can_publish: boolean;
+    /** Publish Blocking Issues */
+    publish_blocking_issues: string[];
+    /** Publish Warning Issues */
+    publish_warning_issues: string[];
+    /** Publish Rule Snapshot */
+    publish_rule_snapshot: Record<string, any>;
   };
 
   type HousePatchIn = {
@@ -1206,6 +1234,8 @@ declare namespace API {
     invitee?: number | null;
     /** Is Owner 接受邀请后是否授予租户 owner 权限。 */
     is_owner?: boolean;
+    /** Access Role 接受邀请后预设绑定的组织级访问角色。 */
+    access_role?: number | null;
   };
 
   type InviteOut = {
@@ -1221,6 +1251,8 @@ declare namespace API {
     invitee_email?: string;
     /** Is Owner */
     is_owner: boolean;
+    /** Access Role */
+    access_role?: number | null;
     /** Key */
     key: string;
     /** Created At */
@@ -1261,10 +1293,18 @@ declare namespace API {
     id: number;
     /** House Id */
     house_id: number;
+    /** House Label */
+    house_label: string;
     /** Tenant Id */
     tenant_id: number;
+    /** Tenant Name */
+    tenant_name: string;
+    /** Tenant Phone */
+    tenant_phone: string;
     /** Source Viewing Record Id */
     source_viewing_record_id: number | null;
+    /** Source Viewing Record Label */
+    source_viewing_record_label: string | null;
     /** Sign At */
     sign_at: string | null;
     /** Start Date */
@@ -2420,8 +2460,14 @@ declare namespace API {
     id: number;
     /** House Id */
     house_id: number;
+    /** House Label */
+    house_label: string;
     /** Contact Id */
     contact_id: number | null;
+    /** Contact Name */
+    contact_name: string | null;
+    /** Contact Phone */
+    contact_phone: string | null;
     /** Customer Name */
     customer_name: string;
     /** Customer Phone */
@@ -2440,6 +2486,8 @@ declare namespace API {
     extra: Record<string, any>;
     /** Is Active */
     is_active: boolean;
+    /** Signed Lease Id */
+    signed_lease_id?: number | null;
   };
 
   type ViewingRecordPatchIn = {

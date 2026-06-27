@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from model_bakery import baker
 
-from apps.access.models import AccessRole
+from apps.access.models import AccessRole, OrganizationGroupBinding
 from apps.accounts.models import User
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
@@ -279,6 +279,18 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         usernames = [u["username"] for u in api_data(resp)]
         self.assertIn("searchable", usernames)
 
+    def test_search_without_keyword_returns_invitable_users(self):
+        User.objects.create_user(
+            username="candidate",
+            email="candidate@example.com",
+            password="secret",  # noqa: S106
+        )
+        self._login()
+        resp = self.client.get("/api/organization-members/search/")
+        self.assertEqual(resp.status_code, 200)
+        usernames = [u["username"] for u in api_data(resp)]
+        self.assertIn("candidate", usernames)
+
 
 class TestOrganizationInviteViewSet(OrganizationAPITestBase):
     def test_list(self):
@@ -308,6 +320,50 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         self.assertEqual(OrganizationInvite.objects.filter(organization=self.org).count(), 1)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("guest@example.com", mail.outbox[0].to)
+
+    def test_create_invite_with_access_role(self):
+        group = make_access_group("invite_org_role", AccessRole.Scope.ORG, [])
+        self._login()
+        mail.outbox = []
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.post(
+                "/api/organization-invites/",
+                data=json.dumps({"invitee_email": "guest@example.com", "access_role": group.access_role.pk}),
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 201)
+        invite = OrganizationInvite.objects.get(organization=self.org)
+        self.assertFalse(invite.is_owner)
+        self.assertEqual(invite.access_role, group.access_role)
+
+    def test_create_invite_ignores_owner_for_regular_admin(self):
+        self._login()
+        mail.outbox = []
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.post(
+                "/api/organization-invites/",
+                data=json.dumps({"invitee_email": "guest@example.com", "is_owner": True}),
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 201)
+        invite = OrganizationInvite.objects.get(organization=self.org)
+        self.assertFalse(invite.is_owner)
+
+    def test_accept_invite_assigns_access_role_without_owner(self):
+        group = make_access_group("accepted_invite_org_role", AccessRole.Scope.ORG, [])
+        invitee = User.objects.create_user(username="guest", email="guest@example.com", password="secret")  # noqa: S106
+        invite = OrganizationInvite.objects.create(
+            organization=self.org,
+            sender=self.user,
+            invitee_email="guest@example.com",
+            access_role=group.access_role,
+        )
+        self.client.force_login(invitee)
+        resp = self.client.post(f"/api/invite-by-key/{invite.key}/accept/")
+        self.assertEqual(resp.status_code, 200)
+        member = OrganizationMember.objects.get(organization=self.org, user=invitee)
+        self.assertFalse(member.is_owner)
+        self.assertTrue(OrganizationGroupBinding.objects.filter(organization=self.org, user=invitee, group=group).exists())
 
     def test_destroy_invite(self):
         invite = baker.make(

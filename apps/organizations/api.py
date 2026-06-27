@@ -13,6 +13,7 @@ from ninja.pagination import paginate
 
 from apps.access.constants import OrganizationPermission
 from apps.access.permissions import require_org_permission
+from apps.access.services import assign_org_role
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_owner
 from apps.organizations.hooks import post_create_organization, pre_create_organization
@@ -224,17 +225,17 @@ def search_members(request, q: str = Query("", description="待搜索的用户�
     """搜索尚未加入当前租户且未被邀请的可添加用户。"""
     org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     user_model = apps.get_model(settings.AUTH_USER_MODEL)
-    qs = []
+    qs = user_model.objects.filter(is_active=True)
+    qs = qs.exclude(pk__in=OrganizationMember.objects.filter(organization=org).values_list("user_id", flat=True))
+    qs = qs.exclude(pk__in=OrganizationInvite.objects.filter(organization=org).filter(invitee__isnull=False).values_list("invitee_id", flat=True))
     if len(q) > 2:
         items = [item.strip() for item in re.split(r"\s+", q)]
         q_obj = Q()
         for item in items:
             for fn in ("first_name", "last_name", "username", "email"):
                 q_obj |= Q(**{f"{fn}__icontains": item})
-        qs = user_model.objects.filter(is_active=True).filter(q_obj)
-        qs = qs.exclude(pk__in=OrganizationMember.objects.filter(organization=org).values_list("user_id", flat=True))
-        qs = qs.exclude(pk__in=OrganizationInvite.objects.filter(organization=org).filter(invitee__isnull=False).values_list("invitee_id", flat=True))
-        qs = qs[:10]
+        qs = qs.filter(q_obj)
+    qs = qs[:10]
     return [
         {
             "pk": u.pk,
@@ -316,7 +317,8 @@ def create_invite(request, payload: InviteIn):
             sender=request.user,
             invitee_email=payload.invitee_email,
             invitee_id=payload.invitee,
-            is_owner=payload.is_owner,
+            is_owner=payload.is_owner and request.user.is_superuser,
+            access_role_id=payload.access_role,
         )
         transaction.on_commit(invite.send_invite)
     return Status(201, invite)
@@ -407,6 +409,8 @@ def accept_invite_by_key(request, key: str = Path(..., description="邀请 key�
     is_owner = invite.is_owner and invite.organization.is_owner(invite.sender)
     with transaction.atomic():
         OrganizationMember.objects.get_or_create(organization=invite.organization, user=request.user, is_owner=is_owner)
+        if invite.access_role_id:
+            assign_org_role(invite.organization, request.user, invite.access_role)
         invite.delete()
     save_counts(request)
     save_org_data(request, invite.organization)
