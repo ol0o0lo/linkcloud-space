@@ -276,7 +276,7 @@ const NotificationsAdminPage: React.FC = () => {
                 setReadFilter(value as ReadFilter);
               }}
             />
-            <Button href="/dashboard/platform-management/notification-dispatches">查看通知分发</Button>
+            <Button href="/dashboard/tenant-operations/notification-dispatches">查看通知分发</Button>
             <Button
               type="primary"
               icon={<CheckOutlined />}

@@ -3,6 +3,8 @@ import routes from '../config/routes';
 import zhCN from './locales/zh-CN';
 
 type AppRoute = {
+  access?: string;
+  hideInMenu?: boolean;
   layout?: boolean;
   name?: string;
   path?: string;
@@ -71,43 +73,42 @@ describe('backend capability routes', () => {
   });
 
   it('registers wallet management pages', () => {
-    const walletGroup = routes.find((route) => route.path === '/wallet-management');
+    const superAdminGroup = routes.find((route) => route.path === '/super-admin');
 
-    expect(walletGroup).toBeDefined();
-    expect(walletGroup?.routes?.map((route) => route.path)).toEqual([
-      '/wallet-management',
-      '/wallet-management/accounts',
-      '/wallet-management/withdrawals',
-    ]);
+    expect(superAdminGroup?.routes?.map((route) => route.path)).toContain('/super-admin/wallet/accounts');
+    expect(superAdminGroup?.routes?.map((route) => route.path)).toContain('/super-admin/wallet/withdrawals');
   });
 
-  it('registers platform management pages', () => {
-    const platformGroup = routes.find((route) => route.path === '/platform-management');
-    const paths = platformGroup?.routes?.map((route) => route.path) ?? [];
+  it('registers super admin pages behind the superuser access gate', () => {
+    const superAdminGroup = routes.find((route) => route.path === '/super-admin');
+    const paths = superAdminGroup?.routes?.map((route) => route.path) ?? [];
 
-    expect(platformGroup).toBeDefined();
+    expect(superAdminGroup).toBeDefined();
+    expect(superAdminGroup?.access).toBe('canSuperAdmin');
     expect(paths).toEqual([
-      '/platform-management',
-      '/platform-management/users',
-      '/platform-management/real-name',
-      '/platform-management/notifications',
-      '/platform-management/notification-dispatches',
-      '/platform-management/referrals',
+      '/super-admin',
+      '/super-admin/users',
+      '/super-admin/real-name',
+      '/super-admin/wallet/accounts',
+      '/super-admin/wallet/withdrawals',
+      '/super-admin/referrals',
+      '/super-admin/notification-dispatches',
+      '/super-admin/operations',
     ]);
-    expect(paths).toContain('/platform-management/notification-dispatches');
   });
 
   it('registers system tools and personal business pages', () => {
-    const systemGroup = routes.find((route) => route.path === '/system-tools');
+    const tenantOperationsGroup = routes.find((route) => route.path === '/tenant-operations');
     const personalGroup = routes.find((route) => route.path === '/personal-business');
 
-    expect(systemGroup?.routes?.map((route) => route.path)).toEqual([
-      '/system-tools',
-      '/system-tools/operations',
+    expect(tenantOperationsGroup?.routes?.map((route) => route.path)).toEqual([
+      '/tenant-operations',
+      '/tenant-operations/notification-dispatches',
     ]);
     expect(personalGroup?.routes?.map((route) => route.path)).toEqual([
       '/personal-business',
       '/personal-business/overview',
+      '/personal-business/notifications',
     ]);
   });
 

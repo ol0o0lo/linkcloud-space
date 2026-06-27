@@ -369,7 +369,7 @@ const RealNameAdminPage: React.FC = () => {
                 setStatusFilter(value || undefined);
               }}
             />
-            <Button href="/dashboard/platform-management/users">返回用户治理</Button>
+            <Button href="/dashboard/super-admin/users">返回用户列表</Button>
           </AdminToolbar>
         )}
       >
@@ -414,7 +414,7 @@ const RealNameAdminPage: React.FC = () => {
                     <Tag color={pendingRows.length ? 'blue' : 'default'}>{pendingRows.length ? `${pendingRows.length} 条待判断` : '当前不拥堵'}</Tag>
                   </Space>
                   <Typography.Text>这里对应的是仍未收口的自动校验队列，平台需要判断是继续等待还是转人工。</Typography.Text>
-                  <a href="/dashboard/platform-management/real-name">继续审核</a>
+                  <a href="/dashboard/super-admin/real-name">继续审核</a>
                 </Space>
               </div>
             </Col>
@@ -426,7 +426,7 @@ const RealNameAdminPage: React.FC = () => {
                     <Tag color={manualRows.length ? 'gold' : 'default'}>{manualRows.length ? `${manualRows.length} 条待给结论` : '人工压力较小'}</Tag>
                   </Space>
                   <Typography.Text>人工复核代表自动链路没有讲清楚，后台必须明确给出通过或驳回的判断。</Typography.Text>
-                  <a href="/dashboard/platform-management/real-name">查看复核台账</a>
+                  <a href="/dashboard/super-admin/real-name">查看复核台账</a>
                 </Space>
               </div>
             </Col>
@@ -438,7 +438,7 @@ const RealNameAdminPage: React.FC = () => {
                     <Tag color={rejectedRows.length ? 'volcano' : 'green'}>{rejectedRows.length ? `${rejectedRows.length} 条待解释` : '当前较稳定'}</Tag>
                   </Space>
                   <Typography.Text>驳回记录如果没有足够清楚的失败原因，后续很容易变成重复提交和客服压力。</Typography.Text>
-                  <a href="/dashboard/platform-management/users">联动用户治理</a>
+                  <a href="/dashboard/super-admin/users">联动用户治理</a>
                 </Space>
               </div>
             </Col>
@@ -450,7 +450,7 @@ const RealNameAdminPage: React.FC = () => {
                     <Tag color={revokedRows.length ? 'default' : 'green'}>{revokedRows.length ? `${revokedRows.length} 条已撤销` : '暂无撤销记录'}</Tag>
                   </Space>
                   <Typography.Text>实名撤销通常会连带影响经营资格和高权限账号治理，应该尽量留好原因与审计痕迹。</Typography.Text>
-                  <a href="/dashboard/platform-management/users">查看账号承接</a>
+                  <a href="/dashboard/super-admin/users">查看账号承接</a>
                 </Space>
               </div>
             </Col>

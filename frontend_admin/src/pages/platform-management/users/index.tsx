@@ -375,7 +375,7 @@ const PlatformUsersPage: React.FC = () => {
                   <Tag color={privilegedUsers.length ? 'gold' : 'default'}>{privilegedUsers.length ? `${privilegedUsers.length} 个重点治理` : '暂无高权限'}</Tag>
                 </Space>
                 <Typography.Text>高权限账号的核心不是多几个操作，而是能否清楚解释权限、联系方式和安全恢复能力。</Typography.Text>
-                <a href="/dashboard/platform-management/real-name">查看实名治理</a>
+                <a href="/dashboard/super-admin/real-name">查看实名状态</a>
               </Space>
             </div>
           </Col>
@@ -386,8 +386,8 @@ const PlatformUsersPage: React.FC = () => {
                   <Typography.Text strong>资料待补账号</Typography.Text>
                   <Tag color={incompletePhoneUsers.length ? 'red' : 'green'}>{incompletePhoneUsers.length ? `${incompletePhoneUsers.length} 个待补手机` : '资料完整'}</Tag>
                 </Space>
-                <Typography.Text>这类账号现在看着还能用，但一旦需要找回、强退或做身份确认，就会暴露治理短板。</Typography.Text>
-                <a href="/dashboard/platform-management/users">继续治理</a>
+                <Typography.Text>这类账号现在看着还能用，但一旦需要找回、强退或做身份确认，处理会更复杂。</Typography.Text>
+                <a href="/dashboard/super-admin/users">继续处理</a>
               </Space>
             </div>
           </Col>
@@ -399,7 +399,7 @@ const PlatformUsersPage: React.FC = () => {
                   <Tag color={realNamePendingUsers.length ? 'gold' : 'default'}>{realNamePendingUsers.length ? `${realNamePendingUsers.length} 个待跟进` : '暂无积压'}</Tag>
                 </Space>
                 <Typography.Text>用户页至少要能看见哪些账号的实名状态仍不稳定，这会影响出款、权限和申诉链路。</Typography.Text>
-                <a href="/dashboard/platform-management/real-name">进入实名管理</a>
+                <a href="/dashboard/super-admin/real-name">进入实名管理</a>
               </Space>
             </div>
           </Col>
@@ -411,7 +411,7 @@ const PlatformUsersPage: React.FC = () => {
                   <Tag color={inactiveUsers.length ? 'default' : 'green'}>{inactiveUsers.length ? `${inactiveUsers.length} 个待确认收口` : '停用较少'}</Tag>
                 </Space>
                 <Typography.Text>停用后仍要看会话、MFA 和绑定是否清理，否则只是把按钮关掉，不算真正回收。</Typography.Text>
-                <a href="/dashboard/platform-management/notifications">查看通知治理</a>
+                <a href="/dashboard/personal-business/notifications">查看通知</a>
               </Space>
             </div>
           </Col>

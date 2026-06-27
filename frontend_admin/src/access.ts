@@ -7,5 +7,6 @@ export default function access(
   const { currentUser } = initialState ?? {};
   return {
     canAdmin: Boolean(currentUser?.is_staff || currentUser?.is_superuser),
+    canSuperAdmin: Boolean(currentUser?.is_superuser),
   };
 }

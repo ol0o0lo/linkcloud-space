@@ -22,6 +22,7 @@ describe('access', () => {
     const result = access(initialState);
 
     expect(result.canAdmin).toBe(true);
+    expect(result.canSuperAdmin).toBe(false);
   });
 
   it('should return canAdmin false when user has non-admin access', () => {
@@ -44,6 +45,7 @@ describe('access', () => {
     const result = access(initialState);
 
     expect(result.canAdmin).toBe(false);
+    expect(result.canSuperAdmin).toBe(false);
   });
 
   it('should return canAdmin false when user is not admin', () => {
@@ -66,6 +68,27 @@ describe('access', () => {
     const result = access(initialState);
 
     expect(result.canAdmin).toBe(false);
+    expect(result.canSuperAdmin).toBe(false);
+  });
+
+  it('should return canSuperAdmin true only for superusers', () => {
+    const result = access({
+      currentUser: {
+        id: 4,
+        email: 'root@example.com',
+        username: 'root',
+        first_name: 'Root',
+        last_name: 'User',
+        timezone: 'Asia/Shanghai',
+        phone_verified: true,
+        real_name_status: 'verified',
+        is_staff: false,
+        is_superuser: true,
+      },
+    });
+
+    expect(result.canAdmin).toBe(true);
+    expect(result.canSuperAdmin).toBe(true);
   });
 
   it('should return canAdmin false when currentUser is undefined', () => {
@@ -76,11 +99,13 @@ describe('access', () => {
     const result = access(initialState);
 
     expect(result.canAdmin).toBeFalsy();
+    expect(result.canSuperAdmin).toBeFalsy();
   });
 
   it('should return canAdmin false when initialState is undefined', () => {
     const result = access(undefined);
 
     expect(result.canAdmin).toBeFalsy();
+    expect(result.canSuperAdmin).toBeFalsy();
   });
 });

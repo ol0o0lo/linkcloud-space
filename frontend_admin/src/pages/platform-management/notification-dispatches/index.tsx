@@ -44,7 +44,7 @@ type DispatchInsight = API.NotificationDispatchOut & {
 
 const SCOPE_LABELS: Record<string, string> = {
   platform: '全平台',
-  organization: '指定租户',
+  organization: '指定空间',
   users: '指定用户',
 };
 
@@ -330,8 +330,8 @@ const NotificationDispatchesPage: React.FC = () => {
       title="通知分发治理"
       extra={(
         <AdminToolbar>
-          <Button style={toolbarControlStyle} href="/dashboard/platform-management/notifications">
-            回到通知治理
+          <Button style={toolbarControlStyle} href="/dashboard/personal-business/notifications">
+            回到通知列表
           </Button>
           <Button
             type="primary"
@@ -386,8 +386,8 @@ const NotificationDispatchesPage: React.FC = () => {
                   <Typography.Text strong>全平台广播</Typography.Text>
                   <Tag color={platformDispatches.length ? 'purple' : 'default'}>{platformDispatches.length ? `${platformDispatches.length} 条广播` : '当前无广播'}</Tag>
                 </Space>
-                <Typography.Text>面向全平台的广播影响范围最大，更适合作为治理动作而不是简单公告。</Typography.Text>
-                <a href="/dashboard/platform-management/notifications">联动通知治理</a>
+                <Typography.Text>面向全平台的广播影响范围最大，需要谨慎确认标题、正文和送达结果。</Typography.Text>
+                <a href="/dashboard/personal-business/notifications">查看通知</a>
               </Space>
             </div>
           </Col>
@@ -400,8 +400,8 @@ const NotificationDispatchesPage: React.FC = () => {
                     {insights.filter((item) => item.scope === 'users').length ? `${insights.filter((item) => item.scope === 'users').length} 条定向` : '当前较少'}
                   </Tag>
                 </Space>
-                <Typography.Text>指定用户分发更像精准承接动作，重点在于目标是否填对、内容是否可执行。</Typography.Text>
-                <a href="/dashboard/platform-management/users">查看用户治理</a>
+                <Typography.Text>指定用户分发更像精准通知，重点在于目标是否填对、内容是否可执行。</Typography.Text>
+                <a href="/dashboard/super-admin/users">查看用户</a>
               </Space>
             </div>
           </Col>
@@ -413,7 +413,7 @@ const NotificationDispatchesPage: React.FC = () => {
                   <Tag color={executingDispatches.length ? 'gold' : 'green'}>{executingDispatches.length ? `${executingDispatches.length} 条待收口` : '当前较平稳'}</Tag>
                 </Space>
                 <Typography.Text>执行中的分发更需要值班追踪，因为它直接反映通知链路是否卡住或排队。</Typography.Text>
-                <a href="/dashboard/platform-management/notification-dispatches">继续查看分发</a>
+                <a href="/dashboard/tenant-operations/notification-dispatches">继续查看分发</a>
               </Space>
             </div>
           </Col>
@@ -425,7 +425,7 @@ const NotificationDispatchesPage: React.FC = () => {
                   <Tag color={failedDispatches.length ? 'red' : 'green'}>{failedDispatches.length ? `${failedDispatches.length} 条失败` : '当前无失败'}</Tag>
                 </Space>
                 <Typography.Text>失败分发至少要能解释失败原因与影响范围，否则平台连谁没收到都说不清。</Typography.Text>
-                <a href="/dashboard/platform-management/notifications">回看通知页</a>
+                <a href="/dashboard/personal-business/notifications">回看通知页</a>
               </Space>
             </div>
           </Col>
@@ -514,7 +514,7 @@ const NotificationDispatchesPage: React.FC = () => {
                 buttonStyle="solid"
                 options={[
                   { value: 'platform', label: '全平台' },
-                  { value: 'organization', label: '指定租户' },
+                  { value: 'organization', label: '指定空间' },
                   { value: 'users', label: '指定用户' },
                 ]}
               />

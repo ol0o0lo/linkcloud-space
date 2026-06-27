@@ -289,8 +289,8 @@ const ReferralsAdminPage: React.FC = () => {
                       {configQuery.data?.requires_manual_review ? '开启中' : '已关闭'}
                     </Tag>
                   </Space>
-                  <Typography.Text>人工审核会把裂变奖励从自动结算改成运营承接，更适合高风险或早期阶段的规则治理。</Typography.Text>
-                  <a href="/dashboard/platform-management/referrals">继续处理审核</a>
+                  <Typography.Text>人工审核会把邀请奖励从自动结算改成人工处理，更适合高风险或早期阶段的规则。</Typography.Text>
+                  <a href="/dashboard/super-admin/referrals">继续处理审核</a>
                 </Space>
               </div>
             </Col>
@@ -303,8 +303,8 @@ const ReferralsAdminPage: React.FC = () => {
                       {configQuery.data?.allow_link && configQuery.data?.allow_code ? '链接+邀请码' : configQuery.data?.allow_link ? '仅链接' : configQuery.data?.allow_code ? '仅邀请码' : '当前关闭'}
                     </Tag>
                   </Space>
-                  <Typography.Text>裂变入口越多，越需要清楚知道转化来自哪里，否则规则复盘会变得模糊。</Typography.Text>
-                  <a href="/dashboard/personal-business/overview">联动经营视角</a>
+                  <Typography.Text>邀请入口越多，越需要清楚知道转化来自哪里，否则规则复盘会变得模糊。</Typography.Text>
+                  <a href="/dashboard/personal-business/overview">查看业务概览</a>
                 </Space>
               </div>
             </Col>
@@ -315,8 +315,8 @@ const ReferralsAdminPage: React.FC = () => {
                     <Typography.Text strong>展示口径</Typography.Text>
                     <Tag color="default">{getDisplayLevelLabel(configQuery.data?.display_level)}</Tag>
                   </Space>
-                  <Typography.Text>裂变展示口径决定用户侧看到的是完整奖励信息还是脱敏进度，也会影响投诉和预期管理。</Typography.Text>
-                  <a href="/dashboard/platform-management/users">回看用户治理</a>
+                  <Typography.Text>邀请展示口径决定用户侧看到的是完整奖励信息还是脱敏进度，也会影响投诉和预期管理。</Typography.Text>
+                  <a href="/dashboard/super-admin/users">查看用户列表</a>
                 </Space>
               </div>
             </Col>
@@ -327,8 +327,8 @@ const ReferralsAdminPage: React.FC = () => {
                     <Typography.Text strong>规则触发条件</Typography.Text>
                     <Tag color="blue">{configQuery.data?.trigger_event || '-'}</Tag>
                   </Space>
-                  <Typography.Text>当前规则是在哪个事件点上触发奖励，决定了裂变关系什么时候真正进入资金治理。</Typography.Text>
-                  <a href="/dashboard/platform-management/real-name">查看实名认证</a>
+                  <Typography.Text>当前规则是在哪个事件点上触发奖励，决定了邀请关系什么时候真正进入资金处理。</Typography.Text>
+                  <a href="/dashboard/super-admin/real-name">查看实名认证</a>
                 </Space>
               </div>
             </Col>

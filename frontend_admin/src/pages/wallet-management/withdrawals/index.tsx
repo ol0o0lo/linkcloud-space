@@ -452,7 +452,7 @@ const WalletWithdrawalsPage: React.FC = () => {
                     <Tag color={pendingReviewCount ? 'gold' : 'default'}>{pendingReviewCount ? `${pendingReviewCount} 条待处理` : '暂无积压'}</Tag>
                   </Space>
                   <Typography.Text>这一步决定冻结资金是继续进入出款链路，还是回流到用户可用余额。</Typography.Text>
-                  <a href="/dashboard/wallet-management/accounts">查看钱包账户</a>
+                  <a href="/dashboard/super-admin/wallet/accounts">查看钱包账户</a>
                 </Space>
               </div>
             </Col>
@@ -464,7 +464,7 @@ const WalletWithdrawalsPage: React.FC = () => {
                     <Tag color={readyForPayoutCount ? 'blue' : 'default'}>{readyForPayoutCount ? `${readyForPayoutCount} 条待发起` : '推进正常'}</Tag>
                   </Space>
                   <Typography.Text>审核通过后若迟迟不发起代付，会让流程停在最容易积压的中间状态。</Typography.Text>
-                  <a href="/dashboard/wallet-management/withdrawals">推进代付</a>
+                  <a href="/dashboard/super-admin/wallet/withdrawals">推进代付</a>
                 </Space>
               </div>
             </Col>
@@ -476,7 +476,7 @@ const WalletWithdrawalsPage: React.FC = () => {
                     <Tag color={payingCount ? 'cyan' : 'default'}>{payingCount ? `${payingCount} 条待回调` : '无滞留'}</Tag>
                   </Space>
                   <Typography.Text>这类申请的核心不是重复操作，而是跟踪渠道回调是否及时、状态是否同步。</Typography.Text>
-                  <a href="/dashboard/wallet-management/accounts">核对冻结资金</a>
+                  <a href="/dashboard/super-admin/wallet/accounts">核对冻结资金</a>
                 </Space>
               </div>
             </Col>
@@ -488,7 +488,7 @@ const WalletWithdrawalsPage: React.FC = () => {
                     <Tag color={retryCount ? 'red' : 'default'}>{retryCount ? `${retryCount} 条待判断` : '失败已收口'}</Tag>
                   </Space>
                   <Typography.Text>先解释失败原因和余额回流，再决定是否重试，比盲目重发更符合企业后台习惯。</Typography.Text>
-                  <a href="/dashboard/wallet-management/accounts">核查余额回流</a>
+                  <a href="/dashboard/super-admin/wallet/accounts">核查余额回流</a>
                 </Space>
               </div>
             </Col>
