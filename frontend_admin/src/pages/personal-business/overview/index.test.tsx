@@ -115,10 +115,12 @@ describe('PersonalBusinessPage', () => {
       expect(mockWalletSummary).toHaveBeenCalled();
       expect(mockReferralSummary).toHaveBeenCalled();
       expect(screen.getByText('个人经营概览')).toBeInTheDocument();
-      expect(screen.getByText('当前经营执行面')).toBeInTheDocument();
+      expect(screen.getByText('经营详情')).toBeInTheDocument();
       expect(screen.getByText('增长与身份')).toBeInTheDocument();
       expect(screen.getByText('偏好与资料')).toBeInTheDocument();
-      expect(screen.getByText('资金执行台账')).toBeInTheDocument();
+      expect(screen.getByText('资金记录')).toBeInTheDocument();
+      expect(screen.queryByText('资金执行台账')).not.toBeInTheDocument();
+      expect(screen.queryByText('我的裂变')).not.toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText('提现金额'), { target: { value: '500' } });

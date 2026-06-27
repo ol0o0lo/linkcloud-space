@@ -11,18 +11,8 @@ import {
   appsAccessApiListTeamBindingsView,
 } from '@/services/openapi/accessTeamBindings';
 import { appsOrganizationsApiListMembers } from '@/services/openapi/organizationMembers';
-import { TenantSectionHint, TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/tenant/shared';
 import { EmptyTeamHint, RoleSummary, TeamContextCard, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
-
-type TeamBindingSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
 
 const sectionStyle: React.CSSProperties = {
   padding: 20,
@@ -98,54 +88,6 @@ const TeamBindingsPage: React.FC = () => {
   const unusedRoles = activeRoles.filter((item) => !boundRoleIds.has(item.id));
   const assignedMemberPreview = bindingItems.slice(0, 3).map((item) => formatPersonLabel(item.user));
   const pendingMemberPreview = pendingMembers.slice(0, 3).map((item) => formatPersonLabel(item.user));
-  const bindingSignals = useMemo<TeamBindingSignal[]>(
-    () => [
-      {
-        key: 'execution',
-        title: '执行承接',
-        emphasis: boundUserIds.size ? `${boundUserIds.size} 人已承接` : '待建立承接',
-        summary: boundUserIds.size
-          ? `${boundUserIds.size} 名成员已经拿到团队级角色，开始承接发布、审核或资料补齐动作。`
-          : '当前没有任何成员拿到团队级角色，团队策略无法真正落到执行层。',
-        description: '先把首批执行人绑定到角色，再去要求团队对房源发布和治理结果负责。',
-        actionLabel: '立即分配角色',
-        actionHref: '#assign-role',
-      },
-      {
-        key: 'coverage',
-        title: '待分配成员',
-        emphasis: pendingMembers.length ? `${pendingMembers.length} 人待补` : '已全部覆盖',
-        summary: pendingMembers.length
-          ? `还有 ${pendingMembers.length} 名团队成员尚未拿到角色，容易形成“在团队里但没人负责”的灰区。`
-          : '当前团队成员都已有角色承接，授权覆盖相对完整。',
-        description: '建议优先把参与发房、跟进房东、补资料的人补上角色，再逐步细化权限边界。',
-        actionLabel: '查看团队成员',
-        actionHref: '/dashboard/tenant/teams',
-      },
-      {
-        key: 'roles',
-        title: '角色覆盖',
-        emphasis: unusedRoles.length ? `${unusedRoles.length} 个角色闲置` : '角色都在使用',
-        summary: unusedRoles.length
-          ? `当前有 ${unusedRoles.length} 个可用角色还没有成员承接，说明角色设计和实际执行之间可能脱节。`
-          : '可用角色都已经被实际成员承接，角色设计和执行组织基本对齐。',
-        description: '如果角色长期没人用，要么删掉冗余角色，要么重新梳理团队职责分配。',
-        actionLabel: '进入团队角色',
-        actionHref: '/dashboard/access/team-roles',
-      },
-      {
-        key: 'policy',
-        title: '策略联动',
-        emphasis: '授权跟策略走',
-        summary: '团队授权不只是配权限，还决定谁来处理发布阻断、谁来维护例外策略、谁来收口异常。',
-        description: '如果团队设置已经做了差异化覆盖，授权页也应该同步补齐执行人，否则策略只会停留在配置层。',
-        actionLabel: '查看团队设置',
-        actionHref: '/dashboard/settings-management/team',
-      },
-    ],
-    [boundUserIds.size, pendingMembers.length, unusedRoles.length],
-  );
-
   const columns: ColumnsType<API.TeamBindingOut> = [
     {
       title: '成员',
@@ -288,39 +230,6 @@ const TeamBindingsPage: React.FC = () => {
               </Row>
             </div>
 
-            <div style={{ ...sectionStyle, marginTop: 16 }}>
-              <Typography.Text strong>闭环信号</Typography.Text>
-              <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-                {bindingSignals.map((signal) => (
-                  <Col key={signal.key} xs={24} sm={12} xl={6}>
-                    <div style={overviewTileStyle}>
-                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                        <Space wrap size={[8, 8]}>
-                          <Typography.Text strong>{signal.title}</Typography.Text>
-                          <Tag color="blue">{signal.emphasis}</Tag>
-                        </Space>
-                        <Typography.Text>{signal.summary}</Typography.Text>
-                        <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                        {signal.actionHref === '#assign-role' ? (
-                          <a
-                            href={signal.actionHref}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              setOpen(true);
-                            }}
-                          >
-                            {signal.actionLabel}
-                          </a>
-                        ) : (
-                          <a href={signal.actionHref}>{signal.actionLabel}</a>
-                        )}
-                      </Space>
-                    </div>
-                  </Col>
-                ))}
-              </Row>
-            </div>
-
             <Alert
               type="info"
               showIcon
@@ -340,7 +249,6 @@ const TeamBindingsPage: React.FC = () => {
               </AdminToolbar>
             }
           >
-            <TenantSectionHint text="团队级授权只在所选团队内生效，不影响成员在其它团队或租户层级的权限；先在上面看覆盖缺口，再在这里处理具体授权。 " />
             <Table
               rowKey="id"
               loading={bindingsQuery.isLoading}

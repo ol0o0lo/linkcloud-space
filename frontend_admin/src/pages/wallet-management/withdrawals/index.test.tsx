@@ -61,10 +61,10 @@ describe('WalletWithdrawalsPage', () => {
 
     await waitFor(() => {
       expect(mockListWithdrawals).toHaveBeenCalledWith({ page: 1, page_size: 10 });
-      expect(screen.getByText('提现治理概览')).toBeInTheDocument();
-      expect(screen.getByText('当前提现执行面')).toBeInTheDocument();
-      expect(screen.getByText('闭环信号')).toBeInTheDocument();
-      expect(screen.getByText('提现治理台账')).toBeInTheDocument();
+      expect(screen.getByText('提现概览')).toBeInTheDocument();
+      expect(screen.getByText('提现详情')).toBeInTheDocument();
+      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+      expect(screen.getByText('提现列表')).toBeInTheDocument();
       expect(screen.getAllByText('待审核申请').length).toBeGreaterThan(0);
       expect(screen.getAllByText('待打款申请').length).toBeGreaterThan(0);
       expect(screen.getAllByText('失败待重试').length).toBeGreaterThan(0);

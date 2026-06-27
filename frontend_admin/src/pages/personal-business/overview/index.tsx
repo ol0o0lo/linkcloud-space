@@ -17,16 +17,6 @@ import { appsAccountsApiGetMyRealName, appsAccountsApiListMyRealNameLogs } from 
 import { appsSettingsApiDeleteUserSettingView, appsSettingsApiGetUserSettingView, appsSettingsApiListUserSettings, appsSettingsApiPutUserSetting } from '@/services/openapi/userSettings';
 import { formatWalletAmount } from '@/pages/wallet-management/shared';
 
-type BusinessSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
-
 type WithdrawalInsight = API.WithdrawalOut & {
   status_label: string;
   status_color: string;
@@ -121,56 +111,6 @@ const PersonalBusinessPage: React.FC = () => {
   const referralSummary = referralSummaryQuery.data;
   const realName = realNameQuery.data;
 
-  const signals = useMemo<BusinessSignal[]>(
-    () => [
-      {
-        key: 'wallet',
-        title: '资金状态',
-        emphasis: walletSummary?.frozen_balance ? `冻结 ${formatWalletAmount(walletSummary.frozen_balance)}` : '冻结资金较低',
-        summary: walletSummary?.frozen_balance
-          ? '当前有部分资金仍处于冻结状态，通常对应待审核或处理中提现。'
-          : '当前冻结资金压力较轻，资金可用性相对健康。',
-        description: '个人经营页需要先解释钱现在在哪，而不是只展示几个金额字段。',
-        actionLabel: '查看提现申请',
-        actionHref: '/dashboard/personal-business/overview',
-      },
-      {
-        key: 'withdrawal',
-        title: '提现推进',
-        emphasis: activeWithdrawals.length ? `${activeWithdrawals.length} 条申请在途` : '暂无在途申请',
-        summary: activeWithdrawals.length
-          ? '提现从发起到收口还未完成，接下来要看审核、出款或失败重试在哪一环停住。'
-          : '当前没有在途提现申请，资金链路较为干净。',
-        description: '个人经营页里的提现申请，更适合解释进度，而不是只堆一个明细表。',
-        actionLabel: '查看钱包流水',
-        actionHref: '/dashboard/personal-business/overview',
-      },
-      {
-        key: 'growth',
-        title: '增长转化',
-        emphasis: referralSummary?.pending_review_count ? `${referralSummary.pending_review_count} 条裂变待审核` : '裂变审核压力较低',
-        summary: referralSummary?.pending_review_count
-          ? '邀请已经带来转化，但奖励承接还没有完全收口。'
-          : '当前裂变链路没有明显积压。',
-        description: '邀请码、分享链接、注册量和奖励承接应该在一个增长视角下看，而不是单独一张卡片。',
-        actionLabel: '查看裂变记录',
-        actionHref: '/dashboard/personal-business/overview',
-      },
-      {
-        key: 'identity',
-        title: '实名与偏好',
-        emphasis: realName?.status_label || '未识别',
-        summary: realName?.status_label === '未认证'
-          ? '实名尚未完成，某些提现或激励场景可能因此受限。'
-          : '实名状态看起来已进入可用阶段，可继续关注后续资料维护。',
-        description: '实名状态和个人偏好一起决定这个经营账号能否稳定参与平台业务。',
-        actionLabel: '前往个人设置',
-        actionHref: '/account/center?tab=security',
-      },
-    ],
-    [activeWithdrawals.length, realName?.status_label, referralSummary?.pending_review_count, walletSummary?.frozen_balance],
-  );
-
   const ledgerColumns: ColumnsType<API.WalletLedgerOut> = [
     { title: '类型', dataIndex: 'entry_type', width: 140 },
     { title: '变动', dataIndex: 'amount_delta', width: 120, render: formatWalletAmount },
@@ -243,7 +183,7 @@ const PersonalBusinessPage: React.FC = () => {
             </Col>
             <Col xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
-                <Statistic title="裂变注册" value={referralSummary?.registered_count || 0} />
+                <Statistic title="邀请注册" value={referralSummary?.registered_count || 0} />
                 <Typography.Text type="secondary">邀请码带来的实际注册转化数量。</Typography.Text>
               </div>
             </Col>
@@ -251,7 +191,7 @@ const PersonalBusinessPage: React.FC = () => {
         </div>
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>当前经营执行面</Typography.Text>
+          <Typography.Text strong>经营详情</Typography.Text>
           <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
             <Col xs={24} lg={14}>
               <div style={overviewTileStyle}>
@@ -262,7 +202,7 @@ const PersonalBusinessPage: React.FC = () => {
                       <Tag color={pendingWithdrawals.length ? 'gold' : 'blue'}>{pendingWithdrawals.length ? `${pendingWithdrawals.length} 条待审核` : '可继续申请'}</Tag>
                     </Space>
                     <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
-                      把提现作为资金推进动作来处理，而不是单纯填写一个表单。申请提交后，重点是跟踪审核与收口。
+                      把提现作为资金推进动作来处理，而不是单纯填写一个表单。申请提交后，重点是跟踪审核与结果。
                     </Typography.Paragraph>
                   </div>
                   <Form form={withdrawalForm} layout="vertical" onFinish={(values) => createWithdrawalMutation.mutate(values)}>
@@ -327,7 +267,7 @@ const PersonalBusinessPage: React.FC = () => {
               <div style={overviewTileStyle}>
                 <Space orientation="vertical" size={12} style={fullWidthStyle}>
                   <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>我的裂变</Typography.Text>
+                    <Typography.Text strong>我的邀请</Typography.Text>
                     <Tag color={referralSummary?.pending_review_count ? 'gold' : 'blue'}>{referralSummary?.invite_code || '未生成邀请码'}</Tag>
                   </Space>
                   <Descriptions column={responsiveDescriptionColumns} size="small">
@@ -362,7 +302,7 @@ const PersonalBusinessPage: React.FC = () => {
                     <Descriptions.Item label="证件">{realName?.id_number_masked || '-'}</Descriptions.Item>
                   </Descriptions>
                   <Typography.Text type="secondary" style={wrapTextStyle}>
-                    实名入口已统一收口到个人设置，若需提交或重新提交，请前往个人设置完成。
+                    实名入口已统一放到个人设置，若需提交或重新提交，请前往个人设置完成。
                   </Typography.Text>
                   <Button type="link" href="/account/center?tab=security" style={{ paddingInline: 0 }}>
                     去个人设置实名
@@ -420,7 +360,7 @@ const PersonalBusinessPage: React.FC = () => {
             <Col xs={24} lg={14}>
               <div style={overviewTileStyle}>
                 <Space orientation="vertical" size={12} style={fullWidthStyle}>
-                  <Typography.Text strong>设置台账</Typography.Text>
+                  <Typography.Text strong>设置列表</Typography.Text>
                   <Table
                     rowKey="key"
                     dataSource={userSettings}
@@ -450,7 +390,7 @@ const PersonalBusinessPage: React.FC = () => {
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
           <Space orientation="vertical" size={12} style={fullWidthStyle}>
-            <Typography.Text strong>资金执行台账</Typography.Text>
+            <Typography.Text strong>资金记录</Typography.Text>
             <Row gutter={[12, 12]}>
               <Col xs={24} xl={10}>
                 <div style={overviewTileStyle}>
@@ -472,24 +412,6 @@ const PersonalBusinessPage: React.FC = () => {
           </Space>
         </div>
 
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>闭环信号</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            {signals.map((signal) => (
-              <Col key={signal.key} xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Space orientation="vertical" size={8}>
-                    <Typography.Text strong>{signal.title}</Typography.Text>
-                    <Tag color="blue">{signal.emphasis}</Tag>
-                    <Typography.Text>{signal.summary}</Typography.Text>
-                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                    <a href={signal.actionHref}>{signal.actionLabel}</a>
-                  </Space>
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
       </Card>
 
       <Drawer title="提现详情" open={Boolean(withdrawalDetailId)} onClose={() => setWithdrawalDetailId(undefined)} width={drawerWidthMd}>

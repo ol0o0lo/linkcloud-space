@@ -60,10 +60,12 @@ describe('ReferralsAdminPage', () => {
     await waitFor(() => {
       expect(mockGetConfig).toHaveBeenCalled();
       expect(mockRecords).toHaveBeenCalledWith({ page: 1, page_size: 10 });
-      expect(screen.getByText('规则治理概览')).toBeInTheDocument();
-      expect(screen.getByText('当前执行面')).toBeInTheDocument();
-      expect(screen.getByText('闭环信号')).toBeInTheDocument();
-      expect(screen.getByText('裂变治理台账')).toBeInTheDocument();
+      expect(screen.getByText('规则概览')).toBeInTheDocument();
+      expect(screen.getByText('当前状态')).toBeInTheDocument();
+      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+      expect(screen.getByText('邀请记录')).toBeInTheDocument();
+      expect(screen.queryByText('裂变列表')).not.toBeInTheDocument();
+      expect(screen.queryByText('裂变规则')).not.toBeInTheDocument();
       expect(screen.getByText('bob')).toBeInTheDocument();
     });
 

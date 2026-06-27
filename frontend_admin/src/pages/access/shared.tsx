@@ -72,7 +72,7 @@ export const TeamContextCard: React.FC<{
   return (
     <Card title="团队上下文" style={{ marginBottom: 16 }}>
       <Space orientation="vertical" style={{ width: '100%' }}>
-        <TenantSectionHint text="团队级角色和授权需要先选择一个当前租户下的团队。" />
+        <TenantSectionHint text="团队级角色和授权需要先选择一个当前空间下的团队。" />
         <Select
           aria-label="团队"
           loading={teamsQuery.isLoading}
@@ -88,7 +88,7 @@ export const TeamContextCard: React.FC<{
 };
 
 export const EmptyTeamHint: React.FC = () => (
-  <Empty description="当前租户还没有团队，请先到团队管理页创建团队。" />
+  <Empty description="当前空间还没有团队，请先到团队管理页创建团队。" />
 );
 
 export const RoleModal: React.FC<{

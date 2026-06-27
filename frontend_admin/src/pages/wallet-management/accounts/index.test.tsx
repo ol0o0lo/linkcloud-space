@@ -56,13 +56,12 @@ describe('WalletAccountsPage', () => {
     await waitFor(() => {
       expect(mockListAccounts).toHaveBeenCalledWith({ page: 1, page_size: 10 });
       expect(screen.getByText('用户 #7')).toBeInTheDocument();
-      expect(screen.getByText('账户治理概览')).toBeInTheDocument();
-      expect(screen.getByText('当前账户执行面')).toBeInTheDocument();
-      expect(screen.getByText('闭环信号')).toBeInTheDocument();
-      expect(screen.getByText('账户治理台账')).toBeInTheDocument();
-      expect(screen.getAllByText('冻结资金账户').length).toBeGreaterThan(0);
-      expect(screen.getByText('待激活账户')).toBeInTheDocument();
-      expect(screen.getByText('余额沉淀账户')).toBeInTheDocument();
+      expect(screen.getByText('账户概览')).toBeInTheDocument();
+      expect(screen.queryByText('账户详情')).not.toBeInTheDocument();
+      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+      expect(screen.getByText('账户列表')).toBeInTheDocument();
+      expect(screen.queryByText('待激活账户')).not.toBeInTheDocument();
+      expect(screen.queryByText('余额沉淀账户')).not.toBeInTheDocument();
     });
 
     fireEvent.click(screen.getAllByText('查看流水')[0]!);
@@ -74,6 +73,7 @@ describe('WalletAccountsPage', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: '创建调账' }));
+    expect(screen.queryByText('调账用于收口异常、补贴或扣减，不建议替代正常的提现、返款或对账流程。')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('用户 ID'), { target: { value: '7' } });
     fireEvent.change(screen.getByLabelText('金额'), { target: { value: '500' } });
     fireEvent.change(screen.getByLabelText('幂等键'), { target: { value: 'adj-1' } });

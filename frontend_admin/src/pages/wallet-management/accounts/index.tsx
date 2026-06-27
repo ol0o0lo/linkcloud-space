@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Col, Drawer, Form, Input, InputNumber, Modal, Row, Space, Statistic, Table, Tag, Typography } from 'antd';
+import { Button, Card, Col, Drawer, Form, Input, InputNumber, Modal, Row, Space, Statistic, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
@@ -10,16 +10,6 @@ import {
   appsWalletApiListWalletAccounts,
 } from '@/services/openapi/walletAdmin';
 import { formatWalletAmount, walletQueryKeys } from '../shared';
-
-type GovernanceSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
 
 type AccountInsight = API.WalletAccountAdminOut & {
   total_balance: number;
@@ -157,60 +147,7 @@ const WalletAccountsPage: React.FC = () => {
 
   const fundedAccounts = accountInsights.filter((item) => item.total_balance > 0 || item.total_income > 0 || item.total_withdrawn > 0);
   const frozenAccounts = accountInsights.filter((item) => item.frozen_balance > 0);
-  const dormantAccounts = accountInsights.filter((item) => item.total_balance === 0 && item.total_income === 0 && item.total_withdrawn === 0);
-  const retainedBalanceAccounts = accountInsights.filter((item) => item.available_balance > 0 && item.total_withdrawn === 0);
   const payoutReadyAccounts = accountInsights.filter((item) => item.available_balance > 0 && item.frozen_balance === 0);
-  const highWithdrawalAccounts = accountInsights.filter((item) => item.total_income > 0 && item.total_withdrawn / item.total_income >= 0.8);
-
-  const closureSignals = useMemo<GovernanceSignal[]>(
-    () => [
-      {
-        key: 'frozen',
-        title: '冻结资金',
-        emphasis: frozenAccounts.length ? `${frozenAccounts.length} 个账户待核查` : '冻结资金已收口',
-        summary: frozenAccounts.length
-          ? '冻结资金账户需要优先串联提现审核、代付和对账链路，否则余额解释会长期不清。'
-          : '当前没有发现冻结资金账户，钱包台账相对干净。',
-        description: '冻结资金不一定有问题，但一定要有明确原因、责任入口和释放路径。',
-        actionLabel: '进入提现审核',
-        actionHref: '/dashboard/wallet-management/withdrawals',
-      },
-      {
-        key: 'dormant',
-        title: '空账户治理',
-        emphasis: dormantAccounts.length ? `${dormantAccounts.length} 个待激活账户` : '空账户数量可控',
-        summary: dormantAccounts.length
-          ? '空账户不必强行处理，但应明确它们是待进入业务，还是仅作为系统预置对象保留。'
-          : '当前账户大多已进入真实业务承接阶段。',
-        description: '企业后台不怕空对象，怕的是空对象越来越多，却没人知道该不该纳入运营。',
-        actionLabel: '查看个人经营',
-        actionHref: '/dashboard/personal-business/overview',
-      },
-      {
-        key: 'retained',
-        title: '余额沉淀',
-        emphasis: retainedBalanceAccounts.length ? `${retainedBalanceAccounts.length} 个账户待跟进结算` : '沉淀压力较低',
-        summary: retainedBalanceAccounts.length
-          ? '可用余额长期沉淀通常意味着提现资料、结算节奏或业务提醒没有形成闭环。'
-          : '当前可用余额的沉淀情况比较轻，结算节奏相对健康。',
-        description: '这类账户不一定需要立刻处理，但很适合作为运营或财务的日常跟进清单。',
-        actionLabel: '查看提现审核',
-        actionHref: '/dashboard/wallet-management/withdrawals',
-      },
-      {
-        key: 'withdrawal',
-        title: '结算节奏',
-        emphasis: highWithdrawalAccounts.length ? `${highWithdrawalAccounts.length} 个账户提现占比高` : '结算节奏平稳',
-        summary: highWithdrawalAccounts.length
-          ? '高提现占比账户更需要确认提现状态、代付状态和最终到账的一致性。'
-          : '当前账户结算节奏整体正常，没有明显集中出款压力。',
-        description: '钱包账户页负责解释“资金现在在哪”，提现页负责解释“这笔钱为什么到了那里”。',
-        actionLabel: '进入提现管理',
-        actionHref: '/dashboard/wallet-management/withdrawals',
-      },
-    ],
-    [dormantAccounts.length, frozenAccounts.length, highWithdrawalAccounts.length, retainedBalanceAccounts.length],
-  );
 
   const columns: ColumnsType<AccountInsight> = [
     {
@@ -317,7 +254,7 @@ const WalletAccountsPage: React.FC = () => {
         }
       >
         <div style={sectionStyle}>
-          <Typography.Text strong>账户治理概览</Typography.Text>
+          <Typography.Text strong>账户概览</Typography.Text>
           <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
             <Col xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
@@ -347,85 +284,9 @@ const WalletAccountsPage: React.FC = () => {
         </div>
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>当前账户执行面</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>冻结资金账户</Typography.Text>
-                    <Tag color={frozenAccounts.length ? 'red' : 'default'}>{frozenAccounts.length ? `${frozenAccounts.length} 个待处理` : '暂无异常'}</Tag>
-                  </Space>
-                  <Typography.Text>这类账户需要首先串联提现审核、代付与对账流程，确认冻结是业务过程还是异常状态。</Typography.Text>
-                  <a href="/dashboard/wallet-management/withdrawals">进入提现管理</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>待激活账户</Typography.Text>
-                    <Tag color={dormantAccounts.length ? 'gold' : 'default'}>{dormantAccounts.length ? `${dormantAccounts.length} 个空账户` : '已基本激活'}</Tag>
-                  </Space>
-                  <Typography.Text>空账户可以存在，但要分清它们是业务预置对象，还是已经被遗忘的空台账。</Typography.Text>
-                  <a href="/dashboard/personal-business/overview">查看个人经营</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>余额沉淀账户</Typography.Text>
-                    <Tag color={retainedBalanceAccounts.length ? 'green' : 'default'}>{retainedBalanceAccounts.length ? `${retainedBalanceAccounts.length} 个待跟进` : '沉淀较低'}</Tag>
-                  </Space>
-                  <Typography.Text>账户已经积累可用余额，但还没有形成提现动作，适合作为运营或财务的日常跟进清单。</Typography.Text>
-                  <a href="/dashboard/wallet-management/withdrawals">跟进提现准备</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>高结算账户</Typography.Text>
-                    <Tag color={highWithdrawalAccounts.length ? 'blue' : 'default'}>{highWithdrawalAccounts.length ? `${highWithdrawalAccounts.length} 个重点观察` : '结算平稳'}</Tag>
-                  </Space>
-                  <Typography.Text>累计提现占比较高的账户更需要确认提现审核、代付状态和最终到账是否一致。</Typography.Text>
-                  <a href="/dashboard/wallet-management/withdrawals">查看代付进度</a>
-                </Space>
-              </div>
-            </Col>
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>闭环信号</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            {closureSignals.map((signal) => (
-              <Col key={signal.key} xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Space orientation="vertical" size={8}>
-                    <Typography.Text strong>{signal.title}</Typography.Text>
-                    <Tag color="blue">{signal.emphasis}</Tag>
-                    <Typography.Text>{signal.summary}</Typography.Text>
-                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                    <a href={signal.actionHref}>{signal.actionLabel}</a>
-                  </Space>
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
           <Space orientation="vertical" size={12} style={fullWidthStyle}>
             <div>
-              <Typography.Text strong>账户治理台账</Typography.Text>
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
-                先解释每个账户当前的资金状态，再把查看流水和创建调账收口到同一张治理台账里，方便运营、财务和管理员协同处理。
-              </Typography.Paragraph>
+              <Typography.Text strong>账户列表</Typography.Text>
             </div>
             <Table
               rowKey="id"
@@ -515,11 +376,6 @@ const WalletAccountsPage: React.FC = () => {
         }}
       >
         <Space orientation="vertical" size={12} style={fullWidthStyle}>
-          <Alert
-            type="info"
-            showIcon
-            message="调账用于收口异常、补贴或扣减，不建议替代正常的提现、返款或对账流程。"
-          />
           <Form form={form} layout="vertical">
             <Form.Item label="用户 ID" name="user_id" rules={[{ required: true, message: '请输入用户 ID' }]}>
               <InputNumber min={1} style={fullWidthStyle} />

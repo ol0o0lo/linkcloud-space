@@ -98,12 +98,17 @@ describe('PlatformUsersPage', () => {
 
     await waitFor(() => {
       expect(mockListUsers).toHaveBeenCalledWith({ page: 1, page_size: 10, q: undefined });
-      expect(screen.getByText('用户治理概览')).toBeInTheDocument();
-      expect(screen.getByText('当前用户执行面')).toBeInTheDocument();
-      expect(screen.getByText('闭环信号')).toBeInTheDocument();
-      expect(screen.getByText('用户治理台账')).toBeInTheDocument();
+      expect(screen.getByText('用户概览')).toBeInTheDocument();
+      expect(screen.getByText('用户详情')).toBeInTheDocument();
+      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+      expect(screen.getByText('用户列表')).toBeInTheDocument();
       expect(screen.getAllByText('高权限账号').length).toBeGreaterThan(0);
       expect(screen.getByText('资料待补账号')).toBeInTheDocument();
+      expect(screen.getAllByText('账号状态').length).toBeGreaterThan(0);
+      expect(screen.queryByText('治理状态')).not.toBeInTheDocument();
+      expect(screen.queryByText('高权限治理')).not.toBeInTheDocument();
+      expect(screen.queryByText('实名承接')).not.toBeInTheDocument();
+      expect(screen.queryByText('停用收口')).not.toBeInTheDocument();
       expect(screen.getByText('alice')).toBeInTheDocument();
       expect(screen.getByText('bob')).toBeInTheDocument();
     });

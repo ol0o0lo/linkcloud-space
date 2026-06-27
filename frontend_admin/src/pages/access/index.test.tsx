@@ -88,17 +88,15 @@ describe('AccessOverviewPage', () => {
       expect(mockListOrgBindings).toHaveBeenCalled();
       expect(mockListTeams).toHaveBeenCalledWith({ page: 1, page_size: 100 });
       expect(mockListMembers).toHaveBeenCalledWith({ page: 1, page_size: 100 });
-      expect(screen.getByText('权限治理概览')).toBeInTheDocument();
+      expect(screen.getByText('权限概览')).toBeInTheDocument();
     });
 
     expect(screen.getByText('空间级治理')).toBeInTheDocument();
     expect(screen.getByText('团队级治理')).toBeInTheDocument();
-    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
     expect(screen.getAllByText('空间角色').length).toBeGreaterThan(0);
     expect(screen.getAllByText('空间授权').length).toBeGreaterThan(0);
     expect(screen.getAllByText('团队角色').length).toBeGreaterThan(0);
     expect(screen.getAllByText('团队授权').length).toBeGreaterThan(0);
-    expect(screen.getByText('全局规则')).toBeInTheDocument();
-    expect(screen.getByText('团队落地')).toBeInTheDocument();
   });
 });

@@ -20,16 +20,6 @@ type ReferralInsight = API.ReferralRecordOut & {
   action_summary: string;
 };
 
-type GovernanceSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
-
 const sectionStyle: React.CSSProperties = {
   padding: 20,
   border: '1px solid var(--ant-color-border-secondary)',
@@ -65,7 +55,7 @@ function buildReferralInsight(record: API.ReferralRecordOut, config?: API.Referr
       stage_color: 'green',
       stage_summary: '奖励已经发放，后续重点是回看是否存在误发、重复发放或展示口径不一致。',
       reward_summary: `邀请人 ¥${inviterReward} / 被邀请人 ¥${inviteeReward}`,
-      action_summary: '当前记录已收口',
+      action_summary: '当前记录已完成',
     };
   }
 
@@ -85,7 +75,7 @@ function buildReferralInsight(record: API.ReferralRecordOut, config?: API.Referr
       ...record,
       stage_label: '待审核',
       stage_color: 'gold',
-      stage_summary: '记录仍在待审核阶段，适合作为当前裂变治理的第一优先级。',
+      stage_summary: '记录仍在待审核阶段，适合作为当前邀请奖励的第一优先级。',
       reward_summary: `待发奖励 邀请人 ¥${inviterReward} / 被邀请人 ¥${inviteeReward}`,
       action_summary: '需要给出通过或驳回结论',
     };
@@ -134,51 +124,7 @@ const ReferralsAdminPage: React.FC = () => {
     [configQuery.data, recordsQuery.data?.items],
   );
   const pendingReviewCount = recordInsights.filter((item) => item.status === 'pending_review' || item.status === 'pending').length;
-  const rejectedCount = recordInsights.filter((item) => item.status === 'review_rejected').length;
   const rewardedCount = recordInsights.filter((item) => item.status === 'reward_issued').length;
-  const registeredCount = recordInsights.filter((item) => item.status === 'registered').length;
-
-  const signals = useMemo<GovernanceSignal[]>(
-    () => [
-      {
-        key: 'review',
-        title: '审核压力',
-        emphasis: pendingReviewCount ? `${pendingReviewCount} 条待审核` : '当前待审核较少',
-        summary: pendingReviewCount ? '人工审核会直接决定裂变奖励能否发下去，也是最容易堆积的环节。' : '当前待审核记录较少，审核压力不高。',
-        description: '裂变规则页至少要让人知道是否存在排队审核，而不是只给一组开关。',
-        actionLabel: '继续处理审核',
-        actionHref: '/dashboard/platform-management/referrals',
-      },
-      {
-        key: 'rewarded',
-        title: '已发奖记录',
-        emphasis: rewardedCount ? `${rewardedCount} 条已发奖` : '当前无发奖记录',
-        summary: rewardedCount ? '发奖后的重点是回看是否与当前规则一致，避免错发或重复发。' : '当前还没有进入发奖阶段的记录。',
-        description: '已发奖属于真正的资金动作，比普通邀请关系更值得回看。',
-        actionLabel: '联动经营视角',
-        actionHref: '/dashboard/personal-business/overview',
-      },
-      {
-        key: 'rejected',
-        title: '驳回回流',
-        emphasis: rejectedCount ? `${rejectedCount} 条审核驳回` : '当前驳回较少',
-        summary: rejectedCount ? '驳回记录如果解释不清，后续很容易形成反复申诉或重复提交。' : '当前驳回记录规模较小。',
-        description: '平台要清楚知道驳回是不是规则问题、身份问题，还是资料不完整。',
-        actionLabel: '查看实名治理',
-        actionHref: '/dashboard/platform-management/real-name',
-      },
-      {
-        key: 'registered',
-        title: '已注册待转化',
-        emphasis: registeredCount ? `${registeredCount} 条已注册待转化` : '当前注册转化较少',
-        summary: registeredCount ? '注册并不等于奖励成立，是否进入审核或自动发奖仍取决于当前规则。' : '当前没有明显待转化记录。',
-        description: '裂变记录应该讲清“注册关系”和“奖励关系”不是同一层概念。',
-        actionLabel: '回看用户治理',
-        actionHref: '/dashboard/platform-management/users',
-      },
-    ],
-    [pendingReviewCount, registeredCount, rejectedCount, rewardedCount],
-  );
 
   const columns: ColumnsType<ReferralInsight> = [
     {
@@ -237,7 +183,7 @@ const ReferralsAdminPage: React.FC = () => {
               <a onClick={() => void reviewMutation.mutateAsync({ record, approved: false })}>驳回</a>
             </>
           ) : (
-            <Typography.Text type="secondary">已收口</Typography.Text>
+            <Typography.Text type="secondary">已完成</Typography.Text>
           )}
         </ResponsiveActions>
       ),
@@ -246,26 +192,26 @@ const ReferralsAdminPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size={16} style={fullWidthStyle}>
-      <Card title="裂变治理">
+      <Card title="邀请奖励规则">
         <div style={sectionStyle}>
-          <Typography.Text strong>规则治理概览</Typography.Text>
+          <Typography.Text strong>规则概览</Typography.Text>
           <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
             <Col xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
                 <Statistic title="邀请人奖励" value={formatMoneyYuan(configQuery.data?.inviter_reward_amount)} precision={2} prefix="¥" />
-                <Typography.Text type="secondary">当前奖励口径来自空间级裂变规则配置。</Typography.Text>
+                <Typography.Text type="secondary">当前奖励口径来自空间级邀请规则配置。</Typography.Text>
               </div>
             </Col>
             <Col xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
                 <Statistic title="被邀请人奖励" value={formatMoneyYuan(configQuery.data?.invitee_reward_amount)} precision={2} prefix="¥" />
-                <Typography.Text type="secondary">奖励对象是否同时覆盖被邀请人，会改变裂变转化预期。</Typography.Text>
+                <Typography.Text type="secondary">奖励对象是否同时覆盖被邀请人，会改变邀请转化预期。</Typography.Text>
               </div>
             </Col>
             <Col xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
                 <Statistic title="待审核记录" value={pendingReviewCount} />
-                <Typography.Text type="secondary">待审核越多，越说明当前裂变奖励链路在人工节点上积压。</Typography.Text>
+                <Typography.Text type="secondary">待审核越多，越说明当前邀请奖励在人工节点上积压。</Typography.Text>
               </div>
             </Col>
             <Col xs={24} sm={12} xl={6}>
@@ -278,7 +224,7 @@ const ReferralsAdminPage: React.FC = () => {
         </div>
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>当前执行面</Typography.Text>
+          <Typography.Text strong>当前状态</Typography.Text>
           <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
             <Col xs={24} md={12} xl={6}>
               <div style={overviewTileStyle}>
@@ -336,30 +282,11 @@ const ReferralsAdminPage: React.FC = () => {
         </div>
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>闭环信号</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            {signals.map((signal) => (
-              <Col key={signal.key} xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Space direction="vertical" size={8}>
-                    <Typography.Text strong>{signal.title}</Typography.Text>
-                    <Tag color="blue">{signal.emphasis}</Tag>
-                    <Typography.Text>{signal.summary}</Typography.Text>
-                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                    <a href={signal.actionHref}>{signal.actionLabel}</a>
-                  </Space>
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
           <Space direction="vertical" size={12} style={fullWidthStyle}>
             <div>
               <Typography.Text strong>规则配置台</Typography.Text>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
-                裂变规则不只是几组数字和开关，它决定了奖励什么时候发、谁来审核、用户从哪里进入，以及对外展示口径是什么。
+                邀请奖励规则决定了奖励什么时候发、谁来审核、用户从哪里进入，以及对外展示口径是什么。
               </Typography.Paragraph>
             </div>
             <Alert type="info" showIcon title="当前奖励金额字段仍按分存储，这样能先和后端现有模型对齐；台面上统一按元展示，减少运营误读。" />
@@ -401,9 +328,9 @@ const ReferralsAdminPage: React.FC = () => {
         </div>
       </Card>
 
-      <Card title="裂变治理台账">
+      <Card title="邀请记录">
         <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-          记录页不该只是“点通过 / 点驳回”，它至少要解释这条邀请关系处在什么阶段、对应什么奖励口径，以及现在该由谁承接。
+          记录页需要说明这条邀请关系处在什么阶段、对应什么奖励口径，以及现在该由谁处理。
         </Typography.Paragraph>
         <Table
           rowKey="id"

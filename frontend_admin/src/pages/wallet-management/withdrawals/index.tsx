@@ -15,16 +15,6 @@ import { IdempotencyFormItem, JsonText, PayoutModal, formatWalletAmount, walletQ
 type ReviewState = { withdrawal: API.WithdrawalOut; approved: boolean } | null;
 type PayoutState = { withdrawal: API.WithdrawalOut; mode: 'payout' | 'retry' } | null;
 
-type GovernanceSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
-
 type WithdrawalInsight = API.WithdrawalOut & {
   status_label: string;
   status_color: string;
@@ -232,59 +222,6 @@ const WalletWithdrawalsPage: React.FC = () => {
   const readyForPayoutCount = withdrawals.filter((item) => item.is_ready_for_payout).length;
   const payingCount = withdrawals.filter((item) => item.is_paying).length;
   const retryCount = withdrawals.filter((item) => item.is_retry_needed).length;
-  const closedCount = withdrawals.filter((item) => item.is_closed).length;
-
-  const closureSignals = useMemo<GovernanceSignal[]>(
-    () => [
-      {
-        key: 'review',
-        title: '审核积压',
-        emphasis: pendingReviewCount ? `${pendingReviewCount} 条申请待审核` : '审核压力可控',
-        summary: pendingReviewCount
-          ? '待审核申请仍占用冻结资金，说明审核链路还没有把资金下一步去向讲清楚。'
-          : '当前没有待审核申请，审核链路相对顺畅。',
-        description: '审核页的第一职责不是点按钮，而是尽快决定冻结资金是继续出款还是回流钱包。',
-        actionLabel: '查看钱包账户',
-        actionHref: '/dashboard/wallet-management/accounts',
-      },
-      {
-        key: 'payout',
-        title: '代付推进',
-        emphasis: readyForPayoutCount || payingCount ? `${readyForPayoutCount + payingCount} 条申请待推进` : '代付推进平稳',
-        summary: readyForPayoutCount
-          ? '已通过但未打款的申请会形成经营积压，需要尽快发起代付。'
-          : payingCount
-            ? '当前主要风险在打款中申请的回调时效和状态滞留。'
-            : '当前代付链路没有明显积压。',
-        description: '审核通过不等于流程结束，真正的经营风险通常出现在代付未发起或状态长期卡住。',
-        actionLabel: '查看冻结账户',
-        actionHref: '/dashboard/wallet-management/accounts',
-      },
-      {
-        key: 'retry',
-        title: '失败重试',
-        emphasis: retryCount ? `${retryCount} 条申请待重试` : '失败申请已收口',
-        summary: retryCount
-          ? '失败申请如果不解释清楚失败原因，会在账户余额、用户预期和人工处理上同时留下尾巴。'
-          : '当前没有失败待重试申请，失败处理链路较干净。',
-        description: '重试不是默认动作，先核对失败原因和余额回流，再决定是否重新出款。',
-        actionLabel: '查看提现管理',
-        actionHref: '/dashboard/wallet-management/withdrawals',
-      },
-      {
-        key: 'closure',
-        title: '收口结果',
-        emphasis: closedCount ? `${closedCount} 条申请已收口` : '收口记录较少',
-        summary: closedCount
-          ? '已驳回、已撤销和已打款申请一起构成了提现治理的收口结果。'
-          : '当前仍以处理中申请为主，后续要重点关注收口质量。',
-        description: '成熟后台不仅要看申请进来了多少，更要看最后如何结束、是否能被解释。',
-        actionLabel: '查看个人经营',
-        actionHref: '/dashboard/personal-business/overview',
-      },
-    ],
-    [closedCount, payingCount, pendingReviewCount, readyForPayoutCount, retryCount],
-  );
 
   const columns: ColumnsType<WithdrawalInsight> = [
     { title: '申请 ID', dataIndex: 'id', width: 110 },
@@ -412,7 +349,7 @@ const WalletWithdrawalsPage: React.FC = () => {
         ) : null}
 
         <div style={sectionStyle}>
-          <Typography.Text strong>提现治理概览</Typography.Text>
+          <Typography.Text strong>提现概览</Typography.Text>
           <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
             <Col xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
@@ -442,7 +379,7 @@ const WalletWithdrawalsPage: React.FC = () => {
         </div>
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>当前提现执行面</Typography.Text>
+          <Typography.Text strong>提现详情</Typography.Text>
           <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
             <Col xs={24} md={12} xl={6}>
               <div style={overviewTileStyle}>
@@ -496,28 +433,9 @@ const WalletWithdrawalsPage: React.FC = () => {
         </div>
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>闭环信号</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            {closureSignals.map((signal) => (
-              <Col key={signal.key} xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Space orientation="vertical" size={8}>
-                    <Typography.Text strong>{signal.title}</Typography.Text>
-                    <Tag color="blue">{signal.emphasis}</Tag>
-                    <Typography.Text>{signal.summary}</Typography.Text>
-                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                    <a href={signal.actionHref}>{signal.actionLabel}</a>
-                  </Space>
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
           <Space orientation="vertical" size={12} style={fullWidthStyle}>
             <div>
-              <Typography.Text strong>提现治理台账</Typography.Text>
+              <Typography.Text strong>提现列表</Typography.Text>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
                 把审核、代付、失败重试和最终收口都放到同一张台账里看，避免运营只知道点动作，却不知道这笔钱现在处在哪个阶段。
               </Typography.Paragraph>

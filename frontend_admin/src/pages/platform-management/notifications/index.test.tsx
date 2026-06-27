@@ -74,11 +74,14 @@ describe('NotificationsAdminPage', () => {
 
     await waitFor(() => {
       expect(mockListNotifications).toHaveBeenCalledWith({ page: 1, page_size: 10, is_read: undefined });
-      expect(screen.getByText('通知治理概览')).toBeInTheDocument();
-      expect(screen.getByText('当前处理面')).toBeInTheDocument();
-      expect(screen.getByText('闭环信号')).toBeInTheDocument();
-      expect(screen.getByText('通知治理台账')).toBeInTheDocument();
+      expect(screen.getByText('通知概览')).toBeInTheDocument();
+      expect(screen.queryByText('处理状态')).not.toBeInTheDocument();
+      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+      expect(screen.getByText('通知列表')).toBeInTheDocument();
       expect(screen.getByText('系统通知')).toBeInTheDocument();
+      expect(screen.queryByText('当前处理面')).not.toBeInTheDocument();
+      expect(screen.queryByText('来源与承接')).not.toBeInTheDocument();
+      expect(screen.queryByText('回到通知治理')).not.toBeInTheDocument();
     });
 
     const row = screen.getByText('系统通知').closest('tr');
@@ -89,6 +92,7 @@ describe('NotificationsAdminPage', () => {
     fireEvent.click(within(row!).getByText('详情'));
     await waitFor(() => expect(mockPatchNotification).toHaveBeenCalledWith({ notification_id: 8 }, { is_read: true }));
     expect(await screen.findByText('通知详情')).toBeInTheDocument();
+    expect(screen.queryByText('通知详情需要一起查看正文、确认状态和后续入口。')).not.toBeInTheDocument();
     expect(screen.getByText('打开通知链接')).toHaveAttribute('href', '/dashboard/property-rental/workbench');
 
     fireEvent.click(within(row!).getByText('标记已读'));

@@ -55,18 +55,9 @@ describe('SystemOperationsPage', () => {
       expect(screen.getAllByText('2026.06.16').length).toBeGreaterThan(0);
     });
 
-    expect(screen.getByText('当前风险')).toBeInTheDocument();
-    expect(screen.getByText('常用演练模板')).toBeInTheDocument();
-    expect(screen.getByLabelText('资源类型')).toHaveValue('house_image');
-    expect(screen.getByLabelText('上传凭证作用域')).toHaveValue('org');
-    expect(screen.getByLabelText('服务端上传资源类型')).toHaveValue('house_image');
-    expect(screen.getByLabelText('服务端上传作用域')).toHaveValue('org');
-    expect(screen.getByLabelText('登记资源类型')).toHaveValue('house_image');
-
-    fireEvent.click(screen.getByRole('button', { name: '房源图片直传' }));
-    expect(screen.getByLabelText('资源类型')).toHaveValue('house_image');
-    expect(screen.getByLabelText('上传凭证作用域')).toHaveValue('org');
-    expect(screen.getByLabelText('登记资源类型')).toHaveValue('house_image');
+    expect(screen.queryByText('当前风险')).not.toBeInTheDocument();
+    expect(screen.queryByText('常用演练模板')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '房源图片直传' })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('测试通知用户 ID'), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: '发送测试通知' }));

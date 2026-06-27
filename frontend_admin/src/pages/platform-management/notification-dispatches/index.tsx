@@ -21,16 +21,6 @@ type CreateDispatchFormValues = {
   url?: string;
 };
 
-type GovernanceSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
-
 type DispatchInsight = API.NotificationDispatchOut & {
   scope_label: string;
   scope_summary: string;
@@ -147,13 +137,13 @@ function buildDispatchInsight(item: API.NotificationDispatchOut): DispatchInsigh
   return {
     ...item,
     scope_label: scopeLabel,
-    scope_summary: item.scope === 'platform' ? '全平台分发已经送达，适合继续观察通知页的确认收口。': '定向分发已经送达，更适合回看目标对象是否真正收到并确认。',
+    scope_summary: item.scope === 'platform' ? '全平台分发已经送达，可继续观察通知页的确认情况。' : '定向分发已经送达，可回看目标对象是否真正收到并确认。',
     status_label: '已送达',
     status_color: 'green',
     status_summary: '当前分发已经完成送达，后续重点是回看通知确认与已读收口。',
     execution_summary: '已送达不是结束，平台还需要知道这些通知有没有变成真正的业务确认。',
     delivery_ratio: ratio,
-    action_summary: '可联动通知治理继续确认',
+    action_summary: '可到通知页继续确认',
   };
 }
 
@@ -193,49 +183,6 @@ const NotificationDispatchesPage: React.FC = () => {
   const failedDispatches = insights.filter((item) => item.status === 'failed');
   const executingDispatches = insights.filter((item) => ['pending', 'sending'].includes(item.status));
   const platformDispatches = insights.filter((item) => item.scope === 'platform');
-  const linkedDispatches = insights.filter((item) => Boolean(item.url));
-
-  const signals = useMemo<GovernanceSignal[]>(
-    () => [
-      {
-        key: 'executing',
-        title: '执行中积压',
-        emphasis: executingDispatches.length ? `${executingDispatches.length} 条仍在执行` : '当前执行较平稳',
-        summary: executingDispatches.length ? '待发送与发送中的分发共同构成当前通知链路的执行压力。' : '当前通知分发没有明显积压。',
-        description: '通知分发页至少要让人知道当前有没有排队、卡住或长时间未收口的发送任务。',
-        actionLabel: '继续查看分发',
-        actionHref: '/dashboard/platform-management/notification-dispatches',
-      },
-      {
-        key: 'failed',
-        title: '失败收口',
-        emphasis: failedDispatches.length ? `${failedDispatches.length} 条失败待解释` : '当前无失败分发',
-        summary: failedDispatches.length ? '失败分发比单条通知更严重，因为它意味着整批目标可能都没有触达。' : '当前没有明显失败收口问题。',
-        description: '平台要分清是通知内容问题、范围问题，还是投递执行链路问题。',
-        actionLabel: '回看通知治理',
-        actionHref: '/dashboard/platform-management/notifications',
-      },
-      {
-        key: 'platform',
-        title: '全平台广播',
-        emphasis: platformDispatches.length ? `${platformDispatches.length} 条平台广播` : '当前无平台广播',
-        summary: platformDispatches.length ? '面向全平台的广播影响范围最大，更需要谨慎看标题、正文和送达结果。' : '当前没有面向全平台的广播分发。',
-        description: '全平台分发不是普通消息，它更像运营或治理层面的批量动作。',
-        actionLabel: '联动通知治理',
-        actionHref: '/dashboard/platform-management/notifications',
-      },
-      {
-        key: 'linked',
-        title: '带入口分发',
-        emphasis: linkedDispatches.length ? `${linkedDispatches.length} 条附带跳转` : '当前少见跳转分发',
-        summary: linkedDispatches.length ? '带链接的分发不只是提示，更应该承担业务承接或跳转执行作用。' : '当前分发以纯文本提醒为主。',
-        description: '如果分发里已经放了入口，通知页和分发页都应该把它视作后续动作链的一部分。',
-        actionLabel: '查看通知页',
-        actionHref: '/dashboard/platform-management/notifications',
-      },
-    ],
-    [executingDispatches.length, failedDispatches.length, linkedDispatches.length, platformDispatches.length],
-  );
 
   const dispatchColumns: ColumnsType<DispatchInsight> = [
     {
@@ -327,7 +274,7 @@ const NotificationDispatchesPage: React.FC = () => {
 
   return (
     <Card
-      title="通知分发治理"
+      title="通知分发管理"
       extra={(
         <AdminToolbar>
           <Button style={toolbarControlStyle} href="/dashboard/personal-business/notifications">
@@ -347,12 +294,12 @@ const NotificationDispatchesPage: React.FC = () => {
       )}
     >
       <div style={sectionStyle}>
-        <Typography.Text strong>分发治理概览</Typography.Text>
+        <Typography.Text strong>分发概览</Typography.Text>
         <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
           <Col xs={24} sm={12} xl={6}>
             <div style={overviewTileStyle}>
               <Statistic title="当前分发" value={insights.length} />
-              <Typography.Text type="secondary">当前页纳入治理视角的通知分发总量。</Typography.Text>
+              <Typography.Text type="secondary">当前页的通知分发总量。</Typography.Text>
             </div>
           </Col>
           <Col xs={24} sm={12} xl={6}>
@@ -364,7 +311,7 @@ const NotificationDispatchesPage: React.FC = () => {
           <Col xs={24} sm={12} xl={6}>
             <div style={overviewTileStyle}>
               <Statistic title="已送达" value={sentDispatches.length} />
-              <Typography.Text type="secondary">已送达意味着通知已进入后续确认与已读收口阶段。</Typography.Text>
+              <Typography.Text type="secondary">已送达后还需要继续关注确认与已读情况。</Typography.Text>
             </div>
           </Col>
           <Col xs={24} sm={12} xl={6}>
@@ -377,7 +324,7 @@ const NotificationDispatchesPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>当前投放执行面</Typography.Text>
+        <Typography.Text strong>投放详情</Typography.Text>
         <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
           <Col xs={24} md={12} xl={6}>
             <div style={overviewTileStyle}>
@@ -410,7 +357,7 @@ const NotificationDispatchesPage: React.FC = () => {
               <Space direction="vertical" size={8}>
                 <Space wrap size={[8, 8]}>
                   <Typography.Text strong>执行中队列</Typography.Text>
-                  <Tag color={executingDispatches.length ? 'gold' : 'green'}>{executingDispatches.length ? `${executingDispatches.length} 条待收口` : '当前较平稳'}</Tag>
+                  <Tag color={executingDispatches.length ? 'gold' : 'green'}>{executingDispatches.length ? `${executingDispatches.length} 条待确认` : '当前较平稳'}</Tag>
                 </Space>
                 <Typography.Text>执行中的分发更需要值班追踪，因为它直接反映通知链路是否卡住或排队。</Typography.Text>
                 <a href="/dashboard/tenant-operations/notification-dispatches">继续查看分发</a>
@@ -421,7 +368,7 @@ const NotificationDispatchesPage: React.FC = () => {
             <div style={overviewTileStyle}>
               <Space direction="vertical" size={8}>
                 <Space wrap size={[8, 8]}>
-                  <Typography.Text strong>失败收口</Typography.Text>
+                  <Typography.Text strong>失败处理</Typography.Text>
                   <Tag color={failedDispatches.length ? 'red' : 'green'}>{failedDispatches.length ? `${failedDispatches.length} 条失败` : '当前无失败'}</Tag>
                 </Space>
                 <Typography.Text>失败分发至少要能解释失败原因与影响范围，否则平台连谁没收到都说不清。</Typography.Text>
@@ -433,30 +380,11 @@ const NotificationDispatchesPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>闭环信号</Typography.Text>
-        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-          {signals.map((signal) => (
-            <Col key={signal.key} xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space direction="vertical" size={8}>
-                  <Typography.Text strong>{signal.title}</Typography.Text>
-                  <Tag color="blue">{signal.emphasis}</Tag>
-                  <Typography.Text>{signal.summary}</Typography.Text>
-                  <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                  <a href={signal.actionHref}>{signal.actionLabel}</a>
-                </Space>
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
         <Space direction="vertical" size={12} style={fullWidthStyle}>
           <div>
-            <Typography.Text strong>分发治理台账</Typography.Text>
+            <Typography.Text strong>分发列表</Typography.Text>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
-              分发页不该只是发送记录清单，它至少要解释这批通知发给了谁、发得怎么样、失败后怎么收口，以及后续该去哪一页继续确认。
+              分发页需要说明这批通知发给了谁、发得怎么样，以及失败后该怎么继续处理。
             </Typography.Paragraph>
           </div>
           <Table
@@ -506,7 +434,7 @@ const NotificationDispatchesPage: React.FC = () => {
         }}
       >
         <Space direction="vertical" size={12} style={fullWidthStyle}>
-          <Alert type="info" showIcon title="分发动作一旦发出，影响的不是单条消息，而是一整批目标对象的触达体验和业务承接链路。" />
+          <Alert type="info" showIcon title="分发动作一旦发出，影响的是一整批目标对象的通知体验。" />
           <Form form={form} layout="vertical" initialValues={DEFAULT_CREATE_FORM_VALUES}>
             <Form.Item label="范围" name="scope" rules={[{ required: true, message: '请选择范围' }]}>
               <Radio.Group

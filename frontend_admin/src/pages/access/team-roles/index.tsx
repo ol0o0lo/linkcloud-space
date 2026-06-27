@@ -11,18 +11,8 @@ import {
   appsAccessApiListTeamRoles,
   appsAccessApiPatchTeamRole,
 } from '@/services/openapi/accessTeamRoles';
-import { TenantSectionHint, TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { EmptyTeamHint, RoleModal, RoleSummary, TeamContextCard, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
-
-type TeamRoleSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
 
 const sectionStyle: React.CSSProperties = {
   padding: 20,
@@ -92,54 +82,6 @@ const TeamRolesPage: React.FC = () => {
   const unusedRoles = roleItems.filter((role) => !boundRoleIds.has(role.id));
   const usedRolePreview = usedRoles.slice(0, 3).map((role) => role.name);
   const unusedRolePreview = unusedRoles.slice(0, 3).map((role) => role.name);
-  const roleSignals = useMemo<TeamRoleSignal[]>(
-    () => [
-      {
-        key: 'execution',
-        title: '执行编组',
-        emphasis: usedRoles.length ? `${usedRoles.length} 个角色已承接` : '待建立承接',
-        summary: usedRoles.length
-          ? `${usedRoles.length} 个角色已经被实际成员承接，开始进入团队执行链路。`
-          : '当前没有任何角色被授权使用，团队角色还停留在设计层。',
-        description: '角色不是权限名录，而是执行编组。至少要先让核心角色落到真实成员身上。',
-        actionLabel: '进入团队授权',
-        actionHref: '/dashboard/access/team-bindings',
-      },
-      {
-        key: 'coverage',
-        title: '角色治理',
-        emphasis: unusedRoles.length ? `${unusedRoles.length} 个角色闲置` : '角色都在使用',
-        summary: unusedRoles.length
-          ? `还有 ${unusedRoles.length} 个角色没有被任何成员承接，容易变成看起来完整、实际无用的权限摆设。`
-          : '所有角色都已有成员承接，角色治理相对健康。',
-        description: '长期闲置的角色要么合并掉，要么明确指定适用场景，避免角色体系越积越乱。',
-        actionLabel: '查看团队授权',
-        actionHref: '/dashboard/access/team-bindings',
-      },
-      {
-        key: 'system',
-        title: '系统底座',
-        emphasis: `${systemRoles.length} 个系统角色`,
-        summary: systemRoles.length
-          ? '系统角色承担稳定底座职责，适合作为团队权限的基础层。'
-          : '当前没有系统角色底座，团队角色体系会更依赖人工维护。',
-        description: '把通用角色保留为系统底座，把阶段性或专项职责放到自定义角色。',
-        actionLabel: '查看空间设置',
-        actionHref: '/dashboard/settings-management/team',
-      },
-      {
-        key: 'policy',
-        title: '策略联动',
-        emphasis: '角色跟业务走',
-        summary: '角色定义应该直接映射到发房、审核、补资料、异常收口这些真实动作，而不是抽象权限堆叠。',
-        description: '如果房源工作台和团队授权都已经改成闭环治理视角，团队角色也必须同步体现同一套职责口径。',
-        actionLabel: '查看房源工作台',
-        actionHref: '/dashboard/property-rental/workbench',
-      },
-    ],
-    [systemRoles.length, unusedRoles.length, usedRoles.length],
-  );
-
   const columns: ColumnsType<API.AccessRoleOut> = useMemo(
     () => [
       { title: '角色', dataIndex: 'name', width: 220, render: (_value, record) => <RoleSummary role={record} /> },
@@ -274,27 +216,6 @@ const TeamRolesPage: React.FC = () => {
               </Row>
             </div>
 
-            <div style={{ ...sectionStyle, marginTop: 16 }}>
-              <Typography.Text strong>闭环信号</Typography.Text>
-              <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-                {roleSignals.map((signal) => (
-                  <Col key={signal.key} xs={24} sm={12} xl={6}>
-                    <div style={overviewTileStyle}>
-                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                        <Space wrap size={[8, 8]}>
-                          <Typography.Text strong>{signal.title}</Typography.Text>
-                          <Tag color="blue">{signal.emphasis}</Tag>
-                        </Space>
-                        <Typography.Text>{signal.summary}</Typography.Text>
-                        <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                        <a href={signal.actionHref}>{signal.actionLabel}</a>
-                      </Space>
-                    </div>
-                  </Col>
-                ))}
-              </Row>
-            </div>
-
             <Alert
               type="info"
               showIcon
@@ -321,7 +242,6 @@ const TeamRolesPage: React.FC = () => {
               </AdminToolbar>
             }
           >
-            <TenantSectionHint text="团队级角色只在所选团队内生效，适合项目管理员、团队运营等局部职责；先看上面的治理信息，再在这里处理具体角色。 " />
             <Table rowKey="id" loading={rolesQuery.isLoading} columns={columns} dataSource={roleItems} pagination={false} scroll={adminTableScroll} />
           </Card>
         </>

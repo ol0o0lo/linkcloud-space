@@ -75,10 +75,10 @@ describe('TeamBindingsPage', () => {
 
     expect(screen.getByText('授权概览')).toBeInTheDocument();
     expect(screen.getByText('角色覆盖与待分配')).toBeInTheDocument();
-    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
     expect(screen.getByText('团队授权台账')).toBeInTheDocument();
     expect(screen.getAllByText('待分配成员').length).toBeGreaterThan(0);
-    expect(screen.getByText('执行承接')).toBeInTheDocument();
+    expect(screen.getByText('已承接成员')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '分配角色' }));
     fireEvent.mouseDown(screen.getByLabelText('成员').closest('.ant-select')!);

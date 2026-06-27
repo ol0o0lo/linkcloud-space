@@ -25,16 +25,6 @@ import { IdentityText, NoteModal, StatusTag, personText, platformQueryKeys } fro
 
 type ReviewAction = 'approve' | 'reject' | 'manual' | 'revoke';
 type ActionState = { row: RealNameInsight; action: ReviewAction } | null;
-type GovernanceSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
-
 type RealNameInsight = API.AdminRealNameVerificationRowOut & {
   stage_color: string;
   stage_summary: string;
@@ -81,7 +71,7 @@ function buildUserSecondary(user?: Record<string, any>) {
 }
 
 function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNameInsight {
-  const sourceSummary = `来源 ${row.source_label}，当前由 ${row.provider_label} 承接。`;
+  const sourceSummary = `来源 ${row.source_label}，当前由 ${row.provider_label} 处理。`;
   const reviewSummary = row.reviewed_at
     ? `${row.reviewed_by || '系统'} 于 ${dayjs(row.reviewed_at).format('YYYY-MM-DD HH:mm')} 给出处理结论。`
     : `记录创建于 ${dayjs(row.created_at).format('YYYY-MM-DD HH:mm')}，当前还没有最终处理时间。`;
@@ -90,8 +80,8 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
     return {
       ...row,
       stage_color: 'green',
-      stage_summary: '实名已经生效，治理重点转为撤销审慎、资格影响和留痕清晰。',
-      governance_hint: '已实名记录不能只看“通过了没有”，还要考虑后续撤销是否影响高权限或经营资格。',
+      stage_summary: '实名已经生效，后续重点转为撤销审慎、资格影响和留痕清晰。',
+      governance_hint: '已实名记录不能只看“通过了没有”，还要考虑后续撤销是否影响高权限或业务资格。',
       source_summary: sourceSummary,
       review_summary: reviewSummary,
     };
@@ -101,7 +91,7 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
     return {
       ...row,
       stage_color: 'gold',
-      stage_summary: '自动链路没有完全收口，当前需要后台明确给出通过或驳回结论。',
+      stage_summary: '自动流程没有完成，当前需要后台明确给出通过或驳回结论。',
       governance_hint: '人工复核不该淹没在表格里，它代表的是仍在占用审核带宽的待决事项。',
       source_summary: sourceSummary,
       review_summary: reviewSummary,
@@ -124,7 +114,7 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
       ...row,
       stage_color: 'default',
       stage_summary: '实名曾经生效但已被撤销，需要继续确认受影响的权限和业务资格。',
-      governance_hint: '撤销实名往往带着更高的经营和合规影响，应该谨慎处理。',
+      governance_hint: '撤销实名往往带着更高的业务和合规影响，应该谨慎处理。',
       source_summary: sourceSummary,
       review_summary: reviewSummary,
     };
@@ -133,7 +123,7 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
   return {
     ...row,
     stage_color: 'blue',
-    stage_summary: '记录仍在待校验阶段，优先判断能否自动收口或是否需要转人工。',
+    stage_summary: '记录仍在待校验阶段，优先判断能否自动完成或是否需要转人工。',
     governance_hint: '待校验积压过多时，平台侧最容易出现审核排队和业务入口被卡住的问题。',
     source_summary: sourceSummary,
     review_summary: reviewSummary,
@@ -149,7 +139,7 @@ function getActionMeta(action: ReviewAction, row: RealNameInsight) {
     return {
       label: row.status === 'rejected' ? '重新通过' : '通过实名',
       title: row.status === 'rejected' ? '重新通过实名' : '通过实名',
-      guidance: row.status === 'rejected' ? '这条记录已经被驳回过，重新通过前最好确认失败原因是否已经被消化。' : '通过后会直接把账号同步到已实名状态，后续资金与权限链路会按实名生效。',
+      guidance: row.status === 'rejected' ? '这条记录已经被驳回过，重新通过前最好确认失败原因是否已经处理。' : '通过后会直接把账号同步到已实名状态，后续资金与权限链路会按实名生效。',
     };
   }
   if (action === 'reject') {
@@ -163,7 +153,7 @@ function getActionMeta(action: ReviewAction, row: RealNameInsight) {
     return {
       label: row.status === 'rejected' ? '转回人工' : '转人工复核',
       title: row.status === 'rejected' ? '转回人工复核' : '转人工复核',
-      guidance: '转人工意味着这条记录不再期待自动收口，应该由后台明确接住并给出处理结论。',
+    guidance: '转人工意味着这条记录不再等待自动处理，应该由后台明确给出处理结论。',
     };
   }
   return {
@@ -234,49 +224,6 @@ const RealNameAdminPage: React.FC = () => {
   const rejectedRows = insights.filter((item) => item.status === 'rejected');
   const verifiedRows = insights.filter((item) => item.status === 'verified');
   const revokedRows = insights.filter((item) => item.status === 'revoked');
-  const businessGateRows = insights.filter((item) => item.source === 'business_gate');
-
-  const signals = useMemo<GovernanceSignal[]>(
-    () => [
-      {
-        key: 'pending',
-        title: '待处理积压',
-        emphasis: pendingRows.length || manualRows.length ? `${pendingRows.length + manualRows.length} 条待决记录` : '当前无待决积压',
-        summary: pendingRows.length || manualRows.length ? '待校验与人工复核共同构成当前审核带宽压力。' : '当前待决记录较少，审核链路相对平稳。',
-        description: '实名审核不该只是点通过或驳回，更重要的是知道审核队列是否正在堆积。',
-        actionLabel: '继续处理审核',
-        actionHref: '/dashboard/platform-management/real-name',
-      },
-      {
-        key: 'rejected',
-        title: '驳回回流',
-        emphasis: rejectedRows.length ? `${rejectedRows.length} 条驳回待回看` : '驳回规模可控',
-        summary: rejectedRows.length ? '驳回记录越多，越需要解释性强的失败原因和人工承接策略。' : '当前驳回记录规模较小，回流压力不高。',
-        description: '如果失败原因说不清，驳回很容易演变成重复提交和客服压力。',
-        actionLabel: '查看用户治理',
-        actionHref: '/dashboard/platform-management/users',
-      },
-      {
-        key: 'verified',
-        title: '生效实名',
-        emphasis: verifiedRows.length ? `${verifiedRows.length} 条已实名记录` : '暂无生效实名',
-        summary: verifiedRows.length ? '生效实名会影响提现、激励和权限等下游链路。' : '当前还没有进入已实名阶段的记录。',
-        description: '已实名并不代表可以完全忽略，撤销与回收动作的风险反而更高。',
-        actionLabel: '查看高权限账号',
-        actionHref: '/dashboard/platform-management/users',
-      },
-      {
-        key: 'business_gate',
-        title: '业务拦截',
-        emphasis: businessGateRows.length ? `${businessGateRows.length} 条业务拦截触发` : '当前少见业务拦截',
-        summary: businessGateRows.length ? '这类记录通常和经营动作绑定更紧，审核延迟会直接影响业务继续推进。' : '当前没有明显的业务拦截积压。',
-        description: '平台要分得清是用户主动来做实名，还是业务场景把实名逼成了前置条件。',
-        actionLabel: '返回经营视角',
-        actionHref: '/dashboard/personal-business/overview',
-      },
-    ],
-    [businessGateRows.length, manualRows.length, pendingRows.length, rejectedRows.length, verifiedRows.length],
-  );
 
   const columns: ColumnsType<RealNameInsight> = [
     {
@@ -303,7 +250,7 @@ const RealNameAdminPage: React.FC = () => {
       ),
     },
     {
-      title: '来源与承接',
+      title: '来源与处理',
       dataIndex: 'source_label',
       width: 280,
       render: (_value, record) => (
@@ -374,7 +321,7 @@ const RealNameAdminPage: React.FC = () => {
         )}
       >
         <div style={sectionStyle}>
-          <Typography.Text strong>实名治理概览</Typography.Text>
+          <Typography.Text strong>实名概览</Typography.Text>
           <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
             <Col xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
@@ -404,7 +351,7 @@ const RealNameAdminPage: React.FC = () => {
         </div>
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>当前审核执行面</Typography.Text>
+          <Typography.Text strong>审核详情</Typography.Text>
           <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
             <Col xs={24} md={12} xl={6}>
               <div style={overviewTileStyle}>
@@ -458,28 +405,9 @@ const RealNameAdminPage: React.FC = () => {
         </div>
 
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>闭环信号</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            {signals.map((signal) => (
-              <Col key={signal.key} xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Space orientation="vertical" size={8}>
-                    <Typography.Text strong>{signal.title}</Typography.Text>
-                    <Tag color="blue">{signal.emphasis}</Tag>
-                    <Typography.Text>{signal.summary}</Typography.Text>
-                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                    <a href={signal.actionHref}>{signal.actionLabel}</a>
-                  </Space>
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
           <Space orientation="vertical" size={12} style={fullWidthStyle}>
             <div>
-              <Typography.Text strong>实名治理台账</Typography.Text>
+              <Typography.Text strong>实名列表</Typography.Text>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
                 实名页不该只是审核动作清单，它应该同时解释这条记录处在什么阶段、为什么还没收口，以及它会影响哪些平台链路。
               </Typography.Paragraph>

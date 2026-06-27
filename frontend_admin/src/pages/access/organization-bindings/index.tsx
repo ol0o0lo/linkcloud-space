@@ -11,18 +11,8 @@ import {
 } from '@/services/openapi/accessOrganizationBindings';
 import { appsAccessApiListOrgRoles } from '@/services/openapi/accessOrganizationRoles';
 import { appsOrganizationsApiListMembers } from '@/services/openapi/organizationMembers';
-import { TenantSectionHint, TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/tenant/shared';
 import { RoleSummary, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
-
-type OrganizationBindingSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
 
 const sectionStyle: React.CSSProperties = {
   padding: 20,
@@ -97,54 +87,6 @@ const OrganizationBindingsPage: React.FC = () => {
   const unusedRoles = activeRoles.filter((item) => !boundRoleIds.has(item.id));
   const assignedMemberPreview = bindingItems.slice(0, 3).map((item) => formatPersonLabel(item.user));
   const pendingMemberPreview = pendingMembers.slice(0, 3).map((item) => formatPersonLabel(item.user));
-  const bindingSignals = useMemo<OrganizationBindingSignal[]>(
-    () => [
-      {
-        key: 'global',
-        title: '全局承接',
-        emphasis: boundUserIds.size ? `${boundUserIds.size} 人已承接` : '待建立承接',
-        summary: boundUserIds.size
-          ? `${boundUserIds.size} 名成员已经承担空间级职责，开始接住 owner、管理员或运营类工作。`
-          : '当前没有任何成员承接空间级职责，空间级权限还停留在配置层。',
-        description: '空间级授权应该只给真正承担全局责任的人，否则局部成员会拿到过高权限。',
-        actionLabel: '立即分配角色',
-        actionHref: '#assign-role',
-      },
-      {
-        key: 'coverage',
-        title: '待分配成员',
-        emphasis: pendingMembers.length ? `${pendingMembers.length} 人待补` : '已全部覆盖',
-        summary: pendingMembers.length
-          ? `还有 ${pendingMembers.length} 名空间成员没有明确的组织级角色，容易出现“参与管理但没有正式归属”的灰区。`
-          : '当前空间成员的组织级授权覆盖相对完整。',
-        description: '空间级待分配成员一般优先看管理岗、跨团队协调岗、财务/运营负责人。',
-        actionLabel: '查看成员设置',
-        actionHref: '/dashboard/settings-management/organization',
-      },
-      {
-        key: 'roles',
-        title: '角色承接',
-        emphasis: unusedRoles.length ? `${unusedRoles.length} 个角色闲置` : '角色都在使用',
-        summary: unusedRoles.length
-          ? `还有 ${unusedRoles.length} 个空间级角色没有任何成员使用，角色设计和授权落地之间可能存在脱节。`
-          : '空间级角色都已经进入实际使用，权限体系和执行组织相对一致。',
-        description: '闲置角色要么继续等待明确场景，要么尽快清理，避免空间级权限体系持续膨胀。',
-        actionLabel: '查看空间角色',
-        actionHref: '/dashboard/access/organization-roles',
-      },
-      {
-        key: 'policy',
-        title: '策略联动',
-        emphasis: '空间级治理',
-        summary: '空间授权决定谁能改空间策略、谁能统筹团队治理、谁能处理跨团队的异常收口。',
-        description: '如果空间设置已经成为规则中心，空间授权就必须同步回答谁有权修改这些规则。',
-        actionLabel: '查看空间设置',
-        actionHref: '/dashboard/settings-management/organization',
-      },
-    ],
-    [boundUserIds.size, pendingMembers.length, unusedRoles.length],
-  );
-
   const columns: ColumnsType<API.OrganizationBindingOut> = [
     {
       title: '成员',
@@ -204,7 +146,7 @@ const OrganizationBindingsPage: React.FC = () => {
   ];
 
   return (
-    <TenantSelectionGuard title="租户授权" subtitle="为当前租户成员分配组织级角色。">
+    <TenantSelectionGuard title="空间授权" subtitle="为当前空间成员分配组织级角色。">
       <Card loading={bindingsQuery.isLoading || rolesQuery.isLoading || membersQuery.isLoading}>
         <div style={sectionStyle}>
           <Typography.Text strong>授权概览</Typography.Text>
@@ -278,39 +220,6 @@ const OrganizationBindingsPage: React.FC = () => {
           </Row>
         </div>
 
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>闭环信号</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            {bindingSignals.map((signal) => (
-              <Col key={signal.key} xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                    <Space wrap size={[8, 8]}>
-                      <Typography.Text strong>{signal.title}</Typography.Text>
-                      <Tag color="blue">{signal.emphasis}</Tag>
-                    </Space>
-                    <Typography.Text>{signal.summary}</Typography.Text>
-                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                    {signal.actionHref === '#assign-role' ? (
-                      <a
-                        href={signal.actionHref}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          setOpen(true);
-                        }}
-                      >
-                        {signal.actionLabel}
-                      </a>
-                    ) : (
-                      <a href={signal.actionHref}>{signal.actionLabel}</a>
-                    )}
-                  </Space>
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
-
         <Alert
           type="info"
           showIcon
@@ -330,7 +239,6 @@ const OrganizationBindingsPage: React.FC = () => {
           </AdminToolbar>
         }
       >
-        <TenantSectionHint text="租户级授权对当前空间全局生效，适合 owner、管理员、运营等组织级职责；先看上面的覆盖缺口，再在这里处理具体授权。 " />
         <Table
           rowKey="id"
           loading={bindingsQuery.isLoading}

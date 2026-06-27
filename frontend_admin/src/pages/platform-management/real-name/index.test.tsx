@@ -94,10 +94,12 @@ describe('RealNameAdminPage', () => {
 
     await waitFor(() => {
       expect(mockList).toHaveBeenCalledWith({ page: 1, page_size: 10, q: undefined, status: undefined });
-      expect(screen.getByText('实名治理概览')).toBeInTheDocument();
-      expect(screen.getByText('当前审核执行面')).toBeInTheDocument();
-      expect(screen.getByText('闭环信号')).toBeInTheDocument();
-      expect(screen.getByText('实名治理台账')).toBeInTheDocument();
+      expect(screen.getByText('实名概览')).toBeInTheDocument();
+      expect(screen.getByText('审核详情')).toBeInTheDocument();
+      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+      expect(screen.getByText('实名列表')).toBeInTheDocument();
+      expect(screen.queryByText('来源与承接')).not.toBeInTheDocument();
+      expect(screen.queryByText('返回用户治理')).not.toBeInTheDocument();
       expect(screen.getByText('张*')).toBeInTheDocument();
       expect(screen.getByText('alice')).toBeInTheDocument();
     });

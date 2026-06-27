@@ -17,16 +17,6 @@ import {
 import { normalizeEmailLikeInput } from '@/utils/email';
 import { IdentityText, platformQueryKeys } from '../shared';
 
-type GovernanceSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
-
 type UserInsight = API.AdminUserOut & {
   phone_label: string;
   governance_label: string;
@@ -77,7 +67,7 @@ function buildUserInsight(user: API.AdminUserOut): UserInsight {
       governance_summary: '该账号拥有平台级最高权限，安全、实名和联系方式都应该保持清晰可控。',
       role_label: 'Superuser',
       role_color: 'gold',
-      role_summary: '高权限账号的治理重点是权限边界、可追溯性和安全恢复能力。',
+      role_summary: '高权限账号需要重点确认权限边界、可追溯性和安全恢复能力。',
     };
   }
 
@@ -90,7 +80,7 @@ function buildUserInsight(user: API.AdminUserOut): UserInsight {
       governance_summary: '该账号可以进入后台执行操作，更应关注实名、联系方式和强退处置能力。',
       role_label: 'Staff',
       role_color: 'blue',
-      role_summary: '这类账号负责真实后台动作，治理重点是职责承接和可回收性。',
+      role_summary: '这类账号负责真实后台操作，需要明确职责、联系方式和回收方式。',
     };
   }
 
@@ -103,7 +93,7 @@ function buildUserInsight(user: API.AdminUserOut): UserInsight {
       governance_summary: '手机号缺失或未验证，会让找回、安全校验和业务联系链路都变得脆弱。',
       role_label: '普通账号',
       role_color: 'default',
-      role_summary: '这类账号权限不高，但资料完整性仍然影响后续业务承接。',
+      role_summary: '这类账号权限不高，但资料完整性仍然影响后续业务处理。',
     };
   }
 
@@ -115,7 +105,7 @@ function buildUserInsight(user: API.AdminUserOut): UserInsight {
     governance_summary: '当前资料和联系方式较完整，后续重点是账号持续可用与行为可追溯。',
     role_label: '普通账号',
     role_color: 'default',
-    role_summary: '可以继续纳入平台经营对象，按需补充更细的实名与授权治理。',
+    role_summary: '可以继续作为平台账号使用，按需补充实名与授权信息。',
   };
 }
 
@@ -195,56 +185,6 @@ const PlatformUsersPage: React.FC = () => {
   const realNamePendingUsers = users.filter((item) => item.real_name_status && !['approved', 'verified', 'passed'].includes(String(item.real_name_status).toLowerCase()));
   const inactiveUsers = users.filter((item) => !item.is_active);
 
-  const signals = useMemo<GovernanceSignal[]>(
-    () => [
-      {
-        key: 'privilege',
-        title: '高权限治理',
-        emphasis: privilegedUsers.length ? `${privilegedUsers.length} 个高权限账号` : '暂无高权限账号',
-        summary: privilegedUsers.length
-          ? '高权限账号是平台治理风险最高的一组对象，不能只看用户名和邮箱。'
-          : '当前没有高权限账号，权限面相对简单。',
-        description: '平台用户页需要先讲清楚谁在执行后台动作，而不是只给一堆账号操作链接。',
-        actionLabel: '查看实名治理',
-        actionHref: '/dashboard/platform-management/real-name',
-      },
-      {
-        key: 'contact',
-        title: '联系方式',
-        emphasis: incompletePhoneUsers.length ? `${incompletePhoneUsers.length} 个账号待补手机` : '联系方式较完整',
-        summary: incompletePhoneUsers.length
-          ? '手机号缺失或未验证，会影响找回、安全校验和平台触达。'
-          : '当前联系方式治理相对完整。',
-        description: '这类问题不一定立刻阻断业务，但一旦需要找回账号或做强退处置时就会变成平台风险。',
-        actionLabel: '查看用户治理',
-        actionHref: '/dashboard/platform-management/users',
-      },
-      {
-        key: 'realname',
-        title: '实名承接',
-        emphasis: realNamePendingUsers.length ? `${realNamePendingUsers.length} 个账号实名待收口` : '实名链路较平稳',
-        summary: realNamePendingUsers.length
-          ? '实名状态没有完成收口的账号，后续在出款、权限和申诉链路里都容易出现灰区。'
-          : '当前用户实名状态整体较稳定。',
-        description: '用户治理页至少要让平台知道哪些账号的实名状态仍在处理中。',
-        actionLabel: '进入实名管理',
-        actionHref: '/dashboard/platform-management/real-name',
-      },
-      {
-        key: 'inactive',
-        title: '停用收口',
-        emphasis: inactiveUsers.length ? `${inactiveUsers.length} 个账号已停用` : '停用账号较少',
-        summary: inactiveUsers.length
-          ? '停用账号需要确认是否还残留后台权限、会话和绑定关系。'
-          : '当前停用账号规模较小，回收压力不高。',
-        description: '账号停用只是开始，真正的收口还包括会话、MFA、绑定和审计视角。',
-        actionLabel: '查看通知治理',
-        actionHref: '/dashboard/platform-management/notifications',
-      },
-    ],
-    [inactiveUsers.length, incompletePhoneUsers.length, privilegedUsers.length, realNamePendingUsers.length],
-  );
-
   const columns: ColumnsType<UserInsight> = [
     {
       title: '用户身份',
@@ -253,7 +193,7 @@ const PlatformUsersPage: React.FC = () => {
       render: (_value, record) => <IdentityText primary={record.username} secondary={record.email} />,
     },
     {
-      title: '治理状态',
+      title: '账号状态',
       dataIndex: 'governance_label',
       width: 260,
       render: (_value, record) => (
@@ -275,7 +215,7 @@ const PlatformUsersPage: React.FC = () => {
       ),
     },
     {
-      title: '权限承接',
+      title: '权限说明',
       dataIndex: 'is_staff',
       width: 240,
       render: (_value, record) => (
@@ -335,24 +275,24 @@ const PlatformUsersPage: React.FC = () => {
       }
     >
       <div style={sectionStyle}>
-        <Typography.Text strong>用户治理概览</Typography.Text>
+        <Typography.Text strong>用户概览</Typography.Text>
         <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
           <Col xs={24} sm={12} xl={6}>
             <div style={overviewTileStyle}>
               <Statistic title="当前用户" value={users.length} />
-              <Typography.Text type="secondary">当前页已纳入平台治理视角的用户总量。</Typography.Text>
+              <Typography.Text type="secondary">当前页用户总量。</Typography.Text>
             </div>
           </Col>
           <Col xs={24} sm={12} xl={6}>
             <div style={overviewTileStyle}>
               <Statistic title="启用账号" value={activeUsers.length} />
-              <Typography.Text type="secondary">这些账号仍可能继续参与后台或平台经营动作。</Typography.Text>
+              <Typography.Text type="secondary">这些账号仍可能继续参与后台或平台操作。</Typography.Text>
             </div>
           </Col>
           <Col xs={24} sm={12} xl={6}>
             <div style={overviewTileStyle}>
               <Statistic title="高权限账号" value={privilegedUsers.length} />
-              <Typography.Text type="secondary">Staff 与 Superuser 是平台安全治理的第一优先级。</Typography.Text>
+              <Typography.Text type="secondary">Staff 与 Superuser 是平台安全重点关注对象。</Typography.Text>
             </div>
           </Col>
           <Col xs={24} sm={12} xl={6}>
@@ -365,14 +305,14 @@ const PlatformUsersPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>当前用户执行面</Typography.Text>
+        <Typography.Text strong>用户详情</Typography.Text>
         <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
           <Col xs={24} md={12} xl={6}>
             <div style={overviewTileStyle}>
               <Space orientation="vertical" size={8}>
                 <Space wrap size={[8, 8]}>
                   <Typography.Text strong>高权限账号</Typography.Text>
-                  <Tag color={privilegedUsers.length ? 'gold' : 'default'}>{privilegedUsers.length ? `${privilegedUsers.length} 个重点治理` : '暂无高权限'}</Tag>
+                  <Tag color={privilegedUsers.length ? 'gold' : 'default'}>{privilegedUsers.length ? `${privilegedUsers.length} 个重点关注` : '暂无高权限'}</Tag>
                 </Space>
                 <Typography.Text>高权限账号的核心不是多几个操作，而是能否清楚解释权限、联系方式和安全恢复能力。</Typography.Text>
                 <a href="/dashboard/super-admin/real-name">查看实名状态</a>
@@ -395,7 +335,7 @@ const PlatformUsersPage: React.FC = () => {
             <div style={overviewTileStyle}>
               <Space orientation="vertical" size={8}>
                 <Space wrap size={[8, 8]}>
-                  <Typography.Text strong>实名待收口</Typography.Text>
+                  <Typography.Text strong>实名待跟进</Typography.Text>
                   <Tag color={realNamePendingUsers.length ? 'gold' : 'default'}>{realNamePendingUsers.length ? `${realNamePendingUsers.length} 个待跟进` : '暂无积压'}</Tag>
                 </Space>
                 <Typography.Text>用户页至少要能看见哪些账号的实名状态仍不稳定，这会影响出款、权限和申诉链路。</Typography.Text>
@@ -408,7 +348,7 @@ const PlatformUsersPage: React.FC = () => {
               <Space orientation="vertical" size={8}>
                 <Space wrap size={[8, 8]}>
                   <Typography.Text strong>停用账号</Typography.Text>
-                  <Tag color={inactiveUsers.length ? 'default' : 'green'}>{inactiveUsers.length ? `${inactiveUsers.length} 个待确认收口` : '停用较少'}</Tag>
+                  <Tag color={inactiveUsers.length ? 'default' : 'green'}>{inactiveUsers.length ? `${inactiveUsers.length} 个待确认` : '停用较少'}</Tag>
                 </Space>
                 <Typography.Text>停用后仍要看会话、MFA 和绑定是否清理，否则只是把按钮关掉，不算真正回收。</Typography.Text>
                 <a href="/dashboard/personal-business/notifications">查看通知</a>
@@ -419,30 +359,11 @@ const PlatformUsersPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>闭环信号</Typography.Text>
-        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-          {signals.map((signal) => (
-            <Col key={signal.key} xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Typography.Text strong>{signal.title}</Typography.Text>
-                  <Tag color="blue">{signal.emphasis}</Tag>
-                  <Typography.Text>{signal.summary}</Typography.Text>
-                  <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                  <a href={signal.actionHref}>{signal.actionLabel}</a>
-                </Space>
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
         <Space orientation="vertical" size={12} style={fullWidthStyle}>
           <div>
-            <Typography.Text strong>用户治理台账</Typography.Text>
+            <Typography.Text strong>用户列表</Typography.Text>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
-              用户页不该只是“改资料 + 点动作”的账号清单，它应该同时解释权限、实名、联系方式和停用回收的当前状态。
+              用户页需要同时说明权限、实名、联系方式和停用状态。
             </Typography.Paragraph>
           </div>
           <Table
