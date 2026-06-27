@@ -200,17 +200,6 @@ function getLeaseContractText(lease?: LeaseOut) {
   return lease.contract_files?.length ? '合同已归档' : '待补合同';
 }
 
-function getHouseCurrentAdvice(house: HouseOut, options: { canPublish: boolean; latestViewing?: ViewingRecordOut; currentLease?: LeaseOut }) {
-  const { canPublish, latestViewing, currentLease } = options;
-  if (currentLease && !currentLease.contract_files?.length) return '这套房已有租约，先补合同归档，避免履约、结算和续签资料断档。';
-  if (needsViewingContactCompletion(latestViewing)) return '最近成交记录还缺租客主体，先补齐联系人，再继续创建租约。';
-  if (latestViewing?.status === 'converted' && !latestViewing.signed_lease_id) return '最近带看已成交，优先创建租约，避免成交记录停留在带看阶段。';
-  if (house.publish_status === 'published') return '房源已在线承接带看，继续关注新增客户和租约转化。';
-  if (canPublish && getHouseWarningIssues(house).length) return getHouseIssueActionHint(house);
-  if (canPublish) return '资料已满足发布检查，可以直接上线承接带看。';
-  return getHouseIssueActionHint(house);
-}
-
 function getHouseWorkflowHint(options: { latestViewing?: ViewingRecordOut; currentLease?: LeaseOut }) {
   const { latestViewing, currentLease } = options;
   if (currentLease?.status === 'active') return currentLease.contract_files?.length ? '租约已生效，当前重点转向履约维护。' : '租约已生效，但合同资料还未归档。';
@@ -337,7 +326,6 @@ const HouseDetailPage: React.FC = () => {
   const latestViewing = viewings.data?.items?.[0];
   const currentLease = leases.data?.items?.find((item) => item.status === 'active' || item.status === 'pending') || leases.data?.items?.[0];
   const workflowStage = house.data ? getWorkflowStage(house.data, { canPublish, latestViewing, currentLease }) : '-';
-  const currentAdvice = house.data ? getHouseCurrentAdvice(house.data, { canPublish, latestViewing, currentLease }) : '-';
   const workflowHint = getHouseWorkflowHint({ latestViewing, currentLease });
   const publishButtonLabel = isPublished ? '下架房源' : canPublish ? '发布房源' : '待补齐后发布';
   const derivedMetadataTask = missingItems.includes('缺房东') ? 'landlord' : missingItems.includes('缺租金') ? 'rent' : undefined;
@@ -554,14 +542,6 @@ const HouseDetailPage: React.FC = () => {
                       <Typography.Text type="secondary">业务阶段</Typography.Text>
                       <Typography.Text strong>{workflowStage}</Typography.Text>
                       <Typography.Text type="secondary">{workflowHint}</Typography.Text>
-                    </Space>
-                  </div>
-                </Col>
-                <Col xs={24} md={12} xl={6}>
-                  <div style={detailTileStyle}>
-                    <Space orientation="vertical" size={4}>
-                      <Typography.Text type="secondary">当前建议</Typography.Text>
-                      <Typography.Text>{currentAdvice}</Typography.Text>
                     </Space>
                   </div>
                 </Col>

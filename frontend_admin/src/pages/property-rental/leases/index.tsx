@@ -66,22 +66,6 @@ function getLeaseBusinessInfo(record: LeaseOut) {
   };
 }
 
-function getLeasePageSuggestion(task?: string, status?: string, counts?: { pending: number; contractMissing: number; expired: number; terminated?: number }) {
-  if (task === 'contract' && status === 'pending') return '待生效且缺合同的租约要优先补归档并确认交付节点，避免签约后无法落地。';
-  if (task === 'contract' && status === 'active') return '生效中但缺合同的租约要尽快补归档，避免履约、收租和结算凭证缺失。';
-  if (task === 'contract' && status === 'expired') return '已到期且缺合同的租约要尽快补齐归档，避免退租或续租资料断档。';
-  if (task === 'contract' && status === 'terminated') return '已终止且缺合同的租约要尽快补齐归档，避免后续结清和追责缺少凭证。';
-  if (task === 'contract') return '合同缺失的租约应尽快补归档，避免后续履约和结算无据可查。';
-  if (status === 'pending') return '待生效租约要尽快确认合同、起租和交付节点，避免签约后无法落地。';
-  if (status === 'active') return '生效中租约应持续关注履约、收租和续租安排。';
-  if (status === 'expired') return '已到期租约要尽快处理退租或续租，不要让到期合同悬空。';
-  if (status === 'terminated') return '已终止租约要尽快完成结清、钥匙回收和资料归档，避免形成尾账。';
-  if ((counts?.contractMissing || 0) > 0 || (counts?.pending || 0) > 0) return '优先补齐合同缺失和待生效租约，避免签约后资料断档。';
-  if ((counts?.terminated || 0) > 0) return '已终止租约要尽快做完结清归档，避免形成待处理尾账。';
-  if ((counts?.expired || 0) > 0) return '已到期租约要尽快完成退租归档和房源释放。';
-  return '先处理待生效和合同资料，再跟进已生效租约的履约质量。';
-}
-
 const LEASE_OVERVIEW_ITEMS = [
   { key: 'pending', title: '待生效', params: { status: 'pending' } },
   { key: 'active', title: '生效中', params: { status: 'active' } },
@@ -96,16 +80,6 @@ type LeaseOverviewCard = {
   hint: string;
   params?: Record<string, unknown>;
   getValue?: (counts: Record<string, number>) => number;
-};
-
-type LeaseClosureSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  href: string;
 };
 
 function getScopedLeaseOverviewCards(task?: string, status?: string): LeaseOverviewCard[] {
@@ -398,11 +372,9 @@ const LeasesPage: React.FC = () => {
   const expiredCount = overviewQueries[3]?.data?.total || 0;
   const terminatedCount = overviewQueries[4]?.data?.total || 0;
   const allLeaseCount = pendingCount + activeCount + expiredCount + terminatedCount;
-  const readySourceViewingCount = readySourceViewings.data?.total || readySourceViewings.data?.items?.length || 0;
   const selectedScopedHouse = (houses.data?.items || []).find((item) => item.id === sourceHouseId);
   const overviewLoading = scopedOverview ? isAnyInitialQueryPending(scopedOverviewQueries) : isAnyInitialQueryPending(overviewQueries);
   const listLoading = isInitialQueryPending(leases);
-  const pageSuggestion = overviewLoading ? '正在整理租约台账，请稍候再判断签约、归档和履约优先级。' : getLeasePageSuggestion(task, status, { pending: pendingCount, contractMissing: contractMissingCount, expired: expiredCount, terminated: terminatedCount });
   const scopeText = getLeaseScopeText({ task, status, houseLabelText: selectedScopedHouse ? houseLabel(selectedScopedHouse) : undefined });
   const focusedActionTitle = task === 'contract' && editLeaseId ? '当前操作：补归档合同' : undefined;
   const focusedActionDescription = task === 'contract' && editLeaseId ? '当前入口来自合同缺失队列，优先上传主合同文件，再继续确认租约状态和履约节点。' : undefined;
@@ -605,51 +577,6 @@ const LeasesPage: React.FC = () => {
     background: token.colorFillQuaternary,
     height: '100%',
   } as const;
-  const signalTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    padding: 16,
-    background: token.colorBgContainer,
-    height: '100%',
-  } as const;
-  const closureSignals: LeaseClosureSignal[] = [
-    {
-      key: 'signing',
-      title: '签约落地',
-      emphasis: pendingCount > 0 ? '先落签约' : readySourceViewingCount > 0 ? '先转租约' : '签约平稳',
-      summary: `${pendingCount} 份待生效 / ${readySourceViewingCount} 条可签约带看`,
-      description: '先把成交记录转成租约并确认起租交付，避免签约停在半路。',
-      actionLabel: '查看待生效',
-      href: dashboardHref(buildLeaseQueueHref({ houseId: sourceHouseId, status: 'pending' })),
-    },
-    {
-      key: 'contract',
-      title: '合同归档',
-      emphasis: contractMissingCount > 0 ? '先补合同' : '合同已齐',
-      summary: `${contractMissingCount} 份待补合同`,
-      description: '租约已创建但合同缺失，履约、收租和结算都会缺凭证。',
-      actionLabel: '查看待补合同',
-      href: dashboardHref(buildLeaseQueueHref({ houseId: sourceHouseId, task: 'contract' })),
-    },
-    {
-      key: 'active',
-      title: '履约运行',
-      emphasis: activeCount > 0 ? '持续跟进' : '当前平稳',
-      summary: `${activeCount} 份生效中`,
-      description: '生效中的租约要持续看收租、续租和合同补档。',
-      actionLabel: '查看生效中',
-      href: dashboardHref(buildLeaseQueueHref({ houseId: sourceHouseId, status: 'active' })),
-    },
-    {
-      key: 'closure',
-      title: '到期收口',
-      emphasis: expiredCount + terminatedCount > 0 ? '先做退租收口' : '收口已完成',
-      summary: `${expiredCount} 份已到期 / ${terminatedCount} 份已终止`,
-      description: '到期和终止租约要尽快完成退租、结清和资料归档，避免尾账悬空。',
-      actionLabel: '查看待收口',
-      href: dashboardHref(buildLeaseQueueHref({ houseId: sourceHouseId, status: 'expired' })),
-    },
-  ];
 
   return (
     <TenantSelectionGuard title="租约" subtitle="查看签约、履约和合同资料状态。">
@@ -709,34 +636,6 @@ const LeasesPage: React.FC = () => {
                   </Col>
                 </>
               )}
-        </Row>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>当前建议</Typography.Text>
-        <div style={{ marginTop: 12 }}>
-          <Typography.Text>{pageSuggestion}</Typography.Text>
-        </div>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>闭环信号</Typography.Text>
-        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-          {closureSignals.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <div style={signalTileStyle}>
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>{item.title}</Typography.Text>
-                    <Tag color="blue">{item.emphasis}</Tag>
-                  </Space>
-                  <Typography.Text>{item.summary}</Typography.Text>
-                  <Typography.Text type="secondary">{item.description}</Typography.Text>
-                  <a href={item.href}>{item.actionLabel}</a>
-                </Space>
-              </div>
-            </Col>
-          ))}
         </Row>
       </div>
 

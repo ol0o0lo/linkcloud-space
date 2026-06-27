@@ -219,10 +219,10 @@ describe('House detail page', () => {
     render(<QueryClientProvider client={new QueryClient()}><HouseDetailPage /></QueryClientProvider>);
 
     expect(await screen.findByText('业务阶段')).toBeInTheDocument();
-    expect(screen.getByText('当前建议')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getByText('媒体准备度')).toBeInTheDocument();
     expect(screen.getByText('签约与合同')).toBeInTheDocument();
-    expect(screen.getByText('先补房东主体，其他媒体问题可作为发布提醒继续处理')).toBeInTheDocument();
+    expect(screen.queryByText('先补房东主体，其他媒体问题可作为发布提醒继续处理')).not.toBeInTheDocument();
     expect(screen.getAllByText('0 图 / 0 视频').length).toBeGreaterThan(0);
     expect(screen.getByText('待补资料后发布')).toBeInTheDocument();
     expect(screen.getByText('业务工作面板')).toBeInTheDocument();
@@ -382,7 +382,7 @@ describe('House detail page', () => {
 
     render(<QueryClientProvider client={new QueryClient()}><HouseDetailPage /></QueryClientProvider>);
 
-    await screen.findByText('先补房东主体，其他媒体问题可作为发布提醒继续处理');
+    await screen.findByText('待补资料后发布');
     fireEvent.click(screen.getByRole('button', { name: /补充基础资料/ }));
 
     await waitFor(() => expect(window.location.search).toBe('?action=edit&task=landlord'));
@@ -416,7 +416,7 @@ describe('House detail page', () => {
 
     render(<QueryClientProvider client={new QueryClient()}><HouseDetailPage /></QueryClientProvider>);
 
-    await screen.findByText('可直接发布，建议继续补齐 缺封面 等 3 项提醒');
+    await screen.findByText('可发布待上线');
     fireEvent.click(screen.getByRole('button', { name: /去维护相册/ }));
 
     await waitFor(() => expect(window.location.search).toBe('?action=media&task=cover'));

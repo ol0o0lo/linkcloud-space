@@ -17,16 +17,6 @@ type EstateDrawerState = {
   buildingCreateEstateId?: number;
 };
 
-type EstateClosureSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  href: string;
-};
-
 type EstateOverviewCard = {
   key: string;
   title: string;
@@ -64,22 +54,6 @@ function getBuildingRegisterHint(building: BuildingOut) {
   if (!building.address) return '缺地址，先补楼栋资料';
   if (building.is_active === false) return '停用中，暂停新增房源';
   return '基础可用，可开始建房源';
-}
-
-function getEstateTaskSuggestion(task: EstateTask | undefined) {
-  if (task === 'estate_address') {
-    return '当前重点补齐项目地址，避免楼栋和房源挂接后继续缺少项目级定位与展示信息。';
-  }
-  if (task === 'building_address') {
-    return '当前重点补齐楼栋地址，避免房源建档后定位、派单和到访导航继续缺底座信息。';
-  }
-  if (task === 'no_building') {
-    return '当前先补齐首栋可用楼栋，再继续录入房源，避免项目台账看起来已就绪但无法真正承接房源。';
-  }
-  if (task === 'inactive') {
-    return '当前先清理停用项目和楼栋，确认是否还应保留历史底座，避免新增房源误挂到停用资产。';
-  }
-  return undefined;
 }
 
 function getEstateTaskLabel(task?: EstateTask) {
@@ -154,10 +128,6 @@ function getEstateListHref(filters: { estatePage: number; buildingPage: number; 
   return `/dashboard/property-rental/estates${nextSearch ? `?${nextSearch}` : ''}`;
 }
 
-function dashboardHref(path: string) {
-  return `/dashboard${path}`;
-}
-
 function estateMatchesTask(estate: EstateOut, buildings: BuildingOut[], task?: EstateTask) {
   if (task === 'estate_address') return !estate.address;
   if (task === 'no_building') return getEstateBuildings(buildings, estate.id).length === 0;
@@ -175,29 +145,6 @@ function getTaskViewMode(task: EstateTask | undefined, fallback: EstateViewMode)
   if (task === 'estate_address' || task === 'no_building') return 'estates';
   if (task === 'building_address') return 'buildings';
   return fallback;
-}
-
-function getEstatePageSuggestion(estates: EstateOut[], buildings: BuildingOut[], q?: string, task?: EstateTask) {
-  const taskSuggestion = getEstateTaskSuggestion(task);
-  if (taskSuggestion) return taskSuggestion;
-  const inactiveEstateCount = estates.filter((item) => item.is_active === false).length;
-  const inactiveBuildingCount = buildings.filter((item) => item.is_active === false).length;
-  const missingAddress = estates.some((item) => !item.address) || buildings.some((item) => !item.address);
-  const hasInactive = inactiveEstateCount > 0 || inactiveBuildingCount > 0;
-  if (q) {
-    if (!estates.length && !buildings.length) return '当前搜索结果为空，可以改搜项目名、楼栋名或回到全量台账继续排查基础资料。';
-    if (hasInactive && missingAddress) return '当前结果里同时有停用和资料缺口，先确认是否仍在运营，再补地址与楼栋基础信息。';
-    if (hasInactive) return '当前结果里存在停用项目或楼栋，新增房源前先确认是否仍应挂接到这套底座。';
-    if (missingAddress) return '当前结果里还有地址缺口，继续建档前先补齐项目和楼栋资料。';
-    return '当前结果可直接用于核对项目底座、楼栋覆盖和是否适合继续承接新房源。';
-  }
-  if (hasInactive && missingAddress) {
-    return '优先清理停用项目/楼栋，并补齐项目地址和楼栋资料，避免房源建档时挂到无效基础数据。';
-  }
-  if (hasInactive) return '优先清理停用项目/楼栋，避免房源建档时挂到无效基础数据。';
-  if (missingAddress) return '优先补齐项目地址和楼栋资料，避免房源建档时挂到不完整基础数据。';
-  if (!buildings.length) return '先补楼栋底座，再开始批量建房源。';
-  return '先维护好项目和楼栋底座，再把新房源挂到稳定的基础资料上。';
 }
 
 function getEstateScopedOverviewCards(options: {
@@ -434,13 +381,6 @@ const EstatesPage: React.FC = () => {
   const buildingTableBaseRows = task ? buildingOverviewRows : (buildings.data?.items || []);
   const estateRows = estateTableBaseRows.filter((item) => estateMatchesTask(item, buildingOverviewRows, task));
   const buildingRows = buildingTableBaseRows.filter((item) => buildingMatchesTask(item, task));
-  const activeEstateCount = estateOverviewRows.filter((item) => item.is_active !== false).length;
-  const activeBuildingCount = buildingOverviewRows.filter((item) => item.is_active !== false).length;
-  const inactiveEstateCount = estateOverviewRows.filter((item) => item.is_active === false).length;
-  const inactiveBuildingCount = buildingOverviewRows.filter((item) => item.is_active === false).length;
-  const estateAddressMissingCount = estateOverviewRows.filter((item) => !item.address).length;
-  const buildingAddressMissingCount = buildingOverviewRows.filter((item) => !item.address).length;
-  const noBuildingCount = estateOverviewRows.filter((item) => getEstateBuildings(buildingOverviewRows, item.id).length === 0).length;
   const effectiveViewMode = getTaskViewMode(task, viewMode);
   const scopeText = getEstateScopeText({ q, task });
   const scopedOverview = Boolean(scopeText);
@@ -453,21 +393,9 @@ const EstatesPage: React.FC = () => {
     q,
     task,
   });
-  const pageSuggestion = overviewLoading
-    ? '正在整理项目和楼栋底座，请稍候再判断资料缺口和治理优先级。'
-    : getEstatePageSuggestion(filteredEstateOverviewRows, filteredBuildingOverviewRows, q, task);
   const focusedAction = getEstateFocusedActionCopy(task, drawerState);
   const estateTotal = task ? estateRows.length : estates.data?.total || 0;
   const buildingTotal = task ? buildingRows.length : buildings.data?.total || 0;
-  const queueCounts = {
-    all: estateOverviewRows.length + buildingOverviewRows.length,
-    estate_address: estateOverviewRows.filter((item) => estateMatchesTask(item, buildingOverviewRows, 'estate_address')).length,
-    building_address: buildingOverviewRows.filter((item) => buildingMatchesTask(item, 'building_address')).length,
-    no_building: estateOverviewRows.filter((item) => estateMatchesTask(item, buildingOverviewRows, 'no_building')).length,
-    inactive:
-      estateOverviewRows.filter((item) => estateMatchesTask(item, buildingOverviewRows, 'inactive')).length
-      + buildingOverviewRows.filter((item) => buildingMatchesTask(item, 'inactive')).length,
-  } as const;
   const visibleEstateViewCount = task ? filteredEstateOverviewRows.length : estateOverviewRows.length;
   const visibleBuildingViewCount = task ? filteredBuildingOverviewRows.length : buildingOverviewRows.length;
   const { token } = theme.useToken();
@@ -484,51 +412,6 @@ const EstatesPage: React.FC = () => {
     height: '100%',
     padding: 16,
   } as const;
-  const signalTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    background: token.colorBgContainer,
-    height: '100%',
-    padding: 16,
-  } as const;
-  const closureSignals: EstateClosureSignal[] = [
-    {
-      key: 'estate_address',
-      title: '项目底座',
-      emphasis: estateAddressMissingCount > 0 ? '先补项目地址' : '项目稳定',
-      summary: `${activeEstateCount} 个在管项目 / ${estateAddressMissingCount} 个待补地址`,
-      description: '项目地址和项目级底座不完整时，后续楼栋、房源和展示链路都会持续带着缺口往后传。',
-      actionLabel: '进入项目地址队列',
-      href: dashboardHref('/property-rental/estates?task=estate_address'),
-    },
-    {
-      key: 'no_building',
-      title: '首栋补齐',
-      emphasis: noBuildingCount > 0 ? '先补首栋' : '楼栋齐备',
-      summary: `${noBuildingCount} 个待补首栋 / ${activeBuildingCount} 个在管楼栋`,
-      description: '项目只有真正落下第一栋可用楼栋，后面的房源建档才算能开始承接业务。',
-      actionLabel: '进入首栋补齐队列',
-      href: dashboardHref('/property-rental/estates?task=no_building'),
-    },
-    {
-      key: 'building_address',
-      title: '楼栋治理',
-      emphasis: buildingAddressMissingCount > 0 ? '先补楼栋地址' : '楼栋稳定',
-      summary: `${buildingAddressMissingCount} 个待补地址 / ${activeBuildingCount} 个可挂房源`,
-      description: '楼栋地址和供给条件不清楚时，房源挂接、带看导航和后续派单都会变得不可靠。',
-      actionLabel: '进入楼栋治理队列',
-      href: dashboardHref('/property-rental/estates?task=building_address'),
-    },
-    {
-      key: 'inactive',
-      title: '停用清理',
-      emphasis: inactiveEstateCount + inactiveBuildingCount > 0 ? '先做清理' : '停用平稳',
-      summary: `${inactiveEstateCount} 个停用项目 / ${inactiveBuildingCount} 个停用楼栋`,
-      description: '停用项目和楼栋要尽早确认是否继续保留，避免新增房源误挂到已经退出运营的资产上。',
-      actionLabel: '进入停用清理队列',
-      href: dashboardHref('/property-rental/estates?task=inactive'),
-    },
-  ];
 
   useEffect(() => {
     syncEstateListSearch({ estatePage, buildingPage, q, view: viewMode, task });
@@ -572,33 +455,6 @@ const EstatesPage: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const queueButtons: { key: 'all' | EstateTask; label: string }[] = [
-    { key: 'all', label: '全部' },
-    { key: 'estate_address', label: '待补项目地址' },
-    { key: 'building_address', label: '待补楼栋地址' },
-    { key: 'no_building', label: '待补首栋楼' },
-    { key: 'inactive', label: '停用资产' },
-  ];
-  const visibleQueueButtons = queueButtons.filter((item) => queueCounts[item.key] > 0 || (item.key === 'all' ? !task : task === item.key));
-  const hiddenQueueCount = queueButtons.length - visibleQueueButtons.length;
-
-  const applyTask = (nextTask: 'all' | EstateTask) => {
-    setEstatePage(1);
-    setBuildingPage(1);
-    setTask(nextTask === 'all' ? undefined : nextTask);
-    if (nextTask === 'estate_address' || nextTask === 'no_building') {
-      setViewMode('estates');
-      return;
-    }
-    if (nextTask === 'building_address') {
-      setViewMode('buildings');
-      return;
-    }
-    if (nextTask === 'inactive') {
-      setViewMode('all');
-    }
-  };
-
   return (
     <TenantSelectionGuard title="项目楼栋" subtitle="维护房源所在的小区、项目和楼栋基础资料。">
       <div style={sectionStyle}>
@@ -616,64 +472,9 @@ const EstatesPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>当前建议</Typography.Text>
-        <Typography.Paragraph style={{ marginBottom: 0, marginTop: 12 }}>{pageSuggestion}</Typography.Paragraph>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>闭环信号</Typography.Text>
-        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-          {closureSignals.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <div style={signalTileStyle}>
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>{item.title}</Typography.Text>
-                    <Tag color="blue">{item.emphasis}</Tag>
-                  </Space>
-                  <Typography.Text>{item.summary}</Typography.Text>
-                  <Typography.Text type="secondary">{item.description}</Typography.Text>
-                  <a href={item.href}>{item.actionLabel}</a>
-                </Space>
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div style={{ marginBottom: 16 }}>
-          <Typography.Text strong>基础治理队列</Typography.Text>
-          <div style={{ marginTop: 8 }}>
-            <Typography.Text type="secondary">先补项目和楼栋底座，再清理停用资产，避免后续房源建档挂到不完整或无效基础资料上。</Typography.Text>
-          </div>
-        </div>
-        <Space wrap>
-          {visibleQueueButtons.map((item) => (
-            <Button
-              key={item.key}
-              size="small"
-              type={(item.key === 'all' ? !task : task === item.key) ? 'primary' : 'default'}
-              onClick={() => applyTask(item.key)}
-            >
-              {`${item.label} ${getLoadingSafeCount(queueCounts[item.key], overviewLoading)}`}
-            </Button>
-          ))}
-        </Space>
-        {hiddenQueueCount > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <Typography.Text type="secondary">已收起 {hiddenQueueCount} 个 0 项，避免把空队列和当前重点放在同一层级。</Typography.Text>
-          </div>
-        ) : null}
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, width: '100%', marginBottom: 16 }}>
           <div>
             <Typography.Text strong>基础资料视图</Typography.Text>
-            <div style={{ marginTop: 8 }}>
-              <Typography.Text type="secondary">按当前维护重点切到项目或楼栋台账，减少同屏干扰，把底座治理工作拆成更稳定的台账动作。</Typography.Text>
-            </div>
           </div>
           <Segmented
             options={[
@@ -686,7 +487,6 @@ const EstatesPage: React.FC = () => {
           />
         </div>
         <Space wrap size={[16, 8]}>
-          <Typography.Text type="secondary">{getLoadingSafeText('按当前维护重点切换到项目或楼栋台账，减少同屏信息干扰。', '正在整理基础资料视图...', overviewLoading)}</Typography.Text>
           <Tag color={effectiveViewMode === 'all' ? 'blue' : 'default'}>{`项目 ${getLoadingSafeCount(visibleEstateViewCount, overviewLoading)}`}</Tag>
           <Tag color={effectiveViewMode === 'all' ? 'blue' : 'default'}>{`楼栋 ${getLoadingSafeCount(visibleBuildingViewCount, overviewLoading)}`}</Tag>
         </Space>
@@ -697,7 +497,6 @@ const EstatesPage: React.FC = () => {
           <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
             <Space orientation="vertical" size={4}>
               <Typography.Text strong>{`当前只看：${scopeText}`}</Typography.Text>
-              <Typography.Text type="secondary">{pageSuggestion}</Typography.Text>
             </Space>
             <Button size="small" href={getEstateListHref({ estatePage: 1, buildingPage: 1, view: viewMode })}>查看全部</Button>
           </Space>
@@ -868,7 +667,7 @@ const EstatesPage: React.FC = () => {
           <Form.Item label="省份" name="province" rules={[{ required: true, message: '请输入省份' }]}><Input /></Form.Item>
           <Form.Item label="城市" name="city" rules={[{ required: true, message: '请输入城市' }]}><Input /></Form.Item>
           <Form.Item label="区域" name="district" rules={[{ required: true, message: '请输入区域' }]}><Input /></Form.Item>
-          <Form.Item label="地址" name="address" extra="可先留空，后续通过治理队列补齐项目地址。"><Input placeholder="例如：科技园路 1 号（可稍后补）" /></Form.Item>
+          <Form.Item label="地址" name="address" extra="可先留空，后续补齐项目地址。"><Input placeholder="例如：科技园路 1 号（可稍后补）" /></Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
         </Form>
       </Drawer>

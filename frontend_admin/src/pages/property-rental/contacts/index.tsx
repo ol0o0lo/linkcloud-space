@@ -18,20 +18,6 @@ const CONTACT_TASK_OPTIONS = [
 const CONTACT_TASK_TEXT = Object.fromEntries(CONTACT_TASK_OPTIONS.map((item) => [item.value, item.label]));
 const PAGE_SIZE = 20;
 
-type ContactClosureSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  href: string;
-};
-
-function dashboardHref(path: string) {
-  return `/dashboard${path}`;
-}
-
 function hasRole(record: ContactOut, role: string) {
   return record.roles?.includes(role);
 }
@@ -69,48 +55,12 @@ function getContactBusinessInfo(record: ContactOut) {
   };
 }
 
-function getContactPageSuggestion(contacts: ContactOut[], filters: { role?: string; task?: string; q?: string }) {
-  const { role, task, q } = filters;
-  const inactiveCount = contacts.filter((item) => item.is_active === false).length;
-  const dualRoleCount = contacts.filter((item) => hasRole(item, CONTACT_ROLE.LANDLORD) && hasRole(item, CONTACT_ROLE.TENANT)).length;
-  const missingRoleCount = contacts.filter(hasMissingRole).length;
-  const landlordCount = contacts.filter((item) => hasRole(item, CONTACT_ROLE.LANDLORD)).length;
-  const tenantCount = contacts.filter((item) => hasRole(item, CONTACT_ROLE.TENANT)).length;
-  if (task === 'dual_role') return '当前只看双角色主体，优先确认这次业务到底以房东还是租客身份流转。';
-  if (task === 'inactive') return '当前只看停用联系人，恢复前先确认是否还会进入新的房源、带看或签约流程。';
-  if (task === 'role_missing') return '当前只看缺角色主体，先补齐房东或租客身份，再推进业务录入。';
-  if (role === CONTACT_ROLE.LANDLORD) {
-    if (inactiveCount > 0 || dualRoleCount > 0) return '当前房东范围内仍有停用或双角色主体，录入房源前先确认应使用的业务身份。';
-    return '当前只看房东档案，优先核对是否能直接关联房源主体。';
-  }
-  if (role === CONTACT_ROLE.TENANT) {
-    if (inactiveCount > 0 || dualRoleCount > 0) return '当前租客范围内仍有停用或双角色主体，带看和签约前先确认应使用的业务身份。';
-    return '当前只看租客档案，优先核对是否能直接承接带看与签约。';
-  }
-  if (q) return '当前结果用于快速核对联系人主体、角色和是否仍参与新业务流程。';
-  if (missingRoleCount > 0) return '优先补齐缺角色主体，再清理停用联系人和双角色身份，避免后续业务挂错对象。';
-  if (inactiveCount > 0 || dualRoleCount > 0) {
-    return '优先清理停用联系人，并明确房东/租客角色，避免业务流转时找不到主体。';
-  }
-  if (!landlordCount) return '先补房东档案，避免房源登记后无法关联出租主体。';
-  if (!tenantCount) return '先补租客档案，避免带看和签约线索只能落在临时记录里。';
-  return '保持联系人主体清晰，房源、带看和签约才能稳定闭环。';
-}
-
 function getContactScopeText(role?: string, q?: string, task?: string) {
   const parts: string[] = [];
   if (task) parts.push(`队列：${CONTACT_TASK_TEXT[task] || task}`);
   if (role) parts.push(`角色：${ROLE_TEXT[role] || role}`);
   if (q) parts.push(`搜索：${q}`);
   return parts.join(' / ');
-}
-
-function buildContactQueueHref(filters: { role?: string; task?: string }) {
-  const params = new URLSearchParams();
-  if (filters.role) params.set('role', filters.role);
-  if (filters.task) params.set('task', filters.task);
-  const search = params.toString();
-  return `/property-rental/contacts${search ? `?${search}` : ''}`;
 }
 
 function getContactScopedOverviewCards(contacts: ContactOut[], filters: { role?: string; task?: string; q?: string }) {
@@ -290,16 +240,11 @@ const ContactsPage: React.FC = () => {
   const dualRoleCount = baseContactRows.filter((item) => hasRole(item, CONTACT_ROLE.LANDLORD) && hasRole(item, CONTACT_ROLE.TENANT)).length;
   const inactiveCount = baseContactRows.filter((item) => item.is_active === false).length;
   const roleMissingCount = baseContactRows.filter(hasMissingRole).length;
-  const activeLandlordCount = baseContactRows.filter((item) => item.is_active !== false && hasRole(item, CONTACT_ROLE.LANDLORD)).length;
-  const activeTenantCount = baseContactRows.filter((item) => item.is_active !== false && hasRole(item, CONTACT_ROLE.TENANT)).length;
   const scopeText = getContactScopeText(role, q, task);
   const scopedOverview = Boolean(scopeText);
   const scopedOverviewCards = getContactScopedOverviewCards(contactOverviewRows, { role, task, q });
   const overviewLoading = scopedOverview ? isInitialQueryPending(overviewContacts) : isInitialQueryPending(baseContacts);
-  const queueLoading = isInitialQueryPending(baseContacts);
   const listLoading = isInitialQueryPending(contacts);
-  const pageSuggestion = overviewLoading ? '正在汇总联系人数据，请稍候再判断主体治理优先级。' : getContactPageSuggestion(contactOverviewRows, { role, task, q });
-  const activeQueue = task || role || 'all';
   const { token } = theme.useToken();
   const sectionStyle = {
     border: `1px solid ${token.colorBorderSecondary}`,
@@ -314,97 +259,15 @@ const ContactsPage: React.FC = () => {
     height: '100%',
     padding: 16,
   } as const;
-  const signalTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    background: token.colorBgContainer,
-    height: '100%',
-    padding: 16,
-  } as const;
 
   useEffect(() => {
     syncContactListSearch({ page, q, role, task });
   }, [page, q, role, task]);
 
-  const applyQueue = (queue: string) => {
-    setPage(1);
-    if (queue === 'all') {
-      setRole(undefined);
-      setTask(undefined);
-      return;
-    }
-    if (queue === CONTACT_ROLE.LANDLORD || queue === CONTACT_ROLE.TENANT) {
-      setRole(queue);
-      setTask(undefined);
-      return;
-    }
-    setRole(undefined);
-    setTask(queue);
-  };
-
   const createActions = [
     { key: 'landlord', label: '新建房东', role: CONTACT_ROLE.LANDLORD },
     { key: 'tenant', label: '新建租客', role: CONTACT_ROLE.TENANT },
     { key: 'all', label: '新建联系人', role: undefined },
-  ];
-  const queueButtons = [
-    { key: 'all', label: '全部', count: baseContactRows.length, active: activeQueue === 'all' },
-    { key: CONTACT_ROLE.LANDLORD, label: '房东档案', count: landlordCount, active: activeQueue === CONTACT_ROLE.LANDLORD },
-    { key: CONTACT_ROLE.TENANT, label: '租客档案', count: tenantCount, active: activeQueue === CONTACT_ROLE.TENANT },
-    { key: 'dual_role', label: '双角色待确认', count: dualRoleCount, active: activeQueue === 'dual_role' },
-    { key: 'inactive', label: '停用联系人', count: inactiveCount, active: activeQueue === 'inactive' },
-    { key: 'role_missing', label: '缺角色主体', count: roleMissingCount, active: activeQueue === 'role_missing' },
-  ] as const;
-  const visibleQueueButtons = queueButtons.filter((item) => item.count > 0 || item.active);
-  const hiddenQueueCount = queueButtons.length - visibleQueueButtons.length;
-  const closureSignals: ContactClosureSignal[] = [
-    {
-      key: 'landlord',
-      title: '房东供给',
-      emphasis: activeLandlordCount > 0 ? '可承接建档' : landlordCount > 0 ? '先启用主体' : '先补房东',
-      summary: `${landlordCount} 个房东档案 / ${activeLandlordCount} 个可登记房源`,
-      description: '房东主体清楚，房源建档、资料补齐和发布挂接才不会断在第一步。',
-      actionLabel: '进入房东供给台账',
-      href: dashboardHref(buildContactQueueHref({ role: CONTACT_ROLE.LANDLORD })),
-    },
-    {
-      key: 'tenant',
-      title: '租客承接',
-      emphasis: activeTenantCount > 0 ? '可承接带看' : tenantCount > 0 ? '先启用主体' : '先补租客',
-      summary: `${tenantCount} 个租客档案 / ${activeTenantCount} 个可登记带看`,
-      description: '租客主体稳定，带看转签约时才不会因为联系人不清楚而中途卡住。',
-      actionLabel: '进入租客承接台账',
-      href: dashboardHref(buildContactQueueHref({ role: CONTACT_ROLE.TENANT })),
-    },
-    {
-      key: 'dual_role',
-      title: '双角色治理',
-      emphasis: dualRoleCount > 0 ? '先确认身份' : '身份清晰',
-      summary: `${dualRoleCount} 个双角色待确认`,
-      description: '同一主体兼具房东和租客身份时，推进业务前要先明确这次到底在用哪一个角色。',
-      actionLabel: '进入双角色治理队列',
-      href: dashboardHref(buildContactQueueHref({ task: 'dual_role' })),
-    },
-    ...(roleMissingCount > 0
-      ? [{
-          key: 'role_missing',
-          title: '角色补齐',
-          emphasis: '先补角色',
-          summary: `${roleMissingCount} 个缺角色主体`,
-          description: '联系人未标明房东或租客身份时，房源、带看和签约都无法稳定挂接到正确主体。',
-          actionLabel: '进入角色补齐队列',
-          href: dashboardHref(buildContactQueueHref({ task: 'role_missing' })),
-        } satisfies ContactClosureSignal]
-      : []),
-    {
-      key: 'inactive',
-      title: '停用清理',
-      emphasis: inactiveCount > 0 ? '先做清理' : '停用稳定',
-      summary: `${inactiveCount} 个停用联系人`,
-      description: '停用主体要尽早收口，避免新房源、带看和签约误挂到不可用对象上。',
-      actionLabel: '进入停用清理队列',
-      href: dashboardHref(buildContactQueueHref({ task: 'inactive' })),
-    },
   ];
 
   return (
@@ -453,66 +316,9 @@ const ContactsPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>当前建议</Typography.Text>
-        <Typography.Paragraph style={{ marginBottom: 0, marginTop: 12 }}>{pageSuggestion}</Typography.Paragraph>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>闭环信号</Typography.Text>
-        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-          {closureSignals.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <div style={signalTileStyle}>
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>{item.title}</Typography.Text>
-                    <Tag color="blue">{item.emphasis}</Tag>
-                  </Space>
-                  <Typography.Text>{item.summary}</Typography.Text>
-                  <Typography.Text type="secondary">{item.description}</Typography.Text>
-                  <a href={item.href}>{item.actionLabel}</a>
-                </Space>
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div style={{ marginBottom: 16 }}>
-          <Typography.Text strong>联系人治理队列</Typography.Text>
-          <div style={{ marginTop: 8 }}>
-            <Typography.Text type="secondary">先处理双角色、停用和缺角色主体，再把房源、带看和签约挂到稳定可用的业务对象上。</Typography.Text>
-          </div>
-        </div>
-        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-          <Space wrap>
-            {visibleQueueButtons.map((item) => (
-              <Button
-                key={item.key}
-                type={item.active ? 'primary' : 'default'}
-                onClick={() => applyQueue(item.key)}
-              >
-                {`${item.label} ${getLoadingSafeCount(item.count, queueLoading)}`}
-              </Button>
-            ))}
-          </Space>
-          {hiddenQueueCount > 0 ? (
-            <Typography.Text type="secondary">已收起 {hiddenQueueCount} 个 0 项，避免把空队列和关键治理项放在同一层级。</Typography.Text>
-          ) : null}
-        </Space>
-        <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
-          {getLoadingSafeText('先把双角色、停用和缺角色主体处理干净，后续房源、带看和签约才不会挂错业务对象。', '正在整理联系人治理队列...', queueLoading)}
-        </Typography.Paragraph>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, width: '100%', marginBottom: 16 }}>
           <div>
             <Typography.Text strong>联系人业务台账</Typography.Text>
-            <div style={{ marginTop: 8 }}>
-              <Typography.Text type="secondary">沉淀房东、租客和双角色主体，给房源、带看和租约提供可复用的业务对象。</Typography.Text>
-            </div>
           </div>
           <AdminToolbar>
             <Space wrap>
@@ -570,7 +376,7 @@ const ContactsPage: React.FC = () => {
           />
           <Select
             allowClear
-            placeholder="治理队列"
+            placeholder="任务"
             options={CONTACT_TASK_OPTIONS}
             value={task}
             onChange={(value) => {

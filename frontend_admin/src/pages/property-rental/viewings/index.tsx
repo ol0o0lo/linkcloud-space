@@ -53,17 +53,6 @@ function getViewingNextActionText(record: ViewingRecordOut) {
   return '持续跟进';
 }
 
-function getViewingPageSuggestion(status?: string, pendingLease?: boolean, abnormalCount?: number, missingContactCount?: number) {
-  if ((missingContactCount || 0) > 0) return '先补齐已成交记录的租客联系人，再创建租约，避免签约主体缺失。';
-  if (pendingLease) return '优先补租约建档，避免成交记录长期停留在带看阶段。';
-  if (status === VIEWING_STATUS.CONVERTED) return '已成交记录应尽快转租约，避免签约链路中断。';
-  if (status === VIEWING_STATUS.VIEWED) return '已带看客户要尽快补回访结果，否则很难判断成交机会。';
-  if (status === VIEWING_STATUS.SCHEDULED) return '预约中的客户要及时确认到访，避免带看排期失真。';
-  if (status === VIEWING_STATUS.CANCELED || status === VIEWING_STATUS.NO_SHOW) return '异常记录需要及时回访，避免客户线索直接流失。';
-  if ((abnormalCount || 0) > 0) return '优先清理爽约/取消记录，避免客户跟进悬空。';
-  return '先处理待签约和待回访记录，再补全预约过程状态。';
-}
-
 function getViewingDrawerEntryText(options: { editing: boolean; sourceHouseId?: number; sourceContactId?: number; status?: string }) {
   if (options.editing) return options.status ? `带看维护 / ${STATUS_TEXT[options.status] || options.status}` : '带看维护';
   if (options.sourceContactId) return '联系人快速登记';
@@ -177,16 +166,6 @@ type ViewingOverviewCard = {
   hint: string;
   params?: Record<string, unknown>;
   getValue?: (context: { counts: Record<string, number>; currentTotal: number }) => number;
-};
-
-type ViewingClosureSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  href: string;
 };
 
 function getScopedViewingOverviewCards(status?: string, pendingLease?: boolean, contactMissing?: boolean): ViewingOverviewCard[] {
@@ -547,19 +526,16 @@ const ViewingsPage: React.FC = () => {
   const pendingLeaseCount = overviewQueries[3]?.data?.total || 0;
   const canceledCount = overviewQueries[4]?.data?.total || 0;
   const noShowCount = overviewQueries[5]?.data?.total || 0;
-  const allViewingCount = scheduledCount + viewedCount + convertedCount + canceledCount + noShowCount;
   const abnormalCount = canceledCount + noShowCount;
   const missingContactQueueTotal = conversionSupportQueries[0]?.data?.total || 0;
   const readyLeaseQueueTotal = conversionSupportQueries[1]?.data?.total || 0;
   const rows = viewings.data?.items || [];
   const currentScopedTotal = viewings.data?.total || 0;
-  const missingContactCount = contactMissing === true ? currentScopedTotal : missingContactQueueTotal;
   const pendingLeaseOverviewTitle = contactMissing === true ? '待补租客' : contactMissing === false && pendingLease ? '可签约' : '待签约';
   const pendingLeaseOverviewValue = pendingLease && contactMissing !== undefined ? viewings.data?.total || 0 : pendingLeaseCount;
   const pendingLeaseOverviewHint = contactMissing === true ? '成交后待补租客主体' : contactMissing === false && pendingLease ? '主体完整，可直接转租约' : '成交后待转租约的记录';
   const overviewLoading = scopedOverview ? isAnyInitialQueryPending([viewings, ...scopedOverviewQueries]) : isAnyInitialQueryPending(overviewQueries);
   const listLoading = isInitialQueryPending(viewings);
-  const pageSuggestion = overviewLoading ? '正在整理带看数据，请稍候再判断回访、签约和异常跟进优先级。' : getViewingPageSuggestion(status, pendingLease, abnormalCount, missingContactCount);
   const defaultOverviewCards = [
     {
       key: 'scheduled',
@@ -590,8 +566,6 @@ const ViewingsPage: React.FC = () => {
   const renderedDefaultOverviewCards = overviewLoading
     ? defaultOverviewCards
     : (visibleDefaultOverviewCards.length ? visibleDefaultOverviewCards : defaultOverviewCards.slice(0, 1));
-  const hiddenDefaultOverviewCount = defaultOverviewCards.length - renderedDefaultOverviewCards.length;
-  const defaultOverviewSummaryText = !overviewLoading && hiddenDefaultOverviewCount > 0 ? `已收起 ${hiddenDefaultOverviewCount} 个 0 项，避免把空指标铺满首屏。` : '';
   const scopedOverviewCounts = (() => {
     let queryIndex = 0;
     return scopedOverviewCards.reduce<Record<string, number>>((acc, item) => {
@@ -616,121 +590,6 @@ const ViewingsPage: React.FC = () => {
   const visibleScopedOverviewCards = overviewLoading
     ? scopedOverviewCardsWithCount
     : (renderedScopedOverviewCards.length ? renderedScopedOverviewCards : scopedOverviewCardsWithCount.slice(0, 1));
-  const hiddenScopedOverviewCount = scopedOverviewCards.length - visibleScopedOverviewCards.length;
-  const scopedOverviewSummaryText = !overviewLoading && hiddenScopedOverviewCount > 0 ? `已收起 ${hiddenScopedOverviewCount} 个 0 项，避免把空指标铺满首屏。` : '';
-  const applyQueue = (queue: 'all' | 'scheduled' | 'viewed' | 'converted' | 'pending_lease' | 'missing_contact' | 'ready_lease') => {
-    setPage(1);
-    if (queue === 'all') {
-      setStatus(undefined);
-      setPendingLease(undefined);
-      setContactMissing(undefined);
-      return;
-    }
-    if (queue === 'scheduled') {
-      setStatus(VIEWING_STATUS.SCHEDULED);
-      setPendingLease(undefined);
-      setContactMissing(undefined);
-      return;
-    }
-    if (queue === 'viewed') {
-      setStatus(VIEWING_STATUS.VIEWED);
-      setPendingLease(undefined);
-      setContactMissing(undefined);
-      return;
-    }
-    if (queue === 'converted') {
-      setStatus(VIEWING_STATUS.CONVERTED);
-      setPendingLease(undefined);
-      setContactMissing(undefined);
-      return;
-    }
-    setStatus(undefined);
-    setPendingLease(true);
-    if (queue === 'missing_contact') {
-      setContactMissing(true);
-      return;
-    }
-    if (queue === 'ready_lease') {
-      setContactMissing(false);
-      return;
-    }
-    setContactMissing(undefined);
-  };
-  const quickQueueLinks = [
-    { key: 'all', label: '全部', count: allViewingCount, active: !statusText },
-    {
-      key: 'scheduled',
-      label: '已预约',
-      count: scheduledCount,
-      active: status === VIEWING_STATUS.SCHEDULED && !pendingLease,
-    },
-    {
-      key: 'viewed',
-      label: '待回访',
-      count: viewedCount,
-      active: status === VIEWING_STATUS.VIEWED && !pendingLease,
-    },
-    {
-      key: 'converted',
-      label: '已成交',
-      count: convertedCount,
-      active: status === VIEWING_STATUS.CONVERTED && !pendingLease,
-    },
-    {
-      key: 'pending_lease',
-      label: '待签约',
-      count: pendingLeaseCount,
-      active: pendingLease === true && contactMissing === undefined,
-    },
-    {
-      key: 'missing_contact',
-      label: '待补租客',
-      count: missingContactCount,
-      active: pendingLease === true && contactMissing === true,
-    },
-    {
-      key: 'ready_lease',
-      label: '可签约',
-      count: readyLeaseCount,
-      active: pendingLease === true && contactMissing === false,
-    },
-  ] as const;
-  const visibleQuickQueueLinks = quickQueueLinks.filter((item) => item.count > 0 || item.active);
-  const hiddenQuickQueueLinkCount = quickQueueLinks.length - visibleQuickQueueLinks.length;
-  const quickQueueSummaryItems = [
-    { key: 'all', label: '全部', count: allViewingCount, active: !statusText },
-    { key: 'scheduled', label: '已预约', count: scheduledCount, active: status === VIEWING_STATUS.SCHEDULED && !pendingLease },
-    { key: 'viewed', label: '待回访', count: viewedCount, active: status === VIEWING_STATUS.VIEWED && !pendingLease },
-    { key: 'converted', label: '已成交', count: convertedCount, active: status === VIEWING_STATUS.CONVERTED && !pendingLease },
-    { key: 'pending_lease', label: '待签约', count: pendingLeaseCount, active: pendingLease === true && contactMissing === undefined },
-    { key: 'missing_contact', label: '待补租客', count: missingContactCount, active: pendingLease === true && contactMissing === true },
-    { key: 'ready_lease', label: '可签约', count: readyLeaseCount, active: pendingLease === true && contactMissing === false },
-  ] as const;
-  const activeQueueSummaryItems = quickQueueSummaryItems
-    .filter((item) => item.count > 0 || item.active)
-    .sort((left, right) => {
-      if (left.active !== right.active) return left.active ? -1 : 1;
-      if (left.key === 'all') return -1;
-      if (right.key === 'all') return 1;
-      if (left.count !== right.count) return right.count - left.count;
-      return 0;
-    });
-  const quietQueueSummaryItems = quickQueueSummaryItems.filter((item) => item.count === 0 && !item.active);
-  const quietQueueSummaryText = quietQueueSummaryItems.length
-    ? quietQueueSummaryItems.map((item) => `${item.label} · ${item.key === 'scheduled'
-      ? '预约中的带看'
-      : item.key === 'viewed'
-        ? '待回访记录'
-        : item.key === 'converted'
-          ? '已成交记录'
-          : item.key === 'pending_lease'
-            ? '待签约成交记录'
-            : item.key === 'missing_contact'
-              ? '已成交但缺租客主体'
-              : item.key === 'ready_lease'
-                ? '主体完整，可直接转租约'
-                : '全部记录'}`).join('；')
-    : '';
   useEffect(() => {
     syncViewingListSearch({ page, status, pendingLease, contactMissing });
   }, [contactMissing, page, pendingLease, status]);
@@ -860,58 +719,6 @@ const ViewingsPage: React.FC = () => {
     background: token.colorFillQuaternary,
     height: '100%',
   } as const;
-  const queueSummaryTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    padding: 12,
-    background: token.colorBgContainer,
-    height: '100%',
-  } as const;
-  const signalTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    padding: 16,
-    background: token.colorBgContainer,
-    height: '100%',
-  } as const;
-  const closureSignals: ViewingClosureSignal[] = [
-    {
-      key: 'scheduled',
-      title: '预约到访',
-      emphasis: scheduledCount > 0 ? '先确认到访' : '排期平稳',
-      summary: `${scheduledCount} 条已预约`,
-      description: '先把预约中的客户确认到访结果，避免排期表和真实进展脱节。',
-      actionLabel: '进入预约队列',
-      href: '/dashboard/property-rental/viewings?status=scheduled',
-    },
-    {
-      key: 'viewed',
-      title: '回访决策',
-      emphasis: viewedCount > 0 ? '先补回访' : abnormalCount > 0 ? '先清异常' : '回访平稳',
-      summary: `${viewedCount} 条待回访 / ${abnormalCount} 条异常`,
-      description: '已带看、取消和爽约记录都要尽快回访，不然客户线索会断掉。',
-      actionLabel: '进入回访队列',
-      href: '/dashboard/property-rental/viewings?status=viewed',
-    },
-    {
-      key: 'contact',
-      title: '主体补齐',
-      emphasis: missingContactQueueCount > 0 ? '先补主体' : '主体已齐',
-      summary: `${missingContactQueueCount} 条待补租客`,
-      description: '成交记录如果没有租客主体，后面的签约、履约和合同归档都没法继续。',
-      actionLabel: '进入补主体队列',
-      href: '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=true',
-    },
-    {
-      key: 'lease',
-      title: '转签承接',
-      emphasis: readyLeaseCount > 0 ? '先转租约' : pendingLeaseCount > 0 ? '先清待签约' : '转签平稳',
-      summary: `${readyLeaseCount} 条可签约 / ${pendingLeaseCount} 条待签约`,
-      description: '主体完整的成交记录应尽快转成租约，别让成交长期停留在带看阶段。',
-      actionLabel: '进入可签约队列',
-      href: '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=false',
-    },
-  ];
 
   return (
     <TenantSelectionGuard title="带看" subtitle="跟进预约、到访、取消和成交记录。">
@@ -940,103 +747,18 @@ const ViewingsPage: React.FC = () => {
                 ))
               )}
         </Row>
-        {scopedOverview ? (
-          scopedOverviewSummaryText ? <Alert type="info" showIcon title={scopedOverviewSummaryText} style={{ marginTop: 16 }} /> : null
-        ) : defaultOverviewSummaryText ? (
-          <Alert type="info" showIcon title={defaultOverviewSummaryText} style={{ marginTop: 16 }} />
-        ) : null}
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>当前建议</Typography.Text>
-        <Typography.Paragraph style={{ marginBottom: 0, marginTop: 12 }}>{pageSuggestion}</Typography.Paragraph>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>闭环信号</Typography.Text>
-        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-          {closureSignals.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <div style={signalTileStyle}>
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>{item.title}</Typography.Text>
-                    <Tag color="blue">{item.emphasis}</Tag>
-                  </Space>
-                  <Typography.Text>{item.summary}</Typography.Text>
-                  <Typography.Text type="secondary">{item.description}</Typography.Text>
-                  <a href={item.href}>{item.actionLabel}</a>
-                </Space>
-              </div>
-            </Col>
-          ))}
-        </Row>
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, width: '100%', marginBottom: 16 }}>
           <div>
-            <Typography.Text strong>带看跟进队列</Typography.Text>
-            <div>
-              <Typography.Text type="secondary">围绕预约、回访、成交转签约和异常回访四类工作流推进。</Typography.Text>
-            </div>
+            <Typography.Text strong>带看列表</Typography.Text>
           </div>
           <AdminToolbar>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建带看</Button>
           </AdminToolbar>
         </div>
 
-        <Space wrap style={{ marginBottom: 16 }}>
-          {visibleQuickQueueLinks.map((item) => (
-            <Button key={item.key} size="small" type={item.active ? 'primary' : 'default'} onClick={() => applyQueue(item.key)}>
-              {`${item.label} ${getLoadingSafeCount(item.count, overviewLoading)}`}
-            </Button>
-          ))}
-        </Space>
-        {hiddenQuickQueueLinkCount > 0 ? (
-          <div style={{ marginBottom: 16 }}>
-            <Typography.Text type="secondary">已收起 {hiddenQuickQueueLinkCount} 个 0 项，避免把空队列和高优先级跟进入口放在同一层级。</Typography.Text>
-          </div>
-        ) : null}
-        <Typography.Text type="secondary">队列摘要</Typography.Text>
-        <Row gutter={[12, 12]} style={{ marginTop: 12, marginBottom: 16 }}>
-          {activeQueueSummaryItems.map((item) => (
-            <Col key={item.key} xs={12} sm={8} xl={6}>
-              <div style={queueSummaryTileStyle}>
-                <Space orientation="vertical" size={2} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>{item.label}</Typography.Text>
-                    <Tag color={item.active ? 'blue' : 'default'}>{item.count}</Tag>
-                  </Space>
-                  <Typography.Text type="secondary">
-                    {item.key === 'missing_contact'
-                      ? '已成交但缺租客主体'
-                      : item.key === 'ready_lease'
-                        ? '主体完整，可直接转租约'
-                        : item.key === 'pending_lease'
-                          ? '待签约成交记录'
-                          : item.key === 'converted'
-                            ? '已成交记录'
-                            : item.key === 'viewed'
-                              ? '待回访记录'
-                              : item.key === 'scheduled'
-                                ? '预约中的带看'
-                                : '全部记录'}
-                  </Typography.Text>
-                </Space>
-              </div>
-            </Col>
-          ))}
-        </Row>
-        {quietQueueSummaryItems.length ? (
-          <Alert
-            type="info"
-            showIcon
-            title={`还有 ${quietQueueSummaryItems.length} 个低优先级队列已收起`}
-            description={quietQueueSummaryText}
-            style={{ marginBottom: 16 }}
-          />
-        ) : null}
         {statusText ? (
           <Alert
             type="info"

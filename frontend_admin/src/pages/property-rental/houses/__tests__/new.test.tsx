@@ -81,11 +81,11 @@ describe('House new page', () => {
 
     await waitFor(() => expect(mockListBuildings).toHaveBeenCalledTimes(1));
     expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
-    expect(screen.getByText('闭环信号')).toBeInTheDocument();
-    expect(screen.getByText('详情承接')).toBeInTheDocument();
-    expect(screen.getByText('带看基础')).toBeInTheDocument();
-    expect(screen.getByText('发布准备')).toBeInTheDocument();
-    expect(screen.getByText('当前缺口清单')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.queryByText('详情承接')).not.toBeInTheDocument();
+    expect(screen.queryByText('带看基础')).not.toBeInTheDocument();
+    expect(screen.queryByText('发布准备')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前缺口清单')).not.toBeInTheDocument();
     expect(screen.getAllByText('建档').length).toBeGreaterThan(0);
     expect(screen.getAllByText('补充资料').length).toBeGreaterThan(0);
     expect(screen.getAllByText('媒体资料').length).toBeGreaterThan(0);
@@ -104,7 +104,7 @@ describe('House new page', () => {
     expect(screen.getByText('视频资料')).toBeInTheDocument();
     await clickNextWhenEnabled();
     await screen.findByText('确认房源草稿');
-    expect(screen.getByText('保存后建议动作')).toBeInTheDocument();
+    expect(screen.queryByText('保存后建议动作')).not.toBeInTheDocument();
     expect(screen.getAllByText('待补房东').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
 
@@ -134,18 +134,18 @@ describe('House new page', () => {
 
     expect(await screen.findByText('上传图片与视频')).toBeInTheDocument();
     expect(screen.getByText('图片资料')).toBeInTheDocument();
-    expect(screen.getByText('发布规则摘要')).toBeInTheDocument();
+    expect(screen.queryByText('发布规则摘要')).not.toBeInTheDocument();
     expect(screen.queryByText('当前缺口清单')).not.toBeInTheDocument();
     expect(screen.queryByText('媒体状态')).not.toBeInTheDocument();
   });
 
-  it('keeps the sidebar focused on listing fields instead of repeating full publish gaps', async () => {
+  it('does not render the old sidebar helper copy', async () => {
     window.history.pushState({}, '', '/property-rental/houses/new?step=1');
 
     render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
 
     expect(await screen.findByText('补充挂牌与户型')).toBeInTheDocument();
-    expect(screen.getByText('当前步骤重点')).toBeInTheDocument();
+    expect(screen.queryByText('当前步骤重点')).not.toBeInTheDocument();
     expect(screen.queryByText('发布规则摘要')).not.toBeInTheDocument();
     expect(screen.queryByText('当前缺口清单')).not.toBeInTheDocument();
   });
@@ -267,19 +267,20 @@ describe('House new page', () => {
 
     expect(await screen.findByText('确认房源草稿')).toBeInTheDocument();
     expect(screen.getByText('保存后可直接进入发布流程')).toBeInTheDocument();
-    expect(screen.getByText('提醒项：缺封面、图片不足、缺户型图')).toBeInTheDocument();
+    expect(screen.queryByText('提醒项：缺封面、图片不足、缺户型图')).not.toBeInTheDocument();
     expect(screen.queryByText('阻断项：')).not.toBeInTheDocument();
   });
 
-  it('shows a publish-rule summary instead of repeating the draft summary on the final step', async () => {
+  it('keeps final step focused on the form summary', async () => {
     window.history.pushState({}, '', '/property-rental/houses/new?step=3');
 
     render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
 
-    expect(await screen.findByText('发布规则摘要')).toBeInTheDocument();
-    expect(screen.getByText('当前缺口清单')).toBeInTheDocument();
-    expect(screen.getByText('媒体状态')).toBeInTheDocument();
-    expect(screen.getAllByText('草稿必补：楼栋')).toHaveLength(1);
+    expect(await screen.findByText('确认房源草稿')).toBeInTheDocument();
+    expect(screen.queryByText('发布规则摘要')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前缺口清单')).not.toBeInTheDocument();
+    expect(screen.queryByText('媒体状态')).not.toBeInTheDocument();
+    expect(screen.queryByText('草稿必补：楼栋')).not.toBeInTheDocument();
     expect(screen.queryByText('当前摘要')).not.toBeInTheDocument();
   });
 
@@ -287,13 +288,13 @@ describe('House new page', () => {
     render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
 
     expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
-    expect(screen.getByText('当前步骤重点')).toBeInTheDocument();
+    expect(screen.queryByText('当前步骤重点')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '保存草稿' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1701' } });
 
     await waitFor(() => expect(screen.getByRole('button', { name: '保存草稿' })).toBeEnabled());
-    expect(screen.getByText('当前已满足草稿保存门槛')).toBeInTheDocument();
+    expect(screen.queryByText('当前已满足草稿保存门槛')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
 
     await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({

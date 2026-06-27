@@ -3,7 +3,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { history } from '@umijs/max';
 import { Alert, Button, Col, Input, Modal, Row, Select, Space, Statistic, Table, Tag, Tooltip, Typography, message, theme } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AdminToolbar, ResponsiveActions, adminTableScroll, toolbarControlStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type BuildingOut, type EstateOut, type HouseOut } from '@/services/manual/house';
@@ -44,18 +44,7 @@ const TASK_TEXT: Record<HouseTask, string> = {
   video: '待补视频',
 };
 
-const HOUSE_WORKFLOW_TASKS: HouseTask[] = ['blocked', 'ready', 'published', 'unpublished'];
 const HOUSE_ISSUE_TASKS: HouseIssueTask[] = ['landlord', 'rent', 'cover', 'images', 'floor_plan', 'video'];
-
-type HouseClosureSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  href: string;
-};
 
 type HouseScopeFilters = {
   task?: HouseTask;
@@ -72,10 +61,6 @@ function parseHouseTask(value?: string | null): HouseTask | undefined {
     return value;
   }
   return undefined;
-}
-
-function isHouseWorkflowTask(task?: HouseTask): task is Extract<HouseTask, 'blocked' | 'ready' | 'published' | 'unpublished'> {
-  return Boolean(task && HOUSE_WORKFLOW_TASKS.includes(task));
 }
 
 function isHouseIssueTask(task?: HouseTask): task is HouseIssueTask {
@@ -160,37 +145,12 @@ function syncHouseListSearch(filters: HouseScopeFilters & { page: number }) {
   }
 }
 
-function buildHouseQueueHref(task?: string) {
-  return task ? `/property-rental/houses?task=${task}` : '/property-rental/houses';
-}
-
-function dashboardHref(path: string) {
-  return `/dashboard${path}`;
-}
-
 function buildHouseDetailHref(houseId: number, action?: 'edit' | 'media', task?: string) {
   const params = new URLSearchParams();
   if (action) params.set('action', action);
   if (task) params.set('task', task);
   const nextSearch = params.toString();
   return `/dashboard/property-rental/houses/${houseId}${nextSearch ? `?${nextSearch}` : ''}`;
-}
-
-function getHousePageSuggestion(task?: string, counts?: { blocked: number; ready: number; published: number; unpublished?: number; total: number }, filters?: HouseScopeFilters) {
-  if ((filters?.q || filters?.estateId || filters?.buildingId || filters?.status || filters?.publishStatus || filters?.task) && (counts?.total || 0) === 0) {
-    return '当前筛选结果为空，可以调整项目、楼栋、房态或发布条件后继续排查。';
-  }
-  if (task === 'blocked') return '先把阻塞房源清到可发布，再安排上架，避免房源库存停在“看起来已录入、实际上不能上线”的状态。';
-  if (task === 'ready') return '这一批房源已经具备上线条件，建议按租金、空置期和图片完整度尽快发布。';
-  if (task === 'published') return '当前重点检查在线库存的租金、可租日期和房态，避免已发布房源承接无效咨询。';
-  if (task === 'unpublished') return '先确认下架房源是暂时关闭还是长期停租，再决定补资料重发还是直接封存。';
-  if (task === 'landlord') return '优先补齐出租方主体，避免房源无法继续发布、签约或生成后续业务资料。';
-  if (task === 'rent') return '先补租金和押金等成交基础字段，避免带看后无法快速报价和签约。';
-  if (task === 'cover' || task === 'images' || task === 'floor_plan' || task === 'video') return '这些展示资料会继续统计；如果当前空间策略没有把它们设成阻断发布，可以先上线再按优先级持续补齐。';
-  if ((counts?.blocked || 0) > 0) return '优先处理真正阻断发布的房源；媒体类缺口按当前空间策略决定是先清还是持续补齐。';
-  if ((counts?.ready || 0) > 0) return '已有房源具备上线条件，尽快发布，避免库存停留在草稿阶段。';
-  if ((counts?.published || 0) === 0 && (counts?.total || 0) > 0) return '当前没有已发布房源，建议先检查资料完整度和上架节奏。';
-  return '继续维护房源资料、媒体和可租日期，保证房东供给和带看入口持续可用。';
 }
 
 function getHouseTaskLink(record: HouseOut, currentTask?: HouseTask) {
@@ -304,13 +264,6 @@ const HousesPage: React.FC = () => {
       },
     ],
   });
-  const issueCountQueries = useQueries({
-    queries: HOUSE_ISSUE_TASKS.map((item) => ({
-      queryKey: ['house', 'houses', 'issue-count', workspace.selectedOrgSlug, item],
-      queryFn: () => houseApi.listHouses({ page: 1, page_size: 1, publish_issue: item }),
-      enabled,
-    })),
-  });
   const houses = useQuery({
     queryKey: ['house', 'houses', workspace.selectedOrgSlug, page, estateId, buildingId, status, publishStatus, task, q],
     queryFn: () => houseApi.listHouses({
@@ -411,47 +364,12 @@ const HousesPage: React.FC = () => {
   const scopedPublishedCount = scopedOverviewQueries[2]?.data?.total || 0;
   const scopedUnpublishedCount = scopedOverviewQueries[3]?.data?.total || 0;
   const overviewLoading = scopedOverview ? isAnyInitialQueryPending([houses, ...scopedOverviewQueries]) : isAnyInitialQueryPending(overviewQueries);
-  const issueCountLoading = isAnyInitialQueryPending(issueCountQueries);
   const listLoading = isInitialQueryPending(houses);
   const estateItems = (estates.data?.items || []) as EstateOut[];
   const buildingItems = (buildings.data?.items || []) as BuildingOut[];
   const scopeText = getHouseScopeText({ task, estateId, buildingId, status, publishStatus, q }, estateItems, buildingItems);
-  const pageSuggestion = overviewLoading ? '正在汇总房源数据，请稍候再判断发布缺口和上架优先级。' : getHousePageSuggestion(task, {
-    blocked: scopedOverview ? scopedBlockedCount : blockedCount,
-    ready: scopedOverview ? scopedReadyCount : readyCount,
-    published: scopedOverview ? scopedPublishedCount : publishedCount,
-    unpublished: scopedOverview ? scopedUnpublishedCount : unpublishedCount,
-    total: scopedOverview ? scopedTotalCount : totalCount,
-  } as { blocked: number; ready: number; published: number; total: number }, { task, estateId, buildingId, status, publishStatus, q });
   const estateOptions = estateItems.map((estate) => ({ value: estate.id, label: estate.display_name || estate.name }));
   const buildingOptions = buildingItems.map((building) => ({ value: building.id, label: buildingLabel(building) }));
-  const workflowQueueLinks = useMemo<{ key: string; label: string; task?: HouseTask }[]>(
-    () => [
-      { key: 'all', label: '全部', task: undefined },
-      { key: 'blocked', label: '待补资料', task: 'blocked' as HouseTask },
-      { key: 'ready', label: '可发布', task: 'ready' as HouseTask },
-      { key: 'published', label: '已发布', task: 'published' as HouseTask },
-      { key: 'unpublished', label: '已下架', task: 'unpublished' as HouseTask },
-    ],
-    [],
-  );
-  const issueQueueLinks = useMemo<{ key: string; label: string; task: HouseIssueTask }[]>(
-    () => [
-      { key: 'landlord', label: '待补房东', task: 'landlord' },
-      { key: 'rent', label: '待补租金', task: 'rent' },
-      { key: 'cover', label: '待补封面', task: 'cover' },
-      { key: 'images', label: '图片少于 3 张', task: 'images' },
-      { key: 'floor_plan', label: '缺户型图', task: 'floor_plan' },
-      { key: 'video', label: '待补视频', task: 'video' },
-    ],
-    [],
-  );
-  const issueQueueCountItems = issueQueueLinks.map((item, index) => ({
-    ...item,
-    count: issueCountQueries[index]?.data?.total || 0,
-  }));
-  const visibleIssueQueueCountItems = issueQueueCountItems.filter((item) => item.count > 0);
-  const hiddenIssueQueueCount = issueQueueCountItems.length - visibleIssueQueueCountItems.length;
   const { token } = theme.useToken();
   const sectionStyle = {
     border: `1px solid ${token.colorBorderSecondary}`,
@@ -466,51 +384,6 @@ const HousesPage: React.FC = () => {
     height: '100%',
     padding: 16,
   } as const;
-  const signalTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    background: token.colorBgContainer,
-    height: '100%',
-    padding: 16,
-  } as const;
-  const closureSignals: HouseClosureSignal[] = [
-    {
-      key: 'blocked',
-      title: '发布阻断',
-      emphasis: blockedCount > 0 ? '先清阻断' : '阻断已清',
-      summary: `${blockedCount} 套阻断发布 / ${issueQueueCountItems.find((item) => item.task === 'rent')?.count || 0} 套待补租金`,
-      description: '先清掉租金、房东和硬性资料缺口，房源才不会停在“录入了但发不出去”的状态。',
-      actionLabel: '进入待补资料队列',
-      href: dashboardHref(buildHouseQueueHref('blocked')),
-    },
-    {
-      key: 'ready',
-      title: '上架排期',
-      emphasis: readyCount > 0 ? '尽快上架' : '待继续补货',
-      summary: `${readyCount} 套可发布 / ${totalCount - publishedCount - blockedCount >= 0 ? totalCount - publishedCount - blockedCount : 0} 套待整理`,
-      description: '资料已齐的房源要尽快转成在线库存，避免供给长期堆在草稿和待发布阶段。',
-      actionLabel: '进入可发布队列',
-      href: dashboardHref(buildHouseQueueHref('ready')),
-    },
-    {
-      key: 'published',
-      title: '在线承接',
-      emphasis: publishedCount > 0 ? '保持在线' : '在线不足',
-      summary: `${publishedCount} 套已发布 / ${readyCount} 套可补上架`,
-      description: '在线库存要稳定承接带看和咨询，不能让可发布房源长时间停在后台未上架。',
-      actionLabel: '进入在线库存台账',
-      href: dashboardHref(buildHouseQueueHref('published')),
-    },
-    {
-      key: 'unpublished',
-      title: '下架复盘',
-      emphasis: unpublishedCount > 0 ? '先做复盘' : '下架平稳',
-      summary: `${unpublishedCount} 套已下架 / ${blockedCount} 套待重整`,
-      description: '下架房源要区分暂时关闭和长期停租，决定是补资料重发，还是直接归档封存。',
-      actionLabel: '进入下架复盘队列',
-      href: dashboardHref(buildHouseQueueHref('unpublished')),
-    },
-  ];
 
   useEffect(() => {
     syncHouseListSearch({ page, task, estateId, buildingId, status, publishStatus, q });
@@ -531,12 +404,6 @@ const HousesPage: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  const applyTask = (nextTask?: HouseTask) => {
-    setPage(1);
-    setTask(nextTask);
-    history.push(buildHouseQueueHref(nextTask));
-  };
 
   const columns: ColumnsType<HouseOut> = [
     { title: '房源', dataIndex: 'house_label', width: 220, render: (_value, record) => houseLabel(record) },
@@ -657,79 +524,9 @@ const HousesPage: React.FC = () => {
         </Row>
       </div>
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>当前建议</Typography.Text>
-        <Typography.Paragraph style={{ marginBottom: 0, marginTop: 12 }}>{pageSuggestion}</Typography.Paragraph>
-      </div>
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>闭环信号</Typography.Text>
-        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-          {closureSignals.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <div style={signalTileStyle}>
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>{item.title}</Typography.Text>
-                    <Tag color="blue">{item.emphasis}</Tag>
-                  </Space>
-                  <Typography.Text>{item.summary}</Typography.Text>
-                  <Typography.Text type="secondary">{item.description}</Typography.Text>
-                  <a href={item.href}>{item.actionLabel}</a>
-                </Space>
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div style={{ marginBottom: 16 }}>
-          <Typography.Text strong>经营队列</Typography.Text>
-          <div style={{ marginTop: 8 }}>
-            <Typography.Text type="secondary">先看阻断、再推上架、再守在线库存，把房源供给从资料录入一路推进到可成交状态。</Typography.Text>
-          </div>
-        </div>
-        <Space wrap size={[8, 8]}>
-          {workflowQueueLinks.map((item) => (
-            <Button
-              key={item.key}
-              type={task === item.task || (!task && !item.task) ? 'primary' : 'default'}
-              onClick={() => applyTask(item.task)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </Space>
-      </div>
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div style={{ marginBottom: 16 }}>
-          <Typography.Text strong>发布缺口</Typography.Text>
-          <div style={{ marginTop: 8 }}>
-            <Typography.Text type="secondary">这里集中排查会影响上架效率的资料、媒体和主体缺口，优先处理当前真正在堵发布链路的项目。</Typography.Text>
-          </div>
-        </div>
-        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-          <Space wrap size={[8, 8]}>
-            {visibleIssueQueueCountItems.map((item) => (
-              <Button
-                key={item.key}
-                type={task === item.task ? 'primary' : 'default'}
-                onClick={() => applyTask(item.task)}
-              >
-                {`${item.label} ${getLoadingSafeCount(item.count, issueCountLoading)}`}
-              </Button>
-            ))}
-          </Space>
-          {hiddenIssueQueueCount > 0 ? (
-            <Typography.Text type="secondary">已收起 {hiddenIssueQueueCount} 个 0 项，缺口只突出当前需要处理的房源。</Typography.Text>
-          ) : null}
-        </Space>
-      </div>
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, width: '100%', marginBottom: 16 }}>
           <div>
             <Typography.Text strong>房源经营台账</Typography.Text>
-            <div style={{ marginTop: 8 }}>
-              <Typography.Text type="secondary">围绕项目、楼栋、房态和发布状态管理房源供给，直接承接上架、带看和签约前置动作。</Typography.Text>
-            </div>
           </div>
           <AdminToolbar><Button type="primary" icon={<PlusOutlined />} onClick={() => history.push('/property-rental/houses/new')}>新建房源</Button></AdminToolbar>
         </div>

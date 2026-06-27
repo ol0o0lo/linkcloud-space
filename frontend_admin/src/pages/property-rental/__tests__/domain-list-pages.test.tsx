@@ -126,7 +126,7 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
-    expect(screen.getByText('正在汇总房源数据，请稍候再判断发布缺口和上架优先级。')).toBeInTheDocument();
+    expect(screen.getByText('正在汇总当前房源范围...')).toBeInTheDocument();
     expect(screen.queryByText('1 套房源在当前组织内管理')).not.toBeInTheDocument();
 
     deferred.resolve({ items: [{ id: 99, room_number: 'A-101' }], total: 1, page: 1, page_size: 100 });
@@ -139,12 +139,11 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<ContactsPage />);
 
-    expect(screen.getByText('正在汇总联系人数据，请稍候再判断主体治理优先级。')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '全部 -' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '全部 0' })).not.toBeInTheDocument();
+    expect(screen.getByText('正在汇总房东主体...')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '全部 -' })).not.toBeInTheDocument();
 
     deferred.resolve({ items: [{ id: 3, name: '张房东', phone: '13800000000', roles: ['landlord'] }], total: 1, page: 1, page_size: 100 });
-    expect(await screen.findByRole('button', { name: '全部 1' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('1', { selector: '.ant-statistic-content-value-int' })).toBeInTheDocument());
   });
 
   it('uses estate display names when selecting a building estate', async () => {
@@ -192,20 +191,11 @@ describe('Property rental domain list pages', () => {
     renderPage(<EstatesPage />);
 
     expect(await screen.findByText('项目供给概览')).toBeInTheDocument();
-    expect(screen.getByText('当前建议')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getAllByText('项目台账').length).toBeGreaterThan(0);
     expect(screen.getAllByText('楼栋台账').length).toBeGreaterThan(0);
-    expect(screen.getByText('待补项目地址')).toBeInTheDocument();
-    expect(screen.getByText('待补楼栋地址')).toBeInTheDocument();
-    expect(screen.getByText('待补首栋楼')).toBeInTheDocument();
-    expect(screen.getByText('停用资产')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: '全部 4' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '待补项目地址 1' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '待补楼栋地址 1' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '待补首栋楼 0' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '停用资产 2' })).toBeInTheDocument();
-    expect(screen.getByText('已收起 1 个 0 项，避免把空队列和当前重点放在同一层级。')).toBeInTheDocument();
-    expect(await screen.findByText('优先清理停用项目/楼栋，并补齐项目地址和楼栋资料，避免房源建档时挂到无效基础数据。')).toBeInTheDocument();
+    expect(screen.queryByText('基础治理队列')).not.toBeInTheDocument();
+    expect(screen.queryByText('已收起 1 个 0 项，避免把空队列和当前重点放在同一层级。')).not.toBeInTheDocument();
     expect(await screen.findByText('1 栋 / 1 栋启用')).toBeInTheDocument();
     expect((await screen.findAllByText('停用中，暂停新增房源')).length).toBeGreaterThan(0);
     expect(await screen.findByText('有电梯，可优先承接高层房源')).toBeInTheDocument();
@@ -258,11 +248,12 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<EstatesPage />);
 
-    expect(await screen.findByText('优先补齐项目地址和楼栋资料，避免房源建档时挂到不完整基础数据。')).toBeInTheDocument();
+    expect(await screen.findByText('项目供给概览')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.queryByText('优先清理停用项目/楼栋，并补齐项目地址和楼栋资料，避免房源建档时挂到无效基础数据。')).not.toBeInTheDocument();
   });
 
-  it('scopes estate overview and suggestion when searching by keyword', async () => {
+  it('scopes estate overview when searching by keyword', async () => {
     mockListEstates.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.q === '旧改') {
         return Promise.resolve({
@@ -315,7 +306,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：搜索：旧改')).toBeInTheDocument();
-    expect((await screen.findAllByText('当前结果可直接用于核对项目底座、楼栋覆盖和是否适合继续承接新房源。')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     await waitFor(() => expect(mockListEstates).toHaveBeenCalledWith(expect.objectContaining({ q: '旧改' })));
     await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith(expect.objectContaining({ q: '旧改' })));
   });
@@ -406,7 +397,7 @@ describe('Property rental domain list pages', () => {
     expect(screen.queryByRole('button', { name: 'plus 新建楼栋' })).not.toBeInTheDocument();
   });
 
-  it('syncs estate governance queue selection back to URL', async () => {
+  it('does not render estate governance queue shortcuts', async () => {
     mockListEstates.mockResolvedValue({
       items: [{ id: 1, name: 'pending-estate', display_name: '待补首栋项目', city: '深圳', district: '南山', address: '科技路 1 号', is_active: true, property_type: 'residential', province: '广东' }],
       total: 1,
@@ -417,29 +408,17 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<EstatesPage />);
 
-    let noBuildingButton: HTMLElement | undefined;
-    await waitFor(() => {
-      noBuildingButton = screen.getAllByRole('button').find((button) => button.textContent?.includes('待补首栋楼') && button.textContent.includes('1'));
-      expect(noBuildingButton).toBeDefined();
-    }, { timeout: 5000 });
-    fireEvent.click(noBuildingButton as HTMLElement);
-
-    expect(await screen.findByText('当前只看：待补首栋楼')).toBeInTheDocument();
-    await waitFor(() => expect(window.location.search).toBe('?task=no_building'));
+    expect(await screen.findByText('待补首栋项目')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /待补首栋楼/ })).not.toBeInTheDocument();
+    expect(window.location.search).toBe('');
   });
 
-  it('surfaces closure signals and routing on the estate board', async () => {
+  it('does not render closure signal shortcuts on the estate board', async () => {
     renderPage(<EstatesPage />);
 
-    expect(await screen.findByText('闭环信号')).toBeInTheDocument();
-    expect(screen.getByText('项目底座')).toBeInTheDocument();
-    expect(screen.getByText('首栋补齐')).toBeInTheDocument();
-    expect(screen.getByText('楼栋治理')).toBeInTheDocument();
-    expect(screen.getByText('停用清理')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '进入项目地址队列' })).toHaveAttribute('href', '/dashboard/property-rental/estates?task=estate_address');
-    expect(screen.getByRole('link', { name: '进入首栋补齐队列' })).toHaveAttribute('href', '/dashboard/property-rental/estates?task=no_building');
-    expect(screen.getByRole('link', { name: '进入楼栋治理队列' })).toHaveAttribute('href', '/dashboard/property-rental/estates?task=building_address');
-    expect(screen.getByRole('link', { name: '进入停用清理队列' })).toHaveAttribute('href', '/dashboard/property-rental/estates?task=inactive');
+    expect(await screen.findByText('项目供给概览')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '进入项目地址队列' })).not.toBeInTheDocument();
   });
 
   it('opens building creation drawer directly from the no-building queue context and clears edit state on close', async () => {
@@ -541,24 +520,18 @@ describe('Property rental domain list pages', () => {
     renderPage(<ContactsPage />);
 
     expect(await screen.findByText('联系人概览')).toBeInTheDocument();
-    expect(screen.getByText('当前建议')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getByText('联系人业务台账')).toBeInTheDocument();
-    expect(screen.getByText('联系人治理队列')).toBeInTheDocument();
+    expect(screen.queryByText('联系人治理队列')).not.toBeInTheDocument();
     expect(await screen.findByText('房东档案')).toBeInTheDocument();
     expect(await screen.findByText('租客档案')).toBeInTheDocument();
     expect(await screen.findByText('双角色')).toBeInTheDocument();
-    expect(await screen.findByText('角色补齐')).toBeInTheDocument();
     expect(await screen.findByText('停用联系人')).toBeInTheDocument();
-    expect(await screen.findByText('优先补齐缺角色主体，再清理停用联系人和双角色身份，避免后续业务挂错对象。')).toBeInTheDocument();
-    expect(screen.getByText('房东资源')).toBeInTheDocument();
-    expect(screen.getByText('租客线索')).toBeInTheDocument();
-    expect(screen.getByText('双向协同')).toBeInTheDocument();
-    expect(screen.getByText('待补角色')).toBeInTheDocument();
     expect(screen.getByText('已停用，不参与新业务流程')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '进入角色补齐队列' })).toHaveAttribute('href', '/dashboard/property-rental/contacts?task=role_missing');
+    expect(screen.queryByRole('link', { name: '进入角色补齐队列' })).not.toBeInTheDocument();
   });
 
-  it('collapses zero-value contact queue buttons into a compact summary', async () => {
+  it('does not render contact queue buttons', async () => {
     mockListContacts.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.page_size === 100) {
         return Promise.resolve({
@@ -578,15 +551,12 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<ContactsPage />);
 
-    expect(await screen.findByText('联系人治理队列')).toBeInTheDocument();
+    expect(screen.queryByText('联系人治理队列')).not.toBeInTheDocument();
     expect(await screen.findByText(/待分类联系人/)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('button', { name: '全部 1' })).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: '缺角色主体 1' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '房东档案 0' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '租客档案 0' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '双角色待确认 0' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '全部 1' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '缺角色主体 1' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '停用联系人 0' })).not.toBeInTheDocument();
-    expect(await screen.findByText('已收起 4 个 0 项，避免把空队列和关键治理项放在同一层级。')).toBeInTheDocument();
+    expect(screen.queryByText('已收起 4 个 0 项，避免把空队列和关键治理项放在同一层级。')).not.toBeInTheDocument();
   });
 
   it('shows an actionable empty state for contacts', async () => {
@@ -674,7 +644,7 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByRole('button', { name: '启用' })).toBeInTheDocument();
   });
 
-  it('scopes contact overview and suggestion when filtering by role', async () => {
+  it('scopes contact overview when filtering by role', async () => {
     mockListContacts.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.role === 'tenant') {
         return Promise.resolve({
@@ -703,11 +673,11 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：角色：租客')).toBeInTheDocument();
-    expect(await screen.findByText('当前只看租客档案，优先核对是否能直接承接带看与签约。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     await waitFor(() => expect(mockListContacts).toHaveBeenCalledWith(expect.objectContaining({ role: 'tenant' })));
   });
 
-  it('scopes contact governance queue when filtering dual-role contacts', async () => {
+  it('scopes contacts when filtering dual-role contacts', async () => {
     mockListContacts.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.task === 'dual_role') {
         return Promise.resolve({
@@ -731,30 +701,21 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<ContactsPage />);
 
-    let dualRoleButton: HTMLElement | undefined;
-    await waitFor(() => {
-      dualRoleButton = screen.getAllByRole('button').find((button) => button.textContent?.includes('双角色待确认') && button.textContent.includes('1'));
-      expect(dualRoleButton).toBeDefined();
-    });
-    fireEvent.click(dualRoleButton as HTMLElement);
+    fireEvent.mouseDown(screen.getAllByRole('combobox')[1]);
+    fireEvent.click((await screen.findAllByText('双角色待确认')).at(-1) as HTMLElement);
 
     expect(await screen.findByText('当前只看：队列：双角色待确认')).toBeInTheDocument();
-    expect(await screen.findByText('当前只看双角色主体，优先确认这次业务到底以房东还是租客身份流转。')).toBeInTheDocument();
+    expect(await screen.findByText(/陈客户/)).toBeInTheDocument();
     await waitFor(() => expect(mockListContacts).toHaveBeenCalledWith(expect.objectContaining({ task: 'dual_role' })));
   });
 
-  it('surfaces closure signals and routing on the contact board', async () => {
+  it('does not render closure signal shortcuts on the contact board', async () => {
     renderPage(<ContactsPage />);
 
-    expect(await screen.findByText('闭环信号')).toBeInTheDocument();
-    expect(screen.getByText('房东供给')).toBeInTheDocument();
-    expect(screen.getByText('租客承接')).toBeInTheDocument();
-    expect(screen.getByText('双角色治理')).toBeInTheDocument();
-    expect(screen.getByText('停用清理')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '进入房东供给台账' })).toHaveAttribute('href', '/dashboard/property-rental/contacts?role=landlord');
-    expect(screen.getByRole('link', { name: '进入租客承接台账' })).toHaveAttribute('href', '/dashboard/property-rental/contacts?role=tenant');
-    expect(screen.getByRole('link', { name: '进入双角色治理队列' })).toHaveAttribute('href', '/dashboard/property-rental/contacts?task=dual_role');
-    expect(screen.getByRole('link', { name: '进入停用清理队列' })).toHaveAttribute('href', '/dashboard/property-rental/contacts?task=inactive');
+    expect(await screen.findByText('联系人概览')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '进入房东供给台账' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '进入双角色治理队列' })).not.toBeInTheDocument();
   });
 
   it('restores contact filters from URL search params', async () => {
@@ -788,7 +749,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：角色：租客 / 搜索：王租客')).toBeInTheDocument();
-    expect(await screen.findByText('当前只看租客档案，优先核对是否能直接承接带看与签约。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     await waitFor(() => expect(mockListContacts).toHaveBeenCalledWith(expect.objectContaining({ role: 'tenant', q: '王租客', page: 2 })));
   });
 
@@ -831,7 +792,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：队列：停用联系人 / 搜索：停用')).toBeInTheDocument();
-    expect(await screen.findByText('当前只看停用联系人，恢复前先确认是否还会进入新的房源、带看或签约流程。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     await waitFor(() => expect(mockListContacts).toHaveBeenCalledWith(expect.objectContaining({ task: 'inactive', q: '停用', page: 2 })));
   });
 
@@ -843,7 +804,7 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument();
   });
 
-  it('shows quick queue links for viewing workflows', async () => {
+  it('does not render quick queue links for viewing workflows', async () => {
     mockListViewings.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.status === 'scheduled') {
         return Promise.resolve({ items: [{ id: 4, house_id: 99, house_label: 'A-101', customer_name: '李客户', customer_phone: '13900000000', scheduled_at: '2026-07-01T10:00:00+08:00', status: 'scheduled' }], total: 1, page: 1, page_size: 1 });
@@ -861,19 +822,15 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<ViewingsPage />);
 
-    expect(await screen.findByRole('button', { name: /全\s*部 1/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /已预约 1/ })).toBeInTheDocument();
+    expect(await screen.findByText(/李客户/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /全\s*部 1/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /已预约 1/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /待回访 0/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /已成交 0/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /待签约 0/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /待补租客 0/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /可签约 0/ })).not.toBeInTheDocument();
-    expect(screen.getByText('已收起 5 个 0 项，避免把空队列和高优先级跟进入口放在同一层级。')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /已预约 1/ }));
-
-    expect(await screen.findByText('当前只看：已预约')).toBeInTheDocument();
-    expect(window.location.search).toBe('?status=scheduled');
+    expect(screen.queryByText('已收起 5 个 0 项，避免把空队列和高优先级跟进入口放在同一层级。')).not.toBeInTheDocument();
   });
 
   it('shows viewing operational overview and queue hints', async () => {
@@ -909,9 +866,9 @@ describe('Property rental domain list pages', () => {
     renderPage(<ViewingsPage />);
 
     expect(await screen.findByText('带看概览')).toBeInTheDocument();
-    expect(screen.getByText('当前建议')).toBeInTheDocument();
-    expect(screen.getByText('带看跟进队列')).toBeInTheDocument();
-    expect(screen.getByText('队列摘要')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
+    expect(screen.queryByText('带看跟进队列')).not.toBeInTheDocument();
+    expect(screen.queryByText('队列摘要')).not.toBeInTheDocument();
     expect(screen.getByText('已预约', { selector: '.ant-statistic-title' })).toBeInTheDocument();
     expect(screen.getByText('待回访', { selector: '.ant-statistic-title' })).toBeInTheDocument();
     expect(screen.getByText('待签约', { selector: '.ant-statistic-title' })).toBeInTheDocument();
@@ -921,15 +878,9 @@ describe('Property rental domain list pages', () => {
     expect(screen.getAllByText('待签约').length).toBeGreaterThan(0);
     expect(screen.getByText('异常记录')).toBeInTheDocument();
     const summaryAlert = screen.getAllByRole('alert').find((element) => element.textContent?.includes('低优先级队列已收起'));
-    expect(summaryAlert).toBeDefined();
-    expect(summaryAlert?.textContent).toContain('还有 6 个低优先级队列已收起');
-    expect(summaryAlert?.textContent).toContain('已预约 · 预约中的带看');
-    expect(await screen.findByText('先补齐已成交记录的租客联系人，再创建租约，避免签约主体缺失。')).toBeInTheDocument();
-    expect(screen.getByText('待确认到访')).toBeInTheDocument();
-    expect(screen.getByText('待回访决策')).toBeInTheDocument();
-    expect(screen.getAllByText('待补租客').length).toBeGreaterThan(0);
-    expect(screen.getByText('成交已确认，但尚未绑定租客联系人，签约前先补齐业务主体')).toBeInTheDocument();
-    expect(screen.getByText('异常待回访')).toBeInTheDocument();
+    expect(summaryAlert).toBeUndefined();
+    expect(await screen.findByText(/预约客户/)).toBeInTheDocument();
+    expect(await screen.findByText(/成交客户/)).toBeInTheDocument();
   });
 
   it('updates viewing status directly from the row action', async () => {
@@ -1031,7 +982,7 @@ describe('Property rental domain list pages', () => {
     renderPage(<HousesPage />);
 
     expect(await screen.findByText('房源概览')).toBeInTheDocument();
-    expect(screen.getByText('当前建议')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getByText('在管房源')).toBeInTheDocument();
     expect(screen.getByText('阻断发布')).toBeInTheDocument();
     expect(screen.getAllByText('可发布').length).toBeGreaterThan(0);
@@ -1040,27 +991,21 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByText('2 套被当前阻断规则卡住')).toBeInTheDocument();
     expect(await screen.findByText('3 套已具备上线条件')).toBeInTheDocument();
     expect(await screen.findByText('4 套正在承接带看')).toBeInTheDocument();
-    expect(await screen.findByText('优先处理真正阻断发布的房源；媒体类缺口按当前空间策略决定是先清还是持续补齐。')).toBeInTheDocument();
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true })));
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true })));
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_status: 'published' })));
   });
 
-  it('surfaces closure signals and routing on the house board', async () => {
+  it('does not render closure signal shortcuts on the house board', async () => {
     renderPage(<HousesPage />);
 
-    expect(await screen.findByText('闭环信号')).toBeInTheDocument();
-    expect(screen.getByText('发布阻断')).toBeInTheDocument();
-    expect(screen.getByText('上架排期')).toBeInTheDocument();
-    expect(screen.getByText('在线承接')).toBeInTheDocument();
-    expect(screen.getByText('下架复盘')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '进入待补资料队列' })).toHaveAttribute('href', '/dashboard/property-rental/houses?task=blocked');
-    expect(screen.getByRole('link', { name: '进入可发布队列' })).toHaveAttribute('href', '/dashboard/property-rental/houses?task=ready');
-    expect(screen.getByRole('link', { name: '进入在线库存台账' })).toHaveAttribute('href', '/dashboard/property-rental/houses?task=published');
-    expect(screen.getByRole('link', { name: '进入下架复盘队列' })).toHaveAttribute('href', '/dashboard/property-rental/houses?task=unpublished');
+    expect(await screen.findByText('房源概览')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '进入待补资料队列' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '进入可发布队列' })).not.toBeInTheDocument();
   });
 
-  it('shows quick queue links for house workflows', async () => {
+  it('does not render quick queue links for house workflows', async () => {
     mockListHouses.mockResolvedValue({
       items: [
         { id: 1, building_id: 2, room_number: 'A-101', landlord_id: null, asking_rent: null, status: 'vacant', publish_status: 'draft', images: [], videos: [] },
@@ -1074,30 +1019,15 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
-    expect(await screen.findByText('经营队列')).toBeInTheDocument();
-    expect(screen.getByText('发布缺口')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '待补资料' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '可发布' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '已发布' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '已下架' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /全\s*部/ })).toBeInTheDocument();
-    const landlordQueueButton = (await screen.findAllByText('待补房东', { exact: false })).find((element) => element.closest('button'))?.closest('button') as HTMLElement;
-    const rentQueueButton = (await screen.findAllByText('待补租金', { exact: false })).find((element) => element.closest('button'))?.closest('button') as HTMLElement;
-    const coverQueueButton = (await screen.findAllByText('待补封面', { exact: false })).find((element) => element.closest('button'))?.closest('button') as HTMLElement;
-    expect(await screen.findByText('图片少于 3 张', { exact: false })).toBeInTheDocument();
+    expect(await screen.findByText('房源经营台账')).toBeInTheDocument();
+    expect(screen.queryByText('经营队列')).not.toBeInTheDocument();
+    expect(screen.queryByText('发布缺口')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '待补资料' })).not.toBeInTheDocument();
     expect(screen.queryByText('缺户型图 0')).not.toBeInTheDocument();
     expect(screen.queryByText('待补视频 0')).not.toBeInTheDocument();
-
-    expect(landlordQueueButton).toBeInTheDocument();
-    expect(rentQueueButton).toBeInTheDocument();
-    expect(coverQueueButton).toBeInTheDocument();
-
-    fireEvent.click(coverQueueButton);
-
-    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/houses?task=cover');
   });
 
-  it('shows issue queue counts for house workflows', async () => {
+  it('does not request issue queue counts for house workflows', async () => {
     mockListHouses.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.publish_issue === 'landlord') return Promise.resolve({ items: [], total: 12, page: 1, page_size: 1 });
       if (params?.publish_issue === 'rent') return Promise.resolve({ items: [], total: 7, page: 1, page_size: 1 });
@@ -1134,15 +1064,16 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
-    expect(await screen.findByText('发布缺口')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: '待补房东 12' })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: '待补租金 7' })).toBeInTheDocument();
+    expect(await screen.findByText('房源经营台账')).toBeInTheDocument();
+    expect(screen.queryByText('发布缺口')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '待补房东 12' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '待补租金 7' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '待补封面 0' })).not.toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: '图片少于 3 张 4' })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: '缺户型图 3' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '图片少于 3 张 4' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '缺户型图 3' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '待补视频 0' })).not.toBeInTheDocument();
-    expect(await screen.findByText('已收起 2 个 0 项，缺口只突出当前需要处理的房源。')).toBeInTheDocument();
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_issue: 'video', page_size: 1 })));
+    expect(screen.queryByText('已收起 2 个 0 项，缺口只突出当前需要处理的房源。')).not.toBeInTheDocument();
+    expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_issue: 'video', page_size: 1 }));
   });
 
   it('renders house row actions as semantic controls', async () => {
@@ -1455,7 +1386,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：搜索：不存在')).toBeInTheDocument();
-    expect(await screen.findByText('当前筛选结果为空，可以调整项目、楼栋、房态或发布条件后继续排查。')).toBeInTheDocument();
+    expect(await screen.findByText('暂无数据')).toBeInTheDocument();
   });
 
   it('filters converted viewings from URL and links to lease creation', async () => {
@@ -1477,18 +1408,13 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByRole('link', { name: '签约' })).toHaveAttribute('href', '/dashboard/property-rental/leases?source_viewing_record_id=4');
   });
 
-  it('surfaces closure signals and routing on the viewing board', async () => {
+  it('does not render closure signal shortcuts on the viewing board', async () => {
     renderPage(<ViewingsPage />);
 
-    expect(await screen.findByText('闭环信号')).toBeInTheDocument();
-    expect(screen.getByText('预约到访')).toBeInTheDocument();
-    expect(screen.getByText('回访决策')).toBeInTheDocument();
-    expect(screen.getByText('主体补齐')).toBeInTheDocument();
-    expect(screen.getByText('转签承接')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '进入预约队列' })).toHaveAttribute('href', '/dashboard/property-rental/viewings?status=scheduled');
-    expect(screen.getByRole('link', { name: '进入回访队列' })).toHaveAttribute('href', '/dashboard/property-rental/viewings?status=viewed');
-    expect(screen.getByRole('link', { name: '进入补主体队列' })).toHaveAttribute('href', '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=true');
-    expect(screen.getByRole('link', { name: '进入可签约队列' })).toHaveAttribute('href', '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=false');
+    expect(await screen.findByText('带看概览')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '进入预约队列' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '进入补主体队列' })).not.toBeInTheDocument();
   });
 
   it('requires contact completion before offering lease creation for converted viewings', async () => {
@@ -1555,7 +1481,7 @@ describe('Property rental domain list pages', () => {
     renderPage(<ViewingsPage />);
 
     expect(await screen.findByText('当前只看：已成交待签约')).toBeInTheDocument();
-    expect(await screen.findByText('优先补租约建档，避免成交记录长期停留在带看阶段。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     await waitFor(() => expect(mockListViewings).toHaveBeenCalledWith(expect.objectContaining({ pending_lease: true })));
   });
 
@@ -1592,7 +1518,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：已带看')).toBeInTheDocument();
-    expect(await screen.findByText('已带看客户要尽快补回访结果，否则很难判断成交机会。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     await waitFor(() => expect(mockListViewings).toHaveBeenCalledWith(expect.objectContaining({ status: 'viewed', page: 2 })));
   });
 
@@ -1623,7 +1549,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(await screen.findByText('当前只看：已成交待补租客')).toBeInTheDocument();
-    expect(await screen.findByText('先补齐已成交记录的租客联系人，再创建租约，避免签约主体缺失。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getByText('当前待补租客')).toBeInTheDocument();
     expect(screen.getByText('全部待签约')).toBeInTheDocument();
     expect(screen.queryByText('可签约')).not.toBeInTheDocument();
@@ -1650,7 +1576,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(await screen.findByText('当前只看：已成交可签约')).toBeInTheDocument();
-    expect(await screen.findByText('优先补租约建档，避免成交记录长期停留在带看阶段。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getByText('当前可签约')).toBeInTheDocument();
     expect(screen.getByText('全部待签约')).toBeInTheDocument();
     expect(screen.getByText('当前筛选下主体已完整的成交记录')).toBeInTheDocument();
@@ -1965,7 +1891,7 @@ describe('Property rental domain list pages', () => {
     renderPage(<LeasesPage />);
 
     expect(await screen.findByText('签约概览')).toBeInTheDocument();
-    expect(screen.getByText('当前建议')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getByText('履约队列')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /全部 3/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /待生效 1/ })).toBeInTheDocument();
@@ -1973,7 +1899,6 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByRole('button', { name: /待补合同 2/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /已到期 1/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /已终止 0/ })).toBeInTheDocument();
-    expect(await screen.findByText('优先补齐合同缺失和待生效租约，避免签约后资料断档。')).toBeInTheDocument();
     expect(screen.getAllByText('待合同归档').length).toBeGreaterThan(0);
     expect(screen.getByText('履约跟进')).toBeInTheDocument();
     expect(screen.getByText('待退租归档')).toBeInTheDocument();
@@ -2036,7 +1961,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：生效中')).toBeInTheDocument();
-    expect(await screen.findByText('生效中租约应持续关注履约、收租和续租安排。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     await waitFor(() => expect(mockListLeases).toHaveBeenCalledWith(expect.objectContaining({ status: 'active', page: 2 })));
   });
 
@@ -2133,18 +2058,13 @@ describe('Property rental domain list pages', () => {
     expect(screen.queryByRole('columnheader', { name: '履约建议' })).not.toBeInTheDocument();
   });
 
-  it('surfaces closure signals and queue entry actions on the lease board', async () => {
+  it('does not render closure signal shortcuts on the lease board', async () => {
     renderPage(<LeasesPage />);
 
-    expect(await screen.findByText('闭环信号')).toBeInTheDocument();
-    expect(screen.getByText('签约落地')).toBeInTheDocument();
-    expect(screen.getByText('合同归档')).toBeInTheDocument();
-    expect(screen.getByText('履约运行')).toBeInTheDocument();
-    expect(screen.getByText('到期收口')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '查看待生效' })).toHaveAttribute('href', '/dashboard/property-rental/leases?status=pending');
-    expect(screen.getByRole('link', { name: '查看待补合同' })).toHaveAttribute('href', '/dashboard/property-rental/leases?task=contract');
-    expect(screen.getByRole('link', { name: '查看生效中' })).toHaveAttribute('href', '/dashboard/property-rental/leases?status=active');
-    expect(screen.getByRole('link', { name: '查看待收口' })).toHaveAttribute('href', '/dashboard/property-rental/leases?status=expired');
+    expect(await screen.findByText('签约概览')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '查看待生效' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '查看待补合同' })).not.toBeInTheDocument();
   });
 
   it('filters leases by missing contract task and exposes contract upload field', async () => {
@@ -2163,7 +2083,7 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前缺合同')).toBeInTheDocument();
     expect(await screen.findByText('当前只看：合同缺失')).toBeInTheDocument();
-    expect(await screen.findByText('合同缺失的租约应尽快补归档，避免后续履约和结算无据可查。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '查看全部' })).toHaveAttribute('href', '/dashboard/property-rental/leases');
     expect(await screen.findByText(/A-101/)).toBeInTheDocument();
     await waitFor(() => expect(mockListLeases).toHaveBeenCalledWith(expect.objectContaining({ contract_missing: true })));
@@ -2201,7 +2121,7 @@ describe('Property rental domain list pages', () => {
     renderPage(<LeasesPage />);
 
     expect(await screen.findByText('当前只看：合同缺失 / 待生效')).toBeInTheDocument();
-    expect(await screen.findByText('待生效且缺合同的租约要优先补归档并确认交付节点，避免签约后无法落地。')).toBeInTheDocument();
+    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getByText('当前待生效')).toBeInTheDocument();
   });
 
