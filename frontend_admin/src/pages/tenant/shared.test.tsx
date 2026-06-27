@@ -14,7 +14,13 @@ vi.mock('@umijs/max', () => ({
 }));
 
 vi.mock('@ant-design/pro-components', () => ({
-  PageContainer: ({ children, title }: { children: React.ReactNode; title: string }) => (
+  PageContainer: ({
+    children,
+    title,
+  }: {
+    children: React.ReactNode;
+    title: string;
+  }) => (
     <section>
       <h1>{title}</h1>
       {children}
@@ -51,7 +57,15 @@ describe('TenantSelectionGuard', () => {
       setInitialState: vi.fn(),
     });
 
-    mockSwitchList.mockResolvedValue([{ id: 1, name: 'Acme', slug: 'acme', is_current: false, is_primary: true }]);
+    mockSwitchList.mockResolvedValue([
+      {
+        id: 1,
+        name: 'Acme',
+        slug: 'acme',
+        is_current: false,
+        is_primary: true,
+      },
+    ]);
   });
 
   it('shows a single-line warning when no tenant is selected', async () => {
@@ -64,11 +78,45 @@ describe('TenantSelectionGuard', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('尚未选择空间，请在右上角空间切换器中选择。')).toBeInTheDocument();
+      expect(
+        screen.getByText('尚未选择空间，请在右上角空间切换器中选择。'),
+      ).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('尚未选择租户，请在右上角租户切换器中选择租户。')).not.toBeInTheDocument();
-    expect(screen.queryByText('请先在右上角租户切换器中选择租户，或到租户概览页设置当前租户。')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '进入 Acme' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('尚未选择租户，请在右上角租户切换器中选择租户。'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        '请先在右上角租户切换器中选择租户，或到租户概览页设置当前租户。',
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '进入 Acme' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not point empty tenants to the removed overview page', async () => {
+    mockSwitchList.mockResolvedValue([]);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TenantSelectionGuard title="成员管理">
+          <div>content</div>
+        </TenantSelectionGuard>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          '当前用户还没有可用空间，请先加入空间或联系管理员创建空间。',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText('当前用户还没有可用空间，请先在空间概览中创建空间。'),
+    ).not.toBeInTheDocument();
   });
 });

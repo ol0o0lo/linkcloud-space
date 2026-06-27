@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageContainer } from '@ant-design/pro-components';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useModel } from '@umijs/max';
 import { Alert, Empty, Typography } from 'antd';
 import React from 'react';
@@ -14,11 +14,31 @@ import { setSelectedOrgSlug } from '@/utils/orgSelection';
 export const tenantQueryKeys = {
   appContext: (slug?: string) => ['tenant', 'app-context', slug],
   organizations: ['tenant', 'organizations'],
-  organizationDetail: (slug?: string) => ['tenant', 'organization-detail', slug],
-  organizationProfile: (slug?: string) => ['tenant', 'organization-profile', slug],
-  members: (slug?: string, page?: number, q?: string) => ['tenant', 'members', slug, page, q],
+  organizationDetail: (slug?: string) => [
+    'tenant',
+    'organization-detail',
+    slug,
+  ],
+  organizationProfile: (slug?: string) => [
+    'tenant',
+    'organization-profile',
+    slug,
+  ],
+  members: (slug?: string, page?: number, q?: string) => [
+    'tenant',
+    'members',
+    slug,
+    page,
+    q,
+  ],
   invites: (slug?: string, page?: number) => ['tenant', 'invites', slug, page],
-  teams: (slug?: string, page?: number, q?: string) => ['tenant', 'teams', slug, page, q],
+  teams: (slug?: string, page?: number, q?: string) => [
+    'tenant',
+    'teams',
+    slug,
+    page,
+    q,
+  ],
   usage: (slug?: string) => ['tenant', 'usage', slug],
 };
 
@@ -28,15 +48,19 @@ type TenantState = {
 };
 
 function updateSelectedOrgState(
-  setInitialState: (updater: (state: TenantState | undefined) => TenantState) => void,
+  setInitialState: (
+    updater: (state: TenantState | undefined) => TenantState,
+  ) => void,
   slug?: string,
   organizations?: API.SwitchListItemOut[],
 ) {
   setInitialState((state) => {
-    const nextOrganizations = (organizations || state?.organizations || []).map((item) => ({
-      ...item,
-      is_current: Boolean(slug) && item.slug === slug,
-    }));
+    const nextOrganizations = (organizations || state?.organizations || []).map(
+      (item) => ({
+        ...item,
+        is_current: Boolean(slug) && item.slug === slug,
+      }),
+    );
 
     return {
       ...state,
@@ -55,7 +79,8 @@ export function useTenantWorkspace() {
     queryFn: () => appsOrganizationsApiSwitchList(),
   });
 
-  const organizations = organizationsQuery.data || initialState?.organizations || [];
+  const organizations =
+    organizationsQuery.data || initialState?.organizations || [];
   const selectedOrgSlug = initialState?.selectedOrgSlug;
   const selectedOrganization =
     organizations.find((item) => item.slug === selectedOrgSlug) ||
@@ -80,7 +105,9 @@ export function useTenantWorkspace() {
         queryFn: () => appsOrganizationsApiSwitchList(),
       });
       updateSelectedOrgState(setInitialState, storedSlug, nextOrganizations);
-      await queryClient.invalidateQueries({ queryKey: tenantQueryKeys.appContext(slug) });
+      await queryClient.invalidateQueries({
+        queryKey: tenantQueryKeys.appContext(slug),
+      });
     },
   });
 
@@ -119,14 +146,17 @@ export const TenantSelectionGuard: React.FC<{
 }> = ({ title, subtitle, children }) => {
   const workspace = useTenantWorkspace();
 
-  if (workspace.organizationsQuery.isLoading && workspace.organizations.length === 0) {
+  if (
+    workspace.organizationsQuery.isLoading &&
+    workspace.organizations.length === 0
+  ) {
     return <PageContainer title={title} subTitle={subtitle} loading />;
   }
 
   if (workspace.organizations.length === 0) {
     return (
       <PageContainer title={title} subTitle={subtitle}>
-        <Empty description="当前用户还没有可用空间，请先在空间概览中创建空间。" />
+        <Empty description="当前用户还没有可用空间，请先加入空间或联系管理员创建空间。" />
       </PageContainer>
     );
   }
@@ -134,7 +164,11 @@ export const TenantSelectionGuard: React.FC<{
   if (!workspace.selectedOrgSlug || !workspace.selectedOrganization) {
     return (
       <PageContainer title={title} subTitle={subtitle}>
-        <Alert type="warning" title="尚未选择空间，请在右上角空间切换器中选择。" showIcon />
+        <Alert
+          type="warning"
+          title="尚未选择空间，请在右上角空间切换器中选择。"
+          showIcon
+        />
       </PageContainer>
     );
   }
@@ -156,7 +190,12 @@ export function formatPersonLabel(user?: {
     return '未知用户';
   }
 
-  return [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || user.email || '未知用户';
+  return (
+    [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+    user.username ||
+    user.email ||
+    '未知用户'
+  );
 }
 
 export const TenantSectionHint: React.FC<{ text: string }> = ({ text }) => (

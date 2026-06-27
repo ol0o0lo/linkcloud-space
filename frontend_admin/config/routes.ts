@@ -50,13 +50,12 @@ export default [
     routes: [
       {
         path: '/tenant',
-        redirect: '/tenant/overview',
+        redirect: '/tenant/members',
       },
       {
-        name: 'overview',
-        icon: 'appstore',
         path: '/tenant/overview',
-        component: './tenant/overview',
+        redirect: '/tenant/members',
+        hideInMenu: true,
       },
       {
         name: 'profile',

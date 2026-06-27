@@ -62,7 +62,7 @@ Thumbs.db
 CLAUDE.local.md
 .playwright-mcp/
 .playwright-cli/
-output/playwright/
+output/
 
 # Git worktrees
 .worktrees/
