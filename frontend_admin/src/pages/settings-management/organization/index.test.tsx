@@ -266,19 +266,18 @@ describe('OrganizationSettingsPage', () => {
 
     await screen.findByText('房源租赁设置');
     expect(screen.getByText('策略概览')).toBeInTheDocument();
-    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
     expect(screen.getAllByText('默认楼栋').length).toBeGreaterThan(0);
     expect(screen.getByText('在管楼栋')).toBeInTheDocument();
     expect(screen.getAllByText('阻断发布').length).toBeGreaterThan(0);
     expect(screen.getAllByText('可发布').length).toBeGreaterThan(0);
-    expect(screen.getByText('库存影响')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '查看默认楼栋' })).toHaveAttribute('href', '#setting-property_rental-default_building_id');
-    expect(screen.getByRole('link', { name: '查看发布规则' })).toHaveAttribute('href', '#setting-property_rental-publish_rules');
-    expect(screen.getByRole('link', { name: '查看库存影响' })).toHaveAttribute('href', '#settings-inventory-impact');
-    expect(screen.getByRole('button', { name: '补楼栋供给' })).toBeInTheDocument();
+    expect(screen.queryByText('库存影响')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '查看默认楼栋' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '查看发布规则' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '查看库存影响' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '补楼栋供给' })).not.toBeInTheDocument();
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true, page_size: 1 })));
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true, page_size: 1 })));
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_status: 'published', page_size: 1 })));
   });
 
   it('saves text-like setting drafts on blur through organization settings api', async () => {

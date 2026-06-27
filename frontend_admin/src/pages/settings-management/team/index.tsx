@@ -16,7 +16,7 @@ import {
 } from '@/services/openapi/teamSettings';
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import { appsTeamsApiListTeams } from '@/services/openapi/teams';
-import { TenantSectionHint, TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import {
   SettingEditModal,
   SettingValue,
@@ -26,16 +26,6 @@ import {
   settingFormValue,
   settingsManagementQueryKeys,
 } from '../shared';
-
-type TeamClosureSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel: string;
-  actionHref: string;
-};
 
 const defaultBuildingSettingKey = 'property_rental.default_building_id';
 const publishRulesSettingKey = 'property_rental.publish_rules';
@@ -150,69 +140,17 @@ const TeamSettingsPage: React.FC = () => {
   const orgPublishRulesSetting = findSetting(orgSettings, publishRulesSettingKey);
   const customizedSettings = teamSettings.filter((setting) => setting.is_customized);
   const customizedSettingCount = customizedSettings.length;
-  const inheritedSettingCount = Math.max(teamSettings.length - customizedSettingCount, 0);
   const extraCustomizedSettings = customizedSettings.filter((setting) => ![defaultBuildingSettingKey, publishRulesSettingKey].includes(setting.key));
   const memberCount = selectedTeam?.member_details?.length || selectedTeam?.members?.length || 0;
   const customRoleCount = (rolesQuery.data || []).filter((role) => !role.is_system).length;
-  const activeRoleCount = (rolesQuery.data || []).filter((role) => role.is_active).length;
   const bindingCount = (bindingsQuery.data || []).length;
   const publishRulesSummary = summarizeHousePublishRules(normalizeHousePublishRules(publishRulesSetting?.value));
   const orgPublishRulesSummary = summarizeHousePublishRules(normalizeHousePublishRules(orgPublishRulesSetting?.value));
-  const closureSignals = useMemo<TeamClosureSignal[]>(
-    () => [
-      {
-        key: 'inherit',
-        title: '空间继承',
-        emphasis: customizedSettingCount ? `${customizedSettingCount} 项已覆盖` : '全部继承',
-        summary: customizedSettingCount
-          ? `当前团队已覆盖 ${customizedSettingCount} 项设置，其余 ${inheritedSettingCount} 项继续沿用空间默认。`
-          : '当前团队还没有局部例外，所有规则都跟随空间设置。',
-        description: '常用发布门槛建议先在空间设置统一维护，再按团队 SOP 做少量覆盖。',
-        actionLabel: '查看空间设置',
-        actionHref: '/dashboard/settings-management/organization#settings-inventory-impact',
-      },
-      {
-        key: 'publish',
-        title: '发布职责',
-        emphasis: bindingCount ? `${bindingCount} 条授权` : '待分配授权',
-        summary: bindingCount
-          ? `已有 ${bindingCount} 名成员被明确授权承接团队级发布、审核或清阻断动作。`
-          : '还没有把策略执行责任绑定到成员，团队设置容易变成没人维护的孤岛。',
-        description: '团队策略要落地，必须把谁来发房、谁来清阻断、谁来审核补齐分给具体成员。',
-        actionLabel: '进入团队授权',
-        actionHref: '/dashboard/access/team-bindings',
-      },
-      {
-        key: 'roles',
-        title: '权限编组',
-        emphasis: customRoleCount ? `${customRoleCount} 个自定义角色` : '仅系统角色',
-        summary: activeRoleCount
-          ? `当前团队有 ${activeRoleCount} 个可用角色承接发布和治理动作。`
-          : '当前团队还没有可用角色，成员即使被拉进团队也难以分工协作。',
-        description: '把改策略、发房、补资料、清阻断拆成可授权角色，才能避免所有入口都堆在同一个人身上。',
-        actionLabel: '进入团队角色',
-        actionHref: '/dashboard/access/team-roles',
-      },
-      {
-        key: 'exceptions',
-        title: '异常收口',
-        emphasis: extraCustomizedSettings.length ? `${extraCustomizedSettings.length} 个局部例外` : '无额外例外',
-        summary: extraCustomizedSettings.length
-          ? `除默认楼栋和发布规则外，还有 ${extraCustomizedSettings.length} 个团队级例外需要定期复核。`
-          : '当前没有额外的团队例外设置，策略口径相对稳定。',
-        description: '团队覆盖项越多，越要定期检查这些例外是否仍然必要，避免空间口径和执行口径长期漂移。',
-        actionLabel: '查看房源经营台账',
-        actionHref: '/dashboard/property-rental/houses',
-      },
-    ],
-    [activeRoleCount, bindingCount, customRoleCount, customizedSettingCount, extraCustomizedSettings.length, inheritedSettingCount],
-  );
 
   return (
-    <TenantSelectionGuard title="团队设置" subtitle="管理当前租户下指定团队的策略继承、局部覆盖和执行分工。">
+    <TenantSelectionGuard title="团队设置" subtitle="管理当前空间下指定团队的策略继承、局部覆盖和执行分工。">
       <SettingsToolbarCard>
         <Space orientation="vertical" style={{ width: '100%' }}>
-          <TenantSectionHint text="先选择团队，再确认它是直接继承空间策略，还是需要为独立 SOP 做局部覆盖。" />
           <Select
             aria-label="团队"
             loading={teamsQuery.isLoading}
@@ -318,27 +256,6 @@ const TeamSettingsPage: React.FC = () => {
                 </Space>
               </div>
             </Col>
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>闭环信号</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            {closureSignals.map((signal) => (
-              <Col key={signal.key} xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                    <Space wrap size={[8, 8]}>
-                      <Typography.Text strong>{signal.title}</Typography.Text>
-                      <Tag color="blue">{signal.emphasis}</Tag>
-                    </Space>
-                    <Typography.Text>{signal.summary}</Typography.Text>
-                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                    <a href={signal.actionHref}>{signal.actionLabel}</a>
-                  </Space>
-                </div>
-              </Col>
-            ))}
           </Row>
         </div>
 

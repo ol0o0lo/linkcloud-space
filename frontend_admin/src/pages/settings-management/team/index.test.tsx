@@ -146,12 +146,12 @@ describe('TeamSettingsPage', () => {
 
     expect(screen.getByText('策略概览')).toBeInTheDocument();
     expect(screen.getByText('策略继承与覆盖')).toBeInTheDocument();
-    expect(screen.getByText('闭环信号')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
     expect(screen.getByText('团队覆盖设置项')).toBeInTheDocument();
     expect(screen.getByText('团队成员')).toBeInTheDocument();
     expect(screen.getAllByText('房源发布规则').length).toBeGreaterThan(0);
-    expect(screen.getByText('空间继承')).toBeInTheDocument();
-    expect(screen.getByText('权限编组')).toBeInTheDocument();
+    expect(screen.queryByText('空间继承')).not.toBeInTheDocument();
+    expect(screen.queryByText('权限编组')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getAllByText('编辑').at(-1)!);
     expect(screen.getByRole('switch')).toBeInTheDocument();

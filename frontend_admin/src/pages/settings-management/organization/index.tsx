@@ -28,16 +28,6 @@ import { getLoadingSafeCount, getLoadingSafeText } from '@/pages/property-rental
 
 type DraftValues = Record<string, unknown>;
 type BuildingItem = { id: number; name: string; estate_id: number; estate_name?: string };
-type SettingsClosureSignal = {
-  key: string;
-  title: string;
-  emphasis: string;
-  summary: string;
-  description: string;
-  actionLabel?: string;
-  actionHref?: string;
-  actionButton?: React.ReactNode;
-};
 
 const categoryTitles: Record<string, string> = {
   property_rental: '房源租赁设置',
@@ -281,11 +271,6 @@ const OrganizationSettingsPage: React.FC = () => {
         queryFn: () => houseApi.listHouses({ page: 1, page_size: 1, publish_ready: true }),
         enabled: Boolean(workspace.selectedOrgSlug),
       },
-      {
-        queryKey: ['settings-management', 'organization', 'house-impact', workspace.selectedOrgSlug, 'published'],
-        queryFn: () => houseApi.listHouses({ page: 1, page_size: 1, publish_status: 'published' }),
-        enabled: Boolean(workspace.selectedOrgSlug),
-      },
     ],
   });
 
@@ -314,13 +299,10 @@ const OrganizationSettingsPage: React.FC = () => {
   const impactLoading = houseImpactQueries.some((query) => query.isPending);
   const blockedCount = houseImpactQueries[0]?.data?.total || 0;
   const readyCount = houseImpactQueries[1]?.data?.total || 0;
-  const publishedCount = houseImpactQueries[2]?.data?.total || 0;
   const defaultBuildingSetting = settingsQuery.data?.find((setting) => setting.key === defaultBuildingSettingKey);
   const defaultBuildingId = Number(draftValues[defaultBuildingSettingKey] ?? defaultBuildingSetting?.value ?? 0) || undefined;
   const defaultBuilding = contextualBuildingItems.find((item) => item.id === defaultBuildingId);
   const defaultBuildingLabel = defaultBuilding ? `${defaultBuilding.estate_name || '未命名项目'} / ${defaultBuilding.name}` : '未设置默认楼栋';
-  const activePreset = resolveHousePublishRulesPreset(normalizeHousePublishRules(draftValues[publishRulesSettingKey]));
-  const currentRuleSummary = summarizePublishRules(normalizeHousePublishRules(draftValues[publishRulesSettingKey]));
   const sectionStyle: React.CSSProperties = {
     border: `1px solid ${token.colorBorderSecondary}`,
     borderRadius: token.borderRadiusLG,
@@ -334,54 +316,6 @@ const OrganizationSettingsPage: React.FC = () => {
     background: token.colorFillQuaternary,
     height: '100%',
   };
-  const signalTileStyle: React.CSSProperties = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    padding: 16,
-    background: token.colorBgContainer,
-    height: '100%',
-  };
-  const closureSignals: SettingsClosureSignal[] = [
-    {
-      key: 'default_building',
-      title: '默认楼栋',
-      emphasis: defaultBuilding ? '录入已就绪' : '先设默认',
-      summary: defaultBuildingLabel,
-      description: '常用录入默认楼栋设清楚，建房源时能少一步选择，也能避免误挂到错误楼栋。',
-      actionLabel: '查看默认楼栋',
-      actionHref: `#${settingAnchorId(defaultBuildingSettingKey)}`,
-    },
-    {
-      key: 'publish_rules',
-      title: '发布规则',
-      emphasis: activePreset === 'strict' ? '规则偏严格' : activePreset === 'relaxed' ? '规则偏宽松' : activePreset === 'standard' ? '标准策略' : '自定义策略',
-      summary: `阻断 ${currentRuleSummary.blocking.length} 项 / 提醒 ${currentRuleSummary.warning.length} 项 / 忽略 ${currentRuleSummary.ignored.length} 项`,
-      description: '空间规则决定房东、租金和媒体资料哪些会阻断发布，哪些只做提醒，不同阶段可以按业务节奏调整。',
-      actionLabel: '查看发布规则',
-      actionHref: `#${settingAnchorId(publishRulesSettingKey)}`,
-    },
-    {
-      key: 'inventory_impact',
-      title: '库存影响',
-      emphasis: blockedCount > 0 ? '先清阻断' : readyCount > 0 ? '可排上架' : '库存平稳',
-      summary: `${blockedCount} 套阻断 / ${readyCount} 套可发布 / ${publishedCount} 套已发布`,
-      description: '设置页不该脱离业务库存；这里直接反馈规则目前影响了多少房源，方便边调策略边看结果。',
-      actionLabel: '查看库存影响',
-      actionHref: '#settings-inventory-impact',
-    },
-    {
-      key: 'building_supply',
-      title: '楼栋供给',
-      emphasis: contextualBuildingItems.length > 0 ? '可继续录入' : '先补楼栋',
-      summary: `${contextualBuildingItems.length} 个可选楼栋 / ${estatesQuery.data?.items?.length || 0} 个项目`,
-      description: '默认楼栋和发布规则都依赖底座供给，缺楼栋时应该直接能从这里补齐，不用跳出当前策略页。',
-      actionButton: (
-        <Button size="small" onClick={() => setBuildingOpen(true)}>
-          补楼栋供给
-        </Button>
-      ),
-    },
-  ];
 
   useEffect(() => {
     if (sections.length > 0 && !sections.some((section) => section.category === activeCategory)) {
@@ -482,26 +416,6 @@ const OrganizationSettingsPage: React.FC = () => {
                 <Typography.Text type="secondary">{getLoadingSafeText(`${readyCount} 套房源当前满足发布条件`, '正在汇总可发布库存...', impactLoading)}</Typography.Text>
               </div>
             </Col>
-          </Row>
-        </div>
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>闭环信号</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            {closureSignals.map((signal) => (
-              <Col key={signal.key} xs={24} sm={12} xl={6}>
-                <div style={signalTileStyle}>
-                  <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                    <Space wrap size={[8, 8]}>
-                      <Typography.Text strong>{signal.title}</Typography.Text>
-                      <Tag color="blue">{signal.emphasis}</Tag>
-                    </Space>
-                    <Typography.Text>{signal.summary}</Typography.Text>
-                    <Typography.Text type="secondary">{signal.description}</Typography.Text>
-                    {signal.actionHref && signal.actionLabel ? <a href={signal.actionHref}>{signal.actionLabel}</a> : signal.actionButton}
-                  </Space>
-                </div>
-              </Col>
-            ))}
           </Row>
         </div>
         <Alert

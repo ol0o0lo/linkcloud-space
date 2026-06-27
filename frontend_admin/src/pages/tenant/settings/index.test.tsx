@@ -8,7 +8,6 @@ const {
   mockGetOrganization,
   mockGetOrganizationUsage,
   mockGetSettings,
-  mockListOrgSettings,
   mockUpdateSettings,
   mockPatchOrganization,
   mockPatchOrganizationStatus,
@@ -19,7 +18,6 @@ const {
   mockGetOrganization: vi.fn(),
   mockGetOrganizationUsage: vi.fn(),
   mockGetSettings: vi.fn(),
-  mockListOrgSettings: vi.fn(),
   mockUpdateSettings: vi.fn(),
   mockPatchOrganization: vi.fn(),
   mockPatchOrganizationStatus: vi.fn(),
@@ -34,14 +32,32 @@ const {
 }));
 
 vi.mock('../shared', () => ({
-  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
-  formatPersonLabel: (user: { username?: string; first_name?: string; last_name?: string }) =>
-    [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || '未知用户',
+  formatPersonLabel: (user: {
+    username?: string;
+    first_name?: string;
+    last_name?: string;
+  }) =>
+    [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+    user.username ||
+    '未知用户',
   requireTenantSlug: (slug?: string) => slug || 'missing',
   tenantQueryKeys: {
-    organizationDetail: (slug?: string) => ['tenant', 'organization-detail', slug],
-    organizationProfile: (slug?: string) => ['tenant', 'organization-profile', slug],
+    organizationDetail: (slug?: string) => [
+      'tenant',
+      'organization-detail',
+      slug,
+    ],
+    organizationProfile: (slug?: string) => [
+      'tenant',
+      'organization-profile',
+      slug,
+    ],
+    appContext: (slug?: string) => ['tenant', 'app-context', slug],
+    organizations: ['tenant', 'organizations'],
     usage: (slug?: string) => ['tenant', 'usage', slug],
   },
   useTenantWorkspace: () => mockWorkspace,
@@ -58,10 +74,6 @@ vi.mock('@/services/openapi/organizations', () => ({
 vi.mock('@/services/openapi/organizationProfile', () => ({
   appsOrganizationsApiGetSettings: mockGetSettings,
   appsOrganizationsApiUpdateSettings: mockUpdateSettings,
-}));
-
-vi.mock('@/services/openapi/organizationSettings', () => ({
-  appsSettingsApiListOrgSettings: mockListOrgSettings,
 }));
 
 vi.mock('@/services/openapi/organizationMembers', () => ({
@@ -98,21 +110,6 @@ describe('TenantSettingsPage', () => {
     mockGetSettings.mockResolvedValue({
       billing_email: 'billing@example.com',
     });
-    mockListOrgSettings.mockResolvedValue([
-      {
-        key: 'property_rental.publish_rules',
-        label: '房源发布规则',
-        value_type: 'json',
-        value: {
-          landlord: { mode: 'required' },
-          rent: { mode: 'required' },
-          cover: { mode: 'warn' },
-          images: { mode: 'warn', min_count: 3 },
-          floor_plan: { mode: 'warn' },
-          video: { mode: 'off', min_count: 1 },
-        },
-      },
-    ]);
     mockPatchOrganization.mockResolvedValue({
       id: 1,
       name: 'Acme Saved',
@@ -154,33 +151,44 @@ describe('TenantSettingsPage', () => {
       expect(mockGetOrganization).toHaveBeenCalledWith({ slug: 'acme' });
       expect(mockGetSettings).toHaveBeenCalled();
       expect(mockGetOrganizationUsage).toHaveBeenCalledWith({ slug: 'acme' });
+      expect(mockListMembers).toHaveBeenCalledWith({ page: 1, page_size: 100 });
     });
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('Acme Updated')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('billing@example.com')).toBeInTheDocument();
+      expect(
+        screen.getByDisplayValue('billing@example.com'),
+      ).toBeInTheDocument();
     });
 
-    expect(screen.getByText('空间治理概览')).toBeInTheDocument();
-    expect(screen.getByText('容量与水位')).toBeInTheDocument();
-    expect(screen.getByText('Owner 治理')).toBeInTheDocument();
-    expect(screen.getByText('业务策略')).toBeInTheDocument();
-    expect(screen.getByText('房源发布规则')).toBeInTheDocument();
-    expect(screen.getAllByText('标准发布').length).toBeGreaterThan(0);
-    expect(screen.getByText('执行与配置分工')).toBeInTheDocument();
+    expect(screen.queryByText('空间概览')).not.toBeInTheDocument();
+    expect(screen.queryByText('名额使用情况')).not.toBeInTheDocument();
+    expect(screen.queryByText('Owner 治理')).not.toBeInTheDocument();
+    expect(screen.queryByText('业务策略')).not.toBeInTheDocument();
+    expect(screen.queryByText('房源发布规则')).not.toBeInTheDocument();
+    expect(screen.queryByText('执行与配置分工')).not.toBeInTheDocument();
+    expect(screen.getByText('基础资料')).toBeInTheDocument();
     expect(screen.getByText('风险操作')).toBeInTheDocument();
-    expect(screen.getByText('闭环信号')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '去空间设置调整发布规则' })).toHaveAttribute('href', '/dashboard/settings-management/organization#setting-property_rental-publish_rules');
+    expect(screen.getByText('Owner 转移')).toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.queryByText('容量与水位')).not.toBeInTheDocument();
+    expect(screen.queryByText('容量水位')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '去空间设置调整发布规则' }),
+    ).not.toBeInTheDocument();
 
     await waitFor(() => {
       const spinButtons = screen.getAllByRole('spinbutton');
       expect(spinButtons[0]).toHaveValue('12');
       expect(spinButtons[1]).toHaveValue('3');
-      expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByRole('switch')).toHaveAttribute(
+        'aria-checked',
+        'false',
+      );
     });
 
-    expect(screen.getByText('成员上限 12')).toBeInTheDocument();
-    expect(screen.getByText('团队上限 3')).toBeInTheDocument();
+    expect(screen.getByText('当前使用：成员 2 / 12')).toBeInTheDocument();
+    expect(screen.getByText('当前使用：团队 1 / 3')).toBeInTheDocument();
   });
 
   it('saves organization profile and toggles archive status', async () => {
@@ -194,13 +202,13 @@ describe('TenantSettingsPage', () => {
       expect(screen.getByDisplayValue('Acme Updated')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText('租户名称'), {
+    fireEvent.change(screen.getByLabelText('空间名称'), {
       target: { value: 'Acme Saved' },
     });
     fireEvent.change(screen.getByLabelText('账单邮箱'), {
       target: { value: 'saved@example.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '保存租户资料' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存空间资料' }));
 
     await waitFor(() => {
       expect(mockPatchOrganization).toHaveBeenCalledWith(
@@ -210,13 +218,18 @@ describe('TenantSettingsPage', () => {
           billing_email: 'saved@example.com',
         }),
       );
-      expect(mockUpdateSettings).toHaveBeenCalledWith({ billing_email: 'saved@example.com' });
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        billing_email: 'saved@example.com',
+      });
     });
 
     fireEvent.click(screen.getByRole('switch'));
 
     await waitFor(() => {
-      expect(mockPatchOrganizationStatus).toHaveBeenCalledWith({ slug: 'acme' }, { is_active: true });
+      expect(mockPatchOrganizationStatus).toHaveBeenCalledWith(
+        { slug: 'acme' },
+        { is_active: true },
+      );
       expect(mockWorkspace.queryClient.invalidateQueries).toHaveBeenCalled();
     });
   });

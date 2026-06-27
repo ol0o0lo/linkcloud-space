@@ -32,12 +32,26 @@ const {
 }));
 
 vi.mock('../shared', () => ({
-  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
-  formatPersonLabel: (user: { username?: string; first_name?: string; last_name?: string }) =>
-    [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || '未知用户',
+  formatPersonLabel: (user: {
+    username?: string;
+    first_name?: string;
+    last_name?: string;
+  }) =>
+    [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+    user.username ||
+    '未知用户',
   tenantQueryKeys: {
-    members: (slug?: string, page?: number, q?: string) => ['tenant', 'members', slug, page, q],
+    members: (slug?: string, page?: number, q?: string) => [
+      'tenant',
+      'members',
+      slug,
+      page,
+      q,
+    ],
   },
   useTenantWorkspace: () => mockWorkspace,
 }));
@@ -117,7 +131,13 @@ describe('TenantMembersPage', () => {
       is_owner: true,
       created_at: '2026-06-15T10:00:00+08:00',
       updated_at: '2026-06-15T10:00:00+08:00',
-      user: { id: 7, username: 'alice', first_name: 'Alice', last_name: 'Zhang', email: 'alice@example.com' },
+      user: {
+        id: 7,
+        username: 'alice',
+        first_name: 'Alice',
+        last_name: 'Zhang',
+        email: 'alice@example.com',
+      },
     });
     mockListTeams.mockResolvedValue({
       items: [
@@ -125,7 +145,14 @@ describe('TenantMembersPage', () => {
           id: 3,
           name: 'Growth',
           members: [7],
-          member_details: [{ id: 7, username: 'alice', first_name: 'Alice', last_name: 'Zhang' }],
+          member_details: [
+            {
+              id: 7,
+              username: 'alice',
+              first_name: 'Alice',
+              last_name: 'Zhang',
+            },
+          ],
           created_at: '2026-06-15T12:00:00+08:00',
           updated_at: '2026-06-15T12:00:00+08:00',
         },
@@ -138,7 +165,12 @@ describe('TenantMembersPage', () => {
       {
         id: 9,
         organization_id: 1,
-        user: { id: 7, username: 'alice', first_name: 'Alice', last_name: 'Zhang' },
+        user: {
+          id: 7,
+          username: 'alice',
+          first_name: 'Alice',
+          last_name: 'Zhang',
+        },
         role: { id: 1, code: 'owner', name: 'Owner', scope: 'org' },
         created_at: '2026-06-16T09:00:00+08:00',
         updated_at: '2026-06-16T09:00:00+08:00',
@@ -148,7 +180,12 @@ describe('TenantMembersPage', () => {
       {
         id: 11,
         team_id: 3,
-        user: { id: 7, username: 'alice', first_name: 'Alice', last_name: 'Zhang' },
+        user: {
+          id: 7,
+          username: 'alice',
+          first_name: 'Alice',
+          last_name: 'Zhang',
+        },
         role: { id: 2, code: 'ops', name: '资料运营', scope: 'team' },
         created_at: '2026-06-16T10:00:00+08:00',
         updated_at: '2026-06-16T10:00:00+08:00',
@@ -159,7 +196,7 @@ describe('TenantMembersPage', () => {
     mockCreateMember.mockResolvedValue({});
   });
 
-  it('renders governance overview and triggers owner toggle / delete actions', async () => {
+  it('renders member tools and triggers owner toggle / delete actions', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <TenantMembersPage />
@@ -172,26 +209,38 @@ describe('TenantMembersPage', () => {
       expect(screen.getByText('Alice Zhang')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('成员治理概览')).toBeInTheDocument();
-    expect(screen.getAllByText('当前成员执行面').length).toBeGreaterThan(0);
-    expect(screen.getByText('闭环信号')).toBeInTheDocument();
-    expect(screen.getByText('成员治理台账')).toBeInTheDocument();
-    expect(screen.getByText('1 人未纳入团队')).toBeInTheDocument();
-    expect(screen.getByText('1 人待补职责')).toBeInTheDocument();
+    expect(screen.getAllByText('当前成员').length).toBeGreaterThan(0);
+    expect(screen.queryByText('成员概览')).not.toBeInTheDocument();
+    expect(screen.queryByText('成员详情')).not.toBeInTheDocument();
+    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.getByText('成员列表')).toBeInTheDocument();
+    expect(screen.queryByText('成员治理概览')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前成员执行面')).not.toBeInTheDocument();
+    expect(screen.queryByText('闭环信号')).not.toBeInTheDocument();
+    expect(screen.queryByText('成员治理台账')).not.toBeInTheDocument();
+    expect(screen.queryByText('1 人未纳入团队')).not.toBeInTheDocument();
+    expect(screen.queryByText('1 人待补职责')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole('switch')[0]!);
+    fireEvent.click(screen.getAllByRole('switch').at(0) as HTMLElement);
 
     await waitFor(() => {
-      expect(mockPatchMember).toHaveBeenCalledWith({ member_id: 1 }, { is_owner: false });
-      expect(mockWorkspace.queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['tenant', 'members'] });
+      expect(mockPatchMember).toHaveBeenCalledWith(
+        { member_id: 1 },
+        { is_owner: false },
+      );
+      expect(mockWorkspace.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ['tenant', 'members'],
+      });
     });
 
-    fireEvent.click(screen.getAllByText('移除')[0]!);
+    fireEvent.click(screen.getAllByText('移除').at(0) as HTMLElement);
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
       expect(mockDeleteMember).toHaveBeenCalledWith({ member_id: 1 });
-      expect(mockWorkspace.queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['tenant', 'members'] });
+      expect(mockWorkspace.queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ['tenant', 'members'],
+      });
     });
   });
 });
