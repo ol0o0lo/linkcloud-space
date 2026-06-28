@@ -1,7 +1,7 @@
-import { EllipsisOutlined } from '@ant-design/icons';
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useMutation } from '@tanstack/react-query';
+import {EllipsisOutlined} from '@ant-design/icons';
+import type {ActionType, ProColumns} from '@ant-design/pro-components';
+import {PageContainer, ProTable} from '@ant-design/pro-components';
+import {useMutation} from '@tanstack/react-query';
 import {
   Button,
   Card,
@@ -17,7 +17,7 @@ import {
   Typography,
   type MenuProps,
 } from 'antd';
-import React, { useRef, useState } from 'react';
+import React, {useRef, useState} from 'react';
 import {
   adminTableScroll,
   fullWidthStyle,
@@ -34,8 +34,8 @@ import {
   appsAccountsApiUnbindUserPhone,
   appsAccountsApiUnbindUserWechat,
 } from '@/services/openapi/userAdmin';
-import { normalizeEmailLikeInput } from '@/utils/email';
-import { IdentityText } from '../shared';
+import {normalizeEmailLikeInput} from '@/utils/email';
+import {IdentityText} from '../shared';
 
 type UserInsight = API.AdminUserOut & {
   phone_label: string;
@@ -57,18 +57,18 @@ const trimParam = (value: unknown) =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
 const realNameStatusOptions = [
-  { label: '未实名', value: 'unverified' },
-  { label: '待校验', value: 'pending' },
-  { label: '已实名', value: 'verified' },
-  { label: '已驳回', value: 'rejected' },
-  { label: '人工复核', value: 'manual_review' },
-  { label: '已撤销', value: 'revoked' },
+  {label: '未实名', value: 'unverified'},
+  {label: '待校验', value: 'pending'},
+  {label: '已实名', value: 'verified'},
+  {label: '已驳回', value: 'rejected'},
+  {label: '人工复核', value: 'manual_review'},
+  {label: '已撤销', value: 'revoked'},
 ];
 
 const roleOptions = [
-  { label: '超级管理员', value: 'superuser' },
-  { label: '后台账号', value: 'staff' },
-  { label: '普通账号', value: 'user' },
+  {label: '超级管理员', value: 'superuser'},
+  {label: '后台账号', value: 'staff'},
+  {label: '普通账号', value: 'user'},
 ];
 
 function buildUserInsight(user: API.AdminUserOut): UserInsight {
@@ -144,9 +144,9 @@ const PlatformUsersPage: React.FC = () => {
   const saveUserMutation = useMutation({
     mutationFn: (values: API.AdminUserCreateIn & API.AdminUserPatchIn) => {
       if (editingUser) {
-        const { password: _password, ...payload } = values;
+        const {password: _password, ...payload} = values;
         return appsAccountsApiPatchAdminUser(
-          { user_id: editingUser.id },
+          {user_id: editingUser.id},
           payload,
         );
       }
@@ -160,29 +160,29 @@ const PlatformUsersPage: React.FC = () => {
     },
   });
   const statusMutation = useMutation({
-    mutationFn: ({ userId, isActive }: { userId: number; isActive: boolean }) =>
+    mutationFn: ({userId, isActive}: { userId: number; isActive: boolean }) =>
       appsAccountsApiPatchUserStatus(
-        { user_id: userId },
-        { is_active: isActive },
+        {user_id: userId},
+        {is_active: isActive},
       ),
     onSuccess: () => tableActionRef.current?.reload(),
   });
   const forceLogoutMutation = useMutation({
     mutationFn: (userId: number) =>
-      appsAccountsApiForceLogoutUser({ user_id: userId }),
+      appsAccountsApiForceLogoutUser({user_id: userId}),
   });
   const resetMfaMutation = useMutation({
     mutationFn: (userId: number) =>
-      appsAccountsApiResetUserMfa({ user_id: userId }),
+      appsAccountsApiResetUserMfa({user_id: userId}),
   });
   const passwordMutation = useMutation({
     mutationFn: ({
-      userId,
-      body,
-    }: {
+                   userId,
+                   body,
+                 }: {
       userId: number;
       body: API.AdminUserPasswordIn;
-    }) => appsAccountsApiSetAdminUserPassword({ user_id: userId }, body),
+    }) => appsAccountsApiSetAdminUserPassword({user_id: userId}, body),
     onSuccess: async () => {
       setPasswordUser(null);
       passwordForm.resetFields();
@@ -191,12 +191,12 @@ const PlatformUsersPage: React.FC = () => {
   });
   const unbindPhoneMutation = useMutation({
     mutationFn: (userId: number) =>
-      appsAccountsApiUnbindUserPhone({ user_id: userId }),
+      appsAccountsApiUnbindUserPhone({user_id: userId}),
     onSuccess: () => tableActionRef.current?.reload(),
   });
   const unbindWechatMutation = useMutation({
     mutationFn: (userId: number) =>
-      appsAccountsApiUnbindUserWechat({ user_id: userId }),
+      appsAccountsApiUnbindUserWechat({user_id: userId}),
     onSuccess: () => tableActionRef.current?.reload(),
   });
 
@@ -248,11 +248,11 @@ const PlatformUsersPage: React.FC = () => {
   ): NonNullable<MenuProps['items']> => {
     const items: NonNullable<MenuProps['items']> = [];
     if (record.phone_national_number) {
-      items.push({ key: 'unbind_phone', label: '解绑手机' });
+      items.push({key: 'unbind_phone', label: '解绑手机'});
     }
-    items.push({ key: 'unbind_wechat', label: '解绑微信' });
-    items.push({ key: 'force_logout', label: '强退' });
-    items.push({ key: 'reset_mfa', label: '重置 MFA' });
+    items.push({key: 'unbind_wechat', label: '解绑微信'});
+    items.push({key: 'force_logout', label: '强退'});
+    items.push({key: 'reset_mfa', label: '重置 MFA'});
     return items;
   };
 
@@ -261,13 +261,13 @@ const PlatformUsersPage: React.FC = () => {
       title: '用户名',
       dataIndex: 'username',
       hideInTable: true,
-      fieldProps: { placeholder: '按用户名搜索' },
+      fieldProps: {placeholder: '按用户名搜索'},
     },
     {
       title: '手机号',
       dataIndex: 'phone',
       hideInTable: true,
-      fieldProps: { placeholder: '按手机号搜索' },
+      fieldProps: {placeholder: '按手机号搜索'},
     },
     {
       title: '实名状态',
@@ -295,7 +295,7 @@ const PlatformUsersPage: React.FC = () => {
       width: 220,
       search: false,
       render: (_value, record) => (
-        <IdentityText primary={record.username} secondary={record.email} />
+        <IdentityText primary={record.username} secondary={record.email}/>
       ),
     },
     {
@@ -351,7 +351,7 @@ const PlatformUsersPage: React.FC = () => {
             placement="bottomRight"
             menu={{
               items: buildUserActionItems(record),
-              onClick: ({ key, domEvent }) => {
+              onClick: ({key, domEvent}) => {
                 domEvent.preventDefault();
                 handleUserAction(record, String(key));
               },
@@ -361,7 +361,7 @@ const PlatformUsersPage: React.FC = () => {
               type="link"
               size="small"
               aria-label="更多操作"
-              icon={<EllipsisOutlined />}
+              icon={<EllipsisOutlined/>}
             />
           </Dropdown>
         </ResponsiveActions>
@@ -396,11 +396,11 @@ const PlatformUsersPage: React.FC = () => {
               success: true,
             };
           }}
-          search={{ labelWidth: 'auto' }}
+          search={{labelWidth: 'auto'}}
           options={{
             density: true,
             reload: false,
-            search: { name: 'keyword', placeholder: '按用户名、邮箱搜索' },
+            search: {name: 'keyword', placeholder: '按用户名、邮箱搜索'},
             setting: true,
           }}
           toolBarRender={() => [
@@ -410,7 +410,7 @@ const PlatformUsersPage: React.FC = () => {
           ]}
           ghost
           scroll={adminTableScroll}
-          pagination={{ defaultPageSize: 10 }}
+          pagination={{defaultPageSize: 10}}
         />
 
         {modalContextHolder}
@@ -433,44 +433,44 @@ const PlatformUsersPage: React.FC = () => {
           <Form.Item
             label="用户名"
             name="username"
-            rules={[{ required: !editingUser, message: '请输入用户名' }]}
+            rules={[{required: !editingUser, message: '请输入用户名'}]}
           >
-            <Input />
+            <Input/>
           </Form.Item>
           <Form.Item
             label="邮箱"
             name="email"
             normalize={normalizeEmailLikeInput}
             rules={[
-              { required: !editingUser, message: '请输入邮箱' },
-              { type: 'email', message: '邮箱格式不正确' },
+              {required: !editingUser, message: '请输入邮箱'},
+              {type: 'email', message: '邮箱格式不正确'},
             ]}
           >
-            <Input />
+            <Input/>
           </Form.Item>
           {!editingUser ? (
             <Form.Item
               label="初始密码"
               name="password"
-              rules={[{ required: true, message: '请输入初始密码' }]}
+              rules={[{required: true, message: '请输入初始密码'}]}
             >
-              <Input.Password />
+              <Input.Password/>
             </Form.Item>
           ) : null}
           <Form.Item label="名字" name="first_name">
-            <Input />
+            <Input/>
           </Form.Item>
           <Form.Item label="姓氏" name="last_name">
-            <Input />
+            <Input/>
           </Form.Item>
           <Form.Item label="时区" name="timezone">
-            <Input />
+            <Input/>
           </Form.Item>
           <Form.Item label="手机号区号" name="phone_country_code">
-            <Input />
+            <Input/>
           </Form.Item>
           <Form.Item label="手机号" name="phone_national_number">
-            <Input />
+            <Input/>
           </Form.Item>
           <Row gutter={16}>
             <Col xs={12} md={6}>
@@ -479,17 +479,17 @@ const PlatformUsersPage: React.FC = () => {
                 name="phone_verified"
                 valuePropName="checked"
               >
-                <Switch />
+                <Switch/>
               </Form.Item>
             </Col>
             <Col xs={12} md={6}>
               <Form.Item label="启用" name="is_active" valuePropName="checked">
-                <Switch />
+                <Switch/>
               </Form.Item>
             </Col>
             <Col xs={12} md={6}>
               <Form.Item label="Staff" name="is_staff" valuePropName="checked">
-                <Switch />
+                <Switch/>
               </Form.Item>
             </Col>
             <Col xs={12} md={6}>
@@ -498,7 +498,7 @@ const PlatformUsersPage: React.FC = () => {
                 name="is_superuser"
                 valuePropName="checked"
               >
-                <Switch />
+                <Switch/>
               </Form.Item>
             </Col>
           </Row>
@@ -525,9 +525,9 @@ const PlatformUsersPage: React.FC = () => {
           <Form.Item
             label="新密码"
             name="password"
-            rules={[{ required: true, message: '请输入新密码' }]}
+            rules={[{required: true, message: '请输入新密码'}]}
           >
-            <Input.Password style={fullWidthStyle} />
+            <Input.Password style={fullWidthStyle}/>
           </Form.Item>
         </Form>
       </Modal>
