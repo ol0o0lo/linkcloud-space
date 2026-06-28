@@ -34,7 +34,7 @@ def _validate_members(member_ids: list[int], org) -> list[int]:
 
 @router.get("/", response=list[TeamOut], summary="获取团队列表")
 @paginate(LegacyPagination)
-def list_teams(request, q: str | None = Query(None, description="按团队名称搜索。")):
+def list_teams(request, keyword: str | None = Query(None, description="按团队名称搜索。")):
     """返回当前租户下用户可见的团队列表，支持按名称搜索。"""
     require_authenticated(request)
     org = require_org_selected(request)
@@ -46,8 +46,8 @@ def list_teams(request, q: str | None = Query(None, description="按团队名称
             teamgroupbinding__group__permissions__content_type__app_label="teams",
             teamgroupbinding__group__permissions__codename="team_view",
         )
-    if q:
-        qs = qs.filter(name__icontains=q)
+    if keyword:
+        qs = qs.filter(name__icontains=keyword)
     return qs.distinct()
 
 

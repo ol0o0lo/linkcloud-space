@@ -114,7 +114,7 @@ const TenantMembersPage: React.FC = () => {
       workspace.selectedOrgSlug,
       searchKeyword,
     ],
-    queryFn: () => appsOrganizationsApiSearchMembers({ q: searchKeyword }),
+    queryFn: () => appsOrganizationsApiSearchMembers({ keyword: searchKeyword }),
     enabled: createOpen && searchKeyword.trim().length > 2,
   });
   const detailQuery = useQuery({

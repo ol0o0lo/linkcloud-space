@@ -320,12 +320,12 @@ declare namespace API {
 
   type appsAccountsApiImpersonateSearchParams = {
     /** 按姓名、用户名或邮箱搜索。 */
-    q?: string;
+    keyword?: string;
   };
 
   type appsAccountsApiListAdminRealNameVerificationsParams = {
     /** 按用户名、邮箱、手机号、实名或身份证脱敏值搜索。 */
-    q?: string | null;
+    keyword?: string | null;
     /** 按实名状态筛选。 */
     status?: string | null;
     page?: number;
@@ -333,15 +333,23 @@ declare namespace API {
   };
 
   type appsAccountsApiListAdminUsersParams = {
-    /** 按姓名、用户名或邮箱搜索。 */
-    q?: string | null;
+    /** 按姓名、用户名、邮箱、手机号或实名展示搜索。 */
+    keyword?: string | null;
+    /** 按用户名搜索。 */
+    username?: string | null;
+    /** 按手机号搜索。 */
+    phone?: string | null;
+    /** 按实名状态筛选。 */
+    real_name_status?: string | null;
+    /** 按权限筛选：superuser/staff/user。 */
+    role?: string | null;
     page?: number;
     page_size?: number | null;
   };
 
   type appsAccountsApiListUsersParams = {
     /** 按用户姓名搜索。 */
-    q?: string | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -408,7 +416,7 @@ declare namespace API {
 
   type appsHouseApiListBuildingsParams = {
     estate_id?: number | null;
-    q?: string | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -416,13 +424,13 @@ declare namespace API {
   type appsHouseApiListContactsParams = {
     role?: string | null;
     task?: string | null;
-    q?: string | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
 
   type appsHouseApiListEstatesParams = {
-    q?: string | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -435,7 +443,7 @@ declare namespace API {
     publish_issue?: string | null;
     publish_blocked?: boolean | null;
     publish_ready?: boolean | null;
-    q?: string | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -585,7 +593,7 @@ declare namespace API {
 
   type appsOrganizationsApiListMembersParams = {
     /** 按姓名、用户名或邮箱搜索成员。 */
-    q?: string | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -608,7 +616,7 @@ declare namespace API {
 
   type appsOrganizationsApiSearchMembersParams = {
     /** 待搜索的用户关键字。 */
-    q?: string;
+    keyword?: string;
   };
 
   type appsOrganizationsApiSelectOrgParams = {
@@ -701,7 +709,7 @@ declare namespace API {
 
   type appsTeamsApiListTeamsParams = {
     /** 按团队名称搜索。 */
-    q?: string | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };

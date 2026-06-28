@@ -256,7 +256,7 @@ describe('TenantInvitesPage', () => {
     );
 
     await waitFor(() => {
-      expect(mockSearchMembers).toHaveBeenCalledWith({ q: '' });
+      expect(mockSearchMembers).toHaveBeenCalledWith({ keyword: '' });
     });
 
     fireEvent.change(screen.getByLabelText('邀请人员'), {
@@ -264,7 +264,7 @@ describe('TenantInvitesPage', () => {
     });
 
     await waitFor(() => {
-      expect(mockSearchMembers).toHaveBeenCalledWith({ q: 'bob' });
+      expect(mockSearchMembers).toHaveBeenCalledWith({ keyword: 'bob' });
     });
     expect(
       screen.queryByText(

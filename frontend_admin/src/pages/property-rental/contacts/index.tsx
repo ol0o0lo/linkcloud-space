@@ -146,7 +146,7 @@ function getContactListStateFromSearch(search: string) {
   const pageValue = Number(params.get('page') || '1');
   return {
     page: Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1,
-    q: params.get('q') || undefined,
+    q: params.get('keyword') || undefined,
     role: params.get('role') || undefined,
     task: params.get('task') || undefined,
   };
@@ -156,7 +156,7 @@ function syncContactListSearch(filters: { page: number; q?: string; role?: strin
   const params = new URLSearchParams();
   if (filters.task) params.set('task', filters.task);
   if (filters.role) params.set('role', filters.role);
-  if (filters.q) params.set('q', filters.q);
+  if (filters.q) params.set('keyword', filters.q);
   if (filters.page > 1) params.set('page', String(filters.page));
   const nextSearch = params.toString();
   const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
@@ -190,17 +190,17 @@ const ContactsPage: React.FC = () => {
   const enabled = Boolean(workspace.selectedOrgSlug);
   const baseContacts = useQuery({
     queryKey: ['house', 'contacts', 'base-overview', workspace.selectedOrgSlug, q],
-    queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, q }),
+    queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, keyword: q }),
     enabled,
   });
   const overviewContacts = useQuery({
     queryKey: ['house', 'contacts', 'overview', workspace.selectedOrgSlug, q, role, task],
-    queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, q, role, task }),
+    queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, keyword: q, role, task }),
     enabled,
   });
   const contacts = useQuery({
     queryKey: ['house', 'contacts', workspace.selectedOrgSlug, page, q, role, task],
-    queryFn: () => houseApi.listContacts({ page, page_size: PAGE_SIZE, q, role, task }),
+    queryFn: () => houseApi.listContacts({ page, page_size: PAGE_SIZE, keyword: q, role, task }),
     enabled,
   });
   const saveContact = useMutation({

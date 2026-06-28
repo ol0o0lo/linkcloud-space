@@ -8,6 +8,7 @@ from allauth.mfa.models import Authenticator
 from allauth.socialaccount.models import SocialAccount
 from allauth.usersessions.models import UserSession
 
+from apps.accounts.constants import RealNameStatus
 from apps.accounts.models import User
 from tests.api_helpers import api_data
 
@@ -143,6 +144,30 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertFalse(member["is_active"])
         self.assertFalse(member["is_staff"])
         self.assertFalse(member["is_superuser"])
+
+    def test_superuser_can_filter_admin_users(self):
+        staff = User.objects.create_user(username="operator", email="ops@example.com", password="secret", is_staff=True)  # noqa: S106
+        verified = User.objects.create_user(
+            username="verified-user",
+            email="verified@example.com",
+            password="secret",  # noqa: S106
+            phone_country_code="+86",
+            phone_national_number="13900000000",
+            real_name_status=RealNameStatus.VERIFIED,
+            real_name_masked="张*",
+        )
+
+        def usernames(params):
+            return {row["username"] for row in api_data(self.client.get("/api/admin/users/", params))["items"]}
+
+        self.assertEqual(usernames({"username": "member"}), {"member"})
+        self.assertEqual(usernames({"phone": "1380000"}), {"member"})
+        self.assertEqual(usernames({"keyword": "张"}), {"verified-user"})
+        self.assertEqual(usernames({"real_name_status": RealNameStatus.VERIFIED}), {"verified-user"})
+        self.assertEqual(usernames({"role": "staff"}), {"operator"})
+        self.assertIn("admin", usernames({"role": "superuser"}))
+        self.assertIn("member", usernames({"role": "user"}))
+        self.assertNotIn("operator", usernames({"role": "user"}))
 
     def test_staff_user_cannot_list_admin_users(self):
         staff = User.objects.create_user(username="staff-list", password="secret", is_staff=True)  # noqa: S106

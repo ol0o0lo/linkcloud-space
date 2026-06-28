@@ -211,25 +211,27 @@ def _members_qs(request):
 
 @members_router.get("/", response=list[MemberOut], summary="获取租户成员列表")
 @paginate(LegacyPagination)
-def list_members(request, q: str | None = Query(None, description="按姓名、用户名或邮箱搜索成员。")):
+def list_members(request, keyword: str | None = Query(None, description="按姓名、用户名或邮箱搜索成员。")):
     """返回当前租户成员列表，支持按姓名、用户名和邮箱搜索。"""
     require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     qs = _members_qs(request)
-    if q:
-        qs = qs.filter(Q(user__first_name__icontains=q) | Q(user__last_name__icontains=q) | Q(user__username__icontains=q) | Q(user__email__icontains=q))
+    if keyword:
+        qs = qs.filter(
+            Q(user__first_name__icontains=keyword) | Q(user__last_name__icontains=keyword) | Q(user__username__icontains=keyword) | Q(user__email__icontains=keyword)
+        )
     return qs
 
 
 @members_router.get("/search/", response=list[MemberSearchOut], summary="搜索可添加成员")
-def search_members(request, q: str = Query("", description="待搜索的用户关键字。")):
+def search_members(request, keyword: str = Query("", description="待搜索的用户关键字。")):
     """搜索尚未加入当前租户且未被邀请的可添加用户。"""
     org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     user_model = apps.get_model(settings.AUTH_USER_MODEL)
     qs = user_model.objects.filter(is_active=True)
     qs = qs.exclude(pk__in=OrganizationMember.objects.filter(organization=org).values_list("user_id", flat=True))
     qs = qs.exclude(pk__in=OrganizationInvite.objects.filter(organization=org).filter(invitee__isnull=False).values_list("invitee_id", flat=True))
-    if len(q) > 2:
-        items = [item.strip() for item in re.split(r"\s+", q)]
+    if len(keyword) > 2:
+        items = [item.strip() for item in re.split(r"\s+", keyword)]
         q_obj = Q()
         for item in items:
             for fn in ("first_name", "last_name", "username", "email"):

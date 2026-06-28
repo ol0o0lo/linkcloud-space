@@ -204,7 +204,7 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         )
         baker.make("organizations.OrganizationMember", organization=self.org, user=miss)
         self._login()
-        resp = self.client.get("/api/organization-members/", {"q": "alice"})
+        resp = self.client.get("/api/organization-members/", {"keyword": "alice"})
         self.assertEqual(resp.status_code, 200)
         items = api_data(resp)["items"]
         usernames = {r["user"]["username"] for r in items}
@@ -274,7 +274,7 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
             password="secret",  # noqa: S106
         )
         self._login()
-        resp = self.client.get("/api/organization-members/search/", {"q": "Searchable"})
+        resp = self.client.get("/api/organization-members/search/", {"keyword": "Searchable"})
         self.assertEqual(resp.status_code, 200)
         usernames = [u["username"] for u in api_data(resp)]
         self.assertIn("searchable", usernames)

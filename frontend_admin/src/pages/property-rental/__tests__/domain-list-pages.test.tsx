@@ -255,7 +255,7 @@ describe('Property rental domain list pages', () => {
 
   it('scopes estate overview when searching by keyword', async () => {
     mockListEstates.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.q === '旧改') {
+      if (params?.keyword === '旧改') {
         return Promise.resolve({
           items: [
             { id: 2, name: 'legacy-estate', display_name: '旧改公寓', city: '上海', district: '浦东', address: '张杨路 1 号', is_active: true, property_type: 'apartment', province: '上海' },
@@ -277,7 +277,7 @@ describe('Property rental domain list pages', () => {
       });
     });
     mockListBuildings.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.q === '旧改') {
+      if (params?.keyword === '旧改') {
         return Promise.resolve({
           items: [
             { id: 3, estate_id: 2, estate_name: '旧改公寓', name: '2 栋', floors: 18, elevator: true, address: '张杨路 1 号', is_active: true },
@@ -307,20 +307,20 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：搜索：旧改')).toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
-    await waitFor(() => expect(mockListEstates).toHaveBeenCalledWith(expect.objectContaining({ q: '旧改' })));
-    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith(expect.objectContaining({ q: '旧改' })));
+    await waitFor(() => expect(mockListEstates).toHaveBeenCalledWith(expect.objectContaining({ keyword: '旧改' })));
+    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith(expect.objectContaining({ keyword: '旧改' })));
   });
 
   it('restores estate search state from URL', async () => {
-    window.history.pushState({}, '', '/property-rental/estates?q=%E6%97%A7%E6%94%B9&view=buildings&estate_page=2&building_page=3');
+    window.history.pushState({}, '', '/property-rental/estates?keyword=%E6%97%A7%E6%94%B9&view=buildings&estate_page=2&building_page=3');
 
     renderPage(<EstatesPage />);
 
     expect(await screen.findByDisplayValue('旧改')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'plus 新建项目' })).not.toBeInTheDocument();
     expect(screen.getByRole('radio', { name: '楼栋台账' })).toBeInTheDocument();
-    await waitFor(() => expect(mockListEstates).toHaveBeenCalledWith(expect.objectContaining({ page: 2, q: '旧改' })));
-    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith(expect.objectContaining({ page: 3, q: '旧改' })));
+    await waitFor(() => expect(mockListEstates).toHaveBeenCalledWith(expect.objectContaining({ page: 2, keyword: '旧改' })));
+    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith(expect.objectContaining({ page: 3, keyword: '旧改' })));
   });
 
   it('syncs estate search state back to URL', async () => {
@@ -329,7 +329,7 @@ describe('Property rental domain list pages', () => {
     fireEvent.change(screen.getByPlaceholderText('项目 / 楼栋名称'), { target: { value: '旧改' } });
     fireEvent.click(screen.getByRole('button', { name: 'search' }));
 
-    await waitFor(() => expect(window.location.search).toBe('?q=%E6%97%A7%E6%94%B9'));
+    await waitFor(() => expect(window.location.search).toBe('?keyword=%E6%97%A7%E6%94%B9'));
   });
 
   it('switches between estate and building ledger views', async () => {
@@ -478,7 +478,7 @@ describe('Property rental domain list pages', () => {
 
   it('shows contact operational overview and business hints', async () => {
     mockListContacts.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.q && !params?.role && !params?.task) {
+      if (params?.keyword && !params?.role && !params?.task) {
         return Promise.resolve({
           items: [
             { id: 3, name: '张房东', phone: '13800000000', email: 'landlord@example.com', roles: ['landlord'], is_active: true },
@@ -719,9 +719,9 @@ describe('Property rental domain list pages', () => {
   });
 
   it('restores contact filters from URL search params', async () => {
-    window.history.pushState({}, '', '/property-rental/contacts?role=tenant&q=%E7%8E%8B%E7%A7%9F%E5%AE%A2&page=2');
+    window.history.pushState({}, '', '/property-rental/contacts?role=tenant&keyword=%E7%8E%8B%E7%A7%9F%E5%AE%A2&page=2');
     mockListContacts.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.role === 'tenant' && params?.q === '王租客' && params?.page === 1 && params?.page_size === 100) {
+      if (params?.role === 'tenant' && params?.keyword === '王租客' && params?.page === 1 && params?.page_size === 100) {
         return Promise.resolve({
           items: [{ id: 6, name: '王租客', phone: '13700000000', email: 'tenant@example.com', roles: ['tenant'], is_active: true }],
           total: 21,
@@ -729,7 +729,7 @@ describe('Property rental domain list pages', () => {
           page_size: 100,
         });
       }
-      if (params?.role === 'tenant' && params?.q === '王租客' && params?.page === 2 && params?.page_size === 20) {
+      if (params?.role === 'tenant' && params?.keyword === '王租客' && params?.page === 2 && params?.page_size === 20) {
         return Promise.resolve({
           items: [{ id: 6, name: '王租客', phone: '13700000000', email: 'tenant@example.com', roles: ['tenant'], is_active: true }],
           total: 21,
@@ -750,13 +750,13 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：角色：租客 / 搜索：王租客')).toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
-    await waitFor(() => expect(mockListContacts).toHaveBeenCalledWith(expect.objectContaining({ role: 'tenant', q: '王租客', page: 2 })));
+    await waitFor(() => expect(mockListContacts).toHaveBeenCalledWith(expect.objectContaining({ role: 'tenant', keyword: '王租客', page: 2 })));
   });
 
   it('restores contact task filters from URL search params', async () => {
-    window.history.pushState({}, '', '/property-rental/contacts?task=inactive&q=%E5%81%9C%E7%94%A8&page=2');
+    window.history.pushState({}, '', '/property-rental/contacts?task=inactive&keyword=%E5%81%9C%E7%94%A8&page=2');
     mockListContacts.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.q === '停用' && !params?.task && params?.page_size === 100) {
+      if (params?.keyword === '停用' && !params?.task && params?.page_size === 100) {
         return Promise.resolve({
           items: [{ id: 8, name: '停用联系人', phone: '13600000000', email: '', roles: ['landlord'], is_active: false }],
           total: 1,
@@ -764,7 +764,7 @@ describe('Property rental domain list pages', () => {
           page_size: 100,
         });
       }
-      if (params?.task === 'inactive' && params?.q === '停用' && params?.page === 1 && params?.page_size === 100) {
+      if (params?.task === 'inactive' && params?.keyword === '停用' && params?.page === 1 && params?.page_size === 100) {
         return Promise.resolve({
           items: [{ id: 8, name: '停用联系人', phone: '13600000000', email: '', roles: ['landlord'], is_active: false }],
           total: 21,
@@ -772,7 +772,7 @@ describe('Property rental domain list pages', () => {
           page_size: 100,
         });
       }
-      if (params?.task === 'inactive' && params?.q === '停用' && params?.page === 2 && params?.page_size === 20) {
+      if (params?.task === 'inactive' && params?.keyword === '停用' && params?.page === 2 && params?.page_size === 20) {
         return Promise.resolve({
           items: [{ id: 8, name: '停用联系人', phone: '13600000000', email: '', roles: ['landlord'], is_active: false }],
           total: 21,
@@ -793,7 +793,7 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByText('当前筛选概览')).toBeInTheDocument();
     expect(screen.getByText('当前只看：队列：停用联系人 / 搜索：停用')).toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
-    await waitFor(() => expect(mockListContacts).toHaveBeenCalledWith(expect.objectContaining({ task: 'inactive', q: '停用', page: 2 })));
+    await waitFor(() => expect(mockListContacts).toHaveBeenCalledWith(expect.objectContaining({ task: 'inactive', keyword: '停用', page: 2 })));
   });
 
   it('shows viewing rows', async () => {
@@ -1312,7 +1312,7 @@ describe('Property rental domain list pages', () => {
   });
 
   it('restores house filters from URL search params', async () => {
-    window.history.pushState({}, '', '/property-rental/houses?task=rent&estate_id=1&building_id=2&status=vacant&publish_status=draft&q=A-101&page=2');
+    window.history.pushState({}, '', '/property-rental/houses?task=rent&estate_id=1&building_id=2&status=vacant&publish_status=draft&keyword=A-101&page=2');
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
     mockListBuildings.mockResolvedValue({ items: [{ id: 2, estate_id: 1, estate_name: '星河湾花园', name: '1 栋', floors: 32, elevator: true }], total: 1, page: 1, page_size: 100 });
 
@@ -1328,7 +1328,7 @@ describe('Property rental domain list pages', () => {
       status: 'vacant',
       publish_status: 'draft',
       publish_issue: 'rent',
-      q: 'A-101',
+      keyword: 'A-101',
     })));
   });
 
@@ -1338,13 +1338,13 @@ describe('Property rental domain list pages', () => {
     fireEvent.change(screen.getByPlaceholderText('房号搜索'), { target: { value: 'A-101' } });
     fireEvent.click(screen.getByRole('button', { name: 'search' }));
 
-    await waitFor(() => expect(window.location.search).toBe('?q=A-101'));
+    await waitFor(() => expect(window.location.search).toBe('?keyword=A-101'));
   });
 
   it('restores house task and search state on browser popstate', async () => {
     renderPage(<HousesPage />);
 
-    window.history.pushState({}, '', '/property-rental/houses?task=ready&q=QA-104');
+    window.history.pushState({}, '', '/property-rental/houses?task=ready&keyword=QA-104');
     window.dispatchEvent(new PopStateEvent('popstate'));
 
     expect(await screen.findByText('当前只看：可发布 / 搜索：QA-104')).toBeInTheDocument();
@@ -1353,7 +1353,7 @@ describe('Property rental domain list pages', () => {
 
   it('shows an empty-state suggestion when a house search scope returns no results', async () => {
     mockListHouses.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.q === '不存在') {
+      if (params?.keyword === '不存在') {
         return Promise.resolve({ items: [], total: 0, page: 1, page_size: Number(params?.page_size || 20) });
       }
       return Promise.resolve({

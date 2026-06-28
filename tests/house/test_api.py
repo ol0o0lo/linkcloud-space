@@ -441,7 +441,7 @@ class HouseApiTestCase(TestCase):
         )
 
         building_payload = api_data(self.client.get("/api/house/buildings/"))["items"][0]
-        house_payload = api_data(self.client.get("/api/house/houses/?q=1801"))["items"][0]
+        house_payload = api_data(self.client.get("/api/house/houses/?keyword=1801"))["items"][0]
         viewing_payload = api_data(self.client.get("/api/house/viewing-records/?status=converted"))["items"][0]
         lease_payload = api_data(self.client.get("/api/house/leases/"))["items"][0]
 
@@ -475,7 +475,7 @@ class HouseApiTestCase(TestCase):
         other_building = Building.objects.create(organization=self.org, estate=other_estate, name="3栋", floors=16)
         self.make_other_org_house()
 
-        response = self.client.get("/api/house/buildings/?q=海风里花园")
+        response = self.client.get("/api/house/buildings/?keyword=海风里花园")
         payload = api_data(response)
 
         self.assertEqual(response.status_code, 200)

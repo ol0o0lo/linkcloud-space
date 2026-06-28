@@ -118,7 +118,7 @@ function syncEstateDrawerSearch(drawerState: EstateDrawerState) {
 
 function getEstateListHref(filters: { estatePage: number; buildingPage: number; q?: string; view: EstateViewMode; task?: EstateTask }) {
   const params = new URLSearchParams();
-  if (filters.q) params.set('q', filters.q);
+  if (filters.q) params.set('keyword', filters.q);
   if (filters.task) params.set('task', filters.task);
   const taskView = getTaskViewMode(filters.task, 'all');
   if (filters.view !== 'all' && filters.view !== taskView) params.set('view', filters.view);
@@ -222,7 +222,7 @@ function getEstateListStateFromSearch(search: string) {
   return {
     estatePage: Number.isFinite(estatePageValue) && estatePageValue > 0 ? estatePageValue : 1,
     buildingPage: Number.isFinite(buildingPageValue) && buildingPageValue > 0 ? buildingPageValue : 1,
-    q: params.get('q') || undefined,
+    q: params.get('keyword') || undefined,
     view: view === 'estates' || view === 'buildings' ? view : 'all',
     task: task === 'estate_address' || task === 'building_address' || task === 'no_building' || task === 'inactive' ? task : undefined,
   } satisfies { estatePage: number; buildingPage: number; q?: string; view: EstateViewMode; task?: EstateTask };
@@ -230,12 +230,12 @@ function getEstateListStateFromSearch(search: string) {
 
 function syncEstateListSearch(filters: { estatePage: number; buildingPage: number; q?: string; view: EstateViewMode; task?: EstateTask }) {
   const params = new URLSearchParams(window.location.search);
-  params.delete('q');
+  params.delete('keyword');
   params.delete('task');
   params.delete('view');
   params.delete('estate_page');
   params.delete('building_page');
-  if (filters.q) params.set('q', filters.q);
+  if (filters.q) params.set('keyword', filters.q);
   if (filters.task) params.set('task', filters.task);
   const taskView = getTaskViewMode(filters.task, 'all');
   if (filters.view !== 'all' && filters.view !== taskView) params.set('view', filters.view);
@@ -287,16 +287,16 @@ const EstatesPage: React.FC = () => {
   const [estateOpen, setEstateOpen] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
   const enabled = Boolean(workspace.selectedOrgSlug);
-  const estates = useQuery({ queryKey: ['house', 'estates', workspace.selectedOrgSlug, estatePage, q], queryFn: () => houseApi.listEstates({ page: estatePage, page_size: PAGE_SIZE, q }), enabled });
+  const estates = useQuery({ queryKey: ['house', 'estates', workspace.selectedOrgSlug, estatePage, q], queryFn: () => houseApi.listEstates({ page: estatePage, page_size: PAGE_SIZE, keyword: q }), enabled });
   const allEstates = useQuery({
     queryKey: ['house', 'estates', 'all', workspace.selectedOrgSlug, q],
-    queryFn: () => houseApi.listEstates({ page: 1, page_size: 100, q }),
+    queryFn: () => houseApi.listEstates({ page: 1, page_size: 100, keyword: q }),
     enabled,
   });
-  const buildings = useQuery({ queryKey: ['house', 'buildings', workspace.selectedOrgSlug, buildingPage, q], queryFn: () => houseApi.listBuildings({ page: buildingPage, page_size: PAGE_SIZE, q }), enabled });
+  const buildings = useQuery({ queryKey: ['house', 'buildings', workspace.selectedOrgSlug, buildingPage, q], queryFn: () => houseApi.listBuildings({ page: buildingPage, page_size: PAGE_SIZE, keyword: q }), enabled });
   const allBuildings = useQuery({
     queryKey: ['house', 'buildings', 'all', workspace.selectedOrgSlug, q],
-    queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100, q }),
+    queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100, keyword: q }),
     enabled,
   });
   const saveEstate = useMutation({

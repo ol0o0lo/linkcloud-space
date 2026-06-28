@@ -71,11 +71,11 @@ def _validate_assignee_in_org(user_id: int | None, org) -> None:
 
 @router.get("/estates/", response=list[EstateOut], summary="获取项目片区列表")
 @paginate(LegacyPagination)
-def list_estates(request, q: str | None = Query(None)):
+def list_estates(request, keyword: str | None = Query(None)):
     org = require_org_selected(request)
     qs = Estate.objects.filter(organization=org).order_by("name", "id")
-    if q:
-        qs = qs.filter(name__icontains=q) | qs.filter(display_name__icontains=q)
+    if keyword:
+        qs = qs.filter(name__icontains=keyword) | qs.filter(display_name__icontains=keyword)
     return qs
 
 
@@ -99,13 +99,13 @@ def patch_estate(request, estate_id: int, payload: EstatePatchIn):
 
 @router.get("/buildings/", response=list[BuildingOut], summary="获取楼栋列表")
 @paginate(LegacyPagination)
-def list_buildings(request, estate_id: int | None = Query(None), q: str | None = Query(None)):
+def list_buildings(request, estate_id: int | None = Query(None), keyword: str | None = Query(None)):
     org = require_org_selected(request)
     qs = Building.objects.filter(organization=org).select_related("estate").order_by("estate__name", "name")
     if estate_id:
         qs = qs.filter(estate_id=estate_id)
-    if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(estate__name__icontains=q) | Q(estate__display_name__icontains=q))
+    if keyword:
+        qs = qs.filter(Q(name__icontains=keyword) | Q(estate__name__icontains=keyword) | Q(estate__display_name__icontains=keyword))
     return qs
 
 
@@ -169,7 +169,7 @@ def put_default_building(request, payload: DefaultBuildingIn):
 
 @router.get("/contacts/", response=list[ContactOut], summary="获取联系人列表")
 @paginate(LegacyPagination)
-def list_contacts(request, role: str | None = Query(None), task: str | None = Query(None), q: str | None = Query(None)):
+def list_contacts(request, role: str | None = Query(None), task: str | None = Query(None), keyword: str | None = Query(None)):
     org = require_org_selected(request)
     qs = Contact.objects.filter(organization=org).order_by("name", "id")
     if role:
@@ -180,8 +180,8 @@ def list_contacts(request, role: str | None = Query(None), task: str | None = Qu
         qs = qs.filter(roles__contains=[Contact.Role.LANDLORD]).filter(roles__contains=[Contact.Role.TENANT])
     if task == "role_missing":
         qs = qs.filter(roles=[])
-    if q:
-        qs = qs.filter(name__icontains=q) | qs.filter(phone__icontains=q)
+    if keyword:
+        qs = qs.filter(name__icontains=keyword) | qs.filter(phone__icontains=keyword)
     return qs
 
 
@@ -220,7 +220,7 @@ def list_houses(
     publish_issue: str | None = Query(None),
     publish_blocked: bool | None = Query(None),
     publish_ready: bool | None = Query(None),
-    q: str | None = Query(None),
+    keyword: str | None = Query(None),
 ):
     org = require_org_selected(request)
     qs = House.objects.filter(building__estate__organization=org).select_related("building__estate", "landlord").order_by("building__estate__name", "building__name", "room_number")
@@ -232,8 +232,8 @@ def list_houses(
         qs = qs.filter(status=status)
     if publish_status:
         qs = qs.filter(publish_status=publish_status)
-    if q:
-        qs = qs.filter(room_number__icontains=q)
+    if keyword:
+        qs = qs.filter(room_number__icontains=keyword)
     rules = get_org_house_publish_rules(org)
     issue_labels = {
         "landlord": "缺房东",

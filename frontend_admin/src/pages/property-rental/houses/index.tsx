@@ -124,7 +124,7 @@ function getHouseListStateFromSearch(search: string) {
     buildingId: Number.isFinite(buildingIdValue) && buildingIdValue > 0 ? buildingIdValue : undefined,
     status: params.get('status') || undefined,
     publishStatus: params.get('publish_status') || undefined,
-    q: params.get('q') || undefined,
+    q: params.get('keyword') || undefined,
   };
 }
 
@@ -135,7 +135,7 @@ function syncHouseListSearch(filters: HouseScopeFilters & { page: number }) {
   if (filters.buildingId) params.set('building_id', String(filters.buildingId));
   if (filters.status) params.set('status', filters.status);
   if (filters.publishStatus) params.set('publish_status', filters.publishStatus);
-  if (filters.q) params.set('q', filters.q);
+  if (filters.q) params.set('keyword', filters.q);
   if (filters.page > 1) params.set('page', String(filters.page));
   const nextSearch = params.toString();
   const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
@@ -273,7 +273,7 @@ const HousesPage: React.FC = () => {
       building_id: buildingId,
       status,
       publish_status: publishStatus,
-      q,
+      keyword: q,
       ...taskQuery,
     }),
     enabled,
@@ -290,7 +290,7 @@ const HousesPage: React.FC = () => {
           building_id: buildingId,
           status,
           publish_status: publishStatus,
-          q,
+          keyword: q,
           ...taskQuery,
           publish_blocked: true,
         }),
@@ -304,7 +304,7 @@ const HousesPage: React.FC = () => {
           building_id: buildingId,
           status,
           publish_status: publishStatus,
-          q,
+          keyword: q,
           ...taskQuery,
           publish_ready: true,
         }),
@@ -317,7 +317,7 @@ const HousesPage: React.FC = () => {
           estate_id: estateId,
           building_id: buildingId,
           status,
-          q,
+          keyword: q,
           ...taskQuery,
           publish_status: 'published',
         }),
@@ -330,7 +330,7 @@ const HousesPage: React.FC = () => {
           estate_id: estateId,
           building_id: buildingId,
           status,
-          q,
+          keyword: q,
           ...taskQuery,
           publish_status: 'unpublished',
         }),

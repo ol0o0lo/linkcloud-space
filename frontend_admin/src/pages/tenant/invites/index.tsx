@@ -142,7 +142,7 @@ const TenantInvitesPage: React.FC = () => {
       workspace.selectedOrgSlug,
       searchKeyword,
     ],
-    queryFn: () => appsOrganizationsApiSearchMembers({ q: searchKeyword }),
+    queryFn: () => appsOrganizationsApiSearchMembers({ keyword: searchKeyword }),
     enabled: createOpen && inviteMode === 'internal' && candidateSearchActive,
   });
   const accessRolesQuery = useQuery({

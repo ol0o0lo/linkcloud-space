@@ -205,26 +205,26 @@ def get_social_bindings(request):
 
 @users_router.get("/", response=list[UserOut], summary="获取用户列表")
 @paginate(make_pagination(default_page_size=50))
-def list_users(request, q: str | None = Query(None, description="按用户姓名搜索。")):
+def list_users(request, keyword: str | None = Query(None, description="按用户姓名搜索。")):
     """返回当前租户下可见的用户列表，支持按姓名关键字筛选。"""
     require_authenticated(request)
     qs = _users_qs(request)
-    if q:
-        qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q))
+    if keyword:
+        qs = qs.filter(Q(first_name__icontains=keyword) | Q(last_name__icontains=keyword))
     return qs
 
 
 @users_router.get("/impersonate-search/", response=list[ImpersonateUserOut], summary="搜索可代登录用户")
-def impersonate_search(request, q: str = Query("", description="按姓名、用户名或邮箱搜索。")):
+def impersonate_search(request, keyword: str = Query("", description="按姓名、用户名或邮箱搜索。")):
     """供超级管理员搜索可用于 impersonate 的用户候选列表。"""
     require_authenticated(request)
     if not request.user.is_superuser:
         raise HttpError(403, "Superuser permission required.")
     User = get_user_model()
     qs = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
-    q = q.strip()
-    if q:
-        qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q) | Q(email__icontains=q))
+    keyword = keyword.strip()
+    if keyword:
+        qs = qs.filter(Q(first_name__icontains=keyword) | Q(last_name__icontains=keyword) | Q(username__icontains=keyword) | Q(email__icontains=keyword))
     qs = qs.order_by("first_name", "last_name")[:20]
     return [
         {
@@ -342,13 +342,39 @@ def _prevent_self_admin_lockout(request, user, data: dict):
 
 @admin_users_router.get("/", response=list[AdminUserOut], summary="获取后台用户列表")
 @paginate(make_pagination(default_page_size=50))
-def list_admin_users(request, q: str | None = Query(None, description="按姓名、用户名或邮箱搜索。")):
+def list_admin_users(
+    request,
+    keyword: str | None = Query(None, description="按姓名、用户名、邮箱、手机号或实名展示搜索。"),
+    username: str | None = Query(None, description="按用户名搜索。"),
+    phone: str | None = Query(None, description="按手机号搜索。"),
+    real_name_status: str | None = Query(None, description="按实名状态筛选。"),
+    role: str | None = Query(None, description="按权限筛选：superuser/staff/user。"),
+):
     """由超级管理员查看全量用户列表，用于后台账号生命周期管理。"""
     require_superuser(request)
     User = get_user_model()
     qs = User.objects.all().order_by("id")
-    if q:
-        qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q) | Q(email__icontains=q))
+    if keyword := (keyword or "").strip():
+        qs = qs.filter(
+            Q(first_name__icontains=keyword)
+            | Q(last_name__icontains=keyword)
+            | Q(username__icontains=keyword)
+            | Q(email__icontains=keyword)
+            | Q(phone_national_number__icontains=keyword)
+            | Q(real_name_masked__icontains=keyword)
+        )
+    if username := (username or "").strip():
+        qs = qs.filter(username__icontains=username)
+    if phone := (phone or "").strip():
+        qs = qs.filter(phone_national_number__icontains=phone)
+    if real_name_status := (real_name_status or "").strip():
+        qs = qs.filter(real_name_status=real_name_status)
+    if role == "superuser":
+        qs = qs.filter(is_superuser=True)
+    elif role == "staff":
+        qs = qs.filter(is_staff=True, is_superuser=False)
+    elif role == "user":
+        qs = qs.filter(is_staff=False, is_superuser=False)
     return qs
 
 
@@ -522,7 +548,7 @@ def retry_my_real_name(request, payload: RealNameRetryIn):
 @paginate(make_pagination(default_page_size=50))
 def list_admin_real_name_verifications(
     request,
-    q: str | None = Query(None, description="按用户名、邮箱、手机号、实名或身份证脱敏值搜索。"),
+    keyword: str | None = Query(None, description="按用户名、邮箱、手机号、实名或身份证脱敏值搜索。"),
     status: str | None = Query(None, description="按实名状态筛选。"),
 ):
     require_superuser(request)
@@ -530,13 +556,13 @@ def list_admin_real_name_verifications(
     qs = RealNameVerification.objects.select_related("user", "reviewed_by").filter(is_current=True).order_by("-created_at")
     if status:
         qs = qs.filter(status=status)
-    if q:
+    if keyword:
         qs = qs.filter(
-            Q(user__username__icontains=q)
-            | Q(user__email__icontains=q)
-            | Q(user__phone__icontains=q)
-            | Q(real_name_masked__icontains=q)
-            | Q(id_number_masked__icontains=q)
+            Q(user__username__icontains=keyword)
+            | Q(user__email__icontains=keyword)
+            | Q(user__phone__icontains=keyword)
+            | Q(real_name_masked__icontains=keyword)
+            | Q(id_number_masked__icontains=keyword)
         )
 
     return [serialize_real_name_verification(item) for item in qs]

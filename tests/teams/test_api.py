@@ -54,7 +54,7 @@ class TestTeamAPI(TestCase):
         baker.make("teams.Team", name="Engineering", organization=self.org)
         baker.make("teams.Team", name="Designers", organization=self.org)
         self._login()
-        resp = self.client.get(LIST_URL, {"q": "design"})
+        resp = self.client.get(LIST_URL, {"keyword": "design"})
         names = [r["name"] for r in api_data(resp)["items"]]
         self.assertEqual(names, ["Designers"])
 
