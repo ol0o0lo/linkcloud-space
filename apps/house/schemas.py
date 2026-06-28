@@ -5,7 +5,8 @@ from typing import Any
 from ninja import Schema
 from pydantic import ConfigDict, Field
 
-from apps.house.constants import EstatePropertyType
+from apps.base.enum_registry import enum_list_mapping, enum_mapping
+from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
 
 
 class EstateIn(Schema):
@@ -47,6 +48,7 @@ class EstateOut(Schema):
     name: str
     display_name: str
     property_type: str
+    property_type__mapping: str
     province: str
     city: str
     district: str
@@ -55,6 +57,10 @@ class EstateOut(Schema):
     lng: Decimal | None
     images: list[dict[str, Any]]
     is_active: bool
+
+    @staticmethod
+    def resolve_property_type__mapping(obj):
+        return enum_mapping(EstatePropertyType, obj.property_type)
 
     @staticmethod
     def resolve_images(obj):
@@ -147,9 +153,14 @@ class ContactOut(Schema):
     phone: str
     email: str
     roles: list[str]
+    roles__mapping: list[str]
     user_id: int | None
     notes: str
     is_active: bool
+
+    @staticmethod
+    def resolve_roles__mapping(obj):
+        return enum_list_mapping(ContactRole, obj.roles)
 
 
 class HouseIn(Schema):
@@ -229,10 +240,14 @@ class HouseOut(Schema):
     kitchens: int | None
     balconies: int | None
     orientation: str | None
+    orientation__mapping: str
     decoration: str | None
+    decoration__mapping: str
     has_elevator_access: bool
     status: str
+    status__mapping: str
     publish_status: str
+    publish_status__mapping: str
     images: list[dict[str, Any]]
     videos: list[dict[str, Any]]
     tags: list[str]
@@ -244,6 +259,22 @@ class HouseOut(Schema):
     publish_blocking_issues: list[str]
     publish_warning_issues: list[str]
     publish_rule_snapshot: dict[str, Any]
+
+    @staticmethod
+    def resolve_orientation__mapping(obj):
+        return enum_mapping(HouseOrientation, obj.orientation)
+
+    @staticmethod
+    def resolve_decoration__mapping(obj):
+        return enum_mapping(HouseDecoration, obj.decoration)
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return enum_mapping(HouseStatus, obj.status)
+
+    @staticmethod
+    def resolve_publish_status__mapping(obj):
+        return enum_mapping(HousePublishStatus, obj.publish_status)
 
     @staticmethod
     def resolve_building_name(obj):
@@ -328,11 +359,16 @@ class ViewingRecordOut(Schema):
     scheduled_at: datetime
     viewed_at: datetime | None
     status: str
+    status__mapping: str
     assigned_to_id: int | None
     notes: str
     extra: dict[str, Any]
     is_active: bool
     signed_lease_id: int | None = None
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return enum_mapping(ViewingRecordStatus, obj.status)
 
     @staticmethod
     def resolve_house_label(obj):
@@ -404,9 +440,14 @@ class LeaseOut(Schema):
     deposit: Decimal | None
     payment_day: int
     status: str
+    status__mapping: str
     contract_files: list[dict[str, Any]]
     notes: str
     extra: dict[str, Any]
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return enum_mapping(LeaseStatus, obj.status)
 
     @staticmethod
     def resolve_house_label(obj):

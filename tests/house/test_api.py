@@ -420,7 +420,13 @@ class HouseApiTestCase(TestCase):
     def test_admin_list_responses_include_display_labels(self):
         landlord = Contact.objects.create(organization=self.org, name="展示房东", phone="13800138001", roles=[Contact.Role.LANDLORD])
         tenant = Contact.objects.create(organization=self.org, name="展示租客", phone="13900139001", roles=[Contact.Role.TENANT])
-        house = House.objects.create(building=self.building, landlord=landlord, room_number="1801")
+        house = House.objects.create(
+            building=self.building,
+            landlord=landlord,
+            room_number="1801",
+            orientation=House.Orientation.SOUTH_NORTH,
+            decoration=House.Decoration.FINE,
+        )
         viewing = ViewingRecord.objects.create(
             organization=self.org,
             house=house,
@@ -440,25 +446,35 @@ class HouseApiTestCase(TestCase):
             monthly_rent=Decimal("4200.00"),
         )
 
+        estate_payload = api_data(self.client.get("/api/house/estates/"))["items"][0]
+        contact_payload = api_data(self.client.get("/api/house/contacts/?keyword=展示房东"))["items"][0]
         building_payload = api_data(self.client.get("/api/house/buildings/"))["items"][0]
         house_payload = api_data(self.client.get("/api/house/houses/?keyword=1801"))["items"][0]
         viewing_payload = api_data(self.client.get("/api/house/viewing-records/?status=converted"))["items"][0]
         lease_payload = api_data(self.client.get("/api/house/leases/"))["items"][0]
 
+        self.assertEqual(estate_payload["property_type__mapping"], Estate.PropertyType.get_choice_label(estate_payload["property_type"]))
+        self.assertEqual(contact_payload["roles__mapping"], [Contact.Role.get_choice_label(Contact.Role.LANDLORD)])
         self.assertEqual(building_payload["estate_name"], "云岸")
         self.assertEqual(house_payload["estate_name"], "云岸")
         self.assertEqual(house_payload["building_name"], "1栋")
         self.assertEqual(house_payload["house_label"], "云岸 / 1栋 / 1801")
         self.assertEqual(house_payload["landlord_name"], "展示房东")
         self.assertEqual(house_payload["landlord_phone"], "+8613800138001")
+        self.assertEqual(house_payload["orientation__mapping"], House.Orientation.get_choice_label(house_payload["orientation"]))
+        self.assertEqual(house_payload["decoration__mapping"], House.Decoration.get_choice_label(house_payload["decoration"]))
+        self.assertEqual(house_payload["status__mapping"], House.Status.get_choice_label(house_payload["status"]))
+        self.assertEqual(house_payload["publish_status__mapping"], House.PublishStatus.get_choice_label(house_payload["publish_status"]))
         self.assertEqual(viewing_payload["house_label"], "云岸 / 1栋 / 1801")
         self.assertEqual(viewing_payload["contact_name"], "展示租客")
         self.assertEqual(viewing_payload["contact_phone"], "+8613900139001")
+        self.assertEqual(viewing_payload["status__mapping"], ViewingRecord.Status.get_choice_label(viewing_payload["status"]))
         self.assertEqual(viewing_payload["signed_lease_id"], lease_payload["id"])
         self.assertEqual(lease_payload["house_label"], "云岸 / 1栋 / 1801")
         self.assertEqual(lease_payload["tenant_name"], "展示租客")
         self.assertEqual(lease_payload["tenant_phone"], "+8613900139001")
         self.assertEqual(lease_payload["source_viewing_record_label"], "展示客户 / 13900139001")
+        self.assertEqual(lease_payload["status__mapping"], Lease.Status.get_choice_label(lease_payload["status"]))
 
     def test_list_buildings_searches_estate_names(self):
         Building.objects.create(organization=self.org, estate=self.estate, name="2栋", floors=18)
