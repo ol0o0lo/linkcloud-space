@@ -34,7 +34,7 @@ reset := `tput -Txterm sgr0`
 
 # Build admin frontend assets (Ant Design Pro)
 @build_admin:
-    cd frontend_admin && pnpm build
+    cd frontend_admin && npm run build
     just collectstatic
 
 # Build H5 frontend assets
@@ -126,7 +126,7 @@ db_restore dump_file="":
 # Format Javascript code
 @format_js:
     just _start_msg "Formatting admin frontend code using Biome"
-    cd frontend_admin && pnpm biome
+    cd frontend_admin && npm run biome
 
 # Format the justfile
 @format_just:
@@ -155,7 +155,7 @@ lint: lint_js lint_html lint_py lint_migrations lint_types
 # Lint Javascript code with eslint
 @lint_js:
     just _start_msg "Checking admin frontend code"
-    cd frontend_admin && pnpm lint
+    cd frontend_admin && npm run lint
 
 # Check for missing Django migrations
 @lint_migrations:
@@ -210,7 +210,7 @@ pre_commit: format lint test test_e2e
 # Upgrade admin frontend requirements based on `frontend_admin/package.json`
 @upgrade_node_packages:
     just _start_msg "Upgrading admin frontend requirements"
-    cd frontend_admin && pnpm update
+    cd frontend_admin && npm update
 
 # Upgrade python requirements
 upgrade_python_packages +packages="":

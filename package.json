@@ -2,11 +2,11 @@
   "name": "django-base-site",
   "description": "Django Base Site",
   "scripts": {
-    "dev": "pnpm --dir frontend_admin dev",
-    "build": "pnpm --dir frontend_admin build",
-    "preview": "pnpm --dir frontend_admin preview",
-    "lint-js": "pnpm --dir frontend_admin lint",
-    "format-js": "pnpm --dir frontend_admin biome"
+    "dev": "npm --prefix frontend_admin run dev",
+    "build": "npm --prefix frontend_admin run build",
+    "preview": "npm --prefix frontend_admin run preview",
+    "lint-js": "npm --prefix frontend_admin run lint",
+    "format-js": "npm --prefix frontend_admin run biome"
   },
   "devDependencies": {},
   "dependencies": {},
