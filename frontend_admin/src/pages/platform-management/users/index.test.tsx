@@ -97,33 +97,49 @@ describe('PlatformUsersPage', () => {
     );
 
     await waitFor(() => {
-      expect(mockListUsers).toHaveBeenCalledWith({ page: 1, page_size: 10, q: undefined });
-      expect(screen.getByText('用户概览')).toBeInTheDocument();
-      expect(screen.getByText('用户详情')).toBeInTheDocument();
+      expect(mockListUsers).toHaveBeenCalledWith({ page: 1, page_size: 10, keyword: undefined });
+      expect(screen.queryByText('用户概览')).not.toBeInTheDocument();
+      expect(screen.queryByText('用户详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
       expect(screen.getByText('用户列表')).toBeInTheDocument();
-      expect(screen.getAllByText('高权限账号').length).toBeGreaterThan(0);
-      expect(screen.getByText('资料待补账号')).toBeInTheDocument();
-      expect(screen.getAllByText('账号状态').length).toBeGreaterThan(0);
+      expect(screen.queryByText('高权限账号')).not.toBeInTheDocument();
+      expect(screen.queryByText('资料待补账号')).not.toBeInTheDocument();
+      expect(screen.queryByText('查看实名状态')).not.toBeInTheDocument();
+      expect(screen.queryByText('继续处理')).not.toBeInTheDocument();
+      expect(screen.queryByText('进入实名管理')).not.toBeInTheDocument();
+      expect(screen.queryByText('查看通知')).not.toBeInTheDocument();
+      expect(screen.queryByText('账号状态')).not.toBeInTheDocument();
+      expect(screen.queryByText('联系方式待补')).not.toBeInTheDocument();
       expect(screen.queryByText('治理状态')).not.toBeInTheDocument();
       expect(screen.queryByText('高权限治理')).not.toBeInTheDocument();
       expect(screen.queryByText('实名承接')).not.toBeInTheDocument();
       expect(screen.queryByText('停用收口')).not.toBeInTheDocument();
       expect(screen.getByText('alice')).toBeInTheDocument();
       expect(screen.getByText('bob')).toBeInTheDocument();
+      expect(screen.queryByText('该账号拥有平台级最高权限，安全、实名和联系方式都应该保持清晰可控。')).not.toBeInTheDocument();
+      expect(screen.queryByText('高权限账号需要重点确认权限边界、可追溯性和安全恢复能力。')).not.toBeInTheDocument();
+      expect(screen.queryByText('手机号缺失或未验证，会让找回、安全校验和业务联系链路都变得脆弱。')).not.toBeInTheDocument();
+      expect(screen.queryByText('这类账号权限不高，但资料完整性仍然影响后续业务处理。')).not.toBeInTheDocument();
+      expect(screen.queryByText('强退')).not.toBeInTheDocument();
+      expect(screen.queryByText('重置 MFA')).not.toBeInTheDocument();
     });
 
     const userRow = screen.getByText('alice').closest('tr');
     expect(userRow).not.toBeNull();
     expect(within(userRow!).getByText('Staff')).toBeInTheDocument();
+    expect(within(userRow!).queryByText('高权限账号')).not.toBeInTheDocument();
+    expect(within(userRow!).getByText('编辑')).toBeInTheDocument();
+    expect(within(userRow!).getByText('设密码')).toBeInTheDocument();
 
     fireEvent.click(within(userRow!).getByRole('switch'));
     await waitFor(() => expect(mockPatchStatus).toHaveBeenCalledWith({ user_id: 7 }, { is_active: false }));
 
-    fireEvent.click(within(userRow!).getByText('强退'));
+    fireEvent.click(within(userRow!).getByRole('button', { name: '更多操作' }));
+    fireEvent.click(screen.getByText('强退'));
     await waitFor(() => expect(mockForceLogout).toHaveBeenCalledWith({ user_id: 7 }));
 
-    fireEvent.click(within(userRow!).getByText('重置 MFA'));
+    fireEvent.click(within(userRow!).getByRole('button', { name: '更多操作' }));
+    fireEvent.click(screen.getByText('重置 MFA'));
     await waitFor(() => expect(mockResetMfa).toHaveBeenCalledWith({ user_id: 7 }));
 
     fireEvent.click(within(userRow!).getByText('设密码'));
@@ -143,6 +159,6 @@ describe('PlatformUsersPage', () => {
     const searchBox = screen.getByPlaceholderText('按用户名、邮箱搜索');
     fireEvent.change(searchBox, { target: { value: 'alice' } });
     fireEvent.keyDown(searchBox, { key: 'Enter', code: 'Enter' });
-    await waitFor(() => expect(mockListUsers).toHaveBeenLastCalledWith({ page: 1, page_size: 10, q: 'alice' }));
+    await waitFor(() => expect(mockListUsers).toHaveBeenLastCalledWith({ page: 1, page_size: 10, keyword: 'alice' }));
   });
 });

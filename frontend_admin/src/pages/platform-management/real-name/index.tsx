@@ -1,5 +1,20 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Col, Descriptions, Drawer, Form, Image, Input, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
+import { PageContainer } from '@ant-design/pro-components';
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Drawer,
+  Form,
+  Image,
+  Input,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
@@ -21,7 +36,13 @@ import {
   appsAccountsApiRejectAdminRealName,
   appsAccountsApiRevokeAdminRealName,
 } from '@/services/openapi/realNameAdmin';
-import { IdentityText, NoteModal, StatusTag, personText, platformQueryKeys } from '../shared';
+import {
+  IdentityText,
+  NoteModal,
+  StatusTag,
+  personText,
+  platformQueryKeys,
+} from '../shared';
 
 type ReviewAction = 'approve' | 'reject' | 'manual' | 'revoke';
 type ActionState = { row: RealNameInsight; action: ReviewAction } | null;
@@ -38,14 +59,6 @@ const sectionStyle: React.CSSProperties = {
   border: '1px solid var(--ant-color-border-secondary)',
   borderRadius: 8,
   background: 'var(--ant-color-fill-quaternary)',
-};
-
-const overviewTileStyle: React.CSSProperties = {
-  height: '100%',
-  padding: 16,
-  borderRadius: 8,
-  border: '1px solid var(--ant-color-border-secondary)',
-  background: 'var(--ant-color-bg-container)',
 };
 
 const statusOptions = [
@@ -70,7 +83,9 @@ function buildUserSecondary(user?: Record<string, any>) {
   return user?.email || buildPhoneLabel(user) || undefined;
 }
 
-function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNameInsight {
+function buildRealNameInsight(
+  row: API.AdminRealNameVerificationRowOut,
+): RealNameInsight {
   const sourceSummary = `来源 ${row.source_label}，当前由 ${row.provider_label} 处理。`;
   const reviewSummary = row.reviewed_at
     ? `${row.reviewed_by || '系统'} 于 ${dayjs(row.reviewed_at).format('YYYY-MM-DD HH:mm')} 给出处理结论。`
@@ -81,7 +96,8 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
       ...row,
       stage_color: 'green',
       stage_summary: '实名已经生效，后续重点转为撤销审慎、资格影响和留痕清晰。',
-      governance_hint: '已实名记录不能只看“通过了没有”，还要考虑后续撤销是否影响高权限或业务资格。',
+      governance_hint:
+        '已实名记录不能只看“通过了没有”，还要考虑后续撤销是否影响高权限或业务资格。',
       source_summary: sourceSummary,
       review_summary: reviewSummary,
     };
@@ -92,7 +108,8 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
       ...row,
       stage_color: 'gold',
       stage_summary: '自动流程没有完成，当前需要后台明确给出通过或驳回结论。',
-      governance_hint: '人工复核不该淹没在表格里，它代表的是仍在占用审核带宽的待决事项。',
+      governance_hint:
+        '人工复核不该淹没在表格里，它代表的是仍在占用审核带宽的待决事项。',
       source_summary: sourceSummary,
       review_summary: reviewSummary,
     };
@@ -102,8 +119,10 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
     return {
       ...row,
       stage_color: 'volcano',
-      stage_summary: '记录已经驳回，后续重点是失败原因是否可解释、是否可能再次回流。',
-      governance_hint: '驳回不是终点，能否讲清拒绝原因，决定了后续申诉和重提成本。',
+      stage_summary:
+        '记录已经驳回，后续重点是失败原因是否可解释、是否可能再次回流。',
+      governance_hint:
+        '驳回不是终点，能否讲清拒绝原因，决定了后续申诉和重提成本。',
       source_summary: sourceSummary,
       review_summary: reviewSummary,
     };
@@ -113,7 +132,8 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
     return {
       ...row,
       stage_color: 'default',
-      stage_summary: '实名曾经生效但已被撤销，需要继续确认受影响的权限和业务资格。',
+      stage_summary:
+        '实名曾经生效但已被撤销，需要继续确认受影响的权限和业务资格。',
       governance_hint: '撤销实名往往带着更高的业务和合规影响，应该谨慎处理。',
       source_summary: sourceSummary,
       review_summary: reviewSummary,
@@ -124,14 +144,19 @@ function buildRealNameInsight(row: API.AdminRealNameVerificationRowOut): RealNam
     ...row,
     stage_color: 'blue',
     stage_summary: '记录仍在待校验阶段，优先判断能否自动完成或是否需要转人工。',
-    governance_hint: '待校验积压过多时，平台侧最容易出现审核排队和业务入口被卡住的问题。',
+    governance_hint:
+      '待校验积压过多时，平台侧最容易出现审核排队和业务入口被卡住的问题。',
     source_summary: sourceSummary,
     review_summary: reviewSummary,
   };
 }
 
 function getIdCardSideLabel(side?: string) {
-  return side === 'front' ? '身份证人像面' : side === 'back' ? '身份证国徽面' : '证件图片';
+  return side === 'front'
+    ? '身份证人像面'
+    : side === 'back'
+      ? '身份证国徽面'
+      : '证件图片';
 }
 
 function getActionMeta(action: ReviewAction, row: RealNameInsight) {
@@ -139,27 +164,33 @@ function getActionMeta(action: ReviewAction, row: RealNameInsight) {
     return {
       label: row.status === 'rejected' ? '重新通过' : '通过实名',
       title: row.status === 'rejected' ? '重新通过实名' : '通过实名',
-      guidance: row.status === 'rejected' ? '这条记录已经被驳回过，重新通过前最好确认失败原因是否已经处理。' : '通过后会直接把账号同步到已实名状态，后续资金与权限链路会按实名生效。',
+      guidance:
+        row.status === 'rejected'
+          ? '这条记录已经被驳回过，重新通过前最好确认失败原因是否已经处理。'
+          : '通过后会直接把账号同步到已实名状态，后续资金与权限链路会按实名生效。',
     };
   }
   if (action === 'reject') {
     return {
       label: '驳回实名',
       title: '驳回实名',
-      guidance: '驳回原因需要给得足够清楚，否则后续申诉和再次提交会把审核链路拖得更长。',
+      guidance:
+        '驳回原因需要给得足够清楚，否则后续申诉和再次提交会把审核链路拖得更长。',
     };
   }
   if (action === 'manual') {
     return {
       label: row.status === 'rejected' ? '转回人工' : '转人工复核',
       title: row.status === 'rejected' ? '转回人工复核' : '转人工复核',
-    guidance: '转人工意味着这条记录不再等待自动处理，应该由后台明确给出处理结论。',
+      guidance:
+        '转人工意味着这条记录不再等待自动处理，应该由后台明确给出处理结论。',
     };
   }
   return {
     label: '撤销实名',
     title: '撤销实名',
-    guidance: '撤销会直接影响账号的实名可用状态，尤其要留意它对提现、激励资格和高权限账号的后续影响。',
+    guidance:
+      '撤销会直接影响账号的实名可用状态，尤其要留意它对提现、激励资格和高权限账号的后续影响。',
   };
 }
 
@@ -193,22 +224,36 @@ const RealNameAdminPage: React.FC = () => {
       appsAccountsApiListAdminRealNameVerifications({
         page,
         page_size: 10,
-        q: keyword || undefined,
+        keyword: keyword || undefined,
         status: statusFilter || undefined,
       }),
   });
   const detailQuery = useQuery({
     queryKey: ['platform-management', 'real-name-detail', detailId],
-    queryFn: () => appsAccountsApiGetAdminRealNameVerification({ verification_id: detailId! }),
+    queryFn: () =>
+      appsAccountsApiGetAdminRealNameVerification({
+        verification_id: detailId!,
+      }),
     enabled: Boolean(detailId),
   });
   const actionMutation = useMutation({
-    mutationFn: async ({ row, action, note }: { row: RealNameInsight; action: ReviewAction; note: string }) => {
+    mutationFn: async ({
+      row,
+      action,
+      note,
+    }: {
+      row: RealNameInsight;
+      action: ReviewAction;
+      note: string;
+    }) => {
       const params = { verification_id: row.id };
       const body = { note };
-      if (action === 'approve') return appsAccountsApiApproveAdminRealName(params, body);
-      if (action === 'reject') return appsAccountsApiRejectAdminRealName(params, body);
-      if (action === 'manual') return appsAccountsApiMoveAdminRealNameToManualReview(params, body);
+      if (action === 'approve')
+        return appsAccountsApiApproveAdminRealName(params, body);
+      if (action === 'reject')
+        return appsAccountsApiRejectAdminRealName(params, body);
+      if (action === 'manual')
+        return appsAccountsApiMoveAdminRealNameToManualReview(params, body);
       return appsAccountsApiRevokeAdminRealName(params, body);
     },
     onSuccess: async () => {
@@ -218,25 +263,33 @@ const RealNameAdminPage: React.FC = () => {
     },
   });
 
-  const insights = useMemo(() => (listQuery.data?.items || []).map(buildRealNameInsight), [listQuery.data?.items]);
-  const pendingRows = insights.filter((item) => item.status === 'pending');
-  const manualRows = insights.filter((item) => item.status === 'manual_review');
-  const rejectedRows = insights.filter((item) => item.status === 'rejected');
-  const verifiedRows = insights.filter((item) => item.status === 'verified');
-  const revokedRows = insights.filter((item) => item.status === 'revoked');
+  const insights = useMemo(
+    () => (listQuery.data?.items || []).map(buildRealNameInsight),
+    [listQuery.data?.items],
+  );
 
   const columns: ColumnsType<RealNameInsight> = [
     {
       title: '用户身份',
       dataIndex: 'user',
       width: 220,
-      render: (user) => <IdentityText primary={personText(user)} secondary={buildUserSecondary(user)} />,
+      render: (user) => (
+        <IdentityText
+          primary={personText(user)}
+          secondary={buildUserSecondary(user)}
+        />
+      ),
     },
     {
       title: '实名主体',
       dataIndex: 'real_name_masked',
       width: 220,
-      render: (_value, record) => <IdentityText primary={record.real_name_masked} secondary={record.id_number_masked} />,
+      render: (_value, record) => (
+        <IdentityText
+          primary={record.real_name_masked}
+          secondary={record.id_number_masked}
+        />
+      ),
     },
     {
       title: '审核阶段',
@@ -245,7 +298,9 @@ const RealNameAdminPage: React.FC = () => {
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
           <Tag color={record.stage_color}>{record.status_label}</Tag>
-          <Typography.Text type="secondary">{record.stage_summary}</Typography.Text>
+          <Typography.Text type="secondary">
+            {record.stage_summary}
+          </Typography.Text>
         </Space>
       ),
     },
@@ -256,8 +311,14 @@ const RealNameAdminPage: React.FC = () => {
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
           <Typography.Text>{record.source_summary}</Typography.Text>
-          <Typography.Text type="secondary">{record.governance_hint}</Typography.Text>
-          {record.failure_reason || record.review_note ? <Typography.Text type="secondary">{record.failure_reason || record.review_note}</Typography.Text> : null}
+          <Typography.Text type="secondary">
+            {record.governance_hint}
+          </Typography.Text>
+          {record.failure_reason || record.review_note ? (
+            <Typography.Text type="secondary">
+              {record.failure_reason || record.review_note}
+            </Typography.Text>
+          ) : null}
         </Space>
       ),
     },
@@ -280,7 +341,10 @@ const RealNameAdminPage: React.FC = () => {
         <ResponsiveActions>
           <a onClick={() => setDetailId(record.id)}>详情</a>
           {getAllowedActions(record).map((action) => (
-            <a key={action} onClick={() => setActionState({ row: record, action })}>
+            <a
+              key={action}
+              onClick={() => setActionState({ row: record, action })}
+            >
               {getActionMeta(action, record).label}
             </a>
           ))}
@@ -289,13 +353,14 @@ const RealNameAdminPage: React.FC = () => {
     },
   ];
 
-  const currentActionMeta = actionState ? getActionMeta(actionState.action, actionState.row) : null;
+  const currentActionMeta = actionState
+    ? getActionMeta(actionState.action, actionState.row)
+    : null;
 
   return (
-    <>
+    <PageContainer title="实名审核" subTitle="处理用户实名状态与审核记录。">
       <Card
-        title="实名审核"
-        extra={(
+        extra={
           <AdminToolbar>
             <Input.Search
               allowClear
@@ -318,97 +383,16 @@ const RealNameAdminPage: React.FC = () => {
             />
             <Button href="/dashboard/super-admin/users">返回用户列表</Button>
           </AdminToolbar>
-        )}
+        }
       >
         <div style={sectionStyle}>
-          <Typography.Text strong>实名概览</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="当前记录" value={insights.length} />
-                <Typography.Text type="secondary">当前页纳入审核治理视角的实名记录总量。</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="待处理" value={pendingRows.length + manualRows.length} />
-                <Typography.Text type="secondary">待校验与人工复核会直接占用平台审核带宽。</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="已驳回" value={rejectedRows.length} />
-                <Typography.Text type="secondary">驳回记录越多，越需要解释性清楚的失败原因。</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="已生效实名" value={verifiedRows.length} />
-                <Typography.Text type="secondary">这些记录会影响提现、激励与下游资格链路。</Typography.Text>
-              </div>
-            </Col>
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>审核详情</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>待校验记录</Typography.Text>
-                    <Tag color={pendingRows.length ? 'blue' : 'default'}>{pendingRows.length ? `${pendingRows.length} 条待判断` : '当前不拥堵'}</Tag>
-                  </Space>
-                  <Typography.Text>这里对应的是仍未收口的自动校验队列，平台需要判断是继续等待还是转人工。</Typography.Text>
-                  <a href="/dashboard/super-admin/real-name">继续审核</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>人工复核</Typography.Text>
-                    <Tag color={manualRows.length ? 'gold' : 'default'}>{manualRows.length ? `${manualRows.length} 条待给结论` : '人工压力较小'}</Tag>
-                  </Space>
-                  <Typography.Text>人工复核代表自动链路没有讲清楚，后台必须明确给出通过或驳回的判断。</Typography.Text>
-                  <a href="/dashboard/super-admin/real-name">查看复核台账</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>驳回回流</Typography.Text>
-                    <Tag color={rejectedRows.length ? 'volcano' : 'green'}>{rejectedRows.length ? `${rejectedRows.length} 条待解释` : '当前较稳定'}</Tag>
-                  </Space>
-                  <Typography.Text>驳回记录如果没有足够清楚的失败原因，后续很容易变成重复提交和客服压力。</Typography.Text>
-                  <a href="/dashboard/super-admin/users">联动用户治理</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>撤销与回收</Typography.Text>
-                    <Tag color={revokedRows.length ? 'default' : 'green'}>{revokedRows.length ? `${revokedRows.length} 条已撤销` : '暂无撤销记录'}</Tag>
-                  </Space>
-                  <Typography.Text>实名撤销通常会连带影响经营资格和高权限账号治理，应该尽量留好原因与审计痕迹。</Typography.Text>
-                  <a href="/dashboard/super-admin/users">查看账号承接</a>
-                </Space>
-              </div>
-            </Col>
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
           <Space orientation="vertical" size={12} style={fullWidthStyle}>
             <div>
               <Typography.Text strong>实名列表</Typography.Text>
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
+              <Typography.Paragraph
+                type="secondary"
+                style={{ marginBottom: 0, marginTop: 8 }}
+              >
                 实名页不该只是审核动作清单，它应该同时解释这条记录处在什么阶段、为什么还没收口，以及它会影响哪些平台链路。
               </Typography.Paragraph>
             </div>
@@ -438,39 +422,101 @@ const RealNameAdminPage: React.FC = () => {
         onCancel={() => setActionState(null)}
         onOk={async () => {
           const values = await form.validateFields();
-          if (actionState) await actionMutation.mutateAsync({ row: actionState.row, action: actionState.action, note: values.note || '' });
+          if (actionState)
+            await actionMutation.mutateAsync({
+              row: actionState.row,
+              action: actionState.action,
+              note: values.note || '',
+            });
         }}
       />
 
-      <Drawer title="实名详情" open={Boolean(detailId)} onClose={() => setDetailId(undefined)} width={drawerWidthLg}>
+      <Drawer
+        title="实名详情"
+        open={Boolean(detailId)}
+        onClose={() => setDetailId(undefined)}
+        width={drawerWidthLg}
+      >
         <Space orientation="vertical" size={12} style={fullWidthStyle}>
-          <Alert type="info" showIcon title="实名详情要同时看来源、处理结论、证件材料和状态流转日志，不能只盯着身份证图片。" />
+          <Alert
+            type="info"
+            showIcon
+            title="实名详情要同时看来源、处理结论、证件材料和状态流转日志，不能只盯着身份证图片。"
+          />
           <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="用户">{detailQuery.data ? personText(detailQuery.data.user) : '-'}</Descriptions.Item>
-            <Descriptions.Item label="当前状态">{detailQuery.data ? <StatusTag value={detailQuery.data.status_label} /> : '-'}</Descriptions.Item>
-            <Descriptions.Item label="真实姓名">{detailQuery.data?.real_name || detailQuery.data?.real_name_masked || '-'}</Descriptions.Item>
-            <Descriptions.Item label="证件号"><span style={wrapTextStyle}>{detailQuery.data?.id_number || detailQuery.data?.id_number_masked || '-'}</span></Descriptions.Item>
+            <Descriptions.Item label="用户">
+              {detailQuery.data ? personText(detailQuery.data.user) : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="当前状态">
+              {detailQuery.data ? (
+                <StatusTag value={detailQuery.data.status_label} />
+              ) : (
+                '-'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="真实姓名">
+              {detailQuery.data?.real_name ||
+                detailQuery.data?.real_name_masked ||
+                '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="证件号">
+              <span style={wrapTextStyle}>
+                {detailQuery.data?.id_number ||
+                  detailQuery.data?.id_number_masked ||
+                  '-'}
+              </span>
+            </Descriptions.Item>
             <Descriptions.Item label="证件图片">
               <Space wrap>
-                {((detailQuery.data as any)?.id_card_media || []).map((item: any) => (
-                  <Space key={item.media_id} orientation="vertical" size={4}>
-                    <Typography.Text>{getIdCardSideLabel(item.side)}</Typography.Text>
-                    <Image alt={getIdCardSideLabel(item.side)} src={item.url} width={180} />
-                  </Space>
-                ))}
-                {!((detailQuery.data as any)?.id_card_media || []).length ? '-' : null}
+                {((detailQuery.data as any)?.id_card_media || []).map(
+                  (item: any) => (
+                    <Space key={item.media_id} orientation="vertical" size={4}>
+                      <Typography.Text>
+                        {getIdCardSideLabel(item.side)}
+                      </Typography.Text>
+                      <Image
+                        alt={getIdCardSideLabel(item.side)}
+                        src={item.url}
+                        width={180}
+                      />
+                    </Space>
+                  ),
+                )}
+                {!((detailQuery.data as any)?.id_card_media || []).length
+                  ? '-'
+                  : null}
               </Space>
             </Descriptions.Item>
-            <Descriptions.Item label="来源">{detailQuery.data?.source_label || '-'}</Descriptions.Item>
-            <Descriptions.Item label="供应商">{detailQuery.data?.provider_label || '-'}</Descriptions.Item>
-            <Descriptions.Item label="失败原因">{detailQuery.data?.failure_reason || '-'}</Descriptions.Item>
-            <Descriptions.Item label="审核备注">{detailQuery.data?.review_note || '-'}</Descriptions.Item>
-            <Descriptions.Item label="审核人">{detailQuery.data?.reviewed_by || '-'}</Descriptions.Item>
-            <Descriptions.Item label="审核时间">{detailQuery.data?.reviewed_at ? dayjs(detailQuery.data.reviewed_at).format('YYYY-MM-DD HH:mm') : '-'}</Descriptions.Item>
-            <Descriptions.Item label="供应商请求 ID"><span style={wrapTextStyle}>{detailQuery.data?.provider_request_id || '-'}</span></Descriptions.Item>
+            <Descriptions.Item label="来源">
+              {detailQuery.data?.source_label || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="供应商">
+              {detailQuery.data?.provider_label || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="失败原因">
+              {detailQuery.data?.failure_reason || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="审核备注">
+              {detailQuery.data?.review_note || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="审核人">
+              {detailQuery.data?.reviewed_by || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="审核时间">
+              {detailQuery.data?.reviewed_at
+                ? dayjs(detailQuery.data.reviewed_at).format('YYYY-MM-DD HH:mm')
+                : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="供应商请求 ID">
+              <span style={wrapTextStyle}>
+                {detailQuery.data?.provider_request_id || '-'}
+              </span>
+            </Descriptions.Item>
             <Descriptions.Item label="供应商结果">
               <Typography.Text code style={codeWrapStyle}>
-                {detailQuery.data?.provider_result ? JSON.stringify(detailQuery.data.provider_result) : '-'}
+                {detailQuery.data?.provider_result
+                  ? JSON.stringify(detailQuery.data.provider_result)
+                  : '-'}
               </Typography.Text>
             </Descriptions.Item>
           </Descriptions>
@@ -481,13 +527,25 @@ const RealNameAdminPage: React.FC = () => {
             scroll={adminTableScroll}
             columns={[
               { title: '动作', dataIndex: 'action_label', width: 160 },
-              { title: '备注', dataIndex: 'note', width: 280, render: (value) => <span style={wrapTextStyle}>{value || '-'}</span> },
-              { title: '时间', dataIndex: 'created_at', width: 170, render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm') },
+              {
+                title: '备注',
+                dataIndex: 'note',
+                width: 280,
+                render: (value) => (
+                  <span style={wrapTextStyle}>{value || '-'}</span>
+                ),
+              },
+              {
+                title: '时间',
+                dataIndex: 'created_at',
+                width: 170,
+                render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm'),
+              },
             ]}
           />
         </Space>
       </Drawer>
-    </>
+    </PageContainer>
   );
 };
 

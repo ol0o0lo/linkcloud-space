@@ -3,8 +3,8 @@ import type { FormInstance } from 'antd';
 import React from 'react';
 
 export const platformQueryKeys = {
-  users: (page?: number, q?: string) => ['platform-management', 'users', page, q],
-  realName: (page?: number, q?: string, status?: string) => ['platform-management', 'real-name', page, q, status],
+  users: (page?: number, keyword?: string) => ['platform-management', 'users', page, keyword],
+  realName: (page?: number, keyword?: string, status?: string) => ['platform-management', 'real-name', page, keyword, status],
   notifications: (page?: number, isRead?: string) => ['platform-management', 'notifications', page, isRead],
   notificationDispatches: (page?: number) => ['platform-management', 'notification-dispatches', page],
   notificationDispatchDetail: (id?: number) => ['platform-management', 'notification-dispatch-detail', id],

@@ -93,11 +93,18 @@ describe('RealNameAdminPage', () => {
     );
 
     await waitFor(() => {
-      expect(mockList).toHaveBeenCalledWith({ page: 1, page_size: 10, q: undefined, status: undefined });
-      expect(screen.getByText('实名概览')).toBeInTheDocument();
-      expect(screen.getByText('审核详情')).toBeInTheDocument();
+      expect(mockList).toHaveBeenCalledWith({ page: 1, page_size: 10, keyword: undefined, status: undefined });
+      expect(screen.queryByText('实名概览')).not.toBeInTheDocument();
+      expect(screen.queryByText('审核详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
       expect(screen.getByText('实名列表')).toBeInTheDocument();
+      expect(screen.queryByText('待校验记录')).not.toBeInTheDocument();
+      expect(screen.queryByText('人工复核')).not.toBeInTheDocument();
+      expect(screen.queryByText('驳回回流')).not.toBeInTheDocument();
+      expect(screen.queryByText('撤销与回收')).not.toBeInTheDocument();
+      expect(screen.queryByText('继续审核')).not.toBeInTheDocument();
+      expect(screen.queryByText('联动用户治理')).not.toBeInTheDocument();
+      expect(screen.queryByText('查看账号承接')).not.toBeInTheDocument();
       expect(screen.queryByText('来源与承接')).not.toBeInTheDocument();
       expect(screen.queryByText('返回用户治理')).not.toBeInTheDocument();
       expect(screen.getByText('张*')).toBeInTheDocument();
@@ -124,6 +131,6 @@ describe('RealNameAdminPage', () => {
     const searchBox = screen.getByPlaceholderText('按用户名、邮箱、手机号、实名或证件搜索');
     fireEvent.change(searchBox, { target: { value: 'alice' } });
     fireEvent.keyDown(searchBox, { key: 'Enter', code: 'Enter' });
-    await waitFor(() => expect(mockList).toHaveBeenLastCalledWith({ page: 1, page_size: 10, q: 'alice', status: undefined }));
+    await waitFor(() => expect(mockList).toHaveBeenLastCalledWith({ page: 1, page_size: 10, keyword: 'alice', status: undefined }));
   });
 });
