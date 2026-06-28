@@ -1,5 +1,6 @@
 import pytest
 
+from apps.accounts.constants import RealNameStatus
 from apps.accounts.models import User
 from tests.api_helpers import api_data, api_error
 
@@ -42,6 +43,8 @@ def test_users_me_returns_current_user_for_existing_session(client):
     assert payload["phone_country_code"] == "+86"
     assert payload["phone_national_number"] == "17688363534"
     assert payload["phone_verified"] is True
+    assert payload["real_name_status"] == RealNameStatus.UNVERIFIED
+    assert payload["real_name_status__mapping"] == RealNameStatus.get_choice_label(payload["real_name_status"])
     assert payload["signature"] == "资料待补充"
     assert payload["country"] == "China"
     assert "province_name" not in payload
