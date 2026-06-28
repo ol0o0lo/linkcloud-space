@@ -75,6 +75,8 @@ class TestNotificationDispatchAPI:
         dispatch = NotificationDispatch.objects.get(pk=body["id"])
         assert dispatch.owner_organization_id is None
         assert dispatch.scope == NotificationDispatch.Scope.PLATFORM
+        assert body["scope__mapping"] == str(NotificationDispatch.Scope(body["scope"]).label)
+        assert body["status__mapping"] == str(NotificationDispatch.Status(body["status"]).label)
         assert dispatch.created_by == self.superuser.username
         delay.assert_called_once_with(dispatch.pk)
 
@@ -158,7 +160,10 @@ class TestNotificationDispatchAPI:
         assert resp.status_code == 200
         body = api_data(resp)
         assert body["total"] == 1
-        assert [row["id"] for row in body["items"]] == [mine.pk]
+        row = body["items"][0]
+        assert row["id"] == mine.pk
+        assert row["scope__mapping"] == str(NotificationDispatch.Scope(row["scope"]).label)
+        assert row["status__mapping"] == str(NotificationDispatch.Status(row["status"]).label)
 
     def test_tenant_owner_can_get_accessible_dispatch_detail(self):
         dispatch = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatch.Scope.USERS, scope_ids=[self.member.pk], title="Mine")
@@ -171,6 +176,8 @@ class TestNotificationDispatchAPI:
         assert body["id"] == dispatch.pk
         assert body["owner_organization_id"] == self.org.pk
         assert body["title"] == "Mine"
+        assert body["scope__mapping"] == str(NotificationDispatch.Scope(body["scope"]).label)
+        assert body["status__mapping"] == str(NotificationDispatch.Status(body["status"]).label)
 
     def test_tenant_owner_can_list_delivery_rows_for_accessible_dispatch(self):
         dispatch = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatch.Scope.USERS, scope_ids=[self.member.pk], title="Mine")

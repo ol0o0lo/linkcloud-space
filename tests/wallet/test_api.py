@@ -7,7 +7,7 @@ from allauth.socialaccount.models import SocialAccount
 from model_bakery import baker
 
 from apps.accounts.models import User
-from apps.wallet.constants import WithdrawalPayChannel
+from apps.wallet.constants import PayoutStatus, WalletEntryType, WithdrawalPayChannel, WithdrawalStatus
 from apps.wallet.exceptions import UnsupportedWithdrawalChannelException, WechatBindingRequiredException
 from apps.wallet.providers.base import ProviderTransferResult
 from apps.wallet.services import apply_wallet_credit, submit_withdrawal
@@ -36,6 +36,12 @@ class WalletUserAPITests(TestCase):
         self.assertEqual(data["available_balance"], 1200)
         self.assertEqual(data["frozen_balance"], 0)
 
+        ledger_resp = self.client.get("/api/wallet/me/ledger/")
+
+        self.assertEqual(ledger_resp.status_code, 200)
+        ledger_item = api_data(ledger_resp)["items"][0]
+        self.assertEqual(ledger_item["entry_type__mapping"], WalletEntryType.get_choice_label(ledger_item["entry_type"]))
+
     def test_create_withdrawal_freezes_balance(self):
         baker.make(SocialAccount, user=self.user, provider="weixin", uid="wx-api-user-1")
         apply_wallet_credit(
@@ -62,7 +68,10 @@ class WalletUserAPITests(TestCase):
         )
 
         self.assertEqual(resp.status_code, 201)
-        self.assertEqual(api_data(resp)["status"], "pending_review")
+        data = api_data(resp)
+        self.assertEqual(data["status"], "pending_review")
+        self.assertEqual(data["status__mapping"], WithdrawalStatus.get_choice_label(data["status"]))
+        self.assertEqual(data["pay_channel__mapping"], WithdrawalPayChannel.get_choice_label(data["pay_channel"]))
 
     def test_create_withdrawal_requires_non_empty_client_request_id(self):
         baker.make(SocialAccount, user=self.user, provider="weixin", uid="wx-api-user-2")
@@ -226,9 +235,13 @@ class WalletAdminAPITests(TestCase):
         )
 
         self.assertEqual(review_resp.status_code, 200)
-        self.assertEqual(api_data(review_resp)["status"], "approved")
+        review_data = api_data(review_resp)
+        self.assertEqual(review_data["status"], "approved")
+        self.assertEqual(review_data["status__mapping"], WithdrawalStatus.get_choice_label(review_data["status"]))
         self.assertEqual(payout_resp.status_code, 200)
-        self.assertEqual(api_data(payout_resp)["status"], "processing")
+        payout_data = api_data(payout_resp)
+        self.assertEqual(payout_data["status"], "processing")
+        self.assertEqual(payout_data["status__mapping"], PayoutStatus.get_choice_label(payout_data["status"]))
 
 
 class WalletInternalAPITests(TestCase):

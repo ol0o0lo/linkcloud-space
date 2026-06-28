@@ -51,6 +51,7 @@ class TestPreferencesAPI:
         assert body[0]["key"] == "comments"
         assert body[0]["in_app"] is True
         assert body[0]["email"] is True
+        assert body[0]["default_channels__mapping"] == [NotificationChannel.get_choice_label(channel) for channel in body[0]["default_channels"]]
 
     def test_list_returns_empty_when_no_categories(self, settings):
         settings.NOTIFICATIONS_CATEGORIES = []
