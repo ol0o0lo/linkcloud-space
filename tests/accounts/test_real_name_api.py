@@ -3,7 +3,7 @@ import json
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.accounts.constants import RealNameLogAction, RealNameStatus
+from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification, User
 from apps.accounts.services import serialize_real_name_verification
 from apps.media.models import MediaFile
@@ -86,10 +86,32 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(verification.logs.last().action, RealNameLogAction.SUBMITTED)
         data = api_data(resp)
         self.assertEqual(data["status"], RealNameStatus.PENDING)
+        self.assertEqual(data["status__mapping"], RealNameStatus.get_choice_label(data["status"]))
+        self.assertEqual(data["source__mapping"], RealNameSource.get_choice_label(data["source"]))
+        self.assertEqual(data["provider__mapping"], RealNameProvider.get_choice_label(data["provider"]))
         self.assertNotIn("id_number_last4", data)
         self.assertEqual(data["id_card_media"][0]["side"], "front")
         self.assertEqual(data["id_card_media"][0]["media_id"], id_card_media[0]["media_id"])
         self.assertIn("url", data["id_card_media"][0])
+
+        logs_resp = self.client.get("/api/users/me/real-name/logs/")
+        self.assertEqual(logs_resp.status_code, 200, logs_resp.content)
+        log_row = api_data(logs_resp)[0]
+        self.assertEqual(log_row["action__mapping"], RealNameLogAction.get_choice_label(log_row["action"]))
+        self.assertEqual(log_row["from_status__mapping"], RealNameStatus.get_choice_label(log_row["from_status"]))
+        self.assertEqual(log_row["to_status__mapping"], RealNameStatus.get_choice_label(log_row["to_status"]))
+
+    def test_get_my_real_name_returns_mapping_without_current_application(self):
+        self.client.force_login(self.user)
+
+        resp = self.client.get("/api/users/me/real-name/")
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        data = api_data(resp)
+        self.assertEqual(data["status"], RealNameStatus.UNVERIFIED)
+        self.assertEqual(data["status__mapping"], RealNameStatus.get_choice_label(data["status"]))
+        self.assertEqual(data["source__mapping"], RealNameSource.get_choice_label(data["source"]))
+        self.assertEqual(data["provider__mapping"], RealNameProvider.get_choice_label(data["provider"]))
 
     def test_submit_strips_platform_media_fields_before_storing_id_card_media(self):
         self.client.force_login(self.user)

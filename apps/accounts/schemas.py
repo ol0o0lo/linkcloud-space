@@ -3,7 +3,8 @@ from typing import Literal
 from ninja import Schema
 from pydantic import Field, field_validator
 
-from apps.accounts.constants import RealNameIdCardSide, RealNameSource
+from apps.accounts.constants import RealNameIdCardSide, RealNameSource, RealNameStatus
+from apps.base.enum_registry import enum_mapping
 from apps.media.constants import MediaType
 from apps.media.schemas import MediaRefIn, ResolvedMediaRefOut
 
@@ -14,10 +15,15 @@ class UserOut(Schema):
     first_name: str = ""
     last_name: str = ""
     real_name_status: str = "unverified"
+    real_name_status__mapping: str = ""
     real_name_masked: str = ""
     id_number_masked: str = ""
     timezone: str
     avatar_url: str | None = None
+
+    @staticmethod
+    def resolve_real_name_status__mapping(obj):
+        return enum_mapping(RealNameStatus, obj.real_name_status)
 
 
 class AdminUserOut(UserOut):
@@ -42,6 +48,7 @@ class MeOut(Schema):
     phone_national_number: str = ""
     phone_verified: bool
     real_name_status: str
+    real_name_status__mapping: str
     real_name_masked: str = ""
     id_number_masked: str = ""
     real_name_verified_at: str | None = None
@@ -228,23 +235,29 @@ class RealNameRetryIn(RealNamePayloadIn):
 class RealNameLogOut(Schema):
     action: str
     action_label: str
+    action__mapping: str = ""
     created_at: str
     from_status: str | None = None
     from_status_label: str = ""
+    from_status__mapping: str = ""
     note: str = ""
     operator: str = ""
     to_status: str | None = None
     to_status_label: str = ""
+    to_status__mapping: str = ""
 
 
 class RealNameVerificationOut(Schema):
     id: int
     status: str
     status_label: str
+    status__mapping: str
     source: str
     source_label: str
+    source__mapping: str
     provider: str
     provider_label: str
+    provider__mapping: str
     real_name_masked: str
     id_number_masked: str
     failure_reason: str = ""

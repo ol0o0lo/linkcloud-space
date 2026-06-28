@@ -141,6 +141,7 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertEqual(data["page"], 1)
         member = next(row for row in rows if row["id"] == self.user.pk)
         self.assertEqual(member["email"], "member@example.com")
+        self.assertEqual(member["real_name_status__mapping"], RealNameStatus.get_choice_label(member["real_name_status"]))
         self.assertFalse(member["is_active"])
         self.assertFalse(member["is_staff"])
         self.assertFalse(member["is_superuser"])
