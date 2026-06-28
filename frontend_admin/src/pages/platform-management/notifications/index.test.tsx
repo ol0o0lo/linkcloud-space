@@ -74,7 +74,7 @@ describe('NotificationsAdminPage', () => {
 
     await waitFor(() => {
       expect(mockListNotifications).toHaveBeenCalledWith({ page: 1, page_size: 10, is_read: undefined });
-      expect(screen.getByText('通知概览')).toBeInTheDocument();
+      expect(screen.queryByText('通知概览')).not.toBeInTheDocument();
       expect(screen.queryByText('处理状态')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
       expect(screen.getByText('通知列表')).toBeInTheDocument();

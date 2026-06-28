@@ -56,7 +56,7 @@ describe('WalletAccountsPage', () => {
     await waitFor(() => {
       expect(mockListAccounts).toHaveBeenCalledWith({ page: 1, page_size: 10 });
       expect(screen.getByText('用户 #7')).toBeInTheDocument();
-      expect(screen.getByText('账户概览')).toBeInTheDocument();
+      expect(screen.queryByText('账户概览')).not.toBeInTheDocument();
       expect(screen.queryByText('账户详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
       expect(screen.getByText('账户列表')).toBeInTheDocument();

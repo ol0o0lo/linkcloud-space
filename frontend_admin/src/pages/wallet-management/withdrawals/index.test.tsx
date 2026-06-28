@@ -61,13 +61,18 @@ describe('WalletWithdrawalsPage', () => {
 
     await waitFor(() => {
       expect(mockListWithdrawals).toHaveBeenCalledWith({ page: 1, page_size: 10 });
-      expect(screen.getByText('提现概览')).toBeInTheDocument();
-      expect(screen.getByText('提现详情')).toBeInTheDocument();
+      expect(screen.queryByText('提现概览')).not.toBeInTheDocument();
+      expect(screen.queryByText('提现详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
       expect(screen.getByText('提现列表')).toBeInTheDocument();
       expect(screen.getAllByText('待审核申请').length).toBeGreaterThan(0);
       expect(screen.getAllByText('待打款申请').length).toBeGreaterThan(0);
       expect(screen.getAllByText('失败待重试').length).toBeGreaterThan(0);
+      expect(screen.queryByText('打款中申请')).not.toBeInTheDocument();
+      expect(screen.queryByText('查看钱包账户')).not.toBeInTheDocument();
+      expect(screen.queryByText('推进代付')).not.toBeInTheDocument();
+      expect(screen.queryByText('核对冻结资金')).not.toBeInTheDocument();
+      expect(screen.queryByText('核查余额回流')).not.toBeInTheDocument();
       expect(screen.getByText('待审核')).toBeInTheDocument();
     });
 

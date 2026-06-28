@@ -1,9 +1,28 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Col, Form, InputNumber, Row, Space, Statistic, Switch, Table, Tag, Typography } from 'antd';
+import { PageContainer } from '@ant-design/pro-components';
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Form,
+  InputNumber,
+  Row,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useMemo } from 'react';
-import { adminTableScroll, fullWidthStyle, ResponsiveActions, wrapTextStyle } from '@/pages/_shared/adminLayout';
+import {
+  adminTableScroll,
+  fullWidthStyle,
+  ResponsiveActions,
+  wrapTextStyle,
+} from '@/pages/_shared/adminLayout';
 import {
   appsReferralsApiAdminReferralRecords,
   appsReferralsApiGetReferralConfig,
@@ -27,24 +46,14 @@ const sectionStyle: React.CSSProperties = {
   background: 'var(--ant-color-fill-quaternary)',
 };
 
-const overviewTileStyle: React.CSSProperties = {
-  height: '100%',
-  padding: 16,
-  borderRadius: 8,
-  border: '1px solid var(--ant-color-border-secondary)',
-  background: 'var(--ant-color-bg-container)',
-};
-
 function formatMoneyYuan(value?: number | null) {
   return Number((Number(value || 0) / 100).toFixed(2));
 }
 
-function getDisplayLevelLabel(value?: string) {
-  if (value === 'masked_progress') return '脱敏进度';
-  return value || '-';
-}
-
-function buildReferralInsight(record: API.ReferralRecordOut, config?: API.ReferralRuleConfigOut): ReferralInsight {
+function buildReferralInsight(
+  record: API.ReferralRecordOut,
+  config?: API.ReferralRuleConfigOut,
+): ReferralInsight {
   const inviterReward = formatMoneyYuan(config?.inviter_reward_amount);
   const inviteeReward = formatMoneyYuan(config?.invitee_reward_amount);
 
@@ -53,7 +62,8 @@ function buildReferralInsight(record: API.ReferralRecordOut, config?: API.Referr
       ...record,
       stage_label: '已发奖',
       stage_color: 'green',
-      stage_summary: '奖励已经发放，后续重点是回看是否存在误发、重复发放或展示口径不一致。',
+      stage_summary:
+        '奖励已经发放，后续重点是回看是否存在误发、重复发放或展示口径不一致。',
       reward_summary: `邀请人 ¥${inviterReward} / 被邀请人 ¥${inviteeReward}`,
       action_summary: '当前记录已完成',
     };
@@ -85,9 +95,12 @@ function buildReferralInsight(record: API.ReferralRecordOut, config?: API.Referr
     ...record,
     stage_label: '已注册',
     stage_color: 'blue',
-    stage_summary: '邀请关系已经形成，但是否触发奖励还要看后续规则与人工审核要求。',
+    stage_summary:
+      '邀请关系已经形成，但是否触发奖励还要看后续规则与人工审核要求。',
     reward_summary: `当前规则 邀请人 ¥${inviterReward} / 被邀请人 ¥${inviteeReward}`,
-    action_summary: config?.requires_manual_review ? '等待进入审核阶段' : '等待自动触发奖励',
+    action_summary: config?.requires_manual_review
+      ? '等待进入审核阶段'
+      : '等待自动触发奖励',
   };
 }
 
@@ -101,7 +114,8 @@ const ReferralsAdminPage: React.FC = () => {
   });
   const recordsQuery = useQuery({
     queryKey: platformQueryKeys.referralRecords(page),
-    queryFn: () => appsReferralsApiAdminReferralRecords({ page, page_size: 10 }),
+    queryFn: () =>
+      appsReferralsApiAdminReferralRecords({ page, page_size: 10 }),
   });
 
   React.useEffect(() => {
@@ -111,20 +125,32 @@ const ReferralsAdminPage: React.FC = () => {
   }, [configQuery.data, form]);
 
   const saveMutation = useMutation({
-    mutationFn: (payload: API.ReferralRuleConfigPatchIn) => appsReferralsApiPatchReferralConfig(payload),
+    mutationFn: (payload: API.ReferralRuleConfigPatchIn) =>
+      appsReferralsApiPatchReferralConfig(payload),
     onSuccess: () => configQuery.refetch(),
   });
   const reviewMutation = useMutation({
-    mutationFn: ({ record, approved }: { record: API.ReferralRecordOut; approved: boolean }) => appsReferralsApiReviewReferralRecord({ record_id: record.id }, { approved, remark: '' }),
+    mutationFn: ({
+      record,
+      approved,
+    }: {
+      record: API.ReferralRecordOut;
+      approved: boolean;
+    }) =>
+      appsReferralsApiReviewReferralRecord(
+        { record_id: record.id },
+        { approved, remark: '' },
+      ),
     onSuccess: () => recordsQuery.refetch(),
   });
 
   const recordInsights = useMemo(
-    () => (recordsQuery.data?.items || []).map((item) => buildReferralInsight(item, configQuery.data)),
+    () =>
+      (recordsQuery.data?.items || []).map((item) =>
+        buildReferralInsight(item, configQuery.data),
+      ),
     [configQuery.data, recordsQuery.data?.items],
   );
-  const pendingReviewCount = recordInsights.filter((item) => item.status === 'pending_review' || item.status === 'pending').length;
-  const rewardedCount = recordInsights.filter((item) => item.status === 'reward_issued').length;
 
   const columns: ColumnsType<ReferralInsight> = [
     {
@@ -145,7 +171,9 @@ const ReferralsAdminPage: React.FC = () => {
       render: (_value, record) => (
         <Space direction="vertical" size={6}>
           <Tag color={record.stage_color}>{record.stage_label}</Tag>
-          <Typography.Text type="secondary">{record.stage_summary}</Typography.Text>
+          <Typography.Text type="secondary">
+            {record.stage_summary}
+          </Typography.Text>
         </Space>
       ),
     },
@@ -156,7 +184,9 @@ const ReferralsAdminPage: React.FC = () => {
       render: (_value, record) => (
         <Space direction="vertical" size={6}>
           <Typography.Text>{record.reward_summary}</Typography.Text>
-          <Typography.Text type="secondary">{record.action_summary}</Typography.Text>
+          <Typography.Text type="secondary">
+            {record.action_summary}
+          </Typography.Text>
         </Space>
       ),
     },
@@ -166,7 +196,9 @@ const ReferralsAdminPage: React.FC = () => {
       width: 200,
       render: (_value, record) => (
         <Space direction="vertical" size={6}>
-          <Typography.Text>{dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}</Typography.Text>
+          <Typography.Text>
+            {dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}
+          </Typography.Text>
           <Typography.Text type="secondary">{`更新于 ${dayjs(record.updated_at).format('YYYY-MM-DD HH:mm')}`}</Typography.Text>
         </Space>
       ),
@@ -179,8 +211,20 @@ const ReferralsAdminPage: React.FC = () => {
         <ResponsiveActions>
           {record.status === 'pending_review' || record.status === 'pending' ? (
             <>
-              <a onClick={() => void reviewMutation.mutateAsync({ record, approved: true })}>通过</a>
-              <a onClick={() => void reviewMutation.mutateAsync({ record, approved: false })}>驳回</a>
+              <a
+                onClick={() =>
+                  void reviewMutation.mutateAsync({ record, approved: true })
+                }
+              >
+                通过
+              </a>
+              <a
+                onClick={() =>
+                  void reviewMutation.mutateAsync({ record, approved: false })
+                }
+              >
+                驳回
+              </a>
             </>
           ) : (
             <Typography.Text type="secondary">已完成</Typography.Text>
@@ -191,157 +235,109 @@ const ReferralsAdminPage: React.FC = () => {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={fullWidthStyle}>
-      <Card title="邀请奖励规则">
-        <div style={sectionStyle}>
-          <Typography.Text strong>规则概览</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="邀请人奖励" value={formatMoneyYuan(configQuery.data?.inviter_reward_amount)} precision={2} prefix="¥" />
-                <Typography.Text type="secondary">当前奖励口径来自空间级邀请规则配置。</Typography.Text>
+    <PageContainer title="邀请奖励" subTitle="管理邀请规则与奖励记录。">
+      <Space direction="vertical" size={16} style={fullWidthStyle}>
+        <Card title="邀请奖励规则">
+          <div style={sectionStyle}>
+            <Space direction="vertical" size={12} style={fullWidthStyle}>
+              <div>
+                <Typography.Text strong>规则配置台</Typography.Text>
+                <Typography.Paragraph
+                  type="secondary"
+                  style={{ marginBottom: 0, marginTop: 8 }}
+                >
+                  邀请奖励规则决定了奖励什么时候发、谁来审核、用户从哪里进入，以及对外展示口径是什么。
+                </Typography.Paragraph>
               </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="被邀请人奖励" value={formatMoneyYuan(configQuery.data?.invitee_reward_amount)} precision={2} prefix="¥" />
-                <Typography.Text type="secondary">奖励对象是否同时覆盖被邀请人，会改变邀请转化预期。</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="待审核记录" value={pendingReviewCount} />
-                <Typography.Text type="secondary">待审核越多，越说明当前邀请奖励在人工节点上积压。</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="已发奖" value={rewardedCount} />
-                <Typography.Text type="secondary">已发奖属于真正的资金动作，应该被单独回看。</Typography.Text>
-              </div>
-            </Col>
-          </Row>
-        </div>
+              <Alert
+                type="info"
+                showIcon
+                title="当前奖励金额字段仍按分存储，这样能先和后端现有模型对齐；台面上统一按元展示，减少运营误读。"
+              />
+              <Form
+                form={form}
+                layout="vertical"
+                onFinish={(values) => saveMutation.mutate(values)}
+              >
+                <Row gutter={16} align="bottom">
+                  <Col xs={24} md={8}>
+                    <Form.Item
+                      label="邀请人奖励（分）"
+                      name="inviter_reward_amount"
+                    >
+                      <InputNumber min={0} style={fullWidthStyle} />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Form.Item
+                      label="被邀请人奖励（分）"
+                      name="invitee_reward_amount"
+                    >
+                      <InputNumber min={0} style={fullWidthStyle} />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={12} md={4}>
+                    <Form.Item
+                      label="人工审核"
+                      name="requires_manual_review"
+                      valuePropName="checked"
+                    >
+                      <Switch />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={12} md={4}>
+                    <Form.Item
+                      label="链接邀请"
+                      name="allow_link"
+                      valuePropName="checked"
+                    >
+                      <Switch />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={12} md={4}>
+                    <Form.Item
+                      label="邀请码"
+                      name="allow_code"
+                      valuePropName="checked"
+                    >
+                      <Switch />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24}>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      loading={saveMutation.isPending}
+                    >
+                      保存规则
+                    </Button>
+                  </Col>
+                </Row>
+              </Form>
+            </Space>
+          </div>
+        </Card>
 
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>当前状态</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space direction="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>人工审核</Typography.Text>
-                    <Tag color={configQuery.data?.requires_manual_review ? 'gold' : 'green'}>
-                      {configQuery.data?.requires_manual_review ? '开启中' : '已关闭'}
-                    </Tag>
-                  </Space>
-                  <Typography.Text>人工审核会把邀请奖励从自动结算改成人工处理，更适合高风险或早期阶段的规则。</Typography.Text>
-                  <a href="/dashboard/super-admin/referrals">继续处理审核</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space direction="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>邀请入口</Typography.Text>
-                    <Tag color={configQuery.data?.allow_link || configQuery.data?.allow_code ? 'blue' : 'default'}>
-                      {configQuery.data?.allow_link && configQuery.data?.allow_code ? '链接+邀请码' : configQuery.data?.allow_link ? '仅链接' : configQuery.data?.allow_code ? '仅邀请码' : '当前关闭'}
-                    </Tag>
-                  </Space>
-                  <Typography.Text>邀请入口越多，越需要清楚知道转化来自哪里，否则规则复盘会变得模糊。</Typography.Text>
-                  <a href="/dashboard/personal-business/overview">查看业务概览</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space direction="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>展示口径</Typography.Text>
-                    <Tag color="default">{getDisplayLevelLabel(configQuery.data?.display_level)}</Tag>
-                  </Space>
-                  <Typography.Text>邀请展示口径决定用户侧看到的是完整奖励信息还是脱敏进度，也会影响投诉和预期管理。</Typography.Text>
-                  <a href="/dashboard/super-admin/users">查看用户列表</a>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Space direction="vertical" size={8}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>规则触发条件</Typography.Text>
-                    <Tag color="blue">{configQuery.data?.trigger_event || '-'}</Tag>
-                  </Space>
-                  <Typography.Text>当前规则是在哪个事件点上触发奖励，决定了邀请关系什么时候真正进入资金处理。</Typography.Text>
-                  <a href="/dashboard/super-admin/real-name">查看实名认证</a>
-                </Space>
-              </div>
-            </Col>
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Space direction="vertical" size={12} style={fullWidthStyle}>
-            <div>
-              <Typography.Text strong>规则配置台</Typography.Text>
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8 }}>
-                邀请奖励规则决定了奖励什么时候发、谁来审核、用户从哪里进入，以及对外展示口径是什么。
-              </Typography.Paragraph>
-            </div>
-            <Alert type="info" showIcon title="当前奖励金额字段仍按分存储，这样能先和后端现有模型对齐；台面上统一按元展示，减少运营误读。" />
-            <Form form={form} layout="vertical" onFinish={(values) => saveMutation.mutate(values)}>
-              <Row gutter={16} align="bottom">
-                <Col xs={24} md={8}>
-                  <Form.Item label="邀请人奖励（分）" name="inviter_reward_amount">
-                    <InputNumber min={0} style={fullWidthStyle} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={8}>
-                  <Form.Item label="被邀请人奖励（分）" name="invitee_reward_amount">
-                    <InputNumber min={0} style={fullWidthStyle} />
-                  </Form.Item>
-                </Col>
-                <Col xs={12} md={4}>
-                  <Form.Item label="人工审核" name="requires_manual_review" valuePropName="checked">
-                    <Switch />
-                  </Form.Item>
-                </Col>
-                <Col xs={12} md={4}>
-                  <Form.Item label="链接邀请" name="allow_link" valuePropName="checked">
-                    <Switch />
-                  </Form.Item>
-                </Col>
-                <Col xs={12} md={4}>
-                  <Form.Item label="邀请码" name="allow_code" valuePropName="checked">
-                    <Switch />
-                  </Form.Item>
-                </Col>
-                <Col xs={24}>
-                  <Button type="primary" htmlType="submit" loading={saveMutation.isPending}>
-                    保存规则
-                  </Button>
-                </Col>
-              </Row>
-            </Form>
-          </Space>
-        </div>
-      </Card>
-
-      <Card title="邀请记录">
-        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-          记录页需要说明这条邀请关系处在什么阶段、对应什么奖励口径，以及现在该由谁处理。
-        </Typography.Paragraph>
-        <Table
-          rowKey="id"
-          loading={recordsQuery.isLoading}
-          columns={columns}
-          dataSource={recordInsights}
-          scroll={adminTableScroll}
-          pagination={{ current: recordsQuery.data?.page || page, pageSize: recordsQuery.data?.page_size || 10, total: recordsQuery.data?.total || 0, onChange: setPage }}
-        />
-      </Card>
-    </Space>
+        <Card title="邀请记录">
+          <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+            记录页需要说明这条邀请关系处在什么阶段、对应什么奖励口径，以及现在该由谁处理。
+          </Typography.Paragraph>
+          <Table
+            rowKey="id"
+            loading={recordsQuery.isLoading}
+            columns={columns}
+            dataSource={recordInsights}
+            scroll={adminTableScroll}
+            pagination={{
+              current: recordsQuery.data?.page || page,
+              pageSize: recordsQuery.data?.page_size || 10,
+              total: recordsQuery.data?.total || 0,
+              onChange: setPage,
+            }}
+          />
+        </Card>
+      </Space>
+    </PageContainer>
   );
 };
 

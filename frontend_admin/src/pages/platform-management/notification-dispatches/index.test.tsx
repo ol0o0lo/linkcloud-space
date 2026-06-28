@@ -120,10 +120,15 @@ describe('NotificationDispatchesPage', () => {
 
     await waitFor(() => {
       expect(mockListDispatches).toHaveBeenCalledWith({ page: 1, page_size: 10 });
-      expect(screen.getByText('分发概览')).toBeInTheDocument();
-      expect(screen.getByText('投放详情')).toBeInTheDocument();
+      expect(screen.queryByText('分发概览')).not.toBeInTheDocument();
+      expect(screen.queryByText('投放详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
       expect(screen.getByText('分发列表')).toBeInTheDocument();
+      expect(screen.queryByText('全平台广播')).not.toBeInTheDocument();
+      expect(screen.queryByText('用户定向')).not.toBeInTheDocument();
+      expect(screen.queryByText('失败处理')).not.toBeInTheDocument();
+      expect(screen.queryByText('查看通知')).not.toBeInTheDocument();
+      expect(screen.queryByText('回看通知页')).not.toBeInTheDocument();
       expect(screen.queryByText('回到通知治理')).not.toBeInTheDocument();
       expect(screen.queryByText('联动通知治理')).not.toBeInTheDocument();
       expect(screen.queryByText('失败收口')).not.toBeInTheDocument();
