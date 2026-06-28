@@ -23,6 +23,20 @@ def enum_list_mapping(enum_cls: Any, values: list[Any] | tuple[Any, ...] | None)
     return [enum_mapping(enum_cls, value) for value in (values or [])]
 
 
+def _field_value(obj: Any, field: str) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(field)
+    return getattr(obj, field, None)
+
+
+def enum_field_mapping(enum_cls: Any, obj: Any, field: str) -> str:
+    return enum_mapping(enum_cls, _field_value(obj, field))
+
+
+def enum_list_field_mapping(enum_cls: Any, obj: Any, field: str) -> list[str]:
+    return enum_list_mapping(enum_cls, _field_value(obj, field))
+
+
 def enum_options(enum_cls: Any) -> list[dict[str, str]]:
     return [{"value": str(value), "mapping": str(label)} for value, label in enum_cls.choices]
 

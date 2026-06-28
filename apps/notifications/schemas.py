@@ -4,7 +4,7 @@ from typing import Literal
 from ninja import Schema
 from pydantic import Field
 
-from apps.base.enum_registry import enum_list_mapping, enum_mapping
+from apps.base.enum_registry import enum_field_mapping, enum_list_field_mapping
 from apps.notifications.constants import NotificationChannel
 from apps.notifications.models import NotificationDispatch
 
@@ -72,7 +72,7 @@ class NotificationPreferenceOut(Schema):
 
     @staticmethod
     def resolve_default_channels__mapping(obj):
-        return enum_list_mapping(NotificationChannel, obj.get("default_channels") if isinstance(obj, dict) else obj.default_channels)
+        return enum_list_field_mapping(NotificationChannel, obj, "default_channels")
 
 
 class NotificationPreferencePatchIn(Schema):
@@ -113,8 +113,8 @@ class NotificationDispatchOut(Schema):
 
     @staticmethod
     def resolve_scope__mapping(obj):
-        return enum_mapping(NotificationDispatch.Scope, obj.scope)
+        return enum_field_mapping(NotificationDispatch.Scope, obj, "scope")
 
     @staticmethod
     def resolve_status__mapping(obj):
-        return enum_mapping(NotificationDispatch.Status, obj.status)
+        return enum_field_mapping(NotificationDispatch.Status, obj, "status")

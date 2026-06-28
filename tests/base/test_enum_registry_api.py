@@ -1,5 +1,10 @@
-from django.test import TestCase
+from types import SimpleNamespace
 
+from django.test import SimpleTestCase, TestCase
+
+from apps.base.enum_registry import enum_field_mapping, enum_list_field_mapping
+from apps.notifications.constants import NotificationChannel
+from apps.wallet.constants import WithdrawalStatus
 from tests.api_helpers import api_data
 
 
@@ -26,3 +31,20 @@ class TestEnumRegistryAPI(TestCase):
         response = self.client.get("/api/enums/", {"keys": "missing.status"})
 
         assert response.status_code == 400
+
+
+class TestEnumRegistryHelpers(SimpleTestCase):
+    def test_enum_field_mapping_supports_object_and_dict_rows(self):
+        row_obj = SimpleNamespace(status=WithdrawalStatus.PENDING_REVIEW)
+        row_dict = {"status": WithdrawalStatus.PENDING_REVIEW}
+
+        assert enum_field_mapping(WithdrawalStatus, row_obj, "status") == "待审核"
+        assert enum_field_mapping(WithdrawalStatus, row_dict, "status") == "待审核"
+
+    def test_enum_list_field_mapping_supports_object_and_dict_rows(self):
+        channels = [NotificationChannel.IN_APP, NotificationChannel.EMAIL]
+        row_obj = SimpleNamespace(default_channels=channels)
+        row_dict = {"default_channels": channels}
+
+        assert enum_list_field_mapping(NotificationChannel, row_obj, "default_channels") == ["In-app", "Email"]
+        assert enum_list_field_mapping(NotificationChannel, row_dict, "default_channels") == ["In-app", "Email"]

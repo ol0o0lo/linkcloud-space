@@ -3,7 +3,7 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from apps.base.enum_registry import enum_mapping
+from apps.base.enum_registry import enum_field_mapping
 from apps.referrals.constants import ReferralDisplayLevel, ReferralRecordStatus, ReferralTriggerEvent
 
 
@@ -44,7 +44,7 @@ class ReferralRecordOut(Schema):
 
     @staticmethod
     def resolve_status__mapping(obj):
-        return enum_mapping(ReferralRecordStatus, obj.status)
+        return enum_field_mapping(ReferralRecordStatus, obj, "status")
 
 
 class ReferralRuleConfigOut(Schema):
@@ -62,11 +62,11 @@ class ReferralRuleConfigOut(Schema):
 
     @staticmethod
     def resolve_trigger_event__mapping(obj):
-        return enum_mapping(ReferralTriggerEvent, obj.trigger_event)
+        return enum_field_mapping(ReferralTriggerEvent, obj, "trigger_event")
 
     @staticmethod
     def resolve_display_level__mapping(obj):
-        return enum_mapping(ReferralDisplayLevel, obj.display_level)
+        return enum_field_mapping(ReferralDisplayLevel, obj, "display_level")
 
 
 class ReferralRuleConfigPatchIn(Schema):
