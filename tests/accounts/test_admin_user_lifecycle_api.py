@@ -8,7 +8,7 @@ from allauth.mfa.models import Authenticator
 from allauth.socialaccount.models import SocialAccount
 from allauth.usersessions.models import UserSession
 
-from apps.accounts.constants import RealNameStatus
+from apps.accounts.constants import AdminUserRole, RealNameStatus
 from apps.accounts.models import User
 from tests.api_helpers import api_data
 
@@ -141,6 +141,9 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertEqual(data["page"], 1)
         member = next(row for row in rows if row["id"] == self.user.pk)
         self.assertEqual(member["email"], "member@example.com")
+        self.assertEqual(member["role"], AdminUserRole.USER)
+        self.assertEqual(member["role__mapping"], AdminUserRole.get_choice_label(AdminUserRole.USER))
+        self.assertEqual(member["real_name_status__mapping"], RealNameStatus.get_choice_label(member["real_name_status"]))
         self.assertFalse(member["is_active"])
         self.assertFalse(member["is_staff"])
         self.assertFalse(member["is_superuser"])

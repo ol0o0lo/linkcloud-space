@@ -5,7 +5,7 @@ from django.test import TestCase
 from model_bakery import baker
 
 from apps.accounts.models import User
-from apps.referrals.constants import ReferralRecordStatus
+from apps.referrals.constants import ReferralDisplayLevel, ReferralRecordStatus, ReferralTriggerEvent
 from apps.referrals.models import ReferralRuleConfig
 from apps.referrals.services import ensure_referral_link
 from tests.api_helpers import api_data
@@ -27,6 +27,12 @@ class ReferralUserAPITests(TestCase):
         self.assertEqual(data["invite_code"], link.code)
         self.assertEqual(data["registered_count"], 1)
 
+        records_resp = self.client.get("/api/referrals/me/records/")
+
+        self.assertEqual(records_resp.status_code, 200)
+        record = api_data(records_resp)["items"][0]
+        self.assertEqual(record["status__mapping"], ReferralRecordStatus.get_choice_label(record["status"]))
+
 
 class ReferralAdminAPITests(TestCase):
     def setUp(self):
@@ -45,7 +51,13 @@ class ReferralAdminAPITests(TestCase):
 
         self.assertEqual(get_resp.status_code, 200)
         self.assertEqual(patch_resp.status_code, 200)
-        self.assertEqual(api_data(patch_resp)["inviter_reward_amount"], 888)
+        get_data = api_data(get_resp)
+        patch_data = api_data(patch_resp)
+        self.assertEqual(get_data["trigger_event__mapping"], ReferralTriggerEvent.get_choice_label(get_data["trigger_event"]))
+        self.assertEqual(get_data["display_level__mapping"], ReferralDisplayLevel.get_choice_label(get_data["display_level"]))
+        self.assertEqual(patch_data["inviter_reward_amount"], 888)
+        self.assertEqual(patch_data["trigger_event__mapping"], ReferralTriggerEvent.get_choice_label(patch_data["trigger_event"]))
+        self.assertEqual(patch_data["display_level__mapping"], ReferralDisplayLevel.get_choice_label(patch_data["display_level"]))
 
     def test_admin_can_review_referral_record(self):
         ReferralRuleConfig.objects.create(name="default", inviter_reward_amount=666)
@@ -58,5 +70,7 @@ class ReferralAdminAPITests(TestCase):
         )
 
         self.assertEqual(resp.status_code, 200)
+        data = api_data(resp)
+        self.assertEqual(data["status__mapping"], ReferralRecordStatus.get_choice_label(data["status"]))
         record.refresh_from_db()
         self.assertEqual(record.status, ReferralRecordStatus.REWARD_ISSUED)

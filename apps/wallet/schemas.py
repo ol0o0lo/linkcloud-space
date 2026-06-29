@@ -3,6 +3,9 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
+from apps.base.enum_registry import enum_field_mapping
+from apps.wallet.constants import PayoutStatus, WalletEntryType, WithdrawalPayChannel, WithdrawalStatus
+
 
 class WalletSummaryOut(Schema):
     available_balance: int
@@ -27,6 +30,7 @@ class WalletAccountAdminOut(WalletSummaryOut):
 class WalletLedgerOut(Schema):
     id: int
     entry_type: str
+    entry_type__mapping: str
     amount_delta: int
     available_balance_after: int
     frozen_balance_after: int
@@ -38,6 +42,10 @@ class WalletLedgerOut(Schema):
     @staticmethod
     def resolve_id(obj) -> int:
         return obj.pk
+
+    @staticmethod
+    def resolve_entry_type__mapping(obj):
+        return enum_field_mapping(WalletEntryType, obj, "entry_type")
 
 
 class WithdrawalIn(Schema):
@@ -54,7 +62,9 @@ class WithdrawalOut(Schema):
     fee_amount: int
     net_amount: int
     status: str
+    status__mapping: str
     pay_channel: str
+    pay_channel__mapping: str
     payee_account_snapshot: dict
     reject_reason: str
     created_at: datetime
@@ -63,6 +73,14 @@ class WithdrawalOut(Schema):
     @staticmethod
     def resolve_id(obj) -> int:
         return obj.pk
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return enum_field_mapping(WithdrawalStatus, obj, "status")
+
+    @staticmethod
+    def resolve_pay_channel__mapping(obj):
+        return enum_field_mapping(WithdrawalPayChannel, obj, "pay_channel")
 
 
 class WalletAdjustmentIn(Schema):
@@ -103,6 +121,7 @@ class WithdrawalPayoutOut(Schema):
     out_trade_no: str
     provider_trade_no: str
     status: str
+    status__mapping: str
     error_code: str
     error_message: str
     executed_at: datetime | None = None
@@ -114,6 +133,10 @@ class WithdrawalPayoutOut(Schema):
     @staticmethod
     def resolve_withdrawal_request_id(obj) -> int:
         return obj.withdrawal_request_id
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return enum_field_mapping(PayoutStatus, obj, "status")
 
 
 class ReconcileOut(Schema):

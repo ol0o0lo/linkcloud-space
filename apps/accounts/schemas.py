@@ -3,8 +3,7 @@ from typing import Literal
 from ninja import Schema
 from pydantic import Field, field_validator
 
-from apps.accounts.constants import RealNameIdCardSide, RealNameSource
-from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameStatus
+from apps.accounts.constants import AdminUserRole, RealNameIdCardSide, RealNameSource, RealNameStatus
 from apps.base.enum_registry import enum_mapping
 from apps.media.constants import MediaType
 from apps.media.schemas import MediaRefIn, ResolvedMediaRefOut
@@ -18,10 +17,10 @@ def _obj_value(obj, key: str, default=None):
 
 def resolve_admin_user_role(obj) -> str:
     if _obj_value(obj, "is_superuser", False):
-        return "superuser"
+        return AdminUserRole.SUPERUSER
     if _obj_value(obj, "is_staff", False):
-        return "staff"
-    return "user"
+        return AdminUserRole.STAFF
+    return AdminUserRole.USER
 
 
 class UserOut(Schema):
@@ -36,8 +35,9 @@ class UserOut(Schema):
     timezone: str
     avatar_url: str | None = None
 
+    @staticmethod
     def resolve_real_name_status__mapping(obj):
-        return enum_mapping(RealNameStatus, _obj_value(obj, "real_name_status", "unverified"))
+        return enum_mapping(RealNameStatus, obj.real_name_status)
 
 
 class AdminUserOut(UserOut):
@@ -48,18 +48,16 @@ class AdminUserOut(UserOut):
     is_active: bool
     is_staff: bool
     is_superuser: bool
-    role: str = "user"
+    role: str = AdminUserRole.USER
     role__mapping: str = ""
 
+    @staticmethod
     def resolve_role(obj):
         return resolve_admin_user_role(obj)
 
+    @staticmethod
     def resolve_role__mapping(obj):
-        return {
-            "superuser": "超级管理员",
-            "staff": "后台账号",
-            "user": "普通账号",
-        }[resolve_admin_user_role(obj)]
+        return enum_mapping(AdminUserRole, resolve_admin_user_role(obj))
 
 
 class MeOut(Schema):
@@ -74,7 +72,7 @@ class MeOut(Schema):
     phone_national_number: str = ""
     phone_verified: bool
     real_name_status: str
-    real_name_status__mapping: str = ""
+    real_name_status__mapping: str
     real_name_masked: str = ""
     id_number_masked: str = ""
     real_name_verified_at: str | None = None

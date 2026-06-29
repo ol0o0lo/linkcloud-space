@@ -4,6 +4,10 @@ from typing import Literal
 from ninja import Schema
 from pydantic import Field
 
+from apps.base.enum_registry import enum_field_mapping, enum_list_field_mapping
+from apps.notifications.constants import NotificationChannel
+from apps.notifications.models import NotificationDispatch
+
 
 class NotificationActorOut(Schema):
     id: int
@@ -62,8 +66,13 @@ class NotificationPreferenceOut(Schema):
     label: str
     description: str = ""
     default_channels: list[str] = []
+    default_channels__mapping: list[str]
     in_app: bool
     email: bool
+
+    @staticmethod
+    def resolve_default_channels__mapping(obj):
+        return enum_list_field_mapping(NotificationChannel, obj, "default_channels")
 
 
 class NotificationPreferencePatchIn(Schema):
@@ -84,6 +93,7 @@ class NotificationDispatchIn(Schema):
 class NotificationDispatchOut(Schema):
     id: int
     scope: str
+    scope__mapping: str
     scope_ids: list[int]
     owner_organization_id: int | None = None
     category: str
@@ -92,6 +102,7 @@ class NotificationDispatchOut(Schema):
     url: str | None = None
     data: dict
     status: str
+    status__mapping: str
     target_count: int
     delivered_count: int
     error_message: str
@@ -99,3 +110,11 @@ class NotificationDispatchOut(Schema):
     created_by: str
     created_at: datetime
     updated_at: datetime
+
+    @staticmethod
+    def resolve_scope__mapping(obj):
+        return enum_field_mapping(NotificationDispatch.Scope, obj, "scope")
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return enum_field_mapping(NotificationDispatch.Status, obj, "status")

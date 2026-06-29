@@ -38,6 +38,11 @@ import {
 } from '@/services/openapi/realNameAdmin';
 import { enumMapping, getEnumRegistry, toSelectOptions } from '@/services/manual/enums';
 import {
+  enumMapping,
+  enumSelectOptions,
+  useEnums,
+} from '@/services/manual/enums';
+import {
   IdentityText,
   NoteModal,
   StatusTag,
@@ -47,22 +52,21 @@ import {
 
 type ReviewAction = 'approve' | 'reject' | 'manual' | 'revoke';
 type ActionState = { row: RealNameInsight; action: ReviewAction } | null;
-type RealNameRecord = API.AdminRealNameVerificationRowOut & {
+type RealNameLogWithMapping = API.RealNameLogOut & {
+  action__mapping?: string;
+  from_status__mapping?: string;
+  to_status__mapping?: string;
+};
+type RealNameWithMapping = API.RealNameVerificationOut & {
   status__mapping?: string;
   source__mapping?: string;
   provider__mapping?: string;
 };
-type RealNameDetailRecord = API.RealNameVerificationDetailOut & {
-  status__mapping?: string;
-  source__mapping?: string;
-  provider__mapping?: string;
-  logs?: Array<
-    API.RealNameLogOut & {
-      action__mapping?: string;
-    }
-  >;
+type AdminRealNameRowWithMapping = API.AdminRealNameVerificationRowOut & RealNameWithMapping;
+type RealNameDetailWithMapping = API.RealNameVerificationDetailOut & RealNameWithMapping & {
+  logs: RealNameLogWithMapping[];
 };
-type RealNameInsight = RealNameRecord & {
+type RealNameInsight = AdminRealNameRowWithMapping & {
   stage_color: string;
   stage_summary: string;
   governance_hint: string;
@@ -92,9 +96,9 @@ function buildUserSecondary(user?: Record<string, any>) {
 }
 
 function buildRealNameInsight(
-  row: RealNameRecord,
+  row: AdminRealNameRowWithMapping,
 ): RealNameInsight {
-  const sourceSummary = `来源 ${enumMapping(row.source, row.source__mapping || row.source_label)}，当前由 ${enumMapping(row.provider, row.provider__mapping || row.provider_label)} 处理。`;
+  const sourceSummary = `来源 ${enumMapping(row.source, row.source__mapping)}，当前由 ${enumMapping(row.provider, row.provider__mapping)} 处理。`;
   const reviewSummary = row.reviewed_at
     ? `${row.reviewed_by || '系统'} 于 ${dayjs(row.reviewed_at).format('YYYY-MM-DD HH:mm')} 给出处理结论。`
     : `记录创建于 ${dayjs(row.created_at).format('YYYY-MM-DD HH:mm')}，当前还没有最终处理时间。`;
@@ -225,10 +229,7 @@ const RealNameAdminPage: React.FC = () => {
   const [actionState, setActionState] = useState<ActionState>(null);
   const [detailId, setDetailId] = useState<number>();
   const [form] = Form.useForm<{ note: string }>();
-  const enumQuery = useQuery({
-    queryKey: ['enum-registry'],
-    queryFn: getEnumRegistry,
-  });
+  const realNameEnums = useEnums(['accounts.real_name_status']);
 
   const listQuery = useQuery({
     queryKey: platformQueryKeys.realName(page, keyword, statusFilter),
@@ -276,9 +277,10 @@ const RealNameAdminPage: React.FC = () => {
   });
 
   const insights = useMemo(
-    () => (listQuery.data?.items || []).map(buildRealNameInsight),
+    () => ((listQuery.data?.items || []) as AdminRealNameRowWithMapping[]).map((item) => buildRealNameInsight(item)),
     [listQuery.data?.items],
   );
+  const detailData = detailQuery.data as RealNameDetailWithMapping | undefined;
 
   const columns: ColumnsType<RealNameInsight> = [
     {
@@ -305,11 +307,11 @@ const RealNameAdminPage: React.FC = () => {
     },
     {
       title: '审核阶段',
-      dataIndex: 'status_label',
+      dataIndex: 'status__mapping',
       width: 280,
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
-          <Tag color={record.stage_color}>{enumMapping(record.status, record.status__mapping || record.status_label)}</Tag>
+          <Tag color={record.stage_color}>{enumMapping(record.status, record.status__mapping)}</Tag>
           <Typography.Text type="secondary">
             {record.stage_summary}
           </Typography.Text>
@@ -318,7 +320,7 @@ const RealNameAdminPage: React.FC = () => {
     },
     {
       title: '来源与处理',
-      dataIndex: 'source_label',
+      dataIndex: 'source__mapping',
       width: 280,
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
@@ -387,7 +389,7 @@ const RealNameAdminPage: React.FC = () => {
               allowClear
               placeholder="按实名状态筛选"
               style={toolbarControlStyle}
-              options={toSelectOptions(enumQuery.data?.['accounts.real_name_status'])}
+              options={enumSelectOptions(realNameEnums.data, 'accounts.real_name_status')}
               onChange={(value) => {
                 setPage(1);
                 setStatusFilter(value || undefined);
@@ -457,30 +459,30 @@ const RealNameAdminPage: React.FC = () => {
           />
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="用户">
-              {detailQuery.data ? personText(detailQuery.data.user) : '-'}
+              {detailData ? personText(detailData.user) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="当前状态">
-              {detailQuery.data ? (
-                <StatusTag value={enumMapping(detailQuery.data.status, detailQuery.data.status__mapping || detailQuery.data.status_label)} />
+              {detailData ? (
+                <StatusTag value={enumMapping(detailData.status, detailData.status__mapping)} />
               ) : (
                 '-'
               )}
             </Descriptions.Item>
             <Descriptions.Item label="真实姓名">
-              {detailQuery.data?.real_name ||
-                detailQuery.data?.real_name_masked ||
+              {detailData?.real_name ||
+                detailData?.real_name_masked ||
                 '-'}
             </Descriptions.Item>
             <Descriptions.Item label="证件号">
               <span style={wrapTextStyle}>
-                {detailQuery.data?.id_number ||
-                  detailQuery.data?.id_number_masked ||
+                {detailData?.id_number ||
+                  detailData?.id_number_masked ||
                   '-'}
               </span>
             </Descriptions.Item>
             <Descriptions.Item label="证件图片">
               <Space wrap>
-                {((detailQuery.data as any)?.id_card_media || []).map(
+                {(detailData?.id_card_media || []).map(
                   (item: any) => (
                     <Space key={item.media_id} orientation="vertical" size={4}>
                       <Typography.Text>
@@ -494,55 +496,55 @@ const RealNameAdminPage: React.FC = () => {
                     </Space>
                   ),
                 )}
-                {!((detailQuery.data as any)?.id_card_media || []).length
+                {!(detailData?.id_card_media || []).length
                   ? '-'
                   : null}
               </Space>
             </Descriptions.Item>
             <Descriptions.Item label="来源">
-              {detailQuery.data ? enumMapping(detailQuery.data.source, detailQuery.data.source__mapping || detailQuery.data.source_label) : '-'}
+              {detailData ? enumMapping(detailData.source, detailData.source__mapping) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="供应商">
-              {detailQuery.data ? enumMapping(detailQuery.data.provider, detailQuery.data.provider__mapping || detailQuery.data.provider_label) : '-'}
+              {detailData ? enumMapping(detailData.provider, detailData.provider__mapping) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="失败原因">
-              {detailQuery.data?.failure_reason || '-'}
+              {detailData?.failure_reason || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="审核备注">
-              {detailQuery.data?.review_note || '-'}
+              {detailData?.review_note || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="审核人">
-              {detailQuery.data?.reviewed_by || '-'}
+              {detailData?.reviewed_by || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="审核时间">
-              {detailQuery.data?.reviewed_at
-                ? dayjs(detailQuery.data.reviewed_at).format('YYYY-MM-DD HH:mm')
+              {detailData?.reviewed_at
+                ? dayjs(detailData.reviewed_at).format('YYYY-MM-DD HH:mm')
                 : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="供应商请求 ID">
               <span style={wrapTextStyle}>
-                {detailQuery.data?.provider_request_id || '-'}
+                {detailData?.provider_request_id || '-'}
               </span>
             </Descriptions.Item>
             <Descriptions.Item label="供应商结果">
               <Typography.Text code style={codeWrapStyle}>
-                {detailQuery.data?.provider_result
-                  ? JSON.stringify(detailQuery.data.provider_result)
+                {detailData?.provider_result
+                  ? JSON.stringify(detailData.provider_result)
                   : '-'}
               </Typography.Text>
             </Descriptions.Item>
           </Descriptions>
           <Table
             rowKey="created_at"
-            dataSource={detailQuery.data?.logs || []}
+            dataSource={detailData?.logs || []}
             pagination={false}
             scroll={adminTableScroll}
             columns={[
               {
                 title: '动作',
-                dataIndex: 'action_label',
+                dataIndex: 'action__mapping',
                 width: 160,
-                render: (_value, record: API.RealNameLogOut & { action__mapping?: string }) => enumMapping(record.action, record.action__mapping || record.action_label),
+                render: (_value, record) => enumMapping(record.action, record.action__mapping),
               },
               {
                 title: '备注',

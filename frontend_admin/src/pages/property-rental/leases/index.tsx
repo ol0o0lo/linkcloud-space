@@ -6,8 +6,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AdminToolbar, ResponsiveActions, adminTableScroll, toolbarControlStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type ContactOut, type LeaseOut } from '@/services/manual/house';
+import { enumMapping, enumOptionMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import MediaRefsUpload from '../components/MediaRefsUpload';
-import { CONTACT_ROLE, contactLabel, houseLabel, HOUSE_MEDIA_RESOURCE_TYPE, HOUSE_MEDIA_TYPE, LEASE_STATUS_FLOW_OPTIONS, LEASE_STATUS_OPTIONS, moneyText, STATUS_COLOR, STATUS_TEXT } from '../constants';
+import { CONTACT_ROLE, contactLabel, houseLabel, HOUSE_MEDIA_RESOURCE_TYPE, HOUSE_MEDIA_TYPE, LEASE_STATUS_FLOW_OPTIONS, moneyText, STATUS_COLOR } from '../constants';
 import { getLoadingAwareEmptyState, getLoadingSafeCount, getLoadingSafeText, isAnyInitialQueryPending, isInitialQueryPending } from '../loading';
 
 const PAGE_SIZE = 20;
@@ -82,12 +83,12 @@ type LeaseOverviewCard = {
   getValue?: (counts: Record<string, number>) => number;
 };
 
-function getScopedLeaseOverviewCards(task?: string, status?: string): LeaseOverviewCard[] {
+function getScopedLeaseOverviewCards(statusLabel: (value?: string | null) => string, task?: string, status?: string): LeaseOverviewCard[] {
   if (task === 'contract') {
     return [
       {
         key: 'current_contract_scope',
-        title: status ? `当前${STATUS_TEXT[status] || status}` : '当前缺合同',
+        title: status ? `当前${statusLabel(status)}` : '当前缺合同',
         hint: status ? '当前状态下仍缺合同归档的租约' : '当前筛选下仍缺合同归档的租约',
         params: { ...(status ? { status } : {}), contract_missing: true },
       },
@@ -116,7 +117,7 @@ function getScopedLeaseOverviewCards(task?: string, status?: string): LeaseOverv
     return [
       {
         key: 'current_status_scope',
-        title: `当前${STATUS_TEXT[status] || status}`,
+        title: `当前${statusLabel(status)}`,
         hint: '当前筛选状态下的租约数',
         params: { status },
       },
@@ -144,11 +145,11 @@ function getScopedLeaseOverviewCards(task?: string, status?: string): LeaseOverv
   return [];
 }
 
-function getLeaseScopeText(options: { task?: string; status?: string; houseLabelText?: string }) {
+function getLeaseScopeText(options: { task?: string; status?: string; houseLabelText?: string }, statusLabel: (value?: string | null) => string) {
   const parts: string[] = [];
   if (options.houseLabelText) parts.push(`房源：${options.houseLabelText}`);
   if (options.task && TASK_TEXT[options.task as LeaseTask]) parts.push(TASK_TEXT[options.task as LeaseTask]);
-  if (options.status) parts.push(STATUS_TEXT[options.status] || options.status);
+  if (options.status) parts.push(statusLabel(options.status));
   return parts.join(' / ');
 }
 
@@ -326,6 +327,9 @@ const LeasesPage: React.FC = () => {
   const [openedSourceHouse, setOpenedSourceHouse] = useState(false);
   const [openedEditLease, setOpenedEditLease] = useState(false);
   const enabled = Boolean(workspace.selectedOrgSlug);
+  const houseEnums = useEnums(['house.lease_status']);
+  const statusLabel = (value?: string | null) => enumOptionMapping(houseEnums.data, 'house.lease_status', value);
+  const leaseStatusOptions = enumSelectOptions(houseEnums.data, 'house.lease_status');
   const houses = useQuery({ queryKey: ['house', 'leases', 'houses', workspace.selectedOrgSlug], queryFn: () => houseApi.listHouses({ page: 1, page_size: 100 }), enabled });
   const tenants = useQuery({ queryKey: ['house', 'leases', 'tenants', workspace.selectedOrgSlug], queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, role: 'tenant' }), enabled });
   const overviewQueries = useQueries({
@@ -335,7 +339,7 @@ const LeasesPage: React.FC = () => {
       enabled,
     })),
   });
-  const scopedOverviewCards = useMemo(() => getScopedLeaseOverviewCards(task, status), [status, task]);
+  const scopedOverviewCards = useMemo(() => getScopedLeaseOverviewCards(statusLabel, task, status), [statusLabel, status, task]);
   const scopedOverviewQueries = useQueries({
     queries: scopedOverviewCards
       .filter((item) => item.params)
@@ -375,7 +379,7 @@ const LeasesPage: React.FC = () => {
   const selectedScopedHouse = (houses.data?.items || []).find((item) => item.id === sourceHouseId);
   const overviewLoading = scopedOverview ? isAnyInitialQueryPending(scopedOverviewQueries) : isAnyInitialQueryPending(overviewQueries);
   const listLoading = isInitialQueryPending(leases);
-  const scopeText = getLeaseScopeText({ task, status, houseLabelText: selectedScopedHouse ? houseLabel(selectedScopedHouse) : undefined });
+  const scopeText = getLeaseScopeText({ task, status, houseLabelText: selectedScopedHouse ? houseLabel(selectedScopedHouse) : undefined }, statusLabel);
   const focusedActionTitle = task === 'contract' && editLeaseId ? '当前操作：补归档合同' : undefined;
   const focusedActionDescription = task === 'contract' && editLeaseId ? '当前入口来自合同缺失队列，优先上传主合同文件，再继续确认租约状态和履约节点。' : undefined;
   const focusedActionReturnHref = task === 'contract' && editLeaseId ? dashboardHref(buildLeaseQueueHref({ houseId: sourceHouseId, task, status })) : undefined;
@@ -706,7 +710,7 @@ const LeasesPage: React.FC = () => {
           />
         ) : null}
         <Space wrap style={{ marginBottom: 16 }}>
-          <Select allowClear placeholder="状态" options={LEASE_STATUS_OPTIONS} value={status} onChange={(value) => { setPage(1); setStatus(value); }} style={toolbarControlStyle} />
+          <Select allowClear placeholder="状态" options={leaseStatusOptions} value={status} onChange={(value) => { setPage(1); setStatus(value); }} style={toolbarControlStyle} />
         </Space>
         <Table<LeaseOut>
           rowKey="id"
@@ -726,7 +730,7 @@ const LeasesPage: React.FC = () => {
                 );
               },
             },
-            { title: '状态', dataIndex: 'status', width: 120, render: (value) => <Tag color={STATUS_COLOR[value] || 'default'}>{STATUS_TEXT[value] || value}</Tag> },
+            { title: '状态', dataIndex: 'status__mapping', width: 120, render: (_value, record) => <Tag color={STATUS_COLOR[record.status] || 'default'}>{enumMapping(record.status, record.status__mapping)}</Tag> },
             {
               title: '当前动作',
               dataIndex: 'next_action',
@@ -763,17 +767,17 @@ const LeasesPage: React.FC = () => {
                   )}
                   {record.contract_files?.length
                     ? (LEASE_STATUS_FLOW_OPTIONS[record.status] || [])
-                        .filter((item) => item.value !== record.status)
-                        .map((item) => (
+                        .filter((nextStatus) => nextStatus !== record.status)
+                        .map((nextStatus) => (
                           <Button
                             type="link"
                             size="small"
-                            key={item.value}
+                            key={nextStatus}
                             onClick={() => {
-                              updateLeaseStatus.mutate({ id: record.id, status: item.value });
+                              updateLeaseStatus.mutate({ id: record.id, status: nextStatus });
                             }}
                           >
-                            {LEASE_STATUS_ACTION_TEXT[item.value] || item.label}
+                            {LEASE_STATUS_ACTION_TEXT[nextStatus] || statusLabel(nextStatus)}
                           </Button>
                         ))
                     : null}
@@ -881,7 +885,7 @@ const LeasesPage: React.FC = () => {
                         {editing ? (
                           <Col xs={24} md={12}>
                             <Form.Item label="状态" name="status">
-                              <Select options={LEASE_STATUS_OPTIONS} />
+                              <Select options={leaseStatusOptions} />
                             </Form.Item>
                           </Col>
                         ) : null}
@@ -928,7 +932,7 @@ const LeasesPage: React.FC = () => {
                   <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                     <Space wrap>
                       <Tag color="blue">{drawerEntryText}</Tag>
-                      {editing?.status ? <Tag color={STATUS_COLOR[editing.status] || 'default'}>{STATUS_TEXT[editing.status] || editing.status}</Tag> : null}
+                      {editing?.status ? <Tag color={STATUS_COLOR[editing.status] || 'default'}>{enumMapping(editing.status, editing.status__mapping)}</Tag> : null}
                       {!draftContractFiles.length ? <Tag color="orange">待补合同</Tag> : <Tag color="green">合同已上传</Tag>}
                     </Space>
                     <Descriptions column={1} size="small">

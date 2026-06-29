@@ -5,6 +5,7 @@ import { Alert, Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select
 import React, { useEffect, useMemo, useState } from 'react';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type ContactOut } from '@/services/manual/house';
+import { enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import {
   normalizeHousePublishRules,
@@ -16,10 +17,8 @@ import {
   contactLabel,
   evaluateHousePublishState,
   getHouseMediaCompleteness,
-  HOUSE_DECORATION_OPTIONS,
   HOUSE_MEDIA_RESOURCE_TYPE,
   HOUSE_MEDIA_TYPE,
-  HOUSE_ORIENTATION_OPTIONS,
   moneyText,
   type MediaRefValue,
 } from '../constants';
@@ -215,6 +214,7 @@ const HouseNewPage: React.FC = () => {
   const [createdLandlords, setCreatedLandlords] = useState<ContactOut[]>([]);
   const workspace = useTenantWorkspace();
   const enabled = Boolean(workspace.selectedOrgSlug);
+  const houseEnums = useEnums(['house.house_orientation', 'house.house_decoration']);
   const estates = useQuery({ queryKey: ['house', 'new', 'estates', workspace.selectedOrgSlug], queryFn: () => houseApi.listEstates({ page: 1, page_size: 100 }), enabled });
   const buildings = useQuery({ queryKey: ['house', 'new', 'buildings', workspace.selectedOrgSlug], queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100 }), enabled });
   const defaultBuilding = useQuery({ queryKey: ['house', 'new', 'default-building', workspace.selectedOrgSlug], queryFn: () => houseApi.getDefaultBuilding(), enabled });
@@ -222,6 +222,8 @@ const HouseNewPage: React.FC = () => {
   const settings = useQuery({ queryKey: ['house', 'new', 'settings', workspace.selectedOrgSlug], queryFn: () => appsSettingsApiListOrgSettings(), enabled });
   const buildingItems = useMemo(() => [...createdBuildings, ...(buildings.data?.items || [])], [buildings.data, createdBuildings]);
   const landlordItems = useMemo(() => [...createdLandlords, ...(contacts.data?.items || [])], [contacts.data, createdLandlords]);
+  const orientationOptions = enumSelectOptions(houseEnums.data, 'house.house_orientation');
+  const decorationOptions = enumSelectOptions(houseEnums.data, 'house.house_decoration');
   const selectedBuilding = buildingItems.find((item) => item.id === (formValues.building_id as number | undefined));
   const selectedLandlord = landlordItems.find((item) => item.id === (formValues.landlord_id as number | undefined));
   const publishRules = useMemo(
@@ -436,12 +438,12 @@ const HouseNewPage: React.FC = () => {
             <Row gutter={[16, 0]}>
               <Col xs={24} md={12}>
                 <Form.Item label="朝向" name="orientation">
-                  <Select allowClear options={HOUSE_ORIENTATION_OPTIONS} />
+                  <Select allowClear options={orientationOptions} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
                 <Form.Item label="装修" name="decoration">
-                  <Select allowClear options={HOUSE_DECORATION_OPTIONS} />
+                  <Select allowClear options={decorationOptions} />
                 </Form.Item>
               </Col>
               <Col span={24}>

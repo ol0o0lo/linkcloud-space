@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { adminTableScroll } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type HouseOut, type LeaseOut, type ViewingRecordOut } from '@/services/manual/house';
+import { enumMapping } from '@/services/manual/enums';
 import {
   canHousePublish,
   contactLabel,
@@ -15,10 +16,8 @@ import {
   houseLabel,
   houseMediaReadinessText,
   HOUSE_PUBLISH_STATUS_COLOR,
-  HOUSE_PUBLISH_STATUS_TEXT,
   moneyText,
   STATUS_COLOR,
-  STATUS_TEXT,
 } from './constants';
 
 const dashboardHref = (path: string) => `/dashboard${path}`;
@@ -378,8 +377,8 @@ const WorkbenchPage: React.FC = () => {
                 <Space size={4} wrap>
                   <Tag color={record.stage === 'blocked' ? 'orange' : 'blue'}>{record.stage === 'blocked' ? '阻断发布' : '待发布'}</Tag>
                   {record.stage === 'ready' && record.issues.length ? <Tag color="cyan">仅提醒</Tag> : null}
-                  <Tag color={STATUS_COLOR[record.house.status] || 'default'}>{STATUS_TEXT[record.house.status] || record.house.status}</Tag>
-                  <Tag color={HOUSE_PUBLISH_STATUS_COLOR[record.house.publish_status] || 'default'}>{HOUSE_PUBLISH_STATUS_TEXT[record.house.publish_status] || record.house.publish_status}</Tag>
+                  <Tag color={STATUS_COLOR[record.house.status] || 'default'}>{enumMapping(record.house.status, record.house.status__mapping)}</Tag>
+                  <Tag color={HOUSE_PUBLISH_STATUS_COLOR[record.house.publish_status] || 'default'}>{enumMapping(record.house.publish_status, record.house.publish_status__mapping)}</Tag>
                 </Space>
               ),
             },

@@ -10,6 +10,12 @@ class RealNameStatus(StrChoices):
     REVOKED = "revoked", "已撤销"
 
 
+class AdminUserRole(StrChoices):
+    SUPERUSER = "superuser", "超级管理员"
+    STAFF = "staff", "后台账号"
+    USER = "user", "普通账号"
+
+
 class RealNameSource(StrChoices):
     USER_SUBMIT = "user_submit", "用户主动提交"
     BUSINESS_GATE = "business_gate", "业务拦截触发"

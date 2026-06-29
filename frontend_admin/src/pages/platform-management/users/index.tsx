@@ -35,13 +35,21 @@ import {
   appsAccountsApiUnbindUserPhone,
   appsAccountsApiUnbindUserWechat,
 } from '@/services/openapi/userAdmin';
-import {normalizeEmailLikeInput} from '@/utils/email';
-import {IdentityText} from '../shared';
+import {
+  enumMapping,
+  enumSelectOptions,
+  useEnums,
+} from '@/services/manual/enums';
+import { normalizeEmailLikeInput } from '@/utils/email';
+import { IdentityText } from '../shared';
 
-type UserInsight = API.AdminUserOut & {
+type AdminUserWithMapping = API.AdminUserOut & {
   real_name_status__mapping?: string;
   role?: string;
   role__mapping?: string;
+};
+
+type UserInsight = AdminUserWithMapping & {
   phone_label: string;
   role_label: string;
   role_color: string;
@@ -60,11 +68,11 @@ type UserSearchParams = {
 const trimParam = (value: unknown) =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
-function buildUserInsight(user: API.AdminUserOut): UserInsight {
+function buildUserInsight(user: AdminUserWithMapping): UserInsight {
   const phoneLabel = user.phone_national_number
     ? `${user.phone_country_code || ''} ${user.phone_national_number}`.trim()
     : '未绑定';
-  const roleLabel = (user as UserInsight).role__mapping || '普通账号';
+  const roleLabel = user.role__mapping || (user.is_superuser ? '超级管理员' : user.is_staff ? '后台账号' : '普通账号');
 
   if (!user.is_active) {
     return {
@@ -97,6 +105,15 @@ function buildUserInsight(user: API.AdminUserOut): UserInsight {
     };
   }
 
+  if (!user.phone_verified || !user.phone_national_number) {
+    return {
+      ...user,
+      phone_label: phoneLabel,
+      role_label: roleLabel,
+      role_color: 'default',
+    };
+  }
+
   return {
     ...user,
     phone_label: phoneLabel,
@@ -106,9 +123,9 @@ function buildUserInsight(user: API.AdminUserOut): UserInsight {
 }
 
 const PlatformUsersPage: React.FC = () => {
-  const [editingUser, setEditingUser] = useState<API.AdminUserOut | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUserWithMapping | null>(null);
   const [userModalOpen, setUserModalOpen] = useState(false);
-  const [passwordUser, setPasswordUser] = useState<API.AdminUserOut | null>(
+  const [passwordUser, setPasswordUser] = useState<AdminUserWithMapping | null>(
     null,
   );
   const tableActionRef = useRef<ActionType>(null);
@@ -117,10 +134,7 @@ const PlatformUsersPage: React.FC = () => {
   >();
   const [passwordForm] = Form.useForm<API.AdminUserPasswordIn>();
   const [modal, modalContextHolder] = Modal.useModal();
-  const enumQuery = useQuery({
-    queryKey: ['enum-registry'],
-    queryFn: getEnumRegistry,
-  });
+  const userEnums = useEnums(['accounts.real_name_status', 'accounts.admin_user_role']);
 
   const saveUserMutation = useMutation({
     mutationFn: (values: API.AdminUserCreateIn & API.AdminUserPatchIn) => {
@@ -194,7 +208,7 @@ const PlatformUsersPage: React.FC = () => {
     setUserModalOpen(true);
   };
 
-  const openEdit = (record: API.AdminUserOut) => {
+  const openEdit = (record: AdminUserWithMapping) => {
     setEditingUser(record);
     userForm.setFieldsValue(record);
     setUserModalOpen(true);
@@ -257,7 +271,7 @@ const PlatformUsersPage: React.FC = () => {
       valueType: 'select',
       fieldProps: {
         allowClear: true,
-        options: toSelectOptions(enumQuery.data?.['accounts.real_name_status']),
+        options: enumSelectOptions(userEnums.data, 'accounts.real_name_status'),
       },
     },
     {
@@ -267,7 +281,7 @@ const PlatformUsersPage: React.FC = () => {
       valueType: 'select',
       fieldProps: {
         allowClear: true,
-        options: toSelectOptions(enumQuery.data?.['accounts.admin_user_role']),
+        options: enumSelectOptions(userEnums.data, 'accounts.admin_user_role'),
       },
     },
     {
@@ -372,7 +386,7 @@ const PlatformUsersPage: React.FC = () => {
               role: trimParam(params.role),
             });
             return {
-              data: (result.items || []).map(buildUserInsight),
+              data: ((result.items || []) as AdminUserWithMapping[]).map((item) => buildUserInsight(item)),
               total: result.total || 0,
               success: true,
             };

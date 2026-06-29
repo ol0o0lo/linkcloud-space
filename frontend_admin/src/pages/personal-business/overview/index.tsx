@@ -57,7 +57,23 @@ import {
 import { enumMapping } from '@/services/manual/enums';
 import { formatWalletAmount } from '@/pages/wallet-management/shared';
 
-type WithdrawalInsight = API.WithdrawalOut & {
+type WithdrawalWithMapping = API.WithdrawalOut & {
+  status__mapping?: string;
+  pay_channel__mapping?: string;
+};
+type WalletLedgerWithMapping = API.WalletLedgerOut & {
+  entry_type__mapping?: string;
+};
+type ReferralRecordWithMapping = API.ReferralRecordOut & {
+  status__mapping?: string;
+};
+type RealNameWithMapping = API.RealNameVerificationOut & {
+  status__mapping?: string;
+};
+type RealNameLogWithMapping = API.RealNameLogOut & {
+  action__mapping?: string;
+};
+type WithdrawalInsight = WithdrawalWithMapping & {
   status_label: string;
   status_color: string;
   governance_summary: string;
@@ -85,13 +101,14 @@ const overviewTileStyle: React.CSSProperties = {
 };
 
 function buildWithdrawalInsight(
-  withdrawal: API.WithdrawalOut,
+  withdrawal: WithdrawalWithMapping,
 ): WithdrawalInsight {
+  const statusLabel = enumMapping(withdrawal.status, withdrawal.status__mapping);
   switch (withdrawal.status) {
     case 'pending_review':
       return {
         ...withdrawal,
-        status_label: '待审核',
+        status_label: statusLabel,
         status_color: 'gold',
         governance_summary:
           '资金已冻结，等待平台审核决定是否继续进入出款链路。',
@@ -99,21 +116,21 @@ function buildWithdrawalInsight(
     case 'approved':
       return {
         ...withdrawal,
-        status_label: '待打款',
+        status_label: statusLabel,
         status_color: 'blue',
         governance_summary: '审核已经通过，但尚未真正完成出款。',
       };
     case 'paying':
       return {
         ...withdrawal,
-        status_label: '打款中',
+        status_label: statusLabel,
         status_color: 'cyan',
         governance_summary: '代付已发起，当前重点是等待回调并确认状态同步。',
       };
     case 'failed':
       return {
         ...withdrawal,
-        status_label: '失败待处理',
+        status_label: statusLabel,
         status_color: 'red',
         governance_summary:
           '申请已经失败，先核查失败原因和余额回流，再决定是否继续操作。',
@@ -121,28 +138,28 @@ function buildWithdrawalInsight(
     case 'rejected':
       return {
         ...withdrawal,
-        status_label: '已驳回',
+        status_label: statusLabel,
         status_color: 'default',
         governance_summary: '申请已被退回，后续重点是补资料和重新发起。',
       };
     case 'cancelled':
       return {
         ...withdrawal,
-        status_label: '已撤销',
+        status_label: statusLabel,
         status_color: 'default',
         governance_summary: '申请已由本人撤销，资金通常已回流到可用余额。',
       };
     case 'paid':
       return {
         ...withdrawal,
-        status_label: '已打款',
+        status_label: statusLabel,
         status_color: 'green',
         governance_summary: '申请已经完成打款，后续重点转到到账与对账确认。',
       };
     default:
       return {
         ...withdrawal,
-        status_label: withdrawal.status,
+        status_label: statusLabel,
         status_color: 'default',
         governance_summary: '当前申请处于未归类状态，建议补充统一业务语义。',
       };
@@ -238,8 +255,8 @@ const PersonalBusinessPage: React.FC = () => {
   });
 
   const walletSummary = walletSummaryQuery.data;
-  const withdrawals = useMemo(
-    () => (withdrawalsQuery.data?.items || []).map(buildWithdrawalInsight),
+  const withdrawals: WithdrawalInsight[] = useMemo(
+    () => ((withdrawalsQuery.data?.items || []) as WithdrawalWithMapping[]).map((item) => buildWithdrawalInsight(item)),
     [withdrawalsQuery.data?.items],
   );
   const pendingWithdrawals = withdrawals.filter(
@@ -251,13 +268,18 @@ const PersonalBusinessPage: React.FC = () => {
   const activeWithdrawals = withdrawals.filter((item) =>
     ['pending_review', 'approved', 'paying', 'failed'].includes(item.status),
   );
-  const userSettings = userSettingsQuery.data || [];
+  const userSettings = (userSettingsQuery.data || []) as API.UserSettingOut[];
   const referralSummary = referralSummaryQuery.data;
-  const realName = realNameQuery.data;
-  const realNameStatusText = enumMapping(realName?.status, realName?.status__mapping || realName?.status_label);
+  const realName = realNameQuery.data as RealNameWithMapping | undefined;
+  const withdrawalDetail = withdrawalDetailQuery.data as WithdrawalWithMapping | undefined;
 
-  const ledgerColumns: ColumnsType<API.WalletLedgerOut> = [
-    { title: '类型', dataIndex: 'entry_type', width: 140 },
+  const ledgerColumns: ColumnsType<WalletLedgerWithMapping> = [
+    {
+      title: '类型',
+      dataIndex: 'entry_type__mapping',
+      width: 140,
+      render: (_value, record) => enumMapping(record.entry_type, record.entry_type__mapping),
+    },
     {
       title: '变动',
       dataIndex: 'amount_delta',
@@ -304,7 +326,12 @@ const PersonalBusinessPage: React.FC = () => {
         </Space>
       ),
     },
-    { title: '渠道', dataIndex: 'pay_channel', width: 120 },
+    {
+      title: '渠道',
+      dataIndex: 'pay_channel__mapping',
+      width: 120,
+      render: (_value, record) => enumMapping(record.pay_channel, record.pay_channel__mapping),
+    },
     {
       title: '创建时间',
       dataIndex: 'created_at',
@@ -569,7 +596,7 @@ const PersonalBusinessPage: React.FC = () => {
                     </Descriptions>
                     <Table
                       rowKey="id"
-                      dataSource={referralRecordsQuery.data?.items || []}
+                      dataSource={(referralRecordsQuery.data?.items || []) as ReferralRecordWithMapping[]}
                       pagination={false}
                       scroll={adminTableScroll}
                       columns={[
@@ -578,7 +605,12 @@ const PersonalBusinessPage: React.FC = () => {
                           dataIndex: 'invitee_display',
                           width: 180,
                         },
-                        { title: '状态', dataIndex: 'status', width: 120 },
+                        {
+                          title: '状态',
+                          dataIndex: 'status__mapping',
+                          width: 120,
+                          render: (_value, record) => enumMapping(record.status, record.status__mapping),
+                        },
                       ]}
                     />
                   </Space>
@@ -598,12 +630,12 @@ const PersonalBusinessPage: React.FC = () => {
                           realName?.status === 'unverified' ? 'gold' : 'green'
                         }
                       >
-                        {realNameStatusText || '未知'}
+                        {realName ? enumMapping(realName.status, realName.status__mapping || realName.status_label) : '未知'}
                       </Tag>
                     </Space>
                     <Descriptions column={twoColumnDescription} size="small">
                       <Descriptions.Item label="状态">
-                        {realNameStatusText || '-'}
+                        {realName ? enumMapping(realName.status, realName.status__mapping || realName.status_label) : '-'}
                       </Descriptions.Item>
                       <Descriptions.Item label="姓名">
                         {realName?.real_name_masked || '-'}
@@ -624,16 +656,15 @@ const PersonalBusinessPage: React.FC = () => {
                     </Button>
                     <Table
                       rowKey="created_at"
-                      dataSource={realNameLogsQuery.data || []}
+                      dataSource={(realNameLogsQuery.data || []) as RealNameLogWithMapping[]}
                       pagination={false}
                       scroll={adminTableScroll}
                       columns={[
                         {
                           title: '动作',
-                          dataIndex: 'action_label',
+                          dataIndex: 'action__mapping',
                           width: 160,
-                          render: (_value, record: RealNameLogRecord) =>
-                            enumMapping(record.action, record.action__mapping || record.action_label),
+                          render: (_value, record) => enumMapping(record.action, record.action__mapping || record.action_label),
                         },
                         {
                           title: '备注',
@@ -782,7 +813,7 @@ const PersonalBusinessPage: React.FC = () => {
                         rowKey="id"
                         loading={ledgerQuery.isLoading}
                         columns={ledgerColumns}
-                        dataSource={ledgerQuery.data?.items || []}
+                        dataSource={(ledgerQuery.data?.items || []) as WalletLedgerWithMapping[]}
                         pagination={false}
                         scroll={adminTableScroll}
                       />
@@ -821,43 +852,43 @@ const PersonalBusinessPage: React.FC = () => {
         >
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="提现 ID">
-              {withdrawalDetailQuery.data?.id || '-'}
+              {withdrawalDetail?.id || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="状态">
-              {withdrawalDetailQuery.data?.status || '-'}
+              {withdrawalDetail ? enumMapping(withdrawalDetail.status, withdrawalDetail.status__mapping) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="金额">
-              {formatWalletAmount(withdrawalDetailQuery.data?.amount || 0)}
+              {formatWalletAmount(withdrawalDetail?.amount || 0)}
             </Descriptions.Item>
             <Descriptions.Item label="手续费">
-              {formatWalletAmount(withdrawalDetailQuery.data?.fee_amount || 0)}
+              {formatWalletAmount(withdrawalDetail?.fee_amount || 0)}
             </Descriptions.Item>
             <Descriptions.Item label="到账金额">
-              {formatWalletAmount(withdrawalDetailQuery.data?.net_amount || 0)}
+              {formatWalletAmount(withdrawalDetail?.net_amount || 0)}
             </Descriptions.Item>
             <Descriptions.Item label="渠道">
-              {withdrawalDetailQuery.data?.pay_channel || '-'}
+              {withdrawalDetail ? enumMapping(withdrawalDetail.pay_channel, withdrawalDetail.pay_channel__mapping) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="收款快照">
               <WrappedCodeText
                 value={
-                  withdrawalDetailQuery.data?.payee_account_snapshot || '-'
+                  withdrawalDetail?.payee_account_snapshot || '-'
                 }
               />
             </Descriptions.Item>
             <Descriptions.Item label="驳回原因">
-              {withdrawalDetailQuery.data?.reject_reason || '-'}
+              {withdrawalDetail?.reject_reason || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="创建时间">
-              {withdrawalDetailQuery.data?.created_at
-                ? dayjs(withdrawalDetailQuery.data.created_at).format(
+              {withdrawalDetail?.created_at
+                ? dayjs(withdrawalDetail.created_at).format(
                     'YYYY-MM-DD HH:mm',
                   )
                 : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="审核时间">
-              {withdrawalDetailQuery.data?.reviewed_at
-                ? dayjs(withdrawalDetailQuery.data.reviewed_at).format(
+              {withdrawalDetail?.reviewed_at
+                ? dayjs(withdrawalDetail.reviewed_at).format(
                     'YYYY-MM-DD HH:mm',
                   )
                 : '-'}

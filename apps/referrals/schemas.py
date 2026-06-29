@@ -3,6 +3,9 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
+from apps.base.enum_registry import enum_field_mapping
+from apps.referrals.constants import ReferralDisplayLevel, ReferralRecordStatus, ReferralTriggerEvent
+
 
 class ReferralSummaryOut(Schema):
     invite_code: str
@@ -18,6 +21,7 @@ class ReferralRecordOut(Schema):
     invitee_id: int
     invitee_display: str
     status: str
+    status__mapping: str
     created_at: datetime
     updated_at: datetime
 
@@ -38,17 +42,31 @@ class ReferralRecordOut(Schema):
             return f"{masked}@{domain}" if domain else masked
         return invitee.username or f"用户{invitee.pk}"
 
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return enum_field_mapping(ReferralRecordStatus, obj, "status")
+
 
 class ReferralRuleConfigOut(Schema):
     id: int
     name: str
     trigger_event: str
+    trigger_event__mapping: str
     inviter_reward_amount: int
     invitee_reward_amount: int
     requires_manual_review: bool
     allow_link: bool
     allow_code: bool
     display_level: str
+    display_level__mapping: str
+
+    @staticmethod
+    def resolve_trigger_event__mapping(obj):
+        return enum_field_mapping(ReferralTriggerEvent, obj, "trigger_event")
+
+    @staticmethod
+    def resolve_display_level__mapping(obj):
+        return enum_field_mapping(ReferralDisplayLevel, obj, "display_level")
 
 
 class ReferralRuleConfigPatchIn(Schema):
