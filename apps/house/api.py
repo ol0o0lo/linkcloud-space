@@ -172,16 +172,19 @@ def put_default_building(request, payload: DefaultBuildingIn):
 def list_contacts(request, role: str | None = Query(None), task: str | None = Query(None), keyword: str | None = Query(None)):
     org = require_org_selected(request)
     qs = Contact.objects.filter(organization=org).order_by("name", "id")
-    if role:
-        qs = qs.filter(roles__contains=[role])
     if task == "inactive":
         qs = qs.filter(is_active=False)
-    if task == "dual_role":
-        qs = qs.filter(roles__contains=[Contact.Role.LANDLORD]).filter(roles__contains=[Contact.Role.TENANT])
-    if task == "role_missing":
-        qs = qs.filter(roles=[])
     if keyword:
-        qs = qs.filter(name__icontains=keyword) | qs.filter(phone__icontains=keyword)
+        qs = qs.filter(Q(name__icontains=keyword) | Q(phone__icontains=keyword))
+    if role or task in {"dual_role", "role_missing"}:
+        contacts = list(qs)
+        if role:
+            contacts = [contact for contact in contacts if role in (contact.roles or [])]
+        if task == "dual_role":
+            contacts = [contact for contact in contacts if {Contact.Role.LANDLORD, Contact.Role.TENANT}.issubset(set(contact.roles or []))]
+        if task == "role_missing":
+            contacts = [contact for contact in contacts if not (contact.roles or [])]
+        return contacts
     return qs
 
 

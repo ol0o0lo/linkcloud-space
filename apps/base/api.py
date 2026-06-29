@@ -62,13 +62,6 @@ class AppContextOut(Schema):
 def _get_app_version() -> str:
     return "unknown"
 
-
-@router.get("/enums/", summary="获取前端可用枚举映射")
-def list_registered_enums(request):
-    """返回前端筛选和展示可复用的枚举值与 mapping。"""
-    return get_registered_enums()
-
-
 @router.get("/version/", auth=None, summary="获取应用版本")
 def get_version(request):
     """返回当前前端构建版本标识，用于客户端版本展示与调试。"""
