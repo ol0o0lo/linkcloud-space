@@ -14,6 +14,7 @@ const {
   mockSetPassword,
   mockUnbindPhone,
   mockUnbindWechat,
+  mockGetEnumRegistry,
 } = vi.hoisted(() => ({
   mockListUsers: vi.fn(),
   mockPatchStatus: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockSetPassword: vi.fn(),
   mockUnbindPhone: vi.fn(),
   mockUnbindWechat: vi.fn(),
+  mockGetEnumRegistry: vi.fn(),
 }));
 
 vi.mock('@/services/openapi/userAdmin', () => ({
@@ -38,12 +40,30 @@ vi.mock('@/services/openapi/userAdmin', () => ({
   appsAccountsApiUnbindUserWechat: mockUnbindWechat,
 }));
 
+vi.mock('@/services/manual/enums', () => ({
+  getEnumRegistry: mockGetEnumRegistry,
+  enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
+  toSelectOptions: (items?: Array<{ value: string; mapping: string }>) => (items || []).map((item) => ({ value: item.value, label: item.mapping })),
+}));
+
 describe('PlatformUsersPage', () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    mockGetEnumRegistry.mockResolvedValue({
+      'accounts.real_name_status': [
+        { value: 'unverified', mapping: '未实名' },
+        { value: 'pending', mapping: '待校验' },
+        { value: 'verified', mapping: '已实名' },
+      ],
+      'accounts.admin_user_role': [
+        { value: 'superuser', mapping: '超级管理员' },
+        { value: 'staff', mapping: '后台账号' },
+        { value: 'user', mapping: '普通账号' },
+      ],
+    });
     mockListUsers.mockResolvedValue({
       items: [
         {
@@ -53,7 +73,10 @@ describe('PlatformUsersPage', () => {
           first_name: 'Alice',
           last_name: 'Zhang',
           timezone: 'Asia/Shanghai',
-          real_name_status: 'approved',
+          real_name_status: 'verified',
+          real_name_status__mapping: '已实名',
+          role: 'staff',
+          role__mapping: '后台账号',
           phone_country_code: '+86',
           phone_national_number: '13800138000',
           phone_verified: true,
@@ -69,6 +92,9 @@ describe('PlatformUsersPage', () => {
           last_name: 'Li',
           timezone: 'Asia/Shanghai',
           real_name_status: 'pending',
+          real_name_status__mapping: '待校验',
+          role: 'user',
+          role__mapping: '普通账号',
           phone_verified: false,
           is_active: true,
           is_staff: false,
@@ -126,7 +152,8 @@ describe('PlatformUsersPage', () => {
 
     const userRow = screen.getByText('alice').closest('tr');
     expect(userRow).not.toBeNull();
-    expect(within(userRow!).getByText('Staff')).toBeInTheDocument();
+    expect(within(userRow!).getByText('后台账号')).toBeInTheDocument();
+    expect(within(userRow!).getByText('实名状态 已实名')).toBeInTheDocument();
     expect(within(userRow!).queryByText('高权限账号')).not.toBeInTheDocument();
     expect(within(userRow!).getByText('编辑')).toBeInTheDocument();
     expect(within(userRow!).getByText('设密码')).toBeInTheDocument();

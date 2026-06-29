@@ -86,6 +86,9 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(verification.logs.last().action, RealNameLogAction.SUBMITTED)
         data = api_data(resp)
         self.assertEqual(data["status"], RealNameStatus.PENDING)
+        self.assertEqual(data["status__mapping"], "待校验")
+        self.assertEqual(data["source__mapping"], "用户主动提交")
+        self.assertEqual(data["provider__mapping"], "模拟自动校验")
         self.assertNotIn("id_number_last4", data)
         self.assertEqual(data["id_card_media"][0]["side"], "front")
         self.assertEqual(data["id_card_media"][0]["media_id"], id_card_media[0]["media_id"])
@@ -574,6 +577,7 @@ class TestRealNameAPI(TestCase):
         self.assertEqual(get_resp.status_code, 200, get_resp.content)
         data = api_data(get_resp)
         self.assertEqual(data["status"], RealNameStatus.REJECTED)
+        self.assertEqual(data["status__mapping"], "已驳回")
         self.assertEqual(len(data["id_card_media"]), 2)
         front_media = next(item for item in data["id_card_media"] if item["side"] == "front")
         self.assertIn("url", front_media)
@@ -581,3 +585,28 @@ class TestRealNameAPI(TestCase):
         back_media = next(item for item in data["id_card_media"] if item["side"] == "back")
         self.assertIn("url", back_media)
         self.assertTrue(back_media["url"], "back side url should be non-empty")
+
+    def test_real_name_logs_include_mapping_fields(self):
+        self.client.force_login(self.user)
+        id_card_media = self.make_id_card_media()
+        submit_resp = self.client.post(
+            "/api/users/me/real-name/submit/",
+            data=json.dumps(
+                {
+                    "id_number": self.valid_id,
+                    "id_card_media": id_card_media,
+                    "real_name": "张三",
+                    "source": "user_submit",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(submit_resp.status_code, 200, submit_resp.content)
+
+        logs_resp = self.client.get("/api/users/me/real-name/logs/")
+        self.assertEqual(logs_resp.status_code, 200, logs_resp.content)
+        timeline = api_data(logs_resp)
+        self.assertEqual(len(timeline), 1)
+        self.assertEqual(timeline[0]["action__mapping"], "提交认证")
+        self.assertEqual(timeline[0]["from_status__mapping"], "未实名")
+        self.assertEqual(timeline[0]["to_status__mapping"], "待校验")

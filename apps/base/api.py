@@ -6,6 +6,7 @@ from ninja import Router, Schema
 from ninja.errors import HttpError
 
 from apps.accounts.models import User
+from apps.base.enum_registry import get_registered_enums
 from apps.base.permissions import require_superuser
 from apps.base.utils.email import send_email
 from apps.base.utils.timezones import get_timezone_label
@@ -60,6 +61,12 @@ class AppContextOut(Schema):
 
 def _get_app_version() -> str:
     return "unknown"
+
+
+@router.get("/enums/", summary="获取前端可用枚举映射")
+def list_registered_enums(request):
+    """返回前端筛选和展示可复用的枚举值与 mapping。"""
+    return get_registered_enums()
 
 
 @router.get("/version/", auth=None, summary="获取应用版本")

@@ -4,8 +4,24 @@ from ninja import Schema
 from pydantic import Field, field_validator
 
 from apps.accounts.constants import RealNameIdCardSide, RealNameSource
+from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameStatus
+from apps.base.enum_registry import enum_mapping
 from apps.media.constants import MediaType
 from apps.media.schemas import MediaRefIn, ResolvedMediaRefOut
+
+
+def _obj_value(obj, key: str, default=None):
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def resolve_admin_user_role(obj) -> str:
+    if _obj_value(obj, "is_superuser", False):
+        return "superuser"
+    if _obj_value(obj, "is_staff", False):
+        return "staff"
+    return "user"
 
 
 class UserOut(Schema):
@@ -14,10 +30,14 @@ class UserOut(Schema):
     first_name: str = ""
     last_name: str = ""
     real_name_status: str = "unverified"
+    real_name_status__mapping: str = ""
     real_name_masked: str = ""
     id_number_masked: str = ""
     timezone: str
     avatar_url: str | None = None
+
+    def resolve_real_name_status__mapping(obj):
+        return enum_mapping(RealNameStatus, _obj_value(obj, "real_name_status", "unverified"))
 
 
 class AdminUserOut(UserOut):
@@ -28,6 +48,18 @@ class AdminUserOut(UserOut):
     is_active: bool
     is_staff: bool
     is_superuser: bool
+    role: str = "user"
+    role__mapping: str = ""
+
+    def resolve_role(obj):
+        return resolve_admin_user_role(obj)
+
+    def resolve_role__mapping(obj):
+        return {
+            "superuser": "超级管理员",
+            "staff": "后台账号",
+            "user": "普通账号",
+        }[resolve_admin_user_role(obj)]
 
 
 class MeOut(Schema):
@@ -42,6 +74,7 @@ class MeOut(Schema):
     phone_national_number: str = ""
     phone_verified: bool
     real_name_status: str
+    real_name_status__mapping: str = ""
     real_name_masked: str = ""
     id_number_masked: str = ""
     real_name_verified_at: str | None = None
@@ -228,23 +261,29 @@ class RealNameRetryIn(RealNamePayloadIn):
 class RealNameLogOut(Schema):
     action: str
     action_label: str
+    action__mapping: str = ""
     created_at: str
     from_status: str | None = None
     from_status_label: str = ""
+    from_status__mapping: str = ""
     note: str = ""
     operator: str = ""
     to_status: str | None = None
     to_status_label: str = ""
+    to_status__mapping: str = ""
 
 
 class RealNameVerificationOut(Schema):
     id: int
     status: str
     status_label: str
+    status__mapping: str
     source: str
     source_label: str
+    source__mapping: str
     provider: str
     provider_label: str
+    provider__mapping: str
     real_name_masked: str
     id_number_masked: str
     failure_reason: str = ""

@@ -12,6 +12,7 @@ from ninja.errors import HttpError
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification, RealNameVerificationLog, normalize_phone, split_phone
+from apps.base.enum_registry import enum_mapping
 from apps.accounts.utils import (
     decrypt_identity_value,
     encrypt_identity_value,
@@ -124,11 +125,14 @@ def build_real_name_timeline_row(log: RealNameVerificationLog) -> dict:
     return {
         "action": log.action,
         "action_label": RealNameLogAction.get_choice_label(log.action),
+        "action__mapping": enum_mapping(RealNameLogAction, log.action),
         "created_at": log.created_at.isoformat(),
         "from_status": log.from_status or None,
         "from_status_label": RealNameStatus.get_choice_label(log.from_status) if log.from_status else "",
+        "from_status__mapping": enum_mapping(RealNameStatus, log.from_status),
         "to_status": log.to_status or None,
         "to_status_label": RealNameStatus.get_choice_label(log.to_status) if log.to_status else "",
+        "to_status__mapping": enum_mapping(RealNameStatus, log.to_status),
         "note": log.note,
         "operator": log.operator.username if log.operator else "",
     }
@@ -195,6 +199,7 @@ def serialize_real_name_verification(verification: RealNameVerification, *, incl
         "is_current": verification.is_current,
         "provider": verification.provider,
         "provider_label": RealNameProvider.get_choice_label(verification.provider),
+        "provider__mapping": enum_mapping(RealNameProvider, verification.provider),
         "provider_request_id": verification.provider_request_id,
         "provider_result": verification.provider_result,
         "id_card_media": verification.id_card_media_resolved,
@@ -204,8 +209,10 @@ def serialize_real_name_verification(verification: RealNameVerification, *, incl
         "reviewed_by": verification.reviewed_by.username if verification.reviewed_by else None,
         "source": verification.source,
         "source_label": RealNameSource.get_choice_label(verification.source),
+        "source__mapping": enum_mapping(RealNameSource, verification.source),
         "status": verification.status,
         "status_label": RealNameStatus.get_choice_label(verification.status),
+        "status__mapping": enum_mapping(RealNameStatus, verification.status),
         "updated_at": verification.updated_at.isoformat(),
         "user": {
             "email": verification.user.email,

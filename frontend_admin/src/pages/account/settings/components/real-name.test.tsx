@@ -21,6 +21,10 @@ vi.mock('@/services/openapi/mediaFiles', () => ({
   appsMediaApiUploadFiles: serviceMocks.mockUploadFiles,
 }));
 
+vi.mock('@/services/manual/enums', () => ({
+  enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
+}));
+
 describe('RealNameView', () => {
   let queryClient: QueryClient;
 
@@ -35,10 +39,13 @@ describe('RealNameView', () => {
       id: 0,
       status: 'unverified',
       status_label: '未认证',
+      status__mapping: '未实名',
       source: 'user_submit',
       source_label: '用户提交',
+      source__mapping: '用户主动提交',
       provider: 'mock_auto',
       provider_label: '模拟校验',
+      provider__mapping: '模拟自动校验',
       real_name_masked: '',
       id_number_masked: '',
       is_current: false,
@@ -82,6 +89,7 @@ describe('RealNameView', () => {
     renderView();
 
     await screen.findByText('实名认证');
+    expect(screen.getByText('未实名')).toBeInTheDocument();
     fireEvent.click(screen.getByText('去认证'));
 
     expect(screen.getByText('请完成实名认证')).toBeInTheDocument();

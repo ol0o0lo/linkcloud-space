@@ -20,7 +20,14 @@ import {
   appsAccountsApiRetryMyRealName,
   appsAccountsApiSubmitMyRealName,
 } from '@/services/openapi/realName';
+import { enumMapping } from '@/services/manual/enums';
 import type { SecurityItem } from './security.types';
+
+type RealNameStatusRecord = API.RealNameVerificationOut & {
+  status__mapping?: string;
+  source__mapping?: string;
+  provider__mapping?: string;
+};
 
 export const RealNameView: React.FC = () => {
   const [realNameModalOpen, setRealNameModalOpen] = useState(false);
@@ -34,7 +41,7 @@ export const RealNameView: React.FC = () => {
     refetch: refetchRealName,
   } = useQuery({
     queryKey: ['security-real-name'],
-    queryFn: () => appsAccountsApiGetMyRealName(),
+    queryFn: () => appsAccountsApiGetMyRealName() as Promise<RealNameStatusRecord>,
   });
 
   const submitRealNameMutation = useMutation({
@@ -458,16 +465,16 @@ function getRealNameActionText(status?: string) {
 }
 
 function buildRealNameDescription(
-  realNameStatus?: API.RealNameVerificationOut,
+  realNameStatus?: RealNameStatusRecord,
 ) {
   if (realNameStatus?.real_name_masked) {
-    return `${realNameStatus.status_label} · ${realNameStatus.real_name_masked}`;
+    return `${enumMapping(realNameStatus.status, realNameStatus.status__mapping || realNameStatus.status_label)} · ${realNameStatus.real_name_masked}`;
   }
-  return realNameStatus?.status_label || '未认证';
+  return enumMapping(realNameStatus?.status, realNameStatus?.status__mapping || realNameStatus?.status_label) || '未认证';
 }
 
 function getRealNameHelper(
-  realNameStatus?: API.RealNameVerificationOut,
+  realNameStatus?: RealNameStatusRecord,
 ): InlineRealNameHelper {
   const status = realNameStatus?.status || 'unverified';
   if (status === 'verified') {

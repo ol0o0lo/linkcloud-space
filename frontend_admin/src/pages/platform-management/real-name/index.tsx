@@ -36,6 +36,7 @@ import {
   appsAccountsApiRejectAdminRealName,
   appsAccountsApiRevokeAdminRealName,
 } from '@/services/openapi/realNameAdmin';
+import { enumMapping, getEnumRegistry, toSelectOptions } from '@/services/manual/enums';
 import {
   IdentityText,
   NoteModal,
@@ -46,7 +47,22 @@ import {
 
 type ReviewAction = 'approve' | 'reject' | 'manual' | 'revoke';
 type ActionState = { row: RealNameInsight; action: ReviewAction } | null;
-type RealNameInsight = API.AdminRealNameVerificationRowOut & {
+type RealNameRecord = API.AdminRealNameVerificationRowOut & {
+  status__mapping?: string;
+  source__mapping?: string;
+  provider__mapping?: string;
+};
+type RealNameDetailRecord = API.RealNameVerificationDetailOut & {
+  status__mapping?: string;
+  source__mapping?: string;
+  provider__mapping?: string;
+  logs?: Array<
+    API.RealNameLogOut & {
+      action__mapping?: string;
+    }
+  >;
+};
+type RealNameInsight = RealNameRecord & {
   stage_color: string;
   stage_summary: string;
   governance_hint: string;
@@ -60,14 +76,6 @@ const sectionStyle: React.CSSProperties = {
   borderRadius: 8,
   background: 'var(--ant-color-fill-quaternary)',
 };
-
-const statusOptions = [
-  { label: '待校验', value: 'pending' },
-  { label: '人工复核', value: 'manual_review' },
-  { label: '已实名', value: 'verified' },
-  { label: '已驳回', value: 'rejected' },
-  { label: '已撤销', value: 'revoked' },
-];
 
 function buildPhoneLabel(user?: Record<string, any>) {
   const countryCode = user?.phone_country_code || '';
@@ -84,9 +92,9 @@ function buildUserSecondary(user?: Record<string, any>) {
 }
 
 function buildRealNameInsight(
-  row: API.AdminRealNameVerificationRowOut,
+  row: RealNameRecord,
 ): RealNameInsight {
-  const sourceSummary = `来源 ${row.source_label}，当前由 ${row.provider_label} 处理。`;
+  const sourceSummary = `来源 ${enumMapping(row.source, row.source__mapping || row.source_label)}，当前由 ${enumMapping(row.provider, row.provider__mapping || row.provider_label)} 处理。`;
   const reviewSummary = row.reviewed_at
     ? `${row.reviewed_by || '系统'} 于 ${dayjs(row.reviewed_at).format('YYYY-MM-DD HH:mm')} 给出处理结论。`
     : `记录创建于 ${dayjs(row.created_at).format('YYYY-MM-DD HH:mm')}，当前还没有最终处理时间。`;
@@ -217,6 +225,10 @@ const RealNameAdminPage: React.FC = () => {
   const [actionState, setActionState] = useState<ActionState>(null);
   const [detailId, setDetailId] = useState<number>();
   const [form] = Form.useForm<{ note: string }>();
+  const enumQuery = useQuery({
+    queryKey: ['enum-registry'],
+    queryFn: getEnumRegistry,
+  });
 
   const listQuery = useQuery({
     queryKey: platformQueryKeys.realName(page, keyword, statusFilter),
@@ -233,7 +245,7 @@ const RealNameAdminPage: React.FC = () => {
     queryFn: () =>
       appsAccountsApiGetAdminRealNameVerification({
         verification_id: detailId!,
-      }),
+      }) as Promise<RealNameDetailRecord>,
     enabled: Boolean(detailId),
   });
   const actionMutation = useMutation({
@@ -297,7 +309,7 @@ const RealNameAdminPage: React.FC = () => {
       width: 280,
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
-          <Tag color={record.stage_color}>{record.status_label}</Tag>
+          <Tag color={record.stage_color}>{enumMapping(record.status, record.status__mapping || record.status_label)}</Tag>
           <Typography.Text type="secondary">
             {record.stage_summary}
           </Typography.Text>
@@ -375,7 +387,7 @@ const RealNameAdminPage: React.FC = () => {
               allowClear
               placeholder="按实名状态筛选"
               style={toolbarControlStyle}
-              options={statusOptions}
+              options={toSelectOptions(enumQuery.data?.['accounts.real_name_status'])}
               onChange={(value) => {
                 setPage(1);
                 setStatusFilter(value || undefined);
@@ -449,7 +461,7 @@ const RealNameAdminPage: React.FC = () => {
             </Descriptions.Item>
             <Descriptions.Item label="当前状态">
               {detailQuery.data ? (
-                <StatusTag value={detailQuery.data.status_label} />
+                <StatusTag value={enumMapping(detailQuery.data.status, detailQuery.data.status__mapping || detailQuery.data.status_label)} />
               ) : (
                 '-'
               )}
@@ -488,10 +500,10 @@ const RealNameAdminPage: React.FC = () => {
               </Space>
             </Descriptions.Item>
             <Descriptions.Item label="来源">
-              {detailQuery.data?.source_label || '-'}
+              {detailQuery.data ? enumMapping(detailQuery.data.source, detailQuery.data.source__mapping || detailQuery.data.source_label) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="供应商">
-              {detailQuery.data?.provider_label || '-'}
+              {detailQuery.data ? enumMapping(detailQuery.data.provider, detailQuery.data.provider__mapping || detailQuery.data.provider_label) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="失败原因">
               {detailQuery.data?.failure_reason || '-'}
@@ -526,7 +538,12 @@ const RealNameAdminPage: React.FC = () => {
             pagination={false}
             scroll={adminTableScroll}
             columns={[
-              { title: '动作', dataIndex: 'action_label', width: 160 },
+              {
+                title: '动作',
+                dataIndex: 'action_label',
+                width: 160,
+                render: (_value, record: API.RealNameLogOut & { action__mapping?: string }) => enumMapping(record.action, record.action__mapping || record.action_label),
+              },
               {
                 title: '备注',
                 dataIndex: 'note',

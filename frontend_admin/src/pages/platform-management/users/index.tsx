@@ -1,7 +1,7 @@
 import {EllipsisOutlined} from '@ant-design/icons';
 import type {ActionType, ProColumns} from '@ant-design/pro-components';
 import {PageContainer, ProTable} from '@ant-design/pro-components';
-import {useMutation} from '@tanstack/react-query';
+import {useMutation, useQuery} from '@tanstack/react-query';
 import {
   Button,
   Card,
@@ -23,6 +23,7 @@ import {
   fullWidthStyle,
   ResponsiveActions,
 } from '@/pages/_shared/adminLayout';
+import {enumMapping, getEnumRegistry, toSelectOptions} from '@/services/manual/enums';
 import {
   appsAccountsApiCreateAdminUser,
   appsAccountsApiForceLogoutUser,
@@ -38,6 +39,9 @@ import {normalizeEmailLikeInput} from '@/utils/email';
 import {IdentityText} from '../shared';
 
 type UserInsight = API.AdminUserOut & {
+  real_name_status__mapping?: string;
+  role?: string;
+  role__mapping?: string;
   phone_label: string;
   role_label: string;
   role_color: string;
@@ -56,35 +60,17 @@ type UserSearchParams = {
 const trimParam = (value: unknown) =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
-const realNameStatusOptions = [
-  {label: '未实名', value: 'unverified'},
-  {label: '待校验', value: 'pending'},
-  {label: '已实名', value: 'verified'},
-  {label: '已驳回', value: 'rejected'},
-  {label: '人工复核', value: 'manual_review'},
-  {label: '已撤销', value: 'revoked'},
-];
-
-const roleOptions = [
-  {label: '超级管理员', value: 'superuser'},
-  {label: '后台账号', value: 'staff'},
-  {label: '普通账号', value: 'user'},
-];
-
 function buildUserInsight(user: API.AdminUserOut): UserInsight {
   const phoneLabel = user.phone_national_number
     ? `${user.phone_country_code || ''} ${user.phone_national_number}`.trim()
     : '未绑定';
+  const roleLabel = (user as UserInsight).role__mapping || '普通账号';
 
   if (!user.is_active) {
     return {
       ...user,
       phone_label: phoneLabel,
-      role_label: user.is_superuser
-        ? '停用中的超级管理员'
-        : user.is_staff
-          ? '停用中的后台账号'
-          : '停用中的普通账号',
+      role_label: `停用中的${roleLabel}`,
       role_color: user.is_superuser
         ? 'gold'
         : user.is_staff
@@ -97,7 +83,7 @@ function buildUserInsight(user: API.AdminUserOut): UserInsight {
     return {
       ...user,
       phone_label: phoneLabel,
-      role_label: 'Superuser',
+      role_label: roleLabel,
       role_color: 'gold',
     };
   }
@@ -106,24 +92,15 @@ function buildUserInsight(user: API.AdminUserOut): UserInsight {
     return {
       ...user,
       phone_label: phoneLabel,
-      role_label: 'Staff',
+      role_label: roleLabel,
       role_color: 'blue',
-    };
-  }
-
-  if (!user.phone_verified || !user.phone_national_number) {
-    return {
-      ...user,
-      phone_label: phoneLabel,
-      role_label: '普通账号',
-      role_color: 'default',
     };
   }
 
   return {
     ...user,
     phone_label: phoneLabel,
-    role_label: '普通账号',
+    role_label: roleLabel,
     role_color: 'default',
   };
 }
@@ -140,6 +117,10 @@ const PlatformUsersPage: React.FC = () => {
   >();
   const [passwordForm] = Form.useForm<API.AdminUserPasswordIn>();
   const [modal, modalContextHolder] = Modal.useModal();
+  const enumQuery = useQuery({
+    queryKey: ['enum-registry'],
+    queryFn: getEnumRegistry,
+  });
 
   const saveUserMutation = useMutation({
     mutationFn: (values: API.AdminUserCreateIn & API.AdminUserPatchIn) => {
@@ -276,7 +257,7 @@ const PlatformUsersPage: React.FC = () => {
       valueType: 'select',
       fieldProps: {
         allowClear: true,
-        options: realNameStatusOptions,
+        options: toSelectOptions(enumQuery.data?.['accounts.real_name_status']),
       },
     },
     {
@@ -286,7 +267,7 @@ const PlatformUsersPage: React.FC = () => {
       valueType: 'select',
       fieldProps: {
         allowClear: true,
-        options: roleOptions,
+        options: toSelectOptions(enumQuery.data?.['accounts.admin_user_role']),
       },
     },
     {
@@ -306,7 +287,7 @@ const PlatformUsersPage: React.FC = () => {
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
           <Typography.Text>{record.phone_label}</Typography.Text>
-          <Typography.Text type="secondary">{`实名状态 ${record.real_name_status || '未提供'}`}</Typography.Text>
+          <Typography.Text type="secondary">{`实名状态 ${enumMapping(record.real_name_status, record.real_name_status__mapping)}`}</Typography.Text>
         </Space>
       ),
     },

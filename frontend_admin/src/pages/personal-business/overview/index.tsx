@@ -54,12 +54,19 @@ import {
   appsSettingsApiListUserSettings,
   appsSettingsApiPutUserSetting,
 } from '@/services/openapi/userSettings';
+import { enumMapping } from '@/services/manual/enums';
 import { formatWalletAmount } from '@/pages/wallet-management/shared';
 
 type WithdrawalInsight = API.WithdrawalOut & {
   status_label: string;
   status_color: string;
   governance_summary: string;
+};
+type RealNameStatusRecord = API.RealNameVerificationOut & {
+  status__mapping?: string;
+};
+type RealNameLogRecord = API.RealNameLogOut & {
+  action__mapping?: string;
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -182,11 +189,11 @@ const PersonalBusinessPage: React.FC = () => {
   });
   const realNameQuery = useQuery({
     queryKey: ['personal-business', 'real-name'],
-    queryFn: () => appsAccountsApiGetMyRealName(),
+    queryFn: () => appsAccountsApiGetMyRealName() as Promise<RealNameStatusRecord>,
   });
   const realNameLogsQuery = useQuery({
     queryKey: ['personal-business', 'real-name-logs'],
-    queryFn: () => appsAccountsApiListMyRealNameLogs(),
+    queryFn: () => appsAccountsApiListMyRealNameLogs() as Promise<RealNameLogRecord[]>,
   });
   const userSettingsQuery = useQuery({
     queryKey: ['personal-business', 'user-settings'],
@@ -247,6 +254,7 @@ const PersonalBusinessPage: React.FC = () => {
   const userSettings = userSettingsQuery.data || [];
   const referralSummary = referralSummaryQuery.data;
   const realName = realNameQuery.data;
+  const realNameStatusText = enumMapping(realName?.status, realName?.status__mapping || realName?.status_label);
 
   const ledgerColumns: ColumnsType<API.WalletLedgerOut> = [
     { title: '类型', dataIndex: 'entry_type', width: 140 },
@@ -587,15 +595,15 @@ const PersonalBusinessPage: React.FC = () => {
                       <Typography.Text strong>我的实名</Typography.Text>
                       <Tag
                         color={
-                          realName?.status_label === '未认证' ? 'gold' : 'green'
+                          realName?.status === 'unverified' ? 'gold' : 'green'
                         }
                       >
-                        {realName?.status_label || '未知'}
+                        {realNameStatusText || '未知'}
                       </Tag>
                     </Space>
                     <Descriptions column={twoColumnDescription} size="small">
                       <Descriptions.Item label="状态">
-                        {realName?.status_label || '-'}
+                        {realNameStatusText || '-'}
                       </Descriptions.Item>
                       <Descriptions.Item label="姓名">
                         {realName?.real_name_masked || '-'}
@@ -624,6 +632,8 @@ const PersonalBusinessPage: React.FC = () => {
                           title: '动作',
                           dataIndex: 'action_label',
                           width: 160,
+                          render: (_value, record: RealNameLogRecord) =>
+                            enumMapping(record.action, record.action__mapping || record.action_label),
                         },
                         {
                           title: '备注',

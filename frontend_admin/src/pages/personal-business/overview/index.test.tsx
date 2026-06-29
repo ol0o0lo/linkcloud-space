@@ -62,6 +62,10 @@ vi.mock('@/services/openapi/userSettings', () => ({
   appsSettingsApiDeleteUserSettingView: mockDeleteUserSetting,
 }));
 
+vi.mock('@/services/manual/enums', () => ({
+  enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
+}));
+
 describe('PersonalBusinessPage', () => {
   let queryClient: QueryClient;
 
@@ -94,7 +98,23 @@ describe('PersonalBusinessPage', () => {
       page: 1,
       page_size: 10,
     });
-    mockRealName.mockResolvedValue({ id: 4, status: 'unverified', status_label: '未认证', source: 'user_submit', source_label: '用户提交', provider: 'manual', provider_label: '人工', real_name_masked: '', id_number_masked: '', is_current: true, created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00' });
+    mockRealName.mockResolvedValue({
+      id: 4,
+      status: 'unverified',
+      status_label: '未认证',
+      status__mapping: '未实名',
+      source: 'user_submit',
+      source_label: '用户提交',
+      source__mapping: '用户主动提交',
+      provider: 'manual',
+      provider_label: '人工',
+      provider__mapping: '后台人工处理',
+      real_name_masked: '',
+      id_number_masked: '',
+      is_current: true,
+      created_at: '2026-06-16T10:00:00+08:00',
+      updated_at: '2026-06-16T10:00:00+08:00',
+    });
     mockRealNameLogs.mockResolvedValue([]);
     mockUserSettings.mockResolvedValue([{ key: 'theme', value: 'light' }]);
     mockGetUserSetting.mockResolvedValue({ key: 'theme', value: 'light' });
@@ -115,6 +135,7 @@ describe('PersonalBusinessPage', () => {
       expect(mockWalletSummary).toHaveBeenCalled();
       expect(mockReferralSummary).toHaveBeenCalled();
       expect(screen.getByText('个人经营概览')).toBeInTheDocument();
+      expect(screen.getByText('未实名')).toBeInTheDocument();
       expect(screen.getByText('经营详情')).toBeInTheDocument();
       expect(screen.getByText('增长与身份')).toBeInTheDocument();
       expect(screen.getByText('偏好与资料')).toBeInTheDocument();
