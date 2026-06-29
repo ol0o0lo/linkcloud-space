@@ -11,6 +11,7 @@ const {
   mockManual,
   mockRevoke,
   mockGet,
+  mockUseEnums,
 } = vi.hoisted(() => ({
   mockList: vi.fn(),
   mockApprove: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockManual: vi.fn(),
   mockRevoke: vi.fn(),
   mockGet: vi.fn(),
+  mockUseEnums: vi.fn(),
 }));
 
 vi.mock('@/services/openapi/realNameAdmin', () => ({
@@ -27,6 +29,13 @@ vi.mock('@/services/openapi/realNameAdmin', () => ({
   appsAccountsApiRejectAdminRealName: mockReject,
   appsAccountsApiMoveAdminRealNameToManualReview: mockManual,
   appsAccountsApiRevokeAdminRealName: mockRevoke,
+}));
+
+vi.mock('@/services/manual/enums', () => ({
+  enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
+  enumSelectOptions: (enumMap: Record<string, { value: string; mapping: string }[]> | undefined, key: string) =>
+    (enumMap?.[key] || []).map((item) => ({ label: item.mapping, value: item.value })),
+  useEnums: mockUseEnums,
 }));
 
 describe('RealNameAdminPage', () => {
@@ -40,11 +49,14 @@ describe('RealNameAdminPage', () => {
         {
           id: 3,
           status: 'manual_review',
-          status_label: '人工审核',
+          status_label: '旧人工审核',
+          status__mapping: '人工复核',
           source: 'user_submit',
-          source_label: '用户提交',
+          source_label: '旧用户提交',
+          source__mapping: '用户提交',
           provider: 'manual',
-          provider_label: '人工',
+          provider_label: '旧人工',
+          provider__mapping: '人工处理',
           real_name_masked: '张*',
           id_number_masked: '110***********1234',
           is_current: true,
@@ -60,11 +72,14 @@ describe('RealNameAdminPage', () => {
     mockGet.mockResolvedValue({
       id: 3,
       status: 'manual_review',
-      status_label: '人工审核',
+      status_label: '旧人工审核',
+      status__mapping: '人工复核',
       source: 'user_submit',
-      source_label: '用户提交',
+      source_label: '旧用户提交',
+      source__mapping: '用户提交',
       provider: 'manual',
-      provider_label: '人工',
+      provider_label: '旧人工',
+      provider__mapping: '人工处理',
       real_name_masked: '张*',
       id_number_masked: '110***********1234',
       is_current: true,
@@ -77,12 +92,20 @@ describe('RealNameAdminPage', () => {
         { media_id: 101, media_type: 'image', side: 'front', url: '/front.png' },
         { media_id: 102, media_type: 'image', side: 'back', url: '/back.png' },
       ],
-      logs: [],
+      logs: [{ action: 'move_to_manual_review', action_label: '旧转人工', action__mapping: '转人工复核', created_at: '2026-06-16T10:30:00+08:00', note: '补材料' }],
     });
     mockApprove.mockResolvedValue({});
     mockReject.mockResolvedValue({});
     mockManual.mockResolvedValue({});
     mockRevoke.mockResolvedValue({});
+    mockUseEnums.mockReturnValue({
+      data: {
+        'accounts.real_name_status': [
+          { value: 'manual_review', mapping: '人工复核' },
+          { value: 'verified', mapping: '已实名' },
+        ],
+      },
+    });
   });
 
   it('renders governance layout and handles review actions', async () => {
@@ -93,6 +116,7 @@ describe('RealNameAdminPage', () => {
     );
 
     await waitFor(() => {
+      expect(mockUseEnums).toHaveBeenCalledWith(['accounts.real_name_status']);
       expect(mockList).toHaveBeenCalledWith({ page: 1, page_size: 10, keyword: undefined, status: undefined });
       expect(screen.queryByText('实名概览')).not.toBeInTheDocument();
       expect(screen.queryByText('审核详情')).not.toBeInTheDocument();
@@ -113,7 +137,9 @@ describe('RealNameAdminPage', () => {
 
     const row = screen.getByText('alice').closest('tr');
     expect(row).not.toBeNull();
-    expect(within(row!).getByText('人工审核')).toBeInTheDocument();
+    expect(within(row!).getByText('人工复核')).toBeInTheDocument();
+    expect(within(row!).getByText('来源 用户提交，当前由 人工处理 处理。')).toBeInTheDocument();
+    expect(within(row!).queryByText('旧人工审核')).not.toBeInTheDocument();
     expect(within(row!).getByText('通过实名')).toBeInTheDocument();
     expect(within(row!).getByText('驳回实名')).toBeInTheDocument();
     expect(screen.queryByText('撤销实名')).not.toBeInTheDocument();
@@ -127,6 +153,8 @@ describe('RealNameAdminPage', () => {
     fireEvent.click(within(row!).getByText('详情'));
     expect(await screen.findByAltText('身份证人像面')).toHaveAttribute('src', '/front.png');
     expect(screen.getByAltText('身份证国徽面')).toHaveAttribute('src', '/back.png');
+    expect(screen.getAllByText('人工复核').length).toBeGreaterThan(0);
+    expect(screen.getByText('转人工复核')).toBeInTheDocument();
 
     const searchBox = screen.getByPlaceholderText('按用户名、邮箱、手机号、实名或证件搜索');
     fireEvent.change(searchBox, { target: { value: 'alice' } });

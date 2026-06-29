@@ -30,6 +30,7 @@ import {
   appsWalletApiReconcile,
   appsWalletApiRetryWithdrawal,
 } from '@/services/openapi/walletInternal';
+import { enumMapping } from '@/services/manual/enums';
 import {
   IdempotencyFormItem,
   JsonText,
@@ -38,13 +39,18 @@ import {
   walletQueryKeys,
 } from '../shared';
 
-type ReviewState = { withdrawal: API.WithdrawalOut; approved: boolean } | null;
+type WithdrawalWithMapping = API.WithdrawalOut & {
+  status__mapping?: string;
+  pay_channel__mapping?: string;
+};
+
+type ReviewState = { withdrawal: WithdrawalWithMapping; approved: boolean } | null;
 type PayoutState = {
-  withdrawal: API.WithdrawalOut;
+  withdrawal: WithdrawalWithMapping;
   mode: 'payout' | 'retry';
 } | null;
 
-type WithdrawalInsight = API.WithdrawalOut & {
+type WithdrawalInsight = WithdrawalWithMapping & {
   status_label: string;
   status_color: string;
   governance_label: string;
@@ -66,13 +72,14 @@ const sectionStyle: React.CSSProperties = {
 };
 
 function buildWithdrawalInsight(
-  withdrawal: API.WithdrawalOut,
+  withdrawal: WithdrawalWithMapping,
 ): WithdrawalInsight {
+  const statusLabel = enumMapping(withdrawal.status, withdrawal.status__mapping);
   switch (withdrawal.status) {
     case 'pending_review':
       return {
         ...withdrawal,
-        status_label: '待审核',
+        status_label: statusLabel,
         status_color: 'gold',
         governance_label: '审核待处理',
         governance_summary:
@@ -88,7 +95,7 @@ function buildWithdrawalInsight(
     case 'approved':
       return {
         ...withdrawal,
-        status_label: '待打款',
+        status_label: statusLabel,
         status_color: 'blue',
         governance_label: '审核已通过',
         governance_summary:
@@ -105,7 +112,7 @@ function buildWithdrawalInsight(
     case 'paying':
       return {
         ...withdrawal,
-        status_label: '打款中',
+        status_label: statusLabel,
         status_color: 'cyan',
         governance_label: '等待渠道回调',
         governance_summary:
@@ -121,7 +128,7 @@ function buildWithdrawalInsight(
     case 'failed':
       return {
         ...withdrawal,
-        status_label: '打款失败',
+        status_label: statusLabel,
         status_color: 'red',
         governance_label: '失败待重试',
         governance_summary:
@@ -138,7 +145,7 @@ function buildWithdrawalInsight(
     case 'rejected':
       return {
         ...withdrawal,
-        status_label: '已驳回',
+        status_label: statusLabel,
         status_color: 'default',
         governance_label: '审核已退回',
         governance_summary:
@@ -155,7 +162,7 @@ function buildWithdrawalInsight(
     case 'cancelled':
       return {
         ...withdrawal,
-        status_label: '已撤销',
+        status_label: statusLabel,
         status_color: 'default',
         governance_label: '用户已撤回',
         governance_summary:
@@ -171,7 +178,7 @@ function buildWithdrawalInsight(
     case 'paid':
       return {
         ...withdrawal,
-        status_label: '已打款',
+        status_label: statusLabel,
         status_color: 'green',
         governance_label: '出款已完成',
         governance_summary:
@@ -187,7 +194,7 @@ function buildWithdrawalInsight(
     default:
       return {
         ...withdrawal,
-        status_label: withdrawal.status,
+        status_label: statusLabel,
         status_color: 'default',
         governance_label: '状态待识别',
         governance_summary:
@@ -272,7 +279,7 @@ const WalletWithdrawalsPage: React.FC = () => {
   });
 
   const withdrawals = useMemo(
-    () => (withdrawalsQuery.data?.items || []).map(buildWithdrawalInsight),
+    () => ((withdrawalsQuery.data?.items || []) as WithdrawalWithMapping[]).map((item) => buildWithdrawalInsight(item)),
     [withdrawalsQuery.data?.items],
   );
 

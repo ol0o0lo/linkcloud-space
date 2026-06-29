@@ -20,6 +20,7 @@ import {
   appsAccountsApiRetryMyRealName,
   appsAccountsApiSubmitMyRealName,
 } from '@/services/openapi/realName';
+import { enumMapping } from '@/services/manual/enums';
 import type { SecurityItem } from './security.types';
 
 export const RealNameView: React.FC = () => {
@@ -458,12 +459,13 @@ function getRealNameActionText(status?: string) {
 }
 
 function buildRealNameDescription(
-  realNameStatus?: API.RealNameVerificationOut,
+  realNameStatus?: API.RealNameVerificationOut & { status__mapping?: string },
 ) {
+  const statusMapping = realNameStatus ? enumMapping(realNameStatus.status, realNameStatus.status__mapping || realNameStatus.status_label) : '未认证';
   if (realNameStatus?.real_name_masked) {
-    return `${realNameStatus.status_label} · ${realNameStatus.real_name_masked}`;
+    return `${statusMapping} · ${realNameStatus.real_name_masked}`;
   }
-  return realNameStatus?.status_label || '未认证';
+  return statusMapping;
 }
 
 function getRealNameHelper(

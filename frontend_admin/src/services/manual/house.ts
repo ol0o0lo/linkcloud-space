@@ -12,6 +12,7 @@ export interface EstateOut {
   name: string;
   display_name: string;
   property_type: string;
+  property_type__mapping?: string;
   province: string;
   city: string;
   district: string;
@@ -53,6 +54,7 @@ export interface ContactOut {
   phone: string;
   email: string;
   roles: string[];
+  roles__mapping?: string[];
   user_id?: number | null;
   notes: string;
   is_active: boolean;
@@ -80,10 +82,14 @@ export interface HouseOut {
   kitchens?: number | null;
   balconies?: number | null;
   orientation?: string | null;
+  orientation__mapping?: string;
   decoration?: string | null;
+  decoration__mapping?: string;
   has_elevator_access: boolean;
   status: string;
+  status__mapping?: string;
   publish_status: string;
+  publish_status__mapping?: string;
   images: Record<string, unknown>[];
   videos: Record<string, unknown>[];
   tags: string[];
@@ -109,6 +115,7 @@ export interface ViewingRecordOut {
   scheduled_at: string;
   viewed_at?: string | null;
   status: string;
+  status__mapping?: string;
   assigned_to_id?: number | null;
   notes: string;
   extra?: Record<string, unknown>;
@@ -132,6 +139,7 @@ export interface LeaseOut {
   deposit?: string | null;
   payment_day: number;
   status: string;
+  status__mapping?: string;
   contract_files: Record<string, unknown>[];
   notes: string;
   extra?: Record<string, unknown>;

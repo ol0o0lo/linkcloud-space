@@ -29,9 +29,14 @@ import {
   appsReferralsApiPatchReferralConfig,
   appsReferralsApiReviewReferralRecord,
 } from '@/services/openapi/adminReferrals';
+import { enumMapping } from '@/services/manual/enums';
 import { platformQueryKeys } from '../shared';
 
-type ReferralInsight = API.ReferralRecordOut & {
+type ReferralRecordWithMapping = API.ReferralRecordOut & {
+  status__mapping?: string;
+};
+
+type ReferralInsight = ReferralRecordWithMapping & {
   stage_label: string;
   stage_color: string;
   stage_summary: string;
@@ -51,16 +56,17 @@ function formatMoneyYuan(value?: number | null) {
 }
 
 function buildReferralInsight(
-  record: API.ReferralRecordOut,
+  record: ReferralRecordWithMapping,
   config?: API.ReferralRuleConfigOut,
 ): ReferralInsight {
   const inviterReward = formatMoneyYuan(config?.inviter_reward_amount);
   const inviteeReward = formatMoneyYuan(config?.invitee_reward_amount);
+  const stageLabel = enumMapping(record.status, record.status__mapping);
 
   if (record.status === 'reward_issued') {
     return {
       ...record,
-      stage_label: '已发奖',
+      stage_label: stageLabel,
       stage_color: 'green',
       stage_summary:
         '奖励已经发放，后续重点是回看是否存在误发、重复发放或展示口径不一致。',
@@ -72,7 +78,7 @@ function buildReferralInsight(
   if (record.status === 'review_rejected') {
     return {
       ...record,
-      stage_label: '审核驳回',
+      stage_label: stageLabel,
       stage_color: 'volcano',
       stage_summary: '审核已经驳回，后续重点是解释原因和避免重复进入审核队列。',
       reward_summary: `原计划奖励 邀请人 ¥${inviterReward} / 被邀请人 ¥${inviteeReward}`,
@@ -83,7 +89,7 @@ function buildReferralInsight(
   if (record.status === 'pending_review' || record.status === 'pending') {
     return {
       ...record,
-      stage_label: '待审核',
+      stage_label: stageLabel,
       stage_color: 'gold',
       stage_summary: '记录仍在待审核阶段，适合作为当前邀请奖励的第一优先级。',
       reward_summary: `待发奖励 邀请人 ¥${inviterReward} / 被邀请人 ¥${inviteeReward}`,
@@ -93,7 +99,7 @@ function buildReferralInsight(
 
   return {
     ...record,
-    stage_label: '已注册',
+    stage_label: stageLabel,
     stage_color: 'blue',
     stage_summary:
       '邀请关系已经形成，但是否触发奖励还要看后续规则与人工审核要求。',
@@ -146,7 +152,7 @@ const ReferralsAdminPage: React.FC = () => {
 
   const recordInsights = useMemo(
     () =>
-      (recordsQuery.data?.items || []).map((item) =>
+      ((recordsQuery.data?.items || []) as ReferralRecordWithMapping[]).map((item) =>
         buildReferralInsight(item, configQuery.data),
       ),
     [configQuery.data, recordsQuery.data?.items],

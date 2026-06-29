@@ -6,10 +6,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AdminToolbar, ResponsiveActions, adminTableScroll, toolbarControlStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type ContactOut } from '@/services/manual/house';
-import { CONTACT_ROLE, CONTACT_ROLE_OPTIONS } from '../constants';
+import { enumOptionMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
+import { CONTACT_ROLE } from '../constants';
 import { getLoadingAwareEmptyState, getLoadingSafeCount, getLoadingSafeText, isInitialQueryPending } from '../loading';
 
-const ROLE_TEXT = Object.fromEntries(CONTACT_ROLE_OPTIONS.map((item) => [item.value, item.label]));
 const CONTACT_TASK_OPTIONS = [
   { value: 'dual_role', label: '双角色待确认' },
   { value: 'inactive', label: '停用联系人' },
@@ -55,10 +55,10 @@ function getContactBusinessInfo(record: ContactOut) {
   };
 }
 
-function getContactScopeText(role?: string, q?: string, task?: string) {
+function getContactScopeText(roleLabel: (value?: string | null) => string, role?: string, q?: string, task?: string) {
   const parts: string[] = [];
   if (task) parts.push(`队列：${CONTACT_TASK_TEXT[task] || task}`);
-  if (role) parts.push(`角色：${ROLE_TEXT[role] || role}`);
+  if (role) parts.push(`角色：${roleLabel(role)}`);
   if (q) parts.push(`搜索：${q}`);
   return parts.join(' / ');
 }
@@ -188,6 +188,7 @@ const ContactsPage: React.FC = () => {
   const [createRolePreset, setCreateRolePreset] = useState<string | undefined>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const enabled = Boolean(workspace.selectedOrgSlug);
+  const houseEnums = useEnums(['house.contact_role']);
   const baseContacts = useQuery({
     queryKey: ['house', 'contacts', 'base-overview', workspace.selectedOrgSlug, q],
     queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, keyword: q }),
@@ -240,7 +241,9 @@ const ContactsPage: React.FC = () => {
   const dualRoleCount = baseContactRows.filter((item) => hasRole(item, CONTACT_ROLE.LANDLORD) && hasRole(item, CONTACT_ROLE.TENANT)).length;
   const inactiveCount = baseContactRows.filter((item) => item.is_active === false).length;
   const roleMissingCount = baseContactRows.filter(hasMissingRole).length;
-  const scopeText = getContactScopeText(role, q, task);
+  const roleOptions = enumSelectOptions(houseEnums.data, 'house.contact_role');
+  const roleLabel = (value?: string | null) => enumOptionMapping(houseEnums.data, 'house.contact_role', value);
+  const scopeText = getContactScopeText(roleLabel, role, q, task);
   const scopedOverview = Boolean(scopeText);
   const scopedOverviewCards = getContactScopedOverviewCards(contactOverviewRows, { role, task, q });
   const overviewLoading = scopedOverview ? isInitialQueryPending(overviewContacts) : isInitialQueryPending(baseContacts);
@@ -365,7 +368,7 @@ const ContactsPage: React.FC = () => {
           <Select
             allowClear
             placeholder="角色"
-            options={CONTACT_ROLE_OPTIONS}
+            options={roleOptions}
             value={role}
             onChange={(value) => {
               setPage(1);
@@ -405,7 +408,7 @@ const ContactsPage: React.FC = () => {
                 );
               },
             },
-            { title: '角色', dataIndex: 'roles', width: 180, render: (roles = []) => roles.map((role: string) => <Tag key={role}>{ROLE_TEXT[role] || role}</Tag>) },
+            { title: '角色', dataIndex: 'roles', width: 180, render: (_roles, record) => (record.roles || []).map((role: string, index: number) => <Tag key={role}>{record.roles__mapping?.[index] || roleLabel(role)}</Tag>) },
             { title: '业务阶段', dataIndex: 'stage', width: 180, render: (_value, record) => <Typography.Text strong>{getContactStageText(record)}</Typography.Text> },
             { title: '状态', dataIndex: 'is_active', width: 110, render: (value) => (value === false ? <Tag>停用</Tag> : <Tag color="green">启用</Tag>) },
             { title: '跟进建议', dataIndex: 'queue_hint', render: (_value, record) => <Typography.Text type="secondary">{getContactFollowUpHint(record)}</Typography.Text> },
@@ -488,7 +491,7 @@ const ContactsPage: React.FC = () => {
             <Input />
           </Form.Item>
           <Form.Item label="角色" name="roles" rules={[{ required: true, message: '请选择角色' }]}>
-            <Select mode="multiple" options={CONTACT_ROLE_OPTIONS} />
+            <Select mode="multiple" options={roleOptions} />
           </Form.Item>
           <Form.Item label="邮箱" name="email">
             <Input />

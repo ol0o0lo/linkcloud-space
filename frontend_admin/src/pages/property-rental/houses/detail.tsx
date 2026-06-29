@@ -5,6 +5,7 @@ import { Alert, Button, Card, Col, Descriptions, Drawer, Empty, Form, Input, Mod
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type HouseOut, type LeaseOut, type ViewingRecordOut } from '@/services/manual/house';
+import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import MediaRefsUpload from '../components/MediaRefsUpload';
 import {
   buildingLabel,
@@ -17,16 +18,12 @@ import {
   getHouseWarningIssues,
   houseLabel,
   houseMediaReadinessText,
-  HOUSE_DECORATION_OPTIONS,
   HOUSE_MEDIA_RESOURCE_TYPE,
   HOUSE_MEDIA_TYPE,
-  HOUSE_ORIENTATION_OPTIONS,
   HOUSE_PUBLISH_STATUS_COLOR,
-  HOUSE_PUBLISH_STATUS_TEXT,
   moneyText,
   type MediaRefValue,
   STATUS_COLOR,
-  STATUS_TEXT,
 } from '../constants';
 
 type DetailFocusState = {
@@ -246,7 +243,7 @@ function getViewingChecklistState(latestViewing?: ViewingRecordOut) {
     };
   }
   return {
-    status: STATUS_TEXT[latestViewing.status] || latestViewing.status,
+    status: enumMapping(latestViewing.status, latestViewing.status__mapping),
     detail: '客户仍在带看跟进阶段，继续维护预约、回访和成交进度。',
     actionLabel: '查看带看',
     actionPath: dashboardHref(`/property-rental/viewings?house_id=${latestViewing.house_id}`),
@@ -272,7 +269,7 @@ function getLeaseChecklistState(houseId: number, currentLease?: LeaseOut) {
     };
   }
   return {
-    status: STATUS_TEXT[currentLease.status] || currentLease.status,
+    status: enumMapping(currentLease.status, currentLease.status__mapping),
     detail: '租约和合同资料都已建立，当前可以继续维护履约进度。',
     actionLabel: '查看签约',
     actionPath: leaseEditHref(houseId, currentLease.id),
@@ -296,6 +293,7 @@ const HouseDetailPage: React.FC = () => {
   const focusAction = detailFocus.action;
   const focusTask = detailFocus.task;
   const enabled = Boolean(workspace.selectedOrgSlug && houseId);
+  const houseEnums = useEnums(['house.house_orientation', 'house.house_decoration']);
   const queryKey = ['house', 'detail', workspace.selectedOrgSlug, houseId];
   const updateDetailFocus = (nextFocus: DetailFocusState) => {
     syncDetailFocusSearch(nextFocus);
@@ -325,6 +323,8 @@ const HouseDetailPage: React.FC = () => {
   const needsMedia = missingItems.some((item) => item === '缺封面' || item === '图片不足' || item === '缺户型图' || item === '视频不足');
   const latestViewing = viewings.data?.items?.[0];
   const currentLease = leases.data?.items?.find((item) => item.status === 'active' || item.status === 'pending') || leases.data?.items?.[0];
+  const orientationOptions = enumSelectOptions(houseEnums.data, 'house.house_orientation');
+  const decorationOptions = enumSelectOptions(houseEnums.data, 'house.house_decoration');
   const workflowStage = house.data ? getWorkflowStage(house.data, { canPublish, latestViewing, currentLease }) : '-';
   const workflowHint = getHouseWorkflowHint({ latestViewing, currentLease });
   const publishButtonLabel = isPublished ? '下架房源' : canPublish ? '发布房源' : '待补齐后发布';
@@ -531,8 +531,8 @@ const HouseDetailPage: React.FC = () => {
           {house.data ? (
             <Space orientation="vertical" size={16} style={{ width: '100%' }}>
               <Space wrap size={[8, 8]}>
-                <Tag color={STATUS_COLOR[house.data.status] || 'default'}>{STATUS_TEXT[house.data.status] || house.data.status}</Tag>
-                <Tag color={HOUSE_PUBLISH_STATUS_COLOR[house.data.publish_status] || 'default'}>{HOUSE_PUBLISH_STATUS_TEXT[house.data.publish_status] || house.data.publish_status}</Tag>
+                <Tag color={STATUS_COLOR[house.data.status] || 'default'}>{enumMapping(house.data.status, house.data.status__mapping)}</Tag>
+                <Tag color={HOUSE_PUBLISH_STATUS_COLOR[house.data.publish_status] || 'default'}>{enumMapping(house.data.publish_status, house.data.publish_status__mapping)}</Tag>
                 <Typography.Text type="secondary">{houseLabel(house.data)}</Typography.Text>
               </Space>
               <Row gutter={[16, 16]}>
@@ -558,7 +558,7 @@ const HouseDetailPage: React.FC = () => {
                   <div style={detailTileStyle}>
                     <Space orientation="vertical" size={4}>
                       <Typography.Text type="secondary">签约与合同</Typography.Text>
-                      <Typography.Text strong>{currentLease ? STATUS_TEXT[currentLease.status] || currentLease.status : latestViewing ? STATUS_TEXT[latestViewing.status] || latestViewing.status : '待建立成交进展'}</Typography.Text>
+                      <Typography.Text strong>{currentLease ? enumMapping(currentLease.status, currentLease.status__mapping) : latestViewing ? enumMapping(latestViewing.status, latestViewing.status__mapping) : '待建立成交进展'}</Typography.Text>
                       <Typography.Text type="secondary">
                         {currentLease
                           ? getLeaseContractText(currentLease)
@@ -584,8 +584,8 @@ const HouseDetailPage: React.FC = () => {
                 <Descriptions.Item label="项目">{house.data.estate_name || '-'}</Descriptions.Item>
                 <Descriptions.Item label="楼栋">{house.data.building_name || house.data.building_id}</Descriptions.Item>
                 <Descriptions.Item label="房号">{house.data.room_number}</Descriptions.Item>
-                <Descriptions.Item label="房态"><Tag color={STATUS_COLOR[house.data.status] || 'default'}>{STATUS_TEXT[house.data.status] || house.data.status}</Tag></Descriptions.Item>
-                <Descriptions.Item label="发布"><Tag color={HOUSE_PUBLISH_STATUS_COLOR[house.data.publish_status] || 'default'}>{HOUSE_PUBLISH_STATUS_TEXT[house.data.publish_status] || house.data.publish_status}</Tag></Descriptions.Item>
+                <Descriptions.Item label="房态"><Tag color={STATUS_COLOR[house.data.status] || 'default'}>{enumMapping(house.data.status, house.data.status__mapping)}</Tag></Descriptions.Item>
+                <Descriptions.Item label="发布"><Tag color={HOUSE_PUBLISH_STATUS_COLOR[house.data.publish_status] || 'default'}>{enumMapping(house.data.publish_status, house.data.publish_status__mapping)}</Tag></Descriptions.Item>
                 <Descriptions.Item label="挂牌租金">{house.data.asking_rent || '-'}</Descriptions.Item>
                 <Descriptions.Item label="押金">{house.data.deposit_amount || '-'}</Descriptions.Item>
                 <Descriptions.Item label="可租日期">{house.data.available_from || '-'}</Descriptions.Item>
@@ -702,7 +702,7 @@ const HouseDetailPage: React.FC = () => {
                       <Space orientation="vertical" size={6} style={{ width: '100%' }}>
                         <Typography.Text strong>{latestViewing.customer_name}</Typography.Text>
                         <Space size={8} wrap>
-                          <Tag color={STATUS_COLOR[latestViewing.status] || 'default'}>{STATUS_TEXT[latestViewing.status] || latestViewing.status}</Tag>
+                          <Tag color={STATUS_COLOR[latestViewing.status] || 'default'}>{enumMapping(latestViewing.status, latestViewing.status__mapping)}</Tag>
                           <Typography.Text type="secondary">{dateTimeText(latestViewing.scheduled_at)}</Typography.Text>
                         </Space>
                         <Typography.Text type="secondary">
@@ -727,7 +727,7 @@ const HouseDetailPage: React.FC = () => {
                       <Space orientation="vertical" size={6} style={{ width: '100%' }}>
                         <Typography.Text strong>{currentLease.tenant_name || contactLabel(currentLease)}</Typography.Text>
                         <Space size={8} wrap>
-                          <Tag color={STATUS_COLOR[currentLease.status] || 'default'}>{STATUS_TEXT[currentLease.status] || currentLease.status}</Tag>
+                          <Tag color={STATUS_COLOR[currentLease.status] || 'default'}>{enumMapping(currentLease.status, currentLease.status__mapping)}</Tag>
                           <Typography.Text type="secondary">{`${currentLease.start_date} 至 ${currentLease.end_date}`}</Typography.Text>
                         </Space>
                         <Typography.Text type="secondary">{getLeaseContractText(currentLease)}</Typography.Text>
@@ -801,7 +801,7 @@ const HouseDetailPage: React.FC = () => {
               { title: '客户', dataIndex: 'customer_name' },
               { title: '手机', dataIndex: 'customer_phone' },
               { title: '预约时间', dataIndex: 'scheduled_at', render: dateTimeText },
-              { title: '状态', dataIndex: 'status', render: (value) => <Tag color={STATUS_COLOR[value] || 'default'}>{STATUS_TEXT[value] || value}</Tag> },
+              { title: '状态', dataIndex: 'status__mapping', render: (_value, record) => <Tag color={STATUS_COLOR[record.status] || 'default'}>{enumMapping(record.status, record.status__mapping)}</Tag> },
               {
                 title: '操作',
                 dataIndex: 'actions',
@@ -842,7 +842,7 @@ const HouseDetailPage: React.FC = () => {
               { title: '起租', dataIndex: 'start_date' },
               { title: '到期', dataIndex: 'end_date' },
               { title: '月租', dataIndex: 'monthly_rent', render: moneyText },
-              { title: '状态', dataIndex: 'status', render: (value) => <Tag color={STATUS_COLOR[value] || 'default'}>{STATUS_TEXT[value] || value}</Tag> },
+              { title: '状态', dataIndex: 'status__mapping', render: (_value, record) => <Tag color={STATUS_COLOR[record.status] || 'default'}>{enumMapping(record.status, record.status__mapping)}</Tag> },
               {
                 title: '合同',
                 dataIndex: 'contract_files',
@@ -1010,12 +1010,12 @@ const HouseDetailPage: React.FC = () => {
                         </Col>
                         <Col xs={24} md={9}>
                           <Form.Item label="朝向" name="orientation">
-                            <Select allowClear options={HOUSE_ORIENTATION_OPTIONS} />
+                            <Select allowClear options={orientationOptions} />
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={9}>
                           <Form.Item label="装修" name="decoration">
-                            <Select allowClear options={HOUSE_DECORATION_OPTIONS} />
+                            <Select allowClear options={decorationOptions} />
                           </Form.Item>
                         </Col>
                       </Row>

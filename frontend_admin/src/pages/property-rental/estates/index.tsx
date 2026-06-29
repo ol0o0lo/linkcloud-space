@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AdminToolbar, ResponsiveActions, adminTableScroll, toolbarControlStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type BuildingOut, type EstateOut } from '@/services/manual/house';
-import { labelOf, PROPERTY_TYPE_OPTIONS } from '../constants';
+import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { getLoadingAwareEmptyState, getLoadingSafeCount, getLoadingSafeText, isAnyInitialQueryPending, isInitialQueryPending } from '../loading';
 
 const PAGE_SIZE = 20;
@@ -287,6 +287,7 @@ const EstatesPage: React.FC = () => {
   const [estateOpen, setEstateOpen] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
   const enabled = Boolean(workspace.selectedOrgSlug);
+  const houseEnums = useEnums(['house.estate_property_type']);
   const estates = useQuery({ queryKey: ['house', 'estates', workspace.selectedOrgSlug, estatePage, q], queryFn: () => houseApi.listEstates({ page: estatePage, page_size: PAGE_SIZE, keyword: q }), enabled });
   const allEstates = useQuery({
     queryKey: ['house', 'estates', 'all', workspace.selectedOrgSlug, q],
@@ -396,6 +397,7 @@ const EstatesPage: React.FC = () => {
   const focusedAction = getEstateFocusedActionCopy(task, drawerState);
   const estateTotal = task ? estateRows.length : estates.data?.total || 0;
   const buildingTotal = task ? buildingRows.length : buildings.data?.total || 0;
+  const propertyTypeOptions = enumSelectOptions(houseEnums.data, 'house.estate_property_type');
   const visibleEstateViewCount = task ? filteredEstateOverviewRows.length : estateOverviewRows.length;
   const visibleBuildingViewCount = task ? filteredBuildingOverviewRows.length : buildingOverviewRows.length;
   const { token } = theme.useToken();
@@ -544,7 +546,7 @@ const EstatesPage: React.FC = () => {
           columns={[
             { title: '名称', dataIndex: 'display_name', render: (_value, record) => record.display_name || record.name },
             { title: '城市', dataIndex: 'city', render: (_value, record) => `${record.city || '-'} / ${record.district || '-'}` },
-            { title: '物业类型', dataIndex: 'property_type', render: (value) => labelOf(PROPERTY_TYPE_OPTIONS, value) },
+            { title: '物业类型', dataIndex: 'property_type__mapping', render: (_value, record) => enumMapping(record.property_type, record.property_type__mapping) },
             { title: '楼栋覆盖', dataIndex: 'coverage', render: (_value, record) => <Typography.Text strong>{getEstateCoverageText(record, buildingOverviewRows)}</Typography.Text> },
             { title: '地址', dataIndex: 'address', render: (value) => value || '-' },
             { title: '建档建议', dataIndex: 'queue_hint', render: (_value, record) => <Typography.Text type="secondary">{getEstateRegisterHint(record, buildingOverviewRows)}</Typography.Text> },
@@ -663,7 +665,7 @@ const EstatesPage: React.FC = () => {
         >
           <Form.Item label="项目名称" name="name" rules={[{ required: true, message: '请输入项目名称' }]}><Input /></Form.Item>
           <Form.Item label="展示名称" name="display_name"><Input /></Form.Item>
-          <Form.Item label="物业类型" name="property_type"><Select options={PROPERTY_TYPE_OPTIONS} /></Form.Item>
+          <Form.Item label="物业类型" name="property_type"><Select options={propertyTypeOptions} /></Form.Item>
           <Form.Item label="省份" name="province" rules={[{ required: true, message: '请输入省份' }]}><Input /></Form.Item>
           <Form.Item label="城市" name="city" rules={[{ required: true, message: '请输入城市' }]}><Input /></Form.Item>
           <Form.Item label="区域" name="district" rules={[{ required: true, message: '请输入区域' }]}><Input /></Form.Item>

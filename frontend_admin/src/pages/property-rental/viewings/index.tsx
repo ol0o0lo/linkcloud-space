@@ -5,7 +5,8 @@ import React, { useEffect, useState } from 'react';
 import { AdminToolbar, ResponsiveActions, adminTableScroll, toolbarControlStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type ContactOut, type ViewingRecordOut } from '@/services/manual/house';
-import { contactLabel, dateTimeInputValue, dateTimeText, houseLabel, STATUS_COLOR, STATUS_TEXT, VIEWING_STATUS, VIEWING_STATUS_FLOW_OPTIONS, VIEWING_STATUS_OPTIONS } from '../constants';
+import { enumMapping, enumOptionMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
+import { contactLabel, dateTimeInputValue, dateTimeText, houseLabel, STATUS_COLOR, VIEWING_STATUS, VIEWING_STATUS_FLOW_OPTIONS } from '../constants';
 import { getLoadingAwareEmptyState, getLoadingSafeCount, getLoadingSafeText, isAnyInitialQueryPending, isInitialQueryPending } from '../loading';
 
 const PAGE_SIZE = 20;
@@ -53,8 +54,8 @@ function getViewingNextActionText(record: ViewingRecordOut) {
   return '持续跟进';
 }
 
-function getViewingDrawerEntryText(options: { editing: boolean; sourceHouseId?: number; sourceContactId?: number; status?: string }) {
-  if (options.editing) return options.status ? `带看维护 / ${STATUS_TEXT[options.status] || options.status}` : '带看维护';
+function getViewingDrawerEntryText(options: { editing: boolean; sourceHouseId?: number; sourceContactId?: number; status?: string; statusLabel: (value?: string | null) => string }) {
+  if (options.editing) return options.status ? `带看维护 / ${options.statusLabel(options.status)}` : '带看维护';
   if (options.sourceContactId) return '联系人快速登记';
   if (options.sourceHouseId) return '房源快速登记';
   return '手动新建带看';
@@ -168,7 +169,7 @@ type ViewingOverviewCard = {
   getValue?: (context: { counts: Record<string, number>; currentTotal: number }) => number;
 };
 
-function getScopedViewingOverviewCards(status?: string, pendingLease?: boolean, contactMissing?: boolean): ViewingOverviewCard[] {
+function getScopedViewingOverviewCards(statusLabel: (value?: string | null) => string, status?: string, pendingLease?: boolean, contactMissing?: boolean): ViewingOverviewCard[] {
   if (pendingLease) {
     if (contactMissing === true) {
       return [
@@ -289,7 +290,7 @@ function getScopedViewingOverviewCards(status?: string, pendingLease?: boolean, 
     return [
       {
         key: 'current_status_scope',
-        title: `当前${STATUS_TEXT[status] || status}`,
+        title: `当前${statusLabel(status)}`,
         hint: '当前筛选状态下的记录数',
         getValue: ({ currentTotal }) => currentTotal,
       },
@@ -464,6 +465,9 @@ const ViewingsPage: React.FC = () => {
   const [tenantOpen, setTenantOpen] = useState(false);
   const [createdTenants, setCreatedTenants] = useState<ContactOut[]>([]);
   const enabled = Boolean(workspace.selectedOrgSlug);
+  const houseEnums = useEnums(['house.viewing_record_status']);
+  const statusLabel = (value?: string | null) => enumOptionMapping(houseEnums.data, 'house.viewing_record_status', value);
+  const viewingStatusOptions = enumSelectOptions(houseEnums.data, 'house.viewing_record_status');
   const sourceHouseId = drawerState.sourceHouseId;
   const sourceContactId = drawerState.sourceContactId;
   const editViewingId = drawerState.editViewingId;
@@ -479,7 +483,7 @@ const ViewingsPage: React.FC = () => {
       : pendingLease
         ? '已成交待签约'
         : status
-          ? STATUS_TEXT[status] || status
+          ? statusLabel(status)
           : undefined;
   const scopedOverview = Boolean(statusText);
   const houses = useQuery({ queryKey: ['house', 'viewings', 'houses', workspace.selectedOrgSlug], queryFn: () => houseApi.listHouses({ page: 1, page_size: 100 }), enabled });
@@ -496,7 +500,7 @@ const ViewingsPage: React.FC = () => {
     queryFn: () => houseApi.listViewingRecords({ page, page_size: PAGE_SIZE, status, house_id: sourceHouseId, pending_lease: pendingLease, contact_missing: contactMissing }),
     enabled,
   });
-  const scopedOverviewCards = getScopedViewingOverviewCards(status, pendingLease, contactMissing);
+  const scopedOverviewCards = getScopedViewingOverviewCards(statusLabel, status, pendingLease, contactMissing);
   const scopedOverviewQueries = useQueries({
     queries: scopedOverviewCards
       .filter((item) => item.params)
@@ -696,6 +700,7 @@ const ViewingsPage: React.FC = () => {
     sourceHouseId,
     sourceContactId,
     status: draftStatus,
+    statusLabel,
   });
   const drawerWarningText = getViewingDrawerWarning({
     houseId: selectedHouseId,
@@ -782,7 +787,7 @@ const ViewingsPage: React.FC = () => {
           <Select
             allowClear
             placeholder="状态"
-            options={VIEWING_STATUS_OPTIONS}
+            options={viewingStatusOptions}
             value={status}
             onChange={(value) => {
               setPage(1);
@@ -811,7 +816,7 @@ const ViewingsPage: React.FC = () => {
                 );
               },
             },
-            { title: '状态', dataIndex: 'status', render: (value) => <Tag color={STATUS_COLOR[value] || 'default'}>{STATUS_TEXT[value] || value}</Tag> },
+            { title: '状态', dataIndex: 'status__mapping', render: (_value, record) => <Tag color={STATUS_COLOR[record.status] || 'default'}>{enumMapping(record.status, record.status__mapping)}</Tag> },
             {
               title: '下一步动作',
               dataIndex: 'next_action',
@@ -835,17 +840,17 @@ const ViewingsPage: React.FC = () => {
                   {record.status === VIEWING_STATUS.CONVERTED && record.signed_lease_id ? <a href={leaseEditPath(record)}>查看租约</a> : null}
                   <Button type="link" size="small" onClick={() => openEdit(record)}>编辑</Button>
                   {(VIEWING_STATUS_FLOW_OPTIONS[record.status] || [])
-                    .filter((item) => item.value !== record.status)
-                    .map((item) => (
+                    .filter((nextStatus) => nextStatus !== record.status)
+                    .map((nextStatus) => (
                       <Button
                         type="link"
                         size="small"
-                        key={item.value}
+                        key={nextStatus}
                         onClick={() => {
-                          updateViewingStatus.mutate({ id: record.id, status: item.value });
+                          updateViewingStatus.mutate({ id: record.id, status: nextStatus });
                         }}
                       >
-                        {VIEWING_STATUS_ACTION_TEXT[item.value] || item.label}
+                        {VIEWING_STATUS_ACTION_TEXT[nextStatus] || statusLabel(nextStatus)}
                       </Button>
                     ))}
                 </ResponsiveActions>
@@ -941,7 +946,7 @@ const ViewingsPage: React.FC = () => {
                         {editing ? (
                           <Col xs={24} md={12}>
                             <Form.Item label="状态" name="status">
-                              <Select options={VIEWING_STATUS_OPTIONS} />
+                              <Select options={viewingStatusOptions} />
                             </Form.Item>
                           </Col>
                         ) : null}
@@ -969,7 +974,7 @@ const ViewingsPage: React.FC = () => {
                   <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                     <Space wrap>
                       <Tag color="blue">{drawerEntryText}</Tag>
-                      {draftStatus ? <Tag color={STATUS_COLOR[draftStatus] || 'default'}>{STATUS_TEXT[draftStatus] || draftStatus}</Tag> : <Tag>待预约</Tag>}
+                      {draftStatus ? <Tag color={STATUS_COLOR[draftStatus] || 'default'}>{statusLabel(draftStatus)}</Tag> : <Tag>待预约</Tag>}
                       {selectedContactId ? <Tag color="green">已绑定联系人</Tag> : <Tag color="orange">未绑联系人</Tag>}
                     </Space>
                     <Descriptions column={1} size="small">
@@ -983,7 +988,7 @@ const ViewingsPage: React.FC = () => {
                       <Descriptions.Item label="预约时间">{formValues?.scheduled_at || formInitialValues.scheduled_at || '待填写'}</Descriptions.Item>
                       <Descriptions.Item label="下一步">
                         {draftStatus
-                          ? STATUS_TEXT[draftStatus] || draftStatus
+                          ? statusLabel(draftStatus)
                           : '保存后进入预约排期'}
                       </Descriptions.Item>
                     </Descriptions>

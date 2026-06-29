@@ -75,6 +75,38 @@ vi.mock('@/services/manual/house', () => ({
   },
 }));
 
+const enumData = {
+  'house.contact_role': [
+    { value: 'landlord', mapping: '房东' },
+    { value: 'tenant', mapping: '租客' },
+  ],
+  'house.estate_property_type': [{ value: 'residential', mapping: '住宅' }],
+  'house.house_status': [{ value: 'vacant', mapping: '空置' }],
+  'house.house_publish_status': [{ value: 'draft', mapping: '草稿' }],
+  'house.viewing_record_status': [
+    { value: 'scheduled', mapping: '已预约' },
+    { value: 'viewed', mapping: '已带看' },
+    { value: 'converted', mapping: '已成交' },
+    { value: 'canceled', mapping: '已取消' },
+    { value: 'no_show', mapping: '爽约' },
+  ],
+  'house.lease_status': [
+    { value: 'pending', mapping: '待生效' },
+    { value: 'active', mapping: '生效中' },
+    { value: 'expired', mapping: '已到期' },
+    { value: 'terminated', mapping: '已终止' },
+  ],
+};
+
+vi.mock('@/services/manual/enums', () => ({
+  enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
+  enumOptionMapping: (enumMap: typeof enumData | undefined, key: keyof typeof enumData, value?: string | null) =>
+    value ? enumMap?.[key]?.find((item) => item.value === value)?.mapping || value : '-',
+  enumSelectOptions: (enumMap: typeof enumData | undefined, key: keyof typeof enumData) =>
+    (enumMap?.[key] || []).map((item) => ({ value: item.value, label: item.mapping })),
+  useEnums: () => ({ data: enumData }),
+}));
+
 const renderPage = (node: React.ReactNode) => render(<QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>);
 
 function createDeferred<T>() {

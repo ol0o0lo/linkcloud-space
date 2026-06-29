@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AdminToolbar, ResponsiveActions, adminTableScroll, toolbarControlStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type BuildingOut, type EstateOut, type HouseOut } from '@/services/manual/house';
+import { enumMapping, enumOptionMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { getLoadingAwareEmptyState, getLoadingSafeCount, getLoadingSafeText, isAnyInitialQueryPending, isInitialQueryPending } from '../loading';
 import {
   buildingLabel,
@@ -17,14 +18,10 @@ import {
   getTrackedHousePublishIssues,
   getHouseWarningIssues,
   HOUSE_PUBLISH_STATUS_COLOR,
-  HOUSE_PUBLISH_STATUS_OPTIONS,
-  HOUSE_PUBLISH_STATUS_TEXT,
-  HOUSE_STATUS_OPTIONS,
   houseMediaReadinessText,
   houseLabel,
   moneyText,
   STATUS_COLOR,
-  STATUS_TEXT,
 } from '../constants';
 
 const PAGE_SIZE = 20;
@@ -184,19 +181,17 @@ function getHouseTaskLink(record: HouseOut, currentTask?: HouseTask) {
   return { label: '详情', href: buildHouseDetailHref(record.id) };
 }
 
-function getHouseScopedOverviewTitle(filters: HouseScopeFilters) {
+function getHouseScopedOverviewTitle(filters: HouseScopeFilters, enumLabel: (key: string, value?: string | null) => string) {
   if (filters.task && TASK_TEXT[filters.task]) return `当前${TASK_TEXT[filters.task]}`;
-  if (filters.publishStatus === 'published') return '当前已发布';
-  if (filters.publishStatus === 'draft') return '当前草稿';
-  if (filters.publishStatus === 'unpublished') return '当前已下架';
-  if (filters.status) return `当前${STATUS_TEXT[filters.status] || filters.status}`;
+  if (filters.publishStatus) return `当前${enumLabel('house.house_publish_status', filters.publishStatus)}`;
+  if (filters.status) return `当前${enumLabel('house.house_status', filters.status)}`;
   if (filters.buildingId) return '当前楼栋房源';
   if (filters.estateId) return '当前项目房源';
   if (filters.q) return '当前搜索结果';
   return '当前筛选结果';
 }
 
-function getHouseScopeText(filters: HouseScopeFilters, estates: EstateOut[], buildings: BuildingOut[]) {
+function getHouseScopeText(filters: HouseScopeFilters, estates: EstateOut[], buildings: BuildingOut[], enumLabel: (key: string, value?: string | null) => string) {
   const scopes: string[] = [];
   if (filters.task && TASK_TEXT[filters.task]) scopes.push(TASK_TEXT[filters.task]);
   if (filters.estateId) {
@@ -207,8 +202,8 @@ function getHouseScopeText(filters: HouseScopeFilters, estates: EstateOut[], bui
     const building = buildings.find((item) => item.id === filters.buildingId);
     scopes.push(`楼栋：${buildingLabel(building || { id: filters.buildingId })}`);
   }
-  if (filters.status) scopes.push(`房态：${STATUS_TEXT[filters.status] || filters.status}`);
-  if (filters.publishStatus) scopes.push(`发布：${HOUSE_PUBLISH_STATUS_TEXT[filters.publishStatus] || filters.publishStatus}`);
+  if (filters.status) scopes.push(`房态：${enumLabel('house.house_status', filters.status)}`);
+  if (filters.publishStatus) scopes.push(`发布：${enumLabel('house.house_publish_status', filters.publishStatus)}`);
   if (filters.q) scopes.push(`搜索：${filters.q}`);
   return scopes.join(' / ');
 }
@@ -229,6 +224,7 @@ const HousesPage: React.FC = () => {
   const [publishConfirmStatus, setPublishConfirmStatus] = useState<'published' | 'unpublished' | null>(null);
   const taskQuery = getHouseTaskQuery(task);
   const enabled = Boolean(workspace.selectedOrgSlug);
+  const houseEnums = useEnums(['house.house_status', 'house.house_publish_status']);
   const estates = useQuery({ queryKey: ['house', 'estates', 'house-filter', workspace.selectedOrgSlug], queryFn: () => houseApi.listEstates({ page: 1, page_size: 100 }), enabled });
   const buildings = useQuery({
     queryKey: ['house', 'buildings', 'house-filter', workspace.selectedOrgSlug, estateId],
@@ -367,7 +363,10 @@ const HousesPage: React.FC = () => {
   const listLoading = isInitialQueryPending(houses);
   const estateItems = (estates.data?.items || []) as EstateOut[];
   const buildingItems = (buildings.data?.items || []) as BuildingOut[];
-  const scopeText = getHouseScopeText({ task, estateId, buildingId, status, publishStatus, q }, estateItems, buildingItems);
+  const enumLabel = (key: string, value?: string | null) => enumOptionMapping(houseEnums.data, key, value);
+  const houseStatusOptions = enumSelectOptions(houseEnums.data, 'house.house_status');
+  const housePublishStatusOptions = enumSelectOptions(houseEnums.data, 'house.house_publish_status');
+  const scopeText = getHouseScopeText({ task, estateId, buildingId, status, publishStatus, q }, estateItems, buildingItems, enumLabel);
   const estateOptions = estateItems.map((estate) => ({ value: estate.id, label: estate.display_name || estate.name }));
   const buildingOptions = buildingItems.map((building) => ({ value: building.id, label: buildingLabel(building) }));
   const { token } = theme.useToken();
@@ -445,8 +444,8 @@ const HousesPage: React.FC = () => {
           {record.publish_status !== 'published' ? (
             <Tag color={canHousePublish(record) ? 'blue' : 'orange'}>{canHousePublish(record) ? '可发布' : '阻断发布'}</Tag>
           ) : null}
-          <Tag color={STATUS_COLOR[record.status] || 'default'}>{STATUS_TEXT[record.status] || record.status}</Tag>
-          <Tag color={HOUSE_PUBLISH_STATUS_COLOR[record.publish_status] || 'default'}>{HOUSE_PUBLISH_STATUS_TEXT[record.publish_status] || record.publish_status}</Tag>
+          <Tag color={STATUS_COLOR[record.status] || 'default'}>{enumMapping(record.status, record.status__mapping)}</Tag>
+          <Tag color={HOUSE_PUBLISH_STATUS_COLOR[record.publish_status] || 'default'}>{enumMapping(record.publish_status, record.publish_status__mapping)}</Tag>
         </Space>
       ),
     },
@@ -497,7 +496,7 @@ const HousesPage: React.FC = () => {
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col xs={24} sm={12} xl={6}>
             <div style={overviewTileStyle}>
-              <Statistic title={scopedOverview ? getHouseScopedOverviewTitle({ task, estateId, buildingId, status, publishStatus, q }) : '在管房源'} value={getLoadingSafeCount(scopedOverview ? scopedTotalCount : totalCount, overviewLoading)} />
+              <Statistic title={scopedOverview ? getHouseScopedOverviewTitle({ task, estateId, buildingId, status, publishStatus, q }, enumLabel) : '在管房源'} value={getLoadingSafeCount(scopedOverview ? scopedTotalCount : totalCount, overviewLoading)} />
               <Typography.Text type="secondary">
                 {getLoadingSafeText(scopedOverview ? `${scopedTotalCount} 套房源落在当前筛选范围内` : `${totalCount} 套房源在当前组织内管理`, '正在汇总当前房源范围...', overviewLoading)}
               </Typography.Text>
@@ -606,8 +605,8 @@ const HousesPage: React.FC = () => {
             }}
             style={toolbarControlStyle}
           />
-          <Select allowClear placeholder="房态" options={HOUSE_STATUS_OPTIONS} value={status} onChange={(value) => { setPage(1); setStatus(value); }} style={toolbarControlStyle} />
-          <Select allowClear placeholder="发布状态" options={HOUSE_PUBLISH_STATUS_OPTIONS} value={publishStatus} onChange={(value) => { setPage(1); setPublishStatus(value); }} style={toolbarControlStyle} />
+          <Select allowClear placeholder="房态" options={houseStatusOptions} value={status} onChange={(value) => { setPage(1); setStatus(value); }} style={toolbarControlStyle} />
+          <Select allowClear placeholder="发布状态" options={housePublishStatusOptions} value={publishStatus} onChange={(value) => { setPage(1); setPublishStatus(value); }} style={toolbarControlStyle} />
         </Space>
         <Table
           rowKey="id"

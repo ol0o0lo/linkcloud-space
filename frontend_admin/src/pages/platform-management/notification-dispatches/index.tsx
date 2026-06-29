@@ -33,6 +33,7 @@ import {
   appsNotificationsApiListDispatchNotifications,
   appsNotificationsApiListDispatches,
 } from '@/services/openapi/notificationDispatches';
+import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { platformQueryKeys } from '../shared';
 
 type CreateDispatchFormValues = {
@@ -44,7 +45,12 @@ type CreateDispatchFormValues = {
   url?: string;
 };
 
-type DispatchInsight = API.NotificationDispatchOut & {
+type NotificationDispatchWithMapping = API.NotificationDispatchOut & {
+  scope__mapping?: string;
+  status__mapping?: string;
+};
+
+type DispatchInsight = NotificationDispatchWithMapping & {
   scope_label: string;
   scope_summary: string;
   status_label: string;
@@ -53,12 +59,6 @@ type DispatchInsight = API.NotificationDispatchOut & {
   execution_summary: string;
   delivery_ratio: string;
   action_summary: string;
-};
-
-const SCOPE_LABELS: Record<string, string> = {
-  platform: '全平台',
-  organization: '指定空间',
-  users: '指定用户',
 };
 
 const DEFAULT_CREATE_FORM_VALUES: Pick<
@@ -98,16 +98,17 @@ function parseScopeIds(value?: string) {
   return parseScopeIdTokens(value).map((item) => Number(item));
 }
 
-function formatScope(scope?: string, scopeIds: number[] = []) {
-  const label = SCOPE_LABELS[scope || ''] || scope || '-';
+function formatScope(scope?: string, scopeMapping?: string, scopeIds: number[] = []) {
+  const label = enumMapping(scope, scopeMapping);
   if (scope === 'platform') return label;
   return scopeIds.length ? `${label} (${scopeIds.join(', ')})` : label;
 }
 
 function buildDispatchInsight(
-  item: API.NotificationDispatchOut,
+  item: NotificationDispatchWithMapping,
 ): DispatchInsight {
-  const scopeLabel = formatScope(item.scope, item.scope_ids);
+  const scopeLabel = formatScope(item.scope, item.scope__mapping, item.scope_ids);
+  const statusLabel = enumMapping(item.status, item.status__mapping);
   const delivered = item.delivered_count || 0;
   const target = item.target_count || 0;
   const ratio = target ? `${delivered}/${target}` : '0/0';
@@ -120,7 +121,7 @@ function buildDispatchInsight(
         item.scope === 'platform'
           ? '面向全平台广播，失败影响面通常最大。'
           : '失败的定向分发更需要回看目标范围是否填对。',
-      status_label: '分发失败',
+      status_label: statusLabel,
       status_color: 'red',
       status_summary:
         item.error_message ||
@@ -137,7 +138,7 @@ function buildDispatchInsight(
       ...item,
       scope_label: scopeLabel,
       scope_summary: '这条分发仍在执行中，适合继续关注送达进度和积压情况。',
-      status_label: '发送中',
+      status_label: statusLabel,
       status_color: 'blue',
       status_summary: '系统仍在投递，后台应判断它是正常执行还是卡在中间状态。',
       execution_summary:
@@ -152,7 +153,7 @@ function buildDispatchInsight(
       ...item,
       scope_label: scopeLabel,
       scope_summary: '分发已创建但尚未真正开始送达，适合关注是否存在排队积压。',
-      status_label: '待发送',
+      status_label: statusLabel,
       status_color: 'gold',
       status_summary:
         '这类记录还没有进入真正的送达阶段，优先关注是否存在队列堆积。',
@@ -169,7 +170,7 @@ function buildDispatchInsight(
       item.scope === 'platform'
         ? '全平台分发已经送达，可继续观察通知页的确认情况。'
         : '定向分发已经送达，可回看目标对象是否真正收到并确认。',
-    status_label: '已送达',
+    status_label: statusLabel,
     status_color: 'green',
     status_summary: '当前分发已经完成送达，后续重点是回看通知确认与已读收口。',
     execution_summary:
@@ -185,6 +186,7 @@ const NotificationDispatchesPage: React.FC = () => {
   const [detailPage, setDetailPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [form] = Form.useForm<CreateDispatchFormValues>();
+  const dispatchEnums = useEnums(['notifications.dispatch_scope']);
 
   const listQuery = useQuery({
     queryKey: platformQueryKeys.notificationDispatches(page),
@@ -220,7 +222,7 @@ const NotificationDispatchesPage: React.FC = () => {
 
   const scopeValue = Form.useWatch('scope', form) || 'platform';
   const insights = useMemo(
-    () => (listQuery.data?.items || []).map(buildDispatchInsight),
+    () => ((listQuery.data?.items || []) as NotificationDispatchWithMapping[]).map((item) => buildDispatchInsight(item)),
     [listQuery.data?.items],
   );
 
@@ -361,7 +363,7 @@ const NotificationDispatchesPage: React.FC = () => {
   ];
 
   const detailInsight = detailQuery.data
-    ? buildDispatchInsight(detailQuery.data)
+    ? buildDispatchInsight(detailQuery.data as NotificationDispatchWithMapping)
     : undefined;
 
   return (
@@ -464,11 +466,7 @@ const NotificationDispatchesPage: React.FC = () => {
                 <Radio.Group
                   optionType="button"
                   buttonStyle="solid"
-                  options={[
-                    { value: 'platform', label: '全平台' },
-                    { value: 'organization', label: '指定空间' },
-                    { value: 'users', label: '指定用户' },
-                  ]}
+                  options={enumSelectOptions(dispatchEnums.data, 'notifications.dispatch_scope')}
                 />
               </Form.Item>
               <Form.Item
