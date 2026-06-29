@@ -14,6 +14,7 @@ const {
   mockSetPassword,
   mockUnbindPhone,
   mockUnbindWechat,
+  mockUseEnums,
 } = vi.hoisted(() => ({
   mockListUsers: vi.fn(),
   mockPatchStatus: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockSetPassword: vi.fn(),
   mockUnbindPhone: vi.fn(),
   mockUnbindWechat: vi.fn(),
+  mockUseEnums: vi.fn(),
 }));
 
 vi.mock('@/services/openapi/userAdmin', () => ({
@@ -36,6 +38,13 @@ vi.mock('@/services/openapi/userAdmin', () => ({
   appsAccountsApiSetAdminUserPassword: mockSetPassword,
   appsAccountsApiUnbindUserPhone: mockUnbindPhone,
   appsAccountsApiUnbindUserWechat: mockUnbindWechat,
+}));
+
+vi.mock('@/services/manual/enums', () => ({
+  enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
+  enumSelectOptions: (enumMap: Record<string, { value: string; mapping: string }[]> | undefined, key: string) =>
+    (enumMap?.[key] || []).map((item) => ({ label: item.mapping, value: item.value })),
+  useEnums: mockUseEnums,
 }));
 
 describe('PlatformUsersPage', () => {
@@ -53,7 +62,10 @@ describe('PlatformUsersPage', () => {
           first_name: 'Alice',
           last_name: 'Zhang',
           timezone: 'Asia/Shanghai',
-          real_name_status: 'approved',
+          real_name_status: 'rejected',
+          real_name_status__mapping: '已驳回',
+          role: 'staff',
+          role__mapping: '后台账号',
           phone_country_code: '+86',
           phone_national_number: '13800138000',
           phone_verified: true,
@@ -69,6 +81,9 @@ describe('PlatformUsersPage', () => {
           last_name: 'Li',
           timezone: 'Asia/Shanghai',
           real_name_status: 'pending',
+          real_name_status__mapping: '待校验',
+          role: 'user',
+          role__mapping: '普通账号',
           phone_verified: false,
           is_active: true,
           is_staff: false,
@@ -87,6 +102,19 @@ describe('PlatformUsersPage', () => {
     mockSetPassword.mockResolvedValue({});
     mockUnbindPhone.mockResolvedValue({});
     mockUnbindWechat.mockResolvedValue({});
+    mockUseEnums.mockReturnValue({
+      data: {
+        'accounts.admin_user_role': [
+          { value: 'superuser', mapping: '超级管理员' },
+          { value: 'staff', mapping: '后台账号' },
+          { value: 'user', mapping: '普通账号' },
+        ],
+        'accounts.real_name_status': [
+          { value: 'rejected', mapping: '已驳回' },
+          { value: 'pending', mapping: '待校验' },
+        ],
+      },
+    });
   });
 
   it('renders governance layout and triggers lifecycle actions', async () => {
@@ -97,7 +125,8 @@ describe('PlatformUsersPage', () => {
     );
 
     await waitFor(() => {
-      expect(mockListUsers).toHaveBeenCalledWith({ page: 1, page_size: 10, keyword: undefined });
+      expect(mockUseEnums).toHaveBeenCalledWith(['accounts.real_name_status', 'accounts.admin_user_role']);
+      expect(mockListUsers).toHaveBeenCalledWith(expect.objectContaining({ page: 1, page_size: 10, keyword: undefined }));
       expect(screen.queryByText('用户概览')).not.toBeInTheDocument();
       expect(screen.queryByText('用户详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
@@ -116,6 +145,8 @@ describe('PlatformUsersPage', () => {
       expect(screen.queryByText('停用收口')).not.toBeInTheDocument();
       expect(screen.getByText('alice')).toBeInTheDocument();
       expect(screen.getByText('bob')).toBeInTheDocument();
+      expect(screen.getByText('实名状态 已驳回')).toBeInTheDocument();
+      expect(screen.getByText('实名状态 待校验')).toBeInTheDocument();
       expect(screen.queryByText('该账号拥有平台级最高权限，安全、实名和联系方式都应该保持清晰可控。')).not.toBeInTheDocument();
       expect(screen.queryByText('高权限账号需要重点确认权限边界、可追溯性和安全恢复能力。')).not.toBeInTheDocument();
       expect(screen.queryByText('手机号缺失或未验证，会让找回、安全校验和业务联系链路都变得脆弱。')).not.toBeInTheDocument();
@@ -126,7 +157,7 @@ describe('PlatformUsersPage', () => {
 
     const userRow = screen.getByText('alice').closest('tr');
     expect(userRow).not.toBeNull();
-    expect(within(userRow!).getByText('Staff')).toBeInTheDocument();
+    expect(within(userRow!).getByText('后台账号')).toBeInTheDocument();
     expect(within(userRow!).queryByText('高权限账号')).not.toBeInTheDocument();
     expect(within(userRow!).getByText('编辑')).toBeInTheDocument();
     expect(within(userRow!).getByText('设密码')).toBeInTheDocument();
@@ -159,6 +190,6 @@ describe('PlatformUsersPage', () => {
     const searchBox = screen.getByPlaceholderText('按用户名、邮箱搜索');
     fireEvent.change(searchBox, { target: { value: 'alice' } });
     fireEvent.keyDown(searchBox, { key: 'Enter', code: 'Enter' });
-    await waitFor(() => expect(mockListUsers).toHaveBeenLastCalledWith({ page: 1, page_size: 10, keyword: 'alice' }));
+    await waitFor(() => expect(mockListUsers).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, page_size: 10, keyword: 'alice' })));
   });
 });

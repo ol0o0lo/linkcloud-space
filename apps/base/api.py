@@ -70,9 +70,9 @@ def get_version(request):
 
 
 @router.get("/enums/", auth=None, summary="获取后端枚举映射")
-def list_enums(request, keys: str | None = None):
+def list_enums(request):
     """返回前端筛选和回显需要的后端枚举值。"""
-    return selected_enum_options(keys)
+    return selected_enum_options(request.GET.get("keys"))
 
 
 @router.get("/app-context/", auth=None, response=AppContextOut, summary="获取应用上下文")

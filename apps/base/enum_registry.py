@@ -44,7 +44,7 @@ def enum_options(enum_cls: Any) -> list[dict[str, str]]:
 @cache
 def enum_registry() -> dict[str, Any]:
     from apps.access.constants import AccessPermission, AccessRoleCode, AccessScope, FinancePermission, OrganizationPermission, SettingsPermission, TeamPermission
-    from apps.accounts.constants import RealNameIdCardSide, RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
+    from apps.accounts.constants import AdminUserRole, RealNameIdCardSide, RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
     from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
     from apps.media.constants import MediaExtension, MediaScope, MediaType, ResourceType
     from apps.notifications.constants import NotificationChannel
@@ -61,6 +61,7 @@ def enum_registry() -> dict[str, Any]:
         "access.team_permission": TeamPermission,
         "access.settings_permission": SettingsPermission,
         "access.finance_permission": FinancePermission,
+        "accounts.admin_user_role": AdminUserRole,
         "accounts.real_name_status": RealNameStatus,
         "accounts.real_name_source": RealNameSource,
         "accounts.real_name_provider": RealNameProvider,

@@ -3,10 +3,24 @@ from typing import Literal
 from ninja import Schema
 from pydantic import Field, field_validator
 
-from apps.accounts.constants import RealNameIdCardSide, RealNameSource, RealNameStatus
+from apps.accounts.constants import AdminUserRole, RealNameIdCardSide, RealNameSource, RealNameStatus
 from apps.base.enum_registry import enum_mapping
 from apps.media.constants import MediaType
 from apps.media.schemas import MediaRefIn, ResolvedMediaRefOut
+
+
+def _obj_value(obj, key: str, default=None):
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def resolve_admin_user_role(obj) -> str:
+    if _obj_value(obj, "is_superuser", False):
+        return AdminUserRole.SUPERUSER
+    if _obj_value(obj, "is_staff", False):
+        return AdminUserRole.STAFF
+    return AdminUserRole.USER
 
 
 class UserOut(Schema):
@@ -34,6 +48,16 @@ class AdminUserOut(UserOut):
     is_active: bool
     is_staff: bool
     is_superuser: bool
+    role: str = AdminUserRole.USER
+    role__mapping: str = ""
+
+    @staticmethod
+    def resolve_role(obj):
+        return resolve_admin_user_role(obj)
+
+    @staticmethod
+    def resolve_role__mapping(obj):
+        return enum_mapping(AdminUserRole, resolve_admin_user_role(obj))
 
 
 class MeOut(Schema):
