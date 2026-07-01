@@ -914,11 +914,6 @@ const LeasesPage: React.FC = () => {
 
                   <div style={sectionStyle}>
                     <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-                      <div>
-                        <Typography.Text strong>补充说明</Typography.Text>
-                        <br />
-                        <Typography.Text type="secondary">记录特殊交付安排、付款约定或需要继续跟进的说明。</Typography.Text>
-                      </div>
                       <Form.Item label="备注" name="notes" style={{ marginBottom: 0 }}>
                         <Input.TextArea rows={4} />
                       </Form.Item>

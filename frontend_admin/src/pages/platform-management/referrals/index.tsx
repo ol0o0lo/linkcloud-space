@@ -325,9 +325,6 @@ const ReferralsAdminPage: React.FC = () => {
         </Card>
 
         <Card title="邀请记录">
-          <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-            记录页需要说明这条邀请关系处在什么阶段、对应什么奖励口径，以及现在该由谁处理。
-          </Typography.Paragraph>
           <Table
             rowKey="id"
             loading={recordsQuery.isLoading}

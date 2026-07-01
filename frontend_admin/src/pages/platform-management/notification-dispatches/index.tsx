@@ -394,12 +394,6 @@ const NotificationDispatchesPage: React.FC = () => {
           <Space direction="vertical" size={12} style={fullWidthStyle}>
             <div>
               <Typography.Text strong>分发列表</Typography.Text>
-              <Typography.Paragraph
-                type="secondary"
-                style={{ marginBottom: 0, marginTop: 8 }}
-              >
-                分发页需要说明这批通知发给了谁、发得怎么样，以及失败后该怎么继续处理。
-              </Typography.Paragraph>
             </div>
             <Table
               rowKey="id"

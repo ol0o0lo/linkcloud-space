@@ -117,19 +117,6 @@ const OrganizationBindingsPage: React.FC = () => {
         );
       },
     },
-    {
-      title: '执行说明',
-      dataIndex: 'execution',
-      width: 280,
-      render: (_value, record) => {
-        const role = roleMap.get(record.role.id);
-        return (
-          <Typography.Text type="secondary">
-            {role?.is_system ? '适合空间级稳定底座职责。' : '适合空间专项治理或阶段性全局任务。'}
-          </Typography.Text>
-        );
-      },
-    },
     { title: '授权时间', dataIndex: 'created_at', width: 170, render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm') },
     {
       title: '操作',

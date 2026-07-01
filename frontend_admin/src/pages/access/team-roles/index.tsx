@@ -111,7 +111,6 @@ const TeamRolesPage: React.FC = () => {
           );
         },
       },
-      { title: '执行说明', dataIndex: 'permission_keys', width: 320, render: (_value, record) => <span style={wrapTextStyle}>{record.is_system ? '适合稳定、通用的基础职责。' : '适合专项流程、试点团队或细分职责。'}</span> },
       {
         title: '操作',
         dataIndex: 'actions',

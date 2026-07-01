@@ -36,7 +36,6 @@ import {
   appsAccountsApiRejectAdminRealName,
   appsAccountsApiRevokeAdminRealName,
 } from '@/services/openapi/realNameAdmin';
-import { enumMapping, getEnumRegistry, toSelectOptions } from '@/services/manual/enums';
 import {
   enumMapping,
   enumSelectOptions,
@@ -246,7 +245,7 @@ const RealNameAdminPage: React.FC = () => {
     queryFn: () =>
       appsAccountsApiGetAdminRealNameVerification({
         verification_id: detailId!,
-      }) as Promise<RealNameDetailRecord>,
+      }) as Promise<RealNameDetailWithMapping>,
     enabled: Boolean(detailId),
   });
   const actionMutation = useMutation({

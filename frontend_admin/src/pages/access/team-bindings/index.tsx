@@ -118,19 +118,6 @@ const TeamBindingsPage: React.FC = () => {
         );
       },
     },
-    {
-      title: '执行说明',
-      dataIndex: 'execution',
-      width: 280,
-      render: (_value, record) => {
-        const role = roleMap.get(record.role.id);
-        return (
-          <Typography.Text type="secondary">
-            {role?.is_system ? '适合稳定的基础职责承接。' : '适合团队内部的局部职责或短期试点。'}
-          </Typography.Text>
-        );
-      },
-    },
     { title: '授权时间', dataIndex: 'created_at', width: 170, render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm') },
     {
       title: '操作',

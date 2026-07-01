@@ -1,7 +1,7 @@
 import {EllipsisOutlined} from '@ant-design/icons';
 import type {ActionType, ProColumns} from '@ant-design/pro-components';
 import {PageContainer, ProTable} from '@ant-design/pro-components';
-import {useMutation, useQuery} from '@tanstack/react-query';
+import {useMutation} from '@tanstack/react-query';
 import {
   Button,
   Card,
@@ -23,7 +23,7 @@ import {
   fullWidthStyle,
   ResponsiveActions,
 } from '@/pages/_shared/adminLayout';
-import {enumMapping, getEnumRegistry, toSelectOptions} from '@/services/manual/enums';
+import {enumMapping, enumSelectOptions, useEnums} from '@/services/manual/enums';
 import {
   appsAccountsApiCreateAdminUser,
   appsAccountsApiForceLogoutUser,
@@ -35,11 +35,6 @@ import {
   appsAccountsApiUnbindUserPhone,
   appsAccountsApiUnbindUserWechat,
 } from '@/services/openapi/userAdmin';
-import {
-  enumMapping,
-  enumSelectOptions,
-  useEnums,
-} from '@/services/manual/enums';
 import { normalizeEmailLikeInput } from '@/utils/email';
 import { IdentityText } from '../shared';
 

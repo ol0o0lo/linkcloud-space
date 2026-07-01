@@ -112,7 +112,6 @@ const OrganizationRolesPage: React.FC = () => {
           );
         },
       },
-      { title: '执行说明', dataIndex: 'permission_keys', width: 320, render: (_value, record) => <span style={wrapTextStyle}>{record.is_system ? '适合空间级稳定底座职责。' : '适合空间专项治理或阶段性全局任务。'}</span> },
       {
         title: '操作',
         dataIndex: 'actions',

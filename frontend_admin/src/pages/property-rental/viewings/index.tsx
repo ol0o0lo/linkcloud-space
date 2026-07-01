@@ -956,11 +956,6 @@ const ViewingsPage: React.FC = () => {
 
                   <div style={sectionStyle}>
                     <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-                      <div>
-                        <Typography.Text strong>补充说明</Typography.Text>
-                        <br />
-                        <Typography.Text type="secondary">记录预约备注、客户偏好、带看反馈或需要继续追踪的事项。</Typography.Text>
-                      </div>
                       <Form.Item label="备注" name="notes" style={{ marginBottom: 0 }}>
                         <Input.TextArea rows={4} />
                       </Form.Item>

@@ -504,7 +504,7 @@ const WalletAccountsPage: React.FC = () => {
               <Form.Item label="备注" name="remark">
                 <Input.TextArea
                   rows={3}
-                  placeholder="说明这次调账为何发生，以及它准备收口哪一类问题。"
+                  placeholder="请输入调账原因"
                 />
               </Form.Item>
             </Form>

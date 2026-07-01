@@ -77,33 +77,32 @@ vi.mock('@/services/manual/house', () => ({
 
 const enumData = {
   'house.contact_role': [
-    { value: 'landlord', mapping: '房东' },
-    { value: 'tenant', mapping: '租客' },
+    { label: '房东', value: 'landlord' },
+    { label: '租客', value: 'tenant' },
   ],
-  'house.estate_property_type': [{ value: 'residential', mapping: '住宅' }],
-  'house.house_status': [{ value: 'vacant', mapping: '空置' }],
-  'house.house_publish_status': [{ value: 'draft', mapping: '草稿' }],
+  'house.estate_property_type': [{ label: '住宅', value: 'residential' }],
+  'house.house_status': [{ label: '空置', value: 'vacant' }],
+  'house.house_publish_status': [{ label: '草稿', value: 'draft' }],
   'house.viewing_record_status': [
-    { value: 'scheduled', mapping: '已预约' },
-    { value: 'viewed', mapping: '已带看' },
-    { value: 'converted', mapping: '已成交' },
-    { value: 'canceled', mapping: '已取消' },
-    { value: 'no_show', mapping: '爽约' },
+    { label: '已预约', value: 'scheduled' },
+    { label: '已带看', value: 'viewed' },
+    { label: '已成交', value: 'converted' },
+    { label: '已取消', value: 'canceled' },
+    { label: '爽约', value: 'no_show' },
   ],
   'house.lease_status': [
-    { value: 'pending', mapping: '待生效' },
-    { value: 'active', mapping: '生效中' },
-    { value: 'expired', mapping: '已到期' },
-    { value: 'terminated', mapping: '已终止' },
+    { label: '待生效', value: 'pending' },
+    { label: '生效中', value: 'active' },
+    { label: '已到期', value: 'expired' },
+    { label: '已终止', value: 'terminated' },
   ],
 };
 
 vi.mock('@/services/manual/enums', () => ({
   enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
   enumOptionMapping: (enumMap: typeof enumData | undefined, key: keyof typeof enumData, value?: string | null) =>
-    value ? enumMap?.[key]?.find((item) => item.value === value)?.mapping || value : '-',
-  enumSelectOptions: (enumMap: typeof enumData | undefined, key: keyof typeof enumData) =>
-    (enumMap?.[key] || []).map((item) => ({ value: item.value, label: item.mapping })),
+    value ? enumMap?.[key]?.find((item) => item.value === value)?.label || value : '-',
+  enumSelectOptions: (enumMap: typeof enumData | undefined, key: keyof typeof enumData) => enumMap?.[key] || [],
   useEnums: () => ({ data: enumData }),
 }));
 

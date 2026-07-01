@@ -42,8 +42,7 @@ vi.mock('@/services/openapi/userAdmin', () => ({
 
 vi.mock('@/services/manual/enums', () => ({
   enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
-  enumSelectOptions: (enumMap: Record<string, { value: string; mapping: string }[]> | undefined, key: string) =>
-    (enumMap?.[key] || []).map((item) => ({ label: item.mapping, value: item.value })),
+  enumSelectOptions: (enumMap: Record<string, { label: string; value: string }[]> | undefined, key: string) => enumMap?.[key] || [],
   useEnums: mockUseEnums,
 }));
 
@@ -53,18 +52,6 @@ describe('PlatformUsersPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    mockGetEnumRegistry.mockResolvedValue({
-      'accounts.real_name_status': [
-        { value: 'unverified', mapping: '未实名' },
-        { value: 'pending', mapping: '待校验' },
-        { value: 'verified', mapping: '已实名' },
-      ],
-      'accounts.admin_user_role': [
-        { value: 'superuser', mapping: '超级管理员' },
-        { value: 'staff', mapping: '后台账号' },
-        { value: 'user', mapping: '普通账号' },
-      ],
-    });
     mockListUsers.mockResolvedValue({
       items: [
         {
@@ -117,13 +104,13 @@ describe('PlatformUsersPage', () => {
     mockUseEnums.mockReturnValue({
       data: {
         'accounts.admin_user_role': [
-          { value: 'superuser', mapping: '超级管理员' },
-          { value: 'staff', mapping: '后台账号' },
-          { value: 'user', mapping: '普通账号' },
+          { label: '超级管理员', value: 'superuser' },
+          { label: '后台账号', value: 'staff' },
+          { label: '普通账号', value: 'user' },
         ],
         'accounts.real_name_status': [
-          { value: 'rejected', mapping: '已驳回' },
-          { value: 'pending', mapping: '待校验' },
+          { label: '已驳回', value: 'rejected' },
+          { label: '待校验', value: 'pending' },
         ],
       },
     });

@@ -1,178 +1,109 @@
-import { request } from '@umijs/max';
+import {
+  appsHouseApiCreateBuilding,
+  appsHouseApiCreateContact,
+  appsHouseApiCreateEstate,
+  appsHouseApiCreateHouse,
+  appsHouseApiCreateLease,
+  appsHouseApiCreateViewingRecord,
+  appsHouseApiGetBuilding,
+  appsHouseApiGetContact,
+  appsHouseApiGetDefaultBuilding,
+  appsHouseApiGetEstate,
+  appsHouseApiGetHouse,
+  appsHouseApiGetLease,
+  appsHouseApiListBuildings,
+  appsHouseApiListContacts,
+  appsHouseApiListEstates,
+  appsHouseApiListHouses,
+  appsHouseApiListLeases,
+  appsHouseApiListViewingRecords,
+  appsHouseApiPatchBuilding,
+  appsHouseApiPatchContact,
+  appsHouseApiPatchEstate,
+  appsHouseApiPatchHouse,
+  appsHouseApiPatchLease,
+  appsHouseApiPatchViewingRecord,
+  appsHouseApiPutDefaultBuilding,
+} from '@/services/openapi/propertyRentalManagement';
 
-export interface PageResult<T> {
+export type PageResult<T> = {
   items: T[];
   total: number;
   page: number;
   page_size: number;
-}
+};
 
-export interface EstateOut {
-  id: number;
-  name: string;
-  display_name: string;
-  property_type: string;
+export type EstateOut = API.EstateOut & {
   property_type__mapping?: string;
-  province: string;
-  city: string;
-  district: string;
-  address: string;
-  lat?: string | null;
-  lng?: string | null;
-  images: Record<string, unknown>[];
-  description?: string;
-  is_active: boolean;
-}
-
-export interface BuildingOut {
-  id: number;
-  estate_id: number;
-  estate_name?: string;
-  name: string;
-  floors: number;
-  under_floors?: number | null;
-  year_built?: number | null;
-  elevator: boolean;
-  lat?: string | null;
-  lng?: string | null;
-  address: string;
-  is_active: boolean;
-}
-
-export interface DefaultBuildingOut {
-  id: number;
-  estate_id: number;
-  estate_name: string;
-  name: string;
-  floors: number;
-  address: string;
-}
-
-export interface ContactOut {
-  id: number;
-  name: string;
-  phone: string;
-  email: string;
-  roles: string[];
+};
+export type BuildingOut = API.BuildingOut;
+export type DefaultBuildingOut = API.DefaultBuildingOut;
+export type ContactOut = API.ContactOut & {
   roles__mapping?: string[];
-  user_id?: number | null;
-  notes: string;
-  is_active: boolean;
-}
-
-export interface HouseOut {
-  id: number;
-  building_id: number;
-  building_name?: string;
-  estate_name?: string;
-  landlord_id?: number | null;
-  landlord_name?: string | null;
-  landlord_phone?: string | null;
-  house_label?: string;
-  room_number: string;
-  floor?: number | null;
-  area?: string | null;
-  interior_area?: string | null;
-  asking_rent?: string | null;
-  deposit_amount?: string | null;
-  available_from?: string | null;
-  bedrooms?: number | null;
-  living_rooms?: number | null;
-  bathrooms?: number | null;
-  kitchens?: number | null;
-  balconies?: number | null;
-  orientation?: string | null;
+};
+export type HouseOut = API.HouseOut & {
   orientation__mapping?: string;
-  decoration?: string | null;
   decoration__mapping?: string;
-  has_elevator_access: boolean;
-  status: string;
   status__mapping?: string;
-  publish_status: string;
   publish_status__mapping?: string;
-  images: Record<string, unknown>[];
-  videos: Record<string, unknown>[];
-  tags: string[];
-  public_description: string;
-  internal_notes: string;
-  extra: Record<string, unknown>;
-  is_active: boolean;
-  publish_can_publish: boolean;
-  publish_blocking_issues: string[];
-  publish_warning_issues: string[];
-  publish_rule_snapshot: Record<string, unknown>;
-}
-
-export interface ViewingRecordOut {
-  id: number;
-  house_id: number;
-  house_label?: string;
-  contact_id?: number | null;
-  contact_name?: string | null;
-  contact_phone?: string | null;
-  customer_name: string;
-  customer_phone: string;
-  scheduled_at: string;
-  viewed_at?: string | null;
-  status: string;
+};
+export type ViewingRecordOut = API.ViewingRecordOut & {
   status__mapping?: string;
-  assigned_to_id?: number | null;
-  notes: string;
-  extra?: Record<string, unknown>;
-  is_active: boolean;
-  signed_lease_id?: number | null;
-}
-
-export interface LeaseOut {
-  id: number;
-  house_id: number;
-  house_label?: string;
-  tenant_id: number;
-  tenant_name?: string;
-  tenant_phone?: string;
-  source_viewing_record_id?: number | null;
-  source_viewing_record_label?: string | null;
-  sign_at?: string | null;
-  start_date: string;
-  end_date: string;
-  monthly_rent: string;
-  deposit?: string | null;
-  payment_day: number;
-  status: string;
+};
+export type LeaseOut = API.LeaseOut & {
   status__mapping?: string;
-  contract_files: Record<string, unknown>[];
-  notes: string;
-  extra?: Record<string, unknown>;
-}
+};
 
-const list = <T>(url: string, params?: Record<string, unknown>) => request<PageResult<T>>(url, { method: 'GET', params });
-const create = <T>(url: string, data: Record<string, unknown>) => request<T>(url, { method: 'POST', data });
-const patch = <T>(url: string, data: Record<string, unknown>) => request<T>(url, { method: 'PATCH', data });
+type QueryParams = Record<string, unknown>;
+type Payload = Record<string, unknown>;
 
 export const houseApi = {
-  listEstates: (params?: Record<string, unknown>) => list<EstateOut>('/api/house/estates/', params),
-  getEstate: (estateId: number) => request<EstateOut>(`/api/house/estates/${estateId}/`, { method: 'GET' }),
-  createEstate: (data: Record<string, unknown>) => create<EstateOut>('/api/house/estates/', data),
-  patchEstate: (estateId: number, data: Record<string, unknown>) => patch<EstateOut>(`/api/house/estates/${estateId}/`, data),
-  listBuildings: (params?: Record<string, unknown>) => list<BuildingOut>('/api/house/buildings/', params),
-  getBuilding: (buildingId: number) => request<BuildingOut>(`/api/house/buildings/${buildingId}/`, { method: 'GET' }),
-  createBuilding: (data: Record<string, unknown>) => create<BuildingOut>('/api/house/buildings/', data),
-  patchBuilding: (buildingId: number, data: Record<string, unknown>) => patch<BuildingOut>(`/api/house/buildings/${buildingId}/`, data),
-  getDefaultBuilding: () => request<DefaultBuildingOut>('/api/house/default-building/', { method: 'GET' }),
-  setDefaultBuilding: (buildingId: number) => request<DefaultBuildingOut>('/api/house/default-building/', { method: 'PUT', data: { building_id: buildingId } }),
-  listContacts: (params?: Record<string, unknown>) => list<ContactOut>('/api/house/contacts/', params),
-  getContact: (contactId: number) => request<ContactOut>(`/api/house/contacts/${contactId}/`, { method: 'GET' }),
-  createContact: (data: Record<string, unknown>) => create<ContactOut>('/api/house/contacts/', data),
-  patchContact: (contactId: number, data: Record<string, unknown>) => patch<ContactOut>(`/api/house/contacts/${contactId}/`, data),
-  listHouses: (params?: Record<string, unknown>) => list<HouseOut>('/api/house/houses/', params),
-  getHouse: (houseId: number) => request<HouseOut>(`/api/house/houses/${houseId}/`, { method: 'GET' }),
-  createHouse: (data: Record<string, unknown>) => create<HouseOut>('/api/house/houses/', data),
-  patchHouse: (houseId: number, data: Record<string, unknown>) => patch<HouseOut>(`/api/house/houses/${houseId}/`, data),
-  listViewingRecords: (params?: Record<string, unknown>) => list<ViewingRecordOut>('/api/house/viewing-records/', params),
-  createViewingRecord: (data: Record<string, unknown>) => create<ViewingRecordOut>('/api/house/viewing-records/', data),
-  patchViewingRecord: (recordId: number, data: Record<string, unknown>) => patch<ViewingRecordOut>(`/api/house/viewing-records/${recordId}/`, data),
-  listLeases: (params?: Record<string, unknown>) => list<LeaseOut>('/api/house/leases/', params),
-  getLease: (leaseId: number) => request<LeaseOut>(`/api/house/leases/${leaseId}/`, { method: 'GET' }),
-  createLease: (data: Record<string, unknown>) => create<LeaseOut>('/api/house/leases/', data),
-  patchLease: (leaseId: number, data: Record<string, unknown>) => patch<LeaseOut>(`/api/house/leases/${leaseId}/`, data),
+  listEstates: (params?: QueryParams) =>
+    appsHouseApiListEstates((params ?? {}) as API.appsHouseApiListEstatesParams) as Promise<PageResult<EstateOut>>,
+  getEstate: (estateId: number) => appsHouseApiGetEstate({ estate_id: estateId }) as Promise<EstateOut>,
+  createEstate: (data: Payload) => appsHouseApiCreateEstate(data as API.EstateIn) as Promise<EstateOut>,
+  patchEstate: (estateId: number, data: Payload) =>
+    appsHouseApiPatchEstate({ estate_id: estateId }, data as API.EstatePatchIn) as Promise<EstateOut>,
+
+  listBuildings: (params?: QueryParams) =>
+    appsHouseApiListBuildings((params ?? {}) as API.appsHouseApiListBuildingsParams) as Promise<PageResult<BuildingOut>>,
+  getBuilding: (buildingId: number) => appsHouseApiGetBuilding({ building_id: buildingId }) as Promise<BuildingOut>,
+  createBuilding: (data: Payload) => appsHouseApiCreateBuilding(data as API.BuildingIn) as Promise<BuildingOut>,
+  patchBuilding: (buildingId: number, data: Payload) =>
+    appsHouseApiPatchBuilding({ building_id: buildingId }, data as API.BuildingPatchIn) as Promise<BuildingOut>,
+  getDefaultBuilding: () => appsHouseApiGetDefaultBuilding() as Promise<DefaultBuildingOut>,
+  setDefaultBuilding: (buildingId: number) =>
+    appsHouseApiPutDefaultBuilding({ building_id: buildingId }) as Promise<DefaultBuildingOut>,
+
+  listContacts: (params?: QueryParams) =>
+    appsHouseApiListContacts((params ?? {}) as API.appsHouseApiListContactsParams) as Promise<PageResult<ContactOut>>,
+  getContact: (contactId: number) => appsHouseApiGetContact({ contact_id: contactId }) as Promise<ContactOut>,
+  createContact: (data: Payload) => appsHouseApiCreateContact(data as API.ContactIn) as Promise<ContactOut>,
+  patchContact: (contactId: number, data: Payload) =>
+    appsHouseApiPatchContact({ contact_id: contactId }, data as API.ContactPatchIn) as Promise<ContactOut>,
+
+  listHouses: (params?: QueryParams) =>
+    appsHouseApiListHouses((params ?? {}) as API.appsHouseApiListHousesParams) as Promise<PageResult<HouseOut>>,
+  getHouse: (houseId: number) => appsHouseApiGetHouse({ house_id: houseId }) as Promise<HouseOut>,
+  createHouse: (data: Payload) => appsHouseApiCreateHouse(data as API.HouseIn) as Promise<HouseOut>,
+  patchHouse: (houseId: number, data: Payload) =>
+    appsHouseApiPatchHouse({ house_id: houseId }, data as API.HousePatchIn) as Promise<HouseOut>,
+
+  listViewingRecords: (params?: QueryParams) =>
+    appsHouseApiListViewingRecords(
+      (params ?? {}) as API.appsHouseApiListViewingRecordsParams,
+    ) as Promise<PageResult<ViewingRecordOut>>,
+  createViewingRecord: (data: Payload) => appsHouseApiCreateViewingRecord(data as API.ViewingRecordIn) as Promise<ViewingRecordOut>,
+  patchViewingRecord: (recordId: number, data: Payload) =>
+    appsHouseApiPatchViewingRecord(
+      { record_id: recordId },
+      data as API.ViewingRecordPatchIn,
+    ) as Promise<ViewingRecordOut>,
+
+  listLeases: (params?: QueryParams) =>
+    appsHouseApiListLeases((params ?? {}) as API.appsHouseApiListLeasesParams) as Promise<PageResult<LeaseOut>>,
+  getLease: (leaseId: number) => appsHouseApiGetLease({ lease_id: leaseId }) as Promise<LeaseOut>,
+  createLease: (data: Payload) => appsHouseApiCreateLease(data as API.LeaseIn) as Promise<LeaseOut>,
+  patchLease: (leaseId: number, data: Payload) =>
+    appsHouseApiPatchLease({ lease_id: leaseId }, data as API.LeasePatchIn) as Promise<LeaseOut>,
 };

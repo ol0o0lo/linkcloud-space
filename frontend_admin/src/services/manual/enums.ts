@@ -2,8 +2,8 @@ import { request } from '@umijs/max';
 import { useQuery } from '@tanstack/react-query';
 
 export type EnumOption = {
+  label: string;
   value: string;
-  mapping: string;
 };
 
 export type EnumMap = Record<string, EnumOption[]>;
@@ -24,10 +24,7 @@ export function useEnums(keys: string[]) {
 }
 
 export function enumSelectOptions(enumMap: EnumMap | undefined, key: string) {
-  return (enumMap?.[key] || []).map((item) => ({
-    value: item.value,
-    label: item.mapping,
-  }));
+  return enumMap?.[key] || [];
 }
 
 export function enumMapping(value: string | undefined | null, mapping: string | undefined | null) {
@@ -36,5 +33,5 @@ export function enumMapping(value: string | undefined | null, mapping: string | 
 
 export function enumOptionMapping(enumMap: EnumMap | undefined, key: string, value?: string | null) {
   if (!value) return '-';
-  return enumMap?.[key]?.find((item) => item.value === value)?.mapping || value;
+  return enumMap?.[key]?.find((item) => item.value === value)?.label || value;
 }

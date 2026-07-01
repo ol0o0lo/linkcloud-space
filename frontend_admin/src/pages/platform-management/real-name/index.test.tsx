@@ -33,8 +33,7 @@ vi.mock('@/services/openapi/realNameAdmin', () => ({
 
 vi.mock('@/services/manual/enums', () => ({
   enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
-  enumSelectOptions: (enumMap: Record<string, { value: string; mapping: string }[]> | undefined, key: string) =>
-    (enumMap?.[key] || []).map((item) => ({ label: item.mapping, value: item.value })),
+  enumSelectOptions: (enumMap: Record<string, { label: string; value: string }[]> | undefined, key: string) => enumMap?.[key] || [],
   useEnums: mockUseEnums,
 }));
 
@@ -44,15 +43,6 @@ describe('RealNameAdminPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    mockGetEnumRegistry.mockResolvedValue({
-      'accounts.real_name_status': [
-        { value: 'pending', mapping: '待校验' },
-        { value: 'manual_review', mapping: '人工复核' },
-        { value: 'verified', mapping: '已实名' },
-        { value: 'rejected', mapping: '已驳回' },
-        { value: 'revoked', mapping: '已撤销' },
-      ],
-    });
     mockList.mockResolvedValue({
       items: [
         {
@@ -110,8 +100,8 @@ describe('RealNameAdminPage', () => {
     mockUseEnums.mockReturnValue({
       data: {
         'accounts.real_name_status': [
-          { value: 'manual_review', mapping: '人工复核' },
-          { value: 'verified', mapping: '已实名' },
+          { label: '人工复核', value: 'manual_review' },
+          { label: '已实名', value: 'verified' },
         ],
       },
     });
