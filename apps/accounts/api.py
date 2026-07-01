@@ -58,7 +58,6 @@ from apps.accounts.services import (
     set_user_avatar,
     submit_real_name_verification,
 )
-from apps.base.enum_registry import enum_mapping
 from apps.base.ninja_pagination import make_pagination
 from apps.base.permissions import require_authenticated, require_superuser
 

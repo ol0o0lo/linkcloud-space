@@ -3,23 +3,15 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils.translation import gettext_lazy as _
 
 from apps.base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
+from apps.notifications.constants import NotificationDispatchScope, NotificationDispatchStatus
 from apps.notifications.managers import NotificationQuerySet
 
 
 class NotificationDispatch(BaseModelMixin):
-    class Scope(models.TextChoices):
-        PLATFORM = "platform", _("Platform")
-        ORGANIZATION = "organization", _("Organization")
-        USERS = "users", _("Users")
-
-    class Status(models.TextChoices):
-        PENDING = "pending", _("Pending")
-        SENDING = "sending", _("Sending")
-        SENT = "sent", _("Sent")
-        FAILED = "failed", _("Failed")
+    Scope = NotificationDispatchScope
+    Status = NotificationDispatchStatus
 
     owner_organization = models.ForeignKey(
         "organizations.Organization",
@@ -29,14 +21,14 @@ class NotificationDispatch(BaseModelMixin):
         blank=True,
         help_text="Management owner; null means platform-owned.",
     )
-    scope = models.CharField(max_length=32, choices=Scope.choices)
+    scope = models.CharField(max_length=32, choices=NotificationDispatchScope.choices)
     scope_ids = models.JSONField(default=list, blank=True)
     category = models.CharField(max_length=64, blank=True)
     title = models.CharField(max_length=255)
     body = models.TextField(blank=True)
     url = models.CharField(max_length=500, null=True, blank=True)
     data = models.JSONField(default=dict, blank=True)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=20, choices=NotificationDispatchStatus.choices, default=NotificationDispatchStatus.PENDING)
     target_count = models.PositiveIntegerField(default=0)
     delivered_count = models.PositiveIntegerField(default=0)
     error_message = models.TextField(blank=True)

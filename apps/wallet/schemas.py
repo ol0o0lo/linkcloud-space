@@ -3,8 +3,11 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from apps.base.enum_registry import enum_field_mapping
 from apps.wallet.constants import PayoutStatus, WalletEntryType, WithdrawalPayChannel, WithdrawalStatus
+
+
+def _obj_value(obj, field: str):
+    return obj.get(field) if isinstance(obj, dict) else getattr(obj, field, None)
 
 
 class WalletSummaryOut(Schema):
@@ -45,7 +48,7 @@ class WalletLedgerOut(Schema):
 
     @staticmethod
     def resolve_entry_type__mapping(obj):
-        return enum_field_mapping(WalletEntryType, obj, "entry_type")
+        return WalletEntryType.get_choice_label(_obj_value(obj, "entry_type"))
 
 
 class WithdrawalIn(Schema):
@@ -76,11 +79,11 @@ class WithdrawalOut(Schema):
 
     @staticmethod
     def resolve_status__mapping(obj):
-        return enum_field_mapping(WithdrawalStatus, obj, "status")
+        return WithdrawalStatus.get_choice_label(_obj_value(obj, "status"))
 
     @staticmethod
     def resolve_pay_channel__mapping(obj):
-        return enum_field_mapping(WithdrawalPayChannel, obj, "pay_channel")
+        return WithdrawalPayChannel.get_choice_label(_obj_value(obj, "pay_channel"))
 
 
 class WalletAdjustmentIn(Schema):
@@ -136,7 +139,7 @@ class WithdrawalPayoutOut(Schema):
 
     @staticmethod
     def resolve_status__mapping(obj):
-        return enum_field_mapping(PayoutStatus, obj, "status")
+        return PayoutStatus.get_choice_label(_obj_value(obj, "status"))
 
 
 class ReconcileOut(Schema):

@@ -10,7 +10,7 @@ from ninja.pagination import paginate
 from apps.accounts.models import User
 from apps.base.ninja_pagination import LegacyPagination
 from apps.notifications.categories import get_categories, get_category
-from apps.notifications.constants import NotificationChannel
+from apps.notifications.constants import NotificationChannel, NotificationDispatchScope
 from apps.notifications.models import Notification, NotificationDispatch, NotificationPreference
 from apps.notifications.schemas import (
     BulkActionIn,
@@ -165,13 +165,13 @@ def _validate_existing_scope_ids(payload: NotificationDispatchIn) -> None:
     if not target_ids:
         return
 
-    if payload.scope == NotificationDispatch.Scope.ORGANIZATION:
+    if payload.scope == NotificationDispatchScope.ORGANIZATION:
         existing_ids = set(Organization.objects.filter(pk__in=target_ids).values_list("pk", flat=True))
         missing_ids = sorted(target_ids - existing_ids)
         if missing_ids:
             raise HttpError(400, f"Unknown organization ids: {missing_ids}")
 
-    if payload.scope == NotificationDispatch.Scope.USERS:
+    if payload.scope == NotificationDispatchScope.USERS:
         existing_ids = set(User.objects.filter(pk__in=target_ids).values_list("pk", flat=True))
         missing_ids = sorted(target_ids - existing_ids)
         if missing_ids:
@@ -187,10 +187,10 @@ def _validate_dispatch_scope(request, payload: NotificationDispatchIn) -> int | 
     if org_id is None:
         raise HttpError(403, "Only organization owners can manage notification dispatches.")
 
-    if payload.scope == NotificationDispatch.Scope.PLATFORM:
+    if payload.scope == NotificationDispatchScope.PLATFORM:
         raise HttpError(403, "Tenant owners cannot create platform notification dispatches.")
 
-    if payload.scope == NotificationDispatch.Scope.ORGANIZATION:
+    if payload.scope == NotificationDispatchScope.ORGANIZATION:
         if payload.scope_ids != [org_id]:
             raise HttpError(403, "Tenant organization dispatches must target the current organization.")
         return org_id

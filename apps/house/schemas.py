@@ -5,7 +5,6 @@ from typing import Any
 from ninja import Schema
 from pydantic import ConfigDict, Field
 
-from apps.base.enum_registry import enum_list_mapping, enum_mapping
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
 
 
@@ -60,7 +59,7 @@ class EstateOut(Schema):
 
     @staticmethod
     def resolve_property_type__mapping(obj):
-        return enum_mapping(EstatePropertyType, obj.property_type)
+        return EstatePropertyType.get_choice_label(obj.property_type)
 
     @staticmethod
     def resolve_images(obj):
@@ -160,7 +159,7 @@ class ContactOut(Schema):
 
     @staticmethod
     def resolve_roles__mapping(obj):
-        return enum_list_mapping(ContactRole, obj.roles)
+        return [ContactRole.get_choice_label(role) for role in (obj.roles or [])]
 
 
 class HouseIn(Schema):
@@ -262,19 +261,23 @@ class HouseOut(Schema):
 
     @staticmethod
     def resolve_orientation__mapping(obj):
-        return enum_mapping(HouseOrientation, obj.orientation)
+        if not obj.orientation:
+            return ""
+        return HouseOrientation.get_choice_label(obj.orientation)
 
     @staticmethod
     def resolve_decoration__mapping(obj):
-        return enum_mapping(HouseDecoration, obj.decoration)
+        if not obj.decoration:
+            return ""
+        return HouseDecoration.get_choice_label(obj.decoration)
 
     @staticmethod
     def resolve_status__mapping(obj):
-        return enum_mapping(HouseStatus, obj.status)
+        return HouseStatus.get_choice_label(obj.status)
 
     @staticmethod
     def resolve_publish_status__mapping(obj):
-        return enum_mapping(HousePublishStatus, obj.publish_status)
+        return HousePublishStatus.get_choice_label(obj.publish_status)
 
     @staticmethod
     def resolve_building_name(obj):
@@ -368,7 +371,7 @@ class ViewingRecordOut(Schema):
 
     @staticmethod
     def resolve_status__mapping(obj):
-        return enum_mapping(ViewingRecordStatus, obj.status)
+        return ViewingRecordStatus.get_choice_label(obj.status)
 
     @staticmethod
     def resolve_house_label(obj):
@@ -447,7 +450,7 @@ class LeaseOut(Schema):
 
     @staticmethod
     def resolve_status__mapping(obj):
-        return enum_mapping(LeaseStatus, obj.status)
+        return LeaseStatus.get_choice_label(obj.status)
 
     @staticmethod
     def resolve_house_label(obj):

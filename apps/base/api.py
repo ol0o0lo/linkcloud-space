@@ -6,7 +6,6 @@ from ninja import Router, Schema
 from ninja.errors import HttpError
 
 from apps.accounts.models import User
-from apps.base.enum_registry import selected_enum_options
 from apps.base.permissions import require_superuser
 from apps.base.utils.email import send_email
 from apps.base.utils.timezones import get_timezone_label
@@ -62,6 +61,7 @@ class AppContextOut(Schema):
 def _get_app_version() -> str:
     return "unknown"
 
+
 @router.get("/version/", auth=None, summary="获取应用版本")
 def get_version(request):
     """返回当前前端构建版本标识，用于客户端版本展示与调试。"""
@@ -71,7 +71,62 @@ def get_version(request):
 @router.get("/enums/", auth=None, summary="获取后端枚举映射")
 def list_enums(request):
     """返回前端筛选和回显需要的后端枚举值。"""
-    return selected_enum_options(request.GET.get("keys"))
+    from apps.access.constants import AccessPermission, AccessRoleCode, AccessScope, FinancePermission, OrganizationPermission, SettingsPermission, TeamPermission
+    from apps.accounts.constants import AdminUserRole, RealNameIdCardSide, RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
+    from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
+    from apps.media.constants import MediaExtension, MediaScope, MediaType, ResourceType
+    from apps.notifications.constants import NotificationChannel, NotificationDispatchScope, NotificationDispatchStatus
+    from apps.referrals.constants import ReferralDisplayLevel, ReferralRecordStatus, ReferralTriggerEvent
+    from apps.settings.constants import SettingWidget, ValueType
+    from apps.wallet.constants import PayoutStatus, WalletEntryType, WithdrawalPayChannel, WithdrawalStatus
+
+    registry = {
+        "access.scope": AccessScope,
+        "access.role_code": AccessRoleCode,
+        "access.permission": AccessPermission,
+        "access.organization_permission": OrganizationPermission,
+        "access.team_permission": TeamPermission,
+        "access.settings_permission": SettingsPermission,
+        "access.finance_permission": FinancePermission,
+        "accounts.admin_user_role": AdminUserRole,
+        "accounts.real_name_status": RealNameStatus,
+        "accounts.real_name_source": RealNameSource,
+        "accounts.real_name_provider": RealNameProvider,
+        "accounts.real_name_log_action": RealNameLogAction,
+        "accounts.real_name_id_card_side": RealNameIdCardSide,
+        "house.estate_property_type": EstatePropertyType,
+        "house.contact_role": ContactRole,
+        "house.house_orientation": HouseOrientation,
+        "house.house_decoration": HouseDecoration,
+        "house.house_status": HouseStatus,
+        "house.house_publish_status": HousePublishStatus,
+        "house.viewing_record_status": ViewingRecordStatus,
+        "house.lease_status": LeaseStatus,
+        "media.scope": MediaScope,
+        "media.extension": MediaExtension,
+        "media.resource_type": ResourceType,
+        "media.media_type": MediaType,
+        "notifications.channel": NotificationChannel,
+        "notifications.dispatch_scope": NotificationDispatchScope,
+        "notifications.dispatch_status": NotificationDispatchStatus,
+        "referrals.record_status": ReferralRecordStatus,
+        "referrals.display_level": ReferralDisplayLevel,
+        "referrals.trigger_event": ReferralTriggerEvent,
+        "settings.value_type": ValueType,
+        "settings.widget": SettingWidget,
+        "wallet.entry_type": WalletEntryType,
+        "wallet.withdrawal_pay_channel": WithdrawalPayChannel,
+        "wallet.withdrawal_status": WithdrawalStatus,
+        "wallet.payout_status": PayoutStatus,
+    }
+    keys = request.GET.get("keys")
+    if keys:
+        try:
+            registry = {key: registry[key] for key in keys.split(",")}
+        except KeyError as exc:
+            raise HttpError(400, f"Unknown enum key: {exc.args[0]}") from exc
+
+    return {key: [{"label": str(label), "value": str(value)} for value, label in enum_cls.choices] for key, enum_cls in registry.items()}
 
 
 @router.get("/app-context/", auth=None, response=AppContextOut, summary="获取应用上下文")

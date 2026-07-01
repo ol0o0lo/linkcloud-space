@@ -2,6 +2,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.notifications.constants import NotificationDispatchScope, NotificationDispatchStatus
 from apps.notifications.models import NotificationDispatch
 from apps.notifications.services import notify
 from apps.organizations.models import Organization, OrganizationMember
@@ -11,11 +12,11 @@ def resolve_dispatch_recipients(dispatch: NotificationDispatch) -> list[User]:
     """Resolve active users targeted by a management dispatch."""
     recipients = User.objects.filter(is_active=True)
 
-    if dispatch.owner_organization_id and dispatch.scope == NotificationDispatch.Scope.ORGANIZATION:
+    if dispatch.owner_organization_id and dispatch.scope == NotificationDispatchScope.ORGANIZATION:
         recipients = recipients.filter(organizationmember__organization_id=dispatch.owner_organization_id)
-    elif dispatch.scope == NotificationDispatch.Scope.ORGANIZATION:
+    elif dispatch.scope == NotificationDispatchScope.ORGANIZATION:
         recipients = recipients.filter(organizationmember__organization_id__in=dispatch.scope_ids)
-    elif dispatch.scope == NotificationDispatch.Scope.USERS:
+    elif dispatch.scope == NotificationDispatchScope.USERS:
         recipients = recipients.filter(pk__in=dispatch.scope_ids)
 
     if dispatch.owner_organization_id:
@@ -33,7 +34,7 @@ def _notification_organization(dispatch: NotificationDispatch) -> Organization |
     """
     if dispatch.owner_organization_id:
         return dispatch.owner_organization
-    if dispatch.scope == NotificationDispatch.Scope.ORGANIZATION and len(dispatch.scope_ids) == 1:
+    if dispatch.scope == NotificationDispatchScope.ORGANIZATION and len(dispatch.scope_ids) == 1:
         return Organization.objects.filter(pk=dispatch.scope_ids[0]).first()
     return None
 
@@ -48,10 +49,10 @@ def execute_dispatch(dispatch_id: int) -> int:
     """
     with transaction.atomic():
         dispatch = NotificationDispatch.objects.select_for_update().get(pk=dispatch_id)
-        if dispatch.status == NotificationDispatch.Status.SENT:
+        if dispatch.status == NotificationDispatchStatus.SENT:
             return dispatch.delivered_count
 
-        dispatch.status = NotificationDispatch.Status.SENDING
+        dispatch.status = NotificationDispatchStatus.SENDING
         dispatch.error_message = ""
         dispatch.sent_at = None
         dispatch.save(update_fields=["status", "error_message", "sent_at", "updated_at"])
@@ -59,7 +60,7 @@ def execute_dispatch(dispatch_id: int) -> int:
         target_count = 0
         delivered_count = 0
 
-        if dispatch.owner_organization_id is None and dispatch.scope == NotificationDispatch.Scope.ORGANIZATION:
+        if dispatch.owner_organization_id is None and dispatch.scope == NotificationDispatchScope.ORGANIZATION:
             for organization_id in dict.fromkeys(dispatch.scope_ids):
                 organization = Organization.objects.get(pk=organization_id)
                 recipients = list(
@@ -98,7 +99,7 @@ def execute_dispatch(dispatch_id: int) -> int:
 
         dispatch.target_count = target_count
         dispatch.delivered_count = delivered_count
-        dispatch.status = NotificationDispatch.Status.SENT
+        dispatch.status = NotificationDispatchStatus.SENT
         dispatch.sent_at = timezone.now()
         dispatch.save(update_fields=["target_count", "delivered_count", "status", "sent_at", "updated_at"])
         return dispatch.delivered_count

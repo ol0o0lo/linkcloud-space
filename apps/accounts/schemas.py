@@ -4,7 +4,6 @@ from ninja import Schema
 from pydantic import Field, field_validator
 
 from apps.accounts.constants import AdminUserRole, RealNameIdCardSide, RealNameSource, RealNameStatus
-from apps.base.enum_registry import enum_mapping
 from apps.media.constants import MediaType
 from apps.media.schemas import MediaRefIn, ResolvedMediaRefOut
 
@@ -37,7 +36,7 @@ class UserOut(Schema):
 
     @staticmethod
     def resolve_real_name_status__mapping(obj):
-        return enum_mapping(RealNameStatus, obj.real_name_status)
+        return RealNameStatus.get_choice_label(obj.real_name_status)
 
 
 class AdminUserOut(UserOut):
@@ -57,7 +56,7 @@ class AdminUserOut(UserOut):
 
     @staticmethod
     def resolve_role__mapping(obj):
-        return enum_mapping(AdminUserRole, resolve_admin_user_role(obj))
+        return AdminUserRole.get_choice_label(resolve_admin_user_role(obj))
 
 
 class MeOut(Schema):

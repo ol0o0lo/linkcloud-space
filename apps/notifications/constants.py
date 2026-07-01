@@ -22,3 +22,16 @@ class NotificationChannel(StrChoices):
 
     IN_APP = "in_app", "In-app"
     EMAIL = "email", "Email"
+
+
+class NotificationDispatchScope(StrChoices):
+    PLATFORM = "platform", "Platform"
+    ORGANIZATION = "organization", "Organization"
+    USERS = "users", "Users"
+
+
+class NotificationDispatchStatus(StrChoices):
+    PENDING = "pending", "Pending"
+    SENDING = "sending", "Sending"
+    SENT = "sent", "Sent"
+    FAILED = "failed", "Failed"

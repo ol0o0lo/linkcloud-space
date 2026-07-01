@@ -4,9 +4,11 @@ from typing import Literal
 from ninja import Schema
 from pydantic import Field
 
-from apps.base.enum_registry import enum_field_mapping, enum_list_field_mapping
-from apps.notifications.constants import NotificationChannel
-from apps.notifications.models import NotificationDispatch
+from apps.notifications.constants import NotificationChannel, NotificationDispatchScope, NotificationDispatchStatus
+
+
+def _obj_value(obj, field: str):
+    return obj.get(field) if isinstance(obj, dict) else getattr(obj, field, None)
 
 
 class NotificationActorOut(Schema):
@@ -72,7 +74,7 @@ class NotificationPreferenceOut(Schema):
 
     @staticmethod
     def resolve_default_channels__mapping(obj):
-        return enum_list_field_mapping(NotificationChannel, obj, "default_channels")
+        return [NotificationChannel.get_choice_label(channel) for channel in (_obj_value(obj, "default_channels") or [])]
 
 
 class NotificationPreferencePatchIn(Schema):
@@ -113,8 +115,10 @@ class NotificationDispatchOut(Schema):
 
     @staticmethod
     def resolve_scope__mapping(obj):
-        return enum_field_mapping(NotificationDispatch.Scope, obj, "scope")
+        value = _obj_value(obj, "scope")
+        return NotificationDispatchScope.get_choice_label(value)
 
     @staticmethod
     def resolve_status__mapping(obj):
-        return enum_field_mapping(NotificationDispatch.Status, obj, "status")
+        value = _obj_value(obj, "status")
+        return NotificationDispatchStatus.get_choice_label(value)

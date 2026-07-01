@@ -7,6 +7,7 @@ from django.utils import timezone
 from celery import shared_task
 
 from apps.notifications.dispatches import execute_dispatch
+from apps.notifications.constants import NotificationDispatchStatus
 from apps.notifications.models import Notification, NotificationDispatch
 
 
@@ -41,8 +42,8 @@ def dispatch_notification(dispatch_id: int) -> int:
     try:
         return execute_dispatch(dispatch_id)
     except Exception as exc:
-        NotificationDispatch.objects.filter(pk=dispatch_id).exclude(status=NotificationDispatch.Status.SENT).update(
-            status=NotificationDispatch.Status.FAILED,
+        NotificationDispatch.objects.filter(pk=dispatch_id).exclude(status=NotificationDispatchStatus.SENT).update(
+            status=NotificationDispatchStatus.FAILED,
             error_message=str(exc)[:2000],
         )
         raise

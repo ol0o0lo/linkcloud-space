@@ -12,7 +12,6 @@ from ninja.errors import HttpError
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification, RealNameVerificationLog, normalize_phone, split_phone
-from apps.base.enum_registry import enum_mapping
 from apps.accounts.utils import (
     decrypt_identity_value,
     encrypt_identity_value,
