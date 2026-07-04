@@ -39,7 +39,7 @@ const BindingView: React.FC = () => {
           ? [<span key={`${item.provider}-connected`}>已绑定</span>]
           : [
               <Button key={`${item.provider}-bind`} type="link" onClick={() => startSocialBinding(item.provider)}>
-                {`绑定 ${item.label}`}
+                {`绑定${item.label}`}
               </Button>,
             ];
 
