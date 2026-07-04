@@ -11,7 +11,6 @@ import {
   InputNumber,
   Row,
   Space,
-  Statistic,
   Switch,
   Typography,
   Upload,
@@ -40,14 +39,6 @@ const sectionStyle: React.CSSProperties = {
   border: '1px solid var(--ant-color-border-secondary)',
   borderRadius: 8,
   background: 'var(--ant-color-fill-quaternary)',
-};
-
-const overviewTileStyle: React.CSSProperties = {
-  height: '100%',
-  padding: 16,
-  borderRadius: 8,
-  border: '1px solid var(--ant-color-border-secondary)',
-  background: 'var(--ant-color-bg-container)',
 };
 
 const SystemOperationsPage: React.FC = () => {
@@ -117,59 +108,12 @@ const SystemOperationsPage: React.FC = () => {
     staffUsers
       .map((user: any) => user.username || user.email || user.id)
       .join('、') || '-';
-  const notificationChannelCount = 2;
-  const uploadToolCount = 3;
 
   return (
     <PageContainer title="系统运维台" subTitle="查看版本并演练通知与上传链路。">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
           <div style={sectionStyle}>
-            <Typography.Text strong>运维概览</Typography.Text>
-            <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-              <Col xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Statistic
-                    title="系统版本"
-                    value={versionText || 'unknown'}
-                    styles={{ content: { fontSize: 20 } }}
-                  />
-                  <Typography.Text type="secondary">
-                    版本号用于确认当前联调和排障面对的是哪套环境。
-                  </Typography.Text>
-                </div>
-              </Col>
-              <Col xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Statistic title="可演练账号" value={staffUsers.length} />
-                  <Typography.Text type="secondary">
-                    这些账号可用于通知联调和基础后台运维演练。
-                  </Typography.Text>
-                </div>
-              </Col>
-              <Col xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Statistic
-                    title="通知通道"
-                    value={notificationChannelCount}
-                  />
-                  <Typography.Text type="secondary">
-                    当前演练覆盖邮件和站内两种触达方式。
-                  </Typography.Text>
-                </div>
-              </Col>
-              <Col xs={24} sm={12} xl={6}>
-                <div style={overviewTileStyle}>
-                  <Statistic title="上传链路段数" value={uploadToolCount} />
-                  <Typography.Text type="secondary">
-                    上传凭证、服务端上传、媒体登记对应三段不同问题域。
-                  </Typography.Text>
-                </div>
-              </Col>
-            </Row>
-          </div>
-
-          <div style={{ ...sectionStyle, marginTop: 16 }}>
             <Space orientation="vertical" size={12} style={fullWidthStyle}>
               <div>
                 <Typography.Text strong>基础元数据</Typography.Text>
@@ -244,12 +188,6 @@ const SystemOperationsPage: React.FC = () => {
           <Space orientation="vertical" size={16} style={fullWidthStyle}>
             <div style={sectionStyle}>
               <Typography.Text strong>上传凭证阶段</Typography.Text>
-              <Typography.Paragraph
-                type="secondary"
-                style={{ marginBottom: 0, marginTop: 8 }}
-              >
-                这里验证的是前端直传前需要的 OSS / S3 凭证能不能正常拿到。
-              </Typography.Paragraph>
               <Form
                 name="token-form"
                 form={tokenForm}
@@ -332,12 +270,6 @@ const SystemOperationsPage: React.FC = () => {
 
             <div style={sectionStyle}>
               <Typography.Text strong>服务端上传阶段</Typography.Text>
-              <Typography.Paragraph
-                type="secondary"
-                style={{ marginBottom: 0, marginTop: 8 }}
-              >
-                这里验证的是文件是否能绕过前端直传，直接通过服务端上传链路落库。
-              </Typography.Paragraph>
               <Form
                 name="server-upload-form"
                 form={serverUploadForm}
@@ -438,12 +370,6 @@ const SystemOperationsPage: React.FC = () => {
 
             <div style={sectionStyle}>
               <Typography.Text strong>媒体登记阶段</Typography.Text>
-              <Typography.Paragraph
-                type="secondary"
-                style={{ marginBottom: 0, marginTop: 8 }}
-              >
-                这里验证的是 OSS 文件路径能否正确登记成平台可识别的媒体记录。
-              </Typography.Paragraph>
               <Form
                 name="confirm-form"
                 form={confirmForm}

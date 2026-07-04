@@ -1,5 +1,6 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { PageContainer } from '@ant-design/pro-components';
+import { useMutation } from '@tanstack/react-query';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
@@ -8,15 +9,12 @@ import {
   Input,
   Modal,
   Space,
-  Table,
   Tag,
   Typography,
 } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import React, { useMemo, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  AdminToolbar,
   adminTableScroll,
   fullWidthStyle,
   ResponsiveActions,
@@ -36,7 +34,6 @@ import {
   JsonText,
   PayoutModal,
   formatWalletAmount,
-  walletQueryKeys,
 } from '../shared';
 
 type WithdrawalWithMapping = API.WithdrawalOut & {
@@ -53,22 +50,15 @@ type PayoutState = {
 type WithdrawalInsight = WithdrawalWithMapping & {
   status_label: string;
   status_color: string;
-  governance_label: string;
-  governance_summary: string;
-  operating_label: string;
-  operating_summary: string;
   is_review_pending: boolean;
   is_ready_for_payout: boolean;
   is_paying: boolean;
   is_retry_needed: boolean;
   is_closed: boolean;
 };
-
-const sectionStyle: React.CSSProperties = {
-  padding: 20,
-  border: '1px solid var(--ant-color-border-secondary)',
-  borderRadius: 8,
-  background: 'var(--ant-color-fill-quaternary)',
+type TablePageParams = {
+  current?: number;
+  pageSize?: number;
 };
 
 function buildWithdrawalInsight(
@@ -81,11 +71,6 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         status_color: 'gold',
-        governance_label: '审核待处理',
-        governance_summary:
-          '申请仍处于冻结待审核阶段，当前最重要的是确认资料、金额和风控判断。',
-        operating_label: '优先审核',
-        operating_summary: '决定是通过进入代付，还是驳回并把资金退回可用余额。',
         is_review_pending: true,
         is_ready_for_payout: false,
         is_paying: false,
@@ -97,12 +82,6 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         status_color: 'blue',
-        governance_label: '审核已通过',
-        governance_summary:
-          '申请已经通过审核，但还没有发起真实代付，容易在这里形成出款积压。',
-        operating_label: '发起代付',
-        operating_summary:
-          '补齐渠道与商户单号后推进出款，避免申请长期停留在已通过状态。',
         is_review_pending: false,
         is_ready_for_payout: true,
         is_paying: false,
@@ -114,11 +93,6 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         status_color: 'cyan',
-        governance_label: '等待渠道回调',
-        governance_summary:
-          '代付已发起，当前重点不是再次操作，而是确认回调和最终状态是否按时落账。',
-        operating_label: '跟踪回调',
-        operating_summary: '优先核查长时间未结束的打款单，避免重复发起代付。',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: true,
@@ -130,12 +104,6 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         status_color: 'red',
-        governance_label: '失败待重试',
-        governance_summary:
-          '渠道已经反馈失败，这类申请要先查失败原因，再决定是否重试代付。',
-        operating_label: '重试代付',
-        operating_summary:
-          '不要盲目重试，先确认失败原因和余额回流状态是否解释清楚。',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -147,12 +115,6 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         status_color: 'default',
-        governance_label: '审核已退回',
-        governance_summary:
-          '申请已被驳回，关注点从出款动作转为驳回理由是否足够支持补资料和复提。',
-        operating_label: '检查驳回理由',
-        operating_summary:
-          '确认驳回原因能否被前台用户理解，并检查资金是否已经回流可用余额。',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -164,11 +126,6 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         status_color: 'default',
-        governance_label: '用户已撤回',
-        governance_summary:
-          '申请已由用户主动撤销，这条记录主要保留用于审计和回溯。',
-        operating_label: '保留审计记录',
-        operating_summary: '确认撤销后余额已解冻即可，不需要再进入代付链路。',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -180,11 +137,6 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         status_color: 'green',
-        governance_label: '出款已完成',
-        governance_summary:
-          '资金已完成打款，后续重点转到对账一致性和到账确认。',
-        operating_label: '对账确认',
-        operating_summary: '重点检查到账、渠道回执和内部台账是否一致。',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -196,12 +148,6 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         status_color: 'default',
-        governance_label: '状态待识别',
-        governance_summary:
-          '这条申请使用了未分类状态，建议补充统一状态语义后再进一步治理。',
-        operating_label: '补齐状态语义',
-        operating_summary:
-          '先明确它属于审核、代付还是已收口阶段，再安排对应动作。',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -212,19 +158,14 @@ function buildWithdrawalInsight(
 }
 
 const WalletWithdrawalsPage: React.FC = () => {
-  const [page, setPage] = useState(1);
   const [reviewState, setReviewState] = useState<ReviewState>(null);
   const [payoutState, setPayoutState] = useState<PayoutState>(null);
+  const tableActionRef = useRef<ActionType>(null);
   const [reviewForm] = Form.useForm<API.WithdrawalReviewIn>();
   const [payoutForm] = Form.useForm<API.PayoutCreateIn>();
   const [reconcileDiffCount, setReconcileDiffCount] = useState<number | null>(
     null,
   );
-
-  const withdrawalsQuery = useQuery({
-    queryKey: walletQueryKeys.withdrawals(page),
-    queryFn: () => appsWalletApiAdminWithdrawals({ page, page_size: 10 }),
-  });
 
   const reviewMutation = useMutation({
     mutationFn: ({
@@ -238,7 +179,7 @@ const WalletWithdrawalsPage: React.FC = () => {
     onSuccess: async () => {
       setReviewState(null);
       reviewForm.resetFields();
-      await withdrawalsQuery.refetch();
+      tableActionRef.current?.reload();
     },
   });
   const payoutMutation = useMutation({
@@ -253,7 +194,7 @@ const WalletWithdrawalsPage: React.FC = () => {
     onSuccess: async () => {
       setPayoutState(null);
       payoutForm.resetFields();
-      await withdrawalsQuery.refetch();
+      tableActionRef.current?.reload();
     },
   });
   const retryMutation = useMutation({
@@ -268,7 +209,7 @@ const WalletWithdrawalsPage: React.FC = () => {
     onSuccess: async () => {
       setPayoutState(null);
       payoutForm.resetFields();
-      await withdrawalsQuery.refetch();
+      tableActionRef.current?.reload();
     },
   });
   const reconcileMutation = useMutation({
@@ -278,25 +219,13 @@ const WalletWithdrawalsPage: React.FC = () => {
     },
   });
 
-  const withdrawals = useMemo(
-    () => ((withdrawalsQuery.data?.items || []) as WithdrawalWithMapping[]).map((item) => buildWithdrawalInsight(item)),
-    [withdrawalsQuery.data?.items],
-  );
-
-  const columns: ColumnsType<WithdrawalInsight> = [
+  const columns: ProColumns<WithdrawalInsight>[] = [
     { title: '申请 ID', dataIndex: 'id', width: 110 },
     {
       title: '当前状态',
       dataIndex: 'status_label',
-      width: 220,
-      render: (_value, record) => (
-        <Space orientation="vertical" size={6}>
-          <Tag color={record.status_color}>{record.status_label}</Tag>
-          <Typography.Text type="secondary">
-            {record.governance_summary}
-          </Typography.Text>
-        </Space>
-      ),
+      width: 140,
+      render: (_value, record) => <Tag color={record.status_color}>{record.status_label}</Tag>,
     },
     {
       title: '资金结果',
@@ -326,19 +255,6 @@ const WalletWithdrawalsPage: React.FC = () => {
             {record.reviewed_at
               ? `审核 ${dayjs(record.reviewed_at).format('YYYY-MM-DD HH:mm')}`
               : '审核未完成'}
-          </Typography.Text>
-        </Space>
-      ),
-    },
-    {
-      title: '执行建议',
-      dataIndex: 'operating_label',
-      width: 240,
-      render: (_value, record) => (
-        <Space orientation="vertical" size={6}>
-          <Tag color={record.status_color}>{record.operating_label}</Tag>
-          <Typography.Text type="secondary">
-            {record.operating_summary}
           </Typography.Text>
         </Space>
       ),
@@ -410,18 +326,7 @@ const WalletWithdrawalsPage: React.FC = () => {
   return (
     <PageContainer title="提现审核" subTitle="处理提现审核、代付和重试。">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
-        <Card
-          extra={
-            <AdminToolbar>
-              <Button
-                loading={reconcileMutation.isPending}
-                onClick={() => void reconcileMutation.mutateAsync()}
-              >
-                执行对账
-              </Button>
-            </AdminToolbar>
-          }
-        >
+        <Card>
           {reconcileDiffCount !== null ? (
             <Alert
               type={reconcileDiffCount > 0 ? 'warning' : 'success'}
@@ -435,32 +340,37 @@ const WalletWithdrawalsPage: React.FC = () => {
             />
           ) : null}
 
-          <div style={sectionStyle}>
-            <Space orientation="vertical" size={12} style={fullWidthStyle}>
-              <div>
-                <Typography.Text strong>提现列表</Typography.Text>
-                <Typography.Paragraph
-                  type="secondary"
-                  style={{ marginBottom: 0, marginTop: 8 }}
-                >
-                  把审核、代付、失败重试和最终收口都放到同一张台账里看，避免运营只知道点动作，却不知道这笔钱现在处在哪个阶段。
-                </Typography.Paragraph>
-              </div>
-              <Table
-                rowKey="id"
-                loading={withdrawalsQuery.isLoading}
-                columns={columns}
-                dataSource={withdrawals}
-                scroll={adminTableScroll}
-                pagination={{
-                  current: withdrawalsQuery.data?.page || page,
-                  pageSize: withdrawalsQuery.data?.page_size || 10,
-                  total: withdrawalsQuery.data?.total || 0,
-                  onChange: setPage,
-                }}
-              />
-            </Space>
-          </div>
+          <ProTable<WithdrawalInsight>
+            actionRef={tableActionRef}
+            rowKey="id"
+            headerTitle="提现列表"
+            columns={columns}
+            request={async (params: TablePageParams) => {
+              const result = await appsWalletApiAdminWithdrawals({
+                page: params.current || 1,
+                page_size: params.pageSize || 10,
+              });
+              return {
+                data: ((result.items || []) as WithdrawalWithMapping[]).map((item) => buildWithdrawalInsight(item)),
+                total: result.total || 0,
+                success: true,
+              };
+            }}
+            search={false}
+            options={{ density: true, reload: false, setting: true }}
+            toolBarRender={() => [
+              <Button
+                key="reconcile"
+                loading={reconcileMutation.isPending}
+                onClick={() => void reconcileMutation.mutateAsync()}
+              >
+                执行对账
+              </Button>,
+            ]}
+            ghost
+            scroll={adminTableScroll}
+            pagination={{ defaultPageSize: 10 }}
+          />
         </Card>
 
         <Modal
