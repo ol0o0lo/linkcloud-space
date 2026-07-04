@@ -257,7 +257,7 @@ erDiagram
 - `lease_id`
 - `status`
 - `date_from`、`date_to`
-- `q`：按标题或来源摘要搜索
+- `keyword`：按标题或来源摘要搜索
 
 账单列表返回每条账单的聚合摘要，包括收入、成本、已收、已付、提成、净收益和公司留存。这些金额由 `BillEntry` 聚合，不在 `Bill` 上存缓存。
 
