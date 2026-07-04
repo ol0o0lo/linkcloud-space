@@ -16,6 +16,19 @@ class AdminUserRole(StrChoices):
     USER = "user", "普通账号"
 
 
+class PhoneCountryCode(StrChoices):
+    CN = "+86", "+86 (中国)"
+    HK = "+852", "+852 (香港)"
+    MO = "+853", "+853 (澳门)"
+    TW = "+886", "+886 (台湾)"
+    US = "+1", "+1 (美国)"
+    JP = "+81", "+81 (日本)"
+    KR = "+82", "+82 (韩国)"
+    SG = "+65", "+65 (新加坡)"
+    MY = "+60", "+60 (马来西亚)"
+    GB = "+44", "+44 (英国)"
+
+
 class RealNameSource(StrChoices):
     USER_SUBMIT = "user_submit", "用户主动提交"
     BUSINESS_GATE = "business_gate", "业务拦截触发"

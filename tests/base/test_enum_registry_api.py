@@ -4,7 +4,7 @@ from tests.api_helpers import api_data
 
 class TestEnumRegistryAPI(TestCase):
     def test_list_selected_enums(self):
-        response = self.client.get("/api/enums/", {"keys": "accounts.admin_user_role,accounts.real_name_status,wallet.withdrawal_status"})
+        response = self.client.get("/api/enums/", {"keys": "accounts.admin_user_role,accounts.phone_country_code,accounts.real_name_status,wallet.withdrawal_status"})
 
         data = api_data(response)
 
@@ -13,6 +13,7 @@ class TestEnumRegistryAPI(TestCase):
             {"label": "后台账号", "value": "staff"},
             {"label": "普通账号", "value": "user"},
         ]
+        assert {"label": "+86 (中国)", "value": "+86"} in data["accounts.phone_country_code"]
         assert data["accounts.real_name_status"][0] == {"label": "未实名", "value": "unverified"}
         assert {"label": "已实名", "value": "verified"} in data["accounts.real_name_status"]
         assert {"label": "待审核", "value": "pending_review"} in data["wallet.withdrawal_status"]
@@ -23,6 +24,7 @@ class TestEnumRegistryAPI(TestCase):
         data = api_data(response)
 
         assert "accounts.admin_user_role" in data
+        assert "accounts.phone_country_code" in data
         assert "accounts.real_name_status" in data
         assert "house.house_status" in data
         assert "wallet.withdrawal_status" in data

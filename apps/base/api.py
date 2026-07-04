@@ -72,7 +72,7 @@ def get_version(request):
 def list_enums(request):
     """返回前端筛选和回显需要的后端枚举值。"""
     from apps.access.constants import AccessPermission, AccessRoleCode, AccessScope, FinancePermission, OrganizationPermission, SettingsPermission, TeamPermission
-    from apps.accounts.constants import AdminUserRole, RealNameIdCardSide, RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
+    from apps.accounts.constants import AdminUserRole, PhoneCountryCode, RealNameIdCardSide, RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
     from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
     from apps.media.constants import MediaExtension, MediaScope, MediaType, ResourceType
     from apps.notifications.constants import NotificationChannel, NotificationDispatchScope, NotificationDispatchStatus
@@ -89,6 +89,7 @@ def list_enums(request):
         "access.settings_permission": SettingsPermission,
         "access.finance_permission": FinancePermission,
         "accounts.admin_user_role": AdminUserRole,
+        "accounts.phone_country_code": PhoneCountryCode,
         "accounts.real_name_status": RealNameStatus,
         "accounts.real_name_source": RealNameSource,
         "accounts.real_name_provider": RealNameProvider,
