@@ -1,25 +1,22 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { PageContainer } from '@ant-design/pro-components';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
 import {
-  Alert,
   Button,
   Card,
   Descriptions,
   Drawer,
   Form,
   Image,
-  Input,
   Select,
   Space,
   Table,
   Tag,
   Typography,
 } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import React, { useMemo, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  AdminToolbar,
   adminTableScroll,
   codeWrapStyle,
   drawerWidthLg,
@@ -46,7 +43,6 @@ import {
   NoteModal,
   StatusTag,
   personText,
-  platformQueryKeys,
 } from '../shared';
 
 type ReviewAction = 'approve' | 'reject' | 'manual' | 'revoke';
@@ -67,18 +63,16 @@ type RealNameDetailWithMapping = API.RealNameVerificationDetailOut & RealNameWit
 };
 type RealNameInsight = AdminRealNameRowWithMapping & {
   stage_color: string;
-  stage_summary: string;
-  governance_hint: string;
-  source_summary: string;
-  review_summary: string;
+};
+type RealNameSearchParams = {
+  current?: number;
+  pageSize?: number;
+  keyword?: string;
+  status?: string;
 };
 
-const sectionStyle: React.CSSProperties = {
-  padding: 20,
-  border: '1px solid var(--ant-color-border-secondary)',
-  borderRadius: 8,
-  background: 'var(--ant-color-fill-quaternary)',
-};
+const trimParam = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
 function buildPhoneLabel(user?: Record<string, any>) {
   const countryCode = user?.phone_country_code || '';
@@ -97,20 +91,10 @@ function buildUserSecondary(user?: Record<string, any>) {
 function buildRealNameInsight(
   row: AdminRealNameRowWithMapping,
 ): RealNameInsight {
-  const sourceSummary = `来源 ${enumMapping(row.source, row.source__mapping)}，当前由 ${enumMapping(row.provider, row.provider__mapping)} 处理。`;
-  const reviewSummary = row.reviewed_at
-    ? `${row.reviewed_by || '系统'} 于 ${dayjs(row.reviewed_at).format('YYYY-MM-DD HH:mm')} 给出处理结论。`
-    : `记录创建于 ${dayjs(row.created_at).format('YYYY-MM-DD HH:mm')}，当前还没有最终处理时间。`;
-
   if (row.status === 'verified') {
     return {
       ...row,
       stage_color: 'green',
-      stage_summary: '实名已经生效，后续重点转为撤销审慎、资格影响和留痕清晰。',
-      governance_hint:
-        '已实名记录不能只看“通过了没有”，还要考虑后续撤销是否影响高权限或业务资格。',
-      source_summary: sourceSummary,
-      review_summary: reviewSummary,
     };
   }
 
@@ -118,11 +102,6 @@ function buildRealNameInsight(
     return {
       ...row,
       stage_color: 'gold',
-      stage_summary: '自动流程没有完成，当前需要后台明确给出通过或驳回结论。',
-      governance_hint:
-        '人工复核不该淹没在表格里，它代表的是仍在占用审核带宽的待决事项。',
-      source_summary: sourceSummary,
-      review_summary: reviewSummary,
     };
   }
 
@@ -130,12 +109,6 @@ function buildRealNameInsight(
     return {
       ...row,
       stage_color: 'volcano',
-      stage_summary:
-        '记录已经驳回，后续重点是失败原因是否可解释、是否可能再次回流。',
-      governance_hint:
-        '驳回不是终点，能否讲清拒绝原因，决定了后续申诉和重提成本。',
-      source_summary: sourceSummary,
-      review_summary: reviewSummary,
     };
   }
 
@@ -143,22 +116,12 @@ function buildRealNameInsight(
     return {
       ...row,
       stage_color: 'default',
-      stage_summary:
-        '实名曾经生效但已被撤销，需要继续确认受影响的权限和业务资格。',
-      governance_hint: '撤销实名往往带着更高的业务和合规影响，应该谨慎处理。',
-      source_summary: sourceSummary,
-      review_summary: reviewSummary,
     };
   }
 
   return {
     ...row,
     stage_color: 'blue',
-    stage_summary: '记录仍在待校验阶段，优先判断能否自动完成或是否需要转人工。',
-    governance_hint:
-      '待校验积压过多时，平台侧最容易出现审核排队和业务入口被卡住的问题。',
-    source_summary: sourceSummary,
-    review_summary: reviewSummary,
   };
 }
 
@@ -175,33 +138,23 @@ function getActionMeta(action: ReviewAction, row: RealNameInsight) {
     return {
       label: row.status === 'rejected' ? '重新通过' : '通过实名',
       title: row.status === 'rejected' ? '重新通过实名' : '通过实名',
-      guidance:
-        row.status === 'rejected'
-          ? '这条记录已经被驳回过，重新通过前最好确认失败原因是否已经处理。'
-          : '通过后会直接把账号同步到已实名状态，后续资金与权限链路会按实名生效。',
     };
   }
   if (action === 'reject') {
     return {
       label: '驳回实名',
       title: '驳回实名',
-      guidance:
-        '驳回原因需要给得足够清楚，否则后续申诉和再次提交会把审核链路拖得更长。',
     };
   }
   if (action === 'manual') {
     return {
       label: row.status === 'rejected' ? '转回人工' : '转人工复核',
       title: row.status === 'rejected' ? '转回人工复核' : '转人工复核',
-      guidance:
-        '转人工意味着这条记录不再等待自动处理，应该由后台明确给出处理结论。',
     };
   }
   return {
     label: '撤销实名',
     title: '撤销实名',
-    guidance:
-      '撤销会直接影响账号的实名可用状态，尤其要留意它对提现、激励资格和高权限账号的后续影响。',
   };
 }
 
@@ -222,29 +175,19 @@ function getAllowedActions(row: RealNameInsight): ReviewAction[] {
 }
 
 const RealNameAdminPage: React.FC = () => {
-  const [page, setPage] = useState(1);
-  const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>();
   const [actionState, setActionState] = useState<ActionState>(null);
   const [detailId, setDetailId] = useState<number>();
+  const tableActionRef = useRef<ActionType>(null);
   const [form] = Form.useForm<{ note: string }>();
   const realNameEnums = useEnums(['accounts.real_name_status']);
+  const tableParams = React.useMemo(() => ({ status: statusFilter }), [statusFilter]);
 
-  const listQuery = useQuery({
-    queryKey: platformQueryKeys.realName(page, keyword, statusFilter),
-    queryFn: () =>
-      appsAccountsApiListAdminRealNameVerifications({
-        page,
-        page_size: 10,
-        keyword: keyword || undefined,
-        status: statusFilter || undefined,
-      }),
-  });
   const detailQuery = useQuery({
     queryKey: ['platform-management', 'real-name-detail', detailId],
     queryFn: () =>
       appsAccountsApiGetAdminRealNameVerification({
-        verification_id: detailId!,
+        verification_id: detailId || 0,
       }) as Promise<RealNameDetailWithMapping>,
     enabled: Boolean(detailId),
   });
@@ -271,25 +214,21 @@ const RealNameAdminPage: React.FC = () => {
     onSuccess: async () => {
       setActionState(null);
       form.resetFields();
-      await listQuery.refetch();
+      tableActionRef.current?.reload();
     },
   });
 
-  const insights = useMemo(
-    () => ((listQuery.data?.items || []) as AdminRealNameRowWithMapping[]).map((item) => buildRealNameInsight(item)),
-    [listQuery.data?.items],
-  );
   const detailData = detailQuery.data as RealNameDetailWithMapping | undefined;
 
-  const columns: ColumnsType<RealNameInsight> = [
+  const columns: ProColumns<RealNameInsight>[] = [
     {
       title: '用户身份',
       dataIndex: 'user',
       width: 220,
-      render: (user) => (
+      render: (_value, record) => (
         <IdentityText
-          primary={personText(user)}
-          secondary={buildUserSecondary(user)}
+          primary={personText(record.user)}
+          secondary={buildUserSecondary(record.user)}
         />
       ),
     },
@@ -307,26 +246,17 @@ const RealNameAdminPage: React.FC = () => {
     {
       title: '审核阶段',
       dataIndex: 'status__mapping',
-      width: 280,
-      render: (_value, record) => (
-        <Space orientation="vertical" size={6}>
-          <Tag color={record.stage_color}>{enumMapping(record.status, record.status__mapping)}</Tag>
-          <Typography.Text type="secondary">
-            {record.stage_summary}
-          </Typography.Text>
-        </Space>
-      ),
+      width: 140,
+      render: (_value, record) => <Tag color={record.stage_color}>{enumMapping(record.status, record.status__mapping)}</Tag>,
     },
     {
       title: '来源与处理',
       dataIndex: 'source__mapping',
-      width: 280,
+      width: 220,
       render: (_value, record) => (
-        <Space orientation="vertical" size={6}>
-          <Typography.Text>{record.source_summary}</Typography.Text>
-          <Typography.Text type="secondary">
-            {record.governance_hint}
-          </Typography.Text>
+        <Space orientation="vertical" size={4}>
+          <Typography.Text>{enumMapping(record.source, record.source__mapping)}</Typography.Text>
+          <Typography.Text type="secondary">{enumMapping(record.provider, record.provider__mapping)}</Typography.Text>
           {record.failure_reason || record.review_note ? (
             <Typography.Text type="secondary">
               {record.failure_reason || record.review_note}
@@ -341,7 +271,11 @@ const RealNameAdminPage: React.FC = () => {
       width: 240,
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
-          <Typography.Text>{record.review_summary}</Typography.Text>
+          <Typography.Text>
+            {record.reviewed_at
+              ? `${record.reviewed_by || '系统'} ${dayjs(record.reviewed_at).format('YYYY-MM-DD HH:mm')}`
+              : '-'}
+          </Typography.Text>
           <Typography.Text type="secondary">{`提交于 ${dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}`}</Typography.Text>
         </Space>
       ),
@@ -372,65 +306,56 @@ const RealNameAdminPage: React.FC = () => {
 
   return (
     <PageContainer title="实名审核" subTitle="处理用户实名状态与审核记录。">
-      <Card
-        extra={
-          <AdminToolbar>
-            <Input.Search
-              allowClear
-              placeholder="按用户名、邮箱、手机号、实名或证件搜索"
-              style={toolbarControlStyle}
-              onSearch={(value) => {
-                setPage(1);
-                setKeyword(value.trim());
-              }}
-            />
+      <Card>
+        <ProTable<RealNameInsight>
+          actionRef={tableActionRef}
+          rowKey="id"
+          headerTitle="实名列表"
+          columns={columns}
+          request={async (params: RealNameSearchParams) => {
+            const result = await appsAccountsApiListAdminRealNameVerifications({
+              page: params.current || 1,
+              page_size: params.pageSize || 10,
+              keyword: trimParam(params.keyword),
+              status: params.status || undefined,
+            });
+            return {
+              data: ((result.items || []) as AdminRealNameRowWithMapping[]).map((item) => buildRealNameInsight(item)),
+              total: result.total || 0,
+              success: true,
+            };
+          }}
+          params={tableParams}
+          search={false}
+          options={{
+            density: true,
+            reload: false,
+            search: { name: 'keyword', placeholder: '按用户名、邮箱、手机号、实名搜索' },
+            setting: true,
+          }}
+          toolBarRender={() => [
             <Select
+              key="status"
               allowClear
               placeholder="按实名状态筛选"
               style={toolbarControlStyle}
               options={enumSelectOptions(realNameEnums.data, 'accounts.real_name_status')}
-              onChange={(value) => {
-                setPage(1);
-                setStatusFilter(value || undefined);
-              }}
-            />
-            <Button href="/dashboard/super-admin/users">返回用户列表</Button>
-          </AdminToolbar>
-        }
-      >
-        <div style={sectionStyle}>
-          <Space orientation="vertical" size={12} style={fullWidthStyle}>
-            <div>
-              <Typography.Text strong>实名列表</Typography.Text>
-              <Typography.Paragraph
-                type="secondary"
-                style={{ marginBottom: 0, marginTop: 8 }}
-              >
-                实名页不该只是审核动作清单，它应该同时解释这条记录处在什么阶段、为什么还没收口，以及它会影响哪些平台链路。
-              </Typography.Paragraph>
-            </div>
-            <Table
-              rowKey="id"
-              loading={listQuery.isLoading}
-              columns={columns}
-              dataSource={insights}
-              scroll={adminTableScroll}
-              pagination={{
-                current: listQuery.data?.page || page,
-                pageSize: listQuery.data?.page_size || 10,
-                total: listQuery.data?.total || 0,
-                onChange: setPage,
-              }}
-            />
-          </Space>
-        </div>
+              onChange={(value) => setStatusFilter(value || undefined)}
+            />,
+            <Button key="back" href="/dashboard/super-admin/users">
+              返回用户列表
+            </Button>,
+          ]}
+          ghost
+          scroll={adminTableScroll}
+          pagination={{ defaultPageSize: 10 }}
+        />
       </Card>
 
       <NoteModal
         open={Boolean(actionState)}
         title={currentActionMeta?.title || '实名审核操作'}
         loading={actionMutation.isPending}
-        description={currentActionMeta?.guidance}
         form={form}
         onCancel={() => setActionState(null)}
         onOk={async () => {
@@ -451,11 +376,6 @@ const RealNameAdminPage: React.FC = () => {
         width={drawerWidthLg}
       >
         <Space orientation="vertical" size={12} style={fullWidthStyle}>
-          <Alert
-            type="info"
-            showIcon
-            title="实名详情要同时看来源、处理结论、证件材料和状态流转日志，不能只盯着身份证图片。"
-          />
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="用户">
               {detailData ? personText(detailData.user) : '-'}

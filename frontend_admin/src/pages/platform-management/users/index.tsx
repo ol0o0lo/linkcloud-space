@@ -3,6 +3,8 @@ import type {ActionType, ProColumns} from '@ant-design/pro-components';
 import {PageContainer, ProTable} from '@ant-design/pro-components';
 import {useMutation} from '@tanstack/react-query';
 import {
+  AutoComplete,
+  Avatar,
   Button,
   Card,
   Col,
@@ -14,7 +16,6 @@ import {
   Space,
   Switch,
   Tag,
-  Typography,
   type MenuProps,
 } from 'antd';
 import React, {useRef, useState} from 'react';
@@ -129,7 +130,7 @@ const PlatformUsersPage: React.FC = () => {
   >();
   const [passwordForm] = Form.useForm<API.AdminUserPasswordIn>();
   const [modal, modalContextHolder] = Modal.useModal();
-  const userEnums = useEnums(['accounts.real_name_status', 'accounts.admin_user_role']);
+  const userEnums = useEnums(['accounts.real_name_status', 'accounts.admin_user_role', 'accounts.phone_country_code']);
 
   const saveUserMutation = useMutation({
     mutationFn: (values: API.AdminUserCreateIn & API.AdminUserPatchIn) => {
@@ -280,24 +281,41 @@ const PlatformUsersPage: React.FC = () => {
       },
     },
     {
+      title: 'ID',
+      dataIndex: 'id',
+      width: 80,
+      search: false,
+    },
+    {
       title: '用户身份',
       dataIndex: 'username',
       width: 220,
       search: false,
       render: (_value, record) => (
-        <IdentityText primary={record.username} secondary={record.email}/>
+        <Space>
+          <Avatar src={record.avatar_url}>{record.username?.slice(0, 1).toUpperCase()}</Avatar>
+          <IdentityText primary={record.username} secondary={record.email}/>
+        </Space>
       ),
     },
     {
-      title: '联系方式与实名',
+      title: '手机号',
       dataIndex: 'phone_national_number',
-      width: 240,
+      width: 180,
       search: false,
+      render: (_value, record) => record.phone_label,
+    },
+    {
+      title: '实名状态',
+      dataIndex: 'real_name_status',
+      width: 190,
+      search: false,
+      ellipsis: true,
       render: (_value, record) => (
-        <Space orientation="vertical" size={4}>
-          <Typography.Text>{record.phone_label}</Typography.Text>
-          <Typography.Text type="secondary">{`实名状态 ${enumMapping(record.real_name_status, record.real_name_status__mapping)}`}</Typography.Text>
-        </Space>
+        <IdentityText
+          primary={record.real_name_masked || enumMapping(record.real_name_status, record.real_name_status__mapping)}
+          secondary={record.id_number_masked}
+        />
       ),
     },
     {
@@ -330,6 +348,7 @@ const PlatformUsersPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       width: 180,
+      fixed: 'right',
       valueType: 'option',
       search: false,
       render: (_value, record) => (
@@ -386,7 +405,7 @@ const PlatformUsersPage: React.FC = () => {
               success: true,
             };
           }}
-          search={{labelWidth: 'auto'}}
+          search={false}
           options={{
             density: true,
             reload: false,
@@ -409,6 +428,7 @@ const PlatformUsersPage: React.FC = () => {
       <Modal
         title={editingUser ? '编辑用户' : '新建用户'}
         open={userModalOpen}
+        width={760}
         confirmLoading={saveUserMutation.isPending}
         onCancel={() => {
           setUserModalOpen(false);
@@ -420,50 +440,75 @@ const PlatformUsersPage: React.FC = () => {
         }}
       >
         <Form form={userForm} layout="vertical">
-          <Form.Item
-            label="用户名"
-            name="username"
-            rules={[{required: !editingUser, message: '请输入用户名'}]}
-          >
-            <Input/>
-          </Form.Item>
-          <Form.Item
-            label="邮箱"
-            name="email"
-            normalize={normalizeEmailLikeInput}
-            rules={[
-              {required: !editingUser, message: '请输入邮箱'},
-              {type: 'email', message: '邮箱格式不正确'},
-            ]}
-          >
-            <Input/>
-          </Form.Item>
-          {!editingUser ? (
-            <Form.Item
-              label="初始密码"
-              name="password"
-              rules={[{required: true, message: '请输入初始密码'}]}
-            >
-              <Input.Password/>
-            </Form.Item>
-          ) : null}
-          <Form.Item label="名字" name="first_name">
-            <Input/>
-          </Form.Item>
-          <Form.Item label="姓氏" name="last_name">
-            <Input/>
-          </Form.Item>
-          <Form.Item label="时区" name="timezone">
-            <Input/>
-          </Form.Item>
-          <Form.Item label="手机号区号" name="phone_country_code">
-            <Input/>
-          </Form.Item>
-          <Form.Item label="手机号" name="phone_national_number">
-            <Input/>
-          </Form.Item>
           <Row gutter={16}>
-            <Col xs={12} md={6}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label="用户名"
+                name="username"
+                rules={[{required: !editingUser, message: '请输入用户名'}]}
+              >
+                <Input/>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label="邮箱"
+                name="email"
+                normalize={normalizeEmailLikeInput}
+                rules={[
+                  {required: !editingUser, message: '请输入邮箱'},
+                  {type: 'email', message: '邮箱格式不正确'},
+                ]}
+              >
+                <Input/>
+              </Form.Item>
+            </Col>
+            {!editingUser ? (
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label="初始密码"
+                  name="password"
+                  rules={[{required: true, message: '请输入初始密码'}]}
+                >
+                  <Input.Password/>
+                </Form.Item>
+              </Col>
+            ) : null}
+            <Col xs={24} md={12}>
+              <Form.Item label="姓氏" name="last_name">
+                <Input/>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="名字" name="first_name">
+                <Input/>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="时区" name="timezone">
+                <Input/>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="手机号区号" name="phone_country_code">
+                <AutoComplete
+                  allowClear
+                  options={enumSelectOptions(userEnums.data, 'accounts.phone_country_code')}
+                  placeholder="+86"
+                  filterOption={(inputValue, option) =>
+                    String(option?.label || option?.value || '').toLowerCase().includes(inputValue.toLowerCase())
+                  }
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="手机号" name="phone_national_number">
+                <Input/>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col xs={12} sm={6}>
               <Form.Item
                 label="手机号已验证"
                 name="phone_verified"
@@ -472,19 +517,19 @@ const PlatformUsersPage: React.FC = () => {
                 <Switch/>
               </Form.Item>
             </Col>
-            <Col xs={12} md={6}>
+            <Col xs={12} sm={6}>
               <Form.Item label="启用" name="is_active" valuePropName="checked">
                 <Switch/>
               </Form.Item>
             </Col>
-            <Col xs={12} md={6}>
-              <Form.Item label="Staff" name="is_staff" valuePropName="checked">
+            <Col xs={12} sm={6}>
+              <Form.Item label="后台访问权限" name="is_staff" valuePropName="checked">
                 <Switch/>
               </Form.Item>
             </Col>
-            <Col xs={12} md={6}>
+            <Col xs={12} sm={6}>
               <Form.Item
-                label="Superuser"
+                label="超级管理员"
                 name="is_superuser"
                 valuePropName="checked"
               >
