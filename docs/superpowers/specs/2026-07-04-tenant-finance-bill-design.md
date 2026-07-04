@@ -28,7 +28,6 @@
 - `Lease` 增加可空成交团队字段，用于把租约账单归到团队。
 - `Bill` 必属一个租户，可选归属一个团队。
 - `Bill` 可选关联租约；不关联租约时就是手工账单。
-- 通过现有租户设置保存默认财务规则，创建账单时复制为快照。
 - 后端提供账单、条目、汇总和租约创建账单接口。
 - 管理端提供账单列表、账单详情、从租约创建账单、手工记账、团队筛选。
 
@@ -40,13 +39,14 @@
 - 不做组织钱包。
 - 不做通用业务来源 `source_type/source_id`。一期只有可空 `lease` 外键；等第二个真实业务来源出现再扩展。
 - 不单独拆 `BillLine`、`BillPayment`、`BillAllocation`。一期统一放在 `BillEntry`。
+- 不做默认提成规则。每张账单内直接录提成，等重复录入成为真实问题后再接租户设置。
 
 ## 3. 方案选型
 
 ### 3.1 备选方案
 
 方案 A（推荐）：`Bill + BillEntry` 两张核心表。
-账单头保存租户、团队、租约来源、状态和汇总快照；条目统一承载收入、成本、收款、付款、员工提成。
+账单头保存租户、团队、租约来源和状态；条目统一承载收入、成本、收款、付款、员工提成，汇总由条目聚合得到。
 
 方案 B：`Bill + BillLine + BillPayment + BillAllocation`。
 语义更纯，但第一期表多、页面多、交互更重，用户也更难理解。
@@ -61,7 +61,7 @@
 理由：
 
 - 两张表即可覆盖租约账、团队账、日常收支和员工提成。
-- 与当前项目已有模式匹配，`finance` 域独立，默认规则复用 `apps.settings`。
+- 与当前项目已有模式匹配，`finance` 域独立，不提前做财务中台。
 - 未来需要支付回调、发票、对账或真实提成发放时，可以从 `BillEntry` 的 `receipt`、`payout`、`commission` 类型拆出专表，不需要推翻 `Bill`。
 
 ## 4. 领域边界
@@ -70,7 +70,6 @@
 - `finance.Bill`：经营账单，记录某个租户或团队的一笔经营账。
 - `finance.BillEntry`：账单条目，记录收入、成本、收款、付款、员工提成。
 - `wallet`：个人资金账户，只处理用户余额和提现；一期不与账单关联。
-- `settings`：保存租户默认财务规则，创建账单时复制到 `Bill.rule_snapshot`。
 
 租约可以查看关联账单摘要，但租约不负责记账。账单负责真实经营结果。
 
@@ -85,9 +84,6 @@ erDiagram
   Lease ||--o{ Bill : optional_source
   Bill ||--o{ BillEntry : has_entries
   User ||--o{ BillEntry : commission_receiver
-
-  DefaultSetting ||--o{ OrganizationSetting : overridden_by
-  Organization ||--o{ OrganizationSetting : has
 ```
 
 ## 6. 数据模型
@@ -115,20 +111,12 @@ erDiagram
 - `team`：可空，账单所属团队。为空表示租户级账。
 - `lease`：可空，关联租约。为空表示手工账单。
 - `title`：账单标题。
-- `status`：状态，取值为 `pending`、`confirmed`、`partially_paid`、`settled`、`voided`。
-- `income_amount`：收入合计，来自 `income` 条目。
-- `cost_amount`：成本合计，来自 `cost` 条目。
-- `receipt_amount`：已收款合计，来自 `receipt` 条目。
-- `payout_amount`：已付款合计，来自 `payout` 条目。
-- `commission_amount`：员工提成合计，来自 `commission` 条目。
-- `net_amount`：净收益，计算为 `income_amount - cost_amount`。
-- `company_retained_amount`：公司留存，计算为 `net_amount - commission_amount`，允许为负。
-- `rule_snapshot`：创建账单时复制的租户默认规则。
+- `status`：状态，取值为 `pending`、`confirmed`、`settled`、`voided`。
 - `remark`：备注。
 - `created_by`、`updated_by`：操作人快照，可空。
 - `created_at`、`updated_at`。
 
-金额字段使用 `DecimalField(max_digits=12, decimal_places=2)`。`company_retained_amount` 允许负数，其余汇总金额非负。
+账单汇总不存字段，一期从 `BillEntry` 聚合计算。等列表性能真的不够时，再加汇总缓存。
 
 约束：
 
@@ -154,9 +142,7 @@ erDiagram
 - `calc_method`：提成计算方式，仅 `commission` 条目使用，取值为 `percent` 或 `fixed`。
 - `rate`：比例提成时使用，例如 `0.60`。
 - `base_amount`：比例提成基数快照，默认是账单净收益。
-- `fixed_amount`：固定提成时使用。
 - `calculated_amount`：系统按规则算出的金额。
-- `is_manual_adjusted`：是否人工调整过最终金额。
 - `remark`：备注。
 - `created_at`、`updated_at`。
 
@@ -168,7 +154,7 @@ erDiagram
 - `payout`：表示实际付款，只影响已付款，不参与净收益计算。
 - `commission`：表示员工提成，参与公司留存计算。
 
-`manual` 不是提成计算方式。人工修改只是覆盖 `amount`，同时保留 `calculated_amount` 并将 `is_manual_adjusted` 设为 true。
+`manual` 不是提成计算方式。人工修改只是覆盖 `amount`，同时保留 `calculated_amount`。是否人工调整由 `amount != calculated_amount` 派生。
 
 所有 `amount` 都是非负数。需要做经营调整时，使用 `income` 或 `cost` 条目的具体 `category` 表达，不在一期引入负数条目。
 
@@ -194,7 +180,6 @@ erDiagram
 
 - `pending`：待确定。账单可编辑，适合刚从租约生成或手工草拟。
 - `confirmed`：已确认。账单业务口径已确认，仍允许登记收款、付款和必要备注。
-- `partially_paid`：部分收款。已有收款但未结清。
 - `settled`：已结清。表示财务确认该账单已完成。
 - `voided`：已作废。用于错误账单，不参与默认报表汇总。
 
@@ -202,48 +187,20 @@ erDiagram
 
 - `pending -> confirmed`
 - `pending -> voided`
-- `confirmed -> partially_paid`
 - `confirmed -> settled`
 - `confirmed -> voided`
-- `partially_paid -> settled`
-- `partially_paid -> voided`
 
-一期不做复杂审批。状态由用户操作推进；登记收款后，服务层可以根据收款金额给出推荐状态，但不强制自动结清。
+一期不做复杂审批。状态由用户操作推进。部分收款不用单独状态，通过 `confirmed` 且 `receipt` 合计大于 0 派生展示。
 
-## 9. 财务默认规则
+## 9. 提成录入
 
-不新增 `FinanceRule` 表，复用现有 `apps.settings`。
+一期不做租户默认提成规则，也不保存规则快照。财务人员在每张账单里直接新增 `commission` 条目：
 
-建议默认设置：
+- 比例提成：`calc_method=percent`，填写 `rate` 和 `base_amount`，系统计算 `calculated_amount`，默认同步到 `amount`。
+- 固定提成：`calc_method=fixed`，填写 `amount`，`calculated_amount` 默认等于 `amount`。
+- 人工调整：修改 `amount`，保留原 `calculated_amount`。
 
-- `DefaultSetting.key = "finance.default_rule"`
-- `value_type = json`
-- `category = "finance"`
-- `OrganizationSetting` 保存租户覆盖值。
-
-默认规则内容建议：
-
-```json
-{
-  "commission_base": "net_amount",
-  "commission_items": [
-    {
-      "user_id": 1,
-      "method": "percent",
-      "rate": "0.60"
-    },
-    {
-      "user_id": 2,
-      "method": "fixed",
-      "amount": "500.00"
-    }
-  ]
-}
-```
-
-创建账单时读取租户设置并复制到 `Bill.rule_snapshot`。后续租户修改默认规则，不影响历史账单。
-
-一期只做租户级默认规则。团队默认规则、员工默认规则以后再加。
+等同类账单反复录入成为真实问题后，再把默认规则放到现有租户设置。
 
 ## 10. 业务流程
 
@@ -255,7 +212,6 @@ erDiagram
    - `team = lease.deal_team`，如果租约没有成交团队则为空
    - `lease = 当前租约`
    - `status = pending`
-   - `rule_snapshot = 当前租户默认财务规则`
 3. 后端按租约生成初始收入条目，例如租金收入。
 4. 财务人员补充房东应结、日常成本、收款、付款、员工提成。
 5. 用户确认账单并按实际收付款推进状态。
@@ -275,7 +231,7 @@ erDiagram
 - 合同口径：来自 `Lease`，例如合同租金、租期、押金。
 - 真实经营口径：来自 `Bill`，例如收入、已收款、净收益、员工提成、公司留存。
 
-“真正成交额”默认使用 `Bill.income_amount`，而不是只看 `Lease.monthly_rent`。
+“真正成交额”默认使用 `income` 条目聚合金额，而不是只看 `Lease.monthly_rent`。
 
 ## 11. API 设计
 
@@ -284,10 +240,9 @@ erDiagram
 ### 11.1 账单
 
 - `GET /api/finance/bills/`：账单列表，支持 `team_id`、`lease_id`、`status`、日期范围筛选。
-- `POST /api/finance/bills/`：创建手工账单。
+- `POST /api/finance/bills/`：创建账单。传 `lease_id` 时创建租约账单，不传时创建手工账单。
 - `GET /api/finance/bills/{bill_id}/`：账单详情。
 - `PATCH /api/finance/bills/{bill_id}/`：更新账单头、状态和备注。
-- `POST /api/finance/bills/{bill_id}/recalculate/`：重算汇总金额。
 - `POST /api/finance/bills/{bill_id}/void/`：作废账单。
 
 ### 11.2 条目
@@ -299,19 +254,21 @@ erDiagram
 条目维护规则：
 
 - `pending` 账单允许新增、更新和删除条目。
-- `confirmed`、`partially_paid` 账单只允许新增 `receipt`、`payout` 条目和修改备注类信息。
+- `confirmed` 账单只允许新增 `receipt`、`payout` 条目和修改备注类信息。
 - `settled`、`voided` 账单不允许维护条目。
 - 发现已确认账单的经营口径录错时，一期采用作废后重建，暂不做冲正流程。
 
 ### 11.3 租约生成账单
 
-- `POST /api/finance/leases/{lease_id}/bill/`：从租约创建账单。
-- `GET /api/finance/leases/{lease_id}/bill/`：获取租约关联账单摘要。
+不新增租约专用账单接口。
+
+- 创建租约账单：`POST /api/finance/bills/`，请求体传 `lease_id`。
+- 查询租约账单：`GET /api/finance/bills/?lease_id=<id>`。
 
 ### 11.4 报表
 
 - `GET /api/finance/summary/`：租户财务汇总。
-- `GET /api/finance/team-summary/`：按团队汇总。
+- `GET /api/finance/summary/?group_by=team`：按团队汇总。
 
 所有分页接口继续使用项目统一分页参数 `page`、`page_size`。
 
@@ -323,11 +280,7 @@ erDiagram
 - `finance.finance_bill_refund`：第一期不做退款，可暂不使用。
 - `finance.finance_report_export`：第一期不做导出，可暂不使用。
 
-建议补充一个后续权限：
-
-- `finance.finance_bill_manage`：创建和维护账单。
-
-如果不想新增权限，一期可以先让 `org_admin` 管理，`org_finance` 查看和维护账单；实现计划再按当前权限系统决定是否新增。
+一期不新增权限码。`org_admin` 和 `org_finance` 可以查看和维护账单；团队财务只能查看和维护本团队账单。
 
 ## 13. 管理端设计
 
@@ -361,19 +314,17 @@ erDiagram
 
 - 租约创建账单时继承组织和团队。
 - 异租户团队、异租户租约不能关联到账单。
-- `BillEntry` 新增、更新、删除后账单汇总正确重算。
+- `BillEntry` 新增、更新、删除后账单聚合汇总正确。
 - 收入、成本、收款、付款、提成的金额口径正确。
 - 提成比例和固定金额计算正确。
-- 人工调整提成金额后保留 `calculated_amount` 并标记 `is_manual_adjusted`。
+- 人工调整提成金额后保留 `calculated_amount`。
 - 提成超过净收益时允许保存，公司留存为负。
 - 作废账单不进入默认汇总。
 - 租约只能有一张未作废账单。
 
 前端测试：
 
-- 账单列表按团队和状态筛选。
 - 账单详情新增不同类型条目后汇总展示正确。
-- 比例提成、固定提成和人工调整展示正确。
 - 租约页能展示账单摘要并跳转到账单详情。
 
 ## 15. 后续扩展
@@ -384,7 +335,7 @@ erDiagram
 - 有真实付款审批或代付时，把 `payout` 拆成付款表。
 - 有提成发放到钱包时，把 `commission` 拆成提成结算表，并增加发放状态。
 - 有多业务来源时，把 `Bill.lease` 替换或补充为通用业务来源。
-- 有团队/员工默认规则时，再增加更细粒度规则表。
+- 有重复提成规则录入痛点时，再用租户设置或规则表保存默认规则。
 - 有审计要求时，账单条目改为软删除或追加冲正条目。
 
 ## 16. 验收口径
