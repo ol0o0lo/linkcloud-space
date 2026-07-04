@@ -28,7 +28,7 @@
 - `Lease` 增加可空成交团队字段，用于把租约账单归到团队。
 - `Bill` 必属一个租户，可选归属一个团队。
 - `Bill` 可选关联租约；不关联租约时就是手工账单。
-- 后端提供账单、条目、汇总和租约创建账单接口。
+- 后端提供账单、条目、提成、汇总和租约创建账单接口。
 - 管理端提供账单列表、账单详情、从租约创建账单、手工记账、团队筛选。
 
 ### 2.2 范围外
@@ -235,15 +235,44 @@ erDiagram
 
 ## 11. API 设计
 
-一期建议接口保持收敛。
+一期不拆 `/api/admin/finance/`。统一使用 `/api/finance/`，通过当前租户上下文、团队权限和用户身份控制可见范围。
+
+视角规则：
+
+- 租户管理员和组织财务：可查看和维护当前租户全部账单、条目、提成和汇总。
+- 团队财务：可查看和维护自己有权限团队下的账单、条目、提成和汇总。
+- 普通员工：不能访问账单列表和账单详情，只能通过提成接口查看自己可见的提成条目和来源摘要。
 
 ### 11.1 账单
 
-- `GET /api/finance/bills/`：账单列表，支持 `team_id`、`lease_id`、`status`、日期范围筛选。
+- `GET /api/finance/bills/`：账单列表。
 - `POST /api/finance/bills/`：创建账单。传 `lease_id` 时创建租约账单，不传时创建手工账单。
-- `GET /api/finance/bills/{bill_id}/`：账单详情。
-- `PATCH /api/finance/bills/{bill_id}/`：更新账单头、状态和备注。
-- `POST /api/finance/bills/{bill_id}/void/`：作废账单。
+- `GET /api/finance/bills/{bill_id}/`：账单详情，包含条目和聚合汇总。
+- `PATCH /api/finance/bills/{bill_id}/`：更新账单头、状态和备注。作废账单使用 `{ "status": "voided" }`。
+
+账单列表 query 参数：
+
+- `page`、`page_size`
+- `team_id`
+- `lease_id`
+- `status`
+- `date_from`、`date_to`
+- `q`：按标题或来源摘要搜索
+
+账单列表返回每条账单的聚合摘要，包括收入、成本、已收、已付、提成、净收益和公司留存。这些金额由 `BillEntry` 聚合，不在 `Bill` 上存缓存。
+
+创建账单请求：
+
+```json
+{
+  "title": "云岸 1栋 1001 租约账单",
+  "team_id": 2,
+  "lease_id": 10,
+  "remark": ""
+}
+```
+
+创建租约账单时，后端从租约带出 `organization`、`deal_team`、来源摘要，并生成一条初始 `income` 条目。手工账单不传 `lease_id`。
 
 ### 11.2 条目
 
@@ -258,17 +287,78 @@ erDiagram
 - `settled`、`voided` 账单不允许维护条目。
 - 发现已确认账单的经营口径录错时，一期采用作废后重建，暂不做冲正流程。
 
-### 11.3 租约生成账单
+提成条目请求示例：
 
-不新增租约专用账单接口。
+```json
+{
+  "entry_type": "commission",
+  "category": "lease_commission",
+  "title": "A 员工提成",
+  "amount": "600.00",
+  "occurred_on": "2026-07-04",
+  "user_id": 8,
+  "calc_method": "percent",
+  "rate": "0.60",
+  "base_amount": "1000.00",
+  "calculated_amount": "600.00",
+  "remark": ""
+}
+```
 
-- 创建租约账单：`POST /api/finance/bills/`，请求体传 `lease_id`。
-- 查询租约账单：`GET /api/finance/bills/?lease_id=<id>`。
+### 11.3 提成
+
+- `GET /api/finance/commissions/`：返回当前用户可见的提成条目。
+
+提成接口 query 参数：
+
+- `page`、`page_size`
+- `user_id`
+- `team_id`
+- `bill_id`
+- `date_from`、`date_to`
+
+可见范围由权限决定，query 参数只能收窄范围，不能扩大范围：
+
+- 普通员工：只返回自己的提成；传其他 `user_id` 不会看到别人的数据。
+- 团队财务：返回自己有权限团队内的提成，可用 `team_id`、`user_id` 收窄。
+- 组织财务和租户管理员：返回当前租户内的提成，可用 `team_id`、`user_id` 收窄。
+
+返回字段只包含提成和来源摘要，不返回完整账单明细、净收益或公司留存：
+
+```json
+{
+  "items": [
+    {
+      "id": 99,
+      "amount": "600.00",
+      "occurred_on": "2026-07-04",
+      "calc_method": "percent",
+      "rate": "0.60",
+      "bill_id": 1,
+      "bill_title": "云岸 1栋 1001 租约账单",
+      "bill_status": "confirmed",
+      "team_id": 2,
+      "team_name": "南山一组",
+      "lease_id": 10,
+      "source_label": "云岸 / 1栋 / 1001"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}
+```
 
 ### 11.4 报表
 
 - `GET /api/finance/summary/`：租户财务汇总。
 - `GET /api/finance/summary/?group_by=team`：按团队汇总。
+
+汇总 query 参数：
+
+- `date_from`、`date_to`
+- `team_id`
+- `group_by=team`
 
 所有分页接口继续使用项目统一分页参数 `page`、`page_size`。
 
@@ -277,10 +367,16 @@ erDiagram
 复用现有财务权限：
 
 - `finance.finance_bill_view`：查看账单、查看汇总。
+- `finance.finance_bill_manage`：创建账单、更新账单、维护条目、作废账单。
 - `finance.finance_bill_refund`：第一期不做退款，可暂不使用。
 - `finance.finance_report_export`：第一期不做导出，可暂不使用。
 
-一期不新增权限码。`org_admin` 和 `org_finance` 可以查看和维护账单；团队财务只能查看和维护本团队账单。
+权限规则：
+
+- `org_admin` 拥有全部财务权限。
+- `org_finance` 默认拥有 `finance_bill_view` 和 `finance_bill_manage`。
+- `team_finance` 默认拥有团队范围的 `finance_bill_view` 和 `finance_bill_manage`。
+- 普通员工不需要财务权限即可访问 `/api/finance/commissions/`，但只能看到自己的提成。
 
 ## 13. 管理端设计
 
@@ -302,6 +398,11 @@ erDiagram
 - 提成条目可选择当前租户成员，支持比例和固定金额。
 - 展示公司留存，负数时只提示，不阻断。
 
+提成列表：
+
+- 财务角色可按团队、员工、账单、日期筛选提成。
+- 普通员工只看到自己的提成和来源摘要，不展示账单完整明细。
+
 租约页：
 
 - 展示合同口径和经营口径。
@@ -321,11 +422,15 @@ erDiagram
 - 提成超过净收益时允许保存，公司留存为负。
 - 作废账单不进入默认汇总。
 - 租约只能有一张未作废账单。
+- `finance_bill_manage` 才能创建账单和维护条目。
+- 普通员工访问 `/api/finance/commissions/` 只能看到自己的提成。
+- 团队财务访问 `/api/finance/commissions/` 只能看到授权团队内的提成。
 
 前端测试：
 
 - 账单详情新增不同类型条目后汇总展示正确。
 - 租约页能展示账单摘要并跳转到账单详情。
+- 提成列表不会向普通员工展示账单完整明细。
 
 ## 15. 后续扩展
 
