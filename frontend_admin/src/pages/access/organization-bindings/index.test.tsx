@@ -66,12 +66,10 @@ describe('OrganizationBindingsPage', () => {
       expect(screen.getAllByText('Alice Zhang').length).toBeGreaterThan(0);
     });
 
-    expect(screen.getByText('授权概览')).toBeInTheDocument();
-    expect(screen.getByText('覆盖情况')).toBeInTheDocument();
-    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
-    expect(screen.getByText('空间授权台账')).toBeInTheDocument();
-    expect(screen.getAllByText('待分配成员').length).toBeGreaterThan(0);
-    expect(screen.getByText('已承接成员')).toBeInTheDocument();
+    expect(screen.queryByText('授权概览')).not.toBeInTheDocument();
+    expect(screen.queryByText('覆盖情况')).not.toBeInTheDocument();
+    expect(screen.queryByText('空间授权决定谁能统筹全局规则、跨团队协同和异常收口')).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '授权时间' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '分配角色' }));
     fireEvent.mouseDown(screen.getByLabelText('成员').closest('.ant-select')!);

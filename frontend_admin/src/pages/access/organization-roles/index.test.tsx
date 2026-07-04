@@ -74,12 +74,10 @@ describe('OrganizationRolesPage', () => {
       expect(screen.getAllByText('运营').length).toBeGreaterThan(0);
     });
 
-    expect(screen.getByText('角色概览')).toBeInTheDocument();
-    expect(screen.getByText('角色覆盖情况')).toBeInTheDocument();
-    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
-    expect(screen.getByText('空间角色台账')).toBeInTheDocument();
-    expect(screen.getAllByText('执行编组').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('闲置角色').length).toBeGreaterThan(0);
+    expect(screen.queryByText('角色概览')).not.toBeInTheDocument();
+    expect(screen.queryByText('角色覆盖情况')).not.toBeInTheDocument();
+    expect(screen.queryByText('空间角色不是权限名录，而是全局职责的业务化映射')).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '授权' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '新建角色' }));
     fireEvent.change(screen.getByLabelText('角色名称'), { target: { value: '财务' } });

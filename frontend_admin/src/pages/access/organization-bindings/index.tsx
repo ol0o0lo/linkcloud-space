@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Col, Empty, Form, Modal, Popconfirm, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
+import { Button, Card, Empty, Form, Modal, Popconfirm, Select, Space, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
@@ -13,20 +13,6 @@ import { appsAccessApiListOrgRoles } from '@/services/openapi/accessOrganization
 import { appsOrganizationsApiListMembers } from '@/services/openapi/organizationMembers';
 import { TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/tenant/shared';
 import { RoleSummary, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
-
-const sectionStyle: React.CSSProperties = {
-  padding: 20,
-  border: '1px solid var(--ant-color-border-secondary)',
-  borderRadius: 8,
-  background: 'var(--ant-color-fill-quaternary)',
-};
-const overviewTileStyle: React.CSSProperties = {
-  height: '100%',
-  padding: 16,
-  borderRadius: 8,
-  border: '1px solid var(--ant-color-border-secondary)',
-  background: 'var(--ant-color-bg-container)',
-};
 
 const OrganizationBindingsPage: React.FC = () => {
   const workspace = useTenantWorkspace();
@@ -65,7 +51,6 @@ const OrganizationBindingsPage: React.FC = () => {
   });
 
   const bindingItems = bindingsQuery.data || [];
-  const memberItems = membersQuery.data?.items || [];
   const roleItems = rolesQuery.data || [];
   const memberOptions = useMemo(
     () =>
@@ -80,13 +65,6 @@ const OrganizationBindingsPage: React.FC = () => {
     [rolesQuery.data],
   );
   const roleMap = new Map(roleItems.map((item) => [item.id, item]));
-  const boundUserIds = new Set(bindingItems.map((item) => item.user.id));
-  const boundRoleIds = new Set(bindingItems.map((item) => item.role.id));
-  const pendingMembers = memberItems.filter((item) => !boundUserIds.has(item.user.id));
-  const activeRoles = roleItems.filter((item) => item.is_active);
-  const unusedRoles = activeRoles.filter((item) => !boundRoleIds.has(item.id));
-  const assignedMemberPreview = bindingItems.slice(0, 3).map((item) => formatPersonLabel(item.user));
-  const pendingMemberPreview = pendingMembers.slice(0, 3).map((item) => formatPersonLabel(item.user));
   const columns: ColumnsType<API.OrganizationBindingOut> = [
     {
       title: '成员',
@@ -134,90 +112,8 @@ const OrganizationBindingsPage: React.FC = () => {
 
   return (
     <TenantSelectionGuard title="空间授权" subtitle="为当前空间成员分配组织级角色。">
-      <Card loading={bindingsQuery.isLoading || rolesQuery.isLoading || membersQuery.isLoading}>
-        <div style={sectionStyle}>
-          <Typography.Text strong>授权概览</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="空间成员" value={memberItems.length} />
-                <Typography.Text type="secondary">当前空间内可被纳入组织级分工的成员数。</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="已授权成员" value={boundUserIds.size} />
-                <Typography.Text type="secondary">{boundUserIds.size ? `${boundUserIds.size} 名成员已拿到空间级角色。` : '当前还没有成员被正式授权。'}</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="待分配成员" value={pendingMembers.length} />
-                <Typography.Text type="secondary">{pendingMembers.length ? '这些成员还没有被纳入空间级职责。' : '当前空间成员都已被明确分工。'}</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="可用角色" value={activeRoles.length} />
-                <Typography.Text type="secondary">{unusedRoles.length ? `${unusedRoles.length} 个角色当前还无人承接。` : '当前空间级角色都已在使用。'}</Typography.Text>
-              </div>
-            </Col>
-          </Row>
-        </div>
-
-        <div style={{ ...sectionStyle, marginTop: 16 }}>
-          <Typography.Text strong>覆盖情况</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            <Col xs={24} md={12} xl={8}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>已承接成员</Typography.Text>
-                    <Tag color={boundUserIds.size ? 'blue' : 'default'}>{boundUserIds.size ? `${boundUserIds.size} 人` : '暂无'}</Tag>
-                  </Space>
-                  <Typography.Text>{boundUserIds.size ? '这些成员已经接住空间级职责。' : '当前还没有任何成员承接全局职责。'}</Typography.Text>
-                  <Typography.Text type="secondary">{assignedMemberPreview.length ? assignedMemberPreview.join('、') : '建议优先明确 owner、空间管理员、跨团队运营负责人。'}</Typography.Text>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={8}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>待分配成员</Typography.Text>
-                    <Tag color={pendingMembers.length ? 'gold' : 'green'}>{pendingMembers.length ? `${pendingMembers.length} 人待补` : '已覆盖'}</Tag>
-                  </Space>
-                  <Typography.Text>{pendingMembers.length ? '这些成员还没有明确的组织级职责归属。' : '当前没有空间级悬空成员。'}</Typography.Text>
-                  <Typography.Text type="secondary">{pendingMemberPreview.length ? pendingMemberPreview.join('、') : '如果后续新增跨团队职责，再补充组织级角色即可。'}</Typography.Text>
-                </Space>
-              </div>
-            </Col>
-            <Col xs={24} md={12} xl={8}>
-              <div style={overviewTileStyle}>
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  <Space wrap size={[8, 8]}>
-                    <Typography.Text strong>角色承接</Typography.Text>
-                    <Tag color={unusedRoles.length ? 'purple' : 'green'}>{unusedRoles.length ? `${unusedRoles.length} 个闲置` : '全部启用中'}</Tag>
-                  </Space>
-                  <Typography.Text>{unusedRoles.length ? '有空间级角色已经设计好，但还没有任何成员使用。' : '空间级角色都已经对应到实际成员。'}</Typography.Text>
-                  <Typography.Text type="secondary">{unusedRoles.length ? unusedRoles.slice(0, 3).map((item) => item.name).join('、') : '角色设计和授权落地当前是一致的。'}</Typography.Text>
-                </Space>
-              </div>
-            </Col>
-          </Row>
-        </div>
-
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginTop: 16 }}
-          title="空间授权决定谁能统筹全局规则、跨团队协同和异常收口"
-          description="如果空间设置已经成为规则中心，但空间授权没有把 owner、管理员、运营职责分配清楚，最终还是会回到“大家都能改，出了问题没人收”的状态。"
-        />
-      </Card>
       <Card
-        title="空间授权台账"
-        style={{ marginTop: 16 }}
+        title="空间授权"
         extra={
           <AdminToolbar>
             <Button id="assign-role" type="primary" onClick={() => setOpen(true)}>
