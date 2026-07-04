@@ -21,7 +21,6 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
   Table,
   Tag,
   Typography,
@@ -34,8 +33,6 @@ import {
   ResponsiveActions,
   SectionHeader,
   StatusFlowButtons,
-  toolbarSelectPopupWidth,
-  toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
 import {
   TenantSelectionGuard,
@@ -65,7 +62,6 @@ import {
 } from '../constants';
 import {
   getLoadingAwareEmptyState,
-  getLoadingSafeCount,
   isAnyInitialQueryPending,
   isInitialQueryPending,
 } from '../loading';
@@ -119,8 +115,14 @@ function getLeaseWorkflowHint(record: LeaseOut) {
 }
 
 function getLeaseBusinessInfo(record: LeaseOut) {
-  const primary = `${houseLabel(record)} / ${contactLabel(record)}`;
+  const houseText = houseLabel(record);
+  const houseParts = houseText.split(' / ');
+  const roomText = houseParts.at(-1) || houseText;
+  const scopeText =
+    houseParts.length > 1 ? houseParts.slice(0, -1).join(' / ') : undefined;
+  const primary = `${roomText} / ${contactLabel(record)}`;
   const secondaryParts = [
+    scopeText,
     record.start_date && record.end_date
       ? `${record.start_date} 至 ${record.end_date}`
       : undefined,
@@ -144,11 +146,10 @@ const LEASE_OVERVIEW_ITEMS = [
 ] as const;
 
 function getLeaseScopeText(
-  options: { task?: string; status?: string; houseLabelText?: string },
+  options: { task?: string; status?: string },
   statusLabel: (value?: string | null) => string,
 ) {
   const parts: string[] = [];
-  if (options.houseLabelText) parts.push(`房源：${options.houseLabelText}`);
   if (options.task && TASK_TEXT[options.task as LeaseTask])
     parts.push(TASK_TEXT[options.task as LeaseTask]);
   if (options.status) parts.push(statusLabel(options.status));
@@ -243,6 +244,18 @@ function getLeaseDrawerEntryText(options: {
   if (sourceViewingLabel) return '成交带看转签约';
   if (sourceHouseId) return '房源直建租约';
   return '手动新建租约';
+}
+
+function getLeaseNextStepText(options: {
+  editing: boolean;
+  status?: string;
+  contractFiles: Record<string, unknown>[];
+}) {
+  if (!options.contractFiles.length) return '保存后回到待补合同队列补齐合同。';
+  if (!options.editing || options.status === 'pending') return '合同已归档，可在列表执行生效。';
+  if (options.status === 'active') return '持续维护履约状态，到期或退租时更新状态。';
+  if (options.status === 'expired' || options.status === 'terminated') return '确认备注和资料后完成归档。';
+  return '保存后回到租约队列继续跟进。';
 }
 
 function getLeaseEmptyState(options: {
@@ -476,18 +489,12 @@ const LeasesPage: React.FC = () => {
   const terminatedCount = overviewQueries[4]?.data?.total || 0;
   const allLeaseCount =
     pendingCount + activeCount + expiredCount + terminatedCount;
-  const selectedScopedHouse = (houses.data?.items || []).find(
-    (item) => item.id === sourceHouseId,
-  );
   const overviewLoading = isAnyInitialQueryPending(overviewQueries);
   const listLoading = isInitialQueryPending(leases);
   const scopeText = getLeaseScopeText(
     {
       task,
       status,
-      houseLabelText: selectedScopedHouse
-        ? houseLabel(selectedScopedHouse)
-        : undefined,
     },
     statusLabel,
   );
@@ -503,7 +510,7 @@ const LeasesPage: React.FC = () => {
           buildLeaseQueueHref({ houseId: sourceHouseId, task, status }),
         )
       : undefined;
-  const workflowQueueLinks = [
+  const leaseQueueLinks = [
     {
       key: 'all',
       label: '全部',
@@ -526,6 +533,13 @@ const LeasesPage: React.FC = () => {
       active: !task && status === 'active',
     },
     {
+      key: 'contract',
+      label: '待补合同',
+      count: contractMissingCount,
+      href: buildLeaseQueueHref({ houseId: sourceHouseId, task: 'contract' }),
+      active: task === 'contract' && !status,
+    },
+    {
       key: 'expired',
       label: '已到期',
       count: expiredCount,
@@ -542,43 +556,7 @@ const LeasesPage: React.FC = () => {
       }),
       active: !task && status === 'terminated',
     },
-  ] as const;
-  const documentQueueLinks = [
-    {
-      key: 'contract',
-      label: '待补合同',
-      count: contractMissingCount,
-      href: buildLeaseQueueHref({ houseId: sourceHouseId, task: 'contract' }),
-      active: task === 'contract' && !status,
-    },
-  ] as const;
-  const overviewCards = [
-    {
-      key: 'pending',
-      title: '待生效',
-      count: pendingCount,
-    },
-    {
-      key: 'active',
-      title: '生效中',
-      count: activeCount,
-    },
-    {
-      key: 'contract',
-      title: '待补合同',
-      count: contractMissingCount,
-    },
-    {
-      key: 'expired',
-      title: '已到期',
-      count: expiredCount,
-    },
-    {
-      key: 'terminated',
-      title: '已终止',
-      count: terminatedCount,
-    },
-  ];
+  ].filter((item) => overviewLoading || item.count > 0 || item.active);
   const leaseEntryLinks = [
     {
       key: 'ready_viewings',
@@ -650,8 +628,7 @@ const LeasesPage: React.FC = () => {
   useEffect(() => {
     if (
       !sourceViewingRecordId ||
-      !sourceViewing ||
-      !sourceViewing.contact_id ||
+      !sourceViewing?.contact_id ||
       openedSourceViewing ||
       editing ||
       drawerOpen ||
@@ -847,20 +824,17 @@ const LeasesPage: React.FC = () => {
       : undefined,
     sourceHouseId,
   });
+  const drawerNextStepText = getLeaseNextStepText({
+    editing: Boolean(editing),
+    status: editing?.status,
+    contractFiles: draftContractFiles,
+  });
   const sectionStyle = {
     border: `1px solid ${token.colorBorderSecondary}`,
     borderRadius: token.borderRadiusLG,
     padding: 16,
     background: token.colorBgContainer,
   } as const;
-  const overviewTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    padding: 16,
-    background: token.colorFillQuaternary,
-    height: '100%',
-  } as const;
-
   return (
     <TenantSelectionGuard
       title="租约"
@@ -882,59 +856,16 @@ const LeasesPage: React.FC = () => {
         />
       ) : null}
       <div style={sectionStyle}>
-        <Typography.Text strong>签约概览</Typography.Text>
-        <Row gutter={[16, 16]}>
-          {overviewCards.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic
-                  title={item.title}
-                  value={getLoadingSafeCount(item.count, overviewLoading)}
-                />
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <Typography.Text strong>履约队列</Typography.Text>
-        <Space wrap style={{ marginTop: 12 }}>
-          {workflowQueueLinks.map((item) => (
-            <Button
-              key={item.key}
-              size="small"
-              type={item.active ? 'primary' : 'default'}
-              onClick={() => openLeaseQueue(item.href)}
-            >
-              {`${item.label} ${item.count}`}
-            </Button>
-          ))}
-        </Space>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
         <SectionHeader
-          title="资料队列"
+          title="租约队列"
           actions={
-            <Space wrap>
-              {leaseEntryLinks.map((item) => (
-                <Button key={item.key} href={item.href}>
-                  {item.label}
-                </Button>
-              ))}
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={openCreate}
-              >
-                新建租约
-              </Button>
-            </Space>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              新建租约
+            </Button>
           }
         />
         <Space wrap style={{ marginBottom: 16 }}>
-          {documentQueueLinks.map((item) => (
+          {leaseQueueLinks.map((item) => (
             <Button
               key={item.key}
               size="small"
@@ -992,20 +923,6 @@ const LeasesPage: React.FC = () => {
             style={{ marginBottom: 16 }}
           />
         ) : null}
-        <Space wrap style={{ marginBottom: 16 }}>
-          <Select
-            allowClear
-            placeholder="状态"
-            options={leaseStatusOptions}
-            value={status}
-            popupMatchSelectWidth={toolbarSelectPopupWidth}
-            onChange={(value) => {
-              setPage(1);
-              setStatus(value);
-            }}
-            style={toolbarShortSelectStyle}
-          />
-        </Space>
         <Table<LeaseOut>
           rowKey="id"
           loading={listLoading}
@@ -1057,12 +974,12 @@ const LeasesPage: React.FC = () => {
               title: '合同',
               dataIndex: 'contract_files',
               width: 120,
-              render: (value) => (
-                <Space size={8}>
-                  <span>{`${value?.length || 0} 份`}</span>
-                  {!value?.length ? <Tag color="orange">待补合同</Tag> : null}
-                </Space>
-              ),
+              render: (value) =>
+                value?.length ? (
+                  <span>{`${value.length} 份`}</span>
+                ) : (
+                  <Tag color="orange">未归档</Tag>
+                ),
             },
             {
               title: '操作',
@@ -1072,7 +989,13 @@ const LeasesPage: React.FC = () => {
               render: (_value, record) => (
                 <ResponsiveActions>
                   {!record.contract_files?.length ? (
-                    <a href={leaseEditPath(record, { task, status })}>补合同</a>
+                    <Button
+                      type="link"
+                      size="small"
+                      href={leaseEditPath(record, { task, status })}
+                    >
+                      补合同
+                    </Button>
                   ) : (
                     <Button
                       type="link"
@@ -1404,6 +1327,21 @@ const LeasesPage: React.FC = () => {
                           : '待填写'}
                       </Descriptions.Item>
                     </Descriptions>
+                    <Space orientation="vertical" size={4}>
+                      <Typography.Text strong>下一步</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {drawerNextStepText}
+                      </Typography.Text>
+                    </Space>
+                    {!editing ? (
+                      <Space wrap>
+                        {leaseEntryLinks.map((item) => (
+                          <Button key={item.key} size="small" href={item.href}>
+                            {item.label}
+                          </Button>
+                        ))}
+                      </Space>
+                    ) : null}
                   </Space>
                 </Card>
               </Col>

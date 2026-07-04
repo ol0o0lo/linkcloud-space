@@ -33,8 +33,6 @@ import {
   ResponsiveActions,
   SectionHeader,
   StatusFlowButtons,
-  toolbarSelectPopupWidth,
-  toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
 import {
   TenantSelectionGuard,
@@ -150,14 +148,14 @@ function getViewingDrawerEntryText(options: {
 }
 
 function getViewingBusinessInfo(record: ViewingRecordOut) {
-  const contactText = record.contact_id
-    ? contactLabel(record)
-    : needsContactCompletion(record)
-      ? '未绑定租客'
-      : '未绑定联系人';
+  const secondaryParts = [
+    houseLabel(record),
+    needsContactCompletion(record) ? '未绑定租客' : undefined,
+    dateTimeText(record.scheduled_at),
+  ].filter(Boolean);
   return {
     primary: `${record.customer_name} / ${record.customer_phone}`,
-    secondary: `${houseLabel(record)} · ${contactText} · ${dateTimeText(record.scheduled_at)}`,
+    secondary: secondaryParts.join(' · '),
   };
 }
 
@@ -569,54 +567,15 @@ const ViewingsPage: React.FC = () => {
   const pendingLeaseCount = overviewQueries[3]?.data?.total || 0;
   const canceledCount = overviewQueries[4]?.data?.total || 0;
   const noShowCount = overviewQueries[5]?.data?.total || 0;
-  const abnormalCount = canceledCount + noShowCount;
   const missingContactQueueTotal =
     conversionSupportQueries[0]?.data?.total || 0;
   const readyLeaseQueueTotal = conversionSupportQueries[1]?.data?.total || 0;
   const rows = viewings.data?.items || [];
   const currentTotal = viewings.data?.total || 0;
-  const pendingLeaseOverviewTitle =
-    contactMissing === true
-      ? '待补租客'
-      : contactMissing === false && pendingLease
-        ? '可签约'
-        : '待签约';
-  const pendingLeaseOverviewValue =
-    pendingLease && contactMissing !== undefined
-      ? viewings.data?.total || 0
-      : pendingLeaseCount;
   const overviewLoading = isAnyInitialQueryPending(overviewQueries);
+  const queueLoading =
+    overviewLoading || isAnyInitialQueryPending(conversionSupportQueries);
   const listLoading = isInitialQueryPending(viewings);
-  const defaultOverviewCards = [
-    {
-      key: 'scheduled',
-      title: '已预约',
-      count: scheduledCount,
-    },
-    {
-      key: 'viewed',
-      title: '待回访',
-      count: viewedCount,
-    },
-    {
-      key: 'pending_lease',
-      title: pendingLeaseOverviewTitle,
-      count: pendingLeaseOverviewValue,
-    },
-    {
-      key: 'abnormal',
-      title: '异常记录',
-      count: abnormalCount,
-    },
-  ] as const;
-  const visibleDefaultOverviewCards = defaultOverviewCards.filter(
-    (item) => item.count > 0,
-  );
-  const renderedDefaultOverviewCards = overviewLoading
-    ? defaultOverviewCards
-    : visibleDefaultOverviewCards.length
-      ? visibleDefaultOverviewCards
-      : defaultOverviewCards.slice(0, 1);
   const missingContactQueueCount =
     contactMissing === true
       ? currentTotal
@@ -625,6 +584,62 @@ const ViewingsPage: React.FC = () => {
     contactMissing === false && pendingLease
       ? currentTotal
       : readyLeaseQueueTotal;
+  const signedLeaseCount = Math.max(convertedCount - pendingLeaseCount, 0);
+  const allViewingCount =
+    scheduledCount + viewedCount + convertedCount + canceledCount + noShowCount;
+  const overviewCards = [
+    { key: 'ready_lease', title: '待转租约', count: readyLeaseCount },
+    { key: 'missing_contact', title: '待补租客', count: missingContactQueueCount },
+    { key: 'signed_lease', title: '已转租约', count: signedLeaseCount },
+  ] as const;
+  const viewingQueueButtons = [
+    {
+      key: 'all',
+      label: '全部',
+      count: allViewingCount,
+      active: !status && !pendingLease && contactMissing === undefined,
+      filters: {},
+    },
+    {
+      key: 'scheduled',
+      label: '已预约',
+      count: scheduledCount,
+      active: status === VIEWING_STATUS.SCHEDULED,
+      filters: { status: VIEWING_STATUS.SCHEDULED },
+    },
+    {
+      key: 'viewed',
+      label: '待回访',
+      count: viewedCount,
+      active: status === VIEWING_STATUS.VIEWED,
+      filters: { status: VIEWING_STATUS.VIEWED },
+    },
+    {
+      key: 'ready_lease',
+      label: '待转租约',
+      count: readyLeaseCount,
+      active: pendingLease && contactMissing === false,
+      filters: { pendingLease: true, contactMissing: false },
+    },
+    {
+      key: 'missing_contact',
+      label: '待补租客',
+      count: missingContactQueueCount,
+      active: pendingLease && contactMissing === true,
+      filters: { pendingLease: true, contactMissing: true },
+    },
+  ].filter((item) => queueLoading || item.count > 0 || item.active);
+
+  const openViewingQueue = (filters: {
+    status?: string;
+    pendingLease?: boolean;
+    contactMissing?: boolean;
+  }) => {
+    setPage(1);
+    setStatus(filters.status);
+    setPendingLease(filters.pendingLease);
+    setContactMissing(filters.contactMissing);
+  };
   useEffect(() => {
     syncViewingListSearch({ page, status, pendingLease, contactMissing });
   }, [contactMissing, page, pendingLease, status]);
@@ -782,12 +797,12 @@ const ViewingsPage: React.FC = () => {
       <div style={sectionStyle}>
         <Typography.Text strong>带看概览</Typography.Text>
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          {renderedDefaultOverviewCards.map((item) => (
+          {overviewCards.map((item) => (
             <Col key={item.key} xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
                 <Statistic
                   title={item.title}
-                  value={getLoadingSafeCount(item.count, overviewLoading)}
+                  value={getLoadingSafeCount(item.count, queueLoading)}
                 />
               </div>
             </Col>
@@ -840,22 +855,20 @@ const ViewingsPage: React.FC = () => {
             style={{ marginBottom: 16 }}
           />
         ) : null}
-        <Space wrap style={{ marginBottom: 16 }}>
-          <Select
-            allowClear
-            placeholder="状态"
-            options={viewingStatusOptions}
-            value={status}
-            popupMatchSelectWidth={toolbarSelectPopupWidth}
-            onChange={(value) => {
-              setPage(1);
-              setStatus(value);
-              setPendingLease(undefined);
-              setContactMissing(undefined);
-            }}
-            style={toolbarShortSelectStyle}
-          />
-        </Space>
+        {viewingQueueButtons.length ? (
+          <Space wrap style={{ marginBottom: 16 }}>
+            {viewingQueueButtons.map((item) => (
+              <Button
+                key={item.key}
+                size="small"
+                type={item.active ? 'primary' : 'default'}
+                onClick={() => openViewingQueue(item.filters)}
+              >
+                {`${item.label} ${item.count}`}
+              </Button>
+            ))}
+          </Space>
+        ) : null}
         <Table<ViewingRecordOut>
           rowKey="id"
           loading={listLoading}
@@ -919,11 +932,23 @@ const ViewingsPage: React.FC = () => {
                     </Button>
                   ) : null}
                   {canCreateLease(record) ? (
-                    <a href={leaseCreatePath(record)}>签约</a>
+                    <Button
+                      type="link"
+                      size="small"
+                      href={leaseCreatePath(record)}
+                    >
+                      签约
+                    </Button>
                   ) : null}
                   {record.status === VIEWING_STATUS.CONVERTED &&
                   record.signed_lease_id ? (
-                    <a href={leaseEditPath(record)}>查看租约</a>
+                    <Button
+                      type="link"
+                      size="small"
+                      href={leaseEditPath(record)}
+                    >
+                      查看租约
+                    </Button>
                   ) : null}
                   <Button
                     type="link"
