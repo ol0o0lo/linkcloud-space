@@ -156,8 +156,8 @@ describe('PlatformUsersPage', () => {
           first_name: 'Bob',
           last_name: 'Li',
           timezone: 'Asia/Shanghai',
-          real_name_status: 'pending',
-          real_name_status__mapping: '待校验',
+          real_name_status: 'unverified',
+          real_name_status__mapping: '未实名',
           real_name_masked: '',
           id_number_masked: '',
           role: 'user',
@@ -189,6 +189,7 @@ describe('PlatformUsersPage', () => {
         ],
         'accounts.phone_country_code': [{ label: '+86 (中国)', value: '+86' }],
         'accounts.real_name_status': [
+          { label: '未实名', value: 'unverified' },
           { label: '已驳回', value: 'rejected' },
           { label: '待校验', value: 'pending' },
         ],
@@ -224,7 +225,7 @@ describe('PlatformUsersPage', () => {
       expect(screen.queryByText('停用收口')).not.toBeInTheDocument();
       expect(screen.getByText('alice')).toBeInTheDocument();
       expect(screen.getByText('bob')).toBeInTheDocument();
-      expect(screen.getByText('待校验')).toBeInTheDocument();
+      expect(screen.getByText('未实名')).toHaveClass('ant-typography-secondary');
       expect(screen.queryByText('该账号拥有平台级最高权限，安全、实名和联系方式都应该保持清晰可控。')).not.toBeInTheDocument();
       expect(screen.queryByText('高权限账号需要重点确认权限边界、可追溯性和安全恢复能力。')).not.toBeInTheDocument();
       expect(screen.queryByText('手机号缺失或未验证，会让找回、安全校验和业务联系链路都变得脆弱。')).not.toBeInTheDocument();
@@ -251,6 +252,13 @@ describe('PlatformUsersPage', () => {
     expect(within(userRow).queryByText('高权限账号')).not.toBeInTheDocument();
     expect(within(userRow).getByText('编辑')).toBeInTheDocument();
     expect(within(userRow).getByText('设密码')).toBeInTheDocument();
+
+    const unverifiedRow = screen.getByText('bob').closest('tr');
+    if (!unverifiedRow) {
+      throw new Error('未找到 bob 用户行');
+    }
+    expect(within(unverifiedRow).getByText('未绑定')).toHaveClass('ant-typography-secondary');
+    expect(within(unverifiedRow).getByText('未实名')).toHaveClass('ant-typography-secondary');
 
     fireEvent.click(within(userRow).getByRole('switch'));
     await waitFor(() => expect(mockPatchStatus).toHaveBeenCalledWith({ user_id: 7 }, { is_active: false }));

@@ -69,6 +69,7 @@ vi.mock('./index.style', () => ({
       avatar_title: 'avatar-title',
       baseView: 'base-view',
       button_view: 'button-view',
+      infoRow: 'info-row',
       left: 'left',
       right: 'right',
     },
@@ -177,7 +178,7 @@ describe('BaseView', () => {
         email: 'product@example.com',
         timezone: 'Asia/Shanghai',
         avatar: [{ media_id: 2, url: '/avatar.png', thumbnail: null }],
-        phone_country_code: '86',
+        phone_country_code: '+86',
         phone_national_number: '13800138000',
         phone_verified: true,
         real_name_status: 'verified',
@@ -197,11 +198,13 @@ describe('BaseView', () => {
     expect(await screen.findByText('昵称')).toBeInTheDocument();
     expect(screen.getByText('邮箱')).toBeInTheDocument();
     expect(screen.getByText('手机号')).toBeInTheDocument();
-    expect(screen.getByText('时区')).toBeInTheDocument();
+    expect(screen.queryByText('时区')).not.toBeInTheDocument();
+    expect(screen.getByText(/\+86 13800138000/)).toBeInTheDocument();
+    expect(screen.queryByText(/\+\+86/)).not.toBeInTheDocument();
 
-    // Phone and email should have links to security
-    const securityLinks = screen.getAllByText('前往账号安全修改');
-    expect(securityLinks.length).toBeGreaterThanOrEqual(1);
+    const securityLinks = screen.getAllByText('修改');
+    expect(securityLinks).toHaveLength(2);
+    expect(screen.queryByText('前往账号安全修改')).not.toBeInTheDocument();
   });
 
   it('仅回显昵称，并隐藏已移除的字段', async () => {

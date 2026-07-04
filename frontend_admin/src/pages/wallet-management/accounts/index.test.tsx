@@ -14,6 +14,52 @@ const {
   mockAdjust: vi.fn(),
 }));
 
+vi.mock('@ant-design/pro-components', () => ({
+  PageContainer: ({ children, title, subTitle }: any) => (
+    <section>
+      <h1>{title}</h1>
+      <p>{subTitle}</p>
+      {children}
+    </section>
+  ),
+  ProTable: ({ actionRef, columns, headerTitle, pagination, request, toolBarRender }: any) => {
+    const [data, setData] = React.useState<any[]>([]);
+    const pageSize = pagination?.defaultPageSize || 10;
+
+    const load = async () => {
+      const result = await request?.({ current: 1, pageSize });
+      setData(result?.data || []);
+    };
+
+    React.useEffect(() => {
+      if (actionRef) {
+        actionRef.current = { reload: () => void load() };
+      }
+      void load();
+    }, []);
+
+    return (
+      <div>
+        <h2>{headerTitle}</h2>
+        {toolBarRender ? <div>{toolBarRender()}</div> : null}
+        <table>
+          <tbody>
+            {data.map((record, rowIndex) => (
+              <tr key={record.id}>
+                {columns.map((column: any) => (
+                  <td key={column.dataIndex}>
+                    {column.render ? column.render(record[column.dataIndex], record, rowIndex) : record[column.dataIndex]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  },
+}));
+
 vi.mock('@/services/openapi/walletAdmin', () => ({
   appsWalletApiListWalletAccounts: mockListAccounts,
   appsWalletApiAdminWalletLedger: mockLedger,
@@ -60,6 +106,8 @@ describe('WalletAccountsPage', () => {
       expect(screen.queryByText('账户详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
       expect(screen.getByText('账户列表')).toBeInTheDocument();
+      expect(screen.getByText('部分资金冻结')).toBeInTheDocument();
+      expect(screen.queryByText('冻结与可用并存')).not.toBeInTheDocument();
       expect(screen.queryByText('待激活账户')).not.toBeInTheDocument();
       expect(screen.queryByText('余额沉淀账户')).not.toBeInTheDocument();
     });

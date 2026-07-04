@@ -16,6 +16,7 @@ import {
   Space,
   Switch,
   Tag,
+  Typography,
   type MenuProps,
 } from 'antd';
 import React, {useRef, useState} from 'react';
@@ -303,7 +304,11 @@ const PlatformUsersPage: React.FC = () => {
       dataIndex: 'phone_national_number',
       width: 180,
       search: false,
-      render: (_value, record) => record.phone_label,
+      render: (_value, record) => (
+        record.phone_label === '未绑定'
+          ? <Typography.Text type="secondary">{record.phone_label}</Typography.Text>
+          : record.phone_label
+      ),
     },
     {
       title: '实名状态',
@@ -311,12 +316,18 @@ const PlatformUsersPage: React.FC = () => {
       width: 190,
       search: false,
       ellipsis: true,
-      render: (_value, record) => (
-        <IdentityText
-          primary={record.real_name_masked || enumMapping(record.real_name_status, record.real_name_status__mapping)}
-          secondary={record.id_number_masked}
-        />
-      ),
+      render: (_value, record) => {
+        const realNameText = record.real_name_masked || enumMapping(record.real_name_status, record.real_name_status__mapping);
+        if (!record.real_name_masked && record.real_name_status === 'unverified') {
+          return <Typography.Text type="secondary">{realNameText}</Typography.Text>;
+        }
+        return (
+          <IdentityText
+            primary={realNameText}
+            secondary={record.id_number_masked}
+          />
+        );
+      },
     },
     {
       title: '权限',

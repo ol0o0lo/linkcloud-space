@@ -47,7 +47,7 @@ describe('BindingView', () => {
       expect(screen.getByText('当前已绑定微信账号')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: '绑定 GitHub' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '绑定GitHub' })).toBeInTheDocument();
     expect(screen.getByText('已绑定')).toBeInTheDocument();
   });
 
@@ -65,7 +65,7 @@ describe('BindingView', () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: '绑定 GitHub' }));
+    fireEvent.click(await screen.findByRole('button', { name: '绑定GitHub' }));
 
     await waitFor(() => {
       expect(mockStartSocialBinding).toHaveBeenCalledWith('github');

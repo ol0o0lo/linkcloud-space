@@ -27,6 +27,13 @@ const useStyles = createStyles(({ token }) => {
         padding: '20px',
       },
     },
+    infoRow: {
+      display: 'flex',
+      gap: '12px',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+    },
     avatar_title: {
       height: '22px',
       marginBottom: '8px',

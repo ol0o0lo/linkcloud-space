@@ -34,18 +34,35 @@ export const toolbarControlStyle: React.CSSProperties = {
   width: 'min(260px, 100%)',
 };
 
-export const AdminToolbar: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const toolbarShortSelectStyle: React.CSSProperties = {
+  width: 160,
+};
+
+export const toolbarSelectPopupWidth = 160;
+
+export const AdminToolbar: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const screens = Grid.useBreakpoint();
   const isNarrow = !screens.sm;
 
   return (
-    <Flex gap="small" wrap={!isNarrow} vertical={isNarrow} align={isNarrow ? 'stretch' : 'center'} justify="flex-end" style={isNarrow ? fullWidthStyle : undefined}>
+    <Flex
+      gap="small"
+      wrap={!isNarrow}
+      vertical={isNarrow}
+      align={isNarrow ? 'stretch' : 'center'}
+      justify="flex-end"
+      style={isNarrow ? fullWidthStyle : undefined}
+    >
       {children}
     </Flex>
   );
 };
 
-export const ResponsiveActions: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+export const ResponsiveActions: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => (
   <Space size="small" wrap={false} style={{ whiteSpace: 'nowrap' }}>
     {children}
   </Space>

@@ -81,7 +81,7 @@ function buildAccountInsight(
     return {
       ...account,
       total_balance: totalBalance,
-      governance_label: '冻结与可用并存',
+      governance_label: '部分资金冻结',
       governance_color: 'gold',
     };
   }

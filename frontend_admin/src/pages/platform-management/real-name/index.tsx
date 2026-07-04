@@ -1,6 +1,6 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Button,
   Card,
@@ -22,9 +22,15 @@ import {
   drawerWidthLg,
   fullWidthStyle,
   ResponsiveActions,
-  toolbarControlStyle,
+  toolbarSelectPopupWidth,
+  toolbarShortSelectStyle,
   wrapTextStyle,
 } from '@/pages/_shared/adminLayout';
+import {
+  enumMapping,
+  enumSelectOptions,
+  useEnums,
+} from '@/services/manual/enums';
 import {
   appsAccountsApiApproveAdminRealName,
   appsAccountsApiGetAdminRealNameVerification,
@@ -33,17 +39,7 @@ import {
   appsAccountsApiRejectAdminRealName,
   appsAccountsApiRevokeAdminRealName,
 } from '@/services/openapi/realNameAdmin';
-import {
-  enumMapping,
-  enumSelectOptions,
-  useEnums,
-} from '@/services/manual/enums';
-import {
-  IdentityText,
-  NoteModal,
-  StatusTag,
-  personText,
-} from '../shared';
+import { IdentityText, NoteModal, personText, StatusTag } from '../shared';
 
 type ReviewAction = 'approve' | 'reject' | 'manual' | 'revoke';
 type ActionState = { row: RealNameInsight; action: ReviewAction } | null;
@@ -57,10 +53,12 @@ type RealNameWithMapping = API.RealNameVerificationOut & {
   source__mapping?: string;
   provider__mapping?: string;
 };
-type AdminRealNameRowWithMapping = API.AdminRealNameVerificationRowOut & RealNameWithMapping;
-type RealNameDetailWithMapping = API.RealNameVerificationDetailOut & RealNameWithMapping & {
-  logs: RealNameLogWithMapping[];
-};
+type AdminRealNameRowWithMapping = API.AdminRealNameVerificationRowOut &
+  RealNameWithMapping;
+type RealNameDetailWithMapping = API.RealNameVerificationDetailOut &
+  RealNameWithMapping & {
+    logs: RealNameLogWithMapping[];
+  };
 type RealNameInsight = AdminRealNameRowWithMapping & {
   stage_color: string;
 };
@@ -181,7 +179,10 @@ const RealNameAdminPage: React.FC = () => {
   const tableActionRef = useRef<ActionType>(null);
   const [form] = Form.useForm<{ note: string }>();
   const realNameEnums = useEnums(['accounts.real_name_status']);
-  const tableParams = React.useMemo(() => ({ status: statusFilter }), [statusFilter]);
+  const tableParams = React.useMemo(
+    () => ({ status: statusFilter }),
+    [statusFilter],
+  );
 
   const detailQuery = useQuery({
     queryKey: ['platform-management', 'real-name-detail', detailId],
@@ -247,7 +248,11 @@ const RealNameAdminPage: React.FC = () => {
       title: '审核阶段',
       dataIndex: 'status__mapping',
       width: 140,
-      render: (_value, record) => <Tag color={record.stage_color}>{enumMapping(record.status, record.status__mapping)}</Tag>,
+      render: (_value, record) => (
+        <Tag color={record.stage_color}>
+          {enumMapping(record.status, record.status__mapping)}
+        </Tag>
+      ),
     },
     {
       title: '来源与处理',
@@ -255,8 +260,12 @@ const RealNameAdminPage: React.FC = () => {
       width: 220,
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
-          <Typography.Text>{enumMapping(record.source, record.source__mapping)}</Typography.Text>
-          <Typography.Text type="secondary">{enumMapping(record.provider, record.provider__mapping)}</Typography.Text>
+          <Typography.Text>
+            {enumMapping(record.source, record.source__mapping)}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            {enumMapping(record.provider, record.provider__mapping)}
+          </Typography.Text>
           {record.failure_reason || record.review_note ? (
             <Typography.Text type="secondary">
               {record.failure_reason || record.review_note}
@@ -320,7 +329,9 @@ const RealNameAdminPage: React.FC = () => {
               status: params.status || undefined,
             });
             return {
-              data: ((result.items || []) as AdminRealNameRowWithMapping[]).map((item) => buildRealNameInsight(item)),
+              data: ((result.items || []) as AdminRealNameRowWithMapping[]).map(
+                (item) => buildRealNameInsight(item),
+              ),
               total: result.total || 0,
               success: true,
             };
@@ -330,7 +341,10 @@ const RealNameAdminPage: React.FC = () => {
           options={{
             density: true,
             reload: false,
-            search: { name: 'keyword', placeholder: '按用户名、邮箱、手机号、实名搜索' },
+            search: {
+              name: 'keyword',
+              placeholder: '按用户名、邮箱、手机号、实名搜索',
+            },
             setting: true,
           }}
           toolBarRender={() => [
@@ -338,8 +352,12 @@ const RealNameAdminPage: React.FC = () => {
               key="status"
               allowClear
               placeholder="按实名状态筛选"
-              style={toolbarControlStyle}
-              options={enumSelectOptions(realNameEnums.data, 'accounts.real_name_status')}
+              style={toolbarShortSelectStyle}
+              popupMatchSelectWidth={toolbarSelectPopupWidth}
+              options={enumSelectOptions(
+                realNameEnums.data,
+                'accounts.real_name_status',
+              )}
               onChange={(value) => setStatusFilter(value || undefined)}
             />,
             <Button key="back" href="/dashboard/super-admin/users">
@@ -382,49 +400,50 @@ const RealNameAdminPage: React.FC = () => {
             </Descriptions.Item>
             <Descriptions.Item label="当前状态">
               {detailData ? (
-                <StatusTag value={enumMapping(detailData.status, detailData.status__mapping)} />
+                <StatusTag
+                  value={enumMapping(
+                    detailData.status,
+                    detailData.status__mapping,
+                  )}
+                />
               ) : (
                 '-'
               )}
             </Descriptions.Item>
             <Descriptions.Item label="真实姓名">
-              {detailData?.real_name ||
-                detailData?.real_name_masked ||
-                '-'}
+              {detailData?.real_name || detailData?.real_name_masked || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="证件号">
               <span style={wrapTextStyle}>
-                {detailData?.id_number ||
-                  detailData?.id_number_masked ||
-                  '-'}
+                {detailData?.id_number || detailData?.id_number_masked || '-'}
               </span>
             </Descriptions.Item>
             <Descriptions.Item label="证件图片">
               <Space wrap>
-                {(detailData?.id_card_media || []).map(
-                  (item: any) => (
-                    <Space key={item.media_id} orientation="vertical" size={4}>
-                      <Typography.Text>
-                        {getIdCardSideLabel(item.side)}
-                      </Typography.Text>
-                      <Image
-                        alt={getIdCardSideLabel(item.side)}
-                        src={item.url}
-                        width={180}
-                      />
-                    </Space>
-                  ),
-                )}
-                {!(detailData?.id_card_media || []).length
-                  ? '-'
-                  : null}
+                {(detailData?.id_card_media || []).map((item: any) => (
+                  <Space key={item.media_id} orientation="vertical" size={4}>
+                    <Typography.Text>
+                      {getIdCardSideLabel(item.side)}
+                    </Typography.Text>
+                    <Image
+                      alt={getIdCardSideLabel(item.side)}
+                      src={item.url}
+                      width={180}
+                    />
+                  </Space>
+                ))}
+                {!(detailData?.id_card_media || []).length ? '-' : null}
               </Space>
             </Descriptions.Item>
             <Descriptions.Item label="来源">
-              {detailData ? enumMapping(detailData.source, detailData.source__mapping) : '-'}
+              {detailData
+                ? enumMapping(detailData.source, detailData.source__mapping)
+                : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="供应商">
-              {detailData ? enumMapping(detailData.provider, detailData.provider__mapping) : '-'}
+              {detailData
+                ? enumMapping(detailData.provider, detailData.provider__mapping)
+                : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="失败原因">
               {detailData?.failure_reason || '-'}
@@ -463,7 +482,8 @@ const RealNameAdminPage: React.FC = () => {
                 title: '动作',
                 dataIndex: 'action__mapping',
                 width: 160,
-                render: (_value, record) => enumMapping(record.action, record.action__mapping),
+                render: (_value, record) =>
+                  enumMapping(record.action, record.action__mapping),
               },
               {
                 title: '备注',

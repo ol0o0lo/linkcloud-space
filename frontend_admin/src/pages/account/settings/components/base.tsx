@@ -15,7 +15,7 @@ function formatPhone(user?: CurrentUser): string {
   if (!user?.phone_national_number) {
     return '-';
   }
-  const cc = user.phone_country_code ? `+${user.phone_country_code} ` : '';
+  const cc = user.phone_country_code ? `+${user.phone_country_code.replace(/^\++/, '')} ` : '';
   return `${cc}${user.phone_national_number}`;
 }
 
@@ -153,14 +153,17 @@ const BaseView: React.FC = () => {
             </ProForm>
             <Descriptions column={1} size="small" bordered style={{ marginTop: 24 }}>
               <Descriptions.Item label="邮箱">
-                {currentUser?.email || '-'}{' '}
-                <Link onClick={goToSecurity}>前往账号安全修改</Link>
+                <span className={styles.infoRow}>
+                  <span>{currentUser?.email || '-'}</span>
+                  <Link onClick={goToSecurity}>修改</Link>
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="手机号">
-                {formatPhone(currentUser)}{' '}
-                <Link onClick={goToSecurity}>前往账号安全修改</Link>
+                <span className={styles.infoRow}>
+                  <span>{formatPhone(currentUser)}</span>
+                  <Link onClick={goToSecurity}>修改</Link>
+                </span>
               </Descriptions.Item>
-              <Descriptions.Item label="时区">{currentUser?.timezone || '-'}</Descriptions.Item>
             </Descriptions>
           </div>
           <div className={styles.right}>

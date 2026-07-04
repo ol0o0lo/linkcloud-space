@@ -38,7 +38,9 @@ latest.dump
 
 # Frontend / Node
 node_modules/
+.umi/
 bun.lockb
+pnpm-lock.yaml
 public/static/dist/
 frontend/dist/
 
