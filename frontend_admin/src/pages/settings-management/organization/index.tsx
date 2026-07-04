@@ -1,17 +1,7 @@
-import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Col, Divider, Form, Input, InputNumber, Modal, Row, Select, Space, Statistic, Tabs, Tag, Typography, message, theme } from 'antd';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Button, Card, Divider, Form, Input, InputNumber, Modal, Select, Space, Tabs, Typography, message } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { wrapTextStyle } from '@/pages/_shared/adminLayout';
-import {
-  HOUSE_PUBLISH_RULE_MODE,
-  HOUSE_PUBLISH_RULE_PRESETS,
-  HOUSE_PUBLISH_RULE_ROWS,
-  type HousePublishRuleKey,
-  buildHousePublishRulesPreset,
-  normalizeHousePublishRules,
-  resolveHousePublishRulesPreset,
-  summarizeHousePublishRules as summarizePublishRules,
-} from '@/pages/property-rental/publish-rules';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi } from '@/services/manual/house';
 import {
@@ -19,23 +9,20 @@ import {
   appsSettingsApiPutOrgSetting,
 } from '@/services/openapi/organizationSettings';
 import {
+  PublishRulesControl,
   SettingSchemaControl,
+  buildSettingSections,
+  defaultBuildingSettingKey,
+  initialDraftValue,
   parseSettingValue,
+  publishRulesSettingKey,
+  settingAnchorId,
   settingsManagementQueryKeys,
-  stringifySettingValue,
 } from '../shared';
-import { getLoadingSafeCount, getLoadingSafeText } from '@/pages/property-rental/loading';
 
 type DraftValues = Record<string, unknown>;
 type BuildingItem = { id: number; name: string; estate_id: number; estate_name?: string };
 
-const categoryTitles: Record<string, string> = {
-  property_rental: '房源租赁设置',
-  general: '通用设置',
-};
-const categoryOrder = ['property_rental', 'general'];
-const defaultBuildingSettingKey = 'property_rental.default_building_id';
-const publishRulesSettingKey = 'property_rental.publish_rules';
 const settingRowStyle: React.CSSProperties = {
   display: 'flex',
   gap: 16,
@@ -46,36 +33,6 @@ const settingRowStyle: React.CSSProperties = {
 };
 const settingMetaStyle: React.CSSProperties = { flex: '0 0 240px', minWidth: 200 };
 const settingControlStyle: React.CSSProperties = { flex: '1 1 320px', minWidth: 280 };
-
-function settingAnchorId(settingKey: string) {
-  return `setting-${settingKey.replace(/\./g, '-')}`;
-}
-
-function initialDraftValue(setting: API.SettingOut) {
-  if (setting.widget === 'switch') {
-    return Boolean(setting.value);
-  }
-  if (setting.widget === 'input_number') {
-    return typeof setting.value === 'number' ? setting.value : Number(setting.value);
-  }
-  return setting.value;
-}
-
-function resolveSettingCategory(setting: API.SettingOut) {
-  return setting.category && categoryTitles[setting.category] ? setting.category : 'general';
-}
-
-function buildSettingSections(settings: API.SettingOut[] = []) {
-  const sections = new Map<string, API.SettingOut[]>();
-  settings.forEach((setting) => {
-    const category = resolveSettingCategory(setting);
-    sections.set(category, [...(sections.get(category) || []), setting]);
-  });
-
-  return categoryOrder
-    .filter((category) => sections.has(category))
-    .map((category) => ({ category, title: categoryTitles[category], rows: sections.get(category) || [] }));
-}
 
 const DefaultBuildingControl: React.FC<{
   value: unknown;
@@ -120,120 +77,6 @@ const DefaultBuildingControl: React.FC<{
   );
 };
 
-const PublishRulesControl: React.FC<{
-  value: unknown;
-  onCommit: (value: unknown) => void;
-}> = ({ value, onCommit }) => {
-  const rules = normalizeHousePublishRules(value);
-  const summary = summarizePublishRules(rules);
-  const activePreset = resolveHousePublishRulesPreset(rules);
-  const presetKeys = Object.keys(HOUSE_PUBLISH_RULE_PRESETS) as Array<keyof typeof HOUSE_PUBLISH_RULE_PRESETS>;
-
-  const updateRule = (ruleKey: HousePublishRuleKey, patch: Record<string, unknown>) => {
-    onCommit({
-      ...rules,
-      [ruleKey]: {
-        ...rules[ruleKey],
-        ...patch,
-      },
-    });
-  };
-
-  return (
-    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-      <Alert
-        type="info"
-        showIcon
-        title="当前发布策略"
-        description={
-          <Space orientation="vertical" size={8}>
-            <Space wrap size={8}>
-              <Tag color="red">阻断发布：{summary.blocking.join('、') || '无'}</Tag>
-              <Tag color="gold">仅提醒：{summary.warning.join('、') || '无'}</Tag>
-              <Tag>不校验：{summary.ignored.join('、') || '无'}</Tag>
-              <Tag color={activePreset === 'custom' ? 'blue' : 'green'}>
-                当前策略：{activePreset === 'custom' ? '自定义' : HOUSE_PUBLISH_RULE_PRESETS[activePreset].title}
-              </Tag>
-            </Space>
-            <Typography.Text type="secondary">房东和租金建议始终保持阻断；封面、图片、户型图和视频可以按项目阶段单独调整。</Typography.Text>
-          </Space>
-        }
-      />
-      <Space wrap size={8}>
-        {presetKeys.map((presetKey) => (
-          <Button key={presetKey} type={activePreset === presetKey ? 'primary' : 'default'} onClick={() => onCommit(buildHousePublishRulesPreset(presetKey))}>
-            {HOUSE_PUBLISH_RULE_PRESETS[presetKey].title}
-          </Button>
-        ))}
-      </Space>
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          padding: 12,
-          border: '1px solid var(--ant-color-border-secondary)',
-          borderRadius: 8,
-          background: 'var(--ant-color-fill-quaternary)',
-        }}
-      >
-        {HOUSE_PUBLISH_RULE_ROWS.map((rule, index) => (
-          <div
-            key={rule.key}
-            style={{
-              display: 'flex',
-              gap: 12,
-              alignItems: 'flex-start',
-              flexWrap: 'wrap',
-              paddingTop: index === 0 ? 0 : 12,
-              borderTop: index === 0 ? 0 : '1px solid var(--ant-color-border-secondary)',
-            }}
-          >
-            <Space orientation="vertical" size={2} style={{ flex: '1 1 320px', minWidth: 260 }}>
-              <Space wrap size={8}>
-                <Typography.Text strong>{rule.label}</Typography.Text>
-                {rule.countLabel ? <Tag color="blue">{rule.countLabel}</Tag> : <Tag>基础字段</Tag>}
-              </Space>
-              <Typography.Text type="secondary">{rule.description}</Typography.Text>
-            </Space>
-            <div style={{ flex: '0 0 140px' }}>
-              <Select
-                aria-label={rule.label}
-                value={rules[rule.key]?.mode}
-                options={[
-                  { value: HOUSE_PUBLISH_RULE_MODE.REQUIRED, label: '阻断发布' },
-                  { value: HOUSE_PUBLISH_RULE_MODE.WARNING, label: '仅提醒' },
-                  { value: HOUSE_PUBLISH_RULE_MODE.OFF, label: '不校验' },
-                ]}
-                onChange={(nextValue) => updateRule(rule.key, { mode: nextValue })}
-                style={{ width: 140 }}
-              />
-            </div>
-            {rule.countLabel ? (
-              <Space orientation="vertical" size={4} style={{ flex: '0 0 180px' }}>
-                <Typography.Text type="secondary">{rule.countLabel}</Typography.Text>
-                <InputNumber
-                  aria-label={`${rule.label}${rule.countLabel}`}
-                  min={0}
-                  value={rules[rule.key]?.min_count}
-                  disabled={rules[rule.key]?.mode === HOUSE_PUBLISH_RULE_MODE.OFF}
-                  onChange={(nextValue) => updateRule(rule.key, { min_count: Number(nextValue ?? 0) })}
-                  style={{ width: '100%' }}
-                />
-                {rules[rule.key]?.mode === HOUSE_PUBLISH_RULE_MODE.OFF ? <Typography.Text type="secondary">关闭时仅保留阈值，不参与发布判断。</Typography.Text> : null}
-              </Space>
-            ) : (
-              <Typography.Text type="secondary" style={{ flex: '0 0 160px' }}>-</Typography.Text>
-            )}
-          </div>
-        ))}
-      </div>
-      <Typography.Text type="secondary">
-        缺“阻断发布”的房源不能发布；“仅提醒”项目会继续出现在房源台账和工作台里，但不会阻断发布。
-      </Typography.Text>
-    </Space>
-  );
-};
-
 const OrganizationSettingsPage: React.FC = () => {
   const workspace = useTenantWorkspace();
   const [draftValues, setDraftValues] = useState<DraftValues>({});
@@ -259,20 +102,6 @@ const OrganizationSettingsPage: React.FC = () => {
     queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100 }),
     enabled: Boolean(workspace.selectedOrgSlug),
   });
-  const houseImpactQueries = useQueries({
-    queries: [
-      {
-        queryKey: ['settings-management', 'organization', 'house-impact', workspace.selectedOrgSlug, 'blocked'],
-        queryFn: () => houseApi.listHouses({ page: 1, page_size: 1, publish_blocked: true }),
-        enabled: Boolean(workspace.selectedOrgSlug),
-      },
-      {
-        queryKey: ['settings-management', 'organization', 'house-impact', workspace.selectedOrgSlug, 'ready'],
-        queryFn: () => houseApi.listHouses({ page: 1, page_size: 1, publish_ready: true }),
-        enabled: Boolean(workspace.selectedOrgSlug),
-      },
-    ],
-  });
 
   const buildingItems = useMemo(() => [...createdBuildings, ...(buildingsQuery.data?.items || [])], [buildingsQuery.data, createdBuildings]);
   const estateNameById = useMemo(
@@ -280,7 +109,6 @@ const OrganizationSettingsPage: React.FC = () => {
     [estatesQuery.data],
   );
   const sections = useMemo(() => buildSettingSections(settingsQuery.data), [settingsQuery.data]);
-  const { token } = theme.useToken();
 
   useEffect(() => {
     setDraftValues({});
@@ -296,27 +124,6 @@ const OrganizationSettingsPage: React.FC = () => {
       })),
     [buildingItems, estateNameById],
   );
-  const impactLoading = houseImpactQueries.some((query) => query.isPending);
-  const blockedCount = houseImpactQueries[0]?.data?.total || 0;
-  const readyCount = houseImpactQueries[1]?.data?.total || 0;
-  const defaultBuildingSetting = settingsQuery.data?.find((setting) => setting.key === defaultBuildingSettingKey);
-  const defaultBuildingId = Number(draftValues[defaultBuildingSettingKey] ?? defaultBuildingSetting?.value ?? 0) || undefined;
-  const defaultBuilding = contextualBuildingItems.find((item) => item.id === defaultBuildingId);
-  const defaultBuildingLabel = defaultBuilding ? `${defaultBuilding.estate_name || '未命名项目'} / ${defaultBuilding.name}` : '未设置默认楼栋';
-  const sectionStyle: React.CSSProperties = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    padding: 16,
-    background: token.colorBgContainer,
-  };
-  const overviewTileStyle: React.CSSProperties = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    padding: 16,
-    background: token.colorFillQuaternary,
-    height: '100%',
-  };
-
   useEffect(() => {
     if (sections.length > 0 && !sections.some((section) => section.category === activeCategory)) {
       setActiveCategory(sections[0].category);
@@ -369,7 +176,7 @@ const OrganizationSettingsPage: React.FC = () => {
 
     if (setting.key === defaultBuildingSettingKey) {
       return (
-          <DefaultBuildingControl
+        <DefaultBuildingControl
           value={value}
           loading={buildingsQuery.isLoading}
           buildings={contextualBuildingItems}
@@ -389,42 +196,6 @@ const OrganizationSettingsPage: React.FC = () => {
   return (
     <TenantSelectionGuard title="空间设置" subtitle="按业务功能管理当前空间的设置。">
       <Card loading={settingsQuery.isLoading}>
-        <div id="settings-inventory-impact" style={sectionStyle}>
-          <Typography.Text strong>策略概览</Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="默认楼栋" value={defaultBuilding ? 1 : 0} />
-                <Typography.Text type="secondary">{defaultBuildingLabel}</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="在管楼栋" value={contextualBuildingItems.length} />
-                <Typography.Text type="secondary">当前空间可直接作为默认录入和房源挂接底座的楼栋数。</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="阻断发布" value={getLoadingSafeCount(blockedCount, impactLoading)} />
-                <Typography.Text type="secondary">{getLoadingSafeText(`${blockedCount} 套房源仍被当前规则阻断`, '正在计算库存影响...', impactLoading)}</Typography.Text>
-              </div>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic title="可发布" value={getLoadingSafeCount(readyCount, impactLoading)} />
-                <Typography.Text type="secondary">{getLoadingSafeText(`${readyCount} 套房源当前满足发布条件`, '正在汇总可发布库存...', impactLoading)}</Typography.Text>
-              </div>
-            </Col>
-          </Row>
-        </div>
-        <Alert
-          type="info"
-          showIcon
-          title="这组设置会同步影响房源详情、新建房源和工作台的发布判断"
-          description="建议把房东、租金维持为阻断发布项，把封面、图片、户型图和视频按当前业务阶段配置成阻断发布、仅提醒或不校验。"
-          style={{ marginBottom: 16 }}
-        />
         <Tabs
           tabPlacement="start"
           activeKey={activeCategory || sections[0]?.category}
@@ -436,15 +207,12 @@ const OrganizationSettingsPage: React.FC = () => {
               <div style={{ paddingLeft: 8 }}>
                 {section.rows.map((setting, settingIndex) => {
                   const title = setting.label || setting.key;
-                  const description = setting.description && setting.description !== title ? setting.description : undefined;
+                  const description = setting.key !== publishRulesSettingKey && setting.description && setting.description !== title ? setting.description : undefined;
 
                   return (
                     <div key={setting.key} id={settingAnchorId(setting.key)} style={{ ...settingRowStyle, borderTop: settingIndex === 0 ? 0 : settingRowStyle.borderTop }}>
                       <Space orientation="vertical" size={4} style={settingMetaStyle}>
-                        <Space wrap align="center">
-                          <Typography.Text strong>{title}</Typography.Text>
-                          {setting.is_customized ? <Tag color="gold">已自定义</Tag> : <Tag>默认值</Tag>}
-                        </Space>
+                        <Typography.Text strong>{title}</Typography.Text>
                         {description ? (
                           <Typography.Text type="secondary" style={wrapTextStyle}>
                             {description}

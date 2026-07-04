@@ -4,6 +4,16 @@ import type { ColumnsType } from 'antd/es/table';
 import React from 'react';
 import { adminTableScroll, ResponsiveActions, wrapTextStyle } from '@/pages/_shared/adminLayout';
 import { TenantSectionHint } from '@/pages/tenant/shared';
+import {
+  HOUSE_PUBLISH_RULE_MODE,
+  HOUSE_PUBLISH_RULE_PRESETS,
+  HOUSE_PUBLISH_RULE_ROWS,
+  type HousePublishRuleKey,
+  buildHousePublishRulesPreset,
+  normalizeHousePublishRules,
+  resolveHousePublishRulesPreset,
+  summarizeHousePublishRules as summarizePublishRules,
+} from '@/pages/property-rental/publish-rules';
 
 export type SettingOption = { label: string; value: string | number | boolean };
 
@@ -33,6 +43,45 @@ export const settingsManagementQueryKeys = {
   teams: (slug?: string) => ['settings-management', 'teams', slug],
   team: (slug?: string, teamId?: number) => ['settings-management', 'team', slug, teamId],
 };
+
+export const defaultBuildingSettingKey = 'property_rental.default_building_id';
+export const publishRulesSettingKey = 'property_rental.publish_rules';
+
+const categoryTitles: Record<string, string> = {
+  property_rental: '房源租赁设置',
+  general: '通用设置',
+};
+const categoryOrder = ['property_rental', 'general'];
+
+export function initialDraftValue(setting: API.SettingOut) {
+  if (setting.widget === 'switch') {
+    return Boolean(setting.value);
+  }
+  if (setting.widget === 'input_number') {
+    return typeof setting.value === 'number' ? setting.value : Number(setting.value);
+  }
+  return setting.value;
+}
+
+function resolveSettingCategory(setting: API.SettingOut) {
+  return setting.category && categoryTitles[setting.category] ? setting.category : 'general';
+}
+
+export function buildSettingSections(settings: API.SettingOut[] = []) {
+  const sections = new Map<string, API.SettingOut[]>();
+  settings.forEach((setting) => {
+    const category = resolveSettingCategory(setting);
+    sections.set(category, [...(sections.get(category) || []), setting]);
+  });
+
+  return categoryOrder
+    .filter((category) => sections.has(category))
+    .map((category) => ({ category, title: categoryTitles[category], rows: sections.get(category) || [] }));
+}
+
+export function settingAnchorId(settingKey: string) {
+  return `setting-${settingKey.replace(/\./g, '-')}`;
+}
 
 export function parseSettingValue(rawValue: unknown, valueType: string) {
   if (typeof rawValue !== 'string') {
@@ -224,6 +273,105 @@ export const SettingSchemaControl: React.FC<{
   );
 };
 
+export const PublishRulesControl: React.FC<{
+  value: unknown;
+  onCommit: (value: unknown) => void;
+}> = ({ value, onCommit }) => {
+  const rules = normalizeHousePublishRules(value);
+  const summary = summarizePublishRules(rules);
+  const activePreset = resolveHousePublishRulesPreset(rules);
+  const presetKeys = Object.keys(HOUSE_PUBLISH_RULE_PRESETS) as Array<keyof typeof HOUSE_PUBLISH_RULE_PRESETS>;
+
+  const updateRule = (ruleKey: HousePublishRuleKey, patch: Record<string, unknown>) => {
+    onCommit({
+      ...rules,
+      [ruleKey]: {
+        ...rules[ruleKey],
+        ...patch,
+      },
+    });
+  };
+
+  return (
+    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+      <Space wrap size={8}>
+        <Tag color="red">阻断发布：{summary.blocking.join('、') || '无'}</Tag>
+        <Tag color="gold">仅提醒：{summary.warning.join('、') || '无'}</Tag>
+        <Tag>不校验：{summary.ignored.join('、') || '无'}</Tag>
+      </Space>
+      <Space wrap size={8}>
+        {presetKeys.map((presetKey) => (
+          <Button key={presetKey} type={activePreset === presetKey ? 'primary' : 'default'} onClick={() => onCommit(buildHousePublishRulesPreset(presetKey))}>
+            {HOUSE_PUBLISH_RULE_PRESETS[presetKey].title}
+          </Button>
+        ))}
+      </Space>
+      <div
+        style={{
+          display: 'grid',
+          gap: 12,
+          padding: 12,
+          border: '1px solid var(--ant-color-border-secondary)',
+          borderRadius: 8,
+          background: 'var(--ant-color-fill-quaternary)',
+        }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(160px, 1fr) 140px 140px',
+            gap: 12,
+            padding: '0 12px 8px',
+            color: 'var(--ant-color-text-secondary)',
+          }}
+        >
+          <span>资料项</span>
+          <span>校验</span>
+          <span>数量</span>
+        </div>
+        {HOUSE_PUBLISH_RULE_ROWS.map((rule, index) => (
+          <div
+            key={rule.key}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(160px, 1fr) 140px 140px',
+              gap: 12,
+              alignItems: 'center',
+              paddingTop: index === 0 ? 0 : 12,
+              borderTop: index === 0 ? 0 : '1px solid var(--ant-color-border-secondary)',
+            }}
+          >
+            <Typography.Text strong>{rule.label}</Typography.Text>
+            <Select
+              aria-label={rule.label}
+              value={rules[rule.key]?.mode}
+              options={[
+                { value: HOUSE_PUBLISH_RULE_MODE.REQUIRED, label: '阻断发布' },
+                { value: HOUSE_PUBLISH_RULE_MODE.WARNING, label: '仅提醒' },
+                { value: HOUSE_PUBLISH_RULE_MODE.OFF, label: '不校验' },
+              ]}
+              onChange={(nextValue) => updateRule(rule.key, { mode: nextValue })}
+              style={{ width: '100%' }}
+            />
+            {rule.countLabel ? (
+              <InputNumber
+                aria-label={`${rule.label}${rule.countLabel}`}
+                min={0}
+                value={rules[rule.key]?.min_count}
+                disabled={rules[rule.key]?.mode === HOUSE_PUBLISH_RULE_MODE.OFF}
+                onChange={(nextValue) => updateRule(rule.key, { min_count: Number(nextValue ?? 0) })}
+                style={{ width: '100%' }}
+              />
+            ) : (
+              <Typography.Text type="secondary">-</Typography.Text>
+            )}
+          </div>
+        ))}
+      </div>
+    </Space>
+  );
+};
+
 export function buildSettingColumns(
   onEdit: (setting: SettingWithSchema) => void,
   onRestore: (setting: SettingWithSchema) => void,
@@ -270,7 +418,7 @@ export function buildSettingColumns(
 
 export const SettingsTableCard: React.FC<{
   title: string;
-  hint: string;
+  hint?: string;
   loading?: boolean;
   data?: SettingWithSchema[];
   onEdit: (setting: SettingWithSchema) => void;
@@ -278,7 +426,7 @@ export const SettingsTableCard: React.FC<{
   onView?: (setting: SettingWithSchema) => void;
 }> = ({ title, hint, loading, data, onEdit, onRestore, onView }) => (
   <Card title={title}>
-    <TenantSectionHint text={hint} />
+    {hint ? <TenantSectionHint text={hint} /> : null}
     <Table
       rowKey="key"
       loading={loading}

@@ -205,12 +205,7 @@ describe('OrganizationSettingsPage', () => {
     });
     mockPutSetting.mockResolvedValue({});
     mockDeleteSetting.mockResolvedValue({});
-    mockListHouses.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.publish_blocked) return Promise.resolve({ items: [], total: 2, page: 1, page_size: 1 });
-      if (params?.publish_ready) return Promise.resolve({ items: [], total: 5, page: 1, page_size: 1 });
-      if (params?.publish_status === 'published') return Promise.resolve({ items: [], total: 4, page: 1, page_size: 1 });
-      return Promise.resolve({ items: [], total: 9, page: 1, page_size: 1 });
-    });
+    mockListHouses.mockResolvedValue({ items: [], total: 9, page: 1, page_size: 1 });
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: '星河湾' }], total: 1, page: 1, page_size: 100 });
     mockListBuildings.mockResolvedValue({ items: [{ id: 10, name: '1 栋', estate_id: 1 }], total: 1, page: 1, page_size: 100 });
     mockGetDefaultBuilding.mockResolvedValue({ id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾', floors: 20, address: '' });
@@ -233,9 +228,10 @@ describe('OrganizationSettingsPage', () => {
 
     expect(screen.getByRole('heading', { name: '空间设置' })).toBeInTheDocument();
     expect(screen.getByText('按业务功能管理当前空间的设置。')).toBeInTheDocument();
-    expect(screen.getByText('这组设置会同步影响房源详情、新建房源和工作台的发布判断')).toBeInTheDocument();
-    expect(screen.getByText('当前发布策略')).toBeInTheDocument();
-    expect(screen.getByText('当前策略：标准发布')).toBeInTheDocument();
+    expect(screen.queryByText('这组设置会同步影响房源详情、新建房源和工作台的发布判断')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前发布策略')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前策略：标准发布')).not.toBeInTheDocument();
+    expect(screen.queryByText('已自定义')).not.toBeInTheDocument();
     expect(screen.getByText('阻断发布：房东主体、租金')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '设置项' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '新建楼栋' })).not.toBeInTheDocument();
@@ -257,7 +253,7 @@ describe('OrganizationSettingsPage', () => {
     expect(within(settingsPanel!).getByLabelText('未知分类设置')).toBeInTheDocument();
   });
 
-  it('surfaces strategy overview and inventory impact on organization settings page', async () => {
+  it('does not render the old strategy overview on organization settings page', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <OrganizationSettingsPage />
@@ -265,19 +261,18 @@ describe('OrganizationSettingsPage', () => {
     );
 
     await screen.findByText('房源租赁设置');
-    expect(screen.getByText('策略概览')).toBeInTheDocument();
-    expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
+    expect(screen.queryByText('策略概览')).not.toBeInTheDocument();
+    expect(screen.queryByText('这组设置会同步影响房源详情、新建房源和工作台的发布判断')).not.toBeInTheDocument();
     expect(screen.getAllByText('默认楼栋').length).toBeGreaterThan(0);
-    expect(screen.getByText('在管楼栋')).toBeInTheDocument();
+    expect(screen.queryByText('在管楼栋')).not.toBeInTheDocument();
     expect(screen.getAllByText('阻断发布').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('可发布').length).toBeGreaterThan(0);
+    expect(screen.queryByText('可发布')).not.toBeInTheDocument();
     expect(screen.queryByText('库存影响')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '查看默认楼栋' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '查看发布规则' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '查看库存影响' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '补楼栋供给' })).not.toBeInTheDocument();
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true, page_size: 1 })));
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true, page_size: 1 })));
+    expect(mockListHouses).not.toHaveBeenCalled();
   });
 
   it('saves text-like setting drafts on blur through organization settings api', async () => {
