@@ -261,12 +261,12 @@ const WorkbenchPage: React.FC = () => {
   const readyLeaseCount = pendingLeaseReady.data?.total || 0;
   const contractMissingCount = contractMissingLeases.data?.total || 0;
   const overviewItems = [
-    { key: 'total', title: '在管房源', value: totalHouseCount, suffix: `${totalHouseCount} 套房源在当前组织内管理` },
-    { key: 'blocked', title: '阻断发布', value: blockedCount, suffix: `${blockedCount} 套被当前阻断规则卡住` },
-    { key: 'ready', title: '可发布', value: readyCount, suffix: `${readyCount} 套已具备上架条件` },
-    { key: 'contact-missing', title: '待补租客', value: missingContactCount, suffix: `${missingContactCount} 条成交待补业务主体` },
-    { key: 'lease', title: '待签约', value: readyLeaseCount, suffix: `${readyLeaseCount} 条成交可直接转租约` },
-    { key: 'contract', title: '待补合同', value: contractMissingCount, suffix: `${contractMissingCount} 份合同待归档` },
+    { key: 'total', title: '在管房源', value: totalHouseCount },
+    { key: 'blocked', title: '阻断发布', value: blockedCount },
+    { key: 'ready', title: '可发布', value: readyCount },
+    { key: 'contact-missing', title: '待补租客', value: missingContactCount },
+    { key: 'lease', title: '待签约', value: readyLeaseCount },
+    { key: 'contract', title: '待补合同', value: contractMissingCount },
   ];
   const visibleOverviewItems = overviewItems.filter((item, index) => index === 0 || item.value > 0);
   const publishWorkbenchRows = buildPublishWorkbenchRows(blockedHouses.data?.items || [], readyHouses.data?.items || []);
@@ -309,7 +309,7 @@ const WorkbenchPage: React.FC = () => {
   }, [publishFilter, workflowFilter]);
 
   return (
-    <TenantSelectionGuard title="房源工作台" subtitle="优先处理会阻断发布、带看和签约的事项。">
+    <TenantSelectionGuard title="房源工作台">
       <div style={sectionStyle}>
         <Typography.Text strong>经营总览</Typography.Text>
         <Row gutter={[16, 16]}>
@@ -317,7 +317,6 @@ const WorkbenchPage: React.FC = () => {
             <Col key={item.key} xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
                 <Statistic title={item.title} value={item.value} />
-                <Typography.Text type="secondary">{item.suffix}</Typography.Text>
               </div>
             </Col>
           ))}

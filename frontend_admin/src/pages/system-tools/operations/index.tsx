@@ -110,7 +110,7 @@ const SystemOperationsPage: React.FC = () => {
       .join('、') || '-';
 
   return (
-    <PageContainer title="系统运维台" subTitle="查看版本并演练通知与上传链路。">
+    <PageContainer title="系统运维台">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
           <div style={sectionStyle}>

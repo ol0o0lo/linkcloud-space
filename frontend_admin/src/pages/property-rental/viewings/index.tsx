@@ -28,9 +28,11 @@ import {
 } from 'antd';
 import React, { useEffect, useState } from 'react';
 import {
-  AdminToolbar,
   adminTableScroll,
+  fixedPagePagination,
   ResponsiveActions,
+  SectionHeader,
+  StatusFlowButtons,
   toolbarSelectPopupWidth,
   toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
@@ -61,7 +63,6 @@ import {
 import {
   getLoadingAwareEmptyState,
   getLoadingSafeCount,
-  getLoadingSafeText,
   isAnyInitialQueryPending,
   isInitialQueryPending,
 } from '../loading';
@@ -146,35 +147,6 @@ function getViewingDrawerEntryText(options: {
   if (options.sourceContactId) return '联系人快速登记';
   if (options.sourceHouseId) return '房源快速登记';
   return '手动新建带看';
-}
-
-function getViewingDrawerWarning(options: {
-  houseId?: number;
-  customerName?: string;
-  customerPhone?: string;
-  scheduledAt?: string;
-  status?: string;
-  selectedContactId?: number | null;
-}) {
-  const {
-    houseId,
-    customerName,
-    customerPhone,
-    scheduledAt,
-    status,
-    selectedContactId,
-  } = options;
-  if (!houseId) return '还未选择房源，保存前先确认客户要看的具体房源。';
-  if (!customerName || !customerPhone)
-    return '客户姓名和手机还未补齐，避免后续回访无法落到具体主体。';
-  if (!scheduledAt) return '还未设置预约时间，当前记录还不能进入带看排期。';
-  if (status === VIEWING_STATUS.CONVERTED && !selectedContactId)
-    return '已成交记录还未绑定租客联系人，签约前先补齐业务主体。';
-  if (status === VIEWING_STATUS.VIEWED)
-    return '带看已完成，建议尽快补回访结果或是否成交。';
-  if (status === VIEWING_STATUS.SCHEDULED)
-    return '预约信息已完整，保存后可进入到访确认和带看排期。';
-  return '当前主体和排期信息已完整，可继续保存并进入后续跟进。';
 }
 
 function getViewingBusinessInfo(record: ViewingRecordOut) {
@@ -613,12 +585,6 @@ const ViewingsPage: React.FC = () => {
     pendingLease && contactMissing !== undefined
       ? viewings.data?.total || 0
       : pendingLeaseCount;
-  const pendingLeaseOverviewHint =
-    contactMissing === true
-      ? '成交后待补租客主体'
-      : contactMissing === false && pendingLease
-        ? '主体完整，可直接转租约'
-        : '成交后待转租约的记录';
   const overviewLoading = isAnyInitialQueryPending(overviewQueries);
   const listLoading = isInitialQueryPending(viewings);
   const defaultOverviewCards = [
@@ -626,25 +592,21 @@ const ViewingsPage: React.FC = () => {
       key: 'scheduled',
       title: '已预约',
       count: scheduledCount,
-      hint: '待确认客户到访结果',
     },
     {
       key: 'viewed',
       title: '待回访',
       count: viewedCount,
-      hint: '带看后待更新成交意向',
     },
     {
       key: 'pending_lease',
       title: pendingLeaseOverviewTitle,
       count: pendingLeaseOverviewValue,
-      hint: pendingLeaseOverviewHint,
     },
     {
       key: 'abnormal',
       title: '异常记录',
       count: abnormalCount,
-      hint: `${canceledCount} 条取消，${noShowCount} 条爽约`,
     },
   ] as const;
   const visibleDefaultOverviewCards = defaultOverviewCards.filter(
@@ -799,18 +761,6 @@ const ViewingsPage: React.FC = () => {
     status: draftStatus,
     statusLabel,
   });
-  const drawerWarningText = getViewingDrawerWarning({
-    houseId: selectedHouseId,
-    customerName: formValues?.customer_name || formInitialValues.customer_name,
-    customerPhone:
-      formValues?.customer_phone || formInitialValues.customer_phone,
-    scheduledAt: formValues?.scheduled_at || formInitialValues.scheduled_at,
-    status: draftStatus,
-    selectedContactId,
-  });
-  const drawerReady =
-    drawerWarningText.includes('当前主体和排期信息已完整') ||
-    drawerWarningText.includes('预约信息已完整');
   const sectionStyle = {
     border: `1px solid ${token.colorBorderSecondary}`,
     borderRadius: token.borderRadiusLG,
@@ -828,7 +778,6 @@ const ViewingsPage: React.FC = () => {
   return (
     <TenantSelectionGuard
       title="带看"
-      subtitle="跟进预约、到访、取消和成交记录。"
     >
       <div style={sectionStyle}>
         <Typography.Text strong>带看概览</Typography.Text>
@@ -840,13 +789,6 @@ const ViewingsPage: React.FC = () => {
                   title={item.title}
                   value={getLoadingSafeCount(item.count, overviewLoading)}
                 />
-                <Typography.Text type="secondary">
-                  {getLoadingSafeText(
-                    item.hint,
-                    '正在汇总预约、回访和待签约数据...',
-                    overviewLoading,
-                  )}
-                </Typography.Text>
               </div>
             </Col>
           ))}
@@ -854,25 +796,14 @@ const ViewingsPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 16,
-            width: '100%',
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <Typography.Text strong>带看列表</Typography.Text>
-          </div>
-          <AdminToolbar>
+        <SectionHeader
+          title="带看列表"
+          actions={
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
               新建带看
             </Button>
-          </AdminToolbar>
-        </div>
+          }
+        />
 
         {statusText ? (
           <Alert
@@ -1001,24 +932,18 @@ const ViewingsPage: React.FC = () => {
                   >
                     编辑
                   </Button>
-                  {(VIEWING_STATUS_FLOW_OPTIONS[record.status] || [])
-                    .filter((nextStatus) => nextStatus !== record.status)
-                    .map((nextStatus) => (
-                      <Button
-                        type="link"
-                        size="small"
-                        key={nextStatus}
-                        onClick={() => {
-                          updateViewingStatus.mutate({
-                            id: record.id,
-                            status: nextStatus,
-                          });
-                        }}
-                      >
-                        {VIEWING_STATUS_ACTION_TEXT[nextStatus] ||
-                          statusLabel(nextStatus)}
-                      </Button>
-                    ))}
+                  <StatusFlowButtons
+                    actionText={VIEWING_STATUS_ACTION_TEXT}
+                    currentStatus={record.status}
+                    flowOptions={VIEWING_STATUS_FLOW_OPTIONS}
+                    label={statusLabel}
+                    onChange={(nextStatus) =>
+                      updateViewingStatus.mutate({
+                        id: record.id,
+                        status: nextStatus,
+                      })
+                    }
+                  />
                 </ResponsiveActions>
               ),
             },
@@ -1039,13 +964,12 @@ const ViewingsPage: React.FC = () => {
               }),
             }),
           }}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: viewings.data?.total || 0,
-            showSizeChanger: false,
-            onChange: setPage,
-          }}
+          pagination={fixedPagePagination(
+            page,
+            PAGE_SIZE,
+            viewings.data?.total || 0,
+            setPage,
+          )}
           scroll={adminTableScroll}
         />
       </div>
@@ -1296,12 +1220,6 @@ const ViewingsPage: React.FC = () => {
                           : '保存后进入预约排期'}
                       </Descriptions.Item>
                     </Descriptions>
-                    <Alert
-                      type={drawerReady ? 'success' : 'warning'}
-                      showIcon
-                      title={drawerReady ? '当前可直接保存' : '当前仍有待补项'}
-                      description={drawerWarningText}
-                    />
                   </Space>
                 </Card>
               </Col>

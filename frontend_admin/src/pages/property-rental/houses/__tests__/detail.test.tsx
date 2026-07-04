@@ -110,7 +110,8 @@ describe('House detail page', () => {
 
     expect(await screen.findByText('发布与阻塞')).toBeInTheDocument();
     await screen.findAllByText('1801');
-    expect(screen.getByText('当前缺的是提醒项，不阻断上线。可以先发布承接带看，再按优先级持续补齐图片和户型图。')).toBeInTheDocument();
+    expect(screen.getByText('缺封面')).toBeInTheDocument();
+    expect(screen.getByText('图片不足')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: '执行发布' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: '执行发布' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认发布' }));
@@ -250,13 +251,13 @@ describe('House detail page', () => {
   it('shows latest progress snapshot for viewing and lease workflow', async () => {
     mockGetHouse.mockResolvedValue(completeHouse);
     mockListViewings.mockResolvedValue({
-      items: [{ id: 1, house_id: 99, customer_name: '李客户', customer_phone: '13900000000', scheduled_at: '2026-07-01T10:00:00+08:00', status: 'scheduled', signed_lease_id: null }],
+      items: [{ id: 1, house_id: 99, customer_name: '李客户', customer_phone: '13900000000', scheduled_at: '2026-07-01T10:00:00+08:00', status: 'scheduled', status__mapping: '已预约', signed_lease_id: null }],
       total: 1,
       page: 1,
       page_size: 5,
     });
     mockListLeases.mockResolvedValue({
-      items: [{ id: 2, house_id: 99, tenant_id: 6, tenant_name: '王租客', tenant_phone: '13700000000', start_date: '2026-07-01', end_date: '2027-06-30', monthly_rent: '4200.00', status: 'active', contract_files: [{ media_id: 9 }] }],
+      items: [{ id: 2, house_id: 99, tenant_id: 6, tenant_name: '王租客', tenant_phone: '13700000000', start_date: '2026-07-01', end_date: '2027-06-30', monthly_rent: '4200.00', status: 'active', status__mapping: '生效中', contract_files: [{ media_id: 9 }] }],
       total: 1,
       page: 1,
       page_size: 5,

@@ -324,7 +324,7 @@ const WalletWithdrawalsPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer title="提现审核" subTitle="处理提现审核、代付和重试。">
+    <PageContainer title="提现审核">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
           {reconcileDiffCount !== null ? (

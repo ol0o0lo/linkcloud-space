@@ -26,9 +26,10 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  AdminToolbar,
   adminTableScroll,
+  fixedPagePagination,
   ResponsiveActions,
+  SectionHeader,
   toolbarControlStyle,
   toolbarSelectPopupWidth,
   toolbarShortSelectStyle,
@@ -66,7 +67,6 @@ import {
 import {
   getLoadingAwareEmptyState,
   getLoadingSafeCount,
-  getLoadingSafeText,
   isAnyInitialQueryPending,
   isInitialQueryPending,
 } from '../loading';
@@ -586,6 +586,28 @@ const HousesPage: React.FC = () => {
     height: '100%',
     padding: 16,
   } as const;
+  const overviewCards = [
+    {
+      key: 'total',
+      title: scopedOverview ? '当前筛选结果' : '在管房源',
+      count: scopedOverview ? scopedTotalCount : totalCount,
+    },
+    {
+      key: 'blocked',
+      title: '阻断发布',
+      count: blockedCount,
+    },
+    {
+      key: 'ready',
+      title: '可发布',
+      count: readyCount,
+    },
+    {
+      key: 'published',
+      title: '已发布',
+      count: publishedCount,
+    },
+  ];
 
   useEffect(() => {
     syncHouseListSearch({
@@ -782,104 +804,26 @@ const HousesPage: React.FC = () => {
   return (
     <TenantSelectionGuard
       title="房源"
-      subtitle="按房源发现资料、媒体、房态和发布问题。"
     >
       <div style={sectionStyle}>
         <Typography.Text strong>房源概览</Typography.Text>
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title={
-                  scopedOverview ? '当前筛选结果' : '在管房源'
-                }
-                value={getLoadingSafeCount(
-                  scopedOverview ? scopedTotalCount : totalCount,
-                  overviewLoading,
-                )}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  scopedOverview
-                    ? `${scopedTotalCount} 套房源落在当前筛选范围内`
-                    : `${totalCount} 套房源在当前组织内管理`,
-                  '正在汇总当前房源范围...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="阻断发布"
-                value={getLoadingSafeCount(
-                  blockedCount,
-                  overviewLoading,
-                )}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  `${blockedCount} 套被当前阻断规则卡住`,
-                  '正在识别阻塞项...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="可发布"
-                value={getLoadingSafeCount(
-                  readyCount,
-                  overviewLoading,
-                )}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  `${readyCount} 套已具备上线条件`,
-                  '正在识别可发布房源...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="已发布"
-                value={getLoadingSafeCount(
-                  publishedCount,
-                  overviewLoading,
-                )}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  `${publishedCount} 套正在承接带看`,
-                  '正在汇总在线库存...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
+          {overviewCards.map((item) => (
+            <Col key={item.key} xs={24} sm={12} xl={6}>
+              <div style={overviewTileStyle}>
+                <Statistic
+                  title={item.title}
+                  value={getLoadingSafeCount(item.count, overviewLoading)}
+                />
+              </div>
+            </Col>
+          ))}
         </Row>
       </div>
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 16,
-            width: '100%',
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <Typography.Text strong>房源经营台账</Typography.Text>
-          </div>
-          <AdminToolbar>
+        <SectionHeader
+          title="房源经营台账"
+          actions={
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -887,8 +831,8 @@ const HousesPage: React.FC = () => {
             >
               新建房源
             </Button>
-          </AdminToolbar>
-        </div>
+          }
+        />
         {scopeText ? (
           <Alert
             type="info"
@@ -1003,13 +947,12 @@ const HousesPage: React.FC = () => {
               emptyState: '暂无数据',
             }),
           }}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: houses.data?.total || 0,
-            showSizeChanger: false,
-            onChange: setPage,
-          }}
+          pagination={fixedPagePagination(
+            page,
+            PAGE_SIZE,
+            houses.data?.total || 0,
+            setPage,
+          )}
           scroll={adminTableScroll}
         />
       </div>

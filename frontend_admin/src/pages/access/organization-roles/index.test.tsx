@@ -22,7 +22,6 @@ const {
 
 vi.mock('@/pages/tenant/shared', () => ({
   TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
   useTenantWorkspace: () => ({ selectedOrgSlug: 'acme', queryClient: { invalidateQueries: vi.fn() } }),
 }));
 

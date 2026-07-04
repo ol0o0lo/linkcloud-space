@@ -1,4 +1,3 @@
-import { request } from '@umijs/max';
 import {
   deleteBrowserV1AccountEmail,
   getBrowserV1AccountEmail,
@@ -30,12 +29,9 @@ import { appsMediaApiUploadFiles } from '@/services/openapi/mediaFiles';
 import { normalizeEmailLikeInput } from '@/utils/email';
 import type {
   CurrentUser,
-  GeographicItemType,
   SocialBindingItem,
   SocialBindingProvider,
 } from './data';
-import city from './geographic/city.json';
-import province from './geographic/province.json';
 
 const ALLAUTH_BROWSER_BASE = '/api/allauth/browser/v1';
 
@@ -363,18 +359,4 @@ export async function deleteAuthenticator(type: string) {
       'X-CSRFToken': csrfToken,
     },
   } as any);
-}
-
-export async function queryProvince(): Promise<{ data: GeographicItemType[] }> {
-  return { data: province };
-}
-
-export async function queryCity(
-  province: string,
-): Promise<{ data: GeographicItemType[] }> {
-  return { data: city[province as keyof typeof city] || [] };
-}
-
-export async function query() {
-  return request('/api/users');
 }

@@ -74,14 +74,12 @@ const {
 }));
 
 vi.mock('@/pages/tenant/shared', () => ({
-  TenantSelectionGuard: ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
+  TenantSelectionGuard: ({ title, children }: { title: string; children: React.ReactNode }) => (
     <section>
       <h1>{title}</h1>
-      {subtitle ? <p>{subtitle}</p> : null}
       {children}
     </section>
   ),
-  TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
   useTenantWorkspace: mockUseTenantWorkspace,
 }));
 
@@ -227,7 +225,7 @@ describe('OrganizationSettingsPage', () => {
     });
 
     expect(screen.getByRole('heading', { name: '空间设置' })).toBeInTheDocument();
-    expect(screen.getByText('按业务功能管理当前空间的设置。')).toBeInTheDocument();
+    expect(screen.queryByText('按业务功能管理当前空间的设置。')).not.toBeInTheDocument();
     expect(screen.queryByText('这组设置会同步影响房源详情、新建房源和工作台的发布判断')).not.toBeInTheDocument();
     expect(screen.queryByText('当前发布策略')).not.toBeInTheDocument();
     expect(screen.queryByText('当前策略：标准发布')).not.toBeInTheDocument();

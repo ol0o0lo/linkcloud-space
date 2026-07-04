@@ -56,14 +56,12 @@ const { mockUseTenantWorkspace } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/pages/tenant/shared', () => ({
-  TenantSelectionGuard: ({ title, subtitle, children }: { title?: string; subtitle?: string; children: React.ReactNode }) => (
+  TenantSelectionGuard: ({ title, children }: { title?: string; children: React.ReactNode }) => (
     <section>
       {title ? <h1>{title}</h1> : null}
-      {subtitle ? <p>{subtitle}</p> : null}
       {children}
     </section>
   ),
-  TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
   useTenantWorkspace: mockUseTenantWorkspace,
 }));
 
@@ -88,7 +86,7 @@ describe('Property rental workbench', () => {
     mockUseTenantWorkspace.mockImplementation(() => ({ selectedOrgSlug: 'org', queryClient: new QueryClient() }));
     mockPatchHouse.mockResolvedValue({ id: 3, publish_status: 'published' });
     mockListHouses.mockImplementation((params?: Record<string, unknown>) => {
-      const blockedHouse = { id: 1, room_number: '101', estate_name: '星河湾', building_name: '1 栋', landlord_id: null, images: [], videos: [], status: 'vacant', publish_status: 'draft' };
+      const blockedHouse = { id: 1, room_number: '101', estate_name: '星河湾', building_name: '1 栋', landlord_id: null, images: [], videos: [], status: 'vacant', status__mapping: '空置', publish_status: 'draft', publish_status__mapping: '草稿' };
       const publishedHouse = {
         id: 2,
         room_number: '102',
@@ -101,7 +99,9 @@ describe('Property rental workbench', () => {
         ],
         videos: [],
         status: 'vacant',
+        status__mapping: '空置',
         publish_status: 'published',
+        publish_status__mapping: '已发布',
       };
       const readyHouse = {
         id: 3,
@@ -119,7 +119,9 @@ describe('Property rental workbench', () => {
         ],
         videos: [{ media_id: 13, media_type: 'video' }],
         status: 'vacant',
+        status__mapping: '空置',
         publish_status: 'draft',
+        publish_status__mapping: '草稿',
         available_from: '2026-07-01',
       };
       if (params?.publish_issue) return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
@@ -261,12 +263,8 @@ describe('Property rental workbench', () => {
     expect(screen.getAllByText('待补租客').length).toBeGreaterThan(1);
     expect(screen.getAllByText('待签约').length).toBeGreaterThan(0);
     expect(screen.getByText('待补合同')).toBeInTheDocument();
-    expect(screen.getByText('3 套房源在当前组织内管理')).toBeInTheDocument();
-    expect(screen.getByText('1 套被当前阻断规则卡住')).toBeInTheDocument();
-    expect(screen.getByText('1 套已具备上架条件')).toBeInTheDocument();
-    expect(screen.getByText('1 条成交待补业务主体')).toBeInTheDocument();
-    expect(screen.getByText('2 条成交可直接转租约')).toBeInTheDocument();
-    expect(screen.getByText('7 份合同待归档')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '阻断发布 1' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '待补合同 7' })).toBeInTheDocument();
 
     expect(screen.getByText('缺房东')).toBeInTheDocument();
     expect(screen.getByText('缺封面')).toBeInTheDocument();
@@ -357,7 +355,7 @@ describe('Property rental workbench', () => {
     render(<QueryClientProvider client={new QueryClient()}><WorkbenchPage /></QueryClientProvider>);
 
     await screen.findByText('发布工作区');
-    await waitFor(() => expect(screen.getByText('77 套被当前阻断规则卡住')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('radio', { name: '阻断发布 77' })).toBeInTheDocument());
     expect(screen.queryByText('123')).not.toBeInTheDocument();
     expect(screen.queryByText('8')).not.toBeInTheDocument();
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_issue: 'landlord', page_size: 1 }));

@@ -1,7 +1,7 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useModel } from '@umijs/max';
-import { Alert, Empty, Typography } from 'antd';
+import { Alert, Empty } from 'antd';
 import React from 'react';
 import { appsBaseApiAppContext } from '@/services/openapi/appSystem';
 import {
@@ -141,21 +141,20 @@ export function useTenantWorkspace() {
 
 export const TenantSelectionGuard: React.FC<{
   title: string;
-  subtitle?: string;
   children: React.ReactNode;
-}> = ({ title, subtitle, children }) => {
+}> = ({ title, children }) => {
   const workspace = useTenantWorkspace();
 
   if (
     workspace.organizationsQuery.isLoading &&
     workspace.organizations.length === 0
   ) {
-    return <PageContainer title={title} subTitle={subtitle} loading />;
+    return <PageContainer title={title} loading />;
   }
 
   if (workspace.organizations.length === 0) {
     return (
-      <PageContainer title={title} subTitle={subtitle}>
+      <PageContainer title={title}>
         <Empty description="当前用户还没有可用空间，请先加入空间或联系管理员创建空间。" />
       </PageContainer>
     );
@@ -163,7 +162,7 @@ export const TenantSelectionGuard: React.FC<{
 
   if (!workspace.selectedOrgSlug || !workspace.selectedOrganization) {
     return (
-      <PageContainer title={title} subTitle={subtitle}>
+      <PageContainer title={title}>
         <Alert
           type="warning"
           title="尚未选择空间，请在右上角空间切换器中选择。"
@@ -174,7 +173,7 @@ export const TenantSelectionGuard: React.FC<{
   }
 
   return (
-    <PageContainer title={title} subTitle={subtitle}>
+    <PageContainer title={title}>
       {children}
     </PageContainer>
   );
@@ -197,12 +196,6 @@ export function formatPersonLabel(user?: {
     '未知用户'
   );
 }
-
-export const TenantSectionHint: React.FC<{ text: string }> = ({ text }) => (
-  <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-    {text}
-  </Typography.Paragraph>
-);
 
 export function requireTenantSlug(slug?: string) {
   if (!slug) {

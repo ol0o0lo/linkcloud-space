@@ -360,10 +360,7 @@ const PersonalBusinessPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer
-      title="个人业务概览"
-      subTitle="查看钱包、实名、邀请和个人设置。"
-    >
+    <PageContainer title="个人业务概览">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
           <div style={sectionStyle}>
@@ -378,9 +375,6 @@ const PersonalBusinessPage: React.FC = () => {
                       formatWalletAmount(Number(value || 0))
                     }
                   />
-                  <Typography.Text type="secondary">
-                    当前可直接用于提现或后续经营动作的余额。
-                  </Typography.Text>
                 </div>
               </Col>
               <Col xs={24} sm={12} xl={6}>
@@ -392,9 +386,6 @@ const PersonalBusinessPage: React.FC = () => {
                       formatWalletAmount(Number(value || 0))
                     }
                   />
-                  <Typography.Text type="secondary">
-                    通常对应待审核、处理中或失败待解释的提现申请。
-                  </Typography.Text>
                 </div>
               </Col>
               <Col xs={24} sm={12} xl={6}>
@@ -403,9 +394,6 @@ const PersonalBusinessPage: React.FC = () => {
                     title="在途提现"
                     value={activeWithdrawals.length}
                   />
-                  <Typography.Text type="secondary">
-                    这些申请决定了个人经营资金何时能真正完成结算。
-                  </Typography.Text>
                 </div>
               </Col>
               <Col xs={24} sm={12} xl={6}>
@@ -414,9 +402,6 @@ const PersonalBusinessPage: React.FC = () => {
                     title="邀请注册"
                     value={referralSummary?.registered_count || 0}
                   />
-                  <Typography.Text type="secondary">
-                    邀请码带来的实际注册转化数量。
-                  </Typography.Text>
                 </div>
               </Col>
             </Row>
@@ -443,12 +428,6 @@ const PersonalBusinessPage: React.FC = () => {
                             : '可继续申请'}
                         </Tag>
                       </Space>
-                      <Typography.Paragraph
-                        type="secondary"
-                        style={{ marginBottom: 0, marginTop: 8 }}
-                      >
-                        把提现作为资金推进动作来处理，而不是单纯填写一个表单。申请提交后，重点是跟踪审核与结果。
-                      </Typography.Paragraph>
                     </div>
                     <Form
                       form={withdrawalForm}
@@ -531,9 +510,6 @@ const PersonalBusinessPage: React.FC = () => {
                           : '暂无失败'}{' '}
                       </Tag>
                     </Space>
-                    <Typography.Text>
-                      失败提现不只是一个状态，它通常意味着余额解释、用户预期和后续重提策略都需要重新说明。
-                    </Typography.Text>
                     {failedWithdrawals.length ? (
                       <Alert
                         type="warning"
@@ -644,9 +620,6 @@ const PersonalBusinessPage: React.FC = () => {
                         {realName?.id_number_masked || '-'}
                       </Descriptions.Item>
                     </Descriptions>
-                    <Typography.Text type="secondary" style={wrapTextStyle}>
-                      实名入口已统一放到个人设置，若需提交或重新提交，请前往个人设置完成。
-                    </Typography.Text>
                     <Button
                       type="link"
                       href="/account/center?tab=security"
@@ -693,12 +666,6 @@ const PersonalBusinessPage: React.FC = () => {
                     style={fullWidthStyle}
                   >
                     <Typography.Text strong>个人设置维护</Typography.Text>
-                    <Typography.Paragraph
-                      type="secondary"
-                      style={{ marginBottom: 0 }}
-                    >
-                      这里维护的是个人经营偏好和平台侧配置，不应和账户安全或实名认证入口混在一起。
-                    </Typography.Paragraph>
                     <Form
                       form={settingForm}
                       layout="vertical"

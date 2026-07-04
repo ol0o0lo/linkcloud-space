@@ -74,7 +74,7 @@ describe('WalletAccountsPage', () => {
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     mockListAccounts.mockResolvedValue({
       items: [
-        { id: 1, user_id: 7, available_balance: 1200, frozen_balance: 100, total_income: 3000, total_withdrawn: 800 },
+        { id: 1, user_id: 7, username: 'alice', email: 'alice@example.com', phone_label: '+8613800138000', real_name_label: '张*', available_balance: 1200, frozen_balance: 100, total_income: 3000, total_withdrawn: 800 },
         { id: 2, user_id: 8, available_balance: 0, frozen_balance: 0, total_income: 0, total_withdrawn: 0 },
         { id: 3, user_id: 9, available_balance: 0, frozen_balance: 900, total_income: 1800, total_withdrawn: 900 },
         { id: 4, user_id: 10, available_balance: 1600, frozen_balance: 0, total_income: 2000, total_withdrawn: 300 },
@@ -101,7 +101,8 @@ describe('WalletAccountsPage', () => {
 
     await waitFor(() => {
       expect(mockListAccounts).toHaveBeenCalledWith({ page: 1, page_size: 10 });
-      expect(screen.getByText('用户 #7')).toBeInTheDocument();
+      expect(screen.getByText('张*')).toBeInTheDocument();
+      expect(screen.getByText('+8613800138000')).toBeInTheDocument();
       expect(screen.queryByText('账户概览')).not.toBeInTheDocument();
       expect(screen.queryByText('账户详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();

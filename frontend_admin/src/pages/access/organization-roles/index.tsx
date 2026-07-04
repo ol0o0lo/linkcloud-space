@@ -107,7 +107,7 @@ const OrganizationRolesPage: React.FC = () => {
   );
 
   return (
-    <TenantSelectionGuard title="空间角色" subtitle="配置当前空间可分配的组织级角色。">
+    <TenantSelectionGuard title="空间角色">
       <Card
         title="空间角色"
         extra={

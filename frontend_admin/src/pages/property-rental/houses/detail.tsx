@@ -503,7 +503,7 @@ const HouseDetailPage: React.FC = () => {
   }, []);
 
   return (
-    <TenantSelectionGuard title="房源详情" subtitle="维护资料、媒体和发布状态。">
+    <TenantSelectionGuard title="房源详情">
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         {focusedActionTitle && house.data ? (
           <Alert
@@ -653,7 +653,6 @@ const HouseDetailPage: React.FC = () => {
                       type="info"
                       showIcon
                       title="发布规则由空间统一控制"
-                      description="房东和租金建议保持为阻断项；封面、图片、户型图和视频可以按业务阶段在空间设置里调成阻断发布、仅提醒或不校验。"
                       action={<Button size="small" href="/dashboard/settings-management/organization">去空间设置</Button>}
                     />
                     {blockingIssues.length ? (
@@ -662,7 +661,6 @@ const HouseDetailPage: React.FC = () => {
                           {blockingIssues.map((item) => <Tag color="orange" key={`blocking-${item}`}>{item}</Tag>)}
                           {warningIssues.map((item) => <Tag color="blue" key={`warning-${item}`}>{item}</Tag>)}
                         </Space>
-                        <Typography.Text type="secondary">先清掉当前阻塞项，再处理带看和签约转化，避免业务推进到一半被资料卡住。</Typography.Text>
                         <Space wrap size={8}>
                           {needsMetadata ? (
                             <Button icon={<EditOutlined />} size="small" onClick={openEdit}>
@@ -679,7 +677,6 @@ const HouseDetailPage: React.FC = () => {
                     ) : warningIssues.length ? (
                       <>
                         <Space wrap>{warningIssues.map((item) => <Tag color="blue" key={`warning-${item}`}>{item}</Tag>)}</Space>
-                        <Typography.Text type="secondary">当前缺的是提醒项，不阻断上线。可以先发布承接带看，再按优先级持续补齐图片和户型图。</Typography.Text>
                         {needsMedia ? (
                           <Space wrap size={8}>
                             <Button icon={<PictureOutlined />} size="small" onClick={scrollToMedia}>
@@ -689,7 +686,7 @@ const HouseDetailPage: React.FC = () => {
                         ) : null}
                       </>
                     ) : (
-                      <Typography.Text type="secondary">当前资料已满足发布检查，可以把重点转向带看转化和签约履约。</Typography.Text>
+                      null
                     )}
                   </Space>
                 </div>
@@ -775,7 +772,6 @@ const HouseDetailPage: React.FC = () => {
             <Space orientation="vertical" size={16} style={{ width: '100%' }}>
               <MediaRefsUpload
                 title="图片资料"
-                description="封面、户型图和基础实拍会直接影响发布检查和客户首屏感知。"
                 value={house.data?.images as MediaRefValue[] | undefined}
                 resourceType={HOUSE_MEDIA_RESOURCE_TYPE.HOUSE_IMAGE}
                 mediaType={HOUSE_MEDIA_TYPE.IMAGE}
@@ -783,7 +779,6 @@ const HouseDetailPage: React.FC = () => {
               />
               <MediaRefsUpload
                 title="视频资料"
-                description="视频不是发布硬门槛，但对线上转化和带看意向有帮助。"
                 value={house.data?.videos as MediaRefValue[] | undefined}
                 resourceType={HOUSE_MEDIA_RESOURCE_TYPE.HOUSE_VIDEO}
                 mediaType={HOUSE_MEDIA_TYPE.VIDEO}
@@ -922,8 +917,6 @@ const HouseDetailPage: React.FC = () => {
                     <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                       <div>
                         <Typography.Text strong>归属与发布基础</Typography.Text>
-                        <br />
-                        <Typography.Text type="secondary">先补楼栋、房东、租金和可租日期，这些字段会直接影响房源能否上线与后续带看排期。</Typography.Text>
                       </div>
                       <Row gutter={[16, 0]}>
                         <Col xs={24} md={12}>
@@ -969,8 +962,6 @@ const HouseDetailPage: React.FC = () => {
                     <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                       <div>
                         <Typography.Text strong>户型与面积</Typography.Text>
-                        <br />
-                        <Typography.Text type="secondary">把结构、面积和居住属性补准，后续发布、带看和签约口径才能一致。</Typography.Text>
                       </div>
                       <Row gutter={[16, 0]}>
                         <Col xs={24} md={12}>
@@ -1026,8 +1017,6 @@ const HouseDetailPage: React.FC = () => {
                     <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                       <div>
                         <Typography.Text strong>展示与内部说明</Typography.Text>
-                        <br />
-                        <Typography.Text type="secondary">对外描述决定线上展示质量，内部备注用于交接业务限制、看房约束和房东偏好。</Typography.Text>
                       </div>
                       <Form.Item label="对外描述" name="public_description">
                         <Input.TextArea rows={4} />

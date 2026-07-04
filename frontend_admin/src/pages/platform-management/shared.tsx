@@ -31,18 +31,12 @@ export const NoteModal: React.FC<{
   open: boolean;
   title: string;
   loading?: boolean;
-  description?: React.ReactNode;
   form: FormInstance<{ note: string }>;
   onCancel: () => void;
   onOk: () => void;
-}> = ({ open, title, loading, description, form, onCancel, onOk }) => (
+}> = ({ open, title, loading, form, onCancel, onOk }) => (
   <Modal title={title} open={open} confirmLoading={loading} onCancel={onCancel} onOk={onOk}>
     <Form form={form} layout="vertical">
-      {description ? (
-        <Form.Item>
-          <Typography.Text type="secondary">{description}</Typography.Text>
-        </Form.Item>
-      ) : null}
       <Form.Item label="备注" name="note">
         <Input />
       </Form.Item>

@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import SystemOperationsPage from './index';
 
 const {
   mockVersion,
@@ -31,6 +30,18 @@ vi.mock('@/services/openapi/mediaFiles', () => ({
   appsMediaApiUploadFiles: mockUploadFiles,
   appsMediaApiConfirmUpload: mockConfirmUpload,
 }));
+
+vi.mock('@ant-design/pro-components', () => ({
+  PageContainer: ({ children, title, subTitle }: any) => (
+    <section>
+      <h1>{title}</h1>
+      <p>{subTitle}</p>
+      {children}
+    </section>
+  ),
+}));
+
+import SystemOperationsPage from './index';
 
 describe('SystemOperationsPage', () => {
   let queryClient: QueryClient;

@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import PersonalBusinessPage from './index';
 
 const {
   mockWalletSummary,
@@ -66,6 +65,18 @@ vi.mock('@/services/manual/enums', () => ({
   enumMapping: (value?: string | null, mapping?: string | null) => mapping || value || '-',
 }));
 
+vi.mock('@ant-design/pro-components', () => ({
+  PageContainer: ({ children, title, subTitle }: any) => (
+    <section>
+      <h1>{title}</h1>
+      <p>{subTitle}</p>
+      {children}
+    </section>
+  ),
+}));
+
+import PersonalBusinessPage from './index';
+
 describe('PersonalBusinessPage', () => {
   let queryClient: QueryClient;
 
@@ -83,14 +94,14 @@ describe('PersonalBusinessPage', () => {
     });
     mockWithdrawals.mockResolvedValue({
       items: [
-        { id: 2, amount: 500, fee_amount: 0, net_amount: 500, status: 'pending_review', pay_channel: 'wechat', payee_account_snapshot: {}, reject_reason: '', created_at: '2026-06-16T10:00:00+08:00', reviewed_at: null },
-        { id: 3, amount: 300, fee_amount: 0, net_amount: 300, status: 'failed', pay_channel: 'wechat', payee_account_snapshot: {}, reject_reason: '渠道失败', created_at: '2026-06-16T11:00:00+08:00', reviewed_at: '2026-06-16T11:30:00+08:00' },
+        { id: 2, amount: 500, fee_amount: 0, net_amount: 500, status: 'pending_review', status__mapping: '待审核', pay_channel: 'wechat', payee_account_snapshot: {}, reject_reason: '', created_at: '2026-06-16T10:00:00+08:00', reviewed_at: null },
+        { id: 3, amount: 300, fee_amount: 0, net_amount: 300, status: 'failed', status__mapping: '失败待处理', pay_channel: 'wechat', payee_account_snapshot: {}, reject_reason: '渠道失败', created_at: '2026-06-16T11:00:00+08:00', reviewed_at: '2026-06-16T11:30:00+08:00' },
       ],
       total: 2,
       page: 1,
       page_size: 10,
     });
-    mockWithdrawalDetail.mockResolvedValue({ id: 2, amount: 500, fee_amount: 0, net_amount: 500, status: 'pending_review', pay_channel: 'wechat', payee_account_snapshot: {}, reject_reason: '', created_at: '2026-06-16T10:00:00+08:00', reviewed_at: null });
+    mockWithdrawalDetail.mockResolvedValue({ id: 2, amount: 500, fee_amount: 0, net_amount: 500, status: 'pending_review', status__mapping: '待审核', pay_channel: 'wechat', payee_account_snapshot: {}, reject_reason: '', created_at: '2026-06-16T10:00:00+08:00', reviewed_at: null });
     mockReferralSummary.mockResolvedValue({ invite_code: 'ABC', share_link: 'https://example.com/i/ABC', registered_count: 2, pending_review_count: 1, rewarded_count: 1 });
     mockReferralRecords.mockResolvedValue({
       items: [{ id: 3, inviter_id: 1, invitee_id: 2, invitee_display: 'bob', status: 'pending', created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00' }],
@@ -135,7 +146,7 @@ describe('PersonalBusinessPage', () => {
       expect(mockWalletSummary).toHaveBeenCalled();
       expect(mockReferralSummary).toHaveBeenCalled();
       expect(screen.getByText('个人经营概览')).toBeInTheDocument();
-      expect(screen.getByText('未实名')).toBeInTheDocument();
+      expect(screen.getAllByText('未实名').length).toBeGreaterThan(0);
       expect(screen.getByText('经营详情')).toBeInTheDocument();
       expect(screen.getByText('增长与身份')).toBeInTheDocument();
       expect(screen.getByText('偏好与资料')).toBeInTheDocument();

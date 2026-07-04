@@ -49,13 +49,6 @@ type HouseWizardFormValues = Record<string, unknown> & {
 
 const publishRulesSettingKey = 'property_rental.publish_rules';
 
-const STEP_INTRO = [
-  '先建出可保存草稿，再决定要不要继续往下补。',
-  '优先补齐会影响带看、报价和签约交接的关键字段。',
-  '媒体决定展示质量，是否阻断发布以当前空间规则为准。',
-  '保存前确认缺口，避免把后续动作留给下一位同事猜。',
-];
-
 const useStyles = createStyles(({ token, css }) => ({
   sectionBlock: css`
     padding: 16px;
@@ -324,11 +317,9 @@ const HouseNewPage: React.FC = () => {
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <div>
             <Typography.Title level={5} style={{ marginBottom: 4 }}>选择楼栋与房东</Typography.Title>
-            <Typography.Text type="secondary">草稿最低要求是楼栋和房号，房东可以稍后补齐。</Typography.Text>
           </div>
           {sourceBuildingId ? <Alert type="info" showIcon title="已带入楼栋，当前建档会直接挂到这栋楼下。" /> : null}
           {sourceLandlordId ? <Alert type="info" showIcon title="已带入房东，当前录入会沿用该出租方主体。" /> : null}
-          <Alert type="info" showIcon title="默认楼栋来自空间设置；常用录入可直接沿用，不合适时再现场新建。" />
           <Form.Item label="楼栋" required>
             <Space.Compact style={{ width: '100%' }}>
               <Form.Item name="building_id" noStyle rules={[{ required: true, message: '请选择楼栋' }]}>
@@ -360,7 +351,6 @@ const HouseNewPage: React.FC = () => {
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <div>
             <Typography.Title level={5} style={{ marginBottom: 4 }}>补充挂牌与户型</Typography.Title>
-            <Typography.Text type="secondary">这一页优先补齐带看、报价和签约最常追问的字段。</Typography.Text>
           </div>
           <div className={styles.sectionBlock}>
             <div className={styles.sectionHeader}>
@@ -462,7 +452,6 @@ const HouseNewPage: React.FC = () => {
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <div>
             <Typography.Title level={5} style={{ marginBottom: 4 }}>上传图片与视频</Typography.Title>
-            <Typography.Text type="secondary">先看阻断项，再决定哪些媒体素材现在补、哪些留到详情页继续补。</Typography.Text>
           </div>
           <div className={styles.sectionBlock}>
             <div className={styles.sectionHeader}>
@@ -480,9 +469,6 @@ const HouseNewPage: React.FC = () => {
           <div className={styles.sectionBlock}>
             <div className={styles.sectionHeader}>
               <Typography.Text strong>视频资料</Typography.Text>
-              <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
-                当前规则下视频不是硬门槛，但补上后更利于线上展示和带看转化。
-              </Typography.Paragraph>
             </div>
             <Descriptions size="small" column={1}>
               <Descriptions.Item label="当前视频">{mediaCompleteness.videoCount} 个</Descriptions.Item>
@@ -499,7 +485,6 @@ const HouseNewPage: React.FC = () => {
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <div>
           <Typography.Title level={5} style={{ marginBottom: 4 }}>确认房源草稿</Typography.Title>
-          <Typography.Text type="secondary">保存后进入房源详情页，继续处理发布、带看和租约。</Typography.Text>
         </div>
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="当前业务状态">
@@ -541,7 +526,7 @@ const HouseNewPage: React.FC = () => {
   };
 
   return (
-    <TenantSelectionGuard title="新建房源" subtitle="先完成可保存的建档，再进入详情页继续补媒体和发布。">
+    <TenantSelectionGuard title="新建房源">
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <Card title="房源建档向导">
           <Form form={form} layout="vertical" onFinish={submit}>
@@ -550,11 +535,6 @@ const HouseNewPage: React.FC = () => {
             <Row gutter={[24, 24]} align="top">
               <Col xs={24} xl={16}>
                 <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-                  <div>
-                    <Typography.Text strong>{STEP_ITEMS[currentStep]?.title}</Typography.Text>
-                    <br />
-                    <Typography.Text type="secondary">{STEP_INTRO[currentStep]}</Typography.Text>
-                  </div>
                   {renderStepContent()}
                 </Space>
               </Col>

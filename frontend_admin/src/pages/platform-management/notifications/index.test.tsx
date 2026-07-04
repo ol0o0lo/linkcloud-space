@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import NotificationsAdminPage from './index';
 
 const {
   mockListNotifications,
@@ -28,6 +27,18 @@ vi.mock('@/services/openapi/notifications', () => ({
   appsNotificationsApiPatchPreference: vi.fn(),
   appsNotificationsApiUnreadCount: mockUnreadCount,
 }));
+
+vi.mock('@ant-design/pro-components', () => ({
+  PageContainer: ({ children, title, subTitle }: any) => (
+    <section>
+      <h1>{title}</h1>
+      <p>{subTitle}</p>
+      {children}
+    </section>
+  ),
+}));
+
+import NotificationsAdminPage from './index';
 
 describe('NotificationsAdminPage', () => {
   let queryClient: QueryClient;

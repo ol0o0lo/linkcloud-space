@@ -184,7 +184,7 @@ const ReferralsAdminPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer title="邀请奖励" subTitle="管理邀请规则与奖励记录。">
+    <PageContainer title="邀请奖励">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card title="邀请奖励规则">
           <Form

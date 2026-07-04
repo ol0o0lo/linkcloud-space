@@ -38,6 +38,10 @@ type AccountInsight = API.WalletAccountAdminOut & {
   total_balance: number;
   governance_label: string;
   governance_color: string;
+  username?: string;
+  email?: string;
+  phone_label?: string;
+  real_name_label?: string;
 };
 type TablePageParams = {
   current?: number;
@@ -157,13 +161,18 @@ const WalletAccountsPage: React.FC = () => {
     {
       title: '用户',
       dataIndex: 'user_id',
-      width: 180,
-      render: (_value, record) => (
-        <Space orientation="vertical" size={4}>
-          <Typography.Text strong>{`用户 #${record.user_id}`}</Typography.Text>
-          <Typography.Text type="secondary">{`总余额 ${formatWalletAmount(record.total_balance)}`}</Typography.Text>
-        </Space>
-      ),
+      width: 220,
+      render: (_value, record) => {
+        const primary = record.real_name_label || record.username || `用户 #${record.user_id}`;
+        const contact = record.phone_label || record.email || `用户 #${record.user_id}`;
+        return (
+          <Space orientation="vertical" size={4}>
+            <Typography.Text strong>{primary}</Typography.Text>
+            <Typography.Text type="secondary">{contact}</Typography.Text>
+            <Typography.Text type="secondary">{`总余额 ${formatWalletAmount(record.total_balance)}`}</Typography.Text>
+          </Space>
+        );
+      },
     },
     {
       title: '账户状态',
@@ -266,7 +275,7 @@ const WalletAccountsPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer title="钱包账户" subTitle="查看用户钱包账户与流水。">
+    <PageContainer title="钱包账户">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
           <ProTable<AccountInsight>

@@ -115,7 +115,7 @@ const TeamSettingsPage: React.FC = () => {
   };
 
   return (
-    <TenantSelectionGuard title="团队设置" subtitle="管理指定团队的设置覆盖。">
+    <TenantSelectionGuard title="团队设置">
       <SettingsToolbarCard>
         <Space orientation="vertical" style={{ width: '100%' }}>
           <Select

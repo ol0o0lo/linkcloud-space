@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import WalletWithdrawalsPage from './index';
 
 const {
   mockListWithdrawals,
@@ -29,6 +28,54 @@ vi.mock('@/services/openapi/walletInternal', () => ({
   appsWalletApiReconcile: mockReconcile,
 }));
 
+vi.mock('@ant-design/pro-components', () => ({
+  PageContainer: ({ children, title, subTitle }: any) => (
+    <section>
+      <h1>{title}</h1>
+      <p>{subTitle}</p>
+      {children}
+    </section>
+  ),
+  ProTable: ({ actionRef, columns, headerTitle, pagination, request, toolBarRender }: any) => {
+    const [data, setData] = React.useState<any[]>([]);
+    const pageSize = pagination?.defaultPageSize || 10;
+
+    const load = async () => {
+      const result = await request?.({ current: 1, pageSize });
+      setData(result?.data || []);
+    };
+
+    React.useEffect(() => {
+      if (actionRef) {
+        actionRef.current = { reload: () => void load() };
+      }
+      void load();
+    }, []);
+
+    return (
+      <div>
+        <h2>{headerTitle}</h2>
+        {toolBarRender ? <div>{toolBarRender()}</div> : null}
+        <table>
+          <tbody>
+            {data.map((record, rowIndex) => (
+              <tr key={record.id}>
+                {columns.map((column: any) => (
+                  <td key={column.dataIndex}>
+                    {column.render ? column.render(record[column.dataIndex], record, rowIndex) : record[column.dataIndex]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  },
+}));
+
+import WalletWithdrawalsPage from './index';
+
 describe('WalletWithdrawalsPage', () => {
   let queryClient: QueryClient;
 
@@ -37,10 +84,10 @@ describe('WalletWithdrawalsPage', () => {
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     mockListWithdrawals.mockResolvedValue({
       items: [
-        { id: 5, amount: 1000, fee_amount: 50, net_amount: 950, status: 'pending_review', pay_channel: 'alipay', payee_account_snapshot: { account: 'a@example.com' }, reject_reason: '', created_at: '2026-06-16T10:00:00+08:00', reviewed_at: null },
-        { id: 6, amount: 1200, fee_amount: 60, net_amount: 1140, status: 'approved', pay_channel: 'wechat', payee_account_snapshot: { account: 'b@example.com' }, reject_reason: '', created_at: '2026-06-16T11:00:00+08:00', reviewed_at: '2026-06-16T11:30:00+08:00' },
-        { id: 7, amount: 900, fee_amount: 30, net_amount: 870, status: 'failed', pay_channel: 'wechat', payee_account_snapshot: { account: 'c@example.com' }, reject_reason: '渠道失败', created_at: '2026-06-16T12:00:00+08:00', reviewed_at: '2026-06-16T12:30:00+08:00' },
-        { id: 8, amount: 700, fee_amount: 20, net_amount: 680, status: 'rejected', pay_channel: 'wechat', payee_account_snapshot: { account: 'd@example.com' }, reject_reason: '资料不完整', created_at: '2026-06-16T13:00:00+08:00', reviewed_at: '2026-06-16T13:30:00+08:00' },
+        { id: 5, amount: 1000, fee_amount: 50, net_amount: 950, status: 'pending_review', status__mapping: '待审核', pay_channel: 'alipay', payee_account_snapshot: { account: 'a@example.com' }, reject_reason: '', created_at: '2026-06-16T10:00:00+08:00', reviewed_at: null },
+        { id: 6, amount: 1200, fee_amount: 60, net_amount: 1140, status: 'approved', status__mapping: '已通过', pay_channel: 'wechat', payee_account_snapshot: { account: 'b@example.com' }, reject_reason: '', created_at: '2026-06-16T11:00:00+08:00', reviewed_at: '2026-06-16T11:30:00+08:00' },
+        { id: 7, amount: 900, fee_amount: 30, net_amount: 870, status: 'failed', status__mapping: '失败待重试', pay_channel: 'wechat', payee_account_snapshot: { account: 'c@example.com' }, reject_reason: '渠道失败', created_at: '2026-06-16T12:00:00+08:00', reviewed_at: '2026-06-16T12:30:00+08:00' },
+        { id: 8, amount: 700, fee_amount: 20, net_amount: 680, status: 'rejected', status__mapping: '已驳回', pay_channel: 'wechat', payee_account_snapshot: { account: 'd@example.com' }, reject_reason: '资料不完整', created_at: '2026-06-16T13:00:00+08:00', reviewed_at: '2026-06-16T13:30:00+08:00' },
       ],
       total: 4,
       page: 1,
@@ -65,15 +112,14 @@ describe('WalletWithdrawalsPage', () => {
       expect(screen.queryByText('提现详情')).not.toBeInTheDocument();
       expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
       expect(screen.getByText('提现列表')).toBeInTheDocument();
-      expect(screen.getAllByText('待审核申请').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('待打款申请').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('失败待重试').length).toBeGreaterThan(0);
+      expect(screen.getByText('待审核')).toBeInTheDocument();
+      expect(screen.getByText('已通过')).toBeInTheDocument();
+      expect(screen.getByText('失败待重试')).toBeInTheDocument();
       expect(screen.queryByText('打款中申请')).not.toBeInTheDocument();
       expect(screen.queryByText('查看钱包账户')).not.toBeInTheDocument();
       expect(screen.queryByText('推进代付')).not.toBeInTheDocument();
       expect(screen.queryByText('核对冻结资金')).not.toBeInTheDocument();
       expect(screen.queryByText('核查余额回流')).not.toBeInTheDocument();
-      expect(screen.getByText('待审核')).toBeInTheDocument();
     });
 
     const pendingRow = screen.getByText('5').closest('tr');

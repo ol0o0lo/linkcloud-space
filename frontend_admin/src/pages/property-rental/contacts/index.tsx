@@ -21,9 +21,10 @@ import {
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  AdminToolbar,
   adminTableScroll,
+  fixedPagePagination,
   ResponsiveActions,
+  SectionHeader,
   toolbarControlStyle,
   toolbarSelectPopupWidth,
   toolbarShortSelectStyle,
@@ -42,7 +43,6 @@ import { CONTACT_ROLE } from '../constants';
 import {
   getLoadingAwareEmptyState,
   getLoadingSafeCount,
-  getLoadingSafeText,
   isInitialQueryPending,
 } from '../loading';
 
@@ -293,6 +293,28 @@ const ContactsPage: React.FC = () => {
     height: '100%',
     padding: 16,
   } as const;
+  const overviewCards = [
+    {
+      key: 'landlord',
+      title: '房东档案',
+      count: landlordCount,
+    },
+    {
+      key: 'tenant',
+      title: '租客档案',
+      count: tenantCount,
+    },
+    {
+      key: 'dual-role',
+      title: '双角色',
+      count: dualRoleCount,
+    },
+    {
+      key: 'inactive',
+      title: '停用联系人',
+      count: inactiveCount,
+    },
+  ];
 
   useEffect(() => {
     syncContactListSearch({ page, q, role, task });
@@ -305,88 +327,27 @@ const ContactsPage: React.FC = () => {
   ];
 
   return (
-    <TenantSelectionGuard title="联系人" subtitle="沉淀房东、租客和客户资料。">
+    <TenantSelectionGuard title="联系人">
       <div style={sectionStyle}>
         <Typography.Text strong>联系人概览</Typography.Text>
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="房东档案"
-                value={getLoadingSafeCount(landlordCount, overviewLoading)}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '可直接关联房源主体',
-                  '正在汇总房东主体...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="租客档案"
-                value={getLoadingSafeCount(tenantCount, overviewLoading)}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '可直接承接带看与签约线索',
-                  '正在汇总租客主体...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="双角色"
-                value={getLoadingSafeCount(dualRoleCount, overviewLoading)}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '同一主体兼具供给和需求身份',
-                  '正在识别双角色主体...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="停用联系人"
-                value={getLoadingSafeCount(inactiveCount, overviewLoading)}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '需要确认是否仍参与新业务流程',
-                  '正在识别停用联系人...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
+          {overviewCards.map((item) => (
+            <Col key={item.key} xs={24} sm={12} xl={6}>
+              <div style={overviewTileStyle}>
+                <Statistic
+                  title={item.title}
+                  value={getLoadingSafeCount(item.count, overviewLoading)}
+                />
+              </div>
+            </Col>
+          ))}
         </Row>
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 16,
-            width: '100%',
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <Typography.Text strong>联系人业务台账</Typography.Text>
-          </div>
-          <AdminToolbar>
+        <SectionHeader
+          title="联系人业务台账"
+          actions={
             <Space wrap>
               {createActions.map((item) => (
                 <Button
@@ -399,8 +360,8 @@ const ContactsPage: React.FC = () => {
                 </Button>
               ))}
             </Space>
-          </AdminToolbar>
-        </div>
+          }
+        />
         {scopeText ? (
           <Space wrap style={{ marginBottom: 16 }}>
             <Tag color="blue">{`当前只看：${scopeText}`}</Tag>
@@ -597,13 +558,12 @@ const ContactsPage: React.FC = () => {
               ),
             }),
           }}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: contacts.data?.total || 0,
-            showSizeChanger: false,
-            onChange: setPage,
-          }}
+          pagination={fixedPagePagination(
+            page,
+            PAGE_SIZE,
+            contacts.data?.total || 0,
+            setPage,
+          )}
           scroll={adminTableScroll}
         />
       </div>

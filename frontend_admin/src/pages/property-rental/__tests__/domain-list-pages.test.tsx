@@ -151,32 +151,6 @@ describe('Property rental domain list pages', () => {
     expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(2);
   });
 
-  it('shows loading-safe overview copy before house data arrives', async () => {
-    const deferred = createDeferred<{ items: Array<{ id: number; room_number: string }>; total: number; page: number; page_size: number }>();
-    mockListHouses.mockImplementation(() => deferred.promise);
-
-    renderPage(<HousesPage />);
-
-    expect(screen.getByText('正在汇总当前房源范围...')).toBeInTheDocument();
-    expect(screen.queryByText('1 套房源在当前组织内管理')).not.toBeInTheDocument();
-
-    deferred.resolve({ items: [{ id: 99, room_number: 'A-101' }], total: 1, page: 1, page_size: 100 });
-    expect(await screen.findByText('1 套房源在当前组织内管理')).toBeInTheDocument();
-  });
-
-  it('shows loading-safe contact overview and queue counts before data arrives', async () => {
-    const deferred = createDeferred<{ items: Array<{ id: number; name: string; phone: string; roles: string[] }>; total: number; page: number; page_size: number }>();
-    mockListContacts.mockImplementation(() => deferred.promise);
-
-    renderPage(<ContactsPage />);
-
-    expect(screen.getByText('正在汇总房东主体...')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '全部 -' })).not.toBeInTheDocument();
-
-    deferred.resolve({ items: [{ id: 3, name: '张房东', phone: '13800000000', roles: ['landlord'] }], total: 1, page: 1, page_size: 100 });
-    await waitFor(() => expect(screen.getByText('1', { selector: '.ant-statistic-content-value-int' })).toBeInTheDocument());
-  });
-
   it('uses estate display names when selecting a building estate', async () => {
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
 
@@ -1013,10 +987,6 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByText('阻断发布')).toBeInTheDocument();
     expect(screen.getAllByText('可发布').length).toBeGreaterThan(0);
     expect(screen.getAllByText('已发布').length).toBeGreaterThan(0);
-    expect(await screen.findByText('9 套房源在当前组织内管理')).toBeInTheDocument();
-    expect(await screen.findByText('2 套被当前阻断规则卡住')).toBeInTheDocument();
-    expect(await screen.findByText('3 套已具备上线条件')).toBeInTheDocument();
-    expect(await screen.findByText('4 套正在承接带看')).toBeInTheDocument();
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true })));
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true })));
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_status: 'published' })));

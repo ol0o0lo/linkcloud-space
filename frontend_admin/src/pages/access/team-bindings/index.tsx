@@ -111,7 +111,7 @@ const TeamBindingsPage: React.FC = () => {
   ];
 
   return (
-    <TenantSelectionGuard title="团队授权" subtitle="为指定团队成员分配团队级角色。">
+    <TenantSelectionGuard title="团队授权">
       <TeamContextCard selectedTeamId={selectedTeamId} onChange={setSelectedTeamId} />
       {selectedTeamId ? (
         <Card

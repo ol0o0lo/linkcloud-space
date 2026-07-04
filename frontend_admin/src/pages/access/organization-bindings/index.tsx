@@ -111,7 +111,7 @@ const OrganizationBindingsPage: React.FC = () => {
   ];
 
   return (
-    <TenantSelectionGuard title="空间授权" subtitle="为当前空间成员分配组织级角色。">
+    <TenantSelectionGuard title="空间授权">
       <Card
         title="空间授权"
         extra={

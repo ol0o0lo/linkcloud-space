@@ -29,9 +29,11 @@ import {
 } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  AdminToolbar,
   adminTableScroll,
+  fixedPagePagination,
   ResponsiveActions,
+  SectionHeader,
+  StatusFlowButtons,
   toolbarSelectPopupWidth,
   toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
@@ -64,7 +66,6 @@ import {
 import {
   getLoadingAwareEmptyState,
   getLoadingSafeCount,
-  getLoadingSafeText,
   isAnyInitialQueryPending,
   isInitialQueryPending,
 } from '../loading';
@@ -242,35 +243,6 @@ function getLeaseDrawerEntryText(options: {
   if (sourceViewingLabel) return '成交带看转签约';
   if (sourceHouseId) return '房源直建租约';
   return '手动新建租约';
-}
-
-function getLeaseDrawerWarning(options: {
-  selectedSourceViewing?: { contact_id?: number | null };
-  houseId?: number;
-  tenantId?: number | null;
-  startDate?: string;
-  endDate?: string;
-  monthlyRent?: string;
-  contractCount: number;
-}) {
-  const {
-    selectedSourceViewing,
-    houseId,
-    tenantId,
-    startDate,
-    endDate,
-    monthlyRent,
-    contractCount,
-  } = options;
-  if (selectedSourceViewing && !selectedSourceViewing.contact_id)
-    return '来源带看还未绑定租客联系人，请先补齐主体再保存签约。';
-  if (!houseId) return '还未选择房源，保存前先确认本次签约归属。';
-  if (!tenantId) return '还未选择租客，避免把签约记录落成匿名主体。';
-  if (!startDate || !endDate || !monthlyRent)
-    return '租期和金额还未补齐，保存前先确认起租、到期和月租。';
-  if (!contractCount)
-    return '本次保存后仍会处于待补合同状态，建议同步归档合同文件。';
-  return '主体、租期和合同资料已完整，可直接保存并进入后续履约跟进。';
 }
 
 function getLeaseEmptyState(options: {
@@ -580,6 +552,33 @@ const LeasesPage: React.FC = () => {
       active: task === 'contract' && !status,
     },
   ] as const;
+  const overviewCards = [
+    {
+      key: 'pending',
+      title: '待生效',
+      count: pendingCount,
+    },
+    {
+      key: 'active',
+      title: '生效中',
+      count: activeCount,
+    },
+    {
+      key: 'contract',
+      title: '待补合同',
+      count: contractMissingCount,
+    },
+    {
+      key: 'expired',
+      title: '已到期',
+      count: expiredCount,
+    },
+    {
+      key: 'terminated',
+      title: '已终止',
+      count: terminatedCount,
+    },
+  ];
   const leaseEntryLinks = [
     {
       key: 'ready_viewings',
@@ -848,19 +847,6 @@ const LeasesPage: React.FC = () => {
       : undefined,
     sourceHouseId,
   });
-  const drawerWarningText = getLeaseDrawerWarning({
-    selectedSourceViewing,
-    houseId: selectedHouseId,
-    tenantId: selectedTenantId,
-    startDate: formValues?.start_date || formInitialValues.start_date,
-    endDate: formValues?.end_date || formInitialValues.end_date,
-    monthlyRent: formValues?.monthly_rent || formInitialValues.monthly_rent,
-    contractCount: draftContractFiles.length,
-  });
-  const drawerReady =
-    !drawerWarningText.includes('还未') &&
-    !drawerWarningText.includes('待补合同') &&
-    !drawerWarningText.includes('未绑定');
   const sectionStyle = {
     border: `1px solid ${token.colorBorderSecondary}`,
     borderRadius: token.borderRadiusLG,
@@ -878,7 +864,6 @@ const LeasesPage: React.FC = () => {
   return (
     <TenantSelectionGuard
       title="租约"
-      subtitle="查看签约、履约和合同资料状态。"
     >
       {focusedActionTitle ? (
         <Alert
@@ -899,84 +884,16 @@ const LeasesPage: React.FC = () => {
       <div style={sectionStyle}>
         <Typography.Text strong>签约概览</Typography.Text>
         <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="待生效"
-                value={getLoadingSafeCount(pendingCount, overviewLoading)}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '待确认起租与交付安排',
-                  '正在汇总待生效租约...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="生效中"
-                value={getLoadingSafeCount(activeCount, overviewLoading)}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '履约中的租约需要持续跟进',
-                  '正在汇总履约租约...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="待补合同"
-                value={getLoadingSafeCount(
-                  contractMissingCount,
-                  overviewLoading,
-                )}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '合同资料未归档的租约',
-                  '正在识别合同缺口...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="已到期"
-                value={getLoadingSafeCount(expiredCount, overviewLoading)}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '待退租或续租处理的合同',
-                  '正在汇总到期租约...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <div style={overviewTileStyle}>
-              <Statistic
-                title="已终止"
-                value={getLoadingSafeCount(terminatedCount, overviewLoading)}
-              />
-              <Typography.Text type="secondary">
-                {getLoadingSafeText(
-                  '待结清和终止归档的租约',
-                  '正在汇总终止租约...',
-                  overviewLoading,
-                )}
-              </Typography.Text>
-            </div>
-          </Col>
+          {overviewCards.map((item) => (
+            <Col key={item.key} xs={24} sm={12} xl={6}>
+              <div style={overviewTileStyle}>
+                <Statistic
+                  title={item.title}
+                  value={getLoadingSafeCount(item.count, overviewLoading)}
+                />
+              </div>
+            </Col>
+          ))}
         </Row>
       </div>
 
@@ -997,25 +914,9 @@ const LeasesPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 16,
-            width: '100%',
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <Typography.Text strong>资料队列</Typography.Text>
-            <div>
-              <Typography.Text type="secondary">
-                签约通常从带看转入；如果租客主体还没补齐，先去待补租客队列处理，再回到这里创建租约。
-              </Typography.Text>
-            </div>
-          </div>
-          <AdminToolbar>
+        <SectionHeader
+          title="资料队列"
+          actions={
             <Space wrap>
               {leaseEntryLinks.map((item) => (
                 <Button key={item.key} href={item.href}>
@@ -1030,8 +931,8 @@ const LeasesPage: React.FC = () => {
                 新建租约
               </Button>
             </Space>
-          </AdminToolbar>
-        </div>
+          }
+        />
         <Space wrap style={{ marginBottom: 16 }}>
           {documentQueueLinks.map((item) => (
             <Button
@@ -1181,26 +1082,20 @@ const LeasesPage: React.FC = () => {
                       编辑
                     </Button>
                   )}
-                  {record.contract_files?.length
-                    ? (LEASE_STATUS_FLOW_OPTIONS[record.status] || [])
-                        .filter((nextStatus) => nextStatus !== record.status)
-                        .map((nextStatus) => (
-                          <Button
-                            type="link"
-                            size="small"
-                            key={nextStatus}
-                            onClick={() => {
-                              updateLeaseStatus.mutate({
-                                id: record.id,
-                                status: nextStatus,
-                              });
-                            }}
-                          >
-                            {LEASE_STATUS_ACTION_TEXT[nextStatus] ||
-                              statusLabel(nextStatus)}
-                          </Button>
-                        ))
-                    : null}
+                  {record.contract_files?.length ? (
+                    <StatusFlowButtons
+                      actionText={LEASE_STATUS_ACTION_TEXT}
+                      currentStatus={record.status}
+                      flowOptions={LEASE_STATUS_FLOW_OPTIONS}
+                      label={statusLabel}
+                      onChange={(nextStatus) =>
+                        updateLeaseStatus.mutate({
+                          id: record.id,
+                          status: nextStatus,
+                        })
+                      }
+                    />
+                  ) : null}
                 </ResponsiveActions>
               ),
             },
@@ -1221,13 +1116,12 @@ const LeasesPage: React.FC = () => {
               }),
             }),
           }}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: leases.data?.total || 0,
-            showSizeChanger: false,
-            onChange: setPage,
-          }}
+          pagination={fixedPagePagination(
+            page,
+            PAGE_SIZE,
+            leases.data?.total || 0,
+            setPage,
+          )}
           scroll={adminTableScroll}
         />
       </div>
@@ -1294,10 +1188,6 @@ const LeasesPage: React.FC = () => {
                     >
                       <div>
                         <Typography.Text strong>签约主体</Typography.Text>
-                        <br />
-                        <Typography.Text type="secondary">
-                          确认房源、租客和来源带看，避免合同主体和成交来源错配。
-                        </Typography.Text>
                       </div>
                       <Row gutter={[16, 0]}>
                         <Col xs={24}>
@@ -1363,10 +1253,6 @@ const LeasesPage: React.FC = () => {
                     >
                       <div>
                         <Typography.Text strong>租期与金额</Typography.Text>
-                        <br />
-                        <Typography.Text type="secondary">
-                          起租、到期、月租和押金是后续履约、收租和结算的基础字段。
-                        </Typography.Text>
                       </div>
                       <Row gutter={[16, 0]}>
                         <Col xs={24} md={12}>
@@ -1429,10 +1315,6 @@ const LeasesPage: React.FC = () => {
                     >
                       <div>
                         <Typography.Text strong>合同归档</Typography.Text>
-                        <br />
-                        <Typography.Text type="secondary">
-                          签约时同步补合同，后续履约、收租和结算才能有完整凭证。
-                        </Typography.Text>
                       </div>
                       <Form.Item
                         label="合同文件"
@@ -1441,7 +1323,6 @@ const LeasesPage: React.FC = () => {
                       >
                         <MediaRefsUpload
                           title="合同文件"
-                          description="支持上传 1 份主合同文件，保存后可继续在租约页维护状态。"
                           resourceType={
                             HOUSE_MEDIA_RESOURCE_TYPE.LEASE_CONTRACT
                           }
@@ -1523,12 +1404,6 @@ const LeasesPage: React.FC = () => {
                           : '待填写'}
                       </Descriptions.Item>
                     </Descriptions>
-                    <Alert
-                      type={drawerReady ? 'success' : 'warning'}
-                      showIcon
-                      title={drawerReady ? '当前可直接保存' : '当前仍有待补项'}
-                      description={drawerWarningText}
-                    />
                   </Space>
                 </Card>
               </Col>

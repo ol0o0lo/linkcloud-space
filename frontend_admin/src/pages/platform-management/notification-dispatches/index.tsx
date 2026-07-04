@@ -326,7 +326,7 @@ const NotificationDispatchesPage: React.FC = () => {
     : undefined;
 
   return (
-    <PageContainer title="通知分发管理" subTitle="创建和查看通知分发记录。">
+    <PageContainer title="通知分发管理">
       <Card>
         <ProTable<DispatchInsight>
           actionRef={tableActionRef}

@@ -314,7 +314,7 @@ const RealNameAdminPage: React.FC = () => {
     : null;
 
   return (
-    <PageContainer title="实名审核" subTitle="处理用户实名状态与审核记录。">
+    <PageContainer title="实名审核">
       <Card>
         <ProTable<RealNameInsight>
           actionRef={tableActionRef}

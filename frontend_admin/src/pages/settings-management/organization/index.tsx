@@ -194,7 +194,7 @@ const OrganizationSettingsPage: React.FC = () => {
   };
 
   return (
-    <TenantSelectionGuard title="空间设置" subtitle="按业务功能管理当前空间的设置。">
+    <TenantSelectionGuard title="空间设置">
       <Card loading={settingsQuery.isLoading}>
         <Tabs
           tabPlacement="start"

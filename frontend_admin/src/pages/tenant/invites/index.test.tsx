@@ -31,7 +31,6 @@ vi.mock('../shared', () => ({
   TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
-  TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
   tenantQueryKeys: {
     invites: (slug?: string, page?: number) => [
       'tenant',

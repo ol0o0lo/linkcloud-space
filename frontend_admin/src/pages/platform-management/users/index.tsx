@@ -390,10 +390,7 @@ const PlatformUsersPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer
-      title="用户管理"
-      subTitle="管理平台用户、联系方式、实名和权限。"
-    >
+    <PageContainer title="用户管理">
       <Card>
         <ProTable<UserInsight>
           actionRef={tableActionRef}

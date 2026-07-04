@@ -35,7 +35,6 @@ vi.mock('../shared', () => ({
   TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
-  TenantSectionHint: ({ text }: { text: string }) => <div>{text}</div>,
   formatPersonLabel: (user: {
     username?: string;
     first_name?: string;

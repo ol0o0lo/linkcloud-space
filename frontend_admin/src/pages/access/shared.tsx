@@ -3,7 +3,7 @@ import type { FormInstance } from 'antd';
 import React from 'react';
 import { appsTeamsApiListTeams } from '@/services/openapi/teams';
 import { useQuery } from '@tanstack/react-query';
-import { TenantSectionHint, useTenantWorkspace } from '@/pages/tenant/shared';
+import { useTenantWorkspace } from '@/pages/tenant/shared';
 
 export const accessQueryKeys = {
   permissions: ['access', 'permissions'],
@@ -72,7 +72,6 @@ export const TeamContextCard: React.FC<{
   return (
     <Card title="团队上下文" style={{ marginBottom: 16 }}>
       <Space orientation="vertical" style={{ width: '100%' }}>
-        <TenantSectionHint text="团队级角色和授权需要先选择一个当前空间下的团队。" />
         <Select
           aria-label="团队"
           loading={teamsQuery.isLoading}

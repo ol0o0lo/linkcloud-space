@@ -264,7 +264,7 @@ const NotificationsAdminPage: React.FC = () => {
     : undefined;
 
   return (
-    <PageContainer title="通知管理" subTitle="查看和处理当前账号通知。">
+    <PageContainer title="通知管理">
       <Card
         extra={
           <AdminToolbar>

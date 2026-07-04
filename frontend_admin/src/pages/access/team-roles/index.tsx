@@ -106,7 +106,7 @@ const TeamRolesPage: React.FC = () => {
   );
 
   return (
-    <TenantSelectionGuard title="团队角色" subtitle="配置指定团队可分配的团队级角色。">
+    <TenantSelectionGuard title="团队角色">
       <TeamContextCard selectedTeamId={selectedTeamId} onChange={setSelectedTeamId} />
       {selectedTeamId ? (
         <Card

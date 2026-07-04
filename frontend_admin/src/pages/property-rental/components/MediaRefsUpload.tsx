@@ -25,7 +25,6 @@ type Props = {
   mediaType: 'image' | 'video' | 'file';
   maxCount?: number;
   title?: string;
-  description?: string;
 };
 
 function clean(items: MediaRefValue[]) {
@@ -56,7 +55,7 @@ const MEDIA_COPY = {
   },
 } as const;
 
-const MediaRefsUpload: React.FC<Props> = ({ value = [], onChange, resourceType, mediaType, maxCount, title, description }) => {
+const MediaRefsUpload: React.FC<Props> = ({ value = [], onChange, resourceType, mediaType, maxCount, title }) => {
   const { token } = theme.useToken();
   const [uploading, setUploading] = useState(false);
   const canSetImageRole = mediaType === 'image';
@@ -166,10 +165,9 @@ const MediaRefsUpload: React.FC<Props> = ({ value = [], onChange, resourceType, 
 
   return (
     <Space orientation="vertical" style={{ width: '100%' }}>
-      {title || description ? (
+      {title ? (
         <Space orientation="vertical" size={4} style={{ width: '100%' }}>
-          {title ? <Typography.Text strong>{title}</Typography.Text> : null}
-          {description ? <Typography.Text type="secondary">{description}</Typography.Text> : null}
+          <Typography.Text strong>{title}</Typography.Text>
         </Space>
       ) : null}
       <div

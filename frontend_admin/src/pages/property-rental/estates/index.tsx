@@ -2,11 +2,11 @@ import { PlusOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Drawer, Empty, Form, Input, Row, Segmented, Select, Space, Statistic, Switch, Table, Tag, Typography, message, theme } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
-import { AdminToolbar, ResponsiveActions, adminTableScroll, toolbarControlStyle } from '@/pages/_shared/adminLayout';
+import { ResponsiveActions, SectionHeader, adminTableScroll, fixedPagePagination, toolbarControlStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi, type BuildingOut, type EstateOut } from '@/services/manual/house';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
-import { getLoadingAwareEmptyState, getLoadingSafeCount, getLoadingSafeText, isAnyInitialQueryPending, isInitialQueryPending } from '../loading';
+import { getLoadingAwareEmptyState, getLoadingSafeCount, isAnyInitialQueryPending, isInitialQueryPending } from '../loading';
 
 const PAGE_SIZE = 20;
 type EstateViewMode = 'all' | 'estates' | 'buildings';
@@ -21,7 +21,6 @@ type EstateOverviewCard = {
   key: string;
   title: string;
   value: number;
-  hint: string;
 };
 
 function getEstateBuildings(buildings: BuildingOut[], estateId: number) {
@@ -162,54 +161,54 @@ function getEstateScopedOverviewCards(options: {
 
   if (task === 'estate_address') {
     return [
-      { key: 'estate_address_scope', title: '当前待补项目地址', value: estateRows.length, hint: '当前队列内待补项目地址的项目数' },
-      { key: 'estate_address_has_building', title: '已有楼栋覆盖', value: estateRows.filter((item) => getEstateBuildings(buildingRows, item.id).length > 0).length, hint: '补完地址后可继续维护楼栋和房源' },
-      { key: 'estate_address_no_building', title: '待补首栋楼', value: noBuildingCount, hint: '补完项目地址后仍需继续补齐首栋楼' },
-      { key: 'estate_address_active', title: '仍在启用', value: estateRows.filter((item) => item.is_active !== false).length, hint: '启用项目更应优先补齐底座资料' },
+      { key: 'estate_address_scope', title: '当前待补项目地址', value: estateRows.length },
+      { key: 'estate_address_has_building', title: '已有楼栋覆盖', value: estateRows.filter((item) => getEstateBuildings(buildingRows, item.id).length > 0).length },
+      { key: 'estate_address_no_building', title: '待补首栋楼', value: noBuildingCount },
+      { key: 'estate_address_active', title: '仍在启用', value: estateRows.filter((item) => item.is_active !== false).length },
     ] satisfies EstateOverviewCard[];
   }
 
   if (task === 'building_address') {
     return [
-      { key: 'building_address_scope', title: '当前待补楼栋地址', value: buildingRows.length, hint: '当前队列内待补楼栋地址的楼栋数' },
-      { key: 'building_address_estates', title: '涉及项目', value: new Set(buildingRows.map((item) => item.estate_id)).size, hint: '需要同步核对这些项目下的房源挂接' },
-      { key: 'building_address_active', title: '仍在启用', value: buildingRows.filter((item) => item.is_active !== false).length, hint: '启用楼栋补完地址后可继续登记房源' },
-      { key: 'building_address_inactive', title: '已停用', value: inactiveBuildingCount, hint: '停用楼栋先确认是否仍需保留历史底座' },
+      { key: 'building_address_scope', title: '当前待补楼栋地址', value: buildingRows.length },
+      { key: 'building_address_estates', title: '涉及项目', value: new Set(buildingRows.map((item) => item.estate_id)).size },
+      { key: 'building_address_active', title: '仍在启用', value: buildingRows.filter((item) => item.is_active !== false).length },
+      { key: 'building_address_inactive', title: '已停用', value: inactiveBuildingCount },
     ] satisfies EstateOverviewCard[];
   }
 
   if (task === 'no_building') {
     return [
-      { key: 'no_building_scope', title: '当前待补首栋楼', value: estateRows.length, hint: '当前仍无法真正承接房源的项目数' },
-      { key: 'no_building_ready_address', title: '项目地址已齐', value: estateRows.filter((item) => Boolean(item.address)).length, hint: '这些项目可直接先补首栋楼' },
-      { key: 'no_building_missing_address', title: '待补项目地址', value: estateAddressMissingCount, hint: '补首栋楼前还需先补项目地址' },
-      { key: 'no_building_active', title: '仍在启用', value: estateRows.filter((item) => item.is_active !== false).length, hint: '启用项目要优先完成首栋覆盖' },
+      { key: 'no_building_scope', title: '当前待补首栋楼', value: estateRows.length },
+      { key: 'no_building_ready_address', title: '项目地址已齐', value: estateRows.filter((item) => Boolean(item.address)).length },
+      { key: 'no_building_missing_address', title: '待补项目地址', value: estateAddressMissingCount },
+      { key: 'no_building_active', title: '仍在启用', value: estateRows.filter((item) => item.is_active !== false).length },
     ] satisfies EstateOverviewCard[];
   }
 
   if (task === 'inactive') {
     return [
-      { key: 'inactive_estates', title: '停用项目', value: inactiveEstateCount, hint: '需确认是否仍保留这类项目底座' },
-      { key: 'inactive_buildings', title: '停用楼栋', value: inactiveBuildingCount, hint: '停用楼栋不应继续承接新增房源' },
-      { key: 'inactive_estate_address', title: '待补项目地址', value: estateAddressMissingCount, hint: '若要恢复运营，项目地址仍需补齐' },
-      { key: 'inactive_building_address', title: '待补楼栋地址', value: buildingAddressMissingCount, hint: '若要恢复运营，楼栋地址仍需补齐' },
+      { key: 'inactive_estates', title: '停用项目', value: inactiveEstateCount },
+      { key: 'inactive_buildings', title: '停用楼栋', value: inactiveBuildingCount },
+      { key: 'inactive_estate_address', title: '待补项目地址', value: estateAddressMissingCount },
+      { key: 'inactive_building_address', title: '待补楼栋地址', value: buildingAddressMissingCount },
     ] satisfies EstateOverviewCard[];
   }
 
   if (q) {
     return [
-      { key: 'search_estates', title: '当前项目', value: estateRows.length, hint: '关键字命中的项目数' },
-      { key: 'search_buildings', title: '当前楼栋', value: buildingRows.length, hint: '关键字命中的楼栋数' },
-      { key: 'search_missing', title: '资料缺口', value: estateAddressMissingCount + buildingAddressMissingCount + noBuildingCount, hint: '搜索结果里仍待处理的地址或首栋缺口' },
-      { key: 'search_inactive', title: '停用资产', value: inactiveEstateCount + inactiveBuildingCount, hint: '搜索结果里需要确认是否继续运营的资产' },
+      { key: 'search_estates', title: '当前项目', value: estateRows.length },
+      { key: 'search_buildings', title: '当前楼栋', value: buildingRows.length },
+      { key: 'search_missing', title: '资料缺口', value: estateAddressMissingCount + buildingAddressMissingCount + noBuildingCount },
+      { key: 'search_inactive', title: '停用资产', value: inactiveEstateCount + inactiveBuildingCount },
     ] satisfies EstateOverviewCard[];
   }
 
   return [
-    { key: 'estate_address', title: '待补项目地址', value: estateAddressMissingCount, hint: '项目地址不完整会持续影响楼栋和房源挂接' },
-    { key: 'building_address', title: '待补楼栋地址', value: buildingAddressMissingCount, hint: '楼栋地址不完整时，房源定位和带看导航都会受影响' },
-    { key: 'no_building', title: '待补首栋楼', value: noBuildingCount, hint: '没有首栋楼的项目仍无法真正承接房源' },
-    { key: 'inactive_assets', title: '停用资产', value: inactiveEstateCount + inactiveBuildingCount, hint: '停用项目和楼栋要先确认是否仍保留在运营底座中' },
+    { key: 'estate_address', title: '待补项目地址', value: estateAddressMissingCount },
+    { key: 'building_address', title: '待补楼栋地址', value: buildingAddressMissingCount },
+    { key: 'no_building', title: '待补首栋楼', value: noBuildingCount },
+    { key: 'inactive_assets', title: '停用资产', value: inactiveEstateCount + inactiveBuildingCount },
   ] satisfies EstateOverviewCard[];
 }
 
@@ -458,7 +457,7 @@ const EstatesPage: React.FC = () => {
   }, []);
 
   return (
-    <TenantSelectionGuard title="项目楼栋" subtitle="维护房源所在的小区、项目和楼栋基础资料。">
+    <TenantSelectionGuard title="项目楼栋">
       <div style={sectionStyle}>
         <Typography.Text strong>{scopedOverview ? '当前筛选概览' : '项目供给概览'}</Typography.Text>
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
@@ -466,7 +465,6 @@ const EstatesPage: React.FC = () => {
             <Col key={item.key} xs={24} sm={12} xl={6}>
               <div style={overviewTileStyle}>
                 <Statistic title={item.title} value={getLoadingSafeCount(item.value, overviewLoading)} />
-                <Typography.Text type="secondary">{getLoadingSafeText(item.hint, '正在整理当前治理范围...', overviewLoading)}</Typography.Text>
               </div>
             </Col>
           ))}
@@ -474,20 +472,20 @@ const EstatesPage: React.FC = () => {
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, width: '100%', marginBottom: 16 }}>
-          <div>
-            <Typography.Text strong>基础资料视图</Typography.Text>
-          </div>
-          <Segmented
-            options={[
-              { label: '全部', value: 'all' },
-              { label: '项目台账', value: 'estates' },
-              { label: '楼栋台账', value: 'buildings' },
-            ]}
-            value={effectiveViewMode}
-            onChange={(value) => setViewMode(value as EstateViewMode)}
-          />
-        </div>
+        <SectionHeader
+          title="基础资料视图"
+          actions={
+            <Segmented
+              options={[
+                { label: '全部', value: 'all' },
+                { label: '项目台账', value: 'estates' },
+                { label: '楼栋台账', value: 'buildings' },
+              ]}
+              value={effectiveViewMode}
+              onChange={(value) => setViewMode(value as EstateViewMode)}
+            />
+          }
+        />
         <Space wrap size={[16, 8]}>
           <Tag color={effectiveViewMode === 'all' ? 'blue' : 'default'}>{`项目 ${getLoadingSafeCount(visibleEstateViewCount, overviewLoading)}`}</Tag>
           <Tag color={effectiveViewMode === 'all' ? 'blue' : 'default'}>{`楼栋 ${getLoadingSafeCount(visibleBuildingViewCount, overviewLoading)}`}</Tag>
@@ -531,15 +529,14 @@ const EstatesPage: React.FC = () => {
       </Space>
       {effectiveViewMode !== 'buildings' ? (
         <div style={sectionStyle}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, width: '100%', marginBottom: 16 }}>
-          <div>
-            <Typography.Text strong>项目台账</Typography.Text>
-            <div style={{ marginTop: 8 }}>
-              <Typography.Text type="secondary">维护项目命名、地址和首栋覆盖，为楼栋和房源建档提供稳定的项目底座。</Typography.Text>
-            </div>
-          </div>
-          <AdminToolbar><Button type="primary" icon={<PlusOutlined />} onClick={openEstateCreate}>新建项目</Button></AdminToolbar>
-        </div>
+        <SectionHeader
+          title="项目台账"
+          actions={
+            <Button type="primary" icon={<PlusOutlined />} onClick={openEstateCreate}>
+              新建项目
+            </Button>
+          }
+        />
         <Table<EstateOut>
           rowKey="id"
           loading={estateListLoading}
@@ -582,22 +579,21 @@ const EstatesPage: React.FC = () => {
               ),
             }),
           }}
-          pagination={{ current: estatePage, pageSize: PAGE_SIZE, total: estateTotal, showSizeChanger: false, onChange: setEstatePage }}
+          pagination={fixedPagePagination(estatePage, PAGE_SIZE, estateTotal, setEstatePage)}
           scroll={adminTableScroll}
         />
       </div>
       ) : null}
       {effectiveViewMode !== 'estates' ? (
         <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, width: '100%', marginBottom: 16 }}>
-          <div>
-            <Typography.Text strong>楼栋台账</Typography.Text>
-            <div style={{ marginTop: 8 }}>
-              <Typography.Text type="secondary">维护楼栋供给条件、地址和可挂房源能力，确保房源建档可以直接落到有效楼栋。</Typography.Text>
-            </div>
-          </div>
-          <AdminToolbar><Button type="primary" icon={<PlusOutlined />} onClick={() => openBuildingCreate()}>新建楼栋</Button></AdminToolbar>
-        </div>
+        <SectionHeader
+          title="楼栋台账"
+          actions={
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => openBuildingCreate()}>
+              新建楼栋
+            </Button>
+          }
+        />
         <Table<BuildingOut>
           rowKey="id"
           loading={buildingListLoading}
@@ -640,7 +636,7 @@ const EstatesPage: React.FC = () => {
               ),
             }),
           }}
-          pagination={{ current: buildingPage, pageSize: PAGE_SIZE, total: buildingTotal, showSizeChanger: false, onChange: setBuildingPage }}
+          pagination={fixedPagePagination(buildingPage, PAGE_SIZE, buildingTotal, setBuildingPage)}
           scroll={adminTableScroll}
         />
       </div>
