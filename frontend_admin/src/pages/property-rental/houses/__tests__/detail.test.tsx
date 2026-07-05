@@ -46,16 +46,27 @@ vi.mock('@/services/manual/house', () => ({
   },
 }));
 
+const estateSummary = { id: 1, name: 'xinghewan', display_name: '星河湾' };
+const buildingSummary = { id: 10, estate_id: 1, estate: estateSummary, name: '1 栋' };
+const landlordSummary = { id: 20, name: '张房东', phone: '13800000000' };
+const tenantSummary = { id: 6, name: '王租客', phone: '13700000000' };
+const houseSummary = {
+  id: 99,
+  label: '星河湾 / 1 栋 / 1801',
+  room_number: '1801',
+  building_id: 10,
+  building: buildingSummary,
+};
+
 const completeHouse = {
   id: 99,
   building_id: 10,
-  estate_name: '星河湾',
-  building_name: '1 栋',
+  building: buildingSummary,
   landlord_id: 20,
+  landlord: landlordSummary,
   room_number: '1801',
   asking_rent: '4200.00',
   deposit_amount: '4200.00',
-  available_from: '2026-07-01',
   area: '80.00',
   images: [
     {
@@ -89,7 +100,7 @@ describe('House detail page', () => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
     mockGetHouse.mockReset();
     mockListBuildings.mockResolvedValue({
-      items: [{ id: 10, estate_id: 1, estate_name: '星河湾', name: '1 栋' }],
+      items: [buildingSummary],
       total: 1,
       page: 1,
       page_size: 100,
@@ -120,7 +131,7 @@ describe('House detail page', () => {
     });
   });
 
-  it('shows missing publish requirements', async () => {
+  it('keeps publishing disabled when required fields are missing', async () => {
     mockGetHouse.mockResolvedValue({
       ...completeHouse,
       landlord_id: null,
@@ -133,13 +144,13 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('发布缺口')).toBeInTheDocument();
-    expect(await screen.findByText('缺房东')).toBeInTheDocument();
-    expect(screen.getByText('缺封面')).toBeInTheDocument();
+    expect(await screen.findByText('房源资料')).toBeInTheDocument();
+    expect(screen.queryByText('缺房东')).not.toBeInTheDocument();
+    expect(screen.queryByText('缺封面')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '待补齐后发布' })).toBeDisabled();
   });
 
-  it('opens media focus copy for video maintenance tasks', async () => {
+  it('opens media section directly for video maintenance tasks', async () => {
     mockGetHouse.mockResolvedValue({ ...completeHouse, videos: [] });
 
     window.history.pushState(
@@ -154,14 +165,10 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(
-      await screen.findByText('当前操作：补齐视频资料'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        '当前入口来自媒体队列，优先补视频，再继续完善封面、户型图和基础图片。',
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('媒体相册')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled(),
+    );
   });
 
   it('allows publishing when only warning issues remain', async () => {
@@ -171,14 +178,6 @@ describe('House detail page', () => {
       publish_can_publish: true,
       publish_blocking_issues: [],
       publish_warning_issues: ['缺封面', '图片不足', '缺户型图'],
-      publish_rule_snapshot: {
-        landlord: { mode: 'required' },
-        rent: { mode: 'required' },
-        cover: { mode: 'warn' },
-        images: { mode: 'warn', min_count: 3 },
-        floor_plan: { mode: 'warn' },
-        video: { mode: 'off', min_count: 1 },
-      },
     });
 
     render(
@@ -187,14 +186,13 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('发布缺口')).toBeInTheDocument();
     await screen.findAllByText('1801');
-    expect(screen.getByText('缺封面')).toBeInTheDocument();
-    expect(screen.getByText('图片不足')).toBeInTheDocument();
+    expect(screen.queryByText('缺封面')).not.toBeInTheDocument();
+    expect(screen.queryByText('图片不足')).not.toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: '执行发布' })).toBeEnabled(),
+      expect(screen.getByRole('button', { name: '发布房源' })).toBeEnabled(),
     );
-    fireEvent.click(screen.getByRole('button', { name: '执行发布' }));
+    fireEvent.click(screen.getByRole('button', { name: '发布房源' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认发布' }));
     await waitFor(() =>
       expect(mockPatchHouse).toHaveBeenCalledWith(99, {
@@ -273,7 +271,8 @@ describe('House detail page', () => {
     );
 
     await screen.findAllByText('1801');
-    fireEvent.click(screen.getByRole('button', { name: '执行发布' }));
+    fireEvent.click(screen.getByRole('button', { name: '发布房源' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确认发布' }));
 
     await waitFor(() =>
       expect(mockPatchHouse).toHaveBeenCalledWith(99, {
@@ -322,7 +321,7 @@ describe('House detail page', () => {
     expect(
       screen.queryByRole('button', { name: '待补齐后发布' }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '执行下架' }));
+    fireEvent.click(screen.getByRole('button', { name: '下架房源' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认下架' }));
 
     await waitFor(() =>
@@ -344,6 +343,9 @@ describe('House detail page', () => {
         {
           id: 1,
           house_id: 99,
+          house: houseSummary,
+          contact_id: null,
+          contact: null,
           customer_name: '李客户',
           customer_phone: '13900000000',
           scheduled_at: '2026-07-01T10:00:00+08:00',
@@ -360,9 +362,9 @@ describe('House detail page', () => {
         {
           id: 2,
           house_id: 99,
+          house: houseSummary,
           tenant_id: 6,
-          tenant_name: '王租客',
-          tenant_phone: '13700000000',
+          tenant: tenantSummary,
           start_date: '2026-07-01',
           end_date: '2027-06-30',
           monthly_rent: '4200.00',
@@ -416,7 +418,7 @@ describe('House detail page', () => {
     });
   });
 
-  it('surfaces operational summary and next actions for blocked house', async () => {
+  it('keeps blocked house detail compact', async () => {
     mockGetHouse.mockResolvedValue({
       ...completeHouse,
       landlord_id: null,
@@ -429,47 +431,16 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('闭环工作台')).toBeInTheDocument();
-    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
-    expect(screen.queryByText('业务阶段')).not.toBeInTheDocument();
-    expect(screen.queryByText('媒体准备度')).not.toBeInTheDocument();
-    expect(screen.queryByText('签约与合同')).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('先补房东主体，其他媒体问题可作为发布提醒继续处理'),
-    ).not.toBeInTheDocument();
-    expect(
-      (await screen.findAllByText('0 图 / 0 视频')).length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByText('待补资料后发布')).toBeInTheDocument();
-    expect(screen.getByText('闭环清单')).toBeInTheDocument();
-    expect(screen.getByText('发布检查')).toBeInTheDocument();
-    expect(screen.getByText('带看跟进')).toBeInTheDocument();
-    expect(screen.getByText('租约合同')).toBeInTheDocument();
-    expect(screen.getByText('发布缺口')).toBeInTheDocument();
-    expect(screen.getByText('优先动作')).toBeInTheDocument();
-    expect(screen.getByText('发布规则由空间统一控制')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '去空间设置' })).toHaveAttribute(
-      'href',
-      '/dashboard/settings-management/organization',
-    );
-    expect(
-      screen.getByRole('button', { name: '补充基础资料' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '维护媒体相册' }),
-    ).toBeInTheDocument();
-    expect(
-      screen
-        .getAllByRole('link', { name: '登记带看' })
-        .some(
-          (link) =>
-            link.getAttribute('href') ===
-            '/dashboard/property-rental/viewings?house_id=99',
-        ),
-    ).toBe(true);
+    expect(await screen.findByText('房源资料')).toBeInTheDocument();
+    expect(screen.getByText('媒体相册')).toBeInTheDocument();
+    expect(screen.queryByText('0 图 / 0 视频')).not.toBeInTheDocument();
+    expect(screen.queryByText('缺房东')).not.toBeInTheDocument();
+    expect(screen.queryByText('闭环工作台')).not.toBeInTheDocument();
+    expect(screen.queryByText('发布缺口')).not.toBeInTheDocument();
+    expect(screen.queryByText('优先动作')).not.toBeInTheDocument();
   });
 
-  it('uses the scoped house label as the detail page header', async () => {
+  it('does not repeat the scoped house label above house detail', async () => {
     mockGetHouse.mockResolvedValue(completeHouse);
 
     render(
@@ -478,9 +449,8 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(
-      (await screen.findAllByText('星河湾 / 1 栋 / 1801')).length,
-    ).toBeGreaterThan(0);
+    expect(await screen.findByText('房源资料')).toBeInTheDocument();
+    expect(screen.queryByText('星河湾 / 1 栋 / 1801')).not.toBeInTheDocument();
   });
 
   it('shows latest progress snapshot for viewing and lease workflow', async () => {
@@ -507,9 +477,9 @@ describe('House detail page', () => {
         {
           id: 2,
           house_id: 99,
+          house: houseSummary,
           tenant_id: 6,
-          tenant_name: '王租客',
-          tenant_phone: '13700000000',
+          tenant: tenantSummary,
           start_date: '2026-07-01',
           end_date: '2027-06-30',
           monthly_rent: '4200.00',
@@ -529,8 +499,8 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('闭环工作台')).toBeInTheDocument();
-    expect(screen.getByText('闭环清单')).toBeInTheDocument();
+    expect(await screen.findByText('带看记录')).toBeInTheDocument();
+    expect(screen.queryByText('闭环工作台')).not.toBeInTheDocument();
     expect(screen.queryByText('最近带看')).not.toBeInTheDocument();
     expect(screen.queryByText('当前租约状态')).not.toBeInTheDocument();
     expect((await screen.findAllByText('李客户')).length).toBeGreaterThan(0);
@@ -569,7 +539,8 @@ describe('House detail page', () => {
           id: 1,
           house_id: 99,
           contact_id: 6,
-          contact_name: '王租客',
+          house: houseSummary,
+          contact: tenantSummary,
           customer_name: '李客户',
           customer_phone: '13900000000',
           scheduled_at: '2026-07-01T10:00:00+08:00',
@@ -631,9 +602,6 @@ describe('House detail page', () => {
           '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=true&edit=1',
       ),
     ).toBe(true);
-    expect(
-      screen.getByText('成交已确认，但租客主体还没绑定，当前不能继续签约。'),
-    ).toBeInTheDocument();
   });
 
   it('links to viewing and lease creation for the house', async () => {
@@ -647,8 +615,11 @@ describe('House detail page', () => {
 
     await screen.findAllByText('1801');
     expect(
+      screen.queryByRole('link', { name: '登记带看' }),
+    ).not.toBeInTheDocument();
+    expect(
       screen
-        .getAllByRole('link', { name: '登记带看' })
+        .getAllByRole('link', { name: '登记首条带看' })
         .some(
           (link) =>
             link.getAttribute('href') ===
@@ -726,20 +697,11 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(
-      await screen.findByText('当前操作：补齐发布资料'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        '当前入口来自发布工作区，先补房东、租金等基础字段，再继续处理媒体和发布检查。',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '返回详情' })).toHaveAttribute(
-      'href',
-      '/dashboard/property-rental/houses/99',
-    );
     expect(await screen.findByText('编辑房源资料')).toBeInTheDocument();
     expect(screen.getByLabelText('楼栋')).toBeInTheDocument();
+    expect(
+      screen.queryByText('当前操作：补齐发布资料'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows landlord-fix context when opened from the house issue queue', async () => {
@@ -756,49 +718,10 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
+    expect(await screen.findByText('编辑房源资料')).toBeInTheDocument();
     expect(
-      await screen.findByText('当前操作：补齐房东资料'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        '当前入口来自待补房东队列，先补出租方主体，再继续处理租金、媒体和发布检查。',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '返回详情' })).toHaveAttribute(
-      'href',
-      '/dashboard/property-rental/houses/99',
-    );
-    expect(screen.getByText('编辑房源资料')).toBeInTheDocument();
-  });
-
-  it('writes landlord task context when opening metadata action from the detail panel', async () => {
-    mockGetHouse.mockResolvedValue({
-      ...completeHouse,
-      landlord_id: null,
-      images: [],
-    });
-
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <HouseDetailPage />
-      </QueryClientProvider>,
-    );
-
-    await screen.findByText('待补资料后发布');
-    fireEvent.click(screen.getByRole('button', { name: /补充基础资料/ }));
-
-    await waitFor(() =>
-      expect(window.location.search).toBe('?action=edit&task=landlord'),
-    );
-    expect(
-      await screen.findByText('当前操作：补齐房东资料'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        '当前入口来自待补房东队列，先补出租方主体，再继续处理租金、媒体和发布检查。',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText('编辑房源资料')).toBeInTheDocument();
+      screen.queryByText('当前操作：补齐房东资料'),
+    ).not.toBeInTheDocument();
   });
 
   it('clears focused edit context when the edit drawer closes', async () => {
@@ -815,54 +738,13 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(
-      await screen.findByText('当前操作：补齐房东资料'),
-    ).toBeInTheDocument();
     expect(await screen.findByText('编辑房源资料')).toBeInTheDocument();
     const closeButton = document.querySelector('.ant-drawer-close');
     expect(closeButton).not.toBeNull();
     fireEvent.click(closeButton as Element);
 
     await waitFor(() => expect(window.location.search).toBe(''));
-    await waitFor(() =>
-      expect(
-        screen.queryByText('当前操作：补齐房东资料'),
-      ).not.toBeInTheDocument(),
-    );
-  });
-
-  it('writes media task context when opening album maintenance from the detail panel', async () => {
-    mockGetHouse.mockResolvedValue({
-      ...completeHouse,
-      landlord_id: 20,
-      images: [
-        {
-          media_id: 3,
-          media_type: 'image',
-          image_role: 'bedroom',
-          url: '/room.jpg',
-        },
-      ],
-    });
-
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <HouseDetailPage />
-      </QueryClientProvider>,
-    );
-
-    await screen.findByText('可发布待上线');
-    fireEvent.click(screen.getByRole('button', { name: /去维护相册/ }));
-
-    await waitFor(() =>
-      expect(window.location.search).toBe('?action=media&task=cover'),
-    );
-    expect(await screen.findByText('当前操作：补齐封面图')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        '当前入口来自媒体队列，优先补主封面，再继续完善户型图和基础图片。',
-      ),
-    ).toBeInTheDocument();
+    expect(screen.queryByText('编辑房源资料')).not.toBeInTheDocument();
   });
 
   it('shows media maintenance context when opened from the workbench album task', async () => {
@@ -875,13 +757,13 @@ describe('House detail page', () => {
       </QueryClientProvider>,
     );
 
-    expect(
-      await screen.findByText('当前操作：维护媒体相册'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '返回详情' })).toHaveAttribute(
-      'href',
-      '/dashboard/property-rental/houses/99',
+    expect(await screen.findByText('媒体相册')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled(),
     );
+    expect(
+      screen.queryByText('当前操作：维护媒体相册'),
+    ).not.toBeInTheDocument();
   });
 
   it('edits house layout fields from the detail drawer', async () => {

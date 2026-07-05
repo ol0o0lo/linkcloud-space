@@ -3,7 +3,8 @@ from django.test import TestCase
 
 from model_bakery import baker
 
-from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
+from apps.access.constants import AccessScope
+from apps.access.models import OrganizationGroupBinding, TeamGroupBinding
 from apps.access.services import (
     assign_org_role,
     assign_team_role,
@@ -48,7 +49,7 @@ class AccessPermissionTests(TestCase):
 
     def test_org_role_applies_to_all_teams_in_org(self):
         make_permission("access_tests", "finance_bill_view")
-        group = make_role("test_org_finance", AccessRole.Scope.ORG, ["finance_bill_view"])
+        group = make_role("test_org_finance", AccessScope.ORG, ["finance_bill_view"])
         OrganizationGroupBinding.objects.create(organization=self.org, user=self.user, group=group)
 
         self.assertTrue(has_permission(self.user, self.org, "access_tests.finance_bill_view", team=self.team))
@@ -56,7 +57,7 @@ class AccessPermissionTests(TestCase):
 
     def test_team_role_only_applies_to_bound_team(self):
         make_permission("access_tests", "finance_bill_view")
-        group = make_role("test_team_finance", AccessRole.Scope.TEAM, ["finance_bill_view"])
+        group = make_role("test_team_finance", AccessScope.TEAM, ["finance_bill_view"])
         TeamGroupBinding.objects.create(team=self.team, user=self.user, group=group)
 
         other_team_in_org = baker.make("teams.Team", organization=self.org)
@@ -67,14 +68,14 @@ class AccessPermissionTests(TestCase):
 
     def test_team_permission_does_not_cross_org(self):
         make_permission("access_tests", "finance_bill_view")
-        group = make_role("test_cross_org_team_finance", AccessRole.Scope.TEAM, ["finance_bill_view"])
+        group = make_role("test_cross_org_team_finance", AccessScope.TEAM, ["finance_bill_view"])
         TeamGroupBinding.objects.create(team=self.team, user=self.user, group=group)
 
         self.assertFalse(has_permission(self.user, self.org, "access_tests.finance_bill_view", team=self.other_team))
 
     def test_permission_lookup_requires_full_permission_key(self):
         make_permission("access_tests", "shared_codename")
-        group = make_role("org_shared_permission", AccessRole.Scope.ORG, ["shared_codename"])
+        group = make_role("org_shared_permission", AccessScope.ORG, ["shared_codename"])
         OrganizationGroupBinding.objects.create(organization=self.org, user=self.user, group=group)
 
         self.assertTrue(has_permission(self.user, self.org, "access_tests.shared_codename"))
@@ -82,44 +83,44 @@ class AccessPermissionTests(TestCase):
 
     def test_org_binding_requires_org_member_and_org_scope_role(self):
         make_permission("access_tests", "member_manage")
-        team_group = make_role("test_team_manager", AccessRole.Scope.TEAM, ["member_manage"])
+        team_group = make_role("test_team_manager", AccessScope.TEAM, ["member_manage"])
 
         binding = OrganizationGroupBinding(organization=self.org, user=self.user, group=team_group)
         with self.assertRaises(ValidationError):
             binding.full_clean()
 
-        org_group = make_role("test_org_admin", AccessRole.Scope.ORG, ["member_manage"])
+        org_group = make_role("test_org_admin", AccessScope.ORG, ["member_manage"])
         outsider_binding = OrganizationGroupBinding(organization=self.org, user=self.outsider, group=org_group)
         with self.assertRaises(ValidationError):
             outsider_binding.full_clean()
 
     def test_team_binding_requires_team_member_and_team_scope_role(self):
         make_permission("access_tests", "team_setting_manage")
-        org_group = make_role("test_binding_org_admin", AccessRole.Scope.ORG, ["team_setting_manage"])
+        org_group = make_role("test_binding_org_admin", AccessScope.ORG, ["team_setting_manage"])
 
         binding = TeamGroupBinding(team=self.team, user=self.user, group=org_group)
         with self.assertRaises(ValidationError):
             binding.full_clean()
 
-        team_group = make_role("test_binding_team_manager", AccessRole.Scope.TEAM, ["team_setting_manage"])
+        team_group = make_role("test_binding_team_manager", AccessScope.TEAM, ["team_setting_manage"])
         outsider_binding = TeamGroupBinding(team=self.team, user=self.outsider, group=team_group)
         with self.assertRaises(ValidationError):
             outsider_binding.full_clean()
 
     def test_custom_role_only_applies_to_own_org(self):
         make_permission("access_tests", "custom_report_view")
-        group = make_role("custom_finance", AccessRole.Scope.ORG, ["custom_report_view"], organization=self.org)
+        group = make_role("custom_finance", AccessScope.ORG, ["custom_report_view"], organization=self.org)
         OrganizationGroupBinding.objects.create(organization=self.org, user=self.user, group=group)
 
         self.assertTrue(has_permission(self.user, self.org, "access_tests.custom_report_view"))
         self.assertFalse(has_permission(self.user, self.other_org, "access_tests.custom_report_view"))
 
     def test_list_available_roles_includes_system_and_custom_roles(self):
-        make_role("system_org_role", AccessRole.Scope.ORG, [])
-        custom_group = make_role("custom_org_role", AccessRole.Scope.ORG, [], organization=self.org)
-        make_role("other_org_custom_role", AccessRole.Scope.ORG, [], organization=self.other_org)
+        make_role("system_org_role", AccessScope.ORG, [])
+        custom_group = make_role("custom_org_role", AccessScope.ORG, [], organization=self.org)
+        make_role("other_org_custom_role", AccessScope.ORG, [], organization=self.other_org)
 
-        roles = list(list_available_roles(self.org, AccessRole.Scope.ORG))
+        roles = list(list_available_roles(self.org, AccessScope.ORG))
         role_codes = [role.code for role in roles]
 
         self.assertIn("org_admin", role_codes)
@@ -130,7 +131,7 @@ class AccessPermissionTests(TestCase):
         self.assertEqual(custom_group.access_role.organization_id, self.org.pk)
 
     def test_assign_and_remove_org_role(self):
-        role_group = make_role("org_role", AccessRole.Scope.ORG, [])
+        role_group = make_role("org_role", AccessScope.ORG, [])
 
         binding = assign_org_role(self.org, self.user, role_group.access_role)
         duplicate = assign_org_role(self.org, self.user, role_group.access_role)
@@ -142,7 +143,7 @@ class AccessPermissionTests(TestCase):
         self.assertFalse(OrganizationGroupBinding.objects.filter(pk=binding.pk).exists())
 
     def test_assign_and_remove_team_role(self):
-        role_group = make_role("team_role", AccessRole.Scope.TEAM, [])
+        role_group = make_role("team_role", AccessScope.TEAM, [])
 
         binding = assign_team_role(self.team, self.user, role_group.access_role)
         duplicate = assign_team_role(self.team, self.user, role_group.access_role)
@@ -154,7 +155,7 @@ class AccessPermissionTests(TestCase):
         self.assertFalse(TeamGroupBinding.objects.filter(pk=binding.pk).exists())
 
     def test_assign_role_rejects_inactive_role(self):
-        role_group = make_role("inactive_org_role", AccessRole.Scope.ORG, [])
+        role_group = make_role("inactive_org_role", AccessScope.ORG, [])
         role_group.access_role.is_active = False
         role_group.access_role.save(update_fields=["is_active"])
 

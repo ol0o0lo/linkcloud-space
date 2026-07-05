@@ -93,7 +93,7 @@ def get_landlord_leases(user: User, organization: Organization):
     from apps.house.models import Lease
 
     return (
-        Lease.objects.select_related("house__building__estate", "house__landlord", "tenant")
+        Lease.objects.select_related("house__building__estate", "house__landlord", "tenant", "source_viewing_record")
         .filter(
             organization=organization,
             house__landlord__user=user,
@@ -227,15 +227,6 @@ def evaluate_house_publish_state(house, rules=None):
         "warning_issues": warning_issues,
         "rule_snapshot": publish_rules,
     }
-
-
-def attach_house_publish_state(house, organization: Organization, rules=None):
-    state = evaluate_house_publish_state(house, rules=rules or get_org_house_publish_rules(organization))
-    house.publish_can_publish = state["can_publish"]
-    house.publish_blocking_issues = state["blocking_issues"]
-    house.publish_warning_issues = state["warning_issues"]
-    house.publish_rule_snapshot = state["rule_snapshot"]
-    return house
 
 
 @transaction.atomic

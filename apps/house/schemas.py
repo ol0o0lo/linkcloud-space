@@ -92,10 +92,52 @@ class BuildingPatchIn(Schema):
     is_active: bool | None = None
 
 
+class EstateSummaryOut(Schema):
+    id: int
+    name: str
+    display_name: str
+
+
+class BuildingSummaryOut(Schema):
+    id: int
+    name: str
+    estate_id: int
+    estate: EstateSummaryOut
+
+
+class ContactSummaryOut(Schema):
+    id: int
+    name: str
+    phone: str
+
+
+class HouseSummaryOut(Schema):
+    id: int
+    label: str
+    room_number: str
+    building_id: int
+    building: BuildingSummaryOut
+
+    @staticmethod
+    def resolve_label(obj):
+        return f"{obj.building.estate.display_name or obj.building.estate.name} / {obj.building.name} / {obj.room_number}"
+
+
+class ViewingRecordSummaryOut(Schema):
+    id: int
+    label: str
+    customer_name: str
+    customer_phone: str
+
+    @staticmethod
+    def resolve_label(obj):
+        return f"{obj.customer_name} / {obj.customer_phone}"
+
+
 class BuildingOut(Schema):
     id: int
     estate_id: int
-    estate_name: str
+    estate: EstateSummaryOut
     name: str
     floors: int
     under_floors: int | None
@@ -106,10 +148,6 @@ class BuildingOut(Schema):
     address: str
     is_active: bool
 
-    @staticmethod
-    def resolve_estate_name(obj):
-        return obj.estate.display_name or obj.estate.name
-
 
 class DefaultBuildingIn(Schema):
     building_id: int
@@ -118,7 +156,7 @@ class DefaultBuildingIn(Schema):
 class DefaultBuildingOut(Schema):
     id: int
     estate_id: int
-    estate_name: str
+    estate: EstateSummaryOut
     name: str
     floors: int
     address: str
@@ -173,7 +211,6 @@ class HouseIn(Schema):
     interior_area: Decimal | None = None
     asking_rent: Decimal | None = None
     deposit_amount: Decimal | None = None
-    available_from: date | None = None
     bedrooms: int | None = None
     living_rooms: int | None = None
     bathrooms: int | None = None
@@ -197,7 +234,6 @@ class HousePatchIn(Schema):
     interior_area: Decimal | None = None
     asking_rent: Decimal | None = None
     deposit_amount: Decimal | None = None
-    available_from: date | None = None
     bedrooms: int | None = None
     living_rooms: int | None = None
     bathrooms: int | None = None
@@ -220,19 +256,15 @@ class HousePatchIn(Schema):
 class HouseOut(Schema):
     id: int
     building_id: int
-    building_name: str
-    estate_name: str
+    building: BuildingSummaryOut
     landlord_id: int | None
-    landlord_name: str | None
-    landlord_phone: str | None
-    house_label: str
+    landlord: ContactSummaryOut | None
     room_number: str
     floor: int | None
     area: Decimal | None
     interior_area: Decimal | None
     asking_rent: Decimal | None
     deposit_amount: Decimal | None
-    available_from: date | None
     bedrooms: int | None
     living_rooms: int | None
     bathrooms: int | None
@@ -254,10 +286,6 @@ class HouseOut(Schema):
     internal_notes: str
     extra: dict[str, Any]
     is_active: bool
-    publish_can_publish: bool
-    publish_blocking_issues: list[str]
-    publish_warning_issues: list[str]
-    publish_rule_snapshot: dict[str, Any]
 
     @staticmethod
     def resolve_orientation__mapping(obj):
@@ -278,42 +306,6 @@ class HouseOut(Schema):
     @staticmethod
     def resolve_publish_status__mapping(obj):
         return HousePublishStatus.get_choice_label(obj.publish_status)
-
-    @staticmethod
-    def resolve_building_name(obj):
-        return obj.building.name
-
-    @staticmethod
-    def resolve_estate_name(obj):
-        return obj.building.estate.display_name or obj.building.estate.name
-
-    @staticmethod
-    def resolve_landlord_name(obj):
-        return obj.landlord.name if obj.landlord_id else None
-
-    @staticmethod
-    def resolve_landlord_phone(obj):
-        return obj.landlord.phone if obj.landlord_id else None
-
-    @staticmethod
-    def resolve_publish_can_publish(obj):
-        return bool(getattr(obj, "publish_can_publish", True))
-
-    @staticmethod
-    def resolve_publish_blocking_issues(obj):
-        return list(getattr(obj, "publish_blocking_issues", []))
-
-    @staticmethod
-    def resolve_publish_warning_issues(obj):
-        return list(getattr(obj, "publish_warning_issues", []))
-
-    @staticmethod
-    def resolve_publish_rule_snapshot(obj):
-        return dict(getattr(obj, "publish_rule_snapshot", {}))
-
-    @staticmethod
-    def resolve_house_label(obj):
-        return f"{obj.building.estate.display_name or obj.building.estate.name} / {obj.building.name} / {obj.room_number}"
 
     @staticmethod
     def resolve_images(obj):
@@ -353,10 +345,9 @@ class ViewingRecordPatchIn(Schema):
 class ViewingRecordOut(Schema):
     id: int
     house_id: int
-    house_label: str
+    house: HouseSummaryOut
     contact_id: int | None
-    contact_name: str | None
-    contact_phone: str | None
+    contact: ContactSummaryOut | None
     customer_name: str
     customer_phone: str
     scheduled_at: datetime
@@ -372,19 +363,6 @@ class ViewingRecordOut(Schema):
     @staticmethod
     def resolve_status__mapping(obj):
         return ViewingRecordStatus.get_choice_label(obj.status)
-
-    @staticmethod
-    def resolve_house_label(obj):
-        house = obj.house
-        return f"{house.building.estate.display_name or house.building.estate.name} / {house.building.name} / {house.room_number}"
-
-    @staticmethod
-    def resolve_contact_name(obj):
-        return obj.contact.name if obj.contact_id else None
-
-    @staticmethod
-    def resolve_contact_phone(obj):
-        return obj.contact.phone if obj.contact_id else None
 
     @staticmethod
     def resolve_signed_lease_id(obj):
@@ -430,12 +408,11 @@ class LeasePatchIn(Schema):
 class LeaseOut(Schema):
     id: int
     house_id: int
-    house_label: str
+    house: HouseSummaryOut
     tenant_id: int
-    tenant_name: str
-    tenant_phone: str
+    tenant: ContactSummaryOut
     source_viewing_record_id: int | None
-    source_viewing_record_label: str | None
+    source_viewing_record: ViewingRecordSummaryOut | None
     sign_at: datetime | None
     start_date: date
     end_date: date
@@ -451,26 +428,6 @@ class LeaseOut(Schema):
     @staticmethod
     def resolve_status__mapping(obj):
         return LeaseStatus.get_choice_label(obj.status)
-
-    @staticmethod
-    def resolve_house_label(obj):
-        house = obj.house
-        return f"{house.building.estate.display_name or house.building.estate.name} / {house.building.name} / {house.room_number}"
-
-    @staticmethod
-    def resolve_tenant_name(obj):
-        return obj.tenant.name
-
-    @staticmethod
-    def resolve_tenant_phone(obj):
-        return obj.tenant.phone
-
-    @staticmethod
-    def resolve_source_viewing_record_label(obj):
-        if not obj.source_viewing_record_id:
-            return None
-        record = obj.source_viewing_record
-        return f"{record.customer_name} / {record.customer_phone}"
 
     @staticmethod
     def resolve_contract_files(obj):

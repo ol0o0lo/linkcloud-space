@@ -8,8 +8,6 @@ from apps.base.mixins import BaseModelMixin
 
 
 class AccessRole(BaseModelMixin):
-    Scope = AccessScope
-
     group = models.OneToOneField(Group, on_delete=models.CASCADE, related_name="access_role")
     organization = models.ForeignKey(
         "organizations.Organization",
@@ -64,7 +62,7 @@ class OrganizationGroupBinding(BaseModelMixin):
 
         role = _get_access_role(self.group)
         errors = {}
-        if role.scope != AccessRole.Scope.ORG:
+        if role.scope != AccessScope.ORG:
             errors["group"] = "Organization bindings only accept org-scoped roles."
         if role.organization_id is not None and role.organization_id != self.organization_id:
             errors["group"] = "Custom roles can only be bound inside their organization."
@@ -98,7 +96,7 @@ class TeamGroupBinding(BaseModelMixin):
         super().clean()
         role = _get_access_role(self.group)
         errors = {}
-        if role.scope != AccessRole.Scope.TEAM:
+        if role.scope != AccessScope.TEAM:
             errors["group"] = "Team bindings only accept team-scoped roles."
         if self.team_id and role.organization_id is not None and role.organization_id != self.team.organization_id:
             errors["group"] = "Custom roles can only be bound inside their organization."

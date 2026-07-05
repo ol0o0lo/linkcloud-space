@@ -1,15 +1,12 @@
-import { createStyles } from 'antd-style';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { history } from '@umijs/max';
-import { Alert, Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Steps, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Form, Input, Modal, message, Row, Select, Space, Steps, Tag, Typography } from 'antd';
+import { createStyles } from 'antd-style';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
-import { houseApi, type ContactOut } from '@/services/manual/house';
 import { enumSelectOptions, useEnums } from '@/services/manual/enums';
+import { type BuildingOut, type ContactOut, houseApi } from '@/services/manual/house';
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
-import {
-  normalizeHousePublishRules,
-} from '../publish-rules';
 import MediaRefsUpload from '../components/MediaRefsUpload';
 import {
   buildingLabel,
@@ -19,8 +16,8 @@ import {
   getHouseMediaCompleteness,
   HOUSE_MEDIA_RESOURCE_TYPE,
   HOUSE_MEDIA_TYPE,
-  moneyText,
   type MediaRefValue,
+  moneyText,
 } from '../constants';
 
 const STEP_ITEMS = [
@@ -39,7 +36,6 @@ const STEP_FIELDS: string[][] = [
 
 type HouseWizardFormValues = Record<string, unknown> & {
   asking_rent?: string | number | null;
-  available_from?: string | null;
   building_id?: number | null;
   images?: MediaRefValue[];
   landlord_id?: number | null;
@@ -83,69 +79,16 @@ function getWizardReadiness(values: HouseWizardFormValues, publishRules?: unknow
   const viewingMissing = getMissingFields(values, [
     { key: 'landlord_id', label: '房东' },
     { key: 'asking_rent', label: '挂牌租金' },
-    { key: 'available_from', label: '可租日期' },
   ]);
   return {
     draftMissing,
     draftReady: !draftMissing.length,
     publishBlockingIssues: publishState.blockingIssues,
     publishWarningIssues: publishState.warningIssues,
-    publishIssues: [...publishState.blockingIssues, ...publishState.warningIssues],
     publishReady: publishState.canPublish,
     viewingMissing,
     viewingReady: !viewingMissing.length,
   };
-}
-
-function getStepAlert(currentStep: number, readiness: ReturnType<typeof getWizardReadiness>) {
-  if (currentStep === 0) {
-    return readiness.draftReady
-      ? { type: 'success' as const, title: '已具备草稿保存门槛', description: '楼栋与房号已经齐备，随时可以继续补资料或先保存草稿。' }
-      : { type: 'info' as const, title: '先完成最小建档', description: '当前只要求楼栋和房号，先把草稿建起来，后续资料再逐步补齐。' };
-  }
-
-  if (currentStep === 1) {
-    return readiness.viewingReady
-      ? { type: 'success' as const, title: '已满足带看基础', description: '房东、挂牌租金和可租日期都已齐备，后续交给运营安排带看会更顺。' }
-      : {
-          type: 'warning' as const,
-          title: '带看资料仍待补齐',
-          description: `建议至少补齐 ${readiness.viewingMissing.join('、')}，避免保存后还要来回追资料。`,
-        };
-  }
-
-  if (currentStep === 2) {
-    if (readiness.publishReady && readiness.publishWarningIssues.length) {
-      return {
-        type: 'info' as const,
-        title: '当前可发布，但还有提醒项',
-        description: `当前规则下不阻断发布，建议继续补齐 ${readiness.publishWarningIssues.join('、')}。`,
-      };
-    }
-    return readiness.publishReady
-      ? { type: 'success' as const, title: '媒体与基础资料已通过发布检查', description: '保存后可以直接进入发布流程，也方便运营马上承接带看。' }
-      : {
-          type: 'warning' as const,
-          title: '发布检查仍有缺口',
-          description: `当前还差 ${readiness.publishBlockingIssues.join('、')}，保存后建议先去详情页补齐。`,
-        };
-  }
-
-  if (readiness.publishReady && readiness.publishWarningIssues.length) {
-    return {
-      type: 'info' as const,
-      title: '保存后可直接进入发布流程',
-      description: `当前阻断项已清空，但仍建议继续补齐 ${readiness.publishWarningIssues.join('、')}。`,
-    };
-  }
-
-  return readiness.publishReady
-    ? { type: 'success' as const, title: '保存后可直接进入发布流程', description: '当前资料已经比较完整，房源详情页主要用于后续状态维护。' }
-    : {
-        type: 'warning' as const,
-        title: '保存后仍会停留在草稿流转',
-        description: `建议按阻断项继续补齐：${readiness.publishBlockingIssues.join('、')}。`,
-      };
 }
 
 function getInitialWizardStep(search: string) {
@@ -203,7 +146,7 @@ const HouseNewPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(() => getInitialWizardStep(window.location.search));
   const [buildingOpen, setBuildingOpen] = useState(false);
   const [landlordOpen, setLandlordOpen] = useState(false);
-  const [createdBuildings, setCreatedBuildings] = useState<{ id: number; name: string; estate_id: number; estate_name?: string }[]>([]);
+  const [createdBuildings, setCreatedBuildings] = useState<BuildingOut[]>([]);
   const [createdLandlords, setCreatedLandlords] = useState<ContactOut[]>([]);
   const workspace = useTenantWorkspace();
   const enabled = Boolean(workspace.selectedOrgSlug);
@@ -224,8 +167,6 @@ const HouseNewPage: React.FC = () => {
     [settings.data],
   );
   const readiness = useMemo(() => getWizardReadiness(formValues, publishRules), [formValues, publishRules]);
-  const publishIssues = readiness.publishIssues;
-  const stepAlert = useMemo(() => getStepAlert(currentStep, readiness), [currentStep, readiness]);
   const mediaCompleteness = useMemo(() => getHouseMediaCompleteness(formValues), [formValues]);
   const canAdvanceFromDraftStep = readiness.draftReady;
   const createHouse = useMutation({
@@ -367,11 +308,6 @@ const HouseNewPage: React.FC = () => {
                   <Input />
                 </Form.Item>
               </Col>
-              <Col xs={24} md={8}>
-                <Form.Item label="可租日期" name="available_from">
-                  <Input type="date" />
-                </Form.Item>
-              </Col>
             </Row>
           </div>
           <div className={styles.sectionBlock}>
@@ -500,27 +436,10 @@ const HouseNewPage: React.FC = () => {
           <Descriptions.Item label="房东">{selectedLandlord ? contactLabel(selectedLandlord) : '待补房东'}</Descriptions.Item>
           <Descriptions.Item label="房号">{(formValues.room_number as string) || '待填写'}</Descriptions.Item>
           <Descriptions.Item label="挂牌租金">{moneyText(formValues.asking_rent as string | number | null | undefined)}</Descriptions.Item>
-          <Descriptions.Item label="可租日期">{(formValues.available_from as string) || '-'}</Descriptions.Item>
           <Descriptions.Item label="户型">{houseLayoutText(formValues as Record<string, unknown>)}</Descriptions.Item>
           <Descriptions.Item label="图片">{`${((formValues.images as MediaRefValue[] | undefined) || []).length} 张`}</Descriptions.Item>
           <Descriptions.Item label="视频">{`${((formValues.videos as MediaRefValue[] | undefined) || []).length} 个`}</Descriptions.Item>
         </Descriptions>
-        <Alert
-          type={!readiness.publishReady ? 'warning' : readiness.publishWarningIssues.length ? 'info' : 'success'}
-          showIcon
-          title={!readiness.publishReady ? '保存后仍有阻断项' : readiness.publishWarningIssues.length ? '保存后仍有提醒项' : '保存后可直接进入发布流程'}
-          description={
-            !readiness.publishReady || readiness.publishWarningIssues.length ? (
-              <Space wrap size={[8, 8]}>
-                {[...new Set([...readiness.viewingMissing, ...publishIssues])].map((item) => (
-                  <Tag color={readiness.publishBlockingIssues.includes(item) ? 'orange' : readiness.publishWarningIssues.includes(item) ? 'blue' : 'gold'} key={item}>
-                    {item}
-                  </Tag>
-                ))}
-              </Space>
-            ) : '资料、房东和媒体已经满足当前发布检查。'
-          }
-        />
       </Space>
     );
   };
@@ -531,7 +450,6 @@ const HouseNewPage: React.FC = () => {
         <Card title="房源建档向导">
           <Form form={form} layout="vertical" onFinish={submit}>
             <Steps current={currentStep} items={STEP_ITEMS} style={{ marginBottom: 24 }} />
-            <Alert type={stepAlert.type} showIcon title={stepAlert.title} description={stepAlert.description} style={{ marginBottom: 16 }} />
             <Row gutter={[24, 24]} align="top">
               <Col xs={24} xl={16}>
                 <Space orientation="vertical" size={16} style={{ width: '100%' }}>

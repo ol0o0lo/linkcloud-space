@@ -10,6 +10,7 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.accounts.services import bind_phone_to_user
+from apps.house.constants import ContactRole, EstatePropertyType, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.house.services import claim_landlord_contact_for_bound_phone, get_landlord_houses, recalculate_house_status
 from apps.media.constants import MediaType, ResourceType
@@ -41,7 +42,7 @@ class HouseDomainTestCase(TestCase):
             "organization": self.org,
             "name": "云岸花园",
             "display_name": "云岸花园一期",
-            "property_type": Estate.PropertyType.RESIDENTIAL,
+            "property_type": EstatePropertyType.RESIDENTIAL,
             "province": "广东省",
             "city": "深圳市",
             "district": "南山区",
@@ -72,7 +73,7 @@ class HouseDomainTestCase(TestCase):
             "organization": self.org,
             "name": "张三",
             "phone": "13800138000",
-            "roles": [Contact.Role.LANDLORD],
+            "roles": [ContactRole.LANDLORD],
         }
         data.update(kwargs)
         return Contact.objects.create(**data)
@@ -95,32 +96,13 @@ class HouseDomainTestCase(TestCase):
             "organization": self.org,
             "name": "李四",
             "phone": "13900139000",
-            "roles": [Contact.Role.TENANT],
+            "roles": [ContactRole.TENANT],
         }
         data.update(kwargs)
         return Contact.objects.create(**data)
 
 
 class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
-    def test_house_choice_constants_are_defined_in_constants_module(self):
-        from apps.house.constants import (
-            ContactRole,
-            EstatePropertyType,
-            HouseDecoration,
-            HouseOrientation,
-            HouseStatus,
-            LeaseStatus,
-            ViewingRecordStatus,
-        )
-
-        self.assertIs(Estate.PropertyType, EstatePropertyType)
-        self.assertIs(Contact.Role, ContactRole)
-        self.assertIs(House.Orientation, HouseOrientation)
-        self.assertIs(House.Decoration, HouseDecoration)
-        self.assertIs(House.Status, HouseStatus)
-        self.assertIs(ViewingRecord.Status, ViewingRecordStatus)
-        self.assertIs(Lease.Status, LeaseStatus)
-
     def test_space_hierarchy_derives_house_organization_and_protects_parent_deletes(self):
         estate = self.make_estate()
         building = self.make_building(estate=estate)
@@ -149,20 +131,20 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
 
     def test_contact_phone_unique_inside_org_but_reusable_across_orgs(self):
         contact = self.make_contact(phone="13800138001")
-        Contact.objects.create(organization=self.other_org, name="异租户", phone="13800138001", roles=[Contact.Role.LANDLORD])
+        Contact.objects.create(organization=self.other_org, name="异租户", phone="13800138001", roles=[ContactRole.LANDLORD])
 
         contact.refresh_from_db()
         self.assertEqual(contact.phone, "+8613800138001")
         with self.assertRaises(ValidationError):
-            Contact.objects.create(organization=self.org, name="重复", phone="13800138001", roles=[Contact.Role.TENANT])
+            Contact.objects.create(organization=self.org, name="重复", phone="13800138001", roles=[ContactRole.TENANT])
         with self.assertRaises(ValidationError):
-            Contact.objects.create(organization=self.org, name="格式重复", phone="+8613800138001", roles=[Contact.Role.TENANT])
+            Contact.objects.create(organization=self.org, name="格式重复", phone="+8613800138001", roles=[ContactRole.TENANT])
 
     def test_claim_landlord_contact_is_idempotent_org_scoped_and_does_not_steal_bound_contact(self):
         landlord = self.make_contact(phone="13800138002")
-        other = Contact.objects.create(organization=self.other_org, name="跨组织", phone="13800138002", roles=[Contact.Role.LANDLORD])
+        other = Contact.objects.create(organization=self.other_org, name="跨组织", phone="13800138002", roles=[ContactRole.LANDLORD])
         bound_user = User.objects.create_user(username="bound", password="secret")  # noqa: S106
-        bound = Contact.objects.create(organization=self.org, name="已绑定", phone="13800138003", roles=[Contact.Role.LANDLORD], user=bound_user)
+        bound = Contact.objects.create(organization=self.org, name="已绑定", phone="13800138003", roles=[ContactRole.LANDLORD], user=bound_user)
 
         claimed = claim_landlord_contact_for_bound_phone(self.user, self.org, "13800138002")
         second = claim_landlord_contact_for_bound_phone(self.user, self.org, "13800138002")
@@ -205,13 +187,13 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
 
 class TestHouseMediaAndOwnership(HouseDomainTestCase):
     def test_house_landlord_must_be_landlord_role_and_same_org(self):
-        tenant = self.make_contact(name="租客", phone="13900139001", roles=[Contact.Role.TENANT])
+        tenant = self.make_contact(name="租客", phone="13900139001", roles=[ContactRole.TENANT])
         house = self.make_house(landlord=None)
         house.landlord = tenant
         with self.assertRaises(ValidationError):
             house.full_clean()
 
-        other_landlord = Contact.objects.create(organization=self.other_org, name="异租户房东", phone="13800138004", roles=[Contact.Role.LANDLORD])
+        other_landlord = Contact.objects.create(organization=self.other_org, name="异租户房东", phone="13800138004", roles=[ContactRole.LANDLORD])
         house.landlord = other_landlord
         with self.assertRaises(ValidationError):
             house.full_clean()
@@ -221,7 +203,7 @@ class TestHouseMediaAndOwnership(HouseDomainTestCase):
         visible = self.make_house(room_number="1202", landlord=landlord)
         other_estate = self.make_estate(organization=self.other_org, name="异租户", display_name="异租户", city="广州")
         other_building = self.make_building(estate=other_estate, organization=self.other_org, name="异租户楼")
-        other_landlord = Contact.objects.create(organization=self.other_org, name="同用户异租户", phone="13800138006", roles=[Contact.Role.LANDLORD], user=self.user)
+        other_landlord = Contact.objects.create(organization=self.other_org, name="同用户异租户", phone="13800138006", roles=[ContactRole.LANDLORD], user=self.user)
         self.make_house(building=other_building, room_number="2201", landlord=other_landlord)
 
         self.assertEqual(list(get_landlord_houses(self.user, self.org)), [visible])
@@ -265,10 +247,9 @@ class TestHousePublishAndListingFields(HouseDomainTestCase):
     def test_house_defaults_to_draft_publish_status_and_empty_listing_fields(self):
         house = self.make_house()
 
-        self.assertEqual(house.publish_status, House.PublishStatus.DRAFT)
+        self.assertEqual(house.publish_status, HousePublishStatus.DRAFT)
         self.assertIsNone(house.asking_rent)
         self.assertIsNone(house.deposit_amount)
-        self.assertIsNone(house.available_from)
 
     def test_house_rejects_negative_listing_amounts(self):
         house = self.make_house()
@@ -293,15 +274,15 @@ class TestViewingAndLease(HouseDomainTestCase):
             customer_name="王五",
             customer_phone="13700137000",
             scheduled_at="2026-07-01T10:00:00+08:00",
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
 
-        self.assertEqual(record.status, ViewingRecord.Status.CONVERTED)
+        self.assertEqual(record.status, ViewingRecordStatus.CONVERTED)
         self.assertFalse(Lease.objects.exists())
 
     def test_viewing_record_requires_same_org_for_house_and_contact(self):
         house = self.make_house()
-        other_contact = Contact.objects.create(organization=self.other_org, name="异租户租客", phone="13700137001", roles=[Contact.Role.TENANT])
+        other_contact = Contact.objects.create(organization=self.other_org, name="异租户租客", phone="13700137001", roles=[ContactRole.TENANT])
         record = ViewingRecord(
             organization=self.other_org, house=house, contact=other_contact, customer_name="赵六", customer_phone="13700137001", scheduled_at="2026-07-01T10:00:00+08:00"
         )
@@ -320,21 +301,21 @@ class TestViewingAndLease(HouseDomainTestCase):
             start_date=date.today(),
             end_date=date.today() + timedelta(days=365),
             monthly_rent=Decimal("4200.00"),
-            status=Lease.Status.ACTIVE,
+            status=LeaseStatus.ACTIVE,
         )
 
         house.refresh_from_db()
-        self.assertEqual(house.status, House.Status.RENTED)
-        lease.status = Lease.Status.TERMINATED
+        self.assertEqual(house.status, HouseStatus.RENTED)
+        lease.status = LeaseStatus.TERMINATED
         lease.save()
         house.refresh_from_db()
-        self.assertEqual(house.status, House.Status.VACANT)
-        house.status = House.Status.LOCKED
+        self.assertEqual(house.status, HouseStatus.VACANT)
+        house.status = HouseStatus.LOCKED
         house.save(update_fields=["status"])
         lease.delete()
         recalculate_house_status(house.pk)
         house.refresh_from_db()
-        self.assertEqual(house.status, House.Status.LOCKED)
+        self.assertEqual(house.status, HouseStatus.LOCKED)
 
     def test_lease_status_rejects_reverse_or_terminal_transitions(self):
         landlord = self.make_contact(phone="13800138012")
@@ -347,22 +328,22 @@ class TestViewingAndLease(HouseDomainTestCase):
             start_date=date.today(),
             end_date=date.today() + timedelta(days=30),
             monthly_rent=Decimal("3000"),
-            status=Lease.Status.PENDING,
+            status=LeaseStatus.PENDING,
         )
 
-        lease.status = Lease.Status.EXPIRED
+        lease.status = LeaseStatus.EXPIRED
         with self.assertRaises(ValidationError):
             lease.full_clean()
 
-        lease.status = Lease.Status.ACTIVE
+        lease.status = LeaseStatus.ACTIVE
         lease.save()
-        lease.status = Lease.Status.PENDING
+        lease.status = LeaseStatus.PENDING
         with self.assertRaises(ValidationError):
             lease.full_clean()
 
-        lease.status = Lease.Status.TERMINATED
+        lease.status = LeaseStatus.TERMINATED
         lease.save()
-        lease.status = Lease.Status.ACTIVE
+        lease.status = LeaseStatus.ACTIVE
         with self.assertRaises(ValidationError):
             lease.full_clean()
 
@@ -376,7 +357,7 @@ class TestViewingAndLease(HouseDomainTestCase):
             start_date=date.today(),
             end_date=date.today() + timedelta(days=30),
             monthly_rent=Decimal("3000"),
-            status=Lease.Status.ACTIVE,
+            status=LeaseStatus.ACTIVE,
         )
 
         duplicate = Lease(
@@ -386,7 +367,7 @@ class TestViewingAndLease(HouseDomainTestCase):
             start_date=date.today(),
             end_date=date.today() + timedelta(days=60),
             monthly_rent=Decimal("3100"),
-            status=Lease.Status.ACTIVE,
+            status=LeaseStatus.ACTIVE,
         )
         with self.assertRaises(ValidationError):
             duplicate.full_clean()
@@ -436,7 +417,7 @@ class TestViewingAndLease(HouseDomainTestCase):
             customer_name="成交客户",
             customer_phone="13900139013",
             scheduled_at="2026-07-01T10:00:00+08:00",
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
 
         lease = Lease.objects.create(
@@ -462,7 +443,7 @@ class TestViewingAndLease(HouseDomainTestCase):
             customer_name="重复成交客户",
             customer_phone="13900139016",
             scheduled_at="2026-07-01T10:00:00+08:00",
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
         Lease.objects.create(
             organization=self.org,
@@ -508,7 +489,7 @@ class TestViewingAndLease(HouseDomainTestCase):
             customer_name="错房源客户",
             customer_phone="13900139014",
             scheduled_at="2026-07-01T10:00:00+08:00",
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
         wrong_tenant_viewing = ViewingRecord.objects.create(
             organization=self.org,
@@ -517,7 +498,7 @@ class TestViewingAndLease(HouseDomainTestCase):
             customer_name="错租客客户",
             customer_phone="13900139015",
             scheduled_at="2026-07-01T10:00:00+08:00",
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
 
         for source in [scheduled_viewing, wrong_house_viewing, wrong_tenant_viewing]:

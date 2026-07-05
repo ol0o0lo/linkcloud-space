@@ -159,8 +159,8 @@ export function evaluateHousePublishState(
   const imageCount = images.length;
   const videoCount = house.videos?.length || 0;
   const issueFlags: Record<HousePublishRuleKey, boolean> = {
-    landlord: !Boolean(house.landlord_id),
-    rent: !Boolean(house.asking_rent),
+    landlord: !house.landlord_id,
+    rent: !house.asking_rent,
     cover: !imageRoles.has('cover'),
     images: imageCount < (ruleSnapshot.images.min_count || 0),
     floor_plan: !imageRoles.has('floor_plan'),
@@ -203,11 +203,8 @@ export function getHouseBlockingIssues(house: {
   videos?: Record<string, unknown>[];
   landlord_id?: number | null;
   asking_rent?: string | number | null;
-  publish_blocking_issues?: string[];
-  publish_rule_snapshot?: unknown;
 }) {
-  if (house.publish_blocking_issues) return house.publish_blocking_issues;
-  return evaluateHousePublishState(house, house.publish_rule_snapshot).blockingIssues;
+  return evaluateHousePublishState(house).blockingIssues;
 }
 
 export function getHouseWarningIssues(house: {
@@ -215,11 +212,8 @@ export function getHouseWarningIssues(house: {
   videos?: Record<string, unknown>[];
   landlord_id?: number | null;
   asking_rent?: string | number | null;
-  publish_warning_issues?: string[];
-  publish_rule_snapshot?: unknown;
 }) {
-  if (house.publish_warning_issues) return house.publish_warning_issues;
-  return evaluateHousePublishState(house, house.publish_rule_snapshot).warningIssues;
+  return evaluateHousePublishState(house).warningIssues;
 }
 
 export function canHousePublish(house: {
@@ -227,12 +221,8 @@ export function canHousePublish(house: {
   videos?: Record<string, unknown>[];
   landlord_id?: number | null;
   asking_rent?: string | number | null;
-  publish_can_publish?: boolean;
-  publish_blocking_issues?: string[];
-  publish_rule_snapshot?: unknown;
 }) {
-  if (typeof house.publish_can_publish === 'boolean') return house.publish_can_publish;
-  return evaluateHousePublishState(house, house.publish_rule_snapshot).canPublish;
+  return evaluateHousePublishState(house).canPublish;
 }
 
 export function getTrackedHousePublishIssues(house: {
@@ -240,9 +230,6 @@ export function getTrackedHousePublishIssues(house: {
   videos?: Record<string, unknown>[];
   landlord_id?: number | null;
   asking_rent?: string | number | null;
-  publish_blocking_issues?: string[];
-  publish_warning_issues?: string[];
-  publish_rule_snapshot?: unknown;
 }) {
   const blocking = getHouseBlockingIssues(house);
   const warnings = getHouseWarningIssues(house);

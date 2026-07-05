@@ -8,7 +8,8 @@ from django.utils import timezone
 
 from model_bakery import baker
 
-from apps.access.models import AccessRole, OrganizationGroupBinding
+from apps.access.constants import AccessScope
+from apps.access.models import OrganizationGroupBinding
 from apps.accounts.models import User
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
@@ -236,7 +237,7 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         baker.make("organizations.OrganizationMember", organization=self.org, user=admin, is_owner=False)
         group = make_access_group(
             "org_admin_for_members",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("organizations", "member_manage")],
         )
         bind_org_role(self.org, admin, group)
@@ -322,7 +323,7 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         self.assertIn("guest@example.com", mail.outbox[0].to)
 
     def test_create_invite_with_access_role(self):
-        group = make_access_group("invite_org_role", AccessRole.Scope.ORG, [])
+        group = make_access_group("invite_org_role", AccessScope.ORG, [])
         self._login()
         mail.outbox = []
         with self.captureOnCommitCallbacks(execute=True):
@@ -350,7 +351,7 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         self.assertFalse(invite.is_owner)
 
     def test_accept_invite_assigns_access_role_without_owner(self):
-        group = make_access_group("accepted_invite_org_role", AccessRole.Scope.ORG, [])
+        group = make_access_group("accepted_invite_org_role", AccessScope.ORG, [])
         invitee = User.objects.create_user(username="guest", email="guest@example.com", password="secret")  # noqa: S106
         invite = OrganizationInvite.objects.create(
             organization=self.org,

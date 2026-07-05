@@ -54,14 +54,20 @@ declare namespace API {
     status: string;
     /** Status Label */
     status_label: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Source */
     source: string;
     /** Source Label */
     source_label: string;
+    /** Source  Mapping */
+    source__mapping: string;
     /** Provider */
     provider: string;
     /** Provider Label */
     provider_label: string;
+    /** Provider  Mapping */
+    provider__mapping: string;
     /** Real Name Masked */
     real_name_masked: string;
     /** Id Number Masked */
@@ -128,6 +134,8 @@ declare namespace API {
     last_name?: string;
     /** Real Name Status */
     real_name_status?: string;
+    /** Real Name Status  Mapping */
+    real_name_status__mapping?: string;
     /** Real Name Masked */
     real_name_masked?: string;
     /** Id Number Masked */
@@ -150,6 +158,10 @@ declare namespace API {
     is_staff: boolean;
     /** Is Superuser */
     is_superuser: boolean;
+    /** Role */
+    role?: string;
+    /** Role  Mapping */
+    role__mapping?: string;
   };
 
   type AdminUserPasswordIn = {
@@ -440,9 +452,6 @@ declare namespace API {
     building_id?: number | null;
     status?: string | null;
     publish_status?: string | null;
-    publish_issue?: string | null;
-    publish_blocked?: boolean | null;
-    publish_ready?: boolean | null;
     keyword?: string | null;
     page?: number;
     page_size?: number | null;
@@ -452,6 +461,7 @@ declare namespace API {
     house_id?: number | null;
     status?: string | null;
     contract_missing?: boolean | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -471,6 +481,7 @@ declare namespace API {
     status?: string | null;
     pending_lease?: boolean | null;
     contact_missing?: boolean | null;
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -796,8 +807,7 @@ declare namespace API {
     id: number;
     /** Estate Id */
     estate_id: number;
-    /** Estate Name */
-    estate_name: string;
+    estate: EstateSummaryOut;
     /** Name */
     name: string;
     /** Floors */
@@ -839,6 +849,16 @@ declare namespace API {
     address?: string | null;
     /** Is Active */
     is_active?: boolean | null;
+  };
+
+  type BuildingSummaryOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Estate Id */
+    estate_id: number;
+    estate: EstateSummaryOut;
   };
 
   type BulkActionIn = {
@@ -883,6 +903,8 @@ declare namespace API {
     email: string;
     /** Roles */
     roles: string[];
+    /** Roles  Mapping */
+    roles__mapping: string[];
     /** User Id */
     user_id: number | null;
     /** Notes */
@@ -904,6 +926,15 @@ declare namespace API {
     notes?: string | null;
     /** Is Active */
     is_active?: boolean | null;
+  };
+
+  type ContactSummaryOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Phone */
+    phone: string;
   };
 
   type CustomRoleCreateIn = {
@@ -932,8 +963,7 @@ declare namespace API {
     id: number;
     /** Estate Id */
     estate_id: number;
-    /** Estate Name */
-    estate_name: string;
+    estate: EstateSummaryOut;
     /** Name */
     name: string;
     /** Floors */
@@ -982,6 +1012,8 @@ declare namespace API {
     display_name: string;
     /** Property Type */
     property_type: string;
+    /** Property Type  Mapping */
+    property_type__mapping: string;
     /** Province */
     province: string;
     /** City */
@@ -1031,6 +1063,15 @@ declare namespace API {
     is_active?: boolean | null;
   };
 
+  type EstateSummaryOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Display Name */
+    display_name: string;
+  };
+
   type ForceLogoutOut = {
     /** Deleted Sessions */
     deleted_sessions: number;
@@ -1053,8 +1094,6 @@ declare namespace API {
     asking_rent?: number | string | null;
     /** Deposit Amount */
     deposit_amount?: number | string | null;
-    /** Available From */
-    available_from?: string | null;
     /** Bedrooms */
     bedrooms?: number | null;
     /** Living Rooms */
@@ -1086,18 +1125,10 @@ declare namespace API {
     id: number;
     /** Building Id */
     building_id: number;
-    /** Building Name */
-    building_name: string;
-    /** Estate Name */
-    estate_name: string;
+    building: BuildingSummaryOut;
     /** Landlord Id */
     landlord_id: number | null;
-    /** Landlord Name */
-    landlord_name: string | null;
-    /** Landlord Phone */
-    landlord_phone: string | null;
-    /** House Label */
-    house_label: string;
+    landlord: ContactSummaryOut | null;
     /** Room Number */
     room_number: string;
     /** Floor */
@@ -1110,8 +1141,6 @@ declare namespace API {
     asking_rent: string | null;
     /** Deposit Amount */
     deposit_amount: string | null;
-    /** Available From */
-    available_from: string | null;
     /** Bedrooms */
     bedrooms: number | null;
     /** Living Rooms */
@@ -1124,14 +1153,22 @@ declare namespace API {
     balconies: number | null;
     /** Orientation */
     orientation: string | null;
+    /** Orientation  Mapping */
+    orientation__mapping: string;
     /** Decoration */
     decoration: string | null;
+    /** Decoration  Mapping */
+    decoration__mapping: string;
     /** Has Elevator Access */
     has_elevator_access: boolean;
     /** Status */
     status: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Publish Status */
     publish_status: string;
+    /** Publish Status  Mapping */
+    publish_status__mapping: string;
     /** Images */
     images: Record<string, any>[];
     /** Videos */
@@ -1146,14 +1183,6 @@ declare namespace API {
     extra: Record<string, any>;
     /** Is Active */
     is_active: boolean;
-    /** Publish Can Publish */
-    publish_can_publish: boolean;
-    /** Publish Blocking Issues */
-    publish_blocking_issues: string[];
-    /** Publish Warning Issues */
-    publish_warning_issues: string[];
-    /** Publish Rule Snapshot */
-    publish_rule_snapshot: Record<string, any>;
   };
 
   type HousePatchIn = {
@@ -1173,8 +1202,6 @@ declare namespace API {
     asking_rent?: number | string | null;
     /** Deposit Amount */
     deposit_amount?: number | string | null;
-    /** Available From */
-    available_from?: string | null;
     /** Bedrooms */
     bedrooms?: number | null;
     /** Living Rooms */
@@ -1209,6 +1236,18 @@ declare namespace API {
     extra?: Record<string, any> | null;
     /** Is Active */
     is_active?: boolean | null;
+  };
+
+  type HouseSummaryOut = {
+    /** Id */
+    id: number;
+    /** Label */
+    label: string;
+    /** Room Number */
+    room_number: string;
+    /** Building Id */
+    building_id: number;
+    building: BuildingSummaryOut;
   };
 
   type ImpersonateUserOut = {
@@ -1301,18 +1340,13 @@ declare namespace API {
     id: number;
     /** House Id */
     house_id: number;
-    /** House Label */
-    house_label: string;
+    house: HouseSummaryOut;
     /** Tenant Id */
     tenant_id: number;
-    /** Tenant Name */
-    tenant_name: string;
-    /** Tenant Phone */
-    tenant_phone: string;
+    tenant: ContactSummaryOut;
     /** Source Viewing Record Id */
     source_viewing_record_id: number | null;
-    /** Source Viewing Record Label */
-    source_viewing_record_label: string | null;
+    source_viewing_record: ViewingRecordSummaryOut | null;
     /** Sign At */
     sign_at: string | null;
     /** Start Date */
@@ -1327,6 +1361,8 @@ declare namespace API {
     payment_day: number;
     /** Status */
     status: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Contract Files */
     contract_files: Record<string, any>[];
     /** Notes */
@@ -1474,6 +1510,8 @@ declare namespace API {
     phone_verified: boolean;
     /** Real Name Status */
     real_name_status: string;
+    /** Real Name Status  Mapping */
+    real_name_status__mapping: string;
     /** Real Name Masked */
     real_name_masked?: string;
     /** Id Number Masked */
@@ -1531,6 +1569,8 @@ declare namespace API {
     id: number;
     /** Scope */
     scope: string;
+    /** Scope  Mapping */
+    scope__mapping: string;
     /** Scope Ids */
     scope_ids: number[];
     /** Owner Organization Id */
@@ -1547,6 +1587,8 @@ declare namespace API {
     data: Record<string, any>;
     /** Status */
     status: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Target Count */
     target_count: number;
     /** Delivered Count */
@@ -1593,6 +1635,8 @@ declare namespace API {
     description?: string;
     /** Default Channels */
     default_channels?: string[];
+    /** Default Channels  Mapping */
+    default_channels__mapping: string[];
     /** In App */
     in_app: boolean;
     /** Email */
@@ -2006,12 +2050,16 @@ declare namespace API {
     action: string;
     /** Action Label */
     action_label: string;
+    /** Action  Mapping */
+    action__mapping?: string;
     /** Created At */
     created_at: string;
     /** From Status */
     from_status?: string | null;
     /** From Status Label */
     from_status_label?: string;
+    /** From Status  Mapping */
+    from_status__mapping?: string;
     /** Note */
     note?: string;
     /** Operator */
@@ -2020,6 +2068,8 @@ declare namespace API {
     to_status?: string | null;
     /** To Status Label */
     to_status_label?: string;
+    /** To Status  Mapping */
+    to_status__mapping?: string;
   };
 
   type RealNameRetryIn = {
@@ -2051,14 +2101,20 @@ declare namespace API {
     status: string;
     /** Status Label */
     status_label: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Source */
     source: string;
     /** Source Label */
     source_label: string;
+    /** Source  Mapping */
+    source__mapping: string;
     /** Provider */
     provider: string;
     /** Provider Label */
     provider_label: string;
+    /** Provider  Mapping */
+    provider__mapping: string;
     /** Real Name Masked */
     real_name_masked: string;
     /** Id Number Masked */
@@ -2100,14 +2156,20 @@ declare namespace API {
     status: string;
     /** Status Label */
     status_label: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Source */
     source: string;
     /** Source Label */
     source_label: string;
+    /** Source  Mapping */
+    source__mapping: string;
     /** Provider */
     provider: string;
     /** Provider Label */
     provider_label: string;
+    /** Provider  Mapping */
+    provider__mapping: string;
     /** Real Name Masked */
     real_name_masked: string;
     /** Id Number Masked */
@@ -2150,6 +2212,8 @@ declare namespace API {
     invitee_display: string;
     /** Status */
     status: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Created At */
     created_at: string;
     /** Updated At */
@@ -2170,6 +2234,8 @@ declare namespace API {
     name: string;
     /** Trigger Event */
     trigger_event: string;
+    /** Trigger Event  Mapping */
+    trigger_event__mapping: string;
     /** Inviter Reward Amount */
     inviter_reward_amount: number;
     /** Invitee Reward Amount */
@@ -2182,6 +2248,8 @@ declare namespace API {
     allow_code: boolean;
     /** Display Level */
     display_level: string;
+    /** Display Level  Mapping */
+    display_level__mapping: string;
   };
 
   type ReferralRuleConfigPatchIn = {
@@ -2413,6 +2481,8 @@ declare namespace API {
     last_name?: string;
     /** Real Name Status */
     real_name_status?: string;
+    /** Real Name Status  Mapping */
+    real_name_status__mapping?: string;
     /** Real Name Masked */
     real_name_masked?: string;
     /** Id Number Masked */
@@ -2468,14 +2538,10 @@ declare namespace API {
     id: number;
     /** House Id */
     house_id: number;
-    /** House Label */
-    house_label: string;
+    house: HouseSummaryOut;
     /** Contact Id */
     contact_id: number | null;
-    /** Contact Name */
-    contact_name: string | null;
-    /** Contact Phone */
-    contact_phone: string | null;
+    contact: ContactSummaryOut | null;
     /** Customer Name */
     customer_name: string;
     /** Customer Phone */
@@ -2486,6 +2552,8 @@ declare namespace API {
     viewed_at: string | null;
     /** Status */
     status: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Assigned To Id */
     assigned_to_id: number | null;
     /** Notes */
@@ -2523,6 +2591,17 @@ declare namespace API {
     is_active?: boolean | null;
   };
 
+  type ViewingRecordSummaryOut = {
+    /** Id */
+    id: number;
+    /** Label */
+    label: string;
+    /** Customer Name */
+    customer_name: string;
+    /** Customer Phone */
+    customer_phone: string;
+  };
+
   type WalletAccountAdminOut = {
     /** Available Balance */
     available_balance: number;
@@ -2536,6 +2615,14 @@ declare namespace API {
     id: number;
     /** User Id */
     user_id: number;
+    /** Username */
+    username: string;
+    /** Email */
+    email: string;
+    /** Phone Label */
+    phone_label: string;
+    /** Real Name Label */
+    real_name_label: string;
   };
 
   type WalletAdjustmentIn = {
@@ -2554,6 +2641,8 @@ declare namespace API {
     id: number;
     /** Entry Type */
     entry_type: string;
+    /** Entry Type  Mapping */
+    entry_type__mapping: string;
     /** Amount Delta */
     amount_delta: number;
     /** Available Balance After */
@@ -2619,8 +2708,12 @@ declare namespace API {
     net_amount: number;
     /** Status */
     status: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Pay Channel */
     pay_channel: string;
+    /** Pay Channel  Mapping */
+    pay_channel__mapping: string;
     /** Payee Account Snapshot */
     payee_account_snapshot: Record<string, any>;
     /** Reject Reason */
@@ -2644,6 +2737,8 @@ declare namespace API {
     provider_trade_no: string;
     /** Status */
     status: string;
+    /** Status  Mapping */
+    status__mapping: string;
     /** Error Code */
     error_code: string;
     /** Error Message */

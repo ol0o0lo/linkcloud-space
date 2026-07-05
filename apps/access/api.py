@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404
 
 from ninja import Router, Status
 
-from apps.access.constants import AccessPermission
+from apps.access.constants import AccessPermission, AccessScope
 from apps.access.models import AccessRole
 from apps.access.permissions import require_org_permission, require_team_permission
 from apps.access.schemas import (
@@ -55,17 +55,17 @@ def list_permissions(request):
 def list_org_roles(request):
     """返回当前组织下可用的 org 级角色，包含系统预置角色和当前组织自定义角色。"""
     org = require_org_permission(request, AccessPermission.ROLE_VIEW)
-    return list_available_roles(org, AccessRole.Scope.ORG)
+    return list_available_roles(org, AccessScope.ORG)
 
 
 @org_roles_router.post("/", response={201: AccessRoleOut}, summary="创建租户级自定义角色")
 def create_org_role(request, payload: CustomRoleCreateIn):
     """在当前组织下创建 org 级自定义角色，可直接传入权限列表，或基于现有角色复制权限配置。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
-    source = get_object_or_404(list_available_roles(org, AccessRole.Scope.ORG), pk=payload.copy_from) if payload.copy_from else None
+    source = get_object_or_404(list_available_roles(org, AccessScope.ORG), pk=payload.copy_from) if payload.copy_from else None
     role = create_custom_role(
         org,
-        AccessRole.Scope.ORG,
+        AccessScope.ORG,
         name=payload.name,
         permission_keys=payload.permission_keys,
         copy_from=source,
@@ -77,7 +77,7 @@ def create_org_role(request, payload: CustomRoleCreateIn):
 def patch_org_role(request, role_id: int, payload: CustomRolePatchIn):
     """修改当前组织下的 org 级自定义角色名称或权限列表；系统预置角色不能通过该接口修改。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
-    role = get_object_or_404(AccessRole.objects.filter(organization=org, scope=AccessRole.Scope.ORG), pk=role_id)
+    role = get_object_or_404(AccessRole.objects.filter(organization=org, scope=AccessScope.ORG), pk=role_id)
     return update_custom_role(
         role,
         name=payload.name,
@@ -89,7 +89,7 @@ def patch_org_role(request, role_id: int, payload: CustomRolePatchIn):
 def delete_org_role(request, role_id: int):
     """删除当前组织下未被授权绑定引用的 org 级自定义角色。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
-    role = get_object_or_404(AccessRole.objects.filter(organization=org, scope=AccessRole.Scope.ORG), pk=role_id)
+    role = get_object_or_404(AccessRole.objects.filter(organization=org, scope=AccessScope.ORG), pk=role_id)
     delete_custom_role(role)
     return Status(200, {})
 
@@ -105,7 +105,7 @@ def list_organization_bindings(request):
 def create_organization_binding(request, payload: RoleBindingIn):
     """给当前组织内某个成员绑定一个 org 级角色，角色生效范围覆盖整个组织。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
-    role = get_object_or_404(list_available_roles(org, AccessRole.Scope.ORG), pk=payload.role)
+    role = get_object_or_404(list_available_roles(org, AccessScope.ORG), pk=payload.role)
     binding = assign_org_role(org, payload.user, role)
     return Status(201, binding)
 
@@ -123,7 +123,7 @@ def delete_organization_binding(request, binding_id: int):
 def list_team_roles(request, team_id: int):
     """返回当前组织可用的 team 级角色，供指定 team 的授权配置使用。"""
     team = require_team_permission(request, team_id, AccessPermission.TEAM_ROLE_VIEW)
-    return list_available_roles(team.organization, AccessRole.Scope.TEAM)
+    return list_available_roles(team.organization, AccessScope.TEAM)
 
 
 @team_roles_router.post("/{team_id}/roles/", response={201: AccessRoleOut}, summary="创建团队级自定义角色")
@@ -131,10 +131,10 @@ def create_team_role(request, team_id: int, payload: CustomRoleCreateIn):
     """在当前组织下创建 team 级自定义角色，用于后续绑定到具体 team 成员。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
     team = get_object_or_404(Team, pk=team_id, organization=org)
-    source = get_object_or_404(list_available_roles(org, AccessRole.Scope.TEAM), pk=payload.copy_from) if payload.copy_from else None
+    source = get_object_or_404(list_available_roles(org, AccessScope.TEAM), pk=payload.copy_from) if payload.copy_from else None
     role = create_custom_role(
         team.organization,
-        AccessRole.Scope.TEAM,
+        AccessScope.TEAM,
         name=payload.name,
         permission_keys=payload.permission_keys,
         copy_from=source,
@@ -147,7 +147,7 @@ def patch_team_role(request, team_id: int, role_id: int, payload: CustomRolePatc
     """修改当前组织下的 team 级自定义角色名称或权限列表；系统预置角色不能通过该接口修改。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
     get_object_or_404(Team, pk=team_id, organization=org)
-    role = get_object_or_404(AccessRole.objects.filter(organization=org, scope=AccessRole.Scope.TEAM), pk=role_id)
+    role = get_object_or_404(AccessRole.objects.filter(organization=org, scope=AccessScope.TEAM), pk=role_id)
     return update_custom_role(
         role,
         name=payload.name,
@@ -160,7 +160,7 @@ def delete_team_role(request, team_id: int, role_id: int):
     """删除当前组织下未被授权绑定引用的 team 级自定义角色。"""
     org = require_org_permission(request, AccessPermission.ROLE_MANAGE)
     get_object_or_404(Team, pk=team_id, organization=org)
-    role = get_object_or_404(AccessRole.objects.filter(organization=org, scope=AccessRole.Scope.TEAM), pk=role_id)
+    role = get_object_or_404(AccessRole.objects.filter(organization=org, scope=AccessScope.TEAM), pk=role_id)
     delete_custom_role(role)
     return Status(200, {})
 
@@ -176,7 +176,7 @@ def list_team_bindings_view(request, team_id: int):
 def create_team_binding(request, team_id: int, payload: RoleBindingIn):
     """给指定 team 的成员绑定一个 team 级角色，角色仅在该 team 范围内生效。"""
     team = require_team_permission(request, team_id, AccessPermission.TEAM_ROLE_MANAGE)
-    role = get_object_or_404(list_available_roles(team.organization, AccessRole.Scope.TEAM), pk=payload.role)
+    role = get_object_or_404(list_available_roles(team.organization, AccessScope.TEAM), pk=payload.role)
     binding = assign_team_role(team, payload.user, role)
     return Status(201, binding)
 

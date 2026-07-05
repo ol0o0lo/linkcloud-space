@@ -1,7 +1,8 @@
-import { PlusOutlined } from '@ant-design/icons';
+import { MoreOutlined, PlusOutlined } from '@ant-design/icons';
+import type { ProColumns } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import {
   useMutation,
-  useQueries,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
@@ -12,6 +13,7 @@ import {
   Card,
   Col,
   Descriptions,
+  Dropdown,
   Drawer,
   Empty,
   Form,
@@ -21,7 +23,6 @@ import {
   Row,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
   theme,
@@ -29,10 +30,7 @@ import {
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   adminTableScroll,
-  fixedPagePagination,
   ResponsiveActions,
-  SectionHeader,
-  StatusFlowButtons,
 } from '@/pages/_shared/adminLayout';
 import {
   TenantSelectionGuard,
@@ -56,27 +54,23 @@ import {
   HOUSE_MEDIA_RESOURCE_TYPE,
   HOUSE_MEDIA_TYPE,
   houseLabel,
-  LEASE_STATUS_FLOW_OPTIONS,
   moneyText,
   STATUS_COLOR,
 } from '../constants';
 import {
   getLoadingAwareEmptyState,
-  isAnyInitialQueryPending,
   isInitialQueryPending,
 } from '../loading';
 
 const PAGE_SIZE = 20;
 type LeaseTask = 'contract';
 
-const TASK_TEXT: Record<LeaseTask, string> = {
-  contract: '合同缺失',
-};
 const LEASE_STATUS_ACTION_TEXT: Record<string, string> = {
   active: '生效',
   expired: '到期',
   terminated: '终止',
 };
+const LEASE_STATUS_ACTIONS = ['active', 'expired', 'terminated'];
 
 function dashboardHref(path: string) {
   return `/dashboard${path}`;
@@ -94,26 +88,6 @@ function leaseEditPath(
   return `${dashboardHref('/property-rental/leases')}?${params.toString()}`;
 }
 
-function getLeaseNextActionText(record: LeaseOut) {
-  if (record.status === 'expired') return '待退租归档';
-  if (record.status === 'terminated') return '待结清归档';
-  if (!record.contract_files?.length) return '待合同归档';
-  if (record.status === 'pending') return '待生效确认';
-  if (record.status === 'active') return '履约跟进';
-  return '持续跟进';
-}
-
-function getLeaseWorkflowHint(record: LeaseOut) {
-  if (record.status === 'expired')
-    return '已到期，尽快确认退租、续租或腾退归档';
-  if (record.status === 'terminated') return '已终止，尽快完成结清和资料归档';
-  if (!record.contract_files?.length)
-    return '合同未归档，优先补齐避免后续履约和结算无据可查';
-  if (record.status === 'pending') return '起租前确认交付、付款日和押金安排';
-  if (record.status === 'active') return '履约中，持续关注收租、续租和到期提醒';
-  return '按当前状态继续跟进';
-}
-
 function getLeaseBusinessInfo(record: LeaseOut) {
   const houseText = houseLabel(record);
   const houseParts = houseText.split(' / ');
@@ -129,44 +103,12 @@ function getLeaseBusinessInfo(record: LeaseOut) {
     record.monthly_rent ? moneyText(record.monthly_rent) : undefined,
     record.contract_files?.length
       ? `${record.contract_files.length} 份合同`
-      : '待补合同',
+      : '合同未归档',
   ].filter(Boolean);
   return {
     primary,
     secondary: secondaryParts.join(' · '),
   };
-}
-
-const LEASE_OVERVIEW_ITEMS = [
-  { key: 'pending', title: '待生效', params: { status: 'pending' } },
-  { key: 'active', title: '生效中', params: { status: 'active' } },
-  { key: 'contract', title: '待补合同', params: { contract_missing: true } },
-  { key: 'expired', title: '已到期', params: { status: 'expired' } },
-  { key: 'terminated', title: '已终止', params: { status: 'terminated' } },
-] as const;
-
-function getLeaseScopeText(
-  options: { task?: string; status?: string },
-  statusLabel: (value?: string | null) => string,
-) {
-  const parts: string[] = [];
-  if (options.task && TASK_TEXT[options.task as LeaseTask])
-    parts.push(TASK_TEXT[options.task as LeaseTask]);
-  if (options.status) parts.push(statusLabel(options.status));
-  return parts.join(' / ');
-}
-
-function buildLeaseQueueHref(filters: {
-  houseId?: number;
-  task?: string;
-  status?: string;
-}) {
-  const params = new URLSearchParams();
-  if (filters.houseId) params.set('house_id', String(filters.houseId));
-  if (filters.task) params.set('task', filters.task);
-  if (filters.status) params.set('status', filters.status);
-  const search = params.toString();
-  return `/property-rental/leases${search ? `?${search}` : ''}`;
 }
 
 function getLeaseListStateFromSearch(search: string) {
@@ -175,15 +117,21 @@ function getLeaseListStateFromSearch(search: string) {
   return {
     page: Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1,
     status: params.get('status') || undefined,
+    keyword: params.get('keyword') || undefined,
   };
 }
 
-function syncLeaseListSearch(filters: { page: number; status?: string }) {
+function syncLeaseListSearch(filters: { page: number; status?: string; keyword?: string }) {
   const params = new URLSearchParams(window.location.search);
   if (filters.status) {
     params.set('status', filters.status);
   } else {
     params.delete('status');
+  }
+  if (filters.keyword) {
+    params.set('keyword', filters.keyword);
+  } else {
+    params.delete('keyword');
   }
   if (filters.page > 1) {
     params.set('page', String(filters.page));
@@ -251,7 +199,7 @@ function getLeaseNextStepText(options: {
   status?: string;
   contractFiles: Record<string, unknown>[];
 }) {
-  if (!options.contractFiles.length) return '保存后回到待补合同队列补齐合同。';
+  if (!options.contractFiles.length) return '合同可稍后在编辑租约中补充。';
   if (!options.editing || options.status === 'pending') return '合同已归档，可在列表执行生效。';
   if (options.status === 'active') return '持续维护履约状态，到期或退租时更新状态。';
   if (options.status === 'expired' || options.status === 'terminated') return '确认备注和资料后完成归档。';
@@ -260,14 +208,9 @@ function getLeaseNextStepText(options: {
 
 function getLeaseEmptyState(options: {
   task?: string;
-  status?: string;
-  sourceHouseId?: number;
-  pendingCount: number;
-  activeCount: number;
   openCreate: () => void;
 }) {
-  const { task, sourceHouseId, pendingCount, activeCount, openCreate } =
-    options;
+  const { task, openCreate } = options;
 
   if (task === 'contract') {
     return (
@@ -283,35 +226,7 @@ function getLeaseEmptyState(options: {
         }
       >
         <Space wrap>
-          {pendingCount > 0 ? (
-            <Button
-              href={dashboardHref(
-                buildLeaseQueueHref({
-                  houseId: sourceHouseId,
-                  status: 'pending',
-                }),
-              )}
-            >
-              查看待生效
-            </Button>
-          ) : null}
-          {activeCount > 0 ? (
-            <Button
-              href={dashboardHref(
-                buildLeaseQueueHref({
-                  houseId: sourceHouseId,
-                  status: 'active',
-                }),
-              )}
-            >
-              查看生效中
-            </Button>
-          ) : null}
-          <Button
-            href={dashboardHref(
-              buildLeaseQueueHref({ houseId: sourceHouseId }),
-            )}
-          >
+          <Button href={dashboardHref('/property-rental/leases')}>
             查看全部租约
           </Button>
           <Button type="primary" onClick={openCreate}>
@@ -361,6 +276,12 @@ const LeasesPage: React.FC = () => {
   const initialListState = getLeaseListStateFromSearch(locationSearch);
   const initialDrawerState = getLeaseDrawerStateFromSearch(locationSearch);
   const [page, setPage] = useState(initialListState.page);
+  const [status, setStatus] = useState<string | undefined>(
+    initialListState.status,
+  );
+  const [keyword, setKeyword] = useState<string | undefined>(
+    initialListState.keyword,
+  );
   const queryParams = new URLSearchParams(locationSearch);
   const task = (queryParams.get('task') as LeaseTask | null) || undefined;
   const [drawerState, setDrawerState] =
@@ -369,9 +290,6 @@ const LeasesPage: React.FC = () => {
   const sourceHouseId = Number(queryParams.get('house_id')) || undefined;
   const editLeaseId = drawerState.editLeaseId;
   const contractMissing = task === 'contract' || undefined;
-  const [status, setStatus] = useState<string | undefined>(
-    initialListState.status,
-  );
   const [editing, setEditing] = useState<LeaseOut | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tenantOpen, setTenantOpen] = useState(false);
@@ -397,26 +315,6 @@ const LeasesPage: React.FC = () => {
     queryFn: () =>
       houseApi.listContacts({ page: 1, page_size: 100, role: 'tenant' }),
     enabled,
-  });
-  const overviewQueries = useQueries({
-    queries: LEASE_OVERVIEW_ITEMS.map((item) => ({
-      queryKey: [
-        'house',
-        'leases',
-        'overview',
-        workspace.selectedOrgSlug,
-        sourceHouseId,
-        item.key,
-      ],
-      queryFn: () =>
-        houseApi.listLeases({
-          page: 1,
-          page_size: 1,
-          house_id: sourceHouseId,
-          ...item.params,
-        }),
-      enabled,
-    })),
   });
   const readySourceViewings = useQuery({
     queryKey: [
@@ -468,6 +366,7 @@ const LeasesPage: React.FC = () => {
       workspace.selectedOrgSlug,
       page,
       status,
+      keyword,
       sourceHouseId,
       contractMissing,
     ],
@@ -476,87 +375,14 @@ const LeasesPage: React.FC = () => {
         page,
         page_size: PAGE_SIZE,
         status,
+        keyword,
         house_id: sourceHouseId,
         contract_missing: contractMissing,
       }),
     enabled,
   });
   const rows = leases.data?.items || [];
-  const pendingCount = overviewQueries[0]?.data?.total || 0;
-  const activeCount = overviewQueries[1]?.data?.total || 0;
-  const contractMissingCount = overviewQueries[2]?.data?.total || 0;
-  const expiredCount = overviewQueries[3]?.data?.total || 0;
-  const terminatedCount = overviewQueries[4]?.data?.total || 0;
-  const allLeaseCount =
-    pendingCount + activeCount + expiredCount + terminatedCount;
-  const overviewLoading = isAnyInitialQueryPending(overviewQueries);
   const listLoading = isInitialQueryPending(leases);
-  const scopeText = getLeaseScopeText(
-    {
-      task,
-      status,
-    },
-    statusLabel,
-  );
-  const focusedActionTitle =
-    task === 'contract' && editLeaseId ? '当前操作：补归档合同' : undefined;
-  const focusedActionDescription =
-    task === 'contract' && editLeaseId
-      ? '当前入口来自合同缺失队列，优先上传主合同文件，再继续确认租约状态和履约节点。'
-      : undefined;
-  const focusedActionReturnHref =
-    task === 'contract' && editLeaseId
-      ? dashboardHref(
-          buildLeaseQueueHref({ houseId: sourceHouseId, task, status }),
-        )
-      : undefined;
-  const leaseQueueLinks = [
-    {
-      key: 'all',
-      label: '全部',
-      count: allLeaseCount,
-      href: buildLeaseQueueHref({ houseId: sourceHouseId }),
-      active: !task && !status,
-    },
-    {
-      key: 'pending',
-      label: '待生效',
-      count: pendingCount,
-      href: buildLeaseQueueHref({ houseId: sourceHouseId, status: 'pending' }),
-      active: !task && status === 'pending',
-    },
-    {
-      key: 'active',
-      label: '生效中',
-      count: activeCount,
-      href: buildLeaseQueueHref({ houseId: sourceHouseId, status: 'active' }),
-      active: !task && status === 'active',
-    },
-    {
-      key: 'contract',
-      label: '待补合同',
-      count: contractMissingCount,
-      href: buildLeaseQueueHref({ houseId: sourceHouseId, task: 'contract' }),
-      active: task === 'contract' && !status,
-    },
-    {
-      key: 'expired',
-      label: '已到期',
-      count: expiredCount,
-      href: buildLeaseQueueHref({ houseId: sourceHouseId, status: 'expired' }),
-      active: !task && status === 'expired',
-    },
-    {
-      key: 'terminated',
-      label: '已终止',
-      count: terminatedCount,
-      href: buildLeaseQueueHref({
-        houseId: sourceHouseId,
-        status: 'terminated',
-      }),
-      active: !task && status === 'terminated',
-    },
-  ].filter((item) => overviewLoading || item.count > 0 || item.active);
   const leaseEntryLinks = [
     {
       key: 'ready_viewings',
@@ -599,11 +425,11 @@ const LeasesPage: React.FC = () => {
     });
     if (
       editing?.source_viewing_record_id &&
-      editing.source_viewing_record_label
+      editing.source_viewing_record?.label
     ) {
       options.set(editing.source_viewing_record_id, {
         value: editing.source_viewing_record_id,
-        label: editing.source_viewing_record_label,
+        label: editing.source_viewing_record.label,
       });
     }
     return Array.from(options.values());
@@ -647,31 +473,22 @@ const LeasesPage: React.FC = () => {
   ]);
 
   useEffect(() => {
-    syncLeaseListSearch({ page, status });
+    syncLeaseListSearch({ page, status, keyword });
     setLocationSearch(window.location.search);
-  }, [page, status]);
+  }, [keyword, page, status]);
 
   useEffect(() => {
     const handlePopState = () => {
       const listState = getLeaseListStateFromSearch(window.location.search);
       setPage(listState.page);
       setStatus(listState.status);
+      setKeyword(listState.keyword);
       setDrawerState(getLeaseDrawerStateFromSearch(window.location.search));
       setLocationSearch(window.location.search);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  const openLeaseQueue = (href: string) => {
-    const nextSearch = new URL(href, 'http://localhost').search;
-    const nextState = getLeaseListStateFromSearch(nextSearch);
-    setPage(nextState.page);
-    setStatus(nextState.status);
-    setDrawerState(getLeaseDrawerStateFromSearch(nextSearch));
-    setLocationSearch(nextSearch);
-    history.push(href);
-  };
 
   useEffect(() => {
     if (
@@ -829,71 +646,83 @@ const LeasesPage: React.FC = () => {
     status: editing?.status,
     contractFiles: draftContractFiles,
   });
+  const columns: ProColumns<LeaseOut>[] = [
+    {
+      title: '租约信息',
+      dataIndex: 'house',
+      width: 360,
+      render: (_value, record) => {
+        const businessInfo = getLeaseBusinessInfo(record);
+        return (
+          <Space orientation="vertical" size={2}>
+            <Typography.Text strong>{businessInfo.primary}</Typography.Text>
+            <Typography.Text type="secondary">
+              {businessInfo.secondary}
+            </Typography.Text>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '状态',
+      dataIndex: 'status__mapping',
+      width: 120,
+      render: (_value, record) => (
+        <Tag color={STATUS_COLOR[record.status] || 'default'}>
+          {enumMapping(record.status, record.status__mapping)}
+        </Tag>
+      ),
+    },
+    {
+      title: '合同',
+      dataIndex: 'contract_files',
+      width: 120,
+      render: (_value, record) =>
+        record.contract_files?.length ? <span>{`${record.contract_files.length} 份`}</span> : <Tag color="orange">未归档</Tag>,
+    },
+    {
+      title: '操作',
+      dataIndex: 'actions',
+      fixed: 'right',
+      width: 220,
+      render: (_value, record) => {
+        const statusItems = LEASE_STATUS_ACTIONS.map((nextStatus) => ({
+          key: nextStatus,
+          label: LEASE_STATUS_ACTION_TEXT[nextStatus] || statusLabel(nextStatus),
+        }));
+        return (
+          <ResponsiveActions>
+            <Button type="link" size="small" onClick={() => openEdit(record)}>
+              编辑
+            </Button>
+            <Dropdown
+              menu={{
+                items: statusItems,
+                onClick: ({ key }) =>
+                  updateLeaseStatus.mutate({
+                    id: record.id,
+                    status: key,
+                  }),
+              }}
+              trigger={['click']}
+            >
+              <Button aria-label="更多操作" type="text" size="small" icon={<MoreOutlined />} />
+            </Dropdown>
+          </ResponsiveActions>
+        );
+      },
+    },
+  ];
   const sectionStyle = {
     border: `1px solid ${token.colorBorderSecondary}`,
     borderRadius: token.borderRadiusLG,
     padding: 16,
     background: token.colorBgContainer,
   } as const;
+
   return (
-    <TenantSelectionGuard
-      title="租约"
-    >
-      {focusedActionTitle ? (
-        <Alert
-          type="info"
-          showIcon
-          title={focusedActionTitle}
-          description={focusedActionDescription}
-          action={
-            focusedActionReturnHref ? (
-              <Button size="small" href={focusedActionReturnHref}>
-                返回队列
-              </Button>
-            ) : undefined
-          }
-          style={{ marginBottom: 16 }}
-        />
-      ) : null}
-      <div style={sectionStyle}>
-        <SectionHeader
-          title="租约队列"
-          actions={
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-              新建租约
-            </Button>
-          }
-        />
-        <Space wrap style={{ marginBottom: 16 }}>
-          {leaseQueueLinks.map((item) => (
-            <Button
-              key={item.key}
-              size="small"
-              type={item.active ? 'primary' : 'default'}
-              onClick={() => openLeaseQueue(item.href)}
-            >
-              {`${item.label} ${item.count}`}
-            </Button>
-          ))}
-        </Space>
-        {scopeText ? (
-          <Alert
-            type="info"
-            showIcon
-            title={`当前只看：${scopeText}`}
-            action={
-              <Button
-                size="small"
-                href={dashboardHref(
-                  buildLeaseQueueHref({ houseId: sourceHouseId }),
-                )}
-              >
-                查看全部
-              </Button>
-            }
-            style={{ marginBottom: 16 }}
-          />
-        ) : null}
+    <TenantSelectionGuard title="租约">
+      <Card>
         {sourceViewingNeedsContact ? (
           <Alert
             type="warning"
@@ -923,107 +752,45 @@ const LeasesPage: React.FC = () => {
             style={{ marginBottom: 16 }}
           />
         ) : null}
-        <Table<LeaseOut>
+        <ProTable<LeaseOut>
           rowKey="id"
           loading={listLoading}
-          columns={[
-            {
-              title: '租约信息',
-              dataIndex: 'house_label',
-              width: 360,
-              render: (_value, record) => {
-                const businessInfo = getLeaseBusinessInfo(record);
-                return (
-                  <Space orientation="vertical" size={2}>
-                    <Typography.Text strong>
-                      {businessInfo.primary}
-                    </Typography.Text>
-                    <Typography.Text type="secondary">
-                      {businessInfo.secondary}
-                    </Typography.Text>
-                  </Space>
-                );
+          headerTitle="租约列表"
+          columns={columns}
+          dataSource={rows}
+          search={false}
+          options={{
+            density: true,
+            reload: false,
+            search: {
+              name: 'keyword',
+              placeholder: '房源 / 租客 / 手机',
+              value: keyword,
+              onSearch: (value) => {
+                setKeyword(value.trim() || undefined);
+                setPage(1);
               },
             },
-            {
-              title: '状态',
-              dataIndex: 'status__mapping',
-              width: 120,
-              render: (_value, record) => (
-                <Tag color={STATUS_COLOR[record.status] || 'default'}>
-                  {enumMapping(record.status, record.status__mapping)}
-                </Tag>
-              ),
-            },
-            {
-              title: '当前动作',
-              dataIndex: 'next_action',
-              width: 220,
-              render: (_value, record) => (
-                <Space orientation="vertical" size={2}>
-                  <Typography.Text strong>
-                    {getLeaseNextActionText(record)}
-                  </Typography.Text>
-                  <Typography.Text type="secondary">
-                    {getLeaseWorkflowHint(record)}
-                  </Typography.Text>
-                </Space>
-              ),
-            },
-            {
-              title: '合同',
-              dataIndex: 'contract_files',
-              width: 120,
-              render: (value) =>
-                value?.length ? (
-                  <span>{`${value.length} 份`}</span>
-                ) : (
-                  <Tag color="orange">未归档</Tag>
-                ),
-            },
-            {
-              title: '操作',
-              dataIndex: 'actions',
-              fixed: 'right',
-              width: 220,
-              render: (_value, record) => (
-                <ResponsiveActions>
-                  {!record.contract_files?.length ? (
-                    <Button
-                      type="link"
-                      size="small"
-                      href={leaseEditPath(record, { task, status })}
-                    >
-                      补合同
-                    </Button>
-                  ) : (
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() => openEdit(record)}
-                    >
-                      编辑
-                    </Button>
-                  )}
-                  {record.contract_files?.length ? (
-                    <StatusFlowButtons
-                      actionText={LEASE_STATUS_ACTION_TEXT}
-                      currentStatus={record.status}
-                      flowOptions={LEASE_STATUS_FLOW_OPTIONS}
-                      label={statusLabel}
-                      onChange={(nextStatus) =>
-                        updateLeaseStatus.mutate({
-                          id: record.id,
-                          status: nextStatus,
-                        })
-                      }
-                    />
-                  ) : null}
-                </ResponsiveActions>
-              ),
-            },
+            setting: true,
+          }}
+          toolBarRender={() => [
+            <Select
+              key="status"
+              allowClear
+              placeholder="按状态筛选"
+              style={{ width: 140 }}
+              options={leaseStatusOptions}
+              value={status}
+              onChange={(value) => {
+                setStatus(value || undefined);
+                setPage(1);
+              }}
+            />,
+            <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              新建租约
+            </Button>,
           ]}
-          dataSource={rows}
+          ghost
           locale={{
             emptyText: getLoadingAwareEmptyState({
               loading: listLoading,
@@ -1031,23 +798,19 @@ const LeasesPage: React.FC = () => {
               loadingDescription: '正在同步签约、合同归档和履约状态。',
               emptyState: getLeaseEmptyState({
                 task,
-                status,
-                sourceHouseId,
-                pendingCount,
-                activeCount,
                 openCreate,
               }),
             }),
           }}
-          pagination={fixedPagePagination(
-            page,
-            PAGE_SIZE,
-            leases.data?.total || 0,
-            setPage,
-          )}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: leases.data?.total || 0,
+            onChange: setPage,
+          }}
           scroll={adminTableScroll}
         />
-      </div>
+      </Card>
       <Drawer
         title={editing ? '编辑租约' : '新建租约'}
         open={drawerOpen}
@@ -1289,7 +1052,7 @@ const LeasesPage: React.FC = () => {
                         </Tag>
                       ) : null}
                       {!draftContractFiles.length ? (
-                        <Tag color="orange">待补合同</Tag>
+                        <Tag color="orange">合同未归档</Tag>
                       ) : (
                         <Tag color="green">合同已上传</Tag>
                       )}

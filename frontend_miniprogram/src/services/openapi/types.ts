@@ -212,14 +212,20 @@ export type AdminRealNameVerificationRowOut = {
   status: string;
   /** Status Label */
   status_label: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Source */
   source: string;
   /** Source Label */
   source_label: string;
+  /** Source  Mapping */
+  source__mapping: string;
   /** Provider */
   provider: string;
   /** Provider Label */
   provider_label: string;
+  /** Provider  Mapping */
+  provider__mapping: string;
   /** Real Name Masked */
   real_name_masked: string;
   /** Id Number Masked */
@@ -250,7 +256,7 @@ export type AdminRealNameVerificationRowOut = {
 
 export type AdminRealNameVerificationsUsingGetParams = {
   /** 按用户名、邮箱、手机号、实名或身份证脱敏值搜索。 */
-  q?: string | null;
+  keyword?: string | null;
   /** 按实名状态筛选。 */
   status?: string | null;
   page?: number;
@@ -397,6 +403,8 @@ export type AdminUserOut = {
   last_name?: string;
   /** Real Name Status */
   real_name_status?: string;
+  /** Real Name Status  Mapping */
+  real_name_status__mapping?: string;
   /** Real Name Masked */
   real_name_masked?: string;
   /** Id Number Masked */
@@ -419,6 +427,10 @@ export type AdminUserOut = {
   is_staff: boolean;
   /** Is Superuser */
   is_superuser: boolean;
+  /** Role */
+  role?: string;
+  /** Role  Mapping */
+  role__mapping?: string;
 };
 
 export type AdminUserPasswordIn = {
@@ -529,8 +541,16 @@ export type AdminUsersUserIdWechatUsingDeleteResponses = {
 };
 
 export type AdminUsersUsingGetParams = {
-  /** 按姓名、用户名或邮箱搜索。 */
-  q?: string | null;
+  /** 按姓名、用户名、邮箱、手机号或实名展示搜索。 */
+  keyword?: string | null;
+  /** 按用户名搜索。 */
+  username?: string | null;
+  /** 按手机号搜索。 */
+  phone?: string | null;
+  /** 按实名状态筛选。 */
+  real_name_status?: string | null;
+  /** 按权限筛选：superuser/staff/user。 */
+  role?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -723,8 +743,7 @@ export type BuildingOut = {
   id: number;
   /** Estate Id */
   estate_id: number;
-  /** Estate Name */
-  estate_name: string;
+  estate: EstateSummaryOut;
   /** Name */
   name: string;
   /** Floors */
@@ -766,6 +785,16 @@ export type BuildingPatchIn = {
   address?: string | null;
   /** Is Active */
   is_active?: boolean | null;
+};
+
+export type BuildingSummaryOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Estate Id */
+  estate_id: number;
+  estate: EstateSummaryOut;
 };
 
 export type BulkActionIn = {
@@ -810,6 +839,8 @@ export type ContactOut = {
   email: string;
   /** Roles */
   roles: string[];
+  /** Roles  Mapping */
+  roles__mapping: string[];
   /** User Id */
   user_id: number | null;
   /** Notes */
@@ -831,6 +862,15 @@ export type ContactPatchIn = {
   notes?: string | null;
   /** Is Active */
   is_active?: boolean | null;
+};
+
+export type ContactSummaryOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Phone */
+  phone: string;
 };
 
 export type CustomRoleCreateIn = {
@@ -859,14 +899,20 @@ export type DefaultBuildingOut = {
   id: number;
   /** Estate Id */
   estate_id: number;
-  /** Estate Name */
-  estate_name: string;
+  estate: EstateSummaryOut;
   /** Name */
   name: string;
   /** Floors */
   floors: number;
   /** Address */
   address: string;
+};
+
+export type EnumsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: unknown;
 };
 
 export type EstateIn = {
@@ -887,7 +933,7 @@ export type EstateIn = {
   /** District */
   district: string;
   /** Address */
-  address: string;
+  address?: string;
   /** Lat */
   lat?: number | string | null;
   /** Lng */
@@ -909,6 +955,8 @@ export type EstateOut = {
   display_name: string;
   /** Property Type */
   property_type: string;
+  /** Property Type  Mapping */
+  property_type__mapping: string;
   /** Province */
   province: string;
   /** City */
@@ -958,6 +1006,15 @@ export type EstatePatchIn = {
   is_active?: boolean | null;
 };
 
+export type EstateSummaryOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Display Name */
+  display_name: string;
+};
+
 export type ForceLogoutOut = {
   /** Deleted Sessions */
   deleted_sessions: number;
@@ -987,7 +1044,7 @@ export type HouseBuildingsBuildingIdUsingPatchResponses = {
 
 export type HouseBuildingsUsingGetParams = {
   estate_id?: number | null;
-  q?: string | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -1030,7 +1087,8 @@ export type HouseContactsContactIdUsingPatchResponses = {
 
 export type HouseContactsUsingGetParams = {
   role?: string | null;
-  q?: string | null;
+  task?: string | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -1086,7 +1144,7 @@ export type HouseEstatesEstateIdUsingPatchResponses = {
 };
 
 export type HouseEstatesUsingGetParams = {
-  q?: string | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -1132,8 +1190,7 @@ export type HouseHousesUsingGetParams = {
   building_id?: number | null;
   status?: string | null;
   publish_status?: string | null;
-  publish_issue?: string | null;
-  q?: string | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -1169,8 +1226,6 @@ export type HouseIn = {
   asking_rent?: number | string | null;
   /** Deposit Amount */
   deposit_amount?: number | string | null;
-  /** Available From */
-  available_from?: string | null;
   /** Bedrooms */
   bedrooms?: number | null;
   /** Living Rooms */
@@ -1247,6 +1302,7 @@ export type HouseLeasesUsingGetParams = {
   house_id?: number | null;
   status?: string | null;
   contract_missing?: boolean | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -1270,18 +1326,10 @@ export type HouseOut = {
   id: number;
   /** Building Id */
   building_id: number;
-  /** Building Name */
-  building_name: string;
-  /** Estate Name */
-  estate_name: string;
+  building: BuildingSummaryOut;
   /** Landlord Id */
   landlord_id: number | null;
-  /** Landlord Name */
-  landlord_name: string | null;
-  /** Landlord Phone */
-  landlord_phone: string | null;
-  /** House Label */
-  house_label: string;
+  landlord: ContactSummaryOut | null;
   /** Room Number */
   room_number: string;
   /** Floor */
@@ -1294,8 +1342,6 @@ export type HouseOut = {
   asking_rent: string | null;
   /** Deposit Amount */
   deposit_amount: string | null;
-  /** Available From */
-  available_from: string | null;
   /** Bedrooms */
   bedrooms: number | null;
   /** Living Rooms */
@@ -1308,14 +1354,22 @@ export type HouseOut = {
   balconies: number | null;
   /** Orientation */
   orientation: string | null;
+  /** Orientation  Mapping */
+  orientation__mapping: string;
   /** Decoration */
   decoration: string | null;
+  /** Decoration  Mapping */
+  decoration__mapping: string;
   /** Has Elevator Access */
   has_elevator_access: boolean;
   /** Status */
   status: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Publish Status */
   publish_status: string;
+  /** Publish Status  Mapping */
+  publish_status__mapping: string;
   /** Images */
   images: Record<string, unknown>[];
   /** Videos */
@@ -1349,8 +1403,6 @@ export type HousePatchIn = {
   asking_rent?: number | string | null;
   /** Deposit Amount */
   deposit_amount?: number | string | null;
-  /** Available From */
-  available_from?: string | null;
   /** Bedrooms */
   bedrooms?: number | null;
   /** Living Rooms */
@@ -1387,6 +1439,18 @@ export type HousePatchIn = {
   is_active?: boolean | null;
 };
 
+export type HouseSummaryOut = {
+  /** Id */
+  id: number;
+  /** Label */
+  label: string;
+  /** Room Number */
+  room_number: string;
+  /** Building Id */
+  building_id: number;
+  building: BuildingSummaryOut;
+};
+
 export type HouseViewingRecordsRecordIdUsingPatchParams = {
   record_id: number;
 };
@@ -1402,6 +1466,8 @@ export type HouseViewingRecordsUsingGetParams = {
   house_id?: number | null;
   status?: string | null;
   pending_lease?: boolean | null;
+  contact_missing?: boolean | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -1498,6 +1564,8 @@ export type InviteIn = {
   invitee?: number | null;
   /** Is Owner 接受邀请后是否授予租户 owner 权限。 */
   is_owner?: boolean;
+  /** Access Role 接受邀请后预设绑定的组织级访问角色。 */
+  access_role?: number | null;
 };
 
 export type InviteOut = {
@@ -1513,6 +1581,8 @@ export type InviteOut = {
   invitee_email?: string;
   /** Is Owner */
   is_owner: boolean;
+  /** Access Role */
+  access_role?: number | null;
   /** Key */
   key: string;
   /** Created At */
@@ -1553,18 +1623,13 @@ export type LeaseOut = {
   id: number;
   /** House Id */
   house_id: number;
-  /** House Label */
-  house_label: string;
+  house: HouseSummaryOut;
   /** Tenant Id */
   tenant_id: number;
-  /** Tenant Name */
-  tenant_name: string;
-  /** Tenant Phone */
-  tenant_phone: string;
+  tenant: ContactSummaryOut;
   /** Source Viewing Record Id */
   source_viewing_record_id: number | null;
-  /** Source Viewing Record Label */
-  source_viewing_record_label: string | null;
+  source_viewing_record: ViewingRecordSummaryOut | null;
   /** Sign At */
   sign_at: string | null;
   /** Start Date */
@@ -1579,6 +1644,8 @@ export type LeaseOut = {
   payment_day: number;
   /** Status */
   status: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Contract Files */
   contract_files: Record<string, unknown>[];
   /** Notes */
@@ -1773,6 +1840,8 @@ export type MeOut = {
   phone_verified: boolean;
   /** Real Name Status */
   real_name_status: string;
+  /** Real Name Status  Mapping */
+  real_name_status__mapping: string;
   /** Real Name Masked */
   real_name_masked?: string;
   /** Id Number Masked */
@@ -1873,6 +1942,8 @@ export type NotificationDispatchOut = {
   id: number;
   /** Scope */
   scope: string;
+  /** Scope  Mapping */
+  scope__mapping: string;
   /** Scope Ids */
   scope_ids: number[];
   /** Owner Organization Id */
@@ -1889,6 +1960,8 @@ export type NotificationDispatchOut = {
   data: Record<string, unknown>;
   /** Status */
   status: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Target Count */
   target_count: number;
   /** Delivered Count */
@@ -1935,6 +2008,8 @@ export type NotificationPreferenceOut = {
   description?: string;
   /** Default Channels */
   default_channels?: string[];
+  /** Default Channels  Mapping */
+  default_channels__mapping: string[];
   /** In App */
   in_app: boolean;
   /** Email */
@@ -2144,7 +2219,7 @@ export type OrganizationMembersMemberIdUsingPatchResponses = {
 
 export type OrganizationMembersSearchUsingGetParams = {
   /** 待搜索的用户关键字。 */
-  q?: string;
+  keyword?: string;
 };
 
 export type OrganizationMembersSearchUsingGetResponses = {
@@ -2156,7 +2231,7 @@ export type OrganizationMembersSearchUsingGetResponses = {
 
 export type OrganizationMembersUsingGetParams = {
   /** 按姓名、用户名或邮箱搜索成员。 */
-  q?: string | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -2651,12 +2726,16 @@ export type RealNameLogOut = {
   action: string;
   /** Action Label */
   action_label: string;
+  /** Action  Mapping */
+  action__mapping?: string;
   /** Created At */
   created_at: string;
   /** From Status */
   from_status?: string | null;
   /** From Status Label */
   from_status_label?: string;
+  /** From Status  Mapping */
+  from_status__mapping?: string;
   /** Note */
   note?: string;
   /** Operator */
@@ -2665,6 +2744,8 @@ export type RealNameLogOut = {
   to_status?: string | null;
   /** To Status Label */
   to_status_label?: string;
+  /** To Status  Mapping */
+  to_status__mapping?: string;
 };
 
 export type RealNameRetryIn = {
@@ -2696,14 +2777,20 @@ export type RealNameVerificationDetailOut = {
   status: string;
   /** Status Label */
   status_label: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Source */
   source: string;
   /** Source Label */
   source_label: string;
+  /** Source  Mapping */
+  source__mapping: string;
   /** Provider */
   provider: string;
   /** Provider Label */
   provider_label: string;
+  /** Provider  Mapping */
+  provider__mapping: string;
   /** Real Name Masked */
   real_name_masked: string;
   /** Id Number Masked */
@@ -2745,14 +2832,20 @@ export type RealNameVerificationOut = {
   status: string;
   /** Status Label */
   status_label: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Source */
   source: string;
   /** Source Label */
   source_label: string;
+  /** Source  Mapping */
+  source__mapping: string;
   /** Provider */
   provider: string;
   /** Provider Label */
   provider_label: string;
+  /** Provider  Mapping */
+  provider__mapping: string;
   /** Real Name Masked */
   real_name_masked: string;
   /** Id Number Masked */
@@ -2795,6 +2888,8 @@ export type ReferralRecordOut = {
   invitee_display: string;
   /** Status */
   status: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Created At */
   created_at: string;
   /** Updated At */
@@ -2815,6 +2910,8 @@ export type ReferralRuleConfigOut = {
   name: string;
   /** Trigger Event */
   trigger_event: string;
+  /** Trigger Event  Mapping */
+  trigger_event__mapping: string;
   /** Inviter Reward Amount */
   inviter_reward_amount: number;
   /** Invitee Reward Amount */
@@ -2827,6 +2924,8 @@ export type ReferralRuleConfigOut = {
   allow_code: boolean;
   /** Display Level */
   display_level: string;
+  /** Display Level  Mapping */
+  display_level__mapping: string;
 };
 
 export type ReferralRuleConfigPatchIn = {
@@ -3233,7 +3332,7 @@ export type TeamsTeamIdUsingPatchResponses = {
 
 export type TeamsUsingGetParams = {
   /** 按团队名称搜索。 */
-  q?: string | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -3303,6 +3402,8 @@ export type UserOut = {
   last_name?: string;
   /** Real Name Status */
   real_name_status?: string;
+  /** Real Name Status  Mapping */
+  real_name_status__mapping?: string;
   /** Real Name Masked */
   real_name_masked?: string;
   /** Id Number Masked */
@@ -3361,7 +3462,7 @@ export type UserSettingOut = {
 
 export type UsersImpersonateSearchUsingGetParams = {
   /** 按姓名、用户名或邮箱搜索。 */
-  q?: string;
+  keyword?: string;
 };
 
 export type UsersImpersonateSearchUsingGetResponses = {
@@ -3467,7 +3568,7 @@ export type UsersUserIdUsingPatchResponses = {
 
 export type UsersUsingGetParams = {
   /** 按用户姓名搜索。 */
-  q?: string | null;
+  keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -3508,14 +3609,10 @@ export type ViewingRecordOut = {
   id: number;
   /** House Id */
   house_id: number;
-  /** House Label */
-  house_label: string;
+  house: HouseSummaryOut;
   /** Contact Id */
   contact_id: number | null;
-  /** Contact Name */
-  contact_name: string | null;
-  /** Contact Phone */
-  contact_phone: string | null;
+  contact: ContactSummaryOut | null;
   /** Customer Name */
   customer_name: string;
   /** Customer Phone */
@@ -3526,6 +3623,8 @@ export type ViewingRecordOut = {
   viewed_at: string | null;
   /** Status */
   status: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Assigned To Id */
   assigned_to_id: number | null;
   /** Notes */
@@ -3534,6 +3633,8 @@ export type ViewingRecordOut = {
   extra: Record<string, unknown>;
   /** Is Active */
   is_active: boolean;
+  /** Signed Lease Id */
+  signed_lease_id?: number | null;
 };
 
 export type ViewingRecordPatchIn = {
@@ -3561,6 +3662,17 @@ export type ViewingRecordPatchIn = {
   is_active?: boolean | null;
 };
 
+export type ViewingRecordSummaryOut = {
+  /** Id */
+  id: number;
+  /** Label */
+  label: string;
+  /** Customer Name */
+  customer_name: string;
+  /** Customer Phone */
+  customer_phone: string;
+};
+
 export type WalletAccountAdminOut = {
   /** Available Balance */
   available_balance: number;
@@ -3574,6 +3686,14 @@ export type WalletAccountAdminOut = {
   id: number;
   /** User Id */
   user_id: number;
+  /** Username */
+  username: string;
+  /** Email */
+  email: string;
+  /** Phone Label */
+  phone_label: string;
+  /** Real Name Label */
+  real_name_label: string;
 };
 
 export type WalletAdjustmentIn = {
@@ -3592,6 +3712,8 @@ export type WalletLedgerOut = {
   id: number;
   /** Entry Type */
   entry_type: string;
+  /** Entry Type  Mapping */
+  entry_type__mapping: string;
   /** Amount Delta */
   amount_delta: number;
   /** Available Balance After */
@@ -3728,8 +3850,12 @@ export type WithdrawalOut = {
   net_amount: number;
   /** Status */
   status: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Pay Channel */
   pay_channel: string;
+  /** Pay Channel  Mapping */
+  pay_channel__mapping: string;
   /** Payee Account Snapshot */
   payee_account_snapshot: Record<string, unknown>;
   /** Reject Reason */
@@ -3753,6 +3879,8 @@ export type WithdrawalPayoutOut = {
   provider_trade_no: string;
   /** Status */
   status: string;
+  /** Status  Mapping */
+  status__mapping: string;
   /** Error Code */
   error_code: string;
   /** Error Message */

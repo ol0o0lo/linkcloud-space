@@ -1,4 +1,6 @@
-import { PlusOutlined } from '@ant-design/icons';
+import { MoreOutlined, PlusOutlined } from '@ant-design/icons';
+import type { ProColumns } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import {
   useMutation,
   useQueries,
@@ -10,7 +12,7 @@ import {
   Button,
   Card,
   Col,
-  Descriptions,
+  Dropdown,
   Drawer,
   Empty,
   Form,
@@ -20,8 +22,6 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
-  Table,
   Tag,
   Typography,
   theme,
@@ -29,10 +29,9 @@ import {
 import React, { useEffect, useState } from 'react';
 import {
   adminTableScroll,
-  fixedPagePagination,
   ResponsiveActions,
-  SectionHeader,
-  StatusFlowButtons,
+  toolbarSelectPopupWidth,
+  toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
 import {
   TenantSelectionGuard,
@@ -40,7 +39,6 @@ import {
 } from '@/pages/tenant/shared';
 import {
   enumMapping,
-  enumOptionMapping,
   enumSelectOptions,
   useEnums,
 } from '@/services/manual/enums';
@@ -56,12 +54,9 @@ import {
   houseLabel,
   STATUS_COLOR,
   VIEWING_STATUS,
-  VIEWING_STATUS_FLOW_OPTIONS,
 } from '../constants';
 import {
   getLoadingAwareEmptyState,
-  getLoadingSafeCount,
-  isAnyInitialQueryPending,
   isInitialQueryPending,
 } from '../loading';
 
@@ -72,6 +67,13 @@ const VIEWING_STATUS_ACTION_TEXT: Record<string, string> = {
   canceled: '取消',
   no_show: '标记爽约',
 };
+const VIEWING_MORE_ACTIONS = [
+  { key: 'contact', label: '补租客' },
+  { key: VIEWING_STATUS.VIEWED, label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.VIEWED] },
+  { key: VIEWING_STATUS.CONVERTED, label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.CONVERTED] },
+  { key: VIEWING_STATUS.CANCELED, label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.CANCELED] },
+  { key: VIEWING_STATUS.NO_SHOW, label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.NO_SHOW] },
+];
 
 function needsContactCompletion(record: ViewingRecordOut) {
   return (
@@ -91,60 +93,6 @@ function canCreateLease(record: ViewingRecordOut) {
 
 function leaseCreatePath(record: ViewingRecordOut) {
   return `/dashboard/property-rental/leases?source_viewing_record_id=${record.id}`;
-}
-
-function leaseEditPath(record: ViewingRecordOut) {
-  return `/dashboard/property-rental/leases?house_id=${record.house_id}&edit=${record.signed_lease_id}`;
-}
-
-function getViewingQueueHint(record: ViewingRecordOut) {
-  if (needsContactCompletion(record))
-    return '成交已确认，但尚未绑定租客联系人，签约前先补齐业务主体';
-  if (record.status === VIEWING_STATUS.CONVERTED && !record.signed_lease_id)
-    return '优先创建租约，避免成交记录停留在带看阶段';
-  if (record.status === VIEWING_STATUS.CONVERTED && record.signed_lease_id)
-    return '已转租约，后续跟进合同和起租安排';
-  if (record.status === VIEWING_STATUS.VIEWED)
-    return '带看已完成，尽快更新客户意向与是否成交';
-  if (record.status === VIEWING_STATUS.SCHEDULED)
-    return '预约已创建，待确认客户到访结果';
-  if (record.status === VIEWING_STATUS.CANCELED)
-    return '已取消，确认是否需要重新预约';
-  if (record.status === VIEWING_STATUS.NO_SHOW)
-    return '客户爽约，建议尽快安排回访';
-  return '按当前进展继续跟进';
-}
-
-function getViewingNextActionText(record: ViewingRecordOut) {
-  if (needsContactCompletion(record)) return '待补租客';
-  if (record.status === VIEWING_STATUS.CONVERTED && !record.signed_lease_id)
-    return '待转租约';
-  if (record.status === VIEWING_STATUS.CONVERTED && record.signed_lease_id)
-    return '已转租约';
-  if (record.status === VIEWING_STATUS.VIEWED) return '待回访决策';
-  if (record.status === VIEWING_STATUS.SCHEDULED) return '待确认到访';
-  if (
-    record.status === VIEWING_STATUS.CANCELED ||
-    record.status === VIEWING_STATUS.NO_SHOW
-  )
-    return '异常待回访';
-  return '持续跟进';
-}
-
-function getViewingDrawerEntryText(options: {
-  editing: boolean;
-  sourceHouseId?: number;
-  sourceContactId?: number;
-  status?: string;
-  statusLabel: (value?: string | null) => string;
-}) {
-  if (options.editing)
-    return options.status
-      ? `带看维护 / ${options.statusLabel(options.status)}`
-      : '带看维护';
-  if (options.sourceContactId) return '联系人快速登记';
-  if (options.sourceHouseId) return '房源快速登记';
-  return '手动新建带看';
 }
 
 function getViewingBusinessInfo(record: ViewingRecordOut) {
@@ -253,27 +201,6 @@ function getViewingEmptyState(options: {
   );
 }
 
-const STATUS_OVERVIEW_ITEMS = [
-  {
-    key: 'scheduled',
-    title: '已预约',
-    params: { status: VIEWING_STATUS.SCHEDULED },
-  },
-  { key: 'viewed', title: '待回访', params: { status: VIEWING_STATUS.VIEWED } },
-  {
-    key: 'converted',
-    title: '已成交',
-    params: { status: VIEWING_STATUS.CONVERTED },
-  },
-  { key: 'pending_lease', title: '待签约', params: { pending_lease: true } },
-  {
-    key: 'canceled',
-    title: '已取消',
-    params: { status: VIEWING_STATUS.CANCELED },
-  },
-  { key: 'no_show', title: '爽约', params: { status: VIEWING_STATUS.NO_SHOW } },
-] as const;
-
 function getViewingListStateFromSearch(search: string) {
   const params = new URLSearchParams(search);
   const pageValue = Number(params.get('page') || '1');
@@ -284,6 +211,7 @@ function getViewingListStateFromSearch(search: string) {
     pendingLease: params.get('pending_lease') === 'true' || undefined,
     contactMissing:
       contactMissingParam === null ? undefined : contactMissingParam === 'true',
+    keyword: params.get('keyword') || undefined,
   };
 }
 
@@ -292,6 +220,7 @@ function syncViewingListSearch(filters: {
   status?: string;
   pendingLease?: boolean;
   contactMissing?: boolean;
+  keyword?: string;
 }) {
   const params = new URLSearchParams(window.location.search);
   if (filters.status) {
@@ -308,6 +237,11 @@ function syncViewingListSearch(filters: {
     params.set('contact_missing', String(filters.contactMissing));
   } else {
     params.delete('contact_missing');
+  }
+  if (filters.keyword) {
+    params.set('keyword', filters.keyword);
+  } else {
+    params.delete('keyword');
   }
   if (filters.page > 1) {
     params.set('page', String(filters.page));
@@ -328,10 +262,6 @@ type ViewingDrawerSearchState = {
   editViewingId?: number;
   task?: string;
 };
-
-function dashboardHref(path: string) {
-  return `/dashboard${path}`;
-}
 
 function getViewingDrawerStateFromSearch(
   search: string,
@@ -372,34 +302,6 @@ function syncViewingDrawerSearch(drawerState: ViewingDrawerSearchState) {
   }
 }
 
-function getViewingTaskCopy(task?: string) {
-  if (task === 'contact') {
-    return {
-      title: '当前操作：补齐租客主体',
-      description: '当前入口来自待补租客队列，先绑定租客联系人，再继续签约。',
-    };
-  }
-  return {};
-}
-
-function getViewingListHref(filters: {
-  page: number;
-  status?: string;
-  pendingLease?: boolean;
-  contactMissing?: boolean;
-}) {
-  const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.pendingLease) params.set('pending_lease', 'true');
-  if (filters.contactMissing !== undefined)
-    params.set('contact_missing', String(filters.contactMissing));
-  if (filters.page > 1) params.set('page', String(filters.page));
-  const search = params.toString();
-  return dashboardHref(
-    `/property-rental/viewings${search ? `?${search}` : ''}`,
-  );
-}
-
 type ViewingFormValues = {
   house_id: number;
   contact_id?: number | null;
@@ -434,6 +336,9 @@ const ViewingsPage: React.FC = () => {
   const [status, setStatus] = useState<string | undefined>(
     initialListState.status,
   );
+  const [keyword, setKeyword] = useState<string | undefined>(
+    initialListState.keyword,
+  );
   const [drawerState, setDrawerState] =
     useState<ViewingDrawerSearchState>(initialDrawerState);
   const [editing, setEditing] = useState<ViewingRecordOut | null>(null);
@@ -442,8 +347,6 @@ const ViewingsPage: React.FC = () => {
   const [createdTenants, setCreatedTenants] = useState<ContactOut[]>([]);
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.viewing_record_status']);
-  const statusLabel = (value?: string | null) =>
-    enumOptionMapping(houseEnums.data, 'house.viewing_record_status', value);
   const viewingStatusOptions = enumSelectOptions(
     houseEnums.data,
     'house.viewing_record_status',
@@ -456,16 +359,6 @@ const ViewingsPage: React.FC = () => {
     setDrawerState(nextState);
   };
   const clearDrawerState = () => updateDrawerState({});
-  const statusText =
-    contactMissing === true
-      ? '已成交待补租客'
-      : contactMissing === false && pendingLease
-        ? '已成交可签约'
-        : pendingLease
-          ? '已成交待签约'
-          : status
-            ? statusLabel(status)
-            : undefined;
   const houses = useQuery({
     queryKey: ['house', 'viewings', 'houses', workspace.selectedOrgSlug],
     queryFn: () => houseApi.listHouses({ page: 1, page_size: 100 }),
@@ -477,26 +370,6 @@ const ViewingsPage: React.FC = () => {
       houseApi.listContacts({ page: 1, page_size: 100, role: 'tenant' }),
     enabled,
   });
-  const overviewQueries = useQueries({
-    queries: STATUS_OVERVIEW_ITEMS.map((item) => ({
-      queryKey: [
-        'house',
-        'viewings',
-        'overview',
-        workspace.selectedOrgSlug,
-        sourceHouseId,
-        item.key,
-      ],
-      queryFn: () =>
-        houseApi.listViewingRecords({
-          page: 1,
-          page_size: 1,
-          house_id: sourceHouseId,
-          ...item.params,
-        }),
-      enabled,
-    })),
-  });
   const viewings = useQuery({
     queryKey: [
       'house',
@@ -507,6 +380,7 @@ const ViewingsPage: React.FC = () => {
       sourceHouseId,
       pendingLease,
       contactMissing,
+      keyword,
     ],
     queryFn: () =>
       houseApi.listViewingRecords({
@@ -516,6 +390,7 @@ const ViewingsPage: React.FC = () => {
         house_id: sourceHouseId,
         pending_lease: pendingLease,
         contact_missing: contactMissing,
+        keyword,
       }),
     enabled,
   });
@@ -561,20 +436,11 @@ const ViewingsPage: React.FC = () => {
       },
     ],
   });
-  const scheduledCount = overviewQueries[0]?.data?.total || 0;
-  const viewedCount = overviewQueries[1]?.data?.total || 0;
-  const convertedCount = overviewQueries[2]?.data?.total || 0;
-  const pendingLeaseCount = overviewQueries[3]?.data?.total || 0;
-  const canceledCount = overviewQueries[4]?.data?.total || 0;
-  const noShowCount = overviewQueries[5]?.data?.total || 0;
   const missingContactQueueTotal =
     conversionSupportQueries[0]?.data?.total || 0;
   const readyLeaseQueueTotal = conversionSupportQueries[1]?.data?.total || 0;
   const rows = viewings.data?.items || [];
   const currentTotal = viewings.data?.total || 0;
-  const overviewLoading = isAnyInitialQueryPending(overviewQueries);
-  const queueLoading =
-    overviewLoading || isAnyInitialQueryPending(conversionSupportQueries);
   const listLoading = isInitialQueryPending(viewings);
   const missingContactQueueCount =
     contactMissing === true
@@ -584,65 +450,13 @@ const ViewingsPage: React.FC = () => {
     contactMissing === false && pendingLease
       ? currentTotal
       : readyLeaseQueueTotal;
-  const signedLeaseCount = Math.max(convertedCount - pendingLeaseCount, 0);
-  const allViewingCount =
-    scheduledCount + viewedCount + convertedCount + canceledCount + noShowCount;
-  const overviewCards = [
-    { key: 'ready_lease', title: '待转租约', count: readyLeaseCount },
-    { key: 'missing_contact', title: '待补租客', count: missingContactQueueCount },
-    { key: 'signed_lease', title: '已转租约', count: signedLeaseCount },
-  ] as const;
-  const viewingQueueButtons = [
-    {
-      key: 'all',
-      label: '全部',
-      count: allViewingCount,
-      active: !status && !pendingLease && contactMissing === undefined,
-      filters: {},
-    },
-    {
-      key: 'scheduled',
-      label: '已预约',
-      count: scheduledCount,
-      active: status === VIEWING_STATUS.SCHEDULED,
-      filters: { status: VIEWING_STATUS.SCHEDULED },
-    },
-    {
-      key: 'viewed',
-      label: '待回访',
-      count: viewedCount,
-      active: status === VIEWING_STATUS.VIEWED,
-      filters: { status: VIEWING_STATUS.VIEWED },
-    },
-    {
-      key: 'ready_lease',
-      label: '待转租约',
-      count: readyLeaseCount,
-      active: pendingLease && contactMissing === false,
-      filters: { pendingLease: true, contactMissing: false },
-    },
-    {
-      key: 'missing_contact',
-      label: '待补租客',
-      count: missingContactQueueCount,
-      active: pendingLease && contactMissing === true,
-      filters: { pendingLease: true, contactMissing: true },
-    },
-  ].filter((item) => queueLoading || item.count > 0 || item.active);
-
-  const openViewingQueue = (filters: {
-    status?: string;
-    pendingLease?: boolean;
-    contactMissing?: boolean;
-  }) => {
-    setPage(1);
-    setStatus(filters.status);
-    setPendingLease(filters.pendingLease);
-    setContactMissing(filters.contactMissing);
-  };
+  const pendingLeaseCount =
+    pendingLease && contactMissing === undefined
+      ? currentTotal
+      : readyLeaseCount + missingContactQueueCount;
   useEffect(() => {
-    syncViewingListSearch({ page, status, pendingLease, contactMissing });
-  }, [contactMissing, page, pendingLease, status]);
+    syncViewingListSearch({ page, status, pendingLease, contactMissing, keyword });
+  }, [contactMissing, keyword, page, pendingLease, status]);
   useEffect(() => {
     if (!editViewingId || editing || drawerOpen || !viewings.isSuccess) return;
     const targetViewing = rows.find((item) => item.id === editViewingId);
@@ -676,6 +490,12 @@ const ViewingsPage: React.FC = () => {
   }, [drawerState.task, editing]);
   useEffect(() => {
     const handlePopState = () => {
+      const listState = getViewingListStateFromSearch(window.location.search);
+      setPage(listState.page);
+      setStatus(listState.status);
+      setPendingLease(listState.pendingLease);
+      setContactMissing(listState.contactMissing);
+      setKeyword(listState.keyword);
       setDrawerState(getViewingDrawerStateFromSearch(window.location.search));
     };
     window.addEventListener('popstate', handlePopState);
@@ -751,229 +571,133 @@ const ViewingsPage: React.FC = () => {
   const formInitialValues: Partial<ViewingFormValues> = editing
     ? { ...editing, scheduled_at: dateTimeInputValue(editing.scheduled_at) }
     : { house_id: sourceHouseId, contact_id: sourceContactId };
+  useEffect(() => {
+    if (!drawerOpen || !editing) return;
+    form.setFieldsValue({
+      ...editing,
+      scheduled_at: dateTimeInputValue(editing.scheduled_at),
+    });
+  }, [drawerOpen, editing?.id, form]);
   const tenantItems = [...createdTenants, ...(contacts.data?.items || [])];
-  const selectedHouseId =
-    Number(formValues?.house_id || formInitialValues.house_id) || undefined;
-  const selectedContactId =
-    Number(formValues?.contact_id || formInitialValues.contact_id) || undefined;
-  const selectedHouse = (houses.data?.items || []).find(
-    (item) => item.id === selectedHouseId,
-  );
-  const selectedContact = tenantItems.find(
-    (item) => item.id === selectedContactId,
-  );
-  const draftStatus = (formValues?.status ||
-    formInitialValues.status ||
-    editing?.status) as string | undefined;
-  const activeTask =
-    drawerState.task ||
-    (editing && needsContactCompletion(editing) ? 'contact' : undefined);
-  const focusedAction = getViewingTaskCopy(activeTask);
-  const drawerEntryText = getViewingDrawerEntryText({
-    editing: Boolean(editing),
-    sourceHouseId,
-    sourceContactId,
-    status: draftStatus,
-    statusLabel,
-  });
+  const columns: ProColumns<ViewingRecordOut>[] = [
+    {
+      title: '客户信息',
+      dataIndex: 'customer_name',
+      width: 320,
+      render: (_value, record) => {
+        const businessInfo = getViewingBusinessInfo(record);
+        return (
+          <Space orientation="vertical" size={2}>
+            <Typography.Text strong>{businessInfo.primary}</Typography.Text>
+            <Typography.Text type="secondary">
+              {businessInfo.secondary}
+            </Typography.Text>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '状态',
+      dataIndex: 'status__mapping',
+      width: 120,
+      render: (_value, record) => (
+        <Tag color={STATUS_COLOR[record.status] || 'default'}>
+          {enumMapping(record.status, record.status__mapping)}
+        </Tag>
+      ),
+    },
+    {
+      title: '操作',
+      dataIndex: 'actions',
+      fixed: 'right',
+      width: 220,
+      render: (_value, record) => {
+        return (
+          <ResponsiveActions>
+            <Button type="link" size="small" onClick={() => openEdit(record)}>
+              编辑
+            </Button>
+            {record.signed_lease_id ? (
+              <Button type="link" size="small" disabled>
+                签约
+              </Button>
+            ) : canCreateLease(record) ? (
+              <Button type="link" size="small" href={leaseCreatePath(record)}>
+                签约
+              </Button>
+            ) : null}
+            <Dropdown
+              menu={{
+                items: VIEWING_MORE_ACTIONS,
+                onClick: ({ key }) => {
+                  if (key === 'contact') {
+                    openEdit(record);
+                    return;
+                  }
+                  updateViewingStatus.mutate({ id: record.id, status: key });
+                },
+              }}
+              trigger={['click']}
+            >
+              <Button aria-label="更多操作" type="text" size="small" icon={<MoreOutlined />} />
+            </Dropdown>
+          </ResponsiveActions>
+        );
+      },
+    },
+  ];
   const sectionStyle = {
     border: `1px solid ${token.colorBorderSecondary}`,
     borderRadius: token.borderRadiusLG,
     padding: 16,
     background: token.colorBgContainer,
   } as const;
-  const overviewTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    padding: 16,
-    background: token.colorFillQuaternary,
-    height: '100%',
-  } as const;
 
   return (
-    <TenantSelectionGuard
-      title="带看"
-    >
-      <div style={sectionStyle}>
-        <Typography.Text strong>带看概览</Typography.Text>
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          {overviewCards.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic
-                  title={item.title}
-                  value={getLoadingSafeCount(item.count, queueLoading)}
-                />
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <SectionHeader
-          title="带看列表"
-          actions={
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-              新建带看
-            </Button>
-          }
-        />
-
-        {statusText ? (
-          <Alert
-            type="info"
-            showIcon
-            title={`当前只看：${statusText}`}
-            action={
-              <Button size="small" href="/dashboard/property-rental/viewings">
-                查看全部
-              </Button>
-            }
-            style={{ marginBottom: 16 }}
-          />
-        ) : null}
-        {focusedAction.title ? (
-          <Alert
-            type="info"
-            showIcon
-            title={focusedAction.title}
-            description={focusedAction.description}
-            action={
-              <Button
-                size="small"
-                href={getViewingListHref({
-                  page,
-                  status,
-                  pendingLease,
-                  contactMissing,
-                })}
-              >
-                返回队列
-              </Button>
-            }
-            style={{ marginBottom: 16 }}
-          />
-        ) : null}
-        {viewingQueueButtons.length ? (
-          <Space wrap style={{ marginBottom: 16 }}>
-            {viewingQueueButtons.map((item) => (
-              <Button
-                key={item.key}
-                size="small"
-                type={item.active ? 'primary' : 'default'}
-                onClick={() => openViewingQueue(item.filters)}
-              >
-                {`${item.label} ${item.count}`}
-              </Button>
-            ))}
-          </Space>
-        ) : null}
-        <Table<ViewingRecordOut>
+    <TenantSelectionGuard title="带看">
+      <Card>
+        <ProTable<ViewingRecordOut>
           rowKey="id"
           loading={listLoading}
-          columns={[
-            {
-              title: '客户信息',
-              dataIndex: 'customer_name',
-              width: 320,
-              render: (_value, record) => {
-                const businessInfo = getViewingBusinessInfo(record);
-                return (
-                  <Space orientation="vertical" size={2}>
-                    <Typography.Text strong>
-                      {businessInfo.primary}
-                    </Typography.Text>
-                    <Typography.Text type="secondary">
-                      {businessInfo.secondary}
-                    </Typography.Text>
-                  </Space>
-                );
+          headerTitle="带看列表"
+          columns={columns}
+          dataSource={viewings.data?.items || []}
+          search={false}
+          options={{
+            density: true,
+            reload: false,
+            search: {
+              name: 'keyword',
+              placeholder: '客户 / 手机 / 房源',
+              value: keyword,
+              onSearch: (value) => {
+                setKeyword(value.trim() || undefined);
+                setPage(1);
               },
             },
-            {
-              title: '状态',
-              dataIndex: 'status__mapping',
-              render: (_value, record) => (
-                <Tag color={STATUS_COLOR[record.status] || 'default'}>
-                  {enumMapping(record.status, record.status__mapping)}
-                </Tag>
-              ),
-            },
-            {
-              title: '下一步动作',
-              dataIndex: 'next_action',
-              width: 200,
-              render: (_value, record) => (
-                <Space orientation="vertical" size={2}>
-                  <Typography.Text strong>
-                    {getViewingNextActionText(record)}
-                  </Typography.Text>
-                  <Typography.Text type="secondary">
-                    {getViewingQueueHint(record)}
-                  </Typography.Text>
-                </Space>
-              ),
-            },
-            {
-              title: '操作',
-              dataIndex: 'actions',
-              fixed: 'right',
-              width: 220,
-              render: (_value, record) => (
-                <ResponsiveActions>
-                  {needsContactCompletion(record) ? (
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() => openEdit(record)}
-                    >
-                      补租客
-                    </Button>
-                  ) : null}
-                  {canCreateLease(record) ? (
-                    <Button
-                      type="link"
-                      size="small"
-                      href={leaseCreatePath(record)}
-                    >
-                      签约
-                    </Button>
-                  ) : null}
-                  {record.status === VIEWING_STATUS.CONVERTED &&
-                  record.signed_lease_id ? (
-                    <Button
-                      type="link"
-                      size="small"
-                      href={leaseEditPath(record)}
-                    >
-                      查看租约
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => openEdit(record)}
-                  >
-                    编辑
-                  </Button>
-                  <StatusFlowButtons
-                    actionText={VIEWING_STATUS_ACTION_TEXT}
-                    currentStatus={record.status}
-                    flowOptions={VIEWING_STATUS_FLOW_OPTIONS}
-                    label={statusLabel}
-                    onChange={(nextStatus) =>
-                      updateViewingStatus.mutate({
-                        id: record.id,
-                        status: nextStatus,
-                      })
-                    }
-                  />
-                </ResponsiveActions>
-              ),
-            },
+            setting: true,
+          }}
+          toolBarRender={() => [
+            <Select
+              key="status"
+              allowClear
+              placeholder="按状态筛选"
+              style={toolbarShortSelectStyle}
+              popupMatchSelectWidth={toolbarSelectPopupWidth}
+              options={viewingStatusOptions}
+              value={status}
+              onChange={(value) => {
+                setPage(1);
+                setStatus(value || undefined);
+                setPendingLease(undefined);
+                setContactMissing(undefined);
+              }}
+            />,
+            <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              新建带看
+            </Button>,
           ]}
-          dataSource={viewings.data?.items || []}
+          ghost
           locale={{
             emptyText: getLoadingAwareEmptyState({
               loading: listLoading,
@@ -989,15 +713,15 @@ const ViewingsPage: React.FC = () => {
               }),
             }),
           }}
-          pagination={fixedPagePagination(
-            page,
-            PAGE_SIZE,
-            viewings.data?.total || 0,
-            setPage,
-          )}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: viewings.data?.total || 0,
+            onChange: setPage,
+          }}
           scroll={adminTableScroll}
         />
-      </div>
+      </Card>
       <Drawer
         title={editing ? '编辑带看' : '新建带看'}
         open={drawerOpen}
@@ -1047,7 +771,7 @@ const ViewingsPage: React.FC = () => {
             ) : null}
 
             <Row gutter={[16, 16]} align="top">
-              <Col xs={24} xl={15}>
+              <Col xs={24}>
                 <Space
                   orientation="vertical"
                   size={16}
@@ -1197,57 +921,6 @@ const ViewingsPage: React.FC = () => {
                 </Space>
               </Col>
 
-              <Col xs={24} xl={9}>
-                <Card size="small" title="带看摘要">
-                  <Space
-                    orientation="vertical"
-                    size={12}
-                    style={{ width: '100%' }}
-                  >
-                    <Space wrap>
-                      <Tag color="blue">{drawerEntryText}</Tag>
-                      {draftStatus ? (
-                        <Tag color={STATUS_COLOR[draftStatus] || 'default'}>
-                          {statusLabel(draftStatus)}
-                        </Tag>
-                      ) : (
-                        <Tag>待预约</Tag>
-                      )}
-                      {selectedContactId ? (
-                        <Tag color="green">已绑定联系人</Tag>
-                      ) : (
-                        <Tag color="orange">未绑联系人</Tag>
-                      )}
-                    </Space>
-                    <Descriptions column={1} size="small">
-                      <Descriptions.Item label="房源">
-                        {selectedHouse ? houseLabel(selectedHouse) : '待选择'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="联系人">
-                        {selectedContact
-                          ? contactLabel(selectedContact)
-                          : '未绑定'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="客户">
-                        {formValues?.customer_name ||
-                        formInitialValues.customer_name
-                          ? `${formValues?.customer_name || formInitialValues.customer_name} / ${formValues?.customer_phone || formInitialValues.customer_phone || '-'}`
-                          : '待填写'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="预约时间">
-                        {formValues?.scheduled_at ||
-                          formInitialValues.scheduled_at ||
-                          '待填写'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="下一步">
-                        {draftStatus
-                          ? statusLabel(draftStatus)
-                          : '保存后进入预约排期'}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </Space>
-                </Card>
-              </Col>
             </Row>
           </Space>
         </Form>

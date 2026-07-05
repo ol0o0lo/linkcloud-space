@@ -10,9 +10,6 @@ from apps.notifications.managers import NotificationQuerySet
 
 
 class NotificationDispatch(BaseModelMixin):
-    Scope = NotificationDispatchScope
-    Status = NotificationDispatchStatus
-
     owner_organization = models.ForeignKey(
         "organizations.Organization",
         on_delete=models.CASCADE,
@@ -48,9 +45,9 @@ class NotificationDispatch(BaseModelMixin):
             raise ValidationError({"scope_ids": "Scope ids must be a list of integers."})
         if any(type(scope_id) is not int for scope_id in self.scope_ids):
             raise ValidationError({"scope_ids": "Scope ids must be a list of integers."})
-        if self.scope == self.Scope.PLATFORM and self.scope_ids:
+        if self.scope == NotificationDispatchScope.PLATFORM and self.scope_ids:
             raise ValidationError({"scope_ids": "Platform dispatches must not include scope_ids."})
-        if self.scope != self.Scope.PLATFORM and not self.scope_ids:
+        if self.scope != NotificationDispatchScope.PLATFORM and not self.scope_ids:
             raise ValidationError({"scope_ids": "Organization and users dispatches require scope_ids."})
 
     def __str__(self):

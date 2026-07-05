@@ -6,6 +6,7 @@ from ninja.pagination import paginate
 
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_org_selected
+from apps.house.constants import ContactRole, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.house.schemas import (
     BuildingIn,
@@ -30,11 +31,9 @@ from apps.house.schemas import (
     ViewingRecordPatchIn,
 )
 from apps.house.services import (
-    attach_house_publish_state,
     ensure_default_building,
     get_landlord_houses,
     get_landlord_leases,
-    get_org_house_publish_rules,
     set_default_building,
 )
 from apps.organizations.models import OrganizationMember
@@ -51,8 +50,7 @@ def _patch(obj, payload):
 
 
 def _get_house_in_org(house_id: int, org):
-    house = get_object_or_404(House.objects.select_related("building__estate", "landlord"), pk=house_id, building__estate__organization=org)
-    return attach_house_publish_state(house, org)
+    return get_object_or_404(House.objects.select_related("building__estate", "landlord"), pk=house_id, building__estate__organization=org)
 
 
 def _get_contact_in_org(contact_id: int, org):
@@ -145,7 +143,7 @@ def get_default_building(request):
     return {
         "id": building.pk,
         "estate_id": building.estate_id,
-        "estate_name": building.estate.name,
+        "estate": building.estate,
         "name": building.name,
         "floors": building.floors,
         "address": building.address,
@@ -160,7 +158,7 @@ def put_default_building(request, payload: DefaultBuildingIn):
     return {
         "id": building.pk,
         "estate_id": building.estate_id,
-        "estate_name": building.estate.name,
+        "estate": building.estate,
         "name": building.name,
         "floors": building.floors,
         "address": building.address,
@@ -181,7 +179,7 @@ def list_contacts(request, role: str | None = Query(None), task: str | None = Qu
         if role:
             contacts = [contact for contact in contacts if role in (contact.roles or [])]
         if task == "dual_role":
-            contacts = [contact for contact in contacts if {Contact.Role.LANDLORD, Contact.Role.TENANT}.issubset(set(contact.roles or []))]
+            contacts = [contact for contact in contacts if {ContactRole.LANDLORD, ContactRole.TENANT}.issubset(set(contact.roles or []))]
         if task == "role_missing":
             contacts = [contact for contact in contacts if not (contact.roles or [])]
         return contacts
@@ -220,9 +218,6 @@ def list_houses(
     building_id: int | None = Query(None),
     status: str | None = Query(None),
     publish_status: str | None = Query(None),
-    publish_issue: str | None = Query(None),
-    publish_blocked: bool | None = Query(None),
-    publish_ready: bool | None = Query(None),
     keyword: str | None = Query(None),
 ):
     org = require_org_selected(request)
@@ -236,26 +231,15 @@ def list_houses(
     if publish_status:
         qs = qs.filter(publish_status=publish_status)
     if keyword:
-        qs = qs.filter(room_number__icontains=keyword)
-    rules = get_org_house_publish_rules(org)
-    issue_labels = {
-        "landlord": "缺房东",
-        "rent": "缺租金",
-        "cover": "缺封面",
-        "images": "图片不足",
-        "floor_plan": "缺户型图",
-        "video": "视频不足",
-    }
-    houses = [attach_house_publish_state(house, org, rules) for house in qs]
-    if publish_issue:
-        issue_label = issue_labels.get(publish_issue)
-        if issue_label:
-            houses = [house for house in houses if issue_label in {*(house.publish_blocking_issues or []), *(house.publish_warning_issues or [])}]
-    if publish_blocked:
-        houses = [house for house in houses if house.publish_status != House.PublishStatus.PUBLISHED and not house.publish_can_publish]
-    if publish_ready:
-        houses = [house for house in houses if house.publish_status != House.PublishStatus.PUBLISHED and house.publish_can_publish]
-    return houses
+        qs = qs.filter(
+            Q(room_number__icontains=keyword)
+            | Q(building__name__icontains=keyword)
+            | Q(building__estate__name__icontains=keyword)
+            | Q(building__estate__display_name__icontains=keyword)
+            | Q(landlord__name__icontains=keyword)
+            | Q(landlord__phone__icontains=keyword)
+        )
+    return qs
 
 
 @router.post("/houses/", response={201: HouseOut}, summary="创建房源")
@@ -269,7 +253,7 @@ def create_house(request, payload: HouseIn):
     if landlord is not None:
         data["landlord"] = landlord
     house = House.objects.create(building=building, **data)
-    return Status(201, attach_house_publish_state(house, org))
+    return Status(201, house)
 
 
 @router.get("/houses/{house_id}/", response=HouseOut, summary="获取房源详情")
@@ -291,7 +275,7 @@ def patch_house(request, house_id: int, payload: HousePatchIn):
     for field, value in data.items():
         setattr(house, field, value)
     house.save()
-    return attach_house_publish_state(house, house.building.estate.organization)
+    return house
 
 
 @router.get("/viewing-records/", response=list[ViewingRecordOut], summary="获取带看记录列表")
@@ -302,6 +286,7 @@ def list_viewing_records(
     status: str | None = Query(None),
     pending_lease: bool | None = Query(None),
     contact_missing: bool | None = Query(None),
+    keyword: str | None = Query(None),
 ):
     org = require_org_selected(request)
     signed_lease_qs = Lease.objects.filter(source_viewing_record_id=OuterRef("pk")).order_by("id")
@@ -316,9 +301,20 @@ def list_viewing_records(
     if status:
         qs = qs.filter(status=status)
     if pending_lease:
-        qs = qs.filter(status=ViewingRecord.Status.CONVERTED, converted_leases__isnull=True)
+        qs = qs.filter(status=ViewingRecordStatus.CONVERTED, converted_leases__isnull=True)
     if contact_missing is not None:
         qs = qs.filter(contact__isnull=contact_missing)
+    if keyword:
+        qs = qs.filter(
+            Q(customer_name__icontains=keyword)
+            | Q(customer_phone__icontains=keyword)
+            | Q(contact__name__icontains=keyword)
+            | Q(contact__phone__icontains=keyword)
+            | Q(house__room_number__icontains=keyword)
+            | Q(house__building__name__icontains=keyword)
+            | Q(house__building__estate__name__icontains=keyword)
+            | Q(house__building__estate__display_name__icontains=keyword)
+        )
     return qs
 
 
@@ -356,13 +352,28 @@ def patch_viewing_record(request, record_id: int, payload: ViewingRecordPatchIn)
 
 @router.get("/leases/", response=list[LeaseOut], summary="获取租约列表")
 @paginate(LegacyPagination)
-def list_leases(request, house_id: int | None = Query(None), status: str | None = Query(None), contract_missing: bool | None = Query(None)):
+def list_leases(
+    request,
+    house_id: int | None = Query(None),
+    status: str | None = Query(None),
+    contract_missing: bool | None = Query(None),
+    keyword: str | None = Query(None),
+):
     org = require_org_selected(request)
     qs = Lease.objects.filter(organization=org).select_related("house__building__estate", "tenant", "source_viewing_record").order_by("-start_date", "-id")
     if house_id:
         qs = qs.filter(house_id=house_id)
     if status:
         qs = qs.filter(status=status)
+    if keyword:
+        qs = qs.filter(
+            Q(house__room_number__icontains=keyword)
+            | Q(house__building__name__icontains=keyword)
+            | Q(house__building__estate__name__icontains=keyword)
+            | Q(house__building__estate__display_name__icontains=keyword)
+            | Q(tenant__name__icontains=keyword)
+            | Q(tenant__phone__icontains=keyword)
+        )
     if contract_missing:
         qs = qs.filter(contract_files=[])
     return qs
@@ -410,8 +421,7 @@ def patch_lease(request, lease_id: int, payload: LeasePatchIn):
 @paginate(LegacyPagination)
 def list_my_houses(request):
     org = require_org_selected(request)
-    rules = get_org_house_publish_rules(org)
-    return [attach_house_publish_state(house, org, rules) for house in get_landlord_houses(request.user, org)]
+    return get_landlord_houses(request.user, org)
 
 
 @landlord_router.get("/my-leases/", response=list[LeaseOut], summary="房东查询名下租约")

@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from model_bakery import baker
 
-from apps.access.models import AccessRole
+from apps.access.constants import AccessScope
 from apps.accounts.models import User
 from apps.organizations.signals import user_logged_in_receiver
 from apps.teams.models import Team
@@ -65,7 +65,7 @@ class TestTeamAPI(TestCase):
         team.members.add(self.user)
         group = make_access_group(
             "inactive_team_view_role",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("teams", "team_view")],
         )
         group.access_role.is_active = False
@@ -97,7 +97,7 @@ class TestTeamAPI(TestCase):
         baker.make("organizations.OrganizationMember", organization=self.org, user=self.user, is_owner=False)
         group = make_access_group(
             "org_admin_for_teams",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("teams", "team_create")],
         )
         bind_org_role(self.org, self.user, group)
@@ -140,7 +140,7 @@ class TestTeamAPI(TestCase):
         other_team.members.add(self.user)
         group = make_access_group(
             "team_manager_for_update",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("teams", "team_update")],
         )
         bind_team_role(team, self.user, group)
@@ -173,7 +173,7 @@ class TestTeamAPI(TestCase):
         team.members.add(self.user)
         group = make_access_group(
             "team_finance_without_member_manage",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("settings", "team_setting_manage")],
         )
         bind_team_role(team, self.user, group)

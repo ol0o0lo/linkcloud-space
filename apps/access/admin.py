@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.models import Group
 
+from apps.access.constants import AccessScope
 from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
 
 
@@ -19,7 +20,7 @@ class OrganizationGroupBindingAdmin(admin.ModelAdmin):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "group":
-            kwargs["queryset"] = Group.objects.filter(access_role__scope=AccessRole.Scope.ORG)
+            kwargs["queryset"] = Group.objects.filter(access_role__scope=AccessScope.ORG)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
@@ -31,5 +32,5 @@ class TeamGroupBindingAdmin(admin.ModelAdmin):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "group":
-            kwargs["queryset"] = Group.objects.filter(access_role__scope=AccessRole.Scope.TEAM)
+            kwargs["queryset"] = Group.objects.filter(access_role__scope=AccessScope.TEAM)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)

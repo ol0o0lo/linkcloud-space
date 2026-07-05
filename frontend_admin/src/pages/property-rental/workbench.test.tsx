@@ -55,6 +55,44 @@ const { mockUseTenantWorkspace } = vi.hoisted(() => ({
     }).__frontendAdminTenantWorkspaceMock__ = vi.fn())),
 }));
 
+vi.mock('@umijs/max', () => ({
+  history: {
+    push: vi.fn(),
+  },
+}));
+
+vi.mock('@ant-design/pro-components', () => ({
+  ProTable: ({ columns, dataSource = [], loading, locale }: any) => {
+    const tableColumns = columns.filter((column: any) => !column.hideInTable);
+    return (
+      <div>
+        {loading ? <span>加载中</span> : null}
+        <table>
+          <thead>
+            <tr>
+              {tableColumns.map((column: any) => (
+                <th key={column.dataIndex}>{column.title}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dataSource.map((record: any, rowIndex: number) => (
+              <tr key={record.key || record.id}>
+                {tableColumns.map((column: any) => (
+                  <td key={column.dataIndex}>
+                    {column.render ? column.render(record[column.dataIndex], record, rowIndex) : record[column.dataIndex]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!loading && !dataSource.length ? <div>{locale?.emptyText || '暂无数据'}</div> : null}
+      </div>
+    );
+  },
+}));
+
 vi.mock('@/pages/tenant/shared', () => ({
   TenantSelectionGuard: ({ title, children }: { title?: string; children: React.ReactNode }) => (
     <section>
@@ -79,6 +117,19 @@ vi.mock('@/services/manual/house', () => ({
   },
 }));
 
+const estateSummary = { id: 1, name: 'xinghewan', display_name: '星河湾' };
+const building1 = { id: 10, name: '1 栋', estate_id: 1, estate: estateSummary };
+const building2 = { id: 11, name: '2 栋', estate_id: 1, estate: estateSummary };
+const landlord = { id: 8, name: '周房东', phone: '13600000000' };
+const tenant = { id: 9, name: '王租客', phone: '13800000000' };
+const houseSummary = (options: { id: number; roomNumber: string; building?: typeof building1 }) => ({
+  id: options.id,
+  label: `${options.building?.estate.display_name || '星河湾'} / ${options.building?.name || '1 栋'} / ${options.roomNumber}`,
+  room_number: options.roomNumber,
+  building_id: options.building?.id || building1.id,
+  building: options.building || building1,
+});
+
 describe('Property rental workbench', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -86,11 +137,12 @@ describe('Property rental workbench', () => {
     mockUseTenantWorkspace.mockImplementation(() => ({ selectedOrgSlug: 'org', queryClient: new QueryClient() }));
     mockPatchHouse.mockResolvedValue({ id: 3, publish_status: 'published' });
     mockListHouses.mockImplementation((params?: Record<string, unknown>) => {
-      const blockedHouse = { id: 1, room_number: '101', estate_name: '星河湾', building_name: '1 栋', landlord_id: null, images: [], videos: [], status: 'vacant', status__mapping: '空置', publish_status: 'draft', publish_status__mapping: '草稿' };
+      const blockedHouse = { ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant', status__mapping: '空置', publish_status: 'draft', publish_status__mapping: '草稿' };
       const publishedHouse = {
+        ...houseSummary({ id: 2, roomNumber: '102' }),
         id: 2,
-        room_number: '102',
         landlord_id: 5,
+        landlord: { id: 5, name: '已发布房东', phone: '13500000000' },
         asking_rent: '4200.00',
         images: [
           { media_id: 1, media_type: 'image', image_role: 'cover' },
@@ -104,13 +156,10 @@ describe('Property rental workbench', () => {
         publish_status__mapping: '已发布',
       };
       const readyHouse = {
+        ...houseSummary({ id: 3, roomNumber: '103', building: building2 }),
         id: 3,
-        room_number: '103',
-        estate_name: '星河湾',
-        building_name: '2 栋',
         landlord_id: 8,
-        landlord_name: '周房东',
-        landlord_phone: '13600000000',
+        landlord,
         asking_rent: '4600.00',
         images: [
           { media_id: 10, media_type: 'image', image_role: 'cover' },
@@ -122,7 +171,6 @@ describe('Property rental workbench', () => {
         status__mapping: '空置',
         publish_status: 'draft',
         publish_status__mapping: '草稿',
-        available_from: '2026-07-01',
       };
       if (params?.publish_issue) return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
       if (params?.publish_blocked && params?.page_size === 1) return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
@@ -139,7 +187,7 @@ describe('Property rental workbench', () => {
     mockListViewings.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.contact_missing === true) {
         return Promise.resolve({
-          items: [{ id: 4, house_id: 1, estate_name: '星河湾', building_name: '1 栋', room_number: '201', customer_name: '李客户', customer_phone: '13900000000', status: 'converted' }],
+          items: [{ id: 4, house_id: 1, house: houseSummary({ id: 1, roomNumber: '201' }), contact_id: null, contact: null, customer_name: '李客户', customer_phone: '13900000000', status: 'converted' }],
           total: 1,
           page: 1,
           page_size: 5,
@@ -147,7 +195,7 @@ describe('Property rental workbench', () => {
       }
       if (params?.contact_missing === false) {
         return Promise.resolve({
-          items: [{ id: 6, house_id: 1, estate_name: '星河湾', building_name: '1 栋', room_number: '202', customer_name: '王客户', customer_phone: '13800000000', contact_id: 9, contact_name: '王租客', status: 'converted' }],
+          items: [{ id: 6, house_id: 1, house: houseSummary({ id: 1, roomNumber: '202' }), customer_name: '王客户', customer_phone: '13800000000', contact_id: 9, contact: tenant, status: 'converted' }],
           total: 2,
           page: 1,
           page_size: 5,
@@ -156,7 +204,7 @@ describe('Property rental workbench', () => {
       return Promise.resolve({ items: [], total: 0, page: 1, page_size: 5 });
     });
     mockListLeases.mockResolvedValue({
-      items: [{ id: 5, house_id: 1, estate_name: '星河湾', building_name: '1 栋', room_number: '301', tenant_id: 6, tenant_name: '王租客', tenant_phone: '13700000000', status: 'pending', contract_files: [] }],
+      items: [{ id: 5, house_id: 1, house: houseSummary({ id: 1, roomNumber: '301' }), tenant_id: 6, tenant: { id: 6, name: '王租客', phone: '13700000000' }, status: 'pending', contract_files: [] }],
       total: 7,
       page: 1,
       page_size: 5,
@@ -166,17 +214,13 @@ describe('Property rental workbench', () => {
   it('builds publish and workflow rows from API items without extra page wrappers', () => {
     const publishRows = buildPublishWorkbenchRows(
       [
-        { id: 1, estate_name: '星河湾', building_name: '1 栋', room_number: '101', landlord_id: null, images: [], videos: [], status: 'vacant', publish_status: 'draft' },
+        { ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant', publish_status: 'draft' },
       ] as never[],
       [
         {
-          id: 3,
-          estate_name: '星河湾',
-          building_name: '2 栋',
-          room_number: '103',
+          ...houseSummary({ id: 3, roomNumber: '103', building: building2 }),
           landlord_id: 8,
-          landlord_name: '周房东',
-          landlord_phone: '13600000000',
+          landlord,
           asking_rent: '4600.00',
           images: [
             { media_id: 10, media_type: 'image', image_role: 'cover' },
@@ -194,11 +238,10 @@ describe('Property rental workbench', () => {
     expect(publishRows[1]).toMatchObject({ key: 'ready-3', stage: 'ready' });
 
     const workflowRows = buildWorkflowTasks(
-      [{ id: 4, house_id: 1, estate_name: '星河湾', building_name: '1 栋', room_number: '201', customer_name: '李客户', customer_phone: '13900000000', status: 'converted' }] as never[],
-      [{ id: 6, house_id: 1, estate_name: '星河湾', building_name: '1 栋', room_number: '202', customer_name: '王客户', customer_phone: '13800000000', contact_id: 9, contact_name: '王租客', status: 'converted' }] as never[],
-      [{ id: 5, house_id: 1, estate_name: '星河湾', building_name: '1 栋', room_number: '301', tenant_id: 6, tenant_name: '王租客', tenant_phone: '13700000000', status: 'pending', contract_files: [] }] as never[],
+      [{ id: 4, house_id: 1, house: houseSummary({ id: 1, roomNumber: '201' }), contact_id: null, contact: null, customer_name: '李客户', customer_phone: '13900000000', status: 'converted' }] as never[],
+      [{ id: 6, house_id: 1, house: houseSummary({ id: 1, roomNumber: '202' }), customer_name: '王客户', customer_phone: '13800000000', contact_id: 9, contact: tenant, status: 'converted' }] as never[],
     );
-    expect(workflowRows.map((row) => row.queueKey)).toEqual(['contact-missing', 'converted', 'contract']);
+    expect(workflowRows.map((row) => row.queueKey)).toEqual(['contact-missing', 'converted']);
   });
 
   it('restores publish and workflow filters from URL search params', async () => {
@@ -208,9 +251,9 @@ describe('Property rental workbench', () => {
 
     expect(await screen.findByText('星河湾 / 1 栋 / 101')).toBeInTheDocument();
     expect(screen.queryByText('星河湾 / 2 栋 / 103')).not.toBeInTheDocument();
-    expect(screen.getByText('王租客 待补合同')).toBeInTheDocument();
-    expect(screen.queryByText('李客户 待补租客')).not.toBeInTheDocument();
-    expect(window.location.search).toBe('?publish=blocked&workflow=contract');
+    expect(screen.getByText('李客户 待补租客')).toBeInTheDocument();
+    expect(screen.queryByText('王租客 待补合同')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('?publish=blocked');
   });
 
   it('shows active workbench filters with a clear-all link', async () => {
@@ -218,7 +261,7 @@ describe('Property rental workbench', () => {
 
     render(<QueryClientProvider client={new QueryClient()}><WorkbenchPage /></QueryClientProvider>);
 
-    expect(await screen.findByText('当前只看：发布工作区：阻断发布 / 转签与合同：待补合同')).toBeInTheDocument();
+    expect(await screen.findByText('当前只看：发布工作区：阻断发布')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '查看全部' })).toHaveAttribute('href', '/dashboard/property-rental/workbench');
   });
 
@@ -233,19 +276,19 @@ describe('Property rental workbench', () => {
     fireEvent.click(within(publishGroup).getByText((text) => text.startsWith('阻断发布 ')));
     await waitFor(() => expect(window.location.search).toBe('?publish=blocked'));
 
-    fireEvent.click(within(workflowGroup).getByText((text) => text.startsWith('待补合同 ')));
-    await waitFor(() => expect(window.location.search).toBe('?publish=blocked&workflow=contract'));
+    fireEvent.click(within(workflowGroup).getByText((text) => text.startsWith('待签约 ')));
+    await waitFor(() => expect(window.location.search).toBe('?publish=blocked&workflow=converted'));
 
     fireEvent.click(within(publishGroup).getByText((text) => text.startsWith('全部 ')));
-    await waitFor(() => expect(window.location.search).toBe('?workflow=contract'));
+    await waitFor(() => expect(window.location.search).toBe('?workflow=converted'));
   });
 
   it('shows actionable house tasks', async () => {
     render(<QueryClientProvider client={new QueryClient()}><WorkbenchPage /></QueryClientProvider>);
 
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ page: 1, page_size: 1 })));
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true, page_size: 5 })));
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true, page_size: 5 })));
+    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ page: 1, page_size: 100 })));
+    expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true }));
+    expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true }));
     await screen.findByText('星河湾 / 1 栋 / 101');
     expect(screen.queryByText('102')).not.toBeInTheDocument();
 
@@ -262,9 +305,8 @@ describe('Property rental workbench', () => {
     expect(screen.getAllByText('阻断发布').length).toBeGreaterThan(0);
     expect(screen.getAllByText('待补租客').length).toBeGreaterThan(1);
     expect(screen.getAllByText('待签约').length).toBeGreaterThan(0);
-    expect(screen.getByText('待补合同')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: '阻断发布 1' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: '待补合同 7' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /待补合同/ })).not.toBeInTheDocument();
 
     expect(screen.getByText('缺房东')).toBeInTheDocument();
     expect(screen.getByText('缺封面')).toBeInTheDocument();
@@ -273,18 +315,17 @@ describe('Property rental workbench', () => {
     expect(screen.getAllByText('草稿').length).toBeGreaterThan(0);
     await waitFor(() => expect(mockListViewings).toHaveBeenCalledWith(expect.objectContaining({ pending_lease: true, contact_missing: true })));
     await waitFor(() => expect(mockListViewings).toHaveBeenCalledWith(expect.objectContaining({ pending_lease: true, contact_missing: false })));
-    await waitFor(() => expect(mockListLeases).toHaveBeenCalledWith(expect.objectContaining({ contract_missing: true, page_size: 5 })));
-    expect(screen.getAllByText('7').length).toBeGreaterThan(0);
+    expect(mockListLeases).not.toHaveBeenCalledWith(expect.objectContaining({ contract_missing: true, page_size: 5 }));
     await waitFor(() => expect(screen.getAllByText('1').length).toBeGreaterThan(0));
     expect(screen.getByRole('link', { name: '处理发布问题' })).toHaveAttribute('href', '/dashboard/property-rental/houses/1?action=edit&task=landlord');
     expect(screen.getByRole('link', { name: '检查后发布' })).toHaveAttribute('href', '/dashboard/property-rental/houses/3');
     expect(screen.getByText('资料已完整，可直接发布承接带看。')).toBeInTheDocument();
     expect(screen.getByText('先补房东主体，其他媒体问题可作为发布提醒继续处理')).toBeInTheDocument();
-    expect(screen.getByText('成交转签与合同')).toBeInTheDocument();
+    expect(screen.getByText('成交转签')).toBeInTheDocument();
     expect(screen.getByText('先绑定租客联系人，再创建租约')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '补租客' })).toHaveAttribute('href', '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=true&edit=4');
     expect(screen.getByRole('link', { name: '去签约' })).toHaveAttribute('href', '/dashboard/property-rental/leases?source_viewing_record_id=6');
-    expect(screen.getByRole('link', { name: '补合同' })).toHaveAttribute('href', '/dashboard/property-rental/leases?house_id=1&task=contract&edit=5');
+    expect(screen.queryByRole('link', { name: '补合同' })).not.toBeInTheDocument();
   });
 
   it('does not render standalone publish issue queues', async () => {
@@ -345,7 +386,7 @@ describe('Property rental workbench', () => {
       if (params?.publish_blocked) return Promise.resolve({ items: [], total: 77, page: 1, page_size: Number(params?.page_size || 5) });
       if (params?.publish_ready) return Promise.resolve({ items: [], total: 66, page: 1, page_size: Number(params?.page_size || 5) });
       return Promise.resolve({
-        items: [{ id: 1, room_number: '101', estate_name: '星河湾', building_name: '1 栋', landlord_id: null, images: [], videos: [], status: 'vacant', publish_status: 'draft' }],
+        items: [{ ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant', publish_status: 'draft' }],
         total: 101,
         page: 1,
         page_size: 100,
@@ -355,32 +396,32 @@ describe('Property rental workbench', () => {
     render(<QueryClientProvider client={new QueryClient()}><WorkbenchPage /></QueryClientProvider>);
 
     await screen.findByText('发布工作区');
-    await waitFor(() => expect(screen.getByRole('radio', { name: '阻断发布 77' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('radio', { name: '阻断发布 1' })).toBeInTheDocument());
     expect(screen.queryByText('123')).not.toBeInTheDocument();
     expect(screen.queryByText('8')).not.toBeInTheDocument();
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_issue: 'landlord', page_size: 1 }));
+    expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true }));
+    expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true }));
   });
 
   it('filters publish and workflow tables inside the page', async () => {
     render(<QueryClientProvider client={new QueryClient()}><WorkbenchPage /></QueryClientProvider>);
 
-    expect(await screen.findByText('显示 2 / 2')).toBeInTheDocument();
+    expect((await screen.findAllByText('显示 2 / 2')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('radio', { name: '阻断发布 1' }));
-    expect(await screen.findByText('显示 1 / 2')).toBeInTheDocument();
+    expect((await screen.findAllByText('显示 1 / 2')).length).toBeGreaterThan(0);
     expect(screen.queryByText('当前筛选下暂无房源')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: '待补合同 7' }));
-    expect(await screen.findByText('显示 1 / 3')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '补合同' })).toHaveAttribute('href', '/dashboard/property-rental/leases?house_id=1&task=contract&edit=5');
+    fireEvent.click(screen.getByRole('radio', { name: '待签约 2' }));
+    expect((await screen.findAllByText('显示 1 / 2')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: '补合同' })).not.toBeInTheDocument();
   });
 
   it('routes media-only publish issues directly to album maintenance', () => {
     expect(getHouseTaskLink({
-      id: 3,
-      room_number: '103',
-      estate_name: '星河湾',
-      building_name: '1 栋',
+      ...houseSummary({ id: 3, roomNumber: '103' }),
       landlord_id: 5,
+      landlord: { id: 5, name: '张房东', phone: '13800000000' },
       asking_rent: '4200.00',
       images: [{ media_id: 1, media_type: 'image', image_role: 'bedroom' }],
       videos: [],
@@ -397,11 +438,9 @@ describe('Property rental workbench', () => {
 
   it('routes video-only publish warnings to album maintenance with a video task', () => {
     expect(getHouseTaskLink({
-      id: 7,
-      room_number: '107',
-      estate_name: '星河湾',
-      building_name: '1 栋',
+      ...houseSummary({ id: 7, roomNumber: '107' }),
       landlord_id: 5,
+      landlord: { id: 5, name: '张房东', phone: '13800000000' },
       asking_rent: '4200.00',
       images: [
         { media_id: 1, media_type: 'image', image_role: 'cover' },
@@ -429,12 +468,12 @@ describe('Property rental workbench', () => {
     await waitFor(() => expect(mockPatchHouse).toHaveBeenCalledWith(3, { publish_status: 'published' }));
   });
 
-  it('shows empty workflow state when there are no signing or contract tasks', async () => {
+  it('shows empty workflow state when there are no signing tasks', async () => {
     mockListViewings.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 5 });
     mockListLeases.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 5 });
 
     render(<QueryClientProvider client={new QueryClient()}><WorkbenchPage /></QueryClientProvider>);
 
-    expect(await screen.findByText('暂无成交转签或合同待办')).toBeInTheDocument();
+    expect(await screen.findByText('暂无成交转签待办')).toBeInTheDocument();
   });
 });

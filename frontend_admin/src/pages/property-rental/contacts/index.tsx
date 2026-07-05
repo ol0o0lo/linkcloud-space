@@ -1,31 +1,26 @@
 import { PlusOutlined } from '@ant-design/icons';
+import type { ProColumns } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history } from '@umijs/max';
 import {
   Button,
-  Col,
+  Card,
   Drawer,
   Empty,
   Form,
   Input,
   message,
-  Row,
   Select,
   Space,
-  Statistic,
   Switch,
-  Table,
   Tag,
   Typography,
-  theme,
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   adminTableScroll,
-  fixedPagePagination,
   ResponsiveActions,
-  SectionHeader,
-  toolbarControlStyle,
   toolbarSelectPopupWidth,
   toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
@@ -42,18 +37,9 @@ import { type ContactOut, houseApi } from '@/services/manual/house';
 import { CONTACT_ROLE } from '../constants';
 import {
   getLoadingAwareEmptyState,
-  getLoadingSafeCount,
   isInitialQueryPending,
 } from '../loading';
 
-const CONTACT_TASK_OPTIONS = [
-  { value: 'dual_role', label: '双角色待确认' },
-  { value: 'inactive', label: '停用联系人' },
-  { value: 'role_missing', label: '缺角色主体' },
-];
-const CONTACT_TASK_TEXT = Object.fromEntries(
-  CONTACT_TASK_OPTIONS.map((item) => [item.value, item.label]),
-);
 const PAGE_SIZE = 20;
 
 function hasRole(record: ContactOut, role: string) {
@@ -74,19 +60,6 @@ function getContactStageText(record: ContactOut) {
   return '待补角色';
 }
 
-function getContactFollowUpHint(record: ContactOut) {
-  if (hasMissingRole(record))
-    return '先补房东或租客角色，再进入房源、带看或签约流程';
-  const isLandlord = hasRole(record, CONTACT_ROLE.LANDLORD);
-  const isTenant = hasRole(record, CONTACT_ROLE.TENANT);
-  if (record.is_active === false) return '已停用，不参与新业务流程';
-  if (isLandlord && isTenant)
-    return '同时承接房东供给和租客需求，录入业务时要明确当前身份';
-  if (isLandlord) return '优先登记名下房源并补齐基础资料';
-  if (isTenant) return '优先登记带看和成交意向进展';
-  return '补充房东/租客角色，避免业务流转时无法定位主体';
-}
-
 function getContactBusinessInfo(record: ContactOut) {
   const secondaryParts = [
     record.email || undefined,
@@ -96,19 +69,6 @@ function getContactBusinessInfo(record: ContactOut) {
     primary: `${record.name} / ${record.phone}`,
     secondary: secondaryParts.length ? secondaryParts.join(' · ') : '-',
   };
-}
-
-function getContactScopeText(
-  roleLabel: (value?: string | null) => string,
-  role?: string,
-  q?: string,
-  task?: string,
-) {
-  const parts: string[] = [];
-  if (task) parts.push(`队列：${CONTACT_TASK_TEXT[task] || task}`);
-  if (role) parts.push(`角色：${roleLabel(role)}`);
-  if (q) parts.push(`搜索：${q}`);
-  return parts.join(' / ');
 }
 
 function getContactActionLinks(record: ContactOut) {
@@ -136,7 +96,6 @@ function getContactListStateFromSearch(search: string) {
     page: Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1,
     q: params.get('keyword') || undefined,
     role: params.get('role') || undefined,
-    task: params.get('task') || undefined,
   };
 }
 
@@ -144,10 +103,8 @@ function syncContactListSearch(filters: {
   page: number;
   q?: string;
   role?: string;
-  task?: string;
 }) {
   const params = new URLSearchParams();
-  if (filters.task) params.set('task', filters.task);
   if (filters.role) params.set('role', filters.role);
   if (filters.q) params.set('keyword', filters.q);
   if (filters.page > 1) params.set('page', String(filters.page));
@@ -176,34 +133,13 @@ const ContactsPage: React.FC = () => {
   );
   const [page, setPage] = useState(initialListState.current.page);
   const [q, setQ] = useState<string | undefined>(initialListState.current.q);
-  const [searchText, setSearchText] = useState(
-    initialListState.current.q || '',
-  );
   const [role, setRole] = useState<string | undefined>(
     initialListState.current.role,
   );
-  const [task, setTask] = useState<string | undefined>(
-    initialListState.current.task,
-  );
   const [editing, setEditing] = useState<ContactOut | null>(null);
-  const [createRolePreset, setCreateRolePreset] = useState<
-    string | undefined
-  >();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.contact_role']);
-  const baseContacts = useQuery({
-    queryKey: [
-      'house',
-      'contacts',
-      'base-overview',
-      workspace.selectedOrgSlug,
-      q,
-    ],
-    queryFn: () =>
-      houseApi.listContacts({ page: 1, page_size: 100, keyword: q }),
-    enabled,
-  });
   const contacts = useQuery({
     queryKey: [
       'house',
@@ -212,7 +148,6 @@ const ContactsPage: React.FC = () => {
       page,
       q,
       role,
-      task,
     ],
     queryFn: () =>
       houseApi.listContacts({
@@ -220,7 +155,6 @@ const ContactsPage: React.FC = () => {
         page_size: PAGE_SIZE,
         keyword: q,
         role,
-        task,
       }),
     enabled,
   });
@@ -233,7 +167,6 @@ const ContactsPage: React.FC = () => {
       message.success(editing ? '联系人已更新' : '联系人已创建');
       setDrawerOpen(false);
       setEditing(null);
-      setCreateRolePreset(undefined);
       await queryClient.invalidateQueries({ queryKey: ['house', 'contacts'] });
     },
   });
@@ -246,293 +179,147 @@ const ContactsPage: React.FC = () => {
     },
   });
 
-  const openCreate = (presetRole?: string) => {
+  const openCreate = () => {
     setEditing(null);
-    setCreateRolePreset(presetRole);
     setDrawerOpen(true);
   };
 
   const openEdit = (record: ContactOut) => {
     setEditing(record);
-    setCreateRolePreset(undefined);
     setDrawerOpen(true);
   };
 
-  const baseContactRows = baseContacts.data?.items || [];
-  const landlordCount = baseContactRows.filter((item) =>
-    hasRole(item, CONTACT_ROLE.LANDLORD),
-  ).length;
-  const tenantCount = baseContactRows.filter((item) =>
-    hasRole(item, CONTACT_ROLE.TENANT),
-  ).length;
-  const dualRoleCount = baseContactRows.filter(
-    (item) =>
-      hasRole(item, CONTACT_ROLE.LANDLORD) &&
-      hasRole(item, CONTACT_ROLE.TENANT),
-  ).length;
-  const inactiveCount = baseContactRows.filter(
-    (item) => item.is_active === false,
-  ).length;
   const roleOptions = enumSelectOptions(houseEnums.data, 'house.contact_role');
   const roleLabel = (value?: string | null) =>
     enumOptionMapping(houseEnums.data, 'house.contact_role', value);
-  const scopeText = getContactScopeText(roleLabel, role, q, task);
-  const overviewLoading = isInitialQueryPending(baseContacts);
   const listLoading = isInitialQueryPending(contacts);
-  const { token } = theme.useToken();
-  const sectionStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    background: token.colorBgContainer,
-    padding: 16,
-  } as const;
-  const overviewTileStyle = {
-    border: `1px solid ${token.colorBorderSecondary}`,
-    borderRadius: token.borderRadiusLG,
-    background: token.colorFillQuaternary,
-    height: '100%',
-    padding: 16,
-  } as const;
-  const overviewCards = [
-    {
-      key: 'landlord',
-      title: '房东档案',
-      count: landlordCount,
-    },
-    {
-      key: 'tenant',
-      title: '租客档案',
-      count: tenantCount,
-    },
-    {
-      key: 'dual-role',
-      title: '双角色',
-      count: dualRoleCount,
-    },
-    {
-      key: 'inactive',
-      title: '停用联系人',
-      count: inactiveCount,
-    },
-  ];
 
   useEffect(() => {
-    syncContactListSearch({ page, q, role, task });
-  }, [page, q, role, task]);
-
-  const createActions = [
-    { key: 'landlord', label: '新建房东', role: CONTACT_ROLE.LANDLORD },
-    { key: 'tenant', label: '新建租客', role: CONTACT_ROLE.TENANT },
-    { key: 'all', label: '新建联系人', role: undefined },
+    syncContactListSearch({ page, q, role });
+  }, [page, q, role]);
+  const columns: ProColumns<ContactOut>[] = [
+    {
+      title: '主体信息',
+      dataIndex: 'name',
+      width: 320,
+      render: (_value, record) => {
+        const businessInfo = getContactBusinessInfo(record);
+        return (
+          <Space orientation="vertical" size={2}>
+            <Typography.Text strong>{businessInfo.primary}</Typography.Text>
+            <Typography.Text type="secondary">
+              {businessInfo.secondary}
+            </Typography.Text>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '角色',
+      dataIndex: 'roles',
+      width: 180,
+      render: (_roles, record) =>
+        (record.roles || []).map((role: string, index: number) => (
+          <Tag key={role}>{record.roles__mapping?.[index] || roleLabel(role)}</Tag>
+        )),
+    },
+    {
+      title: '业务阶段',
+      dataIndex: 'stage',
+      width: 140,
+      render: (_value, record) => (
+        <Typography.Text>{getContactStageText(record)}</Typography.Text>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'is_active',
+      width: 90,
+      render: (value) =>
+        value === false ? <Tag>停用</Tag> : <Tag color="green">启用</Tag>,
+    },
+    {
+      title: '操作',
+      dataIndex: 'actions',
+      fixed: 'right',
+      width: 220,
+      render: (_value, record) => (
+        <ResponsiveActions>
+          <Button type="link" size="small" onClick={() => openEdit(record)}>
+            编辑
+          </Button>
+          {getContactActionLinks(record).map((action) => (
+            <a
+              key={action.path}
+              href={`/dashboard${action.path}`}
+              onClick={(event) => {
+                event.preventDefault();
+                history.push(action.path);
+              }}
+            >
+              {action.label}
+            </a>
+          ))}
+          <Button
+            type="link"
+            size="small"
+            onClick={() =>
+              toggleContact.mutate({
+                id: record.id,
+                is_active: record.is_active === false,
+              })
+            }
+          >
+            {record.is_active === false ? '启用' : '停用'}
+          </Button>
+        </ResponsiveActions>
+      ),
+    },
   ];
 
   return (
     <TenantSelectionGuard title="联系人">
-      <div style={sectionStyle}>
-        <Typography.Text strong>联系人概览</Typography.Text>
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          {overviewCards.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <div style={overviewTileStyle}>
-                <Statistic
-                  title={item.title}
-                  value={getLoadingSafeCount(item.count, overviewLoading)}
-                />
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      <div style={{ ...sectionStyle, marginTop: 16 }}>
-        <SectionHeader
-          title="联系人业务台账"
-          actions={
-            <Space wrap>
-              {createActions.map((item) => (
-                <Button
-                  key={item.key}
-                  type={item.key === 'all' ? 'primary' : 'default'}
-                  icon={<PlusOutlined />}
-                  onClick={() => openCreate(item.role)}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </Space>
-          }
-        />
-        {scopeText ? (
-          <Space wrap style={{ marginBottom: 16 }}>
-            <Tag color="blue">{`当前只看：${scopeText}`}</Tag>
-            <Button
-              size="small"
-              onClick={() => {
-                setPage(1);
-                setQ(undefined);
-                setSearchText('');
-                setRole(undefined);
-                setTask(undefined);
-              }}
-            >
-              查看全部
-            </Button>
-          </Space>
-        ) : null}
-        <Space wrap style={{ marginBottom: 16 }}>
-          <Input.Search
-            allowClear
-            placeholder="姓名 / 手机"
-            value={searchText}
-            onChange={(event) => {
-              const nextValue = event.target.value;
-              setSearchText(nextValue);
-              if (!nextValue.trim() && q) {
-                setPage(1);
-                setQ(undefined);
-              }
-            }}
-            onSearch={(value) => {
-              const nextValue = value.trim();
-              setSearchText(value);
-              setPage(1);
-              setQ(nextValue || undefined);
-            }}
-            style={toolbarControlStyle}
-          />
-          <Select
-            allowClear
-            placeholder="角色"
-            options={roleOptions}
-            value={role}
-            popupMatchSelectWidth={toolbarSelectPopupWidth}
-            onChange={(value) => {
-              setPage(1);
-              setRole(value);
-              setTask(undefined);
-            }}
-            style={toolbarShortSelectStyle}
-          />
-          <Select
-            allowClear
-            placeholder="任务"
-            options={CONTACT_TASK_OPTIONS}
-            value={task}
-            popupMatchSelectWidth={toolbarSelectPopupWidth}
-            onChange={(value) => {
-              setPage(1);
-              setTask(value);
-              setRole(undefined);
-            }}
-            style={toolbarShortSelectStyle}
-          />
-        </Space>
-        <Table<ContactOut>
+      <Card>
+        <ProTable<ContactOut>
           rowKey="id"
           loading={listLoading}
-          columns={[
-            {
-              title: '主体信息',
-              dataIndex: 'name',
-              width: 320,
-              render: (_value, record) => {
-                const businessInfo = getContactBusinessInfo(record);
-                return (
-                  <Space orientation="vertical" size={2}>
-                    <Typography.Text strong>
-                      {businessInfo.primary}
-                    </Typography.Text>
-                    <Typography.Text type="secondary">
-                      {businessInfo.secondary}
-                    </Typography.Text>
-                  </Space>
-                );
+          headerTitle="联系人列表"
+          columns={columns}
+          dataSource={contacts.data?.items || []}
+          search={false}
+          options={{
+            density: true,
+            reload: false,
+            search: {
+              name: 'keyword',
+              placeholder: '姓名 / 手机',
+              value: q,
+              onSearch: (value) => {
+                setPage(1);
+                setQ(value.trim() || undefined);
               },
             },
-            {
-              title: '角色',
-              dataIndex: 'roles',
-              width: 180,
-              render: (_roles, record) =>
-                (record.roles || []).map((role: string, index: number) => (
-                  <Tag key={role}>
-                    {record.roles__mapping?.[index] || roleLabel(role)}
-                  </Tag>
-                )),
-            },
-            {
-              title: '业务阶段',
-              dataIndex: 'stage',
-              width: 180,
-              render: (_value, record) => (
-                <Typography.Text strong>
-                  {getContactStageText(record)}
-                </Typography.Text>
-              ),
-            },
-            {
-              title: '状态',
-              dataIndex: 'is_active',
-              width: 110,
-              render: (value) =>
-                value === false ? (
-                  <Tag>停用</Tag>
-                ) : (
-                  <Tag color="green">启用</Tag>
-                ),
-            },
-            {
-              title: '跟进建议',
-              dataIndex: 'queue_hint',
-              render: (_value, record) => (
-                <Typography.Text type="secondary">
-                  {getContactFollowUpHint(record)}
-                </Typography.Text>
-              ),
-            },
-            {
-              title: '操作',
-              dataIndex: 'actions',
-              fixed: 'right',
-              width: 220,
-              render: (_value, record) => (
-                <ResponsiveActions>
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => openEdit(record)}
-                  >
-                    编辑
-                  </Button>
-                  {getContactActionLinks(record).map((action) => (
-                    <a
-                      key={action.path}
-                      href={`/dashboard${action.path}`}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        history.push(action.path);
-                      }}
-                    >
-                      {action.label}
-                    </a>
-                  ))}
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() =>
-                      toggleContact.mutate({
-                        id: record.id,
-                        is_active: record.is_active === false,
-                      })
-                    }
-                  >
-                    {record.is_active === false ? '启用' : '停用'}
-                  </Button>
-                </ResponsiveActions>
-              ),
-            },
+            setting: true,
+          }}
+          toolBarRender={() => [
+            <Select
+              key="role"
+              allowClear
+              placeholder="角色"
+              options={roleOptions}
+              value={role}
+              popupMatchSelectWidth={toolbarSelectPopupWidth}
+              onChange={(value) => {
+                setPage(1);
+                setRole(value);
+              }}
+              style={toolbarShortSelectStyle}
+            />,
+            <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              新建联系人
+            </Button>,
           ]}
-          dataSource={contacts.data?.items || []}
+          ghost
           locale={{
             emptyText: getLoadingAwareEmptyState({
               loading: listLoading,
@@ -543,37 +330,28 @@ const ContactsPage: React.FC = () => {
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                   description="暂无联系人"
                 >
-                  <Space wrap>
-                    <Button onClick={() => openCreate(CONTACT_ROLE.LANDLORD)}>
-                      新建房东
-                    </Button>
-                    <Button onClick={() => openCreate(CONTACT_ROLE.TENANT)}>
-                      新建租客
-                    </Button>
-                    <Button type="primary" onClick={() => openCreate()}>
-                      新建联系人
-                    </Button>
-                  </Space>
+                  <Button type="primary" onClick={openCreate}>
+                    新建联系人
+                  </Button>
                 </Empty>
               ),
             }),
           }}
-          pagination={fixedPagePagination(
-            page,
-            PAGE_SIZE,
-            contacts.data?.total || 0,
-            setPage,
-          )}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: contacts.data?.total || 0,
+            onChange: setPage,
+          }}
           scroll={adminTableScroll}
         />
-      </div>
+      </Card>
       <Drawer
         title={editing ? '编辑联系人' : '新建联系人'}
         open={drawerOpen}
         size="large"
         onClose={() => {
           setDrawerOpen(false);
-          setCreateRolePreset(undefined);
         }}
         destroyOnHidden
         extra={
@@ -588,12 +366,12 @@ const ContactsPage: React.FC = () => {
         }
       >
         <Form
-          key={editing?.id || createRolePreset || 'new'}
+          key={editing?.id || 'new'}
           id="contact-form"
           layout="vertical"
           initialValues={
             editing || {
-              roles: createRolePreset ? [createRolePreset] : [],
+              roles: [],
               is_active: true,
             }
           }

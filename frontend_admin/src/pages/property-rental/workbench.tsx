@@ -1,21 +1,22 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ProTable } from '@ant-design/pro-components';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history } from '@umijs/max';
-import { Alert, Button, Card, Col, Modal, Row, Segmented, Space, Statistic, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Modal, message, Row, Segmented, Space, Statistic, Tag, Typography } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { adminTableScroll } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
-import { houseApi, type HouseOut, type LeaseOut, type ViewingRecordOut } from '@/services/manual/house';
 import { enumMapping } from '@/services/manual/enums';
+import { type HouseOut, houseApi, type ViewingRecordOut } from '@/services/manual/house';
 import {
   canHousePublish,
   contactLabel,
   getHouseBlockingIssues,
   getHouseIssueActionHint,
-  getTrackedHousePublishIssues,
   getHouseWarningIssues,
+  getTrackedHousePublishIssues,
+  HOUSE_PUBLISH_STATUS_COLOR,
   houseLabel,
   houseMediaReadinessText,
-  HOUSE_PUBLISH_STATUS_COLOR,
   moneyText,
   STATUS_COLOR,
 } from './constants';
@@ -39,7 +40,7 @@ const HOUSE_TASK_PRIORITY: Record<'landlord' | 'rent' | 'cover' | 'images' | 'fl
 };
 
 type PublishFilterValue = 'all' | 'blocked' | 'ready';
-type WorkflowFilterValue = 'all' | 'contact-missing' | 'converted' | 'contract';
+type WorkflowFilterValue = 'all' | 'contact-missing' | 'converted';
 const WORKBENCH_PUBLISH_FILTER_LABELS: Record<Exclude<PublishFilterValue, 'all'>, string> = {
   blocked: '阻断发布',
   ready: '待发布',
@@ -47,7 +48,6 @@ const WORKBENCH_PUBLISH_FILTER_LABELS: Record<Exclude<PublishFilterValue, 'all'>
 const WORKBENCH_WORKFLOW_FILTER_LABELS: Record<Exclude<WorkflowFilterValue, 'all'>, string> = {
   'contact-missing': '待补租客',
   converted: '待签约',
-  contract: '待补合同',
 };
 
 function getWorkbenchFiltersFromSearch(search: string) {
@@ -57,10 +57,7 @@ function getWorkbenchFiltersFromSearch(search: string) {
 
   return {
     publishFilter: publishFilter === 'blocked' || publishFilter === 'ready' ? publishFilter : 'all',
-    workflowFilter:
-      workflowFilter === 'contact-missing' || workflowFilter === 'converted' || workflowFilter === 'contract'
-        ? workflowFilter
-        : 'all',
+    workflowFilter: workflowFilter === 'contact-missing' || workflowFilter === 'converted' ? workflowFilter : 'all',
   } satisfies { publishFilter: PublishFilterValue; workflowFilter: WorkflowFilterValue };
 }
 
@@ -83,8 +80,7 @@ function syncWorkbenchFiltersSearch(filters: { publishFilter: PublishFilterValue
 }
 
 type WorkflowTaskRow =
-  | { key: string; queueKey: 'contact-missing' | 'converted'; queue: string; title: string; house: string; status: string; nextStep: string; actionLabel: string; actionPath: string }
-  | { key: string; queueKey: 'contract'; queue: string; title: string; house: string; status: string; nextStep: string; actionLabel: string; actionPath: string };
+  { key: string; queueKey: 'contact-missing' | 'converted'; queue: string; title: string; house: string; status: string; nextStep: string; actionLabel: string; actionPath: string };
 
 type PublishWorkbenchRow = {
   key: string;
@@ -149,7 +145,6 @@ export function buildPublishWorkbenchRows(blockedHouses: HouseOut[], readyHouses
 export function buildWorkflowTasks(
   pendingLeaseMissingContacts: ViewingRecordOut[],
   pendingLeaseReady: ViewingRecordOut[],
-  contractMissingLeases: LeaseOut[],
 ): WorkflowTaskRow[] {
   return [
     ...pendingLeaseMissingContacts.map((item) => ({
@@ -174,17 +169,6 @@ export function buildWorkflowTasks(
       actionLabel: '去签约',
       actionPath: `/property-rental/leases?source_viewing_record_id=${item.id}`,
     })),
-    ...contractMissingLeases.map((item) => ({
-      key: `lease-${item.id}`,
-      queueKey: 'contract' as const,
-      queue: '合同待归档',
-      title: `${item.tenant_name || '租客'} 待补合同`,
-      house: houseLabel(item),
-      status: '合同缺失',
-      nextStep: '补齐合同文件，避免履约资料断档',
-      actionLabel: '补合同',
-      actionPath: `/property-rental/leases?house_id=${item.house_id}&task=contract&edit=${item.id}`,
-    })),
   ];
 }
 
@@ -201,33 +185,9 @@ const WorkbenchPage: React.FC = () => {
   const [workflowFilter, setWorkflowFilter] = useState<WorkflowFilterValue>(initialFilters.workflowFilter);
   const [publishConfirmHouseId, setPublishConfirmHouseId] = useState<number | null>(null);
   const enabled = Boolean(workspace.selectedOrgSlug);
-  const houseOverviewQueries = useQueries({
-    queries: [
-      {
-        queryKey: ['house', 'workbench', 'house-overview', workspace.selectedOrgSlug, 'total'],
-        queryFn: () => houseApi.listHouses({ page: 1, page_size: 1 }),
-        enabled,
-      },
-      {
-        queryKey: ['house', 'workbench', 'house-overview', workspace.selectedOrgSlug, 'blocked'],
-        queryFn: () => houseApi.listHouses({ page: 1, page_size: 1, publish_blocked: true }),
-        enabled,
-      },
-      {
-        queryKey: ['house', 'workbench', 'house-overview', workspace.selectedOrgSlug, 'ready'],
-        queryFn: () => houseApi.listHouses({ page: 1, page_size: 1, publish_ready: true }),
-        enabled,
-      },
-    ],
-  });
-  const blockedHouses = useQuery({
-    queryKey: ['house', 'workbench', 'blocked-houses', workspace.selectedOrgSlug],
-    queryFn: () => houseApi.listHouses({ page: 1, page_size: 5, publish_blocked: true }),
-    enabled,
-  });
-  const readyHouses = useQuery({
-    queryKey: ['house', 'workbench', 'ready-houses', workspace.selectedOrgSlug],
-    queryFn: () => houseApi.listHouses({ page: 1, page_size: 5, publish_ready: true }),
+  const houses = useQuery({
+    queryKey: ['house', 'workbench', 'houses', workspace.selectedOrgSlug],
+    queryFn: () => houseApi.listHouses({ page: 1, page_size: 100 }),
     enabled,
   });
   const pendingLeaseMissingContacts = useQuery({
@@ -240,11 +200,6 @@ const WorkbenchPage: React.FC = () => {
     queryFn: () => houseApi.listViewingRecords({ page: 1, page_size: 5, pending_lease: true, contact_missing: false }),
     enabled,
   });
-  const contractMissingLeases = useQuery({
-    queryKey: ['house', 'workbench', 'contract-missing-leases', workspace.selectedOrgSlug],
-    queryFn: () => houseApi.listLeases({ page: 1, page_size: 5, contract_missing: true }),
-    enabled,
-  });
   const patchHouse = useMutation({
     mutationFn: ({ id, values }: { id: number; values: Record<string, unknown> }) => houseApi.patchHouse(id, values),
     onSuccess: async () => {
@@ -254,26 +209,26 @@ const WorkbenchPage: React.FC = () => {
     },
   });
 
-  const totalHouseCount = houseOverviewQueries[0]?.data?.total || 0;
-  const blockedCount = houseOverviewQueries[1]?.data?.total || 0;
-  const readyCount = houseOverviewQueries[2]?.data?.total || 0;
+  const houseItems = houses.data?.items || [];
+  const blockedHouseItems = houseItems.filter((house) => house.publish_status !== 'published' && !canHousePublish(house));
+  const readyHouseItems = houseItems.filter((house) => house.publish_status !== 'published' && canHousePublish(house));
+  const totalHouseCount = houses.data?.total || 0;
+  const blockedCount = blockedHouseItems.length;
+  const readyCount = readyHouseItems.length;
   const missingContactCount = pendingLeaseMissingContacts.data?.total || 0;
   const readyLeaseCount = pendingLeaseReady.data?.total || 0;
-  const contractMissingCount = contractMissingLeases.data?.total || 0;
   const overviewItems = [
     { key: 'total', title: '在管房源', value: totalHouseCount },
     { key: 'blocked', title: '阻断发布', value: blockedCount },
     { key: 'ready', title: '可发布', value: readyCount },
     { key: 'contact-missing', title: '待补租客', value: missingContactCount },
     { key: 'lease', title: '待签约', value: readyLeaseCount },
-    { key: 'contract', title: '待补合同', value: contractMissingCount },
   ];
   const visibleOverviewItems = overviewItems.filter((item, index) => index === 0 || item.value > 0);
-  const publishWorkbenchRows = buildPublishWorkbenchRows(blockedHouses.data?.items || [], readyHouses.data?.items || []);
+  const publishWorkbenchRows = buildPublishWorkbenchRows(blockedHouseItems.slice(0, 5), readyHouseItems.slice(0, 5));
   const workflowTasks = buildWorkflowTasks(
     pendingLeaseMissingContacts.data?.items || [],
     pendingLeaseReady.data?.items || [],
-    contractMissingLeases.data?.items || [],
   );
   const filteredPublishWorkbenchRows = useMemo(() => {
     if (publishFilter === 'blocked') return publishWorkbenchRows.filter((item) => item.stage === 'blocked');
@@ -364,9 +319,12 @@ const WorkbenchPage: React.FC = () => {
           </Space>
         )}
       >
-        <Table<PublishWorkbenchRow>
+        <ProTable<PublishWorkbenchRow>
           rowKey="key"
-          loading={blockedHouses.isLoading || readyHouses.isLoading}
+          loading={houses.isLoading}
+          search={false}
+          options={false}
+          ghost
           columns={[
             { title: '房源', dataIndex: 'house', render: (_value, record) => houseLabel(record.house) },
             {
@@ -406,8 +364,8 @@ const WorkbenchPage: React.FC = () => {
                   <Typography.Text>{record.actionHint}</Typography.Text>
                   <Typography.Text type="secondary">
                     {record.stage === 'blocked'
-                      ? `${record.house.landlord_id ? contactLabel({ id: record.house.landlord_id || undefined, landlord_name: record.house.landlord_name, landlord_phone: record.house.landlord_phone }) : '待补房东'} / ${moneyText(record.house.asking_rent)} / ${houseMediaReadinessText(record.house)}`
-                      : `${contactLabel({ id: record.house.landlord_id || undefined, landlord_name: record.house.landlord_name, landlord_phone: record.house.landlord_phone })} / ${moneyText(record.house.asking_rent)} / ${houseMediaReadinessText(record.house)}`}
+                      ? `${record.house.landlord_id ? contactLabel(record.house) : '待补房东'} / ${moneyText(record.house.asking_rent)} / ${houseMediaReadinessText(record.house)}`
+                      : `${contactLabel(record.house)} / ${moneyText(record.house.asking_rent)} / ${houseMediaReadinessText(record.house)}`}
                   </Typography.Text>
                 </Space>
               ),
@@ -415,10 +373,12 @@ const WorkbenchPage: React.FC = () => {
             {
               title: '操作',
               dataIndex: 'actions',
+              fixed: 'right',
+              width: 140,
               render: (_value, record) => {
                 const actionHref = dashboardHref(record.actionPath);
                 return (
-                  <Space size={8} wrap>
+                  <Space size={8} wrap={false} style={{ whiteSpace: 'nowrap' }}>
                     <a
                       href={actionHref}
                       onClick={(event) => openDashboardPath(record.actionPath, event)}
@@ -466,7 +426,7 @@ const WorkbenchPage: React.FC = () => {
       </Modal>
 
       <Card
-        title="成交转签与合同"
+        title="成交转签"
         style={{ marginTop: 16 }}
         extra={(
           <Space wrap size={[8, 8]}>
@@ -476,7 +436,6 @@ const WorkbenchPage: React.FC = () => {
                 { label: `全部 ${workflowTasks.length}`, value: 'all' },
                 { label: `待补租客 ${missingContactCount}`, value: 'contact-missing' },
                 { label: `待签约 ${readyLeaseCount}`, value: 'converted' },
-                { label: `待补合同 ${contractMissingCount}`, value: 'contract' },
               ]}
               value={workflowFilter}
               onChange={(value) => setWorkflowFilter(value as WorkflowFilterValue)}
@@ -484,8 +443,11 @@ const WorkbenchPage: React.FC = () => {
           </Space>
         )}
       >
-        <Table<WorkflowTaskRow>
+        <ProTable<WorkflowTaskRow>
           rowKey="key"
+          search={false}
+          options={false}
+          ghost
           columns={[
             { title: '任务队列', dataIndex: 'queue' },
             { title: '任务', dataIndex: 'title' },
@@ -493,14 +455,16 @@ const WorkbenchPage: React.FC = () => {
             {
               title: '状态',
               dataIndex: 'status',
-              render: (value) => <Tag color={value === '合同缺失' ? 'orange' : value === '待补租客' ? 'gold' : 'purple'}>{value}</Tag>,
+              render: (value) => <Tag color={value === '待补租客' ? 'gold' : 'purple'}>{value}</Tag>,
             },
             { title: '下一步', dataIndex: 'nextStep', render: (value) => <Typography.Text type="secondary">{value}</Typography.Text> },
             {
               title: '操作',
               dataIndex: 'actions',
+              fixed: 'right',
+              width: 120,
               render: (_value, record) => (
-                <Space size={8} wrap>
+                <Space size={8} wrap={false} style={{ whiteSpace: 'nowrap' }}>
                   <a
                     href={dashboardHref(record.actionPath)}
                     onClick={(event) => openDashboardPath(record.actionPath, event)}
@@ -513,7 +477,7 @@ const WorkbenchPage: React.FC = () => {
           ]}
           dataSource={filteredWorkflowTasks}
           pagination={false}
-          locale={{ emptyText: workflowFilter === 'all' ? '暂无成交转签或合同待办' : '当前筛选下暂无待办' }}
+          locale={{ emptyText: workflowFilter === 'all' ? '暂无成交转签待办' : '当前筛选下暂无待办' }}
           scroll={adminTableScroll}
         />
       </Card>

@@ -168,23 +168,44 @@ export function dateTimeInputValue(value?: string | null) {
   return offsetDate.toISOString().slice(0, 16);
 }
 
-export function houseLabel(house?: { id?: number; room_number?: string | null; house_label?: string | null; estate_name?: string | null; building_name?: string | null }) {
+type EstateLabelSource = { name?: string | null; display_name?: string | null };
+type BuildingLabelSource = { id?: number; name?: string | null; estate?: EstateLabelSource | null };
+type HouseLabelSource = {
+  id?: number;
+  room_number?: string | null;
+  label?: string | null;
+  building?: BuildingLabelSource | null;
+  house?: HouseLabelSource | null;
+};
+type ContactLabelSource = {
+  id?: number;
+  name?: string | null;
+  phone?: string | null;
+  landlord?: ContactLabelSource | null;
+  contact?: ContactLabelSource | null;
+  tenant?: ContactLabelSource | null;
+};
+
+export function houseLabel(source?: HouseLabelSource) {
+  const house = source?.house || source;
   if (!house) return '-';
-  if (house.house_label) return house.house_label;
-  const scopedLabel = [house.estate_name, house.building_name, house.room_number].filter(Boolean).join(' / ');
+  if (house.label) return house.label;
+  const estateName = house.building?.estate?.display_name || house.building?.estate?.name;
+  const scopedLabel = [estateName, house.building?.name, house.room_number].filter(Boolean).join(' / ');
   if (scopedLabel) return scopedLabel;
-  return house.room_number || `房源 #${house.id}`;
+  return house.id ? `房源 #${house.id}` : '-';
 }
 
-export function buildingLabel(building?: { id?: number; name?: string | null; estate_name?: string | null }) {
+export function buildingLabel(building?: BuildingLabelSource) {
   if (!building) return '-';
-  const name = building.name || `楼栋 #${building.id}`;
-  return [building.estate_name, name].filter(Boolean).join(' / ');
+  const name = building.name || (building.id ? `楼栋 #${building.id}` : '');
+  const estateName = building.estate?.display_name || building.estate?.name;
+  return [estateName, name].filter(Boolean).join(' / ') || '-';
 }
 
-export function contactLabel(contact?: { id?: number; name?: string | null; phone?: string | null; landlord_name?: string | null; landlord_phone?: string | null; tenant_name?: string | null; tenant_phone?: string | null; contact_name?: string | null; contact_phone?: string | null }) {
+export function contactLabel(source?: ContactLabelSource) {
+  const contact = source?.landlord || source?.contact || source?.tenant || source;
   if (!contact) return '-';
-  const name = contact.name || contact.landlord_name || contact.tenant_name || contact.contact_name || `联系人 #${contact.id}`;
-  const phone = contact.phone || contact.landlord_phone || contact.tenant_phone || contact.contact_phone;
-  return [name, phone].filter(Boolean).join(' / ');
+  const name = contact.name || (contact.id ? `联系人 #${contact.id}` : '');
+  return [name, contact.phone].filter(Boolean).join(' / ') || '-';
 }

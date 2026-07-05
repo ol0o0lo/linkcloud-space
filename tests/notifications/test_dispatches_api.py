@@ -5,6 +5,7 @@ import pytest
 from model_bakery import baker
 
 from apps.accounts.models import User
+from apps.notifications.constants import NotificationDispatchScope, NotificationDispatchStatus
 from apps.notifications.models import Notification, NotificationDispatch
 from apps.organizations.models import OrganizationMember
 from tests.api_helpers import api_data, api_error
@@ -74,9 +75,9 @@ class TestNotificationDispatchAPI:
         body = api_data(resp)
         dispatch = NotificationDispatch.objects.get(pk=body["id"])
         assert dispatch.owner_organization_id is None
-        assert dispatch.scope == NotificationDispatch.Scope.PLATFORM
-        assert body["scope__mapping"] == str(NotificationDispatch.Scope(body["scope"]).label)
-        assert body["status__mapping"] == str(NotificationDispatch.Status(body["status"]).label)
+        assert dispatch.scope == NotificationDispatchScope.PLATFORM
+        assert body["scope__mapping"] == str(NotificationDispatchScope(body["scope"]).label)
+        assert body["status__mapping"] == str(NotificationDispatchStatus(body["status"]).label)
         assert dispatch.created_by == self.superuser.username
         delay.assert_called_once_with(dispatch.pk)
 
@@ -150,9 +151,9 @@ class TestNotificationDispatchAPI:
         delay.assert_not_called()
 
     def test_tenant_owner_list_is_limited_to_current_org_owned_dispatches(self):
-        mine = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatch.Scope.USERS, scope_ids=[self.member.pk], title="Mine")
-        NotificationDispatch.objects.create(owner_organization=self.other_org, scope=NotificationDispatch.Scope.USERS, scope_ids=[self.outsider.pk], title="Other org")
-        NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.PLATFORM, scope_ids=[], title="Platform")
+        mine = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatchScope.USERS, scope_ids=[self.member.pk], title="Mine")
+        NotificationDispatch.objects.create(owner_organization=self.other_org, scope=NotificationDispatchScope.USERS, scope_ids=[self.outsider.pk], title="Other org")
+        NotificationDispatch.objects.create(scope=NotificationDispatchScope.PLATFORM, scope_ids=[], title="Platform")
         self._login_tenant_owner()
 
         resp = self.client.get(DISPATCHES_URL)
@@ -162,11 +163,11 @@ class TestNotificationDispatchAPI:
         assert body["total"] == 1
         row = body["items"][0]
         assert row["id"] == mine.pk
-        assert row["scope__mapping"] == str(NotificationDispatch.Scope(row["scope"]).label)
-        assert row["status__mapping"] == str(NotificationDispatch.Status(row["status"]).label)
+        assert row["scope__mapping"] == str(NotificationDispatchScope(row["scope"]).label)
+        assert row["status__mapping"] == str(NotificationDispatchStatus(row["status"]).label)
 
     def test_tenant_owner_can_get_accessible_dispatch_detail(self):
-        dispatch = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatch.Scope.USERS, scope_ids=[self.member.pk], title="Mine")
+        dispatch = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatchScope.USERS, scope_ids=[self.member.pk], title="Mine")
         self._login_tenant_owner()
 
         resp = self.client.get(_detail_url(dispatch.pk))
@@ -176,11 +177,11 @@ class TestNotificationDispatchAPI:
         assert body["id"] == dispatch.pk
         assert body["owner_organization_id"] == self.org.pk
         assert body["title"] == "Mine"
-        assert body["scope__mapping"] == str(NotificationDispatch.Scope(body["scope"]).label)
-        assert body["status__mapping"] == str(NotificationDispatch.Status(body["status"]).label)
+        assert body["scope__mapping"] == str(NotificationDispatchScope(body["scope"]).label)
+        assert body["status__mapping"] == str(NotificationDispatchStatus(body["status"]).label)
 
     def test_tenant_owner_can_list_delivery_rows_for_accessible_dispatch(self):
-        dispatch = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatch.Scope.USERS, scope_ids=[self.member.pk], title="Mine")
+        dispatch = NotificationDispatch.objects.create(owner_organization=self.org, scope=NotificationDispatchScope.USERS, scope_ids=[self.member.pk], title="Mine")
         notification = baker.make(Notification, dispatch=dispatch, recipient=self.member, organization=self.org, title="Delivered")
         baker.make(Notification, dispatch=dispatch, recipient=self.outsider, organization=self.other_org, title="Outsider")
         self._login_tenant_owner()

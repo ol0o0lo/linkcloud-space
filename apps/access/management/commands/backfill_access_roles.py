@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.access.constants import AccessRoleCode
+from apps.access.constants import AccessRoleCode, AccessScope
 from apps.access.models import AccessRole
 from apps.access.services import assign_team_role
 from apps.organizations.models import Organization, OrganizationMember
@@ -18,7 +18,7 @@ class Command(BaseCommand):
         role = AccessRole.objects.filter(
             is_active=True,
             is_system=True,
-            scope=AccessRole.Scope.TEAM,
+            scope=AccessScope.TEAM,
             code=AccessRoleCode.TEAM_STAFF,
         ).select_related("group").first()
         if role is None:

@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 
-from apps.access.constants import ACCESS_PERMISSION_MODEL
+from apps.access.constants import ACCESS_PERMISSION_MODEL, AccessScope
 from apps.access.exceptions import RoleInUseException
 from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
 from apps.organizations.models import OrganizationMember
@@ -67,14 +67,14 @@ def _permission_keys_for_groups(groups) -> set[str]:
     return keys
 
 
-def is_group_scope(group: Group, scope: AccessRole.Scope) -> bool:
+def is_group_scope(group: Group, scope: AccessScope) -> bool:
     try:
         return group.access_role.scope == scope
     except AccessRole.DoesNotExist:
         return False
 
 
-def list_available_roles(org, scope: AccessRole.Scope):
+def list_available_roles(org, scope: AccessScope):
     return (
         AccessRole.objects.select_related("group", "organization")
         .filter(is_active=True, scope=scope)
@@ -110,7 +110,7 @@ def list_team_role_bindings(team):
 @transaction.atomic
 def create_custom_role(
     org,
-    scope: AccessRole.Scope,
+    scope: AccessScope,
     name: str,
     permission_keys: list[str] | None = None,
     copy_from: AccessRole | None = None,
@@ -164,7 +164,7 @@ def delete_custom_role(role: AccessRole) -> None:
     role.group.delete()
 
 
-def _prepare_custom_role_identity(org, scope: AccessRole.Scope, *, name: str, code: str, group_name: str) -> None:
+def _prepare_custom_role_identity(org, scope: AccessScope, *, name: str, code: str, group_name: str) -> None:
     existing_name_roles = AccessRole.objects.select_related("group").filter(scope=scope, name=name).filter(Q(organization__isnull=True) | Q(organization=org))
     for role in existing_name_roles:
         _clear_or_reject_existing_role(role)
@@ -182,7 +182,7 @@ def _clear_or_reject_existing_role(role: AccessRole | None) -> None:
     delete_custom_role(role)
 
 
-def _validate_unique_role_name(org, scope: AccessRole.Scope, name: str, *, exclude_role: AccessRole | None = None) -> None:
+def _validate_unique_role_name(org, scope: AccessScope, name: str, *, exclude_role: AccessRole | None = None) -> None:
     qs = AccessRole.objects.filter(scope=scope, name=name).filter(Q(organization__isnull=True) | Q(organization=org))
     if exclude_role is not None:
         qs = qs.exclude(pk=exclude_role.pk)
@@ -200,13 +200,13 @@ def _normalize_role_name(name: str) -> str:
     return normalized
 
 
-def _generate_custom_role_code(org, scope: AccessRole.Scope, name: str) -> str:
+def _generate_custom_role_code(org, scope: AccessScope, name: str) -> str:
     digest = hashlib.sha1(f"{org.pk}:{scope}:{name}".encode(), usedforsecurity=False).hexdigest()[:12]
     return f"custom_{digest}"
 
 
 def assign_org_role(org, user_or_id, role: AccessRole):
-    _validate_assignable_role(role, org, AccessRole.Scope.ORG)
+    _validate_assignable_role(role, org, AccessScope.ORG)
     binding = OrganizationGroupBinding.objects.filter(
         organization=org,
         user_id=_as_user_id(user_or_id),
@@ -220,7 +220,7 @@ def assign_org_role(org, user_or_id, role: AccessRole):
 
 
 def assign_team_role(team, user_or_id, role: AccessRole):
-    _validate_assignable_role(role, team.organization, AccessRole.Scope.TEAM)
+    _validate_assignable_role(role, team.organization, AccessScope.TEAM)
     binding = TeamGroupBinding.objects.filter(
         team=team,
         user_id=_as_user_id(user_or_id),
@@ -245,7 +245,7 @@ def _as_user_id(user_or_id) -> int:
     return getattr(user_or_id, "pk", user_or_id)
 
 
-def _validate_assignable_role(role: AccessRole, org, scope: AccessRole.Scope) -> None:
+def _validate_assignable_role(role: AccessRole, org, scope: AccessScope) -> None:
     errors = {}
     if role.scope != scope:
         errors["role"] = "Role scope does not match the target binding scope."
@@ -281,7 +281,7 @@ def _copy_permissions(role: AccessRole | None) -> list[Permission]:
     return list(role.group.permissions.all())
 
 
-def _validate_copy_source(role: AccessRole, org, scope: AccessRole.Scope) -> None:
+def _validate_copy_source(role: AccessRole, org, scope: AccessScope) -> None:
     if not role.is_active:
         raise ValidationError({"copy_from": "Inactive roles cannot be copied."})
     if role.scope != scope:
@@ -295,5 +295,5 @@ def _validate_custom_role(role: AccessRole) -> None:
         raise ValidationError({"role": "System roles cannot be modified through this API."})
 
 
-def _group_name(org, scope: AccessRole.Scope, code: str) -> str:
+def _group_name(org, scope: AccessScope, code: str) -> str:
     return f"org:{org.pk}:{scope}:{code}"

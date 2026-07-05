@@ -4,7 +4,7 @@ import pytest
 from model_bakery import baker
 
 from apps.accounts.models import User
-from apps.notifications.constants import NotificationChannel
+from apps.notifications.constants import NotificationChannel, NotificationDispatchScope, NotificationDispatchStatus
 from apps.notifications.dispatches import execute_dispatch, resolve_dispatch_recipients
 from apps.notifications.models import Notification, NotificationDispatch, NotificationPreference
 from apps.notifications.tasks import dispatch_notification
@@ -14,7 +14,7 @@ from apps.organizations.models import OrganizationMember
 @pytest.mark.django_db
 class TestNotificationDispatchModel:
     def test_platform_scope_requires_empty_scope_ids(self):
-        dispatch = NotificationDispatch(scope=NotificationDispatch.Scope.PLATFORM, scope_ids=[1], title="Hello")
+        dispatch = NotificationDispatch(scope=NotificationDispatchScope.PLATFORM, scope_ids=[1], title="Hello")
 
         with pytest.raises(ValidationError) as exc:
             dispatch.full_clean()
@@ -22,7 +22,7 @@ class TestNotificationDispatchModel:
         assert "scope_ids" in exc.value.message_dict
 
     def test_non_platform_scope_requires_scope_ids(self):
-        dispatch = NotificationDispatch(scope=NotificationDispatch.Scope.USERS, scope_ids=[], title="Hello")
+        dispatch = NotificationDispatch(scope=NotificationDispatchScope.USERS, scope_ids=[], title="Hello")
 
         with pytest.raises(ValidationError) as exc:
             dispatch.full_clean()
@@ -30,7 +30,7 @@ class TestNotificationDispatchModel:
         assert "scope_ids" in exc.value.message_dict
 
     def test_scope_ids_must_be_list(self):
-        dispatch = NotificationDispatch(scope=NotificationDispatch.Scope.USERS, scope_ids={"id": 1}, title="Hello")
+        dispatch = NotificationDispatch(scope=NotificationDispatchScope.USERS, scope_ids={"id": 1}, title="Hello")
 
         with pytest.raises(ValidationError) as exc:
             dispatch.full_clean()
@@ -38,7 +38,7 @@ class TestNotificationDispatchModel:
         assert "scope_ids" in exc.value.message_dict
 
     def test_scope_ids_items_must_be_int(self):
-        dispatch = NotificationDispatch(scope=NotificationDispatch.Scope.USERS, scope_ids=["1"], title="Hello")
+        dispatch = NotificationDispatch(scope=NotificationDispatchScope.USERS, scope_ids=["1"], title="Hello")
 
         with pytest.raises(ValidationError) as exc:
             dispatch.full_clean()
@@ -46,7 +46,7 @@ class TestNotificationDispatchModel:
         assert "scope_ids" in exc.value.message_dict
 
     def test_notification_can_link_to_dispatch(self):
-        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.PLATFORM, scope_ids=[], title="Hello")
+        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatchScope.PLATFORM, scope_ids=[], title="Hello")
         notification = baker.make(Notification, dispatch=dispatch)
 
         assert notification.dispatch == dispatch
@@ -56,7 +56,7 @@ class TestNotificationDispatchModel:
 class TestNotificationDispatchExecution:
     def test_resolves_platform_recipients(self):
         users = [User.objects.create_user(username=f"user-{idx}") for idx in range(2)]
-        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.PLATFORM, scope_ids=[], title="Hello")
+        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatchScope.PLATFORM, scope_ids=[], title="Hello")
 
         recipients = resolve_dispatch_recipients(dispatch)
 
@@ -67,7 +67,7 @@ class TestNotificationDispatchExecution:
         member = User.objects.create_user(username="member")
         outsider = User.objects.create_user(username="outsider")
         OrganizationMember.objects.create(organization=org, user=member)
-        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.ORGANIZATION, scope_ids=[org.pk], title="Hello")
+        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatchScope.ORGANIZATION, scope_ids=[org.pk], title="Hello")
 
         recipients = resolve_dispatch_recipients(dispatch)
 
@@ -79,7 +79,7 @@ class TestNotificationDispatchExecution:
         member = User.objects.create_user(username="member")
         outsider = User.objects.create_user(username="outsider")
         OrganizationMember.objects.create(organization=org, user=member)
-        dispatch = NotificationDispatch.objects.create(owner_organization=org, scope=NotificationDispatch.Scope.USERS, scope_ids=[member.pk, outsider.pk], title="Hello")
+        dispatch = NotificationDispatch.objects.create(owner_organization=org, scope=NotificationDispatchScope.USERS, scope_ids=[member.pk, outsider.pk], title="Hello")
 
         recipients = resolve_dispatch_recipients(dispatch)
 
@@ -97,7 +97,7 @@ class TestNotificationDispatchExecution:
         OrganizationMember.objects.create(organization=external_org, user=external_member)
         dispatch = NotificationDispatch.objects.create(
             owner_organization=owner_org,
-            scope=NotificationDispatch.Scope.ORGANIZATION,
+            scope=NotificationDispatchScope.ORGANIZATION,
             scope_ids=[external_org.pk],
             title="Hello",
         )
@@ -109,12 +109,12 @@ class TestNotificationDispatchExecution:
     def test_execute_dispatch_creates_notifications_and_updates_counts(self, settings):
         settings.NOTIFICATIONS_CATEGORIES = [{"key": "ops", "label": "Ops", "default_channels": (NotificationChannel.IN_APP,)}]
         user = User.objects.create_user(username="alice")
-        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.USERS, scope_ids=[user.pk], category="ops", title="Hello", body="Body")
+        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatchScope.USERS, scope_ids=[user.pk], category="ops", title="Hello", body="Body")
 
         execute_dispatch(dispatch.pk)
 
         dispatch.refresh_from_db()
-        assert dispatch.status == NotificationDispatch.Status.SENT
+        assert dispatch.status == NotificationDispatchStatus.SENT
         assert dispatch.target_count == 1
         assert dispatch.delivered_count == 1
         assert dispatch.sent_at is not None
@@ -124,7 +124,7 @@ class TestNotificationDispatchExecution:
         settings.NOTIFICATIONS_CATEGORIES = [{"key": "ops", "label": "Ops", "default_channels": (NotificationChannel.IN_APP,)}]
         user = User.objects.create_user(username="alice")
         NotificationPreference.objects.create(user=user, category="ops", in_app=False)
-        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.USERS, scope_ids=[user.pk], category="ops", title="Hello")
+        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatchScope.USERS, scope_ids=[user.pk], category="ops", title="Hello")
 
         execute_dispatch(dispatch.pk)
 
@@ -144,7 +144,7 @@ class TestNotificationDispatchExecution:
         OrganizationMember.objects.create(organization=org_one, user=shared_member)
         OrganizationMember.objects.create(organization=org_two, user=member_two)
         OrganizationMember.objects.create(organization=org_two, user=shared_member)
-        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.ORGANIZATION, scope_ids=[org_one.pk, org_two.pk], category="ops", title="Hello")
+        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatchScope.ORGANIZATION, scope_ids=[org_one.pk, org_two.pk], category="ops", title="Hello")
 
         execute_dispatch(dispatch.pk)
 
@@ -160,7 +160,7 @@ class TestNotificationDispatchExecution:
         assert dispatch.delivered_count == 4
 
     def test_dispatch_notification_marks_failed_on_error(self, monkeypatch):
-        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.PLATFORM, scope_ids=[], title="Hello")
+        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatchScope.PLATFORM, scope_ids=[], title="Hello")
 
         def fail(_dispatch_id):
             raise RuntimeError("boom")
@@ -171,11 +171,11 @@ class TestNotificationDispatchExecution:
             dispatch_notification(dispatch.pk)
 
         dispatch.refresh_from_db()
-        assert dispatch.status == NotificationDispatch.Status.FAILED
+        assert dispatch.status == NotificationDispatchStatus.FAILED
         assert dispatch.error_message == "boom"
 
     def test_dispatch_notification_does_not_mark_sent_dispatch_failed(self, monkeypatch):
-        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatch.Scope.PLATFORM, scope_ids=[], title="Hello", status=NotificationDispatch.Status.SENT)
+        dispatch = NotificationDispatch.objects.create(scope=NotificationDispatchScope.PLATFORM, scope_ids=[], title="Hello", status=NotificationDispatchStatus.SENT)
 
         def fail(_dispatch_id):
             raise RuntimeError("boom")
@@ -186,5 +186,5 @@ class TestNotificationDispatchExecution:
             dispatch_notification(dispatch.pk)
 
         dispatch.refresh_from_db()
-        assert dispatch.status == NotificationDispatch.Status.SENT
+        assert dispatch.status == NotificationDispatchStatus.SENT
         assert dispatch.error_message == ""

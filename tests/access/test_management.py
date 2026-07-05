@@ -99,7 +99,7 @@ class SyncAccessPermissionsTests(TestCase):
         permission_registry = {"access": [("role_view", "查看访问角色"), ("role_manage", "管理访问角色")]}
         role_registry = {
             AccessRoleCode.ORG_ADMIN: {
-                "scope": AccessRole.Scope.ORG,
+                "scope": AccessScope.ORG,
                 "name": AccessRoleCode.ORG_ADMIN.label,
                 "permissions": [AccessPermission.ROLE_VIEW, AccessPermission.ROLE_MANAGE],
             }
@@ -110,7 +110,7 @@ class SyncAccessPermissionsTests(TestCase):
             permission_registry=permission_registry,
             role_registry={
                 AccessRoleCode.ORG_ADMIN: {
-                    "scope": AccessRole.Scope.ORG,
+                    "scope": AccessScope.ORG,
                     "name": AccessRoleCode.ORG_ADMIN.label,
                     "permissions": [AccessPermission.ROLE_VIEW, AccessPermission.ROLE_MANAGE],
                 }

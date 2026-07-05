@@ -7,7 +7,7 @@ from django.test import TestCase
 
 from model_bakery import baker
 
-from apps.access.constants import AccessPermission, FinancePermission
+from apps.access.constants import AccessPermission, AccessScope, FinancePermission
 from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
 from apps.accounts.models import User
 from apps.organizations.signals import user_logged_in_receiver
@@ -41,7 +41,7 @@ class TestAccessOrgAPI(AccessAPITestBase):
     def test_owner_can_list_permissions(self):
         make_access_group(
             "permission_list_role",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("finance", "finance_bill_view")],
         )
 
@@ -68,12 +68,12 @@ class TestAccessOrgAPI(AccessAPITestBase):
     def test_owner_can_list_org_roles_and_bindings(self):
         system_role = make_access_group(
             "org_admin_test",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("organizations", "member_manage")],
         )
         custom_role = make_access_group(
             "custom_role",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("organizations", "member_view")],
             organization=self.org,
         )
@@ -96,7 +96,7 @@ class TestAccessOrgAPI(AccessAPITestBase):
     def test_owner_can_create_and_delete_org_binding(self):
         role_group = make_access_group(
             "org_admin_binding_test",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("organizations", "member_manage")],
         )
 
@@ -119,7 +119,7 @@ class TestAccessOrgAPI(AccessAPITestBase):
     def test_owner_can_create_update_and_delete_custom_org_role(self):
         system_role = make_access_group(
             "org_finance_copy_source",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("finance", "finance_bill_view")],
         ).access_role
 
@@ -197,7 +197,7 @@ class TestAccessOrgAPI(AccessAPITestBase):
     def test_owner_cannot_create_org_role_with_system_role_name(self):
         make_access_group(
             "system_same_name",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("finance", "finance_bill_view")],
         )
 
@@ -342,7 +342,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
 
         self.assertEqual(resp.status_code, 201)
         role = api_data(resp)
-        self.assertEqual(role["scope"], AccessRole.Scope.TEAM)
+        self.assertEqual(role["scope"], AccessScope.TEAM)
         self.assertEqual(role["permission_keys"], [FinancePermission.BILL_VIEW])
 
     def test_owner_cannot_create_team_role_with_duplicate_name(self):
@@ -421,12 +421,12 @@ class TestAccessTeamAPI(AccessAPITestBase):
         self.team.members.add(manager, teammate)
         team_manager_group = make_access_group(
             "team_manager_api_test",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("access", "team_role_manage"), ("access", "team_role_view"), ("teams", "team_view")],
         )
         team_staff_group = make_access_group(
             "team_staff_api_test",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("teams", "team_view")],
         )
         bind_team_role(self.team, manager, team_manager_group)
@@ -471,12 +471,12 @@ class TestAccessTeamAPI(AccessAPITestBase):
         self.team.members.add(manager, teammate)
         team_manager_group = make_access_group(
             "team_member_manager_limited_test",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("teams", "team_member_manage"), ("teams", "team_view")],
         )
         team_staff_group = make_access_group(
             "team_staff_limited_test",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("teams", "team_view")],
         )
         bind_team_role(self.team, manager, team_manager_group)
@@ -504,7 +504,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
         self.team.members.add(manager, teammate)
         role_manager_group = make_access_group(
             "team_role_manager_api_test",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [
                 tuple(AccessPermission.TEAM_ROLE_MANAGE.split(".", 1)),
                 tuple(AccessPermission.TEAM_ROLE_VIEW.split(".", 1)),
@@ -512,7 +512,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
         )
         team_staff_group = make_access_group(
             "team_staff_role_manager_test",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("teams", "team_view")],
         )
         bind_team_role(self.team, manager, role_manager_group)
@@ -540,12 +540,12 @@ class TestAccessTeamAPI(AccessAPITestBase):
         baker.make("organizations.OrganizationMember", organization=self.org, user=teammate, is_owner=False)
         member_manager_group = make_access_group(
             "org_member_manager_limited_test",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("organizations", "member_manage"), ("organizations", "member_view")],
         )
         org_admin_group = make_access_group(
             "org_admin_assignment_target_test",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("organizations", "member_manage")],
         )
         OrganizationGroupBinding.objects.create(organization=self.org, user=member_manager, group=member_manager_group)
@@ -572,12 +572,12 @@ class TestAccessTeamAPI(AccessAPITestBase):
         baker.make("organizations.OrganizationMember", organization=self.org, user=teammate, is_owner=False)
         role_manager_group = make_access_group(
             "org_role_manager_api_test",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [tuple(AccessPermission.ROLE_MANAGE.split(".", 1)), tuple(AccessPermission.ROLE_VIEW.split(".", 1))],
         )
         org_viewer_group = make_access_group(
             "org_viewer_assignment_target_test",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("organizations", "member_view")],
         )
         OrganizationGroupBinding.objects.create(organization=self.org, user=role_manager, group=role_manager_group)
@@ -608,12 +608,12 @@ class TestAccessTeamAPI(AccessAPITestBase):
         other_team.members.add(manager, teammate)
         team_manager_group = make_access_group(
             "team_manager_other_team_test",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("teams", "team_member_manage"), ("teams", "team_view")],
         )
         team_staff_group = make_access_group(
             "team_staff_other_team_test",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("teams", "team_view")],
         )
         bind_team_role(self.team, manager, team_manager_group)

@@ -3,7 +3,7 @@ import json
 import pytest
 from model_bakery import baker
 
-from apps.access.models import AccessRole
+from apps.access.constants import AccessScope
 from apps.accounts.models import User
 from apps.organizations.models import OrganizationMember
 from apps.settings.models import DefaultSetting, OrganizationSetting
@@ -97,7 +97,7 @@ class TestOrgSettingList:
     def test_member_with_view_permission_can_list(self, client, default_text, org, member):
         group = make_access_group(
             "org_settings_viewer",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("settings", "org_setting_view")],
         )
         bind_org_role(org, member, group)
@@ -111,7 +111,7 @@ class TestOrgSettingList:
     def test_response_includes_description_and_value_type(self, client, default_text, org, member):
         group = make_access_group(
             "org_settings_viewer_details",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("settings", "org_setting_view")],
         )
         bind_org_role(org, member, group)
@@ -130,7 +130,7 @@ class TestOrgSettingList:
     def test_password_value_masked(self, client, default_password, org, member):
         group = make_access_group(
             "org_settings_viewer_password",
-            AccessRole.Scope.ORG,
+            AccessScope.ORG,
             [("settings", "org_setting_view")],
         )
         bind_org_role(org, member, group)
@@ -187,7 +187,7 @@ class TestTeamSettingDetail:
         team.members.add(member)
         group = make_access_group(
             "team_settings_viewer",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("settings", "team_setting_view")],
         )
         bind_team_role(team, member, group)
@@ -213,7 +213,7 @@ class TestTeamSettingDetail:
         team.members.add(member)
         group = make_access_group(
             "team_manager_for_settings",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("settings", "team_setting_manage")],
         )
         bind_team_role(team, member, group)
@@ -232,7 +232,7 @@ class TestTeamSettingDetail:
         other_team.members.add(member)
         group = make_access_group(
             "team_manager_for_settings_other",
-            AccessRole.Scope.TEAM,
+            AccessScope.TEAM,
             [("settings", "team_setting_manage")],
         )
         bind_team_role(team, member, group)

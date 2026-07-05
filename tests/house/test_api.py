@@ -9,12 +9,13 @@ from django.utils import timezone
 from model_bakery import baker
 
 from apps.accounts.models import User
+from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.house.schemas import ContactIn, ContactPatchIn, HouseIn, LeaseIn, ViewingRecordIn
 from apps.media.constants import MediaType, ResourceType
 from apps.media.services import register_media_file
 from apps.organizations.signals import user_logged_in_receiver
-from apps.settings.models import DefaultSetting, OrganizationSetting
+from apps.settings.models import OrganizationSetting
 from tests.api_helpers import api_data, api_error
 
 
@@ -33,7 +34,7 @@ class HouseApiTestCase(TestCase):
         session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": True})
         session.save()
         self.estate = Estate.objects.create(
-            organization=self.org, name="云岸", display_name="云岸", property_type=Estate.PropertyType.RESIDENTIAL, province="广东", city="深圳", district="南山", address="科技园"
+            organization=self.org, name="云岸", display_name="云岸", property_type=EstatePropertyType.RESIDENTIAL, province="广东", city="深圳", district="南山", address="科技园"
         )
         self.building = Building.objects.create(organization=self.org, estate=self.estate, name="1栋", floors=20)
 
@@ -43,15 +44,15 @@ class HouseApiTestCase(TestCase):
             organization=other_org,
             name="异租户项目",
             display_name="异租户项目",
-            property_type=Estate.PropertyType.RESIDENTIAL,
+            property_type=EstatePropertyType.RESIDENTIAL,
             province="广东",
             city="深圳",
             district="福田",
             address="车公庙",
         )
         other_building = Building.objects.create(organization=other_org, estate=other_estate, name="2栋", floors=10)
-        other_landlord = Contact.objects.create(organization=other_org, name="异租户房东", phone="13800138222", roles=[Contact.Role.LANDLORD])
-        other_tenant = Contact.objects.create(organization=other_org, name="异租户租客", phone="13900139222", roles=[Contact.Role.TENANT])
+        other_landlord = Contact.objects.create(organization=other_org, name="异租户房东", phone="13800138222", roles=[ContactRole.LANDLORD])
+        other_tenant = Contact.objects.create(organization=other_org, name="异租户租客", phone="13900139222", roles=[ContactRole.TENANT])
         other_house = House.objects.create(building=other_building, landlord=other_landlord, room_number="201")
         return other_org, other_house, other_landlord, other_tenant
 
@@ -106,7 +107,7 @@ class HouseApiTestCase(TestCase):
                 {
                     "name": "待补地址项目",
                     "display_name": "待补地址项目",
-                    "property_type": Estate.PropertyType.RESIDENTIAL,
+                    "property_type": EstatePropertyType.RESIDENTIAL,
                     "province": "广东",
                     "city": "深圳",
                     "district": "南山",
@@ -145,7 +146,7 @@ class HouseApiTestCase(TestCase):
                 {
                     "building_id": self.building.pk,
                     "room_number": "1502A",
-                    "status": House.Status.LOCKED,
+                    "status": HouseStatus.LOCKED,
                     "is_active": False,
                     "extra": {"source": "api"},
                     "internal_notes": "only staff later",
@@ -162,8 +163,11 @@ class HouseApiTestCase(TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201)
-        house = House.objects.get(pk=api_data(response)["id"])
-        self.assertEqual(house.status, House.Status.VACANT)
+        payload = api_data(response)
+        self.assertIsNone(payload["landlord_id"])
+        self.assertIsNone(payload["landlord"])
+        house = House.objects.get(pk=payload["id"])
+        self.assertEqual(house.status, HouseStatus.VACANT)
         self.assertTrue(house.is_active)
         self.assertEqual(house.extra, {})
         self.assertEqual(house.internal_notes, "")
@@ -177,7 +181,6 @@ class HouseApiTestCase(TestCase):
                     "room_number": "1601",
                     "asking_rent": "4200.00",
                     "deposit_amount": "4200.00",
-                    "available_from": "2026-07-01",
                 }
             ),
             content_type="application/json",
@@ -188,7 +191,6 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["publish_status"], "draft")
         self.assertEqual(payload["asking_rent"], "4200.00")
         self.assertEqual(payload["deposit_amount"], "4200.00")
-        self.assertEqual(payload["available_from"], "2026-07-01")
 
         patched = self.client.patch(
             f"/api/house/houses/{payload['id']}/",
@@ -203,7 +205,7 @@ class HouseApiTestCase(TestCase):
 
     def test_list_houses_filters_by_publish_status(self):
         draft_house = House.objects.create(building=self.building, room_number="1701")
-        published_house = House.objects.create(building=self.building, room_number="1702", publish_status=House.PublishStatus.PUBLISHED)
+        published_house = House.objects.create(building=self.building, room_number="1702", publish_status=HousePublishStatus.PUBLISHED)
 
         response = self.client.get("/api/house/houses/?publish_status=published")
 
@@ -218,7 +220,7 @@ class HouseApiTestCase(TestCase):
             organization=self.org,
             name="海风里",
             display_name="海风里花园",
-            property_type=Estate.PropertyType.RESIDENTIAL,
+            property_type=EstatePropertyType.RESIDENTIAL,
             province="广东",
             city="深圳",
             district="南山",
@@ -235,197 +237,15 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["total"], 1)
         self.assertEqual([item["id"] for item in payload["items"]], [other_house.pk])
 
-    def test_list_houses_filters_by_publish_issue_before_pagination(self):
-        landlord = Contact.objects.create(organization=self.org, name="发布房东", phone="13800138666", roles=[Contact.Role.LANDLORD])
-        media_index = 0
-
-        def image_ref(role):
-            nonlocal media_index
-            media_index += 1
-            media = register_media_file(
-                uploader=self.user,
-                oss_path=f"uploads/orgs/{self.org.pk}/house-{media_index}.jpg",
-                original_filename=f"house-{media_index}.jpg",
-                resource_type=ResourceType.HOUSE_IMAGE,
-                file_size=100,
-            )
-            return {"media_id": media.pk, "media_type": MediaType.IMAGE, "image_role": role}
-
-        def images(*roles):
-            return [image_ref(role) for role in roles]
-
-        House.objects.create(
-            building=self.building,
-            landlord=landlord,
-            room_number="1800",
-            asking_rent=Decimal("4200.00"),
-            images=images("cover", "floor_plan", "bedroom"),
-        )
-        missing_landlord = House.objects.create(building=self.building, room_number="1801", asking_rent=Decimal("4200.00"), images=images("cover", "floor_plan", "bedroom"))
-        missing_rent = House.objects.create(building=self.building, landlord=landlord, room_number="1802", images=images("cover", "floor_plan", "bedroom"))
-        missing_cover = House.objects.create(
-            building=self.building,
-            landlord=landlord,
-            room_number="1803",
-            asking_rent=Decimal("4200.00"),
-            images=images("floor_plan", "bedroom", "kitchen"),
-        )
-        few_images = House.objects.create(building=self.building, landlord=landlord, room_number="1804", asking_rent=Decimal("4200.00"), images=images("cover", "floor_plan"))
-        missing_floor_plan = House.objects.create(
-            building=self.building,
-            landlord=landlord,
-            room_number="1805",
-            asking_rent=Decimal("4200.00"),
-            images=images("cover", "bedroom", "kitchen"),
-        )
-
-        expected = {
-            "landlord": missing_landlord.pk,
-            "rent": missing_rent.pk,
-            "cover": missing_cover.pk,
-            "images": few_images.pk,
-            "floor_plan": missing_floor_plan.pk,
-        }
-        for issue, house_id in expected.items():
-            with self.subTest(issue=issue):
-                response = self.client.get(f"/api/house/houses/?publish_issue={issue}&page=1&page_size=1")
-                payload = api_data(response)
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(payload["total"], 1)
-                self.assertEqual([item["id"] for item in payload["items"]], [house_id])
-
-    def test_list_houses_filters_publish_blocked_and_ready_before_pagination(self):
-        landlord = Contact.objects.create(organization=self.org, name="发布房东", phone="13800138666", roles=[Contact.Role.LANDLORD])
-        media_index = 0
-
-        def image_ref(role):
-            nonlocal media_index
-            media_index += 1
-            media = register_media_file(
-                uploader=self.user,
-                oss_path=f"uploads/orgs/{self.org.pk}/ready-house-{media_index}.jpg",
-                original_filename=f"ready-house-{media_index}.jpg",
-                resource_type=ResourceType.HOUSE_IMAGE,
-                file_size=100,
-            )
-            return {"media_id": media.pk, "media_type": MediaType.IMAGE, "image_role": role}
-
-        blocked_house = House.objects.create(
-            building=self.building,
-            landlord=None,
-            room_number="1810",
-            asking_rent=Decimal("4200.00"),
-            images=[image_ref("bedroom")],
-        )
-        ready_house = House.objects.create(
-            building=self.building,
-            landlord=landlord,
-            room_number="1811",
-            asking_rent=Decimal("4300.00"),
-            images=[image_ref("cover"), image_ref("floor_plan"), image_ref("living_room")],
-        )
-        House.objects.create(
-            building=self.building,
-            landlord=landlord,
-            room_number="1812",
-            asking_rent=Decimal("4400.00"),
-            publish_status=House.PublishStatus.PUBLISHED,
-            images=[image_ref("cover"), image_ref("floor_plan"), image_ref("bedroom")],
-        )
-
-        blocked_response = self.client.get("/api/house/houses/?publish_blocked=true&page=1&page_size=1")
-        blocked_payload = api_data(blocked_response)
-        self.assertEqual(blocked_response.status_code, 200)
-        self.assertEqual(blocked_payload["total"], 1)
-        self.assertEqual([item["id"] for item in blocked_payload["items"]], [blocked_house.pk])
-
-        ready_response = self.client.get("/api/house/houses/?publish_ready=true&page=1&page_size=1")
-        ready_payload = api_data(ready_response)
-        self.assertEqual(ready_response.status_code, 200)
-        self.assertEqual(ready_payload["total"], 1)
-        self.assertEqual([item["id"] for item in ready_payload["items"]], [ready_house.pk])
-        self.assertFalse(blocked_payload["items"][0]["publish_can_publish"])
-        self.assertEqual(blocked_payload["items"][0]["publish_blocking_issues"], ["缺房东"])
-        self.assertEqual(blocked_payload["items"][0]["publish_warning_issues"], ["缺封面", "图片不足", "缺户型图"])
-        self.assertTrue(ready_payload["items"][0]["publish_can_publish"])
-        self.assertEqual(ready_payload["items"][0]["publish_blocking_issues"], [])
-
-    def test_list_houses_respects_org_publish_rules_for_blocking_vs_warning(self):
-        landlord = Contact.objects.create(organization=self.org, name="发布房东", phone="13800138666", roles=[Contact.Role.LANDLORD])
-        setting = DefaultSetting.objects.create(
-            key="property_rental.publish_rules",
-            value={
-                "landlord": {"mode": "required", "label": "房东主体"},
-                "rent": {"mode": "required", "label": "租金"},
-                "cover": {"mode": "warn", "label": "封面图"},
-                "images": {"mode": "warn", "label": "房源图片", "min_count": 3},
-                "floor_plan": {"mode": "warn", "label": "户型图"},
-                "video": {"mode": "off", "label": "视频", "min_count": 1},
-            },
-            value_type="json",
-            category="property_rental",
-        )
-        OrganizationSetting.objects.create(
-            organization=self.org,
-            setting=setting,
-            value={
-                "landlord": {"mode": "required"},
-                "rent": {"mode": "required"},
-                "cover": {"mode": "warn"},
-                "images": {"mode": "warn", "min_count": 3},
-                "floor_plan": {"mode": "warn"},
-                "video": {"mode": "off", "min_count": 1},
-            },
-        )
-        media_index = 0
-
-        def image_ref(role):
-            nonlocal media_index
-            media_index += 1
-            media = register_media_file(
-                uploader=self.user,
-                oss_path=f"uploads/orgs/{self.org.pk}/publish-rules-{media_index}.jpg",
-                original_filename=f"publish-rules-{media_index}.jpg",
-                resource_type=ResourceType.HOUSE_IMAGE,
-                file_size=100,
-            )
-            return {"media_id": media.pk, "media_type": MediaType.IMAGE, "image_role": role}
-
-        warning_only_house = House.objects.create(
-            building=self.building,
-            landlord=landlord,
-            room_number="1901",
-            asking_rent=Decimal("6200.00"),
-            images=[image_ref("bedroom")],
-        )
-        blocked_house = House.objects.create(
-            building=self.building,
-            landlord=landlord,
-            room_number="1902",
-            asking_rent=None,
-            images=[image_ref("cover"), image_ref("floor_plan"), image_ref("bedroom")],
-        )
-
-        blocked_response = self.client.get("/api/house/houses/?publish_blocked=true")
-        blocked_payload = api_data(blocked_response)
-        ready_response = self.client.get("/api/house/houses/?publish_ready=true")
-        ready_payload = api_data(ready_response)
-
-        self.assertEqual([item["id"] for item in blocked_payload["items"]], [blocked_house.pk])
-        self.assertEqual(blocked_payload["items"][0]["publish_blocking_issues"], ["缺租金"])
-        self.assertEqual([item["id"] for item in ready_payload["items"]], [warning_only_house.pk])
-        self.assertTrue(ready_payload["items"][0]["publish_can_publish"])
-        self.assertEqual(ready_payload["items"][0]["publish_warning_issues"], ["缺封面", "图片不足", "缺户型图"])
-
     def test_admin_list_responses_include_display_labels(self):
-        landlord = Contact.objects.create(organization=self.org, name="展示房东", phone="13800138001", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="展示租客", phone="13900139001", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="展示房东", phone="13800138001", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="展示租客", phone="13900139001", roles=[ContactRole.TENANT])
         house = House.objects.create(
             building=self.building,
             landlord=landlord,
             room_number="1801",
-            orientation=House.Orientation.SOUTH_NORTH,
-            decoration=House.Decoration.FINE,
+            orientation=HouseOrientation.SOUTH_NORTH,
+            decoration=HouseDecoration.FINE,
         )
         viewing = ViewingRecord.objects.create(
             organization=self.org,
@@ -434,7 +254,7 @@ class HouseApiTestCase(TestCase):
             customer_name="展示客户",
             customer_phone="13900139001",
             scheduled_at=timezone.now(),
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
         Lease.objects.create(
             organization=self.org,
@@ -450,31 +270,70 @@ class HouseApiTestCase(TestCase):
         contact_payload = api_data(self.client.get("/api/house/contacts/?keyword=展示房东"))["items"][0]
         building_payload = api_data(self.client.get("/api/house/buildings/"))["items"][0]
         house_payload = api_data(self.client.get("/api/house/houses/?keyword=1801"))["items"][0]
+        landlord_house_payload = api_data(self.client.get("/api/house/houses/?keyword=展示房东"))["items"][0]
+        building_house_payload = api_data(self.client.get("/api/house/houses/?keyword=1栋"))["items"][0]
         viewing_payload = api_data(self.client.get("/api/house/viewing-records/?status=converted"))["items"][0]
         lease_payload = api_data(self.client.get("/api/house/leases/"))["items"][0]
+        expected_house_label = f"{self.estate.display_name or self.estate.name} / {self.building.name} / {house.room_number}"
 
-        self.assertEqual(estate_payload["property_type__mapping"], Estate.PropertyType.get_choice_label(estate_payload["property_type"]))
-        self.assertEqual(contact_payload["roles__mapping"], [Contact.Role.get_choice_label(Contact.Role.LANDLORD)])
-        self.assertEqual(building_payload["estate_name"], "云岸")
-        self.assertEqual(house_payload["estate_name"], "云岸")
-        self.assertEqual(house_payload["building_name"], "1栋")
-        self.assertEqual(house_payload["house_label"], "云岸 / 1栋 / 1801")
-        self.assertEqual(house_payload["landlord_name"], "展示房东")
-        self.assertEqual(house_payload["landlord_phone"], "+8613800138001")
-        self.assertEqual(house_payload["orientation__mapping"], House.Orientation.get_choice_label(house_payload["orientation"]))
-        self.assertEqual(house_payload["decoration__mapping"], House.Decoration.get_choice_label(house_payload["decoration"]))
-        self.assertEqual(house_payload["status__mapping"], House.Status.get_choice_label(house_payload["status"]))
-        self.assertEqual(house_payload["publish_status__mapping"], House.PublishStatus.get_choice_label(house_payload["publish_status"]))
-        self.assertEqual(viewing_payload["house_label"], "云岸 / 1栋 / 1801")
-        self.assertEqual(viewing_payload["contact_name"], "展示租客")
-        self.assertEqual(viewing_payload["contact_phone"], "+8613900139001")
-        self.assertEqual(viewing_payload["status__mapping"], ViewingRecord.Status.get_choice_label(viewing_payload["status"]))
+        self.assertEqual(estate_payload["property_type__mapping"], EstatePropertyType.get_choice_label(estate_payload["property_type"]))
+        self.assertEqual(contact_payload["roles__mapping"], [ContactRole.get_choice_label(ContactRole.LANDLORD)])
+        self.assertEqual(building_payload["estate_id"], self.estate.pk)
+        self.assertEqual(building_payload["estate"]["id"], self.estate.pk)
+        self.assertEqual(building_payload["estate"]["display_name"], "云岸")
+        self.assertNotIn("estate_name", building_payload)
+        self.assertEqual(house_payload["building_id"], self.building.pk)
+        self.assertEqual(house_payload["building"]["id"], self.building.pk)
+        self.assertEqual(house_payload["building"]["name"], "1栋")
+        self.assertEqual(house_payload["building"]["estate"]["id"], self.estate.pk)
+        self.assertEqual(house_payload["building"]["estate"]["display_name"], "云岸")
+        self.assertEqual(house_payload["landlord_id"], landlord.pk)
+        self.assertEqual(house_payload["landlord"]["id"], landlord.pk)
+        self.assertEqual(house_payload["landlord"]["name"], "展示房东")
+        self.assertEqual(house_payload["landlord"]["phone"], "+8613800138001")
+        self.assertNotIn("building_name", house_payload)
+        self.assertNotIn("estate_name", house_payload)
+        self.assertNotIn("landlord_name", house_payload)
+        self.assertNotIn("landlord_phone", house_payload)
+        self.assertNotIn("house_label", house_payload)
+        self.assertEqual(landlord_house_payload["id"], house.pk)
+        self.assertEqual(building_house_payload["id"], house.pk)
+        self.assertNotIn("publish_rule_snapshot", house_payload)
+        self.assertNotIn("publish_can_publish", house_payload)
+        self.assertNotIn("publish_blocking_issues", house_payload)
+        self.assertNotIn("publish_warning_issues", house_payload)
+        self.assertEqual(house_payload["orientation__mapping"], HouseOrientation.get_choice_label(house_payload["orientation"]))
+        self.assertEqual(house_payload["decoration__mapping"], HouseDecoration.get_choice_label(house_payload["decoration"]))
+        self.assertEqual(house_payload["status__mapping"], HouseStatus.get_choice_label(house_payload["status"]))
+        self.assertEqual(house_payload["publish_status__mapping"], HousePublishStatus.get_choice_label(house_payload["publish_status"]))
+        self.assertEqual(viewing_payload["house_id"], house.pk)
+        self.assertEqual(viewing_payload["house"]["id"], house.pk)
+        self.assertEqual(viewing_payload["house"]["label"], expected_house_label)
+        self.assertEqual(viewing_payload["house"]["building"]["estate"]["id"], self.estate.pk)
+        self.assertEqual(viewing_payload["contact_id"], tenant.pk)
+        self.assertEqual(viewing_payload["contact"]["id"], tenant.pk)
+        self.assertEqual(viewing_payload["contact"]["name"], "展示租客")
+        self.assertEqual(viewing_payload["contact"]["phone"], "+8613900139001")
+        self.assertNotIn("house_label", viewing_payload)
+        self.assertNotIn("contact_name", viewing_payload)
+        self.assertNotIn("contact_phone", viewing_payload)
+        self.assertEqual(viewing_payload["status__mapping"], ViewingRecordStatus.get_choice_label(viewing_payload["status"]))
         self.assertEqual(viewing_payload["signed_lease_id"], lease_payload["id"])
-        self.assertEqual(lease_payload["house_label"], "云岸 / 1栋 / 1801")
-        self.assertEqual(lease_payload["tenant_name"], "展示租客")
-        self.assertEqual(lease_payload["tenant_phone"], "+8613900139001")
-        self.assertEqual(lease_payload["source_viewing_record_label"], "展示客户 / 13900139001")
-        self.assertEqual(lease_payload["status__mapping"], Lease.Status.get_choice_label(lease_payload["status"]))
+        self.assertEqual(lease_payload["house_id"], house.pk)
+        self.assertEqual(lease_payload["house"]["id"], house.pk)
+        self.assertEqual(lease_payload["house"]["label"], expected_house_label)
+        self.assertEqual(lease_payload["tenant_id"], tenant.pk)
+        self.assertEqual(lease_payload["tenant"]["id"], tenant.pk)
+        self.assertEqual(lease_payload["tenant"]["name"], "展示租客")
+        self.assertEqual(lease_payload["tenant"]["phone"], "+8613900139001")
+        self.assertEqual(lease_payload["source_viewing_record_id"], viewing.pk)
+        self.assertEqual(lease_payload["source_viewing_record"]["id"], viewing.pk)
+        self.assertEqual(lease_payload["source_viewing_record"]["label"], "展示客户 / 13900139001")
+        self.assertNotIn("house_label", lease_payload)
+        self.assertNotIn("tenant_name", lease_payload)
+        self.assertNotIn("tenant_phone", lease_payload)
+        self.assertNotIn("source_viewing_record_label", lease_payload)
+        self.assertEqual(lease_payload["status__mapping"], LeaseStatus.get_choice_label(lease_payload["status"]))
 
     def test_list_buildings_searches_estate_names(self):
         Building.objects.create(organization=self.org, estate=self.estate, name="2栋", floors=18)
@@ -482,7 +341,7 @@ class HouseApiTestCase(TestCase):
             organization=self.org,
             name="海风里",
             display_name="海风里花园",
-            property_type=Estate.PropertyType.RESIDENTIAL,
+            property_type=EstatePropertyType.RESIDENTIAL,
             province="广东",
             city="深圳",
             district="南山",
@@ -499,8 +358,8 @@ class HouseApiTestCase(TestCase):
         self.assertEqual([item["id"] for item in payload["items"]], [other_building.pk])
 
     def test_list_leases_filters_contract_missing_before_pagination(self):
-        landlord = Contact.objects.create(organization=self.org, name="合同房东", phone="13800138667", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="合同租客", phone="13900139667", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="合同房东", phone="13800138667", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="合同租客", phone="13900139667", roles=[ContactRole.TENANT])
         missing_contract_house = House.objects.create(building=self.building, landlord=landlord, room_number="1901")
         with_contract_house = House.objects.create(building=self.building, landlord=landlord, room_number="1902")
         contract = register_media_file(
@@ -535,9 +394,39 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["total"], 1)
         self.assertEqual([item["id"] for item in payload["items"]], [missing_contract.pk])
 
+    def test_list_leases_filters_keyword_before_pagination(self):
+        landlord = Contact.objects.create(organization=self.org, name="搜索房东", phone="13800138668", roles=[ContactRole.LANDLORD])
+        matched_tenant = Contact.objects.create(organization=self.org, name="王租客", phone="13900139668", roles=[ContactRole.TENANT])
+        other_tenant = Contact.objects.create(organization=self.org, name="李租客", phone="13900139669", roles=[ContactRole.TENANT])
+        matched_house = House.objects.create(building=self.building, landlord=landlord, room_number="KW-1901")
+        other_house = House.objects.create(building=self.building, landlord=landlord, room_number="KW-1902")
+        matched_lease = Lease.objects.create(
+            organization=self.org,
+            house=matched_house,
+            tenant=matched_tenant,
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=365),
+            monthly_rent=Decimal("4200.00"),
+        )
+        Lease.objects.create(
+            organization=self.org,
+            house=other_house,
+            tenant=other_tenant,
+            start_date=date.today() + timedelta(days=1),
+            end_date=date.today() + timedelta(days=366),
+            monthly_rent=Decimal("4300.00"),
+        )
+
+        response = self.client.get("/api/house/leases/?keyword=王租客&page=1&page_size=1")
+        payload = api_data(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual([item["id"] for item in payload["items"]], [matched_lease.pk])
+
     def test_list_viewing_records_filters_pending_lease_before_pagination(self):
-        landlord = Contact.objects.create(organization=self.org, name="待签房东", phone="13800138670", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="待签租客", phone="13900139670", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="待签房东", phone="13800138670", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="待签租客", phone="13900139670", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1903")
         pending_viewing = ViewingRecord.objects.create(
             organization=self.org,
@@ -546,7 +435,7 @@ class HouseApiTestCase(TestCase):
             customer_name="待签客户",
             customer_phone="13900139670",
             scheduled_at=timezone.now(),
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
         signed_viewing = ViewingRecord.objects.create(
             organization=self.org,
@@ -555,7 +444,7 @@ class HouseApiTestCase(TestCase):
             customer_name="已签客户",
             customer_phone="13900139671",
             scheduled_at=timezone.now() + timedelta(hours=1),
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
         ViewingRecord.objects.create(
             organization=self.org,
@@ -564,7 +453,7 @@ class HouseApiTestCase(TestCase):
             customer_name="已看客户",
             customer_phone="13900139672",
             scheduled_at=timezone.now() + timedelta(hours=2),
-            status=ViewingRecord.Status.VIEWED,
+            status=ViewingRecordStatus.VIEWED,
         )
         Lease.objects.create(
             organization=self.org,
@@ -584,8 +473,8 @@ class HouseApiTestCase(TestCase):
         self.assertEqual([item["id"] for item in payload["items"]], [pending_viewing.pk])
 
     def test_list_viewing_records_filters_contact_missing_before_pagination(self):
-        landlord = Contact.objects.create(organization=self.org, name="补主体房东", phone="13800138671", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="已绑租客", phone="13900139671", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="补主体房东", phone="13800138671", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="已绑租客", phone="13900139671", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1904")
         missing_contact_viewing = ViewingRecord.objects.create(
             organization=self.org,
@@ -593,7 +482,7 @@ class HouseApiTestCase(TestCase):
             customer_name="未绑客户",
             customer_phone="13900139680",
             scheduled_at=timezone.now(),
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
         ready_viewing = ViewingRecord.objects.create(
             organization=self.org,
@@ -602,7 +491,7 @@ class HouseApiTestCase(TestCase):
             customer_name="已绑客户",
             customer_phone="13900139681",
             scheduled_at=timezone.now() + timedelta(hours=1),
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
         ViewingRecord.objects.create(
             organization=self.org,
@@ -610,7 +499,7 @@ class HouseApiTestCase(TestCase):
             customer_name="普通预约客户",
             customer_phone="13900139682",
             scheduled_at=timezone.now() + timedelta(hours=2),
-            status=ViewingRecord.Status.SCHEDULED,
+            status=ViewingRecordStatus.SCHEDULED,
         )
 
         missing_response = self.client.get("/api/house/viewing-records/?pending_lease=true&contact_missing=true&page=1&page_size=1")
@@ -619,6 +508,8 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(missing_response.status_code, 200)
         self.assertEqual(missing_payload["total"], 1)
         self.assertEqual([item["id"] for item in missing_payload["items"]], [missing_contact_viewing.pk])
+        self.assertIsNone(missing_payload["items"][0]["contact_id"])
+        self.assertIsNone(missing_payload["items"][0]["contact"])
 
         ready_response = self.client.get("/api/house/viewing-records/?pending_lease=true&contact_missing=false&page=1&page_size=1")
         ready_payload = api_data(ready_response)
@@ -626,6 +517,34 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(ready_response.status_code, 200)
         self.assertEqual(ready_payload["total"], 1)
         self.assertEqual([item["id"] for item in ready_payload["items"]], [ready_viewing.pk])
+
+    def test_list_viewing_records_filters_keyword_before_pagination(self):
+        landlord = Contact.objects.create(organization=self.org, name="搜索房东", phone="13800138672", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="搜索租客", phone="13900139672", roles=[ContactRole.TENANT])
+        matched_house = House.objects.create(building=self.building, landlord=landlord, room_number="VK-1901")
+        other_house = House.objects.create(building=self.building, landlord=landlord, room_number="VK-1902")
+        matched_viewing = ViewingRecord.objects.create(
+            organization=self.org,
+            house=matched_house,
+            contact=tenant,
+            customer_name="关键客户",
+            customer_phone="13900139673",
+            scheduled_at=timezone.now(),
+        )
+        ViewingRecord.objects.create(
+            organization=self.org,
+            house=other_house,
+            customer_name="普通客户",
+            customer_phone="13900139674",
+            scheduled_at=timezone.now() + timedelta(hours=1),
+        )
+
+        response = self.client.get("/api/house/viewing-records/?keyword=关键&page=1&page_size=1")
+        payload = api_data(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual([item["id"] for item in payload["items"]], [matched_viewing.pk])
 
     def test_default_building_creates_fallback_building_and_setting(self):
         empty_org = baker.make("organizations.Organization", name="空房源组织", slug="empty-house-org")
@@ -639,7 +558,8 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = api_data(response)
         self.assertEqual(payload["name"], "默认楼栋")
-        self.assertEqual(payload["estate_name"], "默认项目")
+        self.assertEqual(payload["estate"]["display_name"], "默认项目")
+        self.assertNotIn("estate_name", payload)
         self.assertEqual(Building.objects.get(pk=payload["id"]).organization, empty_org)
         self.assertTrue(OrganizationSetting.objects.filter(organization=empty_org, value=payload["id"]).exists())
 
@@ -684,7 +604,7 @@ class HouseApiTestCase(TestCase):
                 {
                     "name": "待认领房东",
                     "phone": "13800138555",
-                    "roles": [Contact.Role.LANDLORD],
+                    "roles": [ContactRole.LANDLORD],
                     "user_id": outsider.pk,
                 }
             ),
@@ -695,13 +615,13 @@ class HouseApiTestCase(TestCase):
         self.assertFalse(Contact.objects.filter(organization=self.org, phone="13800138555").exists())
 
     def test_list_contacts_filters_by_task_before_pagination(self):
-        active_landlord = Contact.objects.create(organization=self.org, name="正常房东", phone="13800138556", roles=[Contact.Role.LANDLORD], is_active=True)
-        inactive_contact = Contact.objects.create(organization=self.org, name="停用联系人", phone="13800138557", roles=[Contact.Role.LANDLORD], is_active=False)
+        active_landlord = Contact.objects.create(organization=self.org, name="正常房东", phone="13800138556", roles=[ContactRole.LANDLORD], is_active=True)
+        inactive_contact = Contact.objects.create(organization=self.org, name="停用联系人", phone="13800138557", roles=[ContactRole.LANDLORD], is_active=False)
         dual_role_contact = Contact.objects.create(
             organization=self.org,
             name="双角色联系人",
             phone="13800138558",
-            roles=[Contact.Role.LANDLORD, Contact.Role.TENANT],
+            roles=[ContactRole.LANDLORD, ContactRole.TENANT],
             is_active=True,
         )
         role_missing_contact = Contact.objects.create(organization=self.org, name="缺角色联系人", phone="13800138559", roles=[], is_active=True)
@@ -805,7 +725,7 @@ class HouseApiTestCase(TestCase):
                     "customer_name": "钱七",
                     "customer_phone": "13500135000",
                     "scheduled_at": "2026-07-01T12:00:00+08:00",
-                    "status": ViewingRecord.Status.VIEWED,
+                    "status": ViewingRecordStatus.VIEWED,
                     "viewed_at": "2026-07-01T13:00:00+08:00",
                     "is_active": False,
                     "extra": {"source": "api"},
@@ -829,16 +749,19 @@ class HouseApiTestCase(TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201)
-        record = ViewingRecord.objects.get(pk=api_data(response)["id"])
-        self.assertEqual(record.status, ViewingRecord.Status.SCHEDULED)
+        payload = api_data(response)
+        self.assertIsNone(payload["contact_id"])
+        self.assertIsNone(payload["contact"])
+        record = ViewingRecord.objects.get(pk=payload["id"])
+        self.assertEqual(record.status, ViewingRecordStatus.SCHEDULED)
         self.assertIsNone(record.viewed_at)
         self.assertTrue(record.is_active)
         self.assertEqual(record.extra, {})
 
     def test_create_lease_rejects_cross_org_house_and_tenant_at_api_boundary(self):
         _other_org, other_house, _other_landlord, other_tenant = self.make_other_org_house()
-        landlord = Contact.objects.create(organization=self.org, name="房东", phone="13800138333", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="租客", phone="13900139333", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="房东", phone="13800138333", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="租客", phone="13900139333", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1504")
         self.client.raise_request_exception = False
 
@@ -878,8 +801,8 @@ class HouseApiTestCase(TestCase):
         self.assertNotIn("status", LeaseIn.model_fields)
 
     def test_create_lease_rejects_status_payload_and_starts_pending_without_status(self):
-        landlord = Contact.objects.create(organization=self.org, name="签约房东", phone="13800138666", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="签约租客", phone="13900139666", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="签约房东", phone="13800138666", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="签约租客", phone="13900139666", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1507")
 
         rejected = self.client.post(
@@ -891,7 +814,7 @@ class HouseApiTestCase(TestCase):
                     "start_date": str(date.today()),
                     "end_date": str(date.today() + timedelta(days=365)),
                     "monthly_rent": "4200",
-                    "status": Lease.Status.ACTIVE,
+                    "status": LeaseStatus.ACTIVE,
                 }
             ),
             content_type="application/json",
@@ -915,12 +838,12 @@ class HouseApiTestCase(TestCase):
         lease_id = api_data(response)["id"]
         lease = Lease.objects.get(pk=lease_id)
         house.refresh_from_db()
-        self.assertEqual(lease.status, Lease.Status.PENDING)
-        self.assertEqual(house.status, House.Status.VACANT)
+        self.assertEqual(lease.status, LeaseStatus.PENDING)
+        self.assertEqual(house.status, HouseStatus.VACANT)
 
     def test_patch_lease_to_active_recalculates_house_status(self):
-        landlord = Contact.objects.create(organization=self.org, name="激活房东", phone="13800138667", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="激活租客", phone="13900139667", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="激活房东", phone="13800138667", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="激活租客", phone="13900139667", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1508")
         lease = Lease.objects.create(
             organization=self.org,
@@ -933,19 +856,19 @@ class HouseApiTestCase(TestCase):
 
         response = self.client.patch(
             f"/api/house/leases/{lease.pk}/",
-            data=json.dumps({"status": Lease.Status.ACTIVE}),
+            data=json.dumps({"status": LeaseStatus.ACTIVE}),
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 200)
         lease.refresh_from_db()
         house.refresh_from_db()
-        self.assertEqual(lease.status, Lease.Status.ACTIVE)
-        self.assertEqual(house.status, House.Status.RENTED)
+        self.assertEqual(lease.status, LeaseStatus.ACTIVE)
+        self.assertEqual(house.status, HouseStatus.RENTED)
 
     def test_create_lease_can_link_converted_viewing_record_source(self):
-        landlord = Contact.objects.create(organization=self.org, name="来源房东", phone="13800138668", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="来源租客", phone="13900139668", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="来源房东", phone="13800138668", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="来源租客", phone="13900139668", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1509")
         viewing = ViewingRecord.objects.create(
             organization=self.org,
@@ -954,7 +877,7 @@ class HouseApiTestCase(TestCase):
             customer_name="来源客户",
             customer_phone="13900139668",
             scheduled_at="2026-07-01T10:00:00+08:00",
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
 
         response = self.client.post(
@@ -978,8 +901,8 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(api_data(response)["source_viewing_record_id"], viewing.pk)
 
     def test_create_lease_rejects_duplicate_source_viewing_record(self):
-        landlord = Contact.objects.create(organization=self.org, name="重复来源房东", phone="13800138671", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="重复来源租客", phone="13900139671", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="重复来源房东", phone="13800138671", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="重复来源租客", phone="13900139671", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1511")
         viewing = ViewingRecord.objects.create(
             organization=self.org,
@@ -988,7 +911,7 @@ class HouseApiTestCase(TestCase):
             customer_name="重复来源客户",
             customer_phone="13900139671",
             scheduled_at="2026-07-01T10:00:00+08:00",
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
         Lease.objects.create(
             organization=self.org,
@@ -1028,10 +951,10 @@ class HouseApiTestCase(TestCase):
             customer_name="异租户来源",
             customer_phone="13900139222",
             scheduled_at="2026-07-01T10:00:00+08:00",
-            status=ViewingRecord.Status.CONVERTED,
+            status=ViewingRecordStatus.CONVERTED,
         )
-        landlord = Contact.objects.create(organization=self.org, name="当前来源房东", phone="13800138669", roles=[Contact.Role.LANDLORD])
-        tenant = Contact.objects.create(organization=self.org, name="当前来源租客", phone="13900139669", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="当前来源房东", phone="13800138669", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="当前来源租客", phone="13900139669", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1510")
         self.client.raise_request_exception = False
 
@@ -1054,17 +977,27 @@ class HouseApiTestCase(TestCase):
         self.assertFalse(Lease.objects.filter(organization=self.org, source_viewing_record_id=other_viewing.pk).exists())
 
     def test_landlord_my_leases_returns_only_current_org_claimed_house_leases(self):
-        landlord = Contact.objects.create(organization=self.org, name="当前房东", phone="13800138444", roles=[Contact.Role.LANDLORD], user=self.user)
-        tenant = Contact.objects.create(organization=self.org, name="当前租客", phone="13900139444", roles=[Contact.Role.TENANT])
+        landlord = Contact.objects.create(organization=self.org, name="当前房东", phone="13800138444", roles=[ContactRole.LANDLORD], user=self.user)
+        tenant = Contact.objects.create(organization=self.org, name="当前租客", phone="13900139444", roles=[ContactRole.TENANT])
         house = House.objects.create(building=self.building, landlord=landlord, room_number="1505")
+        viewing = ViewingRecord.objects.create(
+            organization=self.org,
+            house=house,
+            contact=tenant,
+            customer_name="当前客户",
+            customer_phone="13900139444",
+            scheduled_at=timezone.now(),
+            status=ViewingRecordStatus.CONVERTED,
+        )
         visible = Lease.objects.create(
             organization=self.org,
             house=house,
             tenant=tenant,
+            source_viewing_record=viewing,
             start_date=date.today(),
             end_date=date.today() + timedelta(days=365),
             monthly_rent=Decimal("4300"),
-            status=Lease.Status.ACTIVE,
+            status=LeaseStatus.ACTIVE,
         )
         other_org, other_house, _other_landlord, other_tenant = self.make_other_org_house()
         Contact.objects.filter(pk=other_house.landlord_id).update(user=self.user)
@@ -1075,7 +1008,7 @@ class HouseApiTestCase(TestCase):
             start_date=date.today(),
             end_date=date.today() + timedelta(days=365),
             monthly_rent=Decimal("5300"),
-            status=Lease.Status.ACTIVE,
+            status=LeaseStatus.ACTIVE,
         )
 
         response = self.client.get("/api/house/landlord/my-leases/")
@@ -1083,6 +1016,9 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         items = api_data(response)["items"]
         self.assertEqual([item["id"] for item in items], [visible.pk])
+        self.assertEqual(items[0]["source_viewing_record_id"], viewing.pk)
+        self.assertEqual(items[0]["source_viewing_record"]["id"], viewing.pk)
+        self.assertEqual(items[0]["source_viewing_record"]["label"], "当前客户 / 13900139444")
 
 
 class LeaseStatusClosureTestCase(TestCase):
@@ -1090,13 +1026,13 @@ class LeaseStatusClosureTestCase(TestCase):
         self.user = User.objects.create_user(username="lease-closure", password="secret")  # noqa: S106
         self.org = baker.make("organizations.Organization", name="租约组织", slug="lease-closure-org")
         self.estate = Estate.objects.create(
-            organization=self.org, name="云岸", display_name="云岸", property_type=Estate.PropertyType.RESIDENTIAL, province="广东", city="深圳", district="南山", address="科技园"
+            organization=self.org, name="云岸", display_name="云岸", property_type=EstatePropertyType.RESIDENTIAL, province="广东", city="深圳", district="南山", address="科技园"
         )
         self.building = Building.objects.create(organization=self.org, estate=self.estate, name="1栋", floors=20)
-        self.landlord = Contact.objects.create(organization=self.org, name="房东", phone="13800138111", roles=[Contact.Role.LANDLORD])
-        self.tenant = Contact.objects.create(organization=self.org, name="租客", phone="13900139111", roles=[Contact.Role.TENANT])
+        self.landlord = Contact.objects.create(organization=self.org, name="房东", phone="13800138111", roles=[ContactRole.LANDLORD])
+        self.tenant = Contact.objects.create(organization=self.org, name="租客", phone="13900139111", roles=[ContactRole.TENANT])
 
-    def make_house(self, room_number, status=House.Status.VACANT):
+    def make_house(self, room_number, status=HouseStatus.VACANT):
         return House.objects.create(building=self.building, landlord=self.landlord, room_number=room_number, status=status)
 
     def test_moving_active_lease_recalculates_old_and_new_house_status(self):
@@ -1109,21 +1045,21 @@ class LeaseStatusClosureTestCase(TestCase):
             start_date=date.today(),
             end_date=date.today() + timedelta(days=365),
             monthly_rent=Decimal("3800"),
-            status=Lease.Status.ACTIVE,
+            status=LeaseStatus.ACTIVE,
         )
         old_house.refresh_from_db()
-        self.assertEqual(old_house.status, House.Status.RENTED)
+        self.assertEqual(old_house.status, HouseStatus.RENTED)
 
         lease.house = new_house
         lease.save()
 
         old_house.refresh_from_db()
         new_house.refresh_from_db()
-        self.assertEqual(old_house.status, House.Status.VACANT)
-        self.assertEqual(new_house.status, House.Status.RENTED)
+        self.assertEqual(old_house.status, HouseStatus.VACANT)
+        self.assertEqual(new_house.status, HouseStatus.RENTED)
 
     def test_manual_locked_status_is_not_overwritten_by_active_lease_recalculation(self):
-        house = self.make_house("1701", status=House.Status.LOCKED)
+        house = self.make_house("1701", status=HouseStatus.LOCKED)
 
         Lease.objects.create(
             organization=self.org,
@@ -1132,8 +1068,8 @@ class LeaseStatusClosureTestCase(TestCase):
             start_date=date.today(),
             end_date=date.today() + timedelta(days=365),
             monthly_rent=Decimal("4100"),
-            status=Lease.Status.ACTIVE,
+            status=LeaseStatus.ACTIVE,
         )
 
         house.refresh_from_db()
-        self.assertEqual(house.status, House.Status.LOCKED)
+        self.assertEqual(house.status, HouseStatus.LOCKED)
