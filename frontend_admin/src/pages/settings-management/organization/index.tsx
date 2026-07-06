@@ -1,27 +1,27 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Divider, Form, Input, InputNumber, Modal, Select, Space, Tabs, Typography, message } from 'antd';
+import { Button, Card, Divider, Form, Input, InputNumber, Modal, message, Select, Space, Tabs, Typography } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { wrapTextStyle } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
-import { houseApi } from '@/services/manual/house';
+import { type BuildingOut, houseApi } from '@/services/manual/house';
 import {
   appsSettingsApiListOrgSettings,
   appsSettingsApiPutOrgSetting,
 } from '@/services/openapi/organizationSettings';
 import {
-  PublishRulesControl,
-  SettingSchemaControl,
   buildSettingSections,
   defaultBuildingSettingKey,
   initialDraftValue,
+  PublishRulesControl,
   parseSettingValue,
   publishRulesSettingKey,
+  SettingSchemaControl,
   settingAnchorId,
   settingsManagementQueryKeys,
 } from '../shared';
 
 type DraftValues = Record<string, unknown>;
-type BuildingItem = { id: number; name: string; estate_id: number; estate_name?: string };
+type BuildingItem = BuildingOut | { id: number; name: string; estate_id: number; estate?: { id?: number; name?: string; display_name?: string } | null };
 
 const settingRowStyle: React.CSSProperties = {
   display: 'flex',
@@ -54,7 +54,10 @@ const DefaultBuildingControl: React.FC<{
         onChange(nextValue);
         setOpen(false);
       }}
-      options={buildings.map((item) => ({ value: item.id, label: item.estate_name ? `${item.estate_name} / ${item.name}` : item.name }))}
+      options={buildings.map((item) => {
+        const estateName = item.estate?.display_name || item.estate?.name;
+        return { value: item.id, label: estateName ? `${estateName} / ${item.name}` : item.name };
+      })}
       popupRender={(menu) => (
         <>
           {menu}
@@ -120,7 +123,11 @@ const OrganizationSettingsPage: React.FC = () => {
     () =>
       buildingItems.map((item) => ({
         ...item,
-        estate_name: item.estate_name || estateNameById.get(item.estate_id),
+        estate: item.estate || {
+          id: item.estate_id,
+          name: estateNameById.get(item.estate_id) || '',
+          display_name: estateNameById.get(item.estate_id) || '',
+        },
       })),
     [buildingItems, estateNameById],
   );

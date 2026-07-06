@@ -16,62 +16,52 @@ const {
   mockSetDefaultBuilding,
   mockCreateBuilding,
   mockUseTenantWorkspace,
-} = vi.hoisted(() => ({
-  ...(globalThis as typeof globalThis & {
-    __frontendAdminHouseApiMocks__?: {
-      listHouses: ReturnType<typeof vi.fn>;
-      listViewingRecords: ReturnType<typeof vi.fn>;
-      listLeases: ReturnType<typeof vi.fn>;
-      patchHouse: ReturnType<typeof vi.fn>;
-      listEstates: ReturnType<typeof vi.fn>;
-      listBuildings: ReturnType<typeof vi.fn>;
-      getDefaultBuilding: ReturnType<typeof vi.fn>;
-      setDefaultBuilding: ReturnType<typeof vi.fn>;
-      createBuilding: ReturnType<typeof vi.fn>;
-    };
+} = vi.hoisted(() => {
+  type HouseApiMocks = {
+    listHouses: ReturnType<typeof vi.fn>;
+    listViewingRecords: ReturnType<typeof vi.fn>;
+    listLeases: ReturnType<typeof vi.fn>;
+    patchHouse: ReturnType<typeof vi.fn>;
+    listEstates: ReturnType<typeof vi.fn>;
+    listBuildings: ReturnType<typeof vi.fn>;
+    getDefaultBuilding: ReturnType<typeof vi.fn>;
+    setDefaultBuilding: ReturnType<typeof vi.fn>;
+    createBuilding: ReturnType<typeof vi.fn>;
+  };
+  const globals = globalThis as typeof globalThis & {
+    __frontendAdminHouseApiMocks__?: HouseApiMocks;
     __frontendAdminTenantWorkspaceMock__?: ReturnType<typeof vi.fn>;
-  }).__frontendAdminHouseApiMocks__ ?? ((globalThis as typeof globalThis & {
-    __frontendAdminHouseApiMocks__?: {
-      listHouses: ReturnType<typeof vi.fn>;
-      listViewingRecords: ReturnType<typeof vi.fn>;
-      listLeases: ReturnType<typeof vi.fn>;
-      patchHouse: ReturnType<typeof vi.fn>;
-      listEstates: ReturnType<typeof vi.fn>;
-      listBuildings: ReturnType<typeof vi.fn>;
-      getDefaultBuilding: ReturnType<typeof vi.fn>;
-      setDefaultBuilding: ReturnType<typeof vi.fn>;
-      createBuilding: ReturnType<typeof vi.fn>;
-    };
-    __frontendAdminTenantWorkspaceMock__?: ReturnType<typeof vi.fn>;
-  }).__frontendAdminHouseApiMocks__ = {
-    listHouses: vi.fn(),
-    listViewingRecords: vi.fn(),
-    listLeases: vi.fn(),
-    patchHouse: vi.fn(),
-    listEstates: vi.fn(),
-    listBuildings: vi.fn(),
-    getDefaultBuilding: vi.fn(),
-    setDefaultBuilding: vi.fn(),
-    createBuilding: vi.fn(),
-  }),
-  mockListHouses: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listHouses: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listHouses,
-  mockListSettings: vi.fn(),
-  mockGetSetting: vi.fn(),
-  mockPutSetting: vi.fn(),
-  mockDeleteSetting: vi.fn(),
-  mockListEstates: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listEstates: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listEstates,
-  mockListBuildings: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listBuildings: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listBuildings,
-  mockGetDefaultBuilding: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { getDefaultBuilding: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).getDefaultBuilding,
-  mockSetDefaultBuilding: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { setDefaultBuilding: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).setDefaultBuilding,
-  mockCreateBuilding: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { createBuilding: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).createBuilding,
-  mockUseTenantWorkspace:
-    ((globalThis as typeof globalThis & {
-      __frontendAdminTenantWorkspaceMock__?: ReturnType<typeof vi.fn>;
-    }).__frontendAdminTenantWorkspaceMock__) ||
-    (((globalThis as typeof globalThis & {
-      __frontendAdminTenantWorkspaceMock__?: ReturnType<typeof vi.fn>;
-    }).__frontendAdminTenantWorkspaceMock__ = vi.fn())),
-}));
+  };
+  const houseApiMocks =
+    globals.__frontendAdminHouseApiMocks__ ||
+    ({
+      listHouses: vi.fn(),
+      listViewingRecords: vi.fn(),
+      listLeases: vi.fn(),
+      patchHouse: vi.fn(),
+      listEstates: vi.fn(),
+      listBuildings: vi.fn(),
+      getDefaultBuilding: vi.fn(),
+      setDefaultBuilding: vi.fn(),
+      createBuilding: vi.fn(),
+    } satisfies HouseApiMocks);
+  globals.__frontendAdminHouseApiMocks__ = houseApiMocks;
+  const tenantWorkspaceMock = globals.__frontendAdminTenantWorkspaceMock__ || vi.fn();
+  globals.__frontendAdminTenantWorkspaceMock__ = tenantWorkspaceMock;
+  return {
+    mockListHouses: houseApiMocks.listHouses,
+    mockListSettings: vi.fn(),
+    mockGetSetting: vi.fn(),
+    mockPutSetting: vi.fn(),
+    mockDeleteSetting: vi.fn(),
+    mockListEstates: houseApiMocks.listEstates,
+    mockListBuildings: houseApiMocks.listBuildings,
+    mockGetDefaultBuilding: houseApiMocks.getDefaultBuilding,
+    mockSetDefaultBuilding: houseApiMocks.setDefaultBuilding,
+    mockCreateBuilding: houseApiMocks.createBuilding,
+    mockUseTenantWorkspace: tenantWorkspaceMock,
+  };
+});
 
 vi.mock('@/pages/tenant/shared', () => ({
   TenantSelectionGuard: ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -92,10 +82,10 @@ vi.mock('@/services/openapi/organizationSettings', () => ({
 
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
-    listHouses: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listHouses: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listHouses,
-    listViewingRecords: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listViewingRecords: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listViewingRecords,
-    listLeases: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listLeases: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listLeases,
-    patchHouse: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { patchHouse: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).patchHouse,
+    listHouses: mockListHouses,
+    listViewingRecords: vi.fn(),
+    listLeases: vi.fn(),
+    patchHouse: vi.fn(),
     listEstates: mockListEstates,
     listBuildings: mockListBuildings,
     getDefaultBuilding: mockGetDefaultBuilding,
@@ -204,11 +194,13 @@ describe('OrganizationSettingsPage', () => {
     mockPutSetting.mockResolvedValue({});
     mockDeleteSetting.mockResolvedValue({});
     mockListHouses.mockResolvedValue({ items: [], total: 9, page: 1, page_size: 1 });
-    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: '星河湾' }], total: 1, page: 1, page_size: 100 });
-    mockListBuildings.mockResolvedValue({ items: [{ id: 10, name: '1 栋', estate_id: 1 }], total: 1, page: 1, page_size: 100 });
-    mockGetDefaultBuilding.mockResolvedValue({ id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾', floors: 20, address: '' });
-    mockSetDefaultBuilding.mockResolvedValue({ id: 10, name: '1 栋', estate_id: 1, estate_name: '星河湾', floors: 20, address: '' });
-    mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1 });
+    const estate = { id: 1, name: '星河湾', display_name: '星河湾' };
+    const building = { id: 10, name: '1 栋', estate_id: 1, estate, floors: 20, address: '' };
+    mockListEstates.mockResolvedValue({ items: [estate], total: 1, page: 1, page_size: 100 });
+    mockListBuildings.mockResolvedValue({ items: [building], total: 1, page: 1, page_size: 100 });
+    mockGetDefaultBuilding.mockResolvedValue(building);
+    mockSetDefaultBuilding.mockResolvedValue(building);
+    mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1, estate });
   });
 
   it('renders organization settings as user-friendly business sections with schema controls', async () => {
