@@ -1,4 +1,8 @@
+sandbox_mode = "workspace-write"
 [mcp_servers.antd]
 type = "stdio"
 command = "npx"
 args = ["-y", "@ant-design/cli", "mcp"]
+
+[sandbox_workspace_write]
+network_access = true
