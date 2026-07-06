@@ -8,6 +8,7 @@ import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { type BuildingOut, type EstateOut, houseApi } from '@/services/manual/house';
+import { mediaCoverUrl } from '../constants';
 
 const PAGE_SIZE = 20;
 type EstateViewMode = 'all' | 'estates' | 'buildings';
@@ -250,7 +251,25 @@ const EstatesPage: React.FC = () => {
   const buildingTotal = task ? buildingRows.length : buildings.data?.total || 0;
   const propertyTypeOptions = enumSelectOptions(houseEnums.data, 'house.estate_property_type');
   const estateColumns: ProColumns<EstateOut>[] = [
-    { title: '名称', dataIndex: 'display_name', render: (_value, record) => record.display_name || record.name },
+    {
+      title: '名称',
+      dataIndex: 'display_name',
+      render: (_value, record) => {
+        const coverUrl = mediaCoverUrl(record.images);
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {coverUrl ? (
+              <img
+                alt="项目图"
+                src={coverUrl}
+                style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flex: '0 0 auto' }}
+              />
+            ) : null}
+            <Typography.Text ellipsis>{record.display_name || record.name}</Typography.Text>
+          </div>
+        );
+      },
+    },
     { title: '城市', dataIndex: 'city', render: (_value, record) => `${record.city || '-'} / ${record.district || '-'}` },
     { title: '物业类型', dataIndex: 'property_type__mapping', render: (_value, record) => enumMapping(record.property_type, record.property_type__mapping) },
     { title: '楼栋覆盖', dataIndex: 'coverage', render: (_value, record) => <Typography.Text strong>{getEstateCoverageText(record, buildingOverviewRows)}</Typography.Text> },

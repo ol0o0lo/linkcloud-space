@@ -11,7 +11,6 @@ import {
   Modal,
   message,
   Select,
-  Space,
   Tag,
   Typography,
 } from 'antd';
@@ -32,6 +31,7 @@ import {
   HOUSE_PUBLISH_STATUS_COLOR,
   houseLabel,
   houseMediaReadinessText,
+  mediaCoverUrl,
   moneyText,
   STATUS_COLOR,
 } from '../constants';
@@ -161,7 +161,21 @@ const HousesPage: React.FC = () => {
       dataIndex: 'house',
       search: false,
       width: 220,
-      render: (_value, record) => houseLabel(record),
+      render: (_value, record) => {
+        const coverUrl = mediaCoverUrl(record.images);
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {coverUrl ? (
+              <img
+                alt="房源图"
+                src={coverUrl}
+                style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flex: '0 0 auto' }}
+              />
+            ) : null}
+            <Typography.Text ellipsis>{houseLabel(record)}</Typography.Text>
+          </div>
+        );
+      },
     },
     {
       title: '房东',
@@ -186,23 +200,27 @@ const HousesPage: React.FC = () => {
       render: (_value, record) => houseMediaReadinessText(record),
     },
     {
-      title: '状态',
-      dataIndex: 'status_tags',
-      width: 120,
+      title: '房态',
+      dataIndex: 'status__mapping',
+      width: 80,
       search: false,
       render: (_value, record) => (
-        <Space size={4} wrap>
-          <Tag color={STATUS_COLOR[record.status] || 'default'}>
-            {enumMapping(record.status, record.status__mapping)}
-          </Tag>
-          <Tag
-            color={
-              HOUSE_PUBLISH_STATUS_COLOR[record.publish_status] || 'default'
-            }
-          >
-            {enumMapping(record.publish_status, record.publish_status__mapping)}
-          </Tag>
-        </Space>
+        <Tag color={STATUS_COLOR[record.status] || 'default'}>
+          {enumMapping(record.status, record.status__mapping)}
+        </Tag>
+      ),
+    },
+    {
+      title: '发布',
+      dataIndex: 'publish_status__mapping',
+      width: 80,
+      search: false,
+      render: (_value, record) => (
+        <Tag
+          color={HOUSE_PUBLISH_STATUS_COLOR[record.publish_status] || 'default'}
+        >
+          {enumMapping(record.publish_status, record.publish_status__mapping)}
+        </Tag>
       ),
     },
     {

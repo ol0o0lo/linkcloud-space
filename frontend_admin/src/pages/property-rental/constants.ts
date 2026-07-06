@@ -1,6 +1,5 @@
+export type { HousePublishRuleKey, HousePublishRuleMode, HousePublishRuleSnapshot } from './publish-rules';
 export {
-  HOUSE_PUBLISH_RULE_LABELS,
-  HOUSE_PUBLISH_RULE_MODE,
   canHousePublish,
   DEFAULT_HOUSE_PUBLISH_RULES,
   evaluateHousePublishState,
@@ -9,10 +8,11 @@ export {
   getHousePublishIssues,
   getHouseWarningIssues,
   getTrackedHousePublishIssues,
+  HOUSE_PUBLISH_RULE_LABELS,
+  HOUSE_PUBLISH_RULE_MODE,
   houseMediaReadinessText,
   normalizeHousePublishRules,
 } from './publish-rules';
-export type { HousePublishRuleKey, HousePublishRuleMode, HousePublishRuleSnapshot } from './publish-rules';
 
 export const CONTACT_ROLE = {
   LANDLORD: 'landlord',
@@ -147,6 +147,12 @@ export function getHouseMediaCompleteness(house: { images?: Record<string, unkno
     hasFloorPlan,
     hasLandlord: Boolean(house.landlord_id),
   };
+}
+
+export function mediaCoverUrl(items?: Record<string, unknown>[]) {
+  const image = items?.find((item) => item.image_role === 'cover') || items?.[0];
+  const url = image?.thumbnail || image?.url;
+  return typeof url === 'string' && url ? url : undefined;
 }
 
 export function moneyText(value?: string | number | null) {

@@ -260,8 +260,8 @@ function houseItem(overrides: Record<string, any> = {}) {
 
 function viewingItem(overrides: Record<string, any> = {}) {
   const house = overrides.house || houseItem();
-  const contact = Object.prototype.hasOwnProperty.call(overrides, 'contact') ? overrides.contact : null;
-  const contactId = Object.prototype.hasOwnProperty.call(overrides, 'contact_id') ? overrides.contact_id : contact?.id || null;
+  const contact = Object.hasOwn(overrides, 'contact') ? overrides.contact : null;
+  const contactId = Object.hasOwn(overrides, 'contact_id') ? overrides.contact_id : contact?.id || null;
   return {
     id: 4,
     house_id: house.id,
@@ -354,7 +354,7 @@ describe('Property rental domain list pages', () => {
   it('shows estate supply overview and register hints', async () => {
     mockListEstates.mockResolvedValue({
       items: [
-        { id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路', is_active: true, property_type: 'residential', province: '广东' },
+        { id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路', is_active: true, property_type: 'residential', province: '广东', images: [{ media_id: 7, media_type: 'image', url: '/estate-cover.jpg' }] },
         { id: 2, name: 'oldtown', display_name: '旧改公寓', city: '深圳', district: '宝安', address: '', is_active: false, property_type: 'residential', province: '广东' },
       ],
       total: 2,
@@ -374,6 +374,7 @@ describe('Property rental domain list pages', () => {
     renderPage(<EstatesPage />);
 
     expect((await screen.findAllByText('项目列表')).length).toBeGreaterThan(0);
+    expect(await screen.findByAltText('项目图')).toHaveAttribute('src', '/estate-cover.jpg');
     expect(screen.queryByText('项目供给概览')).not.toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.getAllByText('项目列表').length).toBeGreaterThan(0);
@@ -1290,7 +1291,7 @@ describe('Property rental domain list pages', () => {
     const publishRow = (await screen.findByText(/张房东/)).closest('tr');
     expect(publishRow).not.toBeNull();
     fireEvent.click(within(publishRow as HTMLElement).getByRole('button', { name: 'more' }));
-    fireEvent.click(await screen.findByText('发布'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '发布' }));
 
     expect(await screen.findByText('确认后会把这套房源切换为已发布状态，继续承接带看。')).toBeInTheDocument();
     expect(mockPatchHouse).not.toHaveBeenCalled();
@@ -1375,7 +1376,7 @@ describe('Property rental domain list pages', () => {
         asking_rent: '4200.00',
         status: 'vacant',
         publish_status: 'draft',
-        images: [],
+        images: [{ media_id: 8, media_type: 'image', image_role: 'cover', url: '/house-cover.jpg' }],
         videos: [],
       }],
       total: 1,
@@ -1386,23 +1387,25 @@ describe('Property rental domain list pages', () => {
     renderPage(<HousesPage />);
 
     expect(await screen.findByRole('columnheader', { name: '房源' })).toBeInTheDocument();
+    expect(await screen.findByAltText('房源图')).toHaveAttribute('src', '/house-cover.jpg');
     expect(screen.getByRole('columnheader', { name: '房东' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '挂牌租金' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '媒体' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '状态' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '房态' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '发布' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '操作' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '资料问题' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '发布准备' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '当前动作' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '面积' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '发布' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: '状态' })).not.toBeInTheDocument();
   });
 
   it('renders keyword and status filters in the house table toolbar', async () => {
     renderPage(<HousesPage />);
 
     expect(await screen.findByPlaceholderText('搜索房号 / 项目 / 楼栋 / 房东')).toBeInTheDocument();
-    expect(screen.getByText('房态')).toBeInTheDocument();
+    expect(screen.getAllByText('房态').length).toBeGreaterThan(0);
     expect(screen.queryByLabelText('项目')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('楼栋')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('发布状态')).not.toBeInTheDocument();
