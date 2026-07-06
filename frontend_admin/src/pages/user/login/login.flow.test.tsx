@@ -228,7 +228,7 @@ describe('admin 登录 MFA 流程', () => {
     });
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockFetchUserInfo).toHaveBeenCalled();
-    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/workbench');
+    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/houses');
   });
 
   it('遇到未知 allauth flow 时应提示具体 flow id', async () => {
@@ -283,7 +283,7 @@ describe('admin 登录 MFA 流程', () => {
         { skipErrorHandler: true },
       );
     });
-    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/workbench');
+    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/houses');
   });
 
   it('登录成功后应同步当前空间到 initialState', async () => {
@@ -385,6 +385,6 @@ describe('admin 登录 MFA 流程', () => {
     });
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockFetchUserInfo).toHaveBeenCalled();
-    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/workbench');
+    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/houses');
   });
 });

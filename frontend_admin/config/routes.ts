@@ -148,13 +148,7 @@ export default [
     routes: [
       {
         path: '/property-rental',
-        redirect: '/property-rental/workbench',
-      },
-      {
-        name: 'workbench',
-        icon: 'appstore',
-        path: '/property-rental/workbench',
-        component: './property-rental/workbench',
+        redirect: '/property-rental/houses',
       },
       {
         name: 'houses',
@@ -320,7 +314,7 @@ export default [
   },
   {
     path: '/',
-    redirect: '/property-rental/workbench',
+    redirect: '/property-rental/houses',
   },
   {
     component: './exception/404',
