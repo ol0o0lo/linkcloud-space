@@ -184,6 +184,32 @@ class WalletAdminAPITests(TestCase):
         self.user = baker.make(User)
         self.client.force_login(self.admin)
 
+    def test_admin_wallet_accounts_include_user_identity_summary(self):
+        self.user.username = "wallet-user"
+        self.user.email = "wallet-user@example.com"
+        self.user.phone_country_code = "+86"
+        self.user.phone_national_number = "13800138000"
+        self.user.real_name_masked = "张*"
+        self.user.save(update_fields=["username", "email", "phone_country_code", "phone_national_number", "real_name_masked"])
+        apply_wallet_credit(
+            user=self.user,
+            amount=500,
+            entry_type="promotion_reward",
+            biz_type="promotion.reward",
+            biz_id="reward-admin-list",
+            idempotency_key="reward-admin-list",
+        )
+
+        resp = self.client.get("/api/admin/wallet/accounts/")
+
+        self.assertEqual(resp.status_code, 200)
+        item = api_data(resp)["items"][0]
+        self.assertEqual(item["user_id"], self.user.pk)
+        self.assertEqual(item["username"], "wallet-user")
+        self.assertEqual(item["email"], "wallet-user@example.com")
+        self.assertEqual(item["phone_label"], "+8613800138000")
+        self.assertEqual(item["real_name_label"], "张*")
+
     def test_admin_can_adjust_wallet_balance(self):
         resp = self.client.post(
             "/api/admin/wallet/adjustments/",

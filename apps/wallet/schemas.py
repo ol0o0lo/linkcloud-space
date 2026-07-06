@@ -3,6 +3,8 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
+from apps.accounts.constants import RealNameStatus
+from apps.accounts.models import compose_phone
 from apps.wallet.constants import PayoutStatus, WalletEntryType, WithdrawalPayChannel, WithdrawalStatus
 
 
@@ -20,6 +22,10 @@ class WalletSummaryOut(Schema):
 class WalletAccountAdminOut(WalletSummaryOut):
     id: int
     user_id: int
+    username: str
+    email: str
+    phone_label: str
+    real_name_label: str
 
     @staticmethod
     def resolve_id(obj) -> int:
@@ -28,6 +34,22 @@ class WalletAccountAdminOut(WalletSummaryOut):
     @staticmethod
     def resolve_user_id(obj) -> int:
         return obj.user_id
+
+    @staticmethod
+    def resolve_username(obj) -> str:
+        return getattr(obj.user, "username", "")
+
+    @staticmethod
+    def resolve_email(obj) -> str:
+        return getattr(obj.user, "email", "")
+
+    @staticmethod
+    def resolve_phone_label(obj) -> str:
+        return compose_phone(getattr(obj.user, "phone_country_code", ""), getattr(obj.user, "phone_national_number", "")) or ""
+
+    @staticmethod
+    def resolve_real_name_label(obj) -> str:
+        return getattr(obj.user, "real_name_masked", "") or RealNameStatus.get_choice_label(getattr(obj.user, "real_name_status", ""))
 
 
 class WalletLedgerOut(Schema):
