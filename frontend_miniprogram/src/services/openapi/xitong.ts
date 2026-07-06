@@ -17,6 +17,18 @@ export function appContextUsingGet({
   });
 }
 
+/** 获取后端枚举映射 返回前端筛选和回显需要的后端枚举值。 GET /api/enums/ */
+export function enumsUsingGet({
+  options,
+}: {
+  options?: CustomRequestOptions_;
+}) {
+  return request<unknown>('/api/enums/', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
 /** 发送测试通知 向指定 staff 用户发送测试邮件或站内通知，仅超级管理员可用。 POST /api/test-notifications/ */
 export function testNotificationsUsingPost({
   body,
