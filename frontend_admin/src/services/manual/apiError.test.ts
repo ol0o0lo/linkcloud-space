@@ -31,4 +31,33 @@ describe('getResourceInUseData', () => {
   it('忽略资源列表不是数组的资源占用错误', () => {
     expect(getResourceInUseData({ info: { error: 'RESOURCE_IN_USE', data: { can_delete: false, resources: {} } } })).toBeUndefined();
   });
+
+  it('忽略包含空资源项的资源占用错误', () => {
+    expect(getResourceInUseData({ info: { error: 'RESOURCE_IN_USE', data: { can_delete: false, resources: [null] } } })).toBeUndefined();
+  });
+
+  it('忽略目标信息错误的资源占用错误', () => {
+    expect(
+      getResourceInUseData({
+        info: {
+          error: 'RESOURCE_IN_USE',
+          data: { can_delete: false, resources: [{ type: 'house', label: '房源', count: 1, items: [], truncated: false, target: { path: 1, query: {} } }] },
+        },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('忽略资源项 ID 错误的资源占用错误', () => {
+    expect(
+      getResourceInUseData({
+        info: {
+          error: 'RESOURCE_IN_USE',
+          data: {
+            can_delete: false,
+            resources: [{ type: 'house', label: '房源', count: 1, items: [{ id: '1', label: 'A-101' }], truncated: false, target: { path: '/houses', query: {} } }],
+          },
+        },
+      }),
+    ).toBeUndefined();
+  });
 });
