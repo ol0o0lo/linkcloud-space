@@ -25,7 +25,8 @@ function isRelatedResource(value: unknown): boolean {
     value.items.every(isRelatedResourceItem) &&
     typeof value.truncated === 'boolean' &&
     typeof target.path === 'string' &&
-    isObject(target.query)
+    isObject(target.query) &&
+    !Array.isArray(target.query)
   );
 }
 
