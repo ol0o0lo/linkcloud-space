@@ -5,6 +5,10 @@ import {
   appsHouseApiCreateHouse,
   appsHouseApiCreateLease,
   appsHouseApiCreateViewingRecord,
+  appsHouseApiCheckBuildingDelete,
+  appsHouseApiCheckEstateDelete,
+  appsHouseApiDeleteBuildingEndpoint,
+  appsHouseApiDeleteEstateEndpoint,
   appsHouseApiGetBuilding,
   appsHouseApiGetContact,
   appsHouseApiGetDefaultBuilding,
@@ -38,6 +42,7 @@ export type EstateOut = API.EstateOut & {
 };
 export type BuildingOut = API.BuildingOut;
 export type DefaultBuildingOut = API.DefaultBuildingOut;
+export type DeleteCheckOut = API.DeleteCheckOut;
 export type ContactOut = API.ContactOut & {
   roles__mapping?: string[];
 };
@@ -64,6 +69,8 @@ export const houseApi = {
   createEstate: (data: Payload) => appsHouseApiCreateEstate(data as API.EstateIn) as Promise<EstateOut>,
   patchEstate: (estateId: number, data: Payload) =>
     appsHouseApiPatchEstate({ estate_id: estateId }, data as API.EstatePatchIn) as Promise<EstateOut>,
+  checkEstateDelete: (estateId: number) => appsHouseApiCheckEstateDelete({ estate_id: estateId }) as Promise<DeleteCheckOut>,
+  deleteEstate: (estateId: number) => appsHouseApiDeleteEstateEndpoint({ estate_id: estateId }, { skipErrorHandler: true }),
 
   listBuildings: (params?: QueryParams) =>
     appsHouseApiListBuildings((params ?? {}) as API.appsHouseApiListBuildingsParams) as Promise<PageResult<BuildingOut>>,
@@ -71,6 +78,8 @@ export const houseApi = {
   createBuilding: (data: Payload) => appsHouseApiCreateBuilding(data as API.BuildingIn) as Promise<BuildingOut>,
   patchBuilding: (buildingId: number, data: Payload) =>
     appsHouseApiPatchBuilding({ building_id: buildingId }, data as API.BuildingPatchIn) as Promise<BuildingOut>,
+  checkBuildingDelete: (buildingId: number) => appsHouseApiCheckBuildingDelete({ building_id: buildingId }) as Promise<DeleteCheckOut>,
+  deleteBuilding: (buildingId: number) => appsHouseApiDeleteBuildingEndpoint({ building_id: buildingId }, { skipErrorHandler: true }),
   getDefaultBuilding: () => appsHouseApiGetDefaultBuilding() as Promise<DefaultBuildingOut>,
   setDefaultBuilding: (buildingId: number) =>
     appsHouseApiPutDefaultBuilding({ building_id: buildingId }) as Promise<DefaultBuildingOut>,

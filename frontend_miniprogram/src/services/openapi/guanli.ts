@@ -466,6 +466,24 @@ export function houseBuildingsBuildingIdUsingGet({
   });
 }
 
+/** 删除楼栋 DELETE /api/house/buildings/${param0}/ */
+export function houseBuildingsBuildingIdUsingDelete({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseBuildingsBuildingIdUsingDeleteParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { building_id: param0, ...queryParams } = params;
+
+  return request<Record<string, unknown>>(`/api/house/buildings/${param0}/`, {
+    method: 'DELETE',
+    params: { ...queryParams },
+    ...(options || {}),
+  });
+}
+
 /** 更新楼栋 PATCH /api/house/buildings/${param0}/ */
 export function houseBuildingsBuildingIdUsingPatch({
   params,
@@ -488,6 +506,27 @@ export function houseBuildingsBuildingIdUsingPatch({
     data: body,
     ...(options || {}),
   });
+}
+
+/** 检查楼栋删除关联资源 GET /api/house/buildings/${param0}/delete-check/ */
+export function houseBuildingsBuildingIdDeleteCheckUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseBuildingsBuildingIdDeleteCheckUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { building_id: param0, ...queryParams } = params;
+
+  return request<API.DeleteCheckOut>(
+    `/api/house/buildings/${param0}/delete-check/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 获取联系人列表 GET /api/house/contacts/ */
@@ -656,6 +695,24 @@ export function houseEstatesEstateIdUsingGet({
   });
 }
 
+/** 删除项目片区 DELETE /api/house/estates/${param0}/ */
+export function houseEstatesEstateIdUsingDelete({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseEstatesEstateIdUsingDeleteParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { estate_id: param0, ...queryParams } = params;
+
+  return request<Record<string, unknown>>(`/api/house/estates/${param0}/`, {
+    method: 'DELETE',
+    params: { ...queryParams },
+    ...(options || {}),
+  });
+}
+
 /** 更新项目片区 PATCH /api/house/estates/${param0}/ */
 export function houseEstatesEstateIdUsingPatch({
   params,
@@ -678,6 +735,27 @@ export function houseEstatesEstateIdUsingPatch({
     data: body,
     ...(options || {}),
   });
+}
+
+/** 检查项目片区删除关联资源 GET /api/house/estates/${param0}/delete-check/ */
+export function houseEstatesEstateIdDeleteCheckUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseEstatesEstateIdDeleteCheckUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { estate_id: param0, ...queryParams } = params;
+
+  return request<API.DeleteCheckOut>(
+    `/api/house/estates/${param0}/delete-check/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 获取房源列表 GET /api/house/houses/ */

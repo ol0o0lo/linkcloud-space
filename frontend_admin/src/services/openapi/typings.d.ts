@@ -406,6 +406,22 @@ declare namespace API {
     user_id: number;
   };
 
+  type appsHouseApiCheckBuildingDeleteParams = {
+    building_id: number;
+  };
+
+  type appsHouseApiCheckEstateDeleteParams = {
+    estate_id: number;
+  };
+
+  type appsHouseApiDeleteBuildingEndpointParams = {
+    building_id: number;
+  };
+
+  type appsHouseApiDeleteEstateEndpointParams = {
+    estate_id: number;
+  };
+
   type appsHouseApiGetBuildingParams = {
     building_id: number;
   };
@@ -781,7 +797,7 @@ declare namespace API {
 
   type BuildingIn = {
     /** Estate Id */
-    estate_id: number;
+    estate_id?: number | null;
     /** Name */
     name: string;
     /** Floors */
@@ -806,8 +822,8 @@ declare namespace API {
     /** Id */
     id: number;
     /** Estate Id */
-    estate_id: number;
-    estate: EstateSummaryOut;
+    estate_id: number | null;
+    estate: EstateSummaryOut | null;
     /** Name */
     name: string;
     /** Floors */
@@ -857,8 +873,10 @@ declare namespace API {
     /** Name */
     name: string;
     /** Estate Id */
-    estate_id: number;
-    estate: EstateSummaryOut;
+    estate_id: number | null;
+    estate: EstateSummaryOut | null;
+    /** Address */
+    address: string;
   };
 
   type BulkActionIn = {
@@ -962,14 +980,21 @@ declare namespace API {
     /** Id */
     id: number;
     /** Estate Id */
-    estate_id: number;
-    estate: EstateSummaryOut;
+    estate_id: number | null;
+    estate: EstateSummaryOut | null;
     /** Name */
     name: string;
     /** Floors */
     floors: number;
     /** Address */
     address: string;
+  };
+
+  type DeleteCheckOut = {
+    /** Can Delete */
+    can_delete: boolean;
+    /** Resources */
+    resources: RelatedResourceOut[];
   };
 
   type EstateIn = {
@@ -2278,6 +2303,34 @@ declare namespace API {
     pending_review_count: number;
     /** Rewarded Count */
     rewarded_count: number;
+  };
+
+  type RelatedResourceItemOut = {
+    /** Id */
+    id: number;
+    /** Label */
+    label: string;
+  };
+
+  type RelatedResourceOut = {
+    /** Type */
+    type: string;
+    /** Label */
+    label: string;
+    /** Count */
+    count: number;
+    /** Items */
+    items: RelatedResourceItemOut[];
+    /** Truncated */
+    truncated: boolean;
+    target: RelatedResourceTargetOut;
+  };
+
+  type RelatedResourceTargetOut = {
+    /** Path */
+    path: string;
+    /** Query */
+    query: Record<string, any>;
   };
 
   type ResetMfaOut = {
