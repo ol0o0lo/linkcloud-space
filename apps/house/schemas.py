@@ -8,6 +8,30 @@ from pydantic import ConfigDict, Field
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
 
 
+class RelatedResourceItemOut(Schema):
+    id: int
+    label: str
+
+
+class RelatedResourceTargetOut(Schema):
+    path: str
+    query: dict[str, int | str]
+
+
+class RelatedResourceOut(Schema):
+    type: str
+    label: str
+    count: int
+    items: list[RelatedResourceItemOut]
+    truncated: bool
+    target: RelatedResourceTargetOut
+
+
+class DeleteCheckOut(Schema):
+    can_delete: bool
+    resources: list[RelatedResourceOut]
+
+
 class EstateIn(Schema):
     name: str
     display_name: str

@@ -9,6 +9,7 @@ from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
+RESOURCE_PREVIEW_LIMIT = 5
 PUBLISH_RULES_SETTING_KEY = "property_rental.publish_rules"
 PUBLISH_RULE_MODE_REQUIRED = "required"
 PUBLISH_RULE_MODE_WARNING = "warn"
@@ -44,6 +45,50 @@ DEFAULT_HOUSE_PUBLISH_RULES = {
 if TYPE_CHECKING:
     from apps.accounts.models import User
     from apps.organizations.models import Organization
+
+
+def get_estate_delete_check(estate):
+    buildings = estate.buildings.order_by("name", "id")
+    count = buildings.count()
+    if not count:
+        return {"can_delete": True, "resources": []}
+
+    preview = buildings.only("id", "name", "address")[:RESOURCE_PREVIEW_LIMIT]
+    return {
+        "can_delete": False,
+        "resources": [
+            {
+                "type": "building",
+                "label": "关联楼栋",
+                "count": count,
+                "items": [{"id": building.pk, "label": f"{building.name} · {building.address}" if building.address else building.name} for building in preview],
+                "truncated": count > RESOURCE_PREVIEW_LIMIT,
+                "target": {"path": "/property-rental/estates", "query": {"view": "buildings", "estate_id": estate.pk}},
+            }
+        ],
+    }
+
+
+def get_building_delete_check(building):
+    houses = building.houses.order_by("room_number", "id")
+    count = houses.count()
+    if not count:
+        return {"can_delete": True, "resources": []}
+
+    preview = houses.only("id", "room_number")[:RESOURCE_PREVIEW_LIMIT]
+    return {
+        "can_delete": False,
+        "resources": [
+            {
+                "type": "house",
+                "label": "关联房源",
+                "count": count,
+                "items": [{"id": house.pk, "label": f"{building.name} / {house.room_number}"} for house in preview],
+                "truncated": count > RESOURCE_PREVIEW_LIMIT,
+                "target": {"path": "/property-rental/houses", "query": {"building_id": building.pk}},
+            }
+        ],
+    }
 
 
 def claim_landlord_contact_for_bound_phone(user: User, organization: Organization | None, phone: str | None):

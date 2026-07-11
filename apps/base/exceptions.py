@@ -1,6 +1,6 @@
 """异常体系基类。"""
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from django.utils.translation import gettext_lazy as _
 
@@ -10,13 +10,15 @@ class AppException(Exception):
     code: ClassVar[int] = 400
     message: ClassVar[str] = _("服务异常")
 
-    def __init__(self, message: str | None = None, *, fields: dict[str, list[str]] | None = None):
+    def __init__(self, message: str | None = None, *, fields: dict[str, list[str]] | None = None, data: Any = None):
         self.message: str = message if message is not None else self.__class__.message
         self.fields = fields
+        self.data = data
         super().__init__(self.message)
 
 
 # 通用大类
+
 
 class BadRequestException(AppException):
     """参数或业务校验失败。"""

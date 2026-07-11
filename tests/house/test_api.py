@@ -60,6 +60,96 @@ class HouseApiTestCase(TestCase):
         building = Building.objects.create(organization=self.org, estate=None, name="海滨公寓", address="海滨路 20 号", floors=8)
         return House.objects.create(building=building, room_number="801", **house_kwargs)
 
+    def test_estate_delete_check_reports_building_preview(self):
+        empty_estate = Estate.objects.create(
+            organization=self.org,
+            name="空项目",
+            display_name="空项目",
+            province="广东",
+            city="深圳",
+            district="南山",
+        )
+        empty_response = self.client.get(f"/api/house/estates/{empty_estate.pk}/delete-check/")
+
+        self.assertEqual(empty_response.status_code, 200)
+        self.assertEqual(api_data(empty_response), {"can_delete": True, "resources": []})
+
+        buildings = [
+            Building.objects.create(
+                organization=self.org,
+                estate=self.estate,
+                name=f"{index}栋",
+                address="科技南路" if index == 2 else "",
+                floors=20,
+            )
+            for index in range(2, 8)
+        ]
+        response = self.client.get(f"/api/house/estates/{self.estate.pk}/delete-check/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            api_data(response),
+            {
+                "can_delete": False,
+                "resources": [
+                    {
+                        "type": "building",
+                        "label": "关联楼栋",
+                        "count": 7,
+                        "items": [
+                            {"id": self.building.pk, "label": "1栋"},
+                            {"id": buildings[0].pk, "label": "2栋 · 科技南路"},
+                            {"id": buildings[1].pk, "label": "3栋"},
+                            {"id": buildings[2].pk, "label": "4栋"},
+                            {"id": buildings[3].pk, "label": "5栋"},
+                        ],
+                        "truncated": True,
+                        "target": {
+                            "path": "/property-rental/estates",
+                            "query": {"view": "buildings", "estate_id": self.estate.pk},
+                        },
+                    }
+                ],
+            },
+        )
+
+    def test_building_delete_check_reports_house_preview(self):
+        empty_building = Building.objects.create(organization=self.org, estate=self.estate, name="空楼栋", floors=8)
+        empty_response = self.client.get(f"/api/house/buildings/{empty_building.pk}/delete-check/")
+
+        self.assertEqual(empty_response.status_code, 200)
+        self.assertEqual(api_data(empty_response), {"can_delete": True, "resources": []})
+
+        houses = [House.objects.create(building=self.building, room_number=f"{index:02d}") for index in range(1, 7)]
+        response = self.client.get(f"/api/house/buildings/{self.building.pk}/delete-check/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            api_data(response),
+            {
+                "can_delete": False,
+                "resources": [
+                    {
+                        "type": "house",
+                        "label": "关联房源",
+                        "count": 6,
+                        "items": [{"id": house.pk, "label": f"1栋 / {house.room_number}"} for house in houses[:5]],
+                        "truncated": True,
+                        "target": {"path": "/property-rental/houses", "query": {"building_id": self.building.pk}},
+                    }
+                ],
+            },
+        )
+
+    def test_delete_checks_hide_resources_outside_current_org(self):
+        _other_org, other_house, _other_landlord, _other_tenant = self.make_other_org_house()
+
+        estate_response = self.client.get(f"/api/house/estates/{other_house.building.estate_id}/delete-check/")
+        building_response = self.client.get(f"/api/house/buildings/{other_house.building_id}/delete-check/")
+
+        self.assertEqual(estate_response.status_code, 404)
+        self.assertEqual(building_response.status_code, 404)
+
     def test_standalone_house_list_detail_and_tenant_boundary(self):
         house = self.make_standalone_house()
 

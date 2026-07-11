@@ -17,6 +17,7 @@ from apps.house.schemas import (
     ContactPatchIn,
     DefaultBuildingIn,
     DefaultBuildingOut,
+    DeleteCheckOut,
     EstateIn,
     EstateOut,
     EstatePatchIn,
@@ -32,6 +33,8 @@ from apps.house.schemas import (
 )
 from apps.house.services import (
     ensure_default_building,
+    get_building_delete_check,
+    get_estate_delete_check,
     get_landlord_houses,
     get_landlord_leases,
     set_default_building,
@@ -90,6 +93,11 @@ def get_estate(request, estate_id: int):
     return get_object_or_404(Estate, pk=estate_id, organization=org)
 
 
+@router.get("/estates/{estate_id}/delete-check/", response=DeleteCheckOut, summary="检查项目片区删除关联资源")
+def check_estate_delete(request, estate_id: int):
+    return get_estate_delete_check(get_estate(request, estate_id))
+
+
 @router.patch("/estates/{estate_id}/", response=EstateOut, summary="更新项目片区")
 def patch_estate(request, estate_id: int, payload: EstatePatchIn):
     return _patch(get_estate(request, estate_id), payload)
@@ -121,6 +129,11 @@ def create_building(request, payload: BuildingIn):
 def get_building(request, building_id: int):
     org = require_org_selected(request)
     return get_object_or_404(Building.objects.select_related("estate"), pk=building_id, organization=org)
+
+
+@router.get("/buildings/{building_id}/delete-check/", response=DeleteCheckOut, summary="检查楼栋删除关联资源")
+def check_building_delete(request, building_id: int):
+    return get_building_delete_check(get_building(request, building_id))
 
 
 @router.patch("/buildings/{building_id}/", response=BuildingOut, summary="更新楼栋")

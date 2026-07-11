@@ -5,6 +5,7 @@ Translate ninja/Pydantic/Django errors into one stable JSON envelope.
 """
 
 from collections import defaultdict
+from typing import Any
 
 from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -34,8 +35,10 @@ def _error_response(
     message: str,
     code: int,
     fields: dict[str, list[str]] | None = None,
+    data: Any = None,
 ):
-    data = {"fields": fields} if fields else None
+    if data is None:
+        data = {"fields": fields} if fields else None
     payload = error_envelope(code=code, error=error, message=message, data=data)
     return JsonResponse(payload, status=code)
 
@@ -89,6 +92,7 @@ def register_error_handlers(api) -> None:
             message=str(exc.message),
             code=exc.__class__.code,
             fields=exc.fields,
+            data=exc.data,
         )
 
     @api.exception_handler(NinjaValidationError)
