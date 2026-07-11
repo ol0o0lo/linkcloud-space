@@ -227,14 +227,19 @@ const defaultTenant = { id: 6, name: '王租客', phone: '13700000000' };
 
 function buildingItem(overrides: Record<string, any> = {}) {
   const { estate_display_name, ...rest } = overrides;
-  const estate = overrides.estate || {
-    id: overrides.estate_id || defaultEstate.id,
-    name: estate_display_name || defaultEstate.name,
-    display_name: estate_display_name || defaultEstate.display_name,
-  };
+  const estateId = Object.hasOwn(overrides, 'estate_id') ? overrides.estate_id : defaultEstate.id;
+  const estate = Object.hasOwn(overrides, 'estate')
+    ? overrides.estate
+    : estateId == null
+      ? null
+      : {
+          id: estateId,
+          name: estate_display_name || defaultEstate.name,
+          display_name: estate_display_name || defaultEstate.display_name,
+        };
   return {
     id: 2,
-    estate_id: estate.id,
+    estate_id: estate?.id ?? estateId,
     estate,
     name: '1 栋',
     floors: 32,
@@ -402,6 +407,32 @@ describe('Property rental domain list pages', () => {
       name: '2 栋',
       floors: 28,
     })));
+  });
+
+  it('shows associated buildings only while editing an estate that has buildings', async () => {
+    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
+    mockListBuildings.mockResolvedValue({ items: [buildingItem({ id: 2, name: '1 栋' })], total: 1, page: 1, page_size: 100 });
+
+    renderPage(<EstatesPage />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[0]);
+    expect(await screen.findByText('关联楼栋')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '查看全部楼栋' })).toHaveAttribute('href', '/dashboard/property-rental/estates?view=buildings&estate_id=1');
+  });
+
+  it('does not show estate context while editing a standalone building', async () => {
+    mockListBuildings.mockResolvedValue({
+      items: [buildingItem({ estate_id: null, name: '独栋', floors: 3, elevator: false, address: '科技路 88 号' })],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+
+    renderPage(<EstatesPage />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[1]);
+    await screen.findByLabelText('楼栋名');
+    expect(screen.queryByText('所属小区')).not.toBeInTheDocument();
   });
 
   it('links active buildings directly to house registration', async () => {

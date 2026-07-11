@@ -128,7 +128,7 @@ type EstateFormValues = {
 };
 
 type BuildingFormValues = {
-  estate_id: number;
+  estate_id?: number | null;
   name: string;
   floors: number;
   elevator?: boolean;
@@ -179,7 +179,7 @@ const EstatesPage: React.FC = () => {
   });
   const saveBuilding = useMutation({
     mutationFn: (values: BuildingFormValues) => {
-      const payload = { ...values, floors: Number(values.floors) };
+      const payload = { ...values, estate_id: values.estate_id ?? null, floors: Number(values.floors) };
       return editingBuilding ? houseApi.patchBuilding(editingBuilding.id, payload) : houseApi.createBuilding(payload);
     },
     onSuccess: async () => {
@@ -239,7 +239,7 @@ const EstatesPage: React.FC = () => {
   };
 
   const estateInitialValues: Partial<EstateFormValues> = editingEstate || { property_type: 'residential', is_active: true };
-  const buildingInitialValues: Partial<BuildingFormValues> = editingBuilding || { estate_id: draftBuildingEstateId || allEstates.data?.items?.[0]?.id, floors: 1, elevator: false, is_active: true };
+  const buildingInitialValues: Partial<BuildingFormValues> = editingBuilding || { estate_id: draftBuildingEstateId, floors: 1, elevator: false, is_active: true };
   const estateOverviewRows = allEstates.data?.items || estates.data?.items || [];
   const buildingOverviewRows = allBuildings.data?.items || buildings.data?.items || [];
   const estateTableBaseRows = task ? estateOverviewRows : (estates.data?.items || []);
@@ -479,6 +479,19 @@ const EstatesPage: React.FC = () => {
           <Form.Item label="地址" name="address" extra="可先留空，后续补齐项目地址。"><Input placeholder="例如：科技园路 1 号（可稍后补）" /></Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
         </Form>
+        {editingEstate && getEstateBuildings(buildingOverviewRows, editingEstate.id).length > 0 ? (
+          <Card
+            size="small"
+            title="关联楼栋"
+            style={{ marginTop: 16 }}
+            extra={<a href={`/dashboard/property-rental/estates?view=buildings&estate_id=${editingEstate.id}`}>查看全部楼栋</a>}
+          >
+            {getEstateBuildings(buildingOverviewRows, editingEstate.id)
+              .slice(0, 5)
+              .map((building) => building.name)
+              .join('、')}
+          </Card>
+        ) : null}
       </Drawer>
       <Drawer
         title={editingBuilding ? '编辑楼栋' : '新建楼栋'}
@@ -489,13 +502,36 @@ const EstatesPage: React.FC = () => {
         extra={<Button type="primary" htmlType="submit" form="building-form" loading={saveBuilding.isPending}>保存</Button>}
       >
         <Form id="building-form" layout="vertical" initialValues={buildingInitialValues} onFinish={(values) => saveBuilding.mutate(values)}>
-          <Form.Item label="所属项目" name="estate_id" rules={[{ required: true, message: '请选择项目' }]}><Select options={(allEstates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></Form.Item>
+          <Form.Item label="所属项目" name="estate_id"><Select allowClear options={(allEstates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></Form.Item>
           <Form.Item label="楼栋名" name="name" rules={[{ required: true, message: '请输入楼栋名' }]}><Input /></Form.Item>
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}><Input type="number" min={1} /></Form.Item>
           <Form.Item label="电梯" name="elevator" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item label="地址" name="address"><Input /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(previousValues, currentValues) => previousValues.estate_id !== currentValues.estate_id}>
+            {() => (
+              <Form.Item
+                label="地址"
+                name="address"
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator: async (_rule, value) => {
+                      if (getFieldValue('estate_id') === undefined || getFieldValue('estate_id') === null) {
+                        if (!String(value || '').trim()) throw new Error('非小区楼栋必须填写楼栋地址');
+                      }
+                    },
+                  }),
+                ]}
+              >
+                <Input />
+              </Form.Item>
+            )}
+          </Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
         </Form>
+        {editingBuilding?.estate ? (
+          <Card size="small" title="所属小区" style={{ marginTop: 16 }}>
+            {editingBuilding.estate.display_name || editingBuilding.estate.name}
+          </Card>
+        ) : null}
       </Drawer>
     </TenantSelectionGuard>
   );
