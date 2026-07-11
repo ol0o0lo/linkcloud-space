@@ -212,14 +212,19 @@ DELETE /api/house/buildings/{building_id}/
 
 ```json
 {
-  "code": "resource_in_use",
+  "code": 409,
+  "error": "RESOURCE_IN_USE",
   "message": "当前小区已关联楼栋，不能删除。",
-  "can_delete": false,
-  "resources": []
+  "data": {
+    "can_delete": false,
+    "resources": []
+  },
+  "timestamp": 0,
+  "traceId": ""
 }
 ```
 
-其中 `resources` 与删除检查接口采用相同结构。目标对象已经被其他用户删除时返回 `404`。
+其中 `data.resources` 与删除检查接口采用相同结构；`timestamp` 使用实际响应时间。目标对象已经被其他用户删除时返回 `404`。
 
 ## 管理端交互
 
@@ -292,7 +297,7 @@ DELETE 返回 `409` 时，不显示普通“删除失败”消息。当前确认
 - 独立楼栋缺少地址：返回楼栋地址字段错误。
 - 小区和楼栋跨组织绑定：按资源不存在返回 `404`，避免泄露其他组织资源。
 - 唯一性冲突：返回名称或地址相关的业务错误。
-- 删除存在关联资源：返回 `409 resource_in_use` 和最新资源摘要。
+- 删除存在关联资源：返回 `409 RESOURCE_IN_USE` 和最新资源摘要。
 - 删除目标不存在：返回 `404`。
 - 数据库 `PROTECT` 意外触发：转换为与资源占用一致的 `409` 响应，不返回服务端异常页面。
 
