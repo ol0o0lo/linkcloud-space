@@ -1,14 +1,17 @@
 import json
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import user_logged_in
+from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
 from model_bakery import baker
 
 from apps.accounts.models import User
+from apps.house import services as house_services
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.house.schemas import ContactIn, ContactPatchIn, HouseIn, LeaseIn, ViewingRecordIn
@@ -186,6 +189,21 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(error["data"]["resources"][0]["items"][0]["id"], self.building.pk)
         self.assertTrue(Estate.objects.filter(pk=self.estate.pk).exists())
         self.assertTrue(Building.objects.filter(pk=self.building.pk).exists())
+
+    def test_delete_estate_translates_integrity_error_to_resource_in_use_check(self):
+        fresh_check = house_services.get_estate_delete_check(self.estate)
+
+        with (
+            patch.object(house_services, "get_estate_delete_check", side_effect=[{"can_delete": True, "resources": []}, fresh_check]),
+            patch.object(Estate, "delete", side_effect=IntegrityError),
+        ):
+            response = self.client.delete(f"/api/house/estates/{self.estate.pk}/")
+
+        self.assertEqual(response.status_code, 409)
+        error = api_error(response)
+        self.assertEqual(error["error"], "RESOURCE_IN_USE")
+        self.assertEqual(error["data"]["resources"][0]["type"], "building")
+        self.assertEqual(error["data"]["resources"][0]["items"][0]["id"], self.building.pk)
 
     def test_delete_building_with_houses_returns_resource_in_use_check(self):
         house = House.objects.create(building=self.building, room_number="1001")

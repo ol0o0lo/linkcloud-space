@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.http import Http404
 
@@ -106,7 +106,9 @@ def _delete_checked_resource(resource, get_delete_check, message: str) -> int:
         # delete check from a database-level PROTECT fallback.
         with transaction.atomic():
             deleted_count, _deleted_details = resource.delete()
-    except ProtectedError:
+    except (IntegrityError, ProtectedError):
+        # Do not catch OperationalError (for example, SQLite's "database is locked"):
+        # without a reliable fresh read, it cannot be reported as RESOURCE_IN_USE.
         check = get_delete_check(resource)
         raise ResourceInUseException(message, check) from None
 
