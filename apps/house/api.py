@@ -110,9 +110,9 @@ def list_buildings(request, estate_id: int | None = Query(None), keyword: str | 
 @router.post("/buildings/", response={201: BuildingOut}, summary="创建楼栋")
 def create_building(request, payload: BuildingIn):
     org = require_org_selected(request)
-    estate = get_object_or_404(Estate, pk=payload.estate_id, organization=org)
     data = payload.dict()
-    data.pop("estate_id")
+    estate_id = data.pop("estate_id")
+    estate = get_object_or_404(Estate, pk=estate_id, organization=org) if estate_id is not None else None
     building = Building.objects.create(organization=org, estate=estate, **data)
     return Status(201, building)
 
@@ -127,9 +127,9 @@ def get_building(request, building_id: int):
 def patch_building(request, building_id: int, payload: BuildingPatchIn):
     building = get_building(request, building_id)
     data = payload.dict(exclude_unset=True)
-    estate_id = data.pop("estate_id", None)
-    if estate_id is not None:
-        building.estate = get_object_or_404(Estate, pk=estate_id, organization=building.organization)
+    if "estate_id" in data:
+        estate_id = data.pop("estate_id")
+        building.estate = get_object_or_404(Estate, pk=estate_id, organization=building.organization) if estate_id is not None else None
     for field, value in data.items():
         setattr(building, field, value)
     building.save()

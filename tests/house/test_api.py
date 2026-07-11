@@ -423,6 +423,97 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["total"], 1)
         self.assertEqual([item["id"] for item in payload["items"]], [other_building.pk])
 
+    def test_create_standalone_building_with_null_or_omitted_estate(self):
+        for name, payload in (
+            ("海滨公寓", {"estate_id": None, "name": "海滨公寓", "address": "海滨路 20 号", "floors": 8}),
+            ("山景公寓", {"name": "山景公寓", "address": "山景路 8 号", "floors": 6}),
+        ):
+            response = self.client.post("/api/house/buildings/", data=json.dumps(payload), content_type="application/json")
+
+            self.assertEqual(response.status_code, 201)
+            response_payload = api_data(response)
+            self.assertIsNone(response_payload["estate_id"])
+            self.assertIsNone(response_payload["estate"])
+            building = Building.objects.get(pk=response_payload["id"])
+            self.assertEqual(building.organization, self.org)
+            self.assertEqual(building.name, name)
+            self.assertIsNone(building.estate_id)
+
+    def test_create_standalone_building_requires_address(self):
+        self.client.raise_request_exception = False
+
+        response = self.client.post(
+            "/api/house/buildings/",
+            data=json.dumps({"name": "无地址公寓", "floors": 8}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("address", api_error(response)["data"]["fields"])
+
+    def test_patch_building_can_bind_and_unbind_estate_but_omission_preserves_it(self):
+        building = Building.objects.create(organization=self.org, estate=None, name="海滨公寓", address="海滨路 20 号", floors=8)
+
+        bound = self.client.patch(
+            f"/api/house/buildings/{building.pk}/",
+            data=json.dumps({"estate_id": self.estate.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(bound.status_code, 200)
+        self.assertEqual(api_data(bound)["estate_id"], self.estate.pk)
+        self.assertEqual(api_data(bound)["estate"]["id"], self.estate.pk)
+
+        renamed = self.client.patch(
+            f"/api/house/buildings/{building.pk}/",
+            data=json.dumps({"name": "海滨公寓 A 座"}),
+            content_type="application/json",
+        )
+        self.assertEqual(renamed.status_code, 200)
+        self.assertEqual(api_data(renamed)["estate_id"], self.estate.pk)
+
+        unbound = self.client.patch(
+            f"/api/house/buildings/{building.pk}/",
+            data=json.dumps({"estate_id": None}),
+            content_type="application/json",
+        )
+        self.assertEqual(unbound.status_code, 200)
+        self.assertIsNone(api_data(unbound)["estate_id"])
+        self.assertIsNone(api_data(unbound)["estate"])
+
+    def test_patch_building_rejects_unbinding_without_address(self):
+        building = Building.objects.create(organization=self.org, estate=self.estate, name="无独立地址楼栋", address="", floors=8)
+        self.client.raise_request_exception = False
+
+        response = self.client.patch(
+            f"/api/house/buildings/{building.pk}/",
+            data=json.dumps({"estate_id": None}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("address", api_error(response)["data"]["fields"])
+
+    def test_create_and_patch_building_reject_estate_outside_current_org(self):
+        other_org, _other_house, _other_landlord, _other_tenant = self.make_other_org_house()
+        other_estate = Estate.objects.get(organization=other_org, name="异租户项目")
+        self.client.raise_request_exception = False
+
+        created = self.client.post(
+            "/api/house/buildings/",
+            data=json.dumps({"estate_id": other_estate.pk, "name": "越界楼栋", "floors": 8}),
+            content_type="application/json",
+        )
+        patched = self.client.patch(
+            f"/api/house/buildings/{self.building.pk}/",
+            data=json.dumps({"estate_id": other_estate.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(created.status_code, 404)
+        self.assertEqual(patched.status_code, 404)
+        self.building.refresh_from_db()
+        self.assertEqual(self.building.estate_id, self.estate.pk)
+
     def test_list_leases_filters_contract_missing_before_pagination(self):
         landlord = Contact.objects.create(organization=self.org, name="合同房东", phone="13800138667", roles=[ContactRole.LANDLORD])
         tenant = Contact.objects.create(organization=self.org, name="合同租客", phone="13900139667", roles=[ContactRole.TENANT])
@@ -655,6 +746,21 @@ class HouseApiTestCase(TestCase):
             content_type="application/json",
         )
         self.assertEqual(rejected.status_code, 404)
+
+    def test_default_building_can_be_changed_to_standalone_building(self):
+        standalone = Building.objects.create(organization=self.org, estate=None, name="海滨公寓", address="海滨路 20 号", floors=8)
+
+        response = self.client.put(
+            "/api/house/default-building/",
+            data=json.dumps({"building_id": standalone.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        self.assertEqual(payload["id"], standalone.pk)
+        self.assertIsNone(payload["estate_id"])
+        self.assertIsNone(payload["estate"])
 
     def test_contact_input_schema_does_not_expose_user_binding(self):
         self.assertNotIn("user_id", ContactIn.model_fields)

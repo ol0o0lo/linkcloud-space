@@ -67,7 +67,7 @@ class EstateOut(Schema):
 
 
 class BuildingIn(Schema):
-    estate_id: int
+    estate_id: int | None = None
     name: str
     floors: int
     under_floors: int | None = None
