@@ -150,6 +150,97 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(estate_response.status_code, 404)
         self.assertEqual(building_response.status_code, 404)
 
+    def test_delete_empty_estate_returns_deleted_id(self):
+        estate = Estate.objects.create(
+            organization=self.org,
+            name="待删除项目",
+            display_name="待删除项目",
+            province="广东",
+            city="深圳",
+            district="南山",
+        )
+
+        response = self.client.delete(f"/api/house/estates/{estate.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(api_data(response), {"deleted": estate.pk})
+        self.assertFalse(Estate.objects.filter(pk=estate.pk).exists())
+
+    def test_delete_empty_standalone_building_returns_deleted_id(self):
+        building = Building.objects.create(organization=self.org, estate=None, name="待删除独立楼栋", address="海滨路 30 号", floors=8)
+
+        response = self.client.delete(f"/api/house/buildings/{building.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(api_data(response), {"deleted": building.pk})
+        self.assertFalse(Building.objects.filter(pk=building.pk).exists())
+
+    def test_delete_estate_with_buildings_returns_resource_in_use_check(self):
+        response = self.client.delete(f"/api/house/estates/{self.estate.pk}/")
+
+        self.assertEqual(response.status_code, 409)
+        error = api_error(response)
+        self.assertEqual(error["error"], "RESOURCE_IN_USE")
+        self.assertFalse(error["data"]["can_delete"])
+        self.assertEqual(error["data"]["resources"][0]["type"], "building")
+        self.assertEqual(error["data"]["resources"][0]["items"][0]["id"], self.building.pk)
+        self.assertTrue(Estate.objects.filter(pk=self.estate.pk).exists())
+        self.assertTrue(Building.objects.filter(pk=self.building.pk).exists())
+
+    def test_delete_building_with_houses_returns_resource_in_use_check(self):
+        house = House.objects.create(building=self.building, room_number="1001")
+
+        response = self.client.delete(f"/api/house/buildings/{self.building.pk}/")
+
+        self.assertEqual(response.status_code, 409)
+        error = api_error(response)
+        self.assertEqual(error["error"], "RESOURCE_IN_USE")
+        self.assertFalse(error["data"]["can_delete"])
+        self.assertEqual(error["data"]["resources"][0]["type"], "house")
+        self.assertEqual(error["data"]["resources"][0]["items"][0]["id"], house.pk)
+        self.assertTrue(Building.objects.filter(pk=self.building.pk).exists())
+        self.assertTrue(House.objects.filter(pk=house.pk).exists())
+
+    def test_delete_estate_rechecks_resources_created_after_delete_check(self):
+        estate = Estate.objects.create(
+            organization=self.org,
+            name="竞态项目",
+            display_name="竞态项目",
+            province="广东",
+            city="深圳",
+            district="南山",
+        )
+        self.assertEqual(api_data(self.client.get(f"/api/house/estates/{estate.pk}/delete-check/")), {"can_delete": True, "resources": []})
+        building = Building.objects.create(organization=self.org, estate=estate, name="竞态楼栋", floors=8)
+
+        response = self.client.delete(f"/api/house/estates/{estate.pk}/")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(api_error(response)["data"]["resources"][0]["items"][0]["id"], building.pk)
+        self.assertTrue(Estate.objects.filter(pk=estate.pk).exists())
+        self.assertTrue(Building.objects.filter(pk=building.pk).exists())
+
+    def test_delete_building_rechecks_resources_created_after_delete_check(self):
+        building = Building.objects.create(organization=self.org, estate=None, name="竞态独立楼栋", address="海滨路 40 号", floors=8)
+        self.assertEqual(api_data(self.client.get(f"/api/house/buildings/{building.pk}/delete-check/")), {"can_delete": True, "resources": []})
+        house = House.objects.create(building=building, room_number="901")
+
+        response = self.client.delete(f"/api/house/buildings/{building.pk}/")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(api_error(response)["data"]["resources"][0]["items"][0]["id"], house.pk)
+        self.assertTrue(Building.objects.filter(pk=building.pk).exists())
+        self.assertTrue(House.objects.filter(pk=house.pk).exists())
+
+    def test_delete_resources_outside_current_org_returns_404(self):
+        _other_org, other_house, _other_landlord, _other_tenant = self.make_other_org_house()
+
+        estate_response = self.client.delete(f"/api/house/estates/{other_house.building.estate_id}/")
+        building_response = self.client.delete(f"/api/house/buildings/{other_house.building_id}/")
+
+        self.assertEqual(estate_response.status_code, 404)
+        self.assertEqual(building_response.status_code, 404)
+
     def test_standalone_house_list_detail_and_tenant_boundary(self):
         house = self.make_standalone_house()
 

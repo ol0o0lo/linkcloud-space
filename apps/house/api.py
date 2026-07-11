@@ -32,6 +32,8 @@ from apps.house.schemas import (
     ViewingRecordPatchIn,
 )
 from apps.house.services import (
+    delete_building,
+    delete_estate,
     ensure_default_building,
     get_building_delete_check,
     get_estate_delete_check,
@@ -103,6 +105,12 @@ def patch_estate(request, estate_id: int, payload: EstatePatchIn):
     return _patch(get_estate(request, estate_id), payload)
 
 
+@router.delete("/estates/{estate_id}/", response={200: dict}, summary="删除项目片区")
+def delete_estate_endpoint(request, estate_id: int):
+    org = require_org_selected(request)
+    return {"deleted": delete_estate(org, estate_id)}
+
+
 @router.get("/buildings/", response=list[BuildingOut], summary="获取楼栋列表")
 @paginate(LegacyPagination)
 def list_buildings(request, estate_id: int | None = Query(None), keyword: str | None = Query(None)):
@@ -147,6 +155,12 @@ def patch_building(request, building_id: int, payload: BuildingPatchIn):
         setattr(building, field, value)
     building.save()
     return building
+
+
+@router.delete("/buildings/{building_id}/", response={200: dict}, summary="删除楼栋")
+def delete_building_endpoint(request, building_id: int):
+    org = require_org_selected(request)
+    return {"deleted": delete_building(org, building_id)}
 
 
 @router.get("/default-building/", response=DefaultBuildingOut, summary="获取默认楼栋")

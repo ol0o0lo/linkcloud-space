@@ -4,8 +4,11 @@ from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from django.db import transaction
+from django.db.models import ProtectedError
+from django.http import Http404
 
 from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
+from apps.house.exceptions import ResourceInUseException
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
@@ -89,6 +92,50 @@ def get_building_delete_check(building):
             }
         ],
     }
+
+
+def _delete_checked_resource(resource, get_delete_check, message: str) -> int:
+    check = get_delete_check(resource)
+    if not check["can_delete"]:
+        raise ResourceInUseException(message, check)
+
+    resource_id = resource.pk
+
+    try:
+        # Keep the outer row lock while a savepoint shields the follow-up
+        # delete check from a database-level PROTECT fallback.
+        with transaction.atomic():
+            deleted_count, _deleted_details = resource.delete()
+    except ProtectedError:
+        check = get_delete_check(resource)
+        raise ResourceInUseException(message, check) from None
+
+    if not deleted_count:
+        raise Http404
+
+    return resource_id
+
+
+def delete_estate(organization: Organization, estate_id: int) -> int:
+    from apps.house.models import Estate
+
+    with transaction.atomic():
+        try:
+            estate = Estate.objects.select_for_update().get(pk=estate_id, organization=organization)
+        except Estate.DoesNotExist:
+            raise Http404 from None
+        return _delete_checked_resource(estate, get_estate_delete_check, "小区已关联楼栋，不能删除。")
+
+
+def delete_building(organization: Organization, building_id: int) -> int:
+    from apps.house.models import Building
+
+    with transaction.atomic():
+        try:
+            building = Building.objects.select_for_update().get(pk=building_id, organization=organization)
+        except Building.DoesNotExist:
+            raise Http404 from None
+        return _delete_checked_resource(building, get_building_delete_check, "楼栋已关联房源，不能删除。")
 
 
 def claim_landlord_contact_for_bound_phone(user: User, organization: Organization | None, phone: str | None):
