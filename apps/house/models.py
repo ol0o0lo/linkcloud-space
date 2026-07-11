@@ -91,8 +91,6 @@ class Building(CreateUpdateTimeModelMixin):
 
     def clean(self):
         super().clean()
-        self.name = normalize_space_identity(self.name)
-        self.address = normalize_space_identity(self.address)
         if self.estate_id and self.organization_id and self.estate.organization_id != self.organization_id:
             raise ValidationError({"organization": "楼栋组织必须与项目片区组织一致。"})
         if not self.estate_id and not self.address:
@@ -109,6 +107,11 @@ class Building(CreateUpdateTimeModelMixin):
             and duplicates.filter(organization_id=self.organization_id, estate__isnull=True, name=self.name, address=self.address).exists()
         ):
             raise ValidationError({"address": "该组织已存在名称和地址相同的非小区楼栋。"})
+
+    def full_clean(self, exclude=None, validate_unique=True, validate_constraints=True):
+        self.name = normalize_space_identity(self.name)
+        self.address = normalize_space_identity(self.address)
+        super().full_clean(exclude=exclude, validate_unique=validate_unique, validate_constraints=validate_constraints)
 
     def save(self, *args, **kwargs):
         self.full_clean()

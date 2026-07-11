@@ -116,6 +116,28 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         self.assertEqual(building.name, "海滨 公寓")
         self.assertEqual(building.address, "海滨路 20 号")
 
+    def test_building_rejects_name_containing_only_whitespace(self):
+        building = Building(organization=self.org, estate=None, name="   \t  ", address="海滨路 20 号", floors=18)
+        initial_count = Building.objects.count()
+
+        with self.assertRaises(ValidationError) as context:
+            building.save()
+
+        self.assertIn("name", context.exception.message_dict)
+        self.assertEqual(Building.objects.count(), initial_count)
+
+    def test_building_validates_length_after_normalizing_whitespace(self):
+        building = Building.objects.create(
+            organization=self.org,
+            estate=None,
+            name=f"海滨{' ' * 100}公寓",
+            address="海滨路 20 号",
+            floors=18,
+        )
+
+        building.refresh_from_db()
+        self.assertEqual(building.name, "海滨 公寓")
+
     def test_standalone_building_requires_address(self):
         building = Building(organization=self.org, estate=None, name="海滨公寓", address="", floors=18)
 
