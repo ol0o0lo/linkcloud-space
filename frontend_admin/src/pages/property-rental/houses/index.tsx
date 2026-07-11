@@ -60,7 +60,11 @@ function getHouseListStateFromSearch(search: string) {
 }
 
 function syncHouseListSearch(filters: HouseScopeFilters & { page: number }) {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams(window.location.search);
+  params.delete('keyword');
+  params.delete('status');
+  params.delete('building_id');
+  params.delete('page');
   if (filters.q) params.set('keyword', filters.q);
   if (filters.status) params.set('status', filters.status);
   if (filters.buildingId) params.set('building_id', String(filters.buildingId));

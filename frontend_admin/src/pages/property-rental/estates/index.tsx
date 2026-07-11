@@ -7,10 +7,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
-import { type BuildingOut, type EstateOut, houseApi } from '@/services/manual/house';
+import { type BuildingOut, type EstateOut, houseApi, type PageResult } from '@/services/manual/house';
 import { mediaCoverUrl } from '../constants';
 
 const PAGE_SIZE = 20;
+const ALL_BUILDINGS_PAGE_SIZE = 500;
 type EstateViewMode = 'all' | 'estates' | 'buildings';
 type EstateTask = 'estate_address' | 'building_address' | 'no_building' | 'inactive';
 type EstateDrawerState = {
@@ -38,6 +39,23 @@ function getBuildingSupplyText(building: BuildingOut) {
   if (building.elevator) return '有电梯，可优先承接高层房源';
   if ((building.floors || 0) >= 10) return '无电梯高楼层，建档时注意居住体验';
   return '无电梯，适合低楼层房源';
+}
+
+async function fetchAllBuildings(): Promise<PageResult<BuildingOut>> {
+  const items: BuildingOut[] = [];
+  let page = 1;
+  let total = 0;
+
+  while (true) {
+    const result = await houseApi.listBuildings({ page, page_size: ALL_BUILDINGS_PAGE_SIZE });
+    items.push(...result.items);
+    total = result.total;
+
+    if (!result.items.length || items.length >= total) break;
+    page += 1;
+  }
+
+  return { items, total, page: 1, page_size: ALL_BUILDINGS_PAGE_SIZE };
 }
 
 function getEstateDrawerStateFromSearch(search: string): EstateDrawerState {
@@ -174,8 +192,8 @@ const EstatesPage: React.FC = () => {
     enabled,
   });
   const allBuildings = useQuery({
-    queryKey: ['house', 'buildings', 'all', workspace.selectedOrgSlug, q, estateId],
-    queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100, keyword: q, ...(estateId ? { estate_id: estateId } : {}) }),
+    queryKey: ['house', 'buildings', 'all', workspace.selectedOrgSlug],
+    queryFn: fetchAllBuildings,
     enabled,
   });
   const estateBuildings = useQuery({

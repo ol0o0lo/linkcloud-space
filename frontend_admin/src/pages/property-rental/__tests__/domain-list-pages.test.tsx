@@ -604,6 +604,44 @@ describe('Property rental domain list pages', () => {
     await waitFor(() => expect(window.location.search).toBe('?keyword=%E6%97%A7%E6%94%B9'));
   });
 
+  it('loads every building for estate coverage without inheriting the current keyword or estate filter', async () => {
+    window.history.pushState({}, '', '/property-rental/estates?keyword=%E7%AD%9B%E9%80%89&estate_id=11');
+    const firstPageBuildings = Array.from({ length: 500 }, (_, index) =>
+      buildingItem({ id: index + 1, estate_id: 1, estate_display_name: '全量项目', name: `${index + 1} 栋`, is_active: true }),
+    );
+    const lastBuilding = buildingItem({ id: 501, estate_id: 1, estate_display_name: '全量项目', name: '501 栋', is_active: true });
+    mockListEstates.mockResolvedValue({
+      items: [{ id: 1, name: 'all-estate', display_name: '全量项目', city: '深圳', district: '南山', address: '科技路', is_active: true, property_type: 'residential', province: '广东' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    });
+    mockListBuildings.mockImplementation((params?: Record<string, unknown>) => {
+      if (params?.page_size === 500 && params?.page === 1) {
+        return Promise.resolve({ items: firstPageBuildings, total: 501, page: 1, page_size: 500 });
+      }
+      if (params?.page_size === 500 && params?.page === 2) {
+        return Promise.resolve({ items: [lastBuilding], total: 501, page: 2, page_size: 500 });
+      }
+      return Promise.resolve({ items: [], total: 0, page: Number(params?.page || 1), page_size: Number(params?.page_size || 20) });
+    });
+
+    renderPage(<EstatesPage />);
+
+    expect(await screen.findByText('501 栋 / 501 栋启用')).toBeInTheDocument();
+    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith({ page: 2, page_size: 500 }));
+    expect(mockListBuildings).toHaveBeenCalledWith({ page: 1, page_size: 500 });
+    expect(mockListBuildings).not.toHaveBeenCalledWith(expect.objectContaining({ page_size: 500, keyword: '筛选' }));
+    expect(mockListBuildings).not.toHaveBeenCalledWith(expect.objectContaining({ page_size: 500, estate_id: 11 }));
+
+    fireEvent.click(screen.getByRole('button', { name: '清除小区筛选' }));
+    fireEvent.change(screen.getByPlaceholderText('搜索项目 / 楼栋'), { target: { value: '二次筛选' } });
+    fireEvent.keyDown(screen.getByPlaceholderText('搜索项目 / 楼栋'), { key: 'Enter', code: 'Enter' });
+
+    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith(expect.objectContaining({ page_size: 20, keyword: '二次筛选' })));
+    expect(mockListBuildings.mock.calls.filter(([params]) => params?.page_size === 500)).toEqual([[{ page: 1, page_size: 500 }], [{ page: 2, page_size: 500 }]]);
+  });
+
   it('switches between estate and building list views', async () => {
     renderPage(<EstatesPage />);
 
@@ -1203,18 +1241,19 @@ describe('Property rental domain list pages', () => {
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_issue: 'landlord' }));
   });
 
-  it('filters houses by building_id from the URL and clears the building filter', async () => {
-    window.history.pushState({}, '', '/property-rental/houses?building_id=2');
+  it('filters houses by building_id from the URL and preserves unrelated query params when clearing the building filter', async () => {
+    window.history.pushState({}, '', '/property-rental/houses?building_id=11&foo=x');
 
     renderPage(<HousesPage />);
 
-    await waitFor(() => expect(mockGetBuilding).toHaveBeenCalledWith(2));
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ building_id: 2, page: 1, page_size: 20, keyword: undefined, status: undefined }));
+    await waitFor(() => expect(mockGetBuilding).toHaveBeenCalledWith(11));
+    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ building_id: 11, page: 1, page_size: 20, keyword: undefined, status: undefined }));
     expect(await screen.findByText('当前楼栋筛选：1 栋')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '清除楼栋筛选' }));
 
     await waitFor(() => expect(window.location.search).not.toContain('building_id'));
+    expect(new URLSearchParams(window.location.search).get('foo')).toBe('x');
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ page: 1, page_size: 20, keyword: undefined, status: undefined }));
   });
 
