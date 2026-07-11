@@ -13,6 +13,7 @@ const {
   mockCreateContact,
   mockCreateLease,
   mockCreateViewingRecord,
+  mockGetBuilding,
   mockGetLease,
   mockHistoryPush,
   mockListBuildings,
@@ -30,6 +31,7 @@ const {
   mockCreateContact: vi.fn(),
   mockCreateLease: vi.fn(),
   mockCreateViewingRecord: vi.fn(),
+  mockGetBuilding: vi.fn(),
   mockGetLease: vi.fn(),
   mockHistoryPush: vi.fn(),
   mockListEstates: vi.fn(),
@@ -173,6 +175,7 @@ vi.mock('@/services/manual/house', () => ({
     createContact: mockCreateContact,
     createLease: mockCreateLease,
     createViewingRecord: mockCreateViewingRecord,
+    getBuilding: mockGetBuilding,
     getLease: mockGetLease,
     listEstates: mockListEstates,
     listBuildings: mockListBuildings,
@@ -313,6 +316,7 @@ describe('Property rental domain list pages', () => {
     mockCreateContact.mockResolvedValue({ id: 8, name: '王租客', phone: '13700000000', roles: ['tenant'] });
     mockCreateLease.mockResolvedValue({ id: 10, house_id: 99, tenant_id: 6, status: 'pending' });
     mockCreateViewingRecord.mockResolvedValue({ id: 9, house_id: 99, customer_name: '赵客户', customer_phone: '13600000000', scheduled_at: '2026-07-02T10:00:00+08:00', status: 'scheduled' });
+    mockGetBuilding.mockResolvedValue(defaultBuilding);
     mockGetLease.mockResolvedValue(leaseItem());
     mockPatchContact.mockResolvedValue({ id: 3, name: '张房东', phone: '13800000000', roles: ['landlord'], is_active: true });
     mockPatchLease.mockResolvedValue({ id: 5, status: 'expired' });
@@ -397,7 +401,9 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<EstatesPage />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /新建楼栋/ }));
+    const estateRow = (await screen.findAllByText('星河湾花园'))[0].closest('tr');
+    expect(estateRow).not.toBeNull();
+    fireEvent.click(within(estateRow as HTMLTableRowElement).getByRole('button', { name: '新建楼栋' }));
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
@@ -407,6 +413,21 @@ describe('Property rental domain list pages', () => {
       name: '2 栋',
       floors: 28,
     })));
+  });
+
+  it('filters buildings by estate_id from the URL and clears the estate filter', async () => {
+    mockListEstates.mockResolvedValue({ items: [defaultEstate], total: 1, page: 1, page_size: 100 });
+    window.history.pushState({}, '', '/property-rental/estates?view=buildings&estate_id=1');
+
+    renderPage(<EstatesPage />);
+
+    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith({ estate_id: 1, page: 1, page_size: 20, keyword: undefined }));
+    expect(await screen.findByText('当前小区筛选：星河湾花园')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '清除小区筛选' }));
+
+    await waitFor(() => expect(window.location.search).not.toContain('estate_id'));
+    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith({ page: 1, page_size: 20, keyword: undefined }));
   });
 
   it('shows associated buildings only while editing an estate that has buildings', async () => {
@@ -1180,6 +1201,21 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByRole('link', { name: '编辑' })).toHaveAttribute('href', '/dashboard/property-rental/houses/99?action=edit');
     expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_issue: 'landlord' }));
+  });
+
+  it('filters houses by building_id from the URL and clears the building filter', async () => {
+    window.history.pushState({}, '', '/property-rental/houses?building_id=2');
+
+    renderPage(<HousesPage />);
+
+    await waitFor(() => expect(mockGetBuilding).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ building_id: 2, page: 1, page_size: 20, keyword: undefined, status: undefined }));
+    expect(await screen.findByText('当前楼栋筛选：1 栋')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '清除楼栋筛选' }));
+
+    await waitFor(() => expect(window.location.search).not.toContain('building_id'));
+    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ page: 1, page_size: 20, keyword: undefined, status: undefined }));
   });
 
   it('renders house list without overview counters', async () => {

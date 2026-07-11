@@ -19,6 +19,10 @@ type EstateDrawerState = {
   buildingCreateEstateId?: number;
 };
 
+function getPositiveId(value: string | null) {
+  return value && /^[1-9]\d*$/.test(value) ? Number(value) : undefined;
+}
+
 function getEstateBuildings(buildings: BuildingOut[], estateId: number) {
   return buildings.filter((item) => item.estate_id === estateId);
 }
@@ -90,20 +94,23 @@ function getEstateListStateFromSearch(search: string) {
     estatePage: Number.isFinite(estatePageValue) && estatePageValue > 0 ? estatePageValue : 1,
     buildingPage: Number.isFinite(buildingPageValue) && buildingPageValue > 0 ? buildingPageValue : 1,
     q: params.get('keyword') || undefined,
+    estateId: getPositiveId(params.get('estate_id')),
     view: view === 'estates' || view === 'buildings' ? view : 'all',
     task: task === 'estate_address' || task === 'building_address' || task === 'no_building' || task === 'inactive' ? task : undefined,
-  } satisfies { estatePage: number; buildingPage: number; q?: string; view: EstateViewMode; task?: EstateTask };
+  } satisfies { estatePage: number; buildingPage: number; q?: string; estateId?: number; view: EstateViewMode; task?: EstateTask };
 }
 
-function syncEstateListSearch(filters: { estatePage: number; buildingPage: number; q?: string; view: EstateViewMode; task?: EstateTask }) {
+function syncEstateListSearch(filters: { estatePage: number; buildingPage: number; q?: string; estateId?: number; view: EstateViewMode; task?: EstateTask }) {
   const params = new URLSearchParams(window.location.search);
   params.delete('keyword');
   params.delete('task');
   params.delete('view');
   params.delete('estate_page');
   params.delete('building_page');
+  params.delete('estate_id');
   if (filters.q) params.set('keyword', filters.q);
   if (filters.task) params.set('task', filters.task);
+  if (filters.estateId) params.set('estate_id', String(filters.estateId));
   const taskView = getTaskViewMode(filters.task, 'all');
   if (filters.view !== 'all' && filters.view !== taskView) params.set('view', filters.view);
   if (filters.estatePage > 1) params.set('estate_page', String(filters.estatePage));
@@ -144,6 +151,7 @@ const EstatesPage: React.FC = () => {
   const [estatePage, setEstatePage] = useState(initialListState.current.estatePage);
   const [buildingPage, setBuildingPage] = useState(initialListState.current.buildingPage);
   const [q, setQ] = useState<string | undefined>(initialListState.current.q);
+  const [estateId, setEstateId] = useState<number | undefined>(initialListState.current.estateId);
   const [viewMode, setViewMode] = useState<EstateViewMode>(initialListState.current.view);
   const [task, setTask] = useState<EstateTask | undefined>(initialListState.current.task);
   const [drawerState, setDrawerState] = useState<EstateDrawerState>(initialDrawerState.current);
@@ -160,10 +168,14 @@ const EstatesPage: React.FC = () => {
     queryFn: () => houseApi.listEstates({ page: 1, page_size: 100, keyword: q }),
     enabled,
   });
-  const buildings = useQuery({ queryKey: ['house', 'buildings', workspace.selectedOrgSlug, buildingPage, q], queryFn: () => houseApi.listBuildings({ page: buildingPage, page_size: PAGE_SIZE, keyword: q }), enabled });
+  const buildings = useQuery({
+    queryKey: ['house', 'buildings', workspace.selectedOrgSlug, buildingPage, q, estateId],
+    queryFn: () => houseApi.listBuildings({ page: buildingPage, page_size: PAGE_SIZE, keyword: q, ...(estateId ? { estate_id: estateId } : {}) }),
+    enabled,
+  });
   const allBuildings = useQuery({
-    queryKey: ['house', 'buildings', 'all', workspace.selectedOrgSlug, q],
-    queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100, keyword: q }),
+    queryKey: ['house', 'buildings', 'all', workspace.selectedOrgSlug, q, estateId],
+    queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100, keyword: q, ...(estateId ? { estate_id: estateId } : {}) }),
     enabled,
   });
   const estateBuildings = useQuery({
@@ -258,6 +270,8 @@ const EstatesPage: React.FC = () => {
   const estateTotal = task ? estateRows.length : estates.data?.total || 0;
   const buildingTotal = task ? buildingRows.length : buildings.data?.total || 0;
   const propertyTypeOptions = enumSelectOptions(houseEnums.data, 'house.estate_property_type');
+  const selectedEstate = estateId ? estateOverviewRows.find((item) => item.id === estateId) : undefined;
+  const selectedEstateName = selectedEstate?.display_name || selectedEstate?.name || (estateId ? `小区 #${estateId}` : '');
   const estateColumns: ProColumns<EstateOut>[] = [
     {
       title: '名称',
@@ -330,8 +344,8 @@ const EstatesPage: React.FC = () => {
   ];
 
   useEffect(() => {
-    syncEstateListSearch({ estatePage, buildingPage, q, view: viewMode, task });
-  }, [estatePage, buildingPage, q, task, viewMode]);
+    syncEstateListSearch({ estatePage, buildingPage, q, estateId, view: viewMode, task });
+  }, [estateId, estatePage, buildingPage, q, task, viewMode]);
 
   useEffect(() => {
     if (!drawerState.estateEditId || editingEstate || estateOpen || !allEstates.isSuccess) return;
@@ -362,6 +376,7 @@ const EstatesPage: React.FC = () => {
       setEstatePage(listState.estatePage);
       setBuildingPage(listState.buildingPage);
       setQ(listState.q);
+      setEstateId(listState.estateId);
       setViewMode(listState.view);
       setTask(listState.task);
       setDrawerState(getEstateDrawerStateFromSearch(window.location.search));
@@ -383,6 +398,21 @@ const EstatesPage: React.FC = () => {
           onChange={(value) => setViewMode(value as EstateViewMode)}
         />
       </Space>
+      {estateId ? (
+        <Space style={{ marginBottom: 16 }}>
+          <Typography.Text>当前小区筛选：{selectedEstateName}</Typography.Text>
+          <Button
+            size="small"
+            onClick={() => {
+              setEstateId(undefined);
+              setBuildingPage(1);
+            }}
+            aria-label="清除小区筛选"
+          >
+            清除
+          </Button>
+        </Space>
+      ) : null}
       {effectiveViewMode !== 'buildings' ? (
         <Card>
           <ProTable<EstateOut>
