@@ -420,6 +420,39 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByRole('link', { name: '查看全部楼栋' })).toHaveAttribute('href', '/dashboard/property-rental/estates?view=buildings&estate_id=1');
   });
 
+  it('shows estate-associated buildings from the estate query when the current keyword does not match', async () => {
+    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
+    mockListBuildings.mockImplementation((params?: Record<string, unknown>) =>
+      Promise.resolve({
+        items: params?.estate_id === 1 ? [buildingItem({ id: 2, name: '1 栋' })] : [],
+        total: params?.estate_id === 1 ? 1 : 0,
+        page: 1,
+        page_size: Number(params?.page_size || 20),
+      }),
+    );
+    window.history.pushState({}, '', '/property-rental/estates?keyword=%E4%B8%8D%E5%8C%B9%E9%85%8D');
+
+    renderPage(<EstatesPage />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[0]);
+
+    expect(await screen.findByText('关联楼栋')).toBeInTheDocument();
+    expect(screen.getByText('1 栋')).toBeInTheDocument();
+    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith({ estate_id: 1, page: 1, page_size: 5 }));
+  });
+
+  it('hides the associated buildings card when the estate query has no buildings', async () => {
+    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
+    mockListBuildings.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 5 });
+
+    renderPage(<EstatesPage />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[0]);
+
+    await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith({ estate_id: 1, page: 1, page_size: 5 }));
+    expect(screen.queryByText('关联楼栋')).not.toBeInTheDocument();
+  });
+
   it('does not show estate context while editing a standalone building', async () => {
     mockListBuildings.mockResolvedValue({
       items: [buildingItem({ estate_id: null, name: '独栋', floors: 3, elevator: false, address: '科技路 88 号' })],

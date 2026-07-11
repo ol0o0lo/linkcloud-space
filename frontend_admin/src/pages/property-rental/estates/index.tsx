@@ -166,6 +166,14 @@ const EstatesPage: React.FC = () => {
     queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100, keyword: q }),
     enabled,
   });
+  const estateBuildings = useQuery({
+    queryKey: ['house', 'buildings', 'estate', workspace.selectedOrgSlug, editingEstate?.id],
+    queryFn: () => {
+      if (!editingEstate) throw new Error('缺少项目 ID');
+      return houseApi.listBuildings({ estate_id: editingEstate.id, page: 1, page_size: 5 });
+    },
+    enabled: enabled && Boolean(editingEstate),
+  });
   const saveEstate = useMutation({
     mutationFn: (values: EstateFormValues) => (editingEstate ? houseApi.patchEstate(editingEstate.id, values) : houseApi.createEstate(values)),
     onSuccess: async () => {
@@ -479,15 +487,14 @@ const EstatesPage: React.FC = () => {
           <Form.Item label="地址" name="address" extra="可先留空，后续补齐项目地址。"><Input placeholder="例如：科技园路 1 号（可稍后补）" /></Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
         </Form>
-        {editingEstate && getEstateBuildings(buildingOverviewRows, editingEstate.id).length > 0 ? (
+        {editingEstate && estateBuildings.data?.items.length ? (
           <Card
             size="small"
             title="关联楼栋"
             style={{ marginTop: 16 }}
             extra={<a href={`/dashboard/property-rental/estates?view=buildings&estate_id=${editingEstate.id}`}>查看全部楼栋</a>}
           >
-            {getEstateBuildings(buildingOverviewRows, editingEstate.id)
-              .slice(0, 5)
+            {estateBuildings.data.items
               .map((building) => building.name)
               .join('、')}
           </Card>
