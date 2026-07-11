@@ -25,6 +25,10 @@ from apps.media.constants import MediaType, ResourceType
 from apps.media.fields import MediaRefsField
 
 
+def normalize_space_identity(value: str) -> str:
+    return " ".join(value.split())
+
+
 class Estate(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="estates")
     name = models.CharField(max_length=100)
@@ -64,7 +68,7 @@ class Estate(CreateUpdateTimeModelMixin):
 
 class Building(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="buildings")
-    estate = models.ForeignKey(Estate, on_delete=models.PROTECT, related_name="buildings")
+    estate = models.ForeignKey(Estate, on_delete=models.PROTECT, related_name="buildings", null=True, blank=True)
     name = models.CharField(max_length=100)
     floors = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     under_floors = models.PositiveIntegerField(blank=True, null=True)
@@ -77,15 +81,34 @@ class Building(CreateUpdateTimeModelMixin):
 
     class Meta:
         ordering = ["estate__name", "name", "id"]
-        constraints = [models.UniqueConstraint(fields=["estate", "name"], name="house_building_estate_name_unique")]
+        constraints = [
+            models.UniqueConstraint(fields=["estate", "name"], condition=Q(estate__isnull=False), name="house_building_estate_name_unique"),
+            models.UniqueConstraint(fields=["organization", "name", "address"], condition=Q(estate__isnull=True), name="house_building_org_name_address_unique"),
+        ]
 
     def __str__(self):
-        return f"{self.estate} {self.name}"
+        return f"{self.estate} {self.name}" if self.estate_id else self.name
 
     def clean(self):
         super().clean()
+        self.name = normalize_space_identity(self.name)
+        self.address = normalize_space_identity(self.address)
         if self.estate_id and self.organization_id and self.estate.organization_id != self.organization_id:
             raise ValidationError({"organization": "楼栋组织必须与项目片区组织一致。"})
+        if not self.estate_id and not self.address:
+            raise ValidationError({"address": "非小区楼栋必须填写楼栋地址。"})
+
+        duplicates = type(self).objects.exclude(pk=self.pk)
+        if self.estate_id and self.name and duplicates.filter(estate_id=self.estate_id, name=self.name).exists():
+            raise ValidationError({"name": "该小区已存在同名楼栋。"})
+        if (
+            not self.estate_id
+            and self.organization_id
+            and self.name
+            and self.address
+            and duplicates.filter(organization_id=self.organization_id, estate__isnull=True, name=self.name, address=self.address).exists()
+        ):
+            raise ValidationError({"address": "该组织已存在名称和地址相同的非小区楼栋。"})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -183,7 +206,7 @@ class House(CreateUpdateTimeModelMixin):
 
     @property
     def organization(self):
-        return self.building.estate.organization
+        return self.building.organization
 
     def clean(self):
         super().clean()
