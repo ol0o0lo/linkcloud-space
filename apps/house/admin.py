@@ -29,7 +29,7 @@ class BuildingAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
 @admin.register(House)
 class HouseAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
     list_display = ("room_number", "building", "landlord", "floor", "status", "is_active")
-    list_filter = ("building__estate__organization", "status", "decoration", "orientation", "is_active")
+    list_filter = ("building__organization", "status", "decoration", "orientation", "is_active")
     search_fields = ("room_number", "building__name", "building__estate__name", "landlord__name", "landlord__phone")
     autocomplete_fields = ("building", "landlord")
     fieldsets = (

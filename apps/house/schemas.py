@@ -101,8 +101,15 @@ class EstateSummaryOut(Schema):
 class BuildingSummaryOut(Schema):
     id: int
     name: str
-    estate_id: int
-    estate: EstateSummaryOut
+    estate_id: int | None
+    estate: EstateSummaryOut | None
+    address: str
+
+
+def building_display_label(building) -> str:
+    if building.estate_id:
+        return f"{building.estate.display_name or building.estate.name} / {building.name}"
+    return f"{building.name} · {building.address}"
 
 
 class ContactSummaryOut(Schema):
@@ -120,7 +127,7 @@ class HouseSummaryOut(Schema):
 
     @staticmethod
     def resolve_label(obj):
-        return f"{obj.building.estate.display_name or obj.building.estate.name} / {obj.building.name} / {obj.room_number}"
+        return f"{building_display_label(obj.building)} / {obj.room_number}"
 
 
 class ViewingRecordSummaryOut(Schema):
@@ -136,8 +143,8 @@ class ViewingRecordSummaryOut(Schema):
 
 class BuildingOut(Schema):
     id: int
-    estate_id: int
-    estate: EstateSummaryOut
+    estate_id: int | None
+    estate: EstateSummaryOut | None
     name: str
     floors: int
     under_floors: int | None
@@ -155,8 +162,8 @@ class DefaultBuildingIn(Schema):
 
 class DefaultBuildingOut(Schema):
     id: int
-    estate_id: int
-    estate: EstateSummaryOut
+    estate_id: int | None
+    estate: EstateSummaryOut | None
     name: str
     floors: int
     address: str

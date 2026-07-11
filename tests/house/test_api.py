@@ -56,6 +56,72 @@ class HouseApiTestCase(TestCase):
         other_house = House.objects.create(building=other_building, landlord=other_landlord, room_number="201")
         return other_org, other_house, other_landlord, other_tenant
 
+    def make_standalone_house(self, **house_kwargs):
+        building = Building.objects.create(organization=self.org, estate=None, name="海滨公寓", address="海滨路 20 号", floors=8)
+        return House.objects.create(building=building, room_number="801", **house_kwargs)
+
+    def test_standalone_house_list_detail_and_tenant_boundary(self):
+        house = self.make_standalone_house()
+
+        list_response = self.client.get("/api/house/houses/")
+        detail_response = self.client.get(f"/api/house/houses/{house.pk}/")
+
+        self.assertEqual(list_response.status_code, 200)
+        item = next(item for item in api_data(list_response)["items"] if item["id"] == house.pk)
+        self.assertEqual(item["building"]["estate_id"], None)
+        self.assertEqual(item["building"]["estate"], None)
+        self.assertEqual(item["building"]["address"], "海滨路 20 号")
+        self.assertEqual(item["building"]["name"], "海滨公寓")
+        self.assertEqual(detail_response.status_code, 200)
+
+        other_org = baker.make("organizations.Organization", name="其他上下文", slug="other-context")
+        baker.make("organizations.OrganizationMember", organization=other_org, user=self.user, is_owner=True)
+        session = self.client.session
+        session["organization_data"] = json.dumps({"pk": other_org.pk, "id": other_org.pk, "name": other_org.name, "slug": other_org.slug, "is_owner": True})
+        session.save()
+
+        self.assertNotIn(house.pk, {item["id"] for item in api_data(self.client.get("/api/house/houses/"))["items"]})
+        self.assertEqual(self.client.get(f"/api/house/houses/{house.pk}/").status_code, 404)
+
+    def test_house_summary_labels_support_estate_and_standalone_buildings(self):
+        estate_house = House.objects.create(building=self.building, room_number="1801")
+        standalone_house = self.make_standalone_house()
+        ViewingRecord.objects.create(organization=self.org, house=estate_house, customer_name="小区客户", customer_phone="13900139811", scheduled_at=timezone.now())
+        ViewingRecord.objects.create(organization=self.org, house=standalone_house, customer_name="独立客户", customer_phone="13900139812", scheduled_at=timezone.now())
+
+        payload = api_data(self.client.get("/api/house/viewing-records/"))["items"]
+        labels = {item["house"]["id"]: item["house"]["label"] for item in payload}
+
+        self.assertEqual(labels[estate_house.pk], "云岸 / 1栋 / 1801")
+        self.assertEqual(labels[standalone_house.pk], "海滨公寓 · 海滨路 20 号 / 801")
+
+    def test_viewing_and_lease_keyword_search_support_standalone_building(self):
+        landlord = Contact.objects.create(organization=self.org, name="独立房东", phone="13800138801", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="独立租客", phone="13900139801", roles=[ContactRole.TENANT])
+        house = self.make_standalone_house(landlord=landlord)
+        viewing = ViewingRecord.objects.create(
+            organization=self.org,
+            house=house,
+            contact=tenant,
+            customer_name="独立客户",
+            customer_phone="13900139801",
+            scheduled_at=timezone.now(),
+        )
+        lease = Lease.objects.create(
+            organization=self.org,
+            house=house,
+            tenant=tenant,
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=365),
+            monthly_rent=Decimal("4200"),
+        )
+
+        for keyword in ("海滨公寓", "801"):
+            viewing_items = api_data(self.client.get(f"/api/house/viewing-records/?keyword={keyword}"))["items"]
+            lease_items = api_data(self.client.get(f"/api/house/leases/?keyword={keyword}"))["items"]
+            self.assertEqual([item["id"] for item in viewing_items], [viewing.pk])
+            self.assertEqual([item["id"] for item in lease_items], [lease.pk])
+
     def test_invalid_house_media_refs_return_validation_error_not_500(self):
         avatar = register_media_file(
             uploader=self.user,

@@ -83,7 +83,7 @@ def get_landlord_houses(user: User, organization: Organization):
         House.objects.select_related("building__estate", "landlord")
         .filter(
             landlord__user=user,
-            building__estate__organization=organization,
+            building__organization=organization,
         )
         .order_by("building__estate__name", "building__name", "room_number")
     )
@@ -97,7 +97,7 @@ def get_landlord_leases(user: User, organization: Organization):
         .filter(
             organization=organization,
             house__landlord__user=user,
-            house__building__estate__organization=organization,
+            house__building__organization=organization,
         )
         .order_by("-start_date", "-id")
     )

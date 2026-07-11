@@ -50,7 +50,7 @@ def _patch(obj, payload):
 
 
 def _get_house_in_org(house_id: int, org):
-    return get_object_or_404(House.objects.select_related("building__estate", "landlord"), pk=house_id, building__estate__organization=org)
+    return get_object_or_404(House.objects.select_related("building__estate", "landlord"), pk=house_id, building__organization=org)
 
 
 def _get_contact_in_org(contact_id: int, org):
@@ -221,7 +221,7 @@ def list_houses(
     keyword: str | None = Query(None),
 ):
     org = require_org_selected(request)
-    qs = House.objects.filter(building__estate__organization=org).select_related("building__estate", "landlord").order_by("building__estate__name", "building__name", "room_number")
+    qs = House.objects.filter(building__organization=org).select_related("building__estate", "landlord").order_by("building__estate__name", "building__name", "room_number")
     if estate_id:
         qs = qs.filter(building__estate_id=estate_id)
     if building_id:
