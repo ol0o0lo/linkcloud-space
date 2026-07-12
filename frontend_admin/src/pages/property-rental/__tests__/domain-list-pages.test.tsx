@@ -171,6 +171,13 @@ vi.mock('@/pages/tenant/shared', () => ({
   useTenantWorkspace: mockUseTenantWorkspace,
 }));
 
+vi.mock('@/components/EntityPreview', () => {
+  const preview = (type: string) => ({ id, children }: { id?: number | null; children: React.ReactNode }) => <span data-preview={type} data-id={id}>{children}</span>;
+  return {
+    BuildingPreview: preview('building'), ContactPreview: preview('contact'), EstatePreview: preview('estate'), HousePreview: preview('house'), LeasePreview: preview('lease'), ViewingPreview: preview('viewing'),
+  };
+});
+
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
     createBuilding: mockCreateBuilding,
@@ -333,6 +340,8 @@ describe('Property rental domain list pages', () => {
 
     expect((await screen.findAllByText('星河湾花园')).length).toBeGreaterThan(0);
     expect(await screen.findByText('1 栋')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="estate"][data-id="1"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="building"][data-id="2"]')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(2);
   });
 
@@ -652,6 +661,7 @@ describe('Property rental domain list pages', () => {
     expect(screen.queryByRole('button', { name: 'plus 新建租客' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'plus 新建联系人' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="contact"][data-id="3"]')).toBeInTheDocument();
   });
 
   it('keeps the contact list compact with grouped subject information', async () => {
@@ -1048,6 +1058,7 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByText(/李客户/)).toBeInTheDocument();
     expect(await screen.findByText(/A-101/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="viewing"][data-id="4"]')).toBeInTheDocument();
   });
 
   it('filters viewings from the toolbar search', async () => {
@@ -1231,6 +1242,9 @@ describe('Property rental domain list pages', () => {
     renderPage(<HousesPage />);
 
     expect(await screen.findByText('房源列表')).toBeInTheDocument();
+    await screen.findByText('星河湾花园 / 1 栋 / A-101');
+    expect(document.querySelector('[data-preview="house"][data-id="99"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="contact"][data-id="3"]')).toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.queryByText('房源概览')).not.toBeInTheDocument();
     expect(screen.queryByText('在管房源')).not.toBeInTheDocument();
@@ -2026,6 +2040,7 @@ describe('Property rental domain list pages', () => {
     renderPage(<LeasesPage />);
 
     expect(await screen.findByText(/4200/)).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="lease"][data-id="5"]')).toBeInTheDocument();
   });
 
   it('shows lease operational overview and workflow hints', async () => {

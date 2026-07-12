@@ -18,6 +18,7 @@ import {
   Typography,
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
+import { ContactPreview } from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -310,7 +311,7 @@ const ContactsPage: React.FC = () => {
         const businessInfo = getContactBusinessInfo(record);
         return (
           <Space orientation="vertical" size={2}>
-            <Typography.Text strong>{businessInfo.primary}</Typography.Text>
+            <ContactPreview id={record.id}><Typography.Text strong>{businessInfo.primary}</Typography.Text></ContactPreview>
             <Typography.Text type="secondary">
               {businessInfo.secondary}
             </Typography.Text>

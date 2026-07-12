@@ -103,6 +103,10 @@ vi.mock('@/pages/tenant/shared', () => ({
   useTenantWorkspace: mockUseTenantWorkspace,
 }));
 
+vi.mock('@/components/EntityPreview', () => ({
+  HousePreview: ({ id, children }: { id?: number | null; children: React.ReactNode }) => <span data-preview="house" data-id={id}>{children}</span>,
+}));
+
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
     listHouses: mockListHouses,
@@ -290,6 +294,7 @@ describe('Property rental workbench', () => {
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true }));
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true }));
     await screen.findByText('星河湾 / 1 栋 / 101');
+    expect(document.querySelector('[data-preview="house"][data-id="1"]')).toBeInTheDocument();
     expect(screen.queryByText('102')).not.toBeInTheDocument();
 
     expect(screen.getByText('经营总览')).toBeInTheDocument();

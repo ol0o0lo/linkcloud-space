@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history } from '@umijs/max';
 import { Alert, Button, Card, Col, Modal, message, Row, Segmented, Space, Statistic, Tag, Typography } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
+import { HousePreview } from '@/components/EntityPreview';
 import { adminTableScroll } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping } from '@/services/manual/enums';
@@ -326,7 +327,7 @@ const WorkbenchPage: React.FC = () => {
           options={false}
           ghost
           columns={[
-            { title: '房源', dataIndex: 'house', render: (_value, record) => houseLabel(record.house) },
+            { title: '房源', dataIndex: 'house', render: (_value, record) => <HousePreview id={record.house.id}>{houseLabel(record.house)}</HousePreview> },
             {
               title: '当前阶段',
               dataIndex: 'stage',
