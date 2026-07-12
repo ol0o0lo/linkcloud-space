@@ -11,7 +11,7 @@ const useStyles = createStyles(({ token }) => ({
   link: {
     color: token.colorText,
     transition: `color ${token.motionDurationMid}`,
-    '&:hover, &:focus-visible': {
+    '&:hover, &:focus, &:focus-visible': {
       color: token.colorLink,
     },
   },

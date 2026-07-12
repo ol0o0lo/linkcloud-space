@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import React, { lazy } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const styleDefinition = vi.hoisted(() => ({ current: undefined as Record<string, any> | undefined }));
+
 vi.mock('@umijs/max', () => ({
   Link: ({ children, to, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
     <a href={to} {...props}>
@@ -11,7 +13,10 @@ vi.mock('@umijs/max', () => ({
 }));
 
 vi.mock('antd-style', () => ({
-  createStyles: () => () => ({ styles: { link: 'entity-preview-link' } }),
+  createStyles: (factory: (input: any) => Record<string, any>) => {
+    styleDefinition.current = factory({ token: { colorLink: 'link', colorText: 'text', motionDurationMid: '0.2s' } });
+    return () => ({ styles: { link: 'entity-preview-link' } });
+  },
 }));
 
 vi.mock('antd', () => ({
@@ -85,6 +90,10 @@ describe('EntityPreview', () => {
     );
 
     expect(screen.getByRole('link', { name: '春风里 2 号' })).toHaveAttribute('href', '/property-rental/houses/42');
+  });
+
+  it('普通焦点使用链接颜色', () => {
+    expect(styleDefinition.current?.link['&:hover, &:focus, &:focus-visible']).toEqual({ color: 'link' });
   });
 
   it('悬停约 200ms 后才挂载 Panel 并传入 id', async () => {
