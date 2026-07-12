@@ -13,6 +13,20 @@ vi.mock('@/services/manual/house', () => ({
 
 vi.mock('@/pages/tenant/shared', () => ({ useTenantWorkspace }));
 
+vi.mock('../building/BuildingPreview', () => ({
+  BuildingPreview: ({
+    children,
+    id,
+  }: {
+    children: React.ReactNode;
+    id?: number | null;
+  }) => (
+    <span data-preview="building" data-id={id}>
+      {children}
+    </span>
+  ),
+}));
+
 import { HousePreviewPanel } from './HousePreviewPanel';
 
 const house = {
@@ -59,6 +73,9 @@ describe('HousePreviewPanel', () => {
     expect(screen.getByText('¥5200.00')).toBeInTheDocument();
     expect(screen.getByText('空置')).toBeInTheDocument();
     expect(screen.getByText('张房东 / 13800000000')).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-preview="building"][data-id="3"]'),
+    ).toHaveTextContent('春风里公寓 / 2 号楼');
   });
 
   it('一般错误时可重新加载详情', async () => {

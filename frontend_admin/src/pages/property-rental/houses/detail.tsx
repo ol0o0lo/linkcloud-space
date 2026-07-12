@@ -20,7 +20,14 @@ import {
   theme,
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
-import { ContactPreview, LeasePreview, ViewingPreview } from '@/components/EntityPreview';
+import {
+  BuildingPreview,
+  ContactPreview,
+  EstatePreview,
+  HousePreview,
+  LeasePreview,
+  ViewingPreview,
+} from '@/components/EntityPreview';
 import {
   TenantSelectionGuard,
   useTenantWorkspace,
@@ -289,13 +296,21 @@ const HouseDetailPage: React.FC = () => {
               {house.data ? (
                 <Descriptions column={2}>
                   <Descriptions.Item label="项目">
-                    {house.data.building?.estate?.display_name || house.data.building?.estate?.name || '-'}
+                    <EstatePreview id={house.data.building?.estate?.id}>
+                      {house.data.building?.estate?.display_name ||
+                        house.data.building?.estate?.name ||
+                        '-'}
+                    </EstatePreview>
                   </Descriptions.Item>
                   <Descriptions.Item label="楼栋">
-                    {house.data.building?.name || house.data.building_id}
+                    <BuildingPreview id={house.data.building_id}>
+                      {house.data.building?.name || house.data.building_id}
+                    </BuildingPreview>
                   </Descriptions.Item>
                   <Descriptions.Item label="房号">
-                    {house.data.room_number}
+                    <HousePreview id={house.data.id}>
+                      {house.data.room_number}
+                    </HousePreview>
                   </Descriptions.Item>
                   <Descriptions.Item label="房态">
                     <Tag color={STATUS_COLOR[house.data.status] || 'default'}>

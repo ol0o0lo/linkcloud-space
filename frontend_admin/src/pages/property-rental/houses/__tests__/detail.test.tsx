@@ -37,7 +37,14 @@ vi.mock('@/pages/tenant/shared', () => ({
 
 vi.mock('@/components/EntityPreview', () => {
   const preview = (type: string) => ({ id, children }: { id?: number | null; children: React.ReactNode }) => <span data-preview={type} data-id={id}>{children}</span>;
-  return { ContactPreview: preview('contact'), LeasePreview: preview('lease'), ViewingPreview: preview('viewing') };
+  return {
+    BuildingPreview: preview('building'),
+    ContactPreview: preview('contact'),
+    EstatePreview: preview('estate'),
+    HousePreview: preview('house'),
+    LeasePreview: preview('lease'),
+    ViewingPreview: preview('viewing'),
+  };
 });
 
 vi.mock('@/services/manual/house', () => ({
@@ -133,6 +140,29 @@ describe('House detail page', () => {
     mockPatchHouse.mockResolvedValue({
       ...completeHouse,
       publish_status: 'published',
+    });
+  });
+
+  it('uses the matching preview type for estate building and house fields', async () => {
+    mockGetHouse.mockResolvedValue(completeHouse);
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <HouseDetailPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('房源资料')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-preview="estate"][data-id="1"]'),
+      ).toHaveTextContent('星河湾');
+      expect(
+        document.querySelector('[data-preview="building"][data-id="10"]'),
+      ).toHaveTextContent('1 栋');
+      expect(
+        document.querySelector('[data-preview="house"][data-id="99"]'),
+      ).toHaveTextContent('1801');
     });
   });
 

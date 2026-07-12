@@ -17,6 +17,7 @@ import {
   EntityPreviewSkeleton,
 } from '../../EntityPreviewState';
 import type { EntityPreviewPanelProps } from '../../types';
+import { BuildingPreview } from '../building/BuildingPreview';
 
 function layoutText(house: HouseOut) {
   const rooms = [
@@ -99,7 +100,11 @@ export function HousePreviewPanel({ id }: EntityPreviewPanelProps) {
           {
             key: 'building',
             label: '所属楼栋',
-            children: buildingLabel(house.data.building),
+            children: (
+              <BuildingPreview id={house.data.building_id}>
+                {buildingLabel(house.data.building)}
+              </BuildingPreview>
+            ),
           },
           { key: 'landlord', label: '房东', children: landlord },
         ]}

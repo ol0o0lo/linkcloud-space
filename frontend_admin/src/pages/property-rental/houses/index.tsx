@@ -16,7 +16,12 @@ import {
   Typography,
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
-import { ContactPreview, HousePreview } from '@/components/EntityPreview';
+import {
+  BuildingPreview,
+  ContactPreview,
+  EstatePreview,
+  HousePreview,
+} from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -31,7 +36,6 @@ import {
   canHousePublish,
   contactLabel,
   HOUSE_PUBLISH_STATUS_COLOR,
-  houseLabel,
   houseMediaReadinessText,
   mediaCoverUrl,
   moneyText,
@@ -189,6 +193,11 @@ const HousesPage: React.FC = () => {
       width: 220,
       render: (_value, record) => {
         const coverUrl = mediaCoverUrl(record.images);
+        const estate = record.building?.estate;
+        const estateName =
+          estate?.display_name || estate?.name || '未关联项目';
+        const buildingName =
+          record.building?.name || `楼栋 #${record.building_id}`;
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <Avatar
@@ -199,7 +208,15 @@ const HousesPage: React.FC = () => {
               src={coverUrl}
               style={{ borderRadius: 6, flex: '0 0 auto' }}
             />
-            <HousePreview id={record.id}><Typography.Text ellipsis>{houseLabel(record)}</Typography.Text></HousePreview>
+            <Typography.Text ellipsis>
+              <EstatePreview id={estate?.id}>{estateName}</EstatePreview>
+              {' / '}
+              <BuildingPreview id={record.building_id}>
+                {buildingName}
+              </BuildingPreview>
+              {' / '}
+              <HousePreview id={record.id}>{record.room_number}</HousePreview>
+            </Typography.Text>
           </div>
         );
       },
