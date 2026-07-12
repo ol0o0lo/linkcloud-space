@@ -168,6 +168,7 @@ const ContactsPage: React.FC = () => {
   const [drawerState, setDrawerState] = useState<ContactDrawerState>(() =>
     getContactDrawerStateFromSearch(window.location.search),
   );
+  const currentEditContactId = useRef(drawerState.editContactId);
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.contact_role']);
   const contacts = useQuery({
@@ -197,6 +198,7 @@ const ContactsPage: React.FC = () => {
       message.success(editing ? '联系人已更新' : '联系人已创建');
       setDrawerOpen(false);
       setEditing(null);
+      currentEditContactId.current = undefined;
       setDrawerState({});
       syncContactDrawerSearch({});
       await queryClient.invalidateQueries({ queryKey: ['house', 'contacts'] });
@@ -213,6 +215,7 @@ const ContactsPage: React.FC = () => {
 
   const openCreate = () => {
     setEditing(null);
+    currentEditContactId.current = undefined;
     setDrawerState({});
     syncContactDrawerSearch({});
     setDrawerOpen(true);
@@ -220,6 +223,7 @@ const ContactsPage: React.FC = () => {
 
   const openEdit = (record: ContactOut) => {
     setEditing(record);
+    currentEditContactId.current = record.id;
     setDrawerState({ editContactId: record.id });
     syncContactDrawerSearch({ editContactId: record.id });
     setDrawerOpen(true);
@@ -228,6 +232,7 @@ const ContactsPage: React.FC = () => {
   const closeDrawer = () => {
     setDrawerOpen(false);
     setEditing(null);
+    currentEditContactId.current = undefined;
     setDrawerState({});
     syncContactDrawerSearch({});
   };
@@ -253,7 +258,9 @@ const ContactsPage: React.FC = () => {
       setDrawerOpen(true);
       return;
     }
-    houseApi.getContact(drawerState.editContactId).then((contact) => {
+    const requestedContactId = drawerState.editContactId;
+    houseApi.getContact(requestedContactId).then((contact) => {
+      if (currentEditContactId.current !== requestedContactId) return;
       setEditing(contact);
       setDrawerOpen(true);
     });
@@ -274,6 +281,7 @@ const ContactsPage: React.FC = () => {
       setPage(listState.page);
       setQ(listState.q);
       setRole(listState.role);
+      currentEditContactId.current = nextDrawerState.editContactId;
       setDrawerState(nextDrawerState);
       setDrawerOpen(false);
       setEditing(null);

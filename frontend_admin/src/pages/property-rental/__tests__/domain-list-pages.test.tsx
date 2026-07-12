@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { message } from 'antd';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ContactsPage from '../contacts';
@@ -816,6 +816,26 @@ describe('Property rental domain list pages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
     await waitFor(() => expect(window.location.search).toBe('?role=landlord'));
+  });
+
+  it('忽略 popstate 清除 edit 后才返回的过期联系人详情', async () => {
+    let resolveContact!: (contact: typeof defaultLandlord) => void;
+    mockGetContact.mockReturnValue(
+      new Promise((resolve) => {
+        resolveContact = resolve;
+      }),
+    );
+    window.history.pushState({}, '', '/property-rental/contacts?edit=3');
+    mockListContacts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
+
+    renderPage(<ContactsPage />);
+    await waitFor(() => expect(mockGetContact).toHaveBeenCalledWith(3));
+
+    window.history.pushState({}, '', '/property-rental/contacts');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await act(async () => resolveContact(defaultLandlord));
+
+    expect(screen.queryByText('编辑联系人')).not.toBeInTheDocument();
   });
 
   it('toggles contact active state directly from the row action', async () => {
