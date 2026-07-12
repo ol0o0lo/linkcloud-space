@@ -81,7 +81,7 @@ function syncWorkbenchFiltersSearch(filters: { publishFilter: PublishFilterValue
 }
 
 type WorkflowTaskRow =
-  { key: string; queueKey: 'contact-missing' | 'converted'; queue: string; title: string; house: string; status: string; nextStep: string; actionLabel: string; actionPath: string };
+  { key: string; queueKey: 'contact-missing' | 'converted'; queue: string; title: string; house: { id: number; label: string }; status: string; nextStep: string; actionLabel: string; actionPath: string };
 
 type PublishWorkbenchRow = {
   key: string;
@@ -153,7 +153,7 @@ export function buildWorkflowTasks(
       queueKey: 'contact-missing' as const,
       queue: '成交待补主体',
       title: `${item.customer_name} 待补租客`,
-      house: houseLabel(item),
+      house: { id: item.house?.id || item.house_id, label: houseLabel(item) },
       status: '待补租客',
       nextStep: '先绑定租客联系人，再创建租约',
       actionLabel: '补租客',
@@ -164,7 +164,7 @@ export function buildWorkflowTasks(
       queueKey: 'converted' as const,
       queue: '成交待签约',
       title: `${item.customer_name} 待签约`,
-      house: houseLabel(item),
+      house: { id: item.house?.id || item.house_id, label: houseLabel(item) },
       status: '已成交待签约',
       nextStep: '立即创建租约并同步合同资料',
       actionLabel: '去签约',
@@ -452,7 +452,7 @@ const WorkbenchPage: React.FC = () => {
           columns={[
             { title: '任务队列', dataIndex: 'queue' },
             { title: '任务', dataIndex: 'title' },
-            { title: '房源', dataIndex: 'house' },
+            { title: '房源', dataIndex: 'house', render: (_value, record) => <HousePreview id={record.house.id}>{record.house.label}</HousePreview> },
             {
               title: '状态',
               dataIndex: 'status',

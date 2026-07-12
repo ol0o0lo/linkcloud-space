@@ -328,6 +328,7 @@ describe('Property rental workbench', () => {
     expect(screen.getByText('先补房东主体，其他媒体问题可作为发布提醒继续处理')).toBeInTheDocument();
     expect(screen.getByText('成交转签')).toBeInTheDocument();
     expect(screen.getByText('先绑定租客联系人，再创建租约')).toBeInTheDocument();
+    expect(screen.getByText('星河湾 / 1 栋 / 201').closest('tr')?.querySelector('[data-preview="house"][data-id="1"]')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '补租客' })).toHaveAttribute('href', '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=true&edit=4');
     expect(screen.getByRole('link', { name: '去签约' })).toHaveAttribute('href', '/dashboard/property-rental/leases?source_viewing_record_id=6');
     expect(screen.queryByRole('link', { name: '补合同' })).not.toBeInTheDocument();

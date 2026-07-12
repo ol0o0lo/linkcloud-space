@@ -10,6 +10,9 @@ import type { EntityPreviewProps } from './types';
 const useStyles = createStyles(({ token }) => ({
   link: {
     color: token.colorText,
+    display: 'inline-block',
+    maxWidth: '100%',
+    minWidth: 0,
     transition: `color ${token.motionDurationMid}`,
     '&:hover, &:focus, &:focus-visible': {
       color: token.colorLink,
