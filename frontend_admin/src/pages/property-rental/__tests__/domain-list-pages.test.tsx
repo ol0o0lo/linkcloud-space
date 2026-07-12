@@ -1257,6 +1257,23 @@ describe('Property rental domain list pages', () => {
     await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ page: 1, page_size: 20, keyword: undefined, status: undefined }));
   });
 
+  it('preserves unrelated URL params when changing the house status filter', async () => {
+    window.history.pushState({}, '', '/dashboard/property-rental/houses?building_id=11&foo=x');
+
+    renderPage(<HousesPage />);
+
+    fireEvent.mouseDown(await screen.findByRole('combobox'));
+    fireEvent.click((await screen.findAllByText('空置')).at(-1) as HTMLElement);
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get('foo')).toBe('x');
+      expect(params.get('building_id')).toBe('11');
+      expect(params.get('status')).toBe('vacant');
+    });
+    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ building_id: 11, page: 1, page_size: 20, keyword: undefined, status: 'vacant' }));
+  });
+
   it('renders house list without overview counters', async () => {
     mockListHouses.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.publish_blocked) {
