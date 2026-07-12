@@ -9,19 +9,20 @@ import {
   EntityPreviewDetailDrawer,
   EstatePreview,
 } from '@/components/EntityPreview';
-import { LocationPicker, type LocationValue } from '@/components/LocationPicker';
+import { LocationPicker } from '@/components/LocationPicker';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { type BuildingOut, type EstateOut, houseApi, type PageResult } from '@/services/manual/house';
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import { mediaCoverUrl } from '../constants';
+import { formLocation, settingLocation } from '../location-utils';
 import { type DeleteTarget, ResourceDeleteModal } from './ResourceDeleteModal';
 
 const PAGE_SIZE = 20;
 const ALL_BUILDINGS_PAGE_SIZE = 500;
 type EstateViewMode = 'all' | 'estates' | 'buildings';
-type EstateTask = 'estate_address' | 'building_address' | 'no_building' | 'inactive';
+type EstateTask = 'estate_address' | 'building_address' | 'building_location' | 'no_building' | 'inactive';
 type EstateDrawerState = {
   estateEditId?: number;
   buildingEditId?: number;
@@ -100,13 +101,14 @@ function estateMatchesTask(estate: EstateOut, buildings: BuildingOut[], task?: E
 
 function buildingMatchesTask(building: BuildingOut, task?: EstateTask) {
   if (task === 'building_address') return !building.address;
+  if (task === 'building_location') return building.lat == null || building.lng == null;
   if (task === 'inactive') return building.is_active === false;
   return true;
 }
 
 function getTaskViewMode(task: EstateTask | undefined, fallback: EstateViewMode) {
   if (task === 'estate_address' || task === 'no_building') return 'estates';
-  if (task === 'building_address') return 'buildings';
+  if (task === 'building_address' || task === 'building_location') return 'buildings';
   return fallback;
 }
 
@@ -122,7 +124,7 @@ function getEstateListStateFromSearch(search: string) {
     q: params.get('keyword') || undefined,
     estateId: getPositiveId(params.get('estate_id')),
     view: view === 'estates' || view === 'buildings' ? view : 'all',
-    task: task === 'estate_address' || task === 'building_address' || task === 'no_building' || task === 'inactive' ? task : undefined,
+    task: task === 'estate_address' || task === 'building_address' || task === 'building_location' || task === 'no_building' || task === 'inactive' ? task : undefined,
   } satisfies { estatePage: number; buildingPage: number; q?: string; estateId?: number; view: EstateViewMode; task?: EstateTask };
 }
 
@@ -172,16 +174,6 @@ type BuildingFormValues = {
   lng?: number | string | null;
   is_active?: boolean;
 };
-
-function formLocation(values: { address?: string; lat?: unknown; lng?: unknown }): LocationValue | null {
-  const lat = Number(values.lat);
-  const lng = Number(values.lng);
-  return values.address && Number.isFinite(lat) && Number.isFinite(lng) ? { address: values.address, lat, lng } : null;
-}
-
-function settingLocation(value: unknown): LocationValue | null {
-  return value && typeof value === 'object' ? formLocation(value as { address?: string; lat?: unknown; lng?: unknown }) : null;
-}
 
 const EstatesPage: React.FC = () => {
   const workspace = useTenantWorkspace();
@@ -293,7 +285,7 @@ const EstatesPage: React.FC = () => {
     setDraftBuildingEstateId(estateId);
     setBuildingOpen(true);
     setBuildingLocationTouched(false);
-    previousBuildingEstateId.current = estateId;
+    previousBuildingEstateId.current = undefined;
     updateDrawerState({ buildingCreateEstateId: estateId });
   };
 
@@ -348,6 +340,12 @@ const EstatesPage: React.FC = () => {
   const selectedBuildingEstate = (allEstates.data?.items || []).find((item) => item.id === buildingEstateId);
   const defaultLocation = settingLocation(orgSettings.data?.find((item) => item.key === 'property_rental.default_location')?.value);
   const selectedEstateName = selectedEstate?.display_name || selectedEstate?.name || (estateId ? `小区 #${estateId}` : '');
+  useEffect(() => {
+    if (estateOpen) estateForm.setFieldsValue(estateInitialValues);
+  }, [estateForm, estateOpen, editingEstate?.id]);
+  useEffect(() => {
+    if (buildingOpen) buildingForm.setFieldsValue(buildingInitialValues);
+  }, [buildingForm, buildingOpen, draftBuildingEstateId, editingBuilding?.id]);
   const estateColumns: ProColumns<EstateOut>[] = [
     {
       title: '名称',

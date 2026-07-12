@@ -4,10 +4,7 @@ import { Card, Descriptions, Empty, Spin, Table, Tag } from 'antd';
 import React from 'react';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { houseApi } from '@/services/manual/house';
-
-function safeMapReturnTo(value: string | null) {
-  return value?.startsWith('/dashboard/property-rental/map') ? value : '/dashboard/property-rental/map';
-}
+import { safeMapReturnTo } from './detail-utils';
 
 const BuildingDetailPage: React.FC = () => {
   const { id } = useParams();
