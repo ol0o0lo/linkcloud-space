@@ -440,6 +440,12 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByTestId('estate-image-placeholder')).toBeInTheDocument();
   });
 
+  it('uses a dedicated building avatar in building rows', async () => {
+    renderPage(<EstatesPage />);
+
+    expect(await screen.findByTestId('building-avatar-placeholder')).toBeInTheDocument();
+  });
+
   it('starts building creation from an estate row and preselects that estate', async () => {
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
 

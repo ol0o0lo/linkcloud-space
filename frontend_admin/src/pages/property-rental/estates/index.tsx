@@ -1,4 +1,4 @@
-import { HomeOutlined, PlusOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, ClusterOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -315,7 +315,7 @@ const EstatesPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <Avatar
               alt="项目图"
-              icon={<HomeOutlined data-testid="estate-image-placeholder" />}
+              icon={<ClusterOutlined data-testid="estate-image-placeholder" />}
               shape="square"
               size={40}
               src={coverUrl}
@@ -355,7 +355,16 @@ const EstatesPage: React.FC = () => {
   ];
   const buildingColumns: ProColumns<BuildingOut>[] = [
     { title: '所属项目', dataIndex: 'estate', render: (_value, record) => <EstatePreview id={record.estate?.id}>{record.estate?.display_name || record.estate?.name || '-'}</EstatePreview> },
-    { title: '名称', dataIndex: 'name', render: (value, record) => <BuildingPreview id={record.id}>{value}</BuildingPreview> },
+    {
+      title: '名称',
+      dataIndex: 'name',
+      render: (value, record) => (
+        <Space size={8}>
+          <Avatar icon={<ApartmentOutlined data-testid="building-avatar-placeholder" />} shape="square" size={40} style={{ borderRadius: 6 }} />
+          <BuildingPreview id={record.id}>{value}</BuildingPreview>
+        </Space>
+      ),
+    },
     { title: '楼层', dataIndex: 'floors' },
     { title: '供给条件', dataIndex: 'supply', render: (_value, record) => <Typography.Text strong>{getBuildingSupplyText(record)}</Typography.Text> },
     { title: '地址', dataIndex: 'address', render: (value) => value || '-' },
