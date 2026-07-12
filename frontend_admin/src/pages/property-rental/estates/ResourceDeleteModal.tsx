@@ -122,7 +122,7 @@ export function ResourceDeleteModal({
       destroyOnHidden
       closable={!deleting}
       keyboard={!deleting}
-      maskClosable={!deleting}
+      mask={{ closable: !deleting }}
       onCancel={deleting ? undefined : onClose}
       footer={
         phase === 'confirm'
