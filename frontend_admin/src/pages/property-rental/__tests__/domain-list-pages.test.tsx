@@ -13,6 +13,7 @@ const {
   mockCreateContact,
   mockCreateLease,
   mockCreateViewingRecord,
+  mockGetContact,
   mockGetLease,
   mockHistoryPush,
   mockListBuildings,
@@ -30,6 +31,7 @@ const {
   mockCreateContact: vi.fn(),
   mockCreateLease: vi.fn(),
   mockCreateViewingRecord: vi.fn(),
+  mockGetContact: vi.fn(),
   mockGetLease: vi.fn(),
   mockHistoryPush: vi.fn(),
   mockListEstates: vi.fn(),
@@ -173,6 +175,7 @@ vi.mock('@/services/manual/house', () => ({
     createContact: mockCreateContact,
     createLease: mockCreateLease,
     createViewingRecord: mockCreateViewingRecord,
+    getContact: mockGetContact,
     getLease: mockGetLease,
     listEstates: mockListEstates,
     listBuildings: mockListBuildings,
@@ -308,6 +311,7 @@ describe('Property rental domain list pages', () => {
     mockCreateContact.mockResolvedValue({ id: 8, name: '王租客', phone: '13700000000', roles: ['tenant'] });
     mockCreateLease.mockResolvedValue({ id: 10, house_id: 99, tenant_id: 6, status: 'pending' });
     mockCreateViewingRecord.mockResolvedValue({ id: 9, house_id: 99, customer_name: '赵客户', customer_phone: '13600000000', scheduled_at: '2026-07-02T10:00:00+08:00', status: 'scheduled' });
+    mockGetContact.mockResolvedValue({ id: 3, name: '张房东', phone: '13800000000', email: 'landlord@example.com', roles: ['landlord'], is_active: true });
     mockGetLease.mockResolvedValue(leaseItem());
     mockPatchContact.mockResolvedValue({ id: 3, name: '张房东', phone: '13800000000', roles: ['landlord'], is_active: true });
     mockPatchLease.mockResolvedValue({ id: 5, status: 'expired' });
@@ -797,6 +801,21 @@ describe('Property rental domain list pages', () => {
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
 
     await waitFor(() => expect(mockPatchContact).toHaveBeenCalledWith(3, expect.objectContaining({ is_active: true })));
+  });
+
+  it('从 URL 打开联系人编辑抽屉并在关闭时清除 edit 参数', async () => {
+    window.history.pushState({}, '', '/property-rental/contacts?edit=3&role=landlord');
+    mockListContacts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
+
+    renderPage(<ContactsPage />);
+
+    await waitFor(() => expect(mockGetContact).toHaveBeenCalledWith(3));
+    expect(await screen.findByText('编辑联系人')).toBeInTheDocument();
+    expect(screen.getByLabelText('姓名')).toHaveValue('张房东');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => expect(window.location.search).toBe('?role=landlord'));
   });
 
   it('toggles contact active state directly from the row action', async () => {
