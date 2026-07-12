@@ -8,7 +8,7 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
         ({ EstatePreviewPanel }) => ({ default: EstatePreviewPanel }),
       ),
     ),
-    getHref: (id) => `/property-rental/estates?estate_edit=${id}`,
+    getHref: (id) => `/property-rental/estates?preview_estate=${id}`,
   },
   building: {
     Panel: lazy(() =>
@@ -17,7 +17,7 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
       ),
     ),
     getHref: (id) =>
-      `/property-rental/estates?view=buildings&building_edit=${id}`,
+      `/property-rental/estates?view=buildings&preview_building=${id}`,
   },
   house: {
     Panel: lazy(() =>
@@ -33,7 +33,7 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
         ({ ContactPreviewPanel }) => ({ default: ContactPreviewPanel }),
       ),
     ),
-    getHref: (id) => `/property-rental/contacts?edit=${id}`,
+    getHref: (id) => `/property-rental/contacts?preview=${id}`,
   },
   lease: {
     Panel: lazy(() =>
@@ -41,7 +41,7 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
         ({ LeasePreviewPanel }) => ({ default: LeasePreviewPanel }),
       ),
     ),
-    getHref: (id) => `/property-rental/leases?edit=${id}`,
+    getHref: (id) => `/property-rental/leases?preview=${id}`,
   },
   viewing: {
     Panel: lazy(() =>
@@ -49,6 +49,6 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
         ({ ViewingPreviewPanel }) => ({ default: ViewingPreviewPanel }),
       ),
     ),
-    getHref: (id) => `/property-rental/viewings?edit=${id}`,
+    getHref: (id) => `/property-rental/viewings?preview=${id}`,
   },
 };

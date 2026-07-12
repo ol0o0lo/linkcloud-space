@@ -4,7 +4,11 @@ import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, Card, Drawer, Empty, Form, Input, message, Segmented, Select, Space, Switch, Tag, Typography } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BuildingPreview, EstatePreview } from '@/components/EntityPreview';
+import {
+  BuildingPreview,
+  EntityPreviewDetailDrawer,
+  EstatePreview,
+} from '@/components/EntityPreview';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
@@ -551,6 +555,16 @@ const EstatesPage: React.FC = () => {
         </Card>
       ) : null}
       <ResourceDeleteModal open={Boolean(deleteTarget)} target={deleteTarget} onClose={closeDeleteModal} onDeleted={refreshDeleteLists} />
+      <EntityPreviewDetailDrawer
+        searchParam="preview_estate"
+        title="项目详情"
+        type="estate"
+      />
+      <EntityPreviewDetailDrawer
+        searchParam="preview_building"
+        title="楼栋详情"
+        type="building"
+      />
       <Drawer title={editingEstate ? '编辑项目' : '新建项目'} open={estateOpen} size="large" onClose={closeEstateDrawer} destroyOnHidden extra={<Button type="primary" htmlType="submit" form="estate-form" loading={saveEstate.isPending}>保存</Button>}>
         <Form
           id="estate-form"
