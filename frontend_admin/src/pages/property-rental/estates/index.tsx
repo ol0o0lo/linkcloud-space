@@ -1,8 +1,8 @@
-import { PlusOutlined } from '@ant-design/icons';
+import { HomeOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Drawer, Empty, Form, Input, message, Segmented, Select, Space, Switch, Tag, Typography } from 'antd';
+import { Avatar, Button, Card, Drawer, Empty, Form, Input, message, Segmented, Select, Space, Switch, Tag, Typography } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BuildingPreview, EstatePreview } from '@/components/EntityPreview';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
@@ -313,13 +313,14 @@ const EstatesPage: React.FC = () => {
         const coverUrl = mediaCoverUrl(record.images);
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            {coverUrl ? (
-              <img
-                alt="项目图"
-                src={coverUrl}
-                style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flex: '0 0 auto' }}
-              />
-            ) : null}
+            <Avatar
+              alt="项目图"
+              icon={<HomeOutlined data-testid="estate-image-placeholder" />}
+              shape="square"
+              size={40}
+              src={coverUrl}
+              style={{ borderRadius: 6, flex: '0 0 auto' }}
+            />
             <EstatePreview id={record.id}><Typography.Text ellipsis>{record.display_name || record.name}</Typography.Text></EstatePreview>
           </div>
         );

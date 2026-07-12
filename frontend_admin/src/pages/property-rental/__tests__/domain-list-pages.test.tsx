@@ -412,6 +412,34 @@ describe('Property rental domain list pages', () => {
     expect(screen.queryByText('缺地址，先补楼栋资料')).not.toBeInTheDocument();
   });
 
+  it('uses an estate avatar placeholder when an estate has no cover image', async () => {
+    mockListEstates.mockResolvedValue({
+      items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+
+    renderPage(<EstatesPage />);
+
+    expect(await screen.findByTestId('estate-image-placeholder')).toBeInTheDocument();
+  });
+
+  it('falls back to the estate avatar when its cover image cannot load', async () => {
+    mockListEstates.mockResolvedValue({
+      items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路', images: [{ media_id: 7, media_type: 'image', url: '/unavailable.jpg' }] }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+
+    renderPage(<EstatesPage />);
+
+    fireEvent.error(await screen.findByAltText('项目图'));
+
+    expect(await screen.findByTestId('estate-image-placeholder')).toBeInTheDocument();
+  });
+
   it('starts building creation from an estate row and preselects that estate', async () => {
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
 
@@ -785,6 +813,12 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByRole('button', { name: 'plus 新建联系人' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument();
     expect(document.querySelector('[data-preview="contact"][data-id="3"]')).toBeInTheDocument();
+  });
+
+  it('uses the first character of a contact name as the avatar fallback', async () => {
+    renderPage(<ContactsPage />);
+
+    expect(await screen.findByTestId('contact-avatar-initial')).toHaveTextContent('张');
   });
 
   it('keeps the contact list compact with grouped subject information', async () => {
@@ -1650,6 +1684,34 @@ describe('Property rental domain list pages', () => {
     expect(screen.queryByRole('columnheader', { name: '当前动作' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '面积' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '状态' })).not.toBeInTheDocument();
+  });
+
+  it('uses a house avatar placeholder when a house has no cover image', async () => {
+    mockListHouses.mockResolvedValue({
+      items: [houseItem({ images: [], videos: [] })],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    });
+
+    renderPage(<HousesPage />);
+
+    expect(await screen.findByTestId('house-image-placeholder')).toBeInTheDocument();
+  });
+
+  it('falls back to the house avatar when the cover image cannot load', async () => {
+    mockListHouses.mockResolvedValue({
+      items: [houseItem({ images: [{ media_id: 8, media_type: 'image', image_role: 'cover', url: '/unavailable.jpg' }], videos: [] })],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    });
+
+    renderPage(<HousesPage />);
+
+    fireEvent.error(await screen.findByAltText('房源图'));
+
+    expect(await screen.findByTestId('house-image-placeholder')).toBeInTheDocument();
   });
 
   it('renders keyword and status filters in the house table toolbar', async () => {

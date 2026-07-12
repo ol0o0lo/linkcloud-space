@@ -1,9 +1,10 @@
-import { MoreOutlined, PlusOutlined } from '@ant-design/icons';
+import { HomeOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history } from '@umijs/max';
 import {
+  Avatar,
   Button,
   Card,
   Dropdown,
@@ -190,13 +191,14 @@ const HousesPage: React.FC = () => {
         const coverUrl = mediaCoverUrl(record.images);
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            {coverUrl ? (
-              <img
-                alt="房源图"
-                src={coverUrl}
-                style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flex: '0 0 auto' }}
-              />
-            ) : null}
+            <Avatar
+              alt="房源图"
+              icon={<HomeOutlined data-testid="house-image-placeholder" />}
+              shape="square"
+              size={40}
+              src={coverUrl}
+              style={{ borderRadius: 6, flex: '0 0 auto' }}
+            />
             <HousePreview id={record.id}><Typography.Text ellipsis>{houseLabel(record)}</Typography.Text></HousePreview>
           </div>
         );

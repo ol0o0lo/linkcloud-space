@@ -4,6 +4,7 @@ import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history } from '@umijs/max';
 import {
+  Avatar,
   Button,
   Card,
   Drawer,
@@ -310,11 +311,18 @@ const ContactsPage: React.FC = () => {
       render: (_value, record) => {
         const businessInfo = getContactBusinessInfo(record);
         return (
-          <Space orientation="vertical" size={2}>
-            <ContactPreview id={record.id}><Typography.Text strong>{businessInfo.primary}</Typography.Text></ContactPreview>
-            <Typography.Text type="secondary">
-              {businessInfo.secondary}
-            </Typography.Text>
+          <Space align="start" size={8}>
+            <Avatar size={40}>
+              <span data-testid="contact-avatar-initial">
+                {record.name.trim().slice(0, 1) || '?'}
+              </span>
+            </Avatar>
+            <Space orientation="vertical" size={2}>
+              <ContactPreview id={record.id}><Typography.Text strong>{businessInfo.primary}</Typography.Text></ContactPreview>
+              <Typography.Text type="secondary">
+                {businessInfo.secondary}
+              </Typography.Text>
+            </Space>
           </Space>
         );
       },
