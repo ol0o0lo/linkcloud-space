@@ -18,6 +18,7 @@ import {
   Typography,
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
+import { ContactPreview } from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -41,6 +42,29 @@ import {
 } from '../loading';
 
 const PAGE_SIZE = 20;
+
+type ContactDrawerState = {
+  editContactId?: number;
+};
+
+function getContactDrawerStateFromSearch(search: string): ContactDrawerState {
+  const params = new URLSearchParams(search);
+  return { editContactId: Number(params.get('edit')) || undefined };
+}
+
+function syncContactDrawerSearch(drawerState: ContactDrawerState) {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('edit');
+  if (drawerState.editContactId) {
+    params.set('edit', String(drawerState.editContactId));
+  }
+  const nextSearch = params.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash || ''}`;
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }
+}
 
 function hasRole(record: ContactOut, role: string) {
   return record.roles?.includes(role);
@@ -104,7 +128,11 @@ function syncContactListSearch(filters: {
   q?: string;
   role?: string;
 }) {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams(window.location.search);
+  params.delete('role');
+  params.delete('keyword');
+  params.delete('page');
+  params.delete('task');
   if (filters.role) params.set('role', filters.role);
   if (filters.q) params.set('keyword', filters.q);
   if (filters.page > 1) params.set('page', String(filters.page));
@@ -138,6 +166,9 @@ const ContactsPage: React.FC = () => {
   );
   const [editing, setEditing] = useState<ContactOut | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerState, setDrawerState] = useState<ContactDrawerState>(() =>
+    getContactDrawerStateFromSearch(window.location.search),
+  );
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.contact_role']);
   const contacts = useQuery({
@@ -158,6 +189,23 @@ const ContactsPage: React.FC = () => {
       }),
     enabled,
   });
+  const listedEditingContact = contacts.data?.items.find(
+    (item) => item.id === drawerState.editContactId,
+  );
+  const editContact = useQuery({
+    queryKey: [
+      'house',
+      'contact',
+      workspace.selectedOrgSlug,
+      drawerState.editContactId,
+    ],
+    queryFn: () => houseApi.getContact(drawerState.editContactId as number),
+    enabled:
+      enabled &&
+      Boolean(drawerState.editContactId) &&
+      contacts.isSuccess &&
+      !listedEditingContact,
+  });
   const saveContact = useMutation({
     mutationFn: (values: ContactFormValues) =>
       editing
@@ -167,6 +215,8 @@ const ContactsPage: React.FC = () => {
       message.success(editing ? '联系人已更新' : '联系人已创建');
       setDrawerOpen(false);
       setEditing(null);
+      setDrawerState({});
+      syncContactDrawerSearch({});
       await queryClient.invalidateQueries({ queryKey: ['house', 'contacts'] });
     },
   });
@@ -181,12 +231,23 @@ const ContactsPage: React.FC = () => {
 
   const openCreate = () => {
     setEditing(null);
+    setDrawerState({});
+    syncContactDrawerSearch({});
     setDrawerOpen(true);
   };
 
   const openEdit = (record: ContactOut) => {
     setEditing(record);
+    setDrawerState({ editContactId: record.id });
+    syncContactDrawerSearch({ editContactId: record.id });
     setDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setEditing(null);
+    setDrawerState({});
+    syncContactDrawerSearch({});
   };
 
   const roleOptions = enumSelectOptions(houseEnums.data, 'house.contact_role');
@@ -197,6 +258,50 @@ const ContactsPage: React.FC = () => {
   useEffect(() => {
     syncContactListSearch({ page, q, role });
   }, [page, q, role]);
+
+  useEffect(() => {
+    setDrawerOpen(false);
+    setEditing(null);
+  }, [workspace.selectedOrgSlug]);
+
+  useEffect(() => {
+    if (!drawerState.editContactId || editing || drawerOpen || !contacts.isSuccess) {
+      return;
+    }
+    if (listedEditingContact) {
+      setEditing(listedEditingContact);
+      setDrawerOpen(true);
+      return;
+    }
+    if (editContact.data) {
+      setEditing(editContact.data);
+      setDrawerOpen(true);
+    }
+  }, [
+    contacts.isSuccess,
+    drawerOpen,
+    drawerState.editContactId,
+    editContact.data,
+    editing,
+    listedEditingContact,
+  ]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const listState = getContactListStateFromSearch(window.location.search);
+      const nextDrawerState = getContactDrawerStateFromSearch(
+        window.location.search,
+      );
+      setPage(listState.page);
+      setQ(listState.q);
+      setRole(listState.role);
+      setDrawerState(nextDrawerState);
+      setDrawerOpen(false);
+      setEditing(null);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const columns: ProColumns<ContactOut>[] = [
     {
       title: '主体信息',
@@ -206,7 +311,7 @@ const ContactsPage: React.FC = () => {
         const businessInfo = getContactBusinessInfo(record);
         return (
           <Space orientation="vertical" size={2}>
-            <Typography.Text strong>{businessInfo.primary}</Typography.Text>
+            <ContactPreview id={record.id}><Typography.Text strong>{businessInfo.primary}</Typography.Text></ContactPreview>
             <Typography.Text type="secondary">
               {businessInfo.secondary}
             </Typography.Text>
@@ -350,9 +455,7 @@ const ContactsPage: React.FC = () => {
         title={editing ? '编辑联系人' : '新建联系人'}
         open={drawerOpen}
         size="large"
-        onClose={() => {
-          setDrawerOpen(false);
-        }}
+        onClose={closeDrawer}
         destroyOnHidden
         extra={
           <Button

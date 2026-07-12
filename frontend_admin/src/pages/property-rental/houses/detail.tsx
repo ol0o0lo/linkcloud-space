@@ -20,6 +20,7 @@ import {
   theme,
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
+import { ContactPreview, LeasePreview, ViewingPreview } from '@/components/EntityPreview';
 import {
   TenantSelectionGuard,
   useTenantWorkspace,
@@ -375,7 +376,7 @@ const HouseDetailPage: React.FC = () => {
                 loading={viewings.isLoading}
                 scroll={{ x: 'max-content' }}
                 columns={[
-                  { title: '客户', dataIndex: 'customer_name' },
+                  { title: '客户', dataIndex: 'customer_name', render: (value, record) => <ViewingPreview id={record.id}>{value}</ViewingPreview> },
                   { title: '手机', dataIndex: 'customer_phone' },
                   {
                     title: '预约时间',
@@ -468,7 +469,7 @@ const HouseDetailPage: React.FC = () => {
                   {
                     title: '租客',
                     dataIndex: 'tenant_id',
-                    render: (_value, record) => contactLabel(record),
+                    render: (_value, record) => <ContactPreview id={record.tenant_id}>{contactLabel(record)}</ContactPreview>,
                   },
                   { title: '起租', dataIndex: 'start_date' },
                   { title: '到期', dataIndex: 'end_date' },
@@ -489,9 +490,9 @@ const HouseDetailPage: React.FC = () => {
                   {
                     title: '合同',
                     dataIndex: 'contract_files',
-                    render: (value) => (
+                    render: (value, record) => (
                       <Space size={8}>
-                        <span>{`${value?.length || 0} 份`}</span>
+                        <LeasePreview id={record.id}><span>{`租约 #${record.id} · ${value?.length || 0} 份`}</span></LeasePreview>
                         {!value?.length ? (
                           <Tag color="orange">待补合同</Tag>
                         ) : null}

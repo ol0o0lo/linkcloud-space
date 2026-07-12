@@ -35,6 +35,11 @@ vi.mock('@/pages/tenant/shared', () => ({
   }),
 }));
 
+vi.mock('@/components/EntityPreview', () => {
+  const preview = (type: string) => ({ id, children }: { id?: number | null; children: React.ReactNode }) => <span data-preview={type} data-id={id}>{children}</span>;
+  return { ContactPreview: preview('contact'), LeasePreview: preview('lease'), ViewingPreview: preview('viewing') };
+});
+
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
     getHouse: mockGetHouse,
@@ -387,6 +392,9 @@ describe('House detail page', () => {
     expect((await screen.findAllByText('李客户')).length).toBeGreaterThan(0);
     expect(await screen.findByText('租约记录')).toBeInTheDocument();
     expect((await screen.findAllByText(/王租客/)).length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-preview="viewing"][data-id="1"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="contact"][data-id="6"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="lease"][data-id="2"]')).toHaveTextContent('租约 #2 · 0 份');
     expect(
       screen
         .getAllByRole('link', { name: '查看租约' })
@@ -508,7 +516,7 @@ describe('House detail page', () => {
     expect((await screen.findAllByText(/王租客/)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('生效中')).length).toBeGreaterThan(0);
     expect(screen.queryByText('合同已归档')).not.toBeInTheDocument();
-    expect(screen.getByText('1 份')).toBeInTheDocument();
+    expect(screen.getByText('租约 #2 · 1 份')).toBeInTheDocument();
   });
 
   it('splits media management into image and video sections', async () => {

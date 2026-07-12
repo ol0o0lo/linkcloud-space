@@ -15,6 +15,7 @@ import {
   Typography,
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
+import { ContactPreview, HousePreview } from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -196,7 +197,7 @@ const HousesPage: React.FC = () => {
                 style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flex: '0 0 auto' }}
               />
             ) : null}
-            <Typography.Text ellipsis>{houseLabel(record)}</Typography.Text>
+            <HousePreview id={record.id}><Typography.Text ellipsis>{houseLabel(record)}</Typography.Text></HousePreview>
           </div>
         );
       },
@@ -207,7 +208,7 @@ const HousesPage: React.FC = () => {
       search: false,
       width: 180,
       render: (_value, record) =>
-        record.landlord_id ? contactLabel(record) : '待补房东',
+        <ContactPreview id={record.landlord_id}>{record.landlord_id ? contactLabel(record) : '待补房东'}</ContactPreview>,
     },
     {
       title: '挂牌租金',

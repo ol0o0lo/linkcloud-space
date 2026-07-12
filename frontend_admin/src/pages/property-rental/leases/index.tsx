@@ -28,6 +28,7 @@ import {
   theme,
 } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
+import { LeasePreview } from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -655,7 +656,7 @@ const LeasesPage: React.FC = () => {
         const businessInfo = getLeaseBusinessInfo(record);
         return (
           <Space orientation="vertical" size={2}>
-            <Typography.Text strong>{businessInfo.primary}</Typography.Text>
+            <LeasePreview id={record.id}><Typography.Text strong>{businessInfo.primary}</Typography.Text></LeasePreview>
             <Typography.Text type="secondary">
               {businessInfo.secondary}
             </Typography.Text>

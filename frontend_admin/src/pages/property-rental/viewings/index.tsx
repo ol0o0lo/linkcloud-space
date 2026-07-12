@@ -27,6 +27,7 @@ import {
   theme,
 } from 'antd';
 import React, { useEffect, useState } from 'react';
+import { ViewingPreview } from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -588,7 +589,7 @@ const ViewingsPage: React.FC = () => {
         const businessInfo = getViewingBusinessInfo(record);
         return (
           <Space orientation="vertical" size={2}>
-            <Typography.Text strong>{businessInfo.primary}</Typography.Text>
+            <ViewingPreview id={record.id}><Typography.Text strong>{businessInfo.primary}</Typography.Text></ViewingPreview>
             <Typography.Text type="secondary">
               {businessInfo.secondary}
             </Typography.Text>

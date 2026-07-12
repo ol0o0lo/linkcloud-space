@@ -15,6 +15,7 @@ import {
   appsHouseApiGetEstate,
   appsHouseApiGetHouse,
   appsHouseApiGetLease,
+  appsHouseApiGetViewingRecord,
   appsHouseApiListBuildings,
   appsHouseApiListContacts,
   appsHouseApiListEstates,
@@ -102,6 +103,7 @@ export const houseApi = {
     appsHouseApiListViewingRecords(
       (params ?? {}) as API.appsHouseApiListViewingRecordsParams,
     ) as Promise<PageResult<ViewingRecordOut>>,
+  getViewingRecord: (recordId: number) => appsHouseApiGetViewingRecord({ record_id: recordId }) as Promise<ViewingRecordOut>,
   createViewingRecord: (data: Payload) => appsHouseApiCreateViewingRecord(data as API.ViewingRecordIn) as Promise<ViewingRecordOut>,
   patchViewingRecord: (recordId: number, data: Payload) =>
     appsHouseApiPatchViewingRecord(

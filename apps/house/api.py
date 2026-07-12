@@ -305,6 +305,15 @@ def patch_house(request, house_id: int, payload: HousePatchIn):
     return house
 
 
+def _viewing_records_qs(org):
+    signed_lease_qs = Lease.objects.filter(source_viewing_record_id=OuterRef("pk")).order_by("id")
+    return (
+        ViewingRecord.objects.filter(organization=org)
+        .select_related("house__building__estate", "contact", "assigned_to")
+        .annotate(signed_lease_id=Subquery(signed_lease_qs.values("id")[:1]))
+    )
+
+
 @router.get("/viewing-records/", response=list[ViewingRecordOut], summary="获取带看记录列表")
 @paginate(LegacyPagination)
 def list_viewing_records(
@@ -316,13 +325,7 @@ def list_viewing_records(
     keyword: str | None = Query(None),
 ):
     org = require_org_selected(request)
-    signed_lease_qs = Lease.objects.filter(source_viewing_record_id=OuterRef("pk")).order_by("id")
-    qs = (
-        ViewingRecord.objects.filter(organization=org)
-        .select_related("house__building__estate", "contact", "assigned_to")
-        .annotate(signed_lease_id=Subquery(signed_lease_qs.values("id")[:1]))
-        .order_by("-scheduled_at", "-id")
-    )
+    qs = _viewing_records_qs(org).order_by("-scheduled_at", "-id")
     if house_id:
         qs = qs.filter(house_id=house_id)
     if status:
@@ -343,6 +346,12 @@ def list_viewing_records(
             | Q(house__building__estate__display_name__icontains=keyword)
         )
     return qs
+
+
+@router.get("/viewing-records/{record_id}/", response=ViewingRecordOut, summary="获取带看记录详情")
+def get_viewing_record(request, record_id: int):
+    org = require_org_selected(request)
+    return get_object_or_404(_viewing_records_qs(org), pk=record_id)
 
 
 @router.post("/viewing-records/", response={201: ViewingRecordOut}, summary="创建带看记录")

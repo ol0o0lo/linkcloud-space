@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { message } from 'antd';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ContactsPage from '../contacts';
@@ -14,6 +14,7 @@ const {
   mockCreateLease,
   mockCreateViewingRecord,
   mockGetBuilding,
+  mockGetContact,
   mockGetLease,
   mockHistoryPush,
   mockListBuildings,
@@ -26,12 +27,14 @@ const {
   mockPatchHouse,
   mockPatchLease,
   mockPatchViewingRecord,
+  mockUseTenantWorkspace,
 } = vi.hoisted(() => ({
   mockCreateBuilding: vi.fn(),
   mockCreateContact: vi.fn(),
   mockCreateLease: vi.fn(),
   mockCreateViewingRecord: vi.fn(),
   mockGetBuilding: vi.fn(),
+  mockGetContact: vi.fn(),
   mockGetLease: vi.fn(),
   mockHistoryPush: vi.fn(),
   mockListEstates: vi.fn(),
@@ -44,6 +47,7 @@ const {
   mockPatchHouse: vi.fn(),
   mockPatchLease: vi.fn(),
   mockPatchViewingRecord: vi.fn(),
+  mockUseTenantWorkspace: vi.fn(),
 }));
 
 vi.mock('@umijs/max', () => ({
@@ -166,8 +170,15 @@ vi.mock('@ant-design/pro-components', () => ({
 
 vi.mock('@/pages/tenant/shared', () => ({
   TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  useTenantWorkspace: () => ({ selectedOrgSlug: 'org', queryClient: new QueryClient() }),
+  useTenantWorkspace: mockUseTenantWorkspace,
 }));
+
+vi.mock('@/components/EntityPreview', () => {
+  const preview = (type: string) => ({ id, children }: { id?: number | null; children: React.ReactNode }) => <span data-preview={type} data-id={id}>{children}</span>;
+  return {
+    BuildingPreview: preview('building'), ContactPreview: preview('contact'), EstatePreview: preview('estate'), HousePreview: preview('house'), LeasePreview: preview('lease'), ViewingPreview: preview('viewing'),
+  };
+});
 
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
@@ -176,6 +187,7 @@ vi.mock('@/services/manual/house', () => ({
     createLease: mockCreateLease,
     createViewingRecord: mockCreateViewingRecord,
     getBuilding: mockGetBuilding,
+    getContact: mockGetContact,
     getLease: mockGetLease,
     listEstates: mockListEstates,
     listBuildings: mockListBuildings,
@@ -305,6 +317,7 @@ function leaseItem(overrides: Record<string, any> = {}) {
 describe('Property rental domain list pages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'org', queryClient: new QueryClient() });
     window.history.pushState({}, '', '/');
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: '星河湾', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
     mockListBuildings.mockResolvedValue({ items: [defaultBuilding], total: 1, page: 1, page_size: 100 });
@@ -317,6 +330,7 @@ describe('Property rental domain list pages', () => {
     mockCreateLease.mockResolvedValue({ id: 10, house_id: 99, tenant_id: 6, status: 'pending' });
     mockCreateViewingRecord.mockResolvedValue({ id: 9, house_id: 99, customer_name: '赵客户', customer_phone: '13600000000', scheduled_at: '2026-07-02T10:00:00+08:00', status: 'scheduled' });
     mockGetBuilding.mockResolvedValue(defaultBuilding);
+    mockGetContact.mockResolvedValue({ id: 3, name: '张房东', phone: '13800000000', email: 'landlord@example.com', roles: ['landlord'], is_active: true });
     mockGetLease.mockResolvedValue(leaseItem());
     mockPatchContact.mockResolvedValue({ id: 3, name: '张房东', phone: '13800000000', roles: ['landlord'], is_active: true });
     mockPatchLease.mockResolvedValue({ id: 5, status: 'expired' });
@@ -335,6 +349,8 @@ describe('Property rental domain list pages', () => {
 
     expect((await screen.findAllByText('星河湾花园')).length).toBeGreaterThan(0);
     expect(await screen.findByText('1 栋')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="estate"][data-id="1"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="building"][data-id="2"]')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(2);
   });
 
@@ -768,6 +784,7 @@ describe('Property rental domain list pages', () => {
     expect(screen.queryByRole('button', { name: 'plus 新建租客' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'plus 新建联系人' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="contact"][data-id="3"]')).toBeInTheDocument();
   });
 
   it('keeps the contact list compact with grouped subject information', async () => {
@@ -920,6 +937,80 @@ describe('Property rental domain list pages', () => {
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
 
     await waitFor(() => expect(mockPatchContact).toHaveBeenCalledWith(3, expect.objectContaining({ is_active: true })));
+  });
+
+  it('从 URL 打开联系人编辑抽屉并在关闭时清除 edit 参数', async () => {
+    window.history.pushState({}, '', '/property-rental/contacts?edit=3&role=landlord');
+    mockListContacts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
+
+    renderPage(<ContactsPage />);
+
+    await waitFor(() => expect(mockGetContact).toHaveBeenCalledWith(3));
+    expect(await screen.findByText('编辑联系人')).toBeInTheDocument();
+    expect(screen.getByLabelText('姓名')).toHaveValue('张房东');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => expect(window.location.search).toBe('?role=landlord'));
+  });
+
+  it('忽略 popstate 清除 edit 后才返回的过期联系人详情', async () => {
+    let resolveContact!: (contact: typeof defaultLandlord) => void;
+    mockGetContact.mockReturnValue(
+      new Promise((resolve) => {
+        resolveContact = resolve;
+      }),
+    );
+    window.history.pushState({}, '', '/property-rental/contacts?edit=3');
+    mockListContacts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
+
+    renderPage(<ContactsPage />);
+    await waitFor(() => expect(mockGetContact).toHaveBeenCalledWith(3));
+
+    window.history.pushState({}, '', '/property-rental/contacts');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await act(async () => resolveContact(defaultLandlord));
+
+    expect(screen.queryByText('编辑联系人')).not.toBeInTheDocument();
+  });
+
+  it('忽略切换组织后返回的同 ID 旧租户联系人', async () => {
+    let resolveOrgA!: (contact: typeof defaultLandlord) => void;
+    let resolveOrgB!: (contact: typeof defaultLandlord) => void;
+    mockGetContact
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveOrgA = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveOrgB = resolve;
+        }),
+      );
+    mockUseTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'org-a', queryClient: new QueryClient() });
+    window.history.pushState({}, '', '/property-rental/contacts?edit=3');
+    mockListContacts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
+    const queryClient = new QueryClient();
+
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <ContactsPage />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(mockGetContact).toHaveBeenCalledTimes(1));
+
+    mockUseTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'org-b', queryClient: new QueryClient() });
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <ContactsPage />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(mockGetContact).toHaveBeenCalledTimes(2));
+    await act(async () => resolveOrgA({ ...defaultLandlord, name: 'A 组织房东' }));
+
+    expect(screen.queryByText('编辑联系人')).not.toBeInTheDocument();
+    await act(async () => resolveOrgB({ ...defaultLandlord, name: 'B 组织房东' }));
   });
 
   it('toggles contact active state directly from the row action', async () => {
@@ -1090,6 +1181,7 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByText(/李客户/)).toBeInTheDocument();
     expect(await screen.findByText(/A-101/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="viewing"][data-id="4"]')).toBeInTheDocument();
   });
 
   it('filters viewings from the toolbar search', async () => {
@@ -1306,6 +1398,9 @@ describe('Property rental domain list pages', () => {
     renderPage(<HousesPage />);
 
     expect(await screen.findByText('房源列表')).toBeInTheDocument();
+    await screen.findByText('星河湾花园 / 1 栋 / A-101');
+    expect(document.querySelector('[data-preview="house"][data-id="99"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="contact"][data-id="3"]')).toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(screen.queryByText('房源概览')).not.toBeInTheDocument();
     expect(screen.queryByText('在管房源')).not.toBeInTheDocument();
@@ -2101,6 +2196,7 @@ describe('Property rental domain list pages', () => {
     renderPage(<LeasesPage />);
 
     expect(await screen.findByText(/4200/)).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="lease"][data-id="5"]')).toBeInTheDocument();
   });
 
   it('shows lease operational overview and workflow hints', async () => {

@@ -446,6 +446,23 @@ export async function appsHouseApiCreateViewingRecord(
   });
 }
 
+/** 获取带看记录详情 GET /api/house/viewing-records/${param0}/ */
+export async function appsHouseApiGetViewingRecord(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiGetViewingRecordParams,
+  options?: { [key: string]: any }
+) {
+  const { record_id: param0, ...queryParams } = params;
+  return request<API.ViewingRecordOut>(
+    `/api/house/viewing-records/${param0}/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 更新带看记录 PATCH /api/house/viewing-records/${param0}/ */
 export async function appsHouseApiPatchViewingRecord(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

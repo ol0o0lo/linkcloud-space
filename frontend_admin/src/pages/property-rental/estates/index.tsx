@@ -4,6 +4,7 @@ import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Drawer, Empty, Form, Input, message, Segmented, Select, Space, Switch, Tag, Typography } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { BuildingPreview, EstatePreview } from '@/components/EntityPreview';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
@@ -319,7 +320,7 @@ const EstatesPage: React.FC = () => {
                 style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flex: '0 0 auto' }}
               />
             ) : null}
-            <Typography.Text ellipsis>{record.display_name || record.name}</Typography.Text>
+            <EstatePreview id={record.id}><Typography.Text ellipsis>{record.display_name || record.name}</Typography.Text></EstatePreview>
           </div>
         );
       },
@@ -352,8 +353,8 @@ const EstatesPage: React.FC = () => {
     },
   ];
   const buildingColumns: ProColumns<BuildingOut>[] = [
-    { title: '所属项目', dataIndex: 'estate', render: (_value, record) => record.estate?.display_name || record.estate?.name || '-' },
-    { title: '名称', dataIndex: 'name' },
+    { title: '所属项目', dataIndex: 'estate', render: (_value, record) => <EstatePreview id={record.estate?.id}>{record.estate?.display_name || record.estate?.name || '-'}</EstatePreview> },
+    { title: '名称', dataIndex: 'name', render: (value, record) => <BuildingPreview id={record.id}>{value}</BuildingPreview> },
     { title: '楼层', dataIndex: 'floors' },
     { title: '供给条件', dataIndex: 'supply', render: (_value, record) => <Typography.Text strong>{getBuildingSupplyText(record)}</Typography.Text> },
     { title: '地址', dataIndex: 'address', render: (value) => value || '-' },
