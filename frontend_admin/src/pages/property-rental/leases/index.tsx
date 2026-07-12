@@ -29,6 +29,7 @@ import {
 } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ContactPreview,
   EntityPreviewDetailDrawer,
   LeasePreview,
 } from '@/components/EntityPreview';
@@ -92,26 +93,30 @@ function leaseEditPath(
   return `${dashboardHref('/property-rental/leases')}?${params.toString()}`;
 }
 
-function getLeaseBusinessInfo(record: LeaseOut) {
+function getLeaseHouseInfo(record: LeaseOut) {
   const houseText = houseLabel(record);
   const houseParts = houseText.split(' / ');
   const roomText = houseParts.at(-1) || houseText;
   const scopeText =
     houseParts.length > 1 ? houseParts.slice(0, -1).join(' / ') : undefined;
-  const primary = `${roomText} / ${contactLabel(record)}`;
-  const secondaryParts = [
-    scopeText,
-    record.start_date && record.end_date
-      ? `${record.start_date} 至 ${record.end_date}`
-      : undefined,
-    record.monthly_rent ? moneyText(record.monthly_rent) : undefined,
-    record.contract_files?.length
-      ? `${record.contract_files.length} 份合同`
-      : '合同未归档',
-  ].filter(Boolean);
   return {
-    primary,
-    secondary: secondaryParts.join(' · '),
+    roomText,
+    scopeText,
+  };
+}
+
+function maskedPhone(phone?: string | null) {
+  if (!phone) return undefined;
+  const nationalNumber = phone.replace(/\D/g, '').slice(-11);
+  if (nationalNumber.length !== 11) return phone;
+  return `${nationalNumber.slice(0, 3)}****${nationalNumber.slice(-4)}`;
+}
+
+function getLeaseTenantInfo(record: LeaseOut) {
+  const tenant = record.tenant;
+  return {
+    name: tenant?.name || (tenant?.id ? `联系人 #${tenant.id}` : '-'),
+    phone: maskedPhone(tenant?.phone),
   };
 }
 
@@ -652,20 +657,63 @@ const LeasesPage: React.FC = () => {
   });
   const columns: ProColumns<LeaseOut>[] = [
     {
-      title: '租约信息',
+      title: '房源',
       dataIndex: 'house',
-      width: 360,
+      width: 190,
       render: (_value, record) => {
-        const businessInfo = getLeaseBusinessInfo(record);
+        const houseInfo = getLeaseHouseInfo(record);
         return (
           <Space orientation="vertical" size={2}>
-            <LeasePreview id={record.id}><Typography.Text strong>{businessInfo.primary}</Typography.Text></LeasePreview>
-            <Typography.Text type="secondary">
-              {businessInfo.secondary}
-            </Typography.Text>
+            <LeasePreview id={record.id}>
+              <Typography.Text strong>{houseInfo.roomText}</Typography.Text>
+            </LeasePreview>
+            {houseInfo.scopeText ? (
+              <Typography.Text type="secondary">
+                {houseInfo.scopeText}
+              </Typography.Text>
+            ) : null}
           </Space>
         );
       },
+    },
+    {
+      title: '租客',
+      dataIndex: 'tenant',
+      width: 160,
+      render: (_value, record) => {
+        const tenantInfo = getLeaseTenantInfo(record);
+        return (
+          <Space orientation="vertical" size={2}>
+            <ContactPreview id={record.tenant_id}>
+              <Typography.Text>{tenantInfo.name}</Typography.Text>
+            </ContactPreview>
+            {tenantInfo.phone ? (
+              <Typography.Text type="secondary">
+                {tenantInfo.phone}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
+      title: '租期',
+      dataIndex: 'start_date',
+      width: 190,
+      render: (_value, record) => (
+        <Space orientation="vertical" size={2}>
+          <Typography.Text>{record.start_date || '-'}</Typography.Text>
+          <Typography.Text type="secondary">
+            {record.end_date ? `至 ${record.end_date}` : '-'}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '月租',
+      dataIndex: 'monthly_rent',
+      width: 120,
+      render: (_value, record) => moneyText(record.monthly_rent),
     },
     {
       title: '状态',

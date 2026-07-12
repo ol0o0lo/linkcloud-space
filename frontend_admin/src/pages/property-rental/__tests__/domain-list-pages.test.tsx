@@ -2451,12 +2451,12 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<LeasesPage />);
 
-    const row = (await screen.findByText(/301 \/ 王租客/)).closest('tr');
+    const row = (await screen.findByText('301')).closest('tr');
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByRole('button', { name: '编辑' })).toBeInTheDocument();
     expect(within(row as HTMLElement).getByRole('button', { name: '更多操作' })).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByRole('button', { name: '到期' })).not.toBeInTheDocument();
-    expect(within((await screen.findByText(/302 \/ 李租客/)).closest('tr') as HTMLElement).getByRole('button', { name: '更多操作' })).toBeInTheDocument();
+    expect(within((await screen.findByText('302')).closest('tr') as HTMLElement).getByRole('button', { name: '更多操作' })).toBeInTheDocument();
 
     fireEvent.click(within(row as HTMLElement).getByRole('button', { name: '更多操作' }));
     expect(screen.getByText('生效')).toBeInTheDocument();
@@ -2466,7 +2466,7 @@ describe('Property rental domain list pages', () => {
     expect(mockPatchLease).not.toHaveBeenCalled();
   });
 
-  it('keeps the lease list compact with grouped lease information', async () => {
+  it('shows lease business details in dedicated columns', async () => {
     mockListLeases.mockResolvedValue({
       items: [leaseItem({ id: 5, house: houseItem({ id: 1 }), status: 'active', contract_files: [{ media_id: 1, media_type: 'file' }] })],
       total: 1,
@@ -2476,15 +2476,23 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<LeasesPage />);
 
-    expect(await screen.findByRole('columnheader', { name: '租约信息' })).toBeInTheDocument();
+    expect(await screen.findByRole('columnheader', { name: '房源' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '租客' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '租期' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '月租' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '状态' })).toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '当前动作' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '合同' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '操作' })).toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '起租' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '到期' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '月租' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '履约建议' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: '租约信息' })).not.toBeInTheDocument();
+    expect(await screen.findByText('A-101')).toBeInTheDocument();
+    expect(screen.getByText('星河湾花园 / 1 栋')).toBeInTheDocument();
+    expect(screen.getByText('王租客')).toBeInTheDocument();
+    expect(screen.getByText('137****0000')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="contact"][data-id="6"]')).toBeInTheDocument();
+    expect(screen.getByText('2026-07-01')).toBeInTheDocument();
+    expect(screen.getByText('至 2027-06-30')).toBeInTheDocument();
+    expect(screen.getByText('¥4200.00')).toBeInTheDocument();
+    expect(screen.getByText('1 份')).toBeInTheDocument();
   });
 
   it('does not render closure signal shortcuts on the lease board', async () => {
