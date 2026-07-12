@@ -3,12 +3,13 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Drawer, Empty, Form, Input, message, Segmented, Select, Space, Switch, Tag, Typography } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { type BuildingOut, type EstateOut, houseApi, type PageResult } from '@/services/manual/house';
 import { mediaCoverUrl } from '../constants';
+import { type DeleteTarget, ResourceDeleteModal } from './ResourceDeleteModal';
 
 const PAGE_SIZE = 20;
 const ALL_BUILDINGS_PAGE_SIZE = 500;
@@ -178,6 +179,7 @@ const EstatesPage: React.FC = () => {
   const [draftBuildingEstateId, setDraftBuildingEstateId] = useState<number>();
   const [estateOpen, setEstateOpen] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.estate_property_type']);
   const estates = useQuery({ queryKey: ['house', 'estates', workspace.selectedOrgSlug, estatePage, q], queryFn: () => houseApi.listEstates({ page: estatePage, page_size: PAGE_SIZE, keyword: q }), enabled });
@@ -276,6 +278,18 @@ const EstatesPage: React.FC = () => {
     clearDrawerState();
   };
 
+  const refreshDeleteLists = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['house', 'estates'] }),
+      queryClient.invalidateQueries({ queryKey: ['house', 'buildings'] }),
+    ]);
+  }, [queryClient]);
+
+  const closeDeleteModal = useCallback(() => {
+    setDeleteTarget(null);
+    void refreshDeleteLists();
+  }, [refreshDeleteLists]);
+
   const estateInitialValues: Partial<EstateFormValues> = editingEstate || { property_type: 'residential', is_active: true };
   const buildingInitialValues: Partial<BuildingFormValues> = editingBuilding || { estate_id: draftBuildingEstateId, floors: 1, elevator: false, is_active: true };
   const estateOverviewRows = allEstates.data?.items || estates.data?.items || [];
@@ -330,6 +344,9 @@ const EstatesPage: React.FC = () => {
           <Button type="link" size="small" onClick={() => openEstateEdit(record)}>
             {task === 'estate_address' && !record.address ? '补项目地址' : '编辑'}
           </Button>
+          <Button type="link" danger size="small" onClick={() => setDeleteTarget({ type: 'estate', id: record.id, label: record.display_name || record.name })}>
+            删除
+          </Button>
         </ResponsiveActions>
       ),
     },
@@ -355,6 +372,9 @@ const EstatesPage: React.FC = () => {
             onClick={() => openBuildingEdit(record)}
           >
             {task === 'building_address' && !record.address ? '补楼栋地址' : '编辑'}
+          </Button>
+          <Button type="link" danger size="small" onClick={() => setDeleteTarget({ type: 'building', id: record.id, label: record.name })}>
+            删除
           </Button>
         </ResponsiveActions>
       ),
@@ -519,6 +539,7 @@ const EstatesPage: React.FC = () => {
           />
         </Card>
       ) : null}
+      <ResourceDeleteModal open={Boolean(deleteTarget)} target={deleteTarget} onClose={closeDeleteModal} onDeleted={refreshDeleteLists} />
       <Drawer title={editingEstate ? '编辑项目' : '新建项目'} open={estateOpen} size="large" onClose={closeEstateDrawer} destroyOnHidden extra={<Button type="primary" htmlType="submit" form="estate-form" loading={saveEstate.isPending}>保存</Button>}>
         <Form
           id="estate-form"
