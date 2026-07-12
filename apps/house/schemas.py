@@ -128,6 +128,8 @@ class BuildingSummaryOut(Schema):
     estate_id: int | None
     estate: EstateSummaryOut | None
     address: str
+    lat: Decimal | None
+    lng: Decimal | None
 
 
 def building_display_label(building) -> str:

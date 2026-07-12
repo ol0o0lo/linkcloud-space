@@ -12,6 +12,7 @@ from apps.house.exceptions import ResourceInUseException
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
+DEFAULT_LOCATION_SETTING_KEY = "property_rental.default_location"
 RESOURCE_PREVIEW_LIMIT = 5
 PUBLISH_RULES_SETTING_KEY = "property_rental.publish_rules"
 PUBLISH_RULE_MODE_REQUIRED = "required"
@@ -350,8 +351,11 @@ def ensure_default_building(organization: Organization):
         organization=organization,
         estate=estate,
         name="默认楼栋",
-        defaults={"floors": 1, "address": ""},
+        defaults={"floors": 1, "address": "待补充地址"},
     )
+    if not building.address:
+        Building.objects.filter(pk=building.pk).update(address="待补充地址")
+        building.address = "待补充地址"
     OrganizationSetting.objects.update_or_create(organization=organization, setting=setting, defaults={"value": building.pk})
     return building
 

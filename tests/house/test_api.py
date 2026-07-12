@@ -39,7 +39,7 @@ class HouseApiTestCase(TestCase):
         self.estate = Estate.objects.create(
             organization=self.org, name="云岸", display_name="云岸", property_type=EstatePropertyType.RESIDENTIAL, province="广东", city="深圳", district="南山", address="科技园"
         )
-        self.building = Building.objects.create(organization=self.org, estate=self.estate, name="1栋", floors=20)
+        self.building = Building.objects.create(organization=self.org, estate=self.estate, name="1栋", address="科技园 1 栋", floors=20)
 
     def make_other_org_house(self):
         other_org = baker.make("organizations.Organization", name="其他房源 API 组织", slug="other-house-api-org")
@@ -53,7 +53,7 @@ class HouseApiTestCase(TestCase):
             district="福田",
             address="车公庙",
         )
-        other_building = Building.objects.create(organization=other_org, estate=other_estate, name="2栋", floors=10)
+        other_building = Building.objects.create(organization=other_org, estate=other_estate, name="2栋", address="车公庙 2 栋", floors=10)
         other_landlord = Contact.objects.create(organization=other_org, name="异租户房东", phone="13800138222", roles=[ContactRole.LANDLORD])
         other_tenant = Contact.objects.create(organization=other_org, name="异租户租客", phone="13900139222", roles=[ContactRole.TENANT])
         other_house = House.objects.create(building=other_building, landlord=other_landlord, room_number="201")
@@ -82,7 +82,7 @@ class HouseApiTestCase(TestCase):
                 organization=self.org,
                 estate=self.estate,
                 name=f"{index}栋",
-                address="科技南路" if index == 2 else "",
+                address=f"科技南路 {index} 栋",
                 floors=20,
             )
             for index in range(2, 8)
@@ -100,11 +100,11 @@ class HouseApiTestCase(TestCase):
                         "label": "关联楼栋",
                         "count": 7,
                         "items": [
-                            {"id": self.building.pk, "label": "1栋"},
-                            {"id": buildings[0].pk, "label": "2栋 · 科技南路"},
-                            {"id": buildings[1].pk, "label": "3栋"},
-                            {"id": buildings[2].pk, "label": "4栋"},
-                            {"id": buildings[3].pk, "label": "5栋"},
+                            {"id": self.building.pk, "label": "1栋 · 科技园 1 栋"},
+                            {"id": buildings[0].pk, "label": "2栋 · 科技南路 2 栋"},
+                            {"id": buildings[1].pk, "label": "3栋 · 科技南路 3 栋"},
+                            {"id": buildings[2].pk, "label": "4栋 · 科技南路 4 栋"},
+                            {"id": buildings[3].pk, "label": "5栋 · 科技南路 5 栋"},
                         ],
                         "truncated": True,
                         "target": {
@@ -117,7 +117,7 @@ class HouseApiTestCase(TestCase):
         )
 
     def test_building_delete_check_reports_house_preview(self):
-        empty_building = Building.objects.create(organization=self.org, estate=self.estate, name="空楼栋", floors=8)
+        empty_building = Building.objects.create(organization=self.org, estate=self.estate, name="空楼栋", address="科技园空楼栋", floors=8)
         empty_response = self.client.get(f"/api/house/buildings/{empty_building.pk}/delete-check/")
 
         self.assertEqual(empty_response.status_code, 200)
@@ -229,7 +229,7 @@ class HouseApiTestCase(TestCase):
             district="南山",
         )
         self.assertEqual(api_data(self.client.get(f"/api/house/estates/{estate.pk}/delete-check/")), {"can_delete": True, "resources": []})
-        building = Building.objects.create(organization=self.org, estate=estate, name="竞态楼栋", floors=8)
+        building = Building.objects.create(organization=self.org, estate=estate, name="竞态楼栋", address="科技园竞态楼栋", floors=8)
 
         response = self.client.delete(f"/api/house/estates/{estate.pk}/")
 
@@ -491,7 +491,7 @@ class HouseApiTestCase(TestCase):
             district="南山",
             address="后海",
         )
-        other_building = Building.objects.create(organization=self.org, estate=other_estate, name="3栋", floors=16)
+        other_building = Building.objects.create(organization=self.org, estate=other_estate, name="3栋", address="后海 3 栋", floors=16)
         other_house = House.objects.create(building=other_building, room_number="1801")
         self.make_other_org_house()
 
@@ -632,7 +632,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(self.client.get(f"/api/house/viewing-records/{other_viewing.pk}/").status_code, 404)
 
     def test_list_buildings_searches_estate_names(self):
-        Building.objects.create(organization=self.org, estate=self.estate, name="2栋", floors=18)
+        Building.objects.create(organization=self.org, estate=self.estate, name="2栋", address="科技园 2 栋", floors=18)
         other_estate = Estate.objects.create(
             organization=self.org,
             name="海风里",
@@ -643,7 +643,7 @@ class HouseApiTestCase(TestCase):
             district="南山",
             address="后海",
         )
-        other_building = Building.objects.create(organization=self.org, estate=other_estate, name="3栋", floors=16)
+        other_building = Building.objects.create(organization=self.org, estate=other_estate, name="3栋", address="后海 3 栋", floors=16)
         self.make_other_org_house()
 
         response = self.client.get("/api/house/buildings/?keyword=海风里花园")
@@ -710,13 +710,13 @@ class HouseApiTestCase(TestCase):
         self.assertIsNone(api_data(unbound)["estate_id"])
         self.assertIsNone(api_data(unbound)["estate"])
 
-    def test_patch_building_rejects_unbinding_without_address(self):
-        building = Building.objects.create(organization=self.org, estate=self.estate, name="无独立地址楼栋", address="", floors=8)
+    def test_patch_building_rejects_clearing_required_address(self):
+        building = Building.objects.create(organization=self.org, estate=self.estate, name="地址校验楼栋", address="科技园地址校验楼栋", floors=8)
         self.client.raise_request_exception = False
 
         response = self.client.patch(
             f"/api/house/buildings/{building.pk}/",
-            data=json.dumps({"estate_id": None}),
+            data=json.dumps({"address": ""}),
             content_type="application/json",
         )
 
@@ -957,7 +957,7 @@ class HouseApiTestCase(TestCase):
         self.assertTrue(OrganizationSetting.objects.filter(organization=org, value=building.pk).exists())
 
     def test_default_building_can_be_changed_to_org_building_only(self):
-        other_building = Building.objects.create(organization=self.org, estate=self.estate, name="2栋", floors=18)
+        other_building = Building.objects.create(organization=self.org, estate=self.estate, name="2栋", address="科技园 2 栋", floors=18)
 
         response = self.client.put(
             "/api/house/default-building/",
@@ -1430,7 +1430,7 @@ class LeaseStatusClosureTestCase(TestCase):
         self.estate = Estate.objects.create(
             organization=self.org, name="云岸", display_name="云岸", property_type=EstatePropertyType.RESIDENTIAL, province="广东", city="深圳", district="南山", address="科技园"
         )
-        self.building = Building.objects.create(organization=self.org, estate=self.estate, name="1栋", floors=20)
+        self.building = Building.objects.create(organization=self.org, estate=self.estate, name="1栋", address="科技园 1 栋", floors=20)
         self.landlord = Contact.objects.create(organization=self.org, name="房东", phone="13800138111", roles=[ContactRole.LANDLORD])
         self.tenant = Contact.objects.create(organization=self.org, name="租客", phone="13900139111", roles=[ContactRole.TENANT])
 
