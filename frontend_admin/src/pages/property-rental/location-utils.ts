@@ -10,3 +10,7 @@ export function formLocation(values: { address?: string; lat?: unknown; lng?: un
 export function settingLocation(value: unknown): LocationValue | null {
   return value && typeof value === 'object' ? formLocation(value as { address?: string; lat?: unknown; lng?: unknown }) : null;
 }
+
+export function prefillBuildingLocation(address: string | undefined, location: LocationValue): Partial<LocationValue> {
+  return address?.trim() ? { lat: location.lat, lng: location.lng } : location;
+}

@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { useAmap } from '@/services/manual/amap';
 import { houseApi } from '@/services/manual/house';
+import { createBuildingMarkerContent } from './marker-content';
 import { readMapSearchState } from './map-state';
 
 const CHINA_CENTER: [number, number] = [104.1954, 35.8617];
@@ -22,10 +23,18 @@ const PropertyRentalMapPage: React.FC = () => {
   const [bounds, setBounds] = useState<MapBounds>();
   const mapNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const clusterRef = useRef<any>(null);
   const fittedInitialMarkersRef = useRef(false);
   const { AMap, loading, error, reload } = useAmap(['AMap.MarkerClusterer']);
   const estates = useQuery({ queryKey: ['map-estates', workspace.selectedOrgSlug], queryFn: () => houseApi.listEstates({ page: 1, page_size: 100 }), enabled: Boolean(workspace.selectedOrgSlug) });
-  const markers = useQuery({ queryKey: ['building-map', workspace.selectedOrgSlug, keyword, estateId, houseStatus, includeInactive, bounds], queryFn: () => houseApi.listBuildingMap({ keyword: keyword || undefined, estate_id: estateId, house_status: houseStatus, include_inactive: includeInactive, ...bounds, page: 1, page_size: 200 }), enabled: Boolean(workspace.selectedOrgSlug) });
+  const markers = useQuery({ queryKey: ['building-map', workspace.selectedOrgSlug, keyword, estateId, houseStatus, includeInactive, bounds], queryFn: async () => {
+    const params = { keyword: keyword || undefined, estate_id: estateId, house_status: houseStatus, include_inactive: includeInactive, ...bounds, page_size: 200 };
+    const first = await houseApi.listBuildingMap({ ...params, page: 1 });
+    const pages = Math.ceil(first.total / params.page_size);
+    if (pages <= 1) return first;
+    const rest = await Promise.all(Array.from({ length: pages - 1 }, (_item, index) => houseApi.listBuildingMap({ ...params, page: index + 2 })));
+    return { ...first, items: [...first.items, ...rest.flatMap((page) => page.items)] };
+  }, enabled: Boolean(workspace.selectedOrgSlug) });
   const unlocated = useQuery({ queryKey: ['building-map-unlocated', workspace.selectedOrgSlug], queryFn: houseApi.getBuildingMapUnlocatedCount, enabled: Boolean(workspace.selectedOrgSlug) });
   const detail = useQuery({ queryKey: ['building-map-detail', workspace.selectedOrgSlug, selectedBuildingId], queryFn: () => houseApi.getBuildingMapDetail(selectedBuildingId!), enabled: Boolean(selectedBuildingId && workspace.selectedOrgSlug) });
 
@@ -52,6 +61,8 @@ const PropertyRentalMapPage: React.FC = () => {
   }, [AMap]);
   useEffect(() => {
     if (!AMap || !mapRef.current) return;
+    clusterRef.current?.setMap?.(null);
+    clusterRef.current = null;
     mapRef.current.clearMap();
     const points = markers.data?.items || [];
     const instances = points.map((item) => {
@@ -59,12 +70,12 @@ const PropertyRentalMapPage: React.FC = () => {
       const marker = new AMap.Marker({
         position: [Number(item.lng), Number(item.lat)],
         title: `${item.name} · ${item.counts.total} 套`,
-        content: `<div style="background:${muted};color:#fff;border-radius:16px;padding:4px 8px;white-space:nowrap;box-shadow:0 2px 6px #0003">${item.name} · ${item.counts.total}</div>`,
+        content: createBuildingMarkerContent(item.name, item.counts.total, muted),
       });
       marker.on('click', () => setSelectedBuildingId(item.id));
       return marker;
     });
-    if (AMap.MarkerClusterer) new AMap.MarkerClusterer(mapRef.current, instances);
+    if (AMap.MarkerClusterer) clusterRef.current = new AMap.MarkerClusterer(mapRef.current, instances);
     else mapRef.current.add(instances);
     if (instances.length && !fittedInitialMarkersRef.current && !bounds) {
       mapRef.current.setFitView(instances);
@@ -73,9 +84,9 @@ const PropertyRentalMapPage: React.FC = () => {
   }, [AMap, bounds, markers.data]);
   return <TenantSelectionGuard title="房源地图">
     <div style={{ height: 'calc(100vh - 120px)', position: 'relative' }}>
-      {error ? <Alert type="error" message="高德地图加载失败" action={<a onClick={reload}>重试</a>} /> : <div ref={mapNode} style={{ position: 'absolute', inset: 0 }} />}
+      {error ? <Alert type="error" title="高德地图加载失败" action={<a onClick={reload}>重试</a>} /> : <div ref={mapNode} style={{ position: 'absolute', inset: 0 }} />}
       <Card size="small" style={{ position: 'absolute', top: 16, left: 16, zIndex: 2, width: 360 }}>
-        <Space direction="vertical" className="w-full"><Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索小区、楼栋或地址" />
+        <Space orientation="vertical" className="w-full"><Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索小区、楼栋或地址" />
           <Select allowClear value={estateId} onChange={setEstateId} placeholder="全部小区" options={(estates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />
           <Select allowClear value={houseStatus} onChange={setHouseStatus} placeholder="全部房态" options={[['vacant','空置'],['rented','已租'],['renovating','装修中'],['locked','封存']].map(([value,label]) => ({ value, label }))} />
           <Switch checked={includeInactive} onChange={setIncludeInactive} /> 包含停用楼栋

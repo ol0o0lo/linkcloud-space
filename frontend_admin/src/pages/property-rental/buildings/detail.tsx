@@ -23,6 +23,12 @@ const BuildingDetailPage: React.FC = () => {
         { key: 'floors', label: '楼层', children: building.floors },
         { key: 'location', label: '位置', children: building.lat == null || building.lng == null ? '楼栋待定位' : '楼栋位置已维护' },
       ]} />
+      <Card size="small" title="房源地图汇总" style={{ marginTop: 16 }}>
+        {[
+          ['总房源', building.counts.total], ['空置', building.counts.vacant], ['已租', building.counts.rented],
+          ['装修中', building.counts.renovating], ['封存', building.counts.locked], ['已发布', building.counts.published],
+        ].map(([label, value]) => <Tag key={String(label)}>{label}: {value}</Tag>)}
+      </Card>
       <Table rowKey="id" dataSource={building.houses} pagination={false} columns={[
         { title: '房号', dataIndex: 'room_number', render: (value, row) => <Link to={`/property-rental/houses/${row.id}`}>{value}</Link> },
         { title: '楼层', dataIndex: 'floor', render: (value) => value ?? '-' },

@@ -125,7 +125,7 @@ export function LocationPicker({
         }
       >
         {error ? (
-          <Alert type="error" showIcon message="高德地图加载失败" description={error.message} action={<Button size="small" onClick={reload}>重试</Button>} />
+          <Alert type="error" showIcon title="高德地图加载失败" description={error.message} action={<Button size="small" onClick={reload}>重试</Button>} />
         ) : (
           <Space orientation="vertical" size="middle" className="w-full">
             <Space.Compact className="w-full">
@@ -134,7 +134,7 @@ export function LocationPicker({
               <Button onClick={requestBrowserLocation}>定位到当前位置</Button>
             </Space.Compact>
             <div ref={containerRef} style={{ height: 380, background: '#f5f5f5' }} />
-            {loading && <Spin tip="正在加载地图" />}
+            {loading && <Spin description="正在加载地图" />}
             <Typography.Text type={draft?.address ? undefined : 'secondary'}>
               {draft?.address || '未获取标准地址'} {draft ? `（${draft.lat.toFixed(6)}, ${draft.lng.toFixed(6)}）` : ''}
             </Typography.Text>

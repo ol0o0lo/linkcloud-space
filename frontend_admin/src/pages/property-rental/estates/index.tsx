@@ -16,7 +16,7 @@ import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enum
 import { type BuildingOut, type EstateOut, houseApi, type PageResult } from '@/services/manual/house';
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import { mediaCoverUrl } from '../constants';
-import { formLocation, settingLocation } from '../location-utils';
+import { formLocation, prefillBuildingLocation, settingLocation } from '../location-utils';
 import { type DeleteTarget, ResourceDeleteModal } from './ResourceDeleteModal';
 
 const PAGE_SIZE = 20;
@@ -293,7 +293,7 @@ const EstatesPage: React.FC = () => {
     setDraftBuildingEstateId(undefined);
     setEditingBuilding(record);
     setBuildingOpen(true);
-    setBuildingLocationTouched(true);
+    setBuildingLocationTouched(record.lat != null && record.lng != null);
     previousBuildingEstateId.current = record.estate_id;
     updateDrawerState({ buildingEditId: record.id });
   };
@@ -461,10 +461,10 @@ const EstatesPage: React.FC = () => {
   }, [allBuildings.isSuccess, buildingOpen, buildingOverviewRows, drawerState.buildingCreateEstateId, drawerState.buildingEditId, editingBuilding]);
 
   useEffect(() => {
-    if (!buildingOpen || editingBuilding || previousBuildingEstateId.current === buildingEstateId) return;
+    if (!buildingOpen || previousBuildingEstateId.current === buildingEstateId) return;
     const nextEstateLocation = selectedBuildingEstate ? formLocation(selectedBuildingEstate) : null;
     if (!buildingLocationTouched && nextEstateLocation) {
-      buildingForm.setFieldsValue(nextEstateLocation);
+      buildingForm.setFieldsValue(prefillBuildingLocation(buildingForm.getFieldValue('address'), nextEstateLocation));
     } else if (buildingLocationTouched && nextEstateLocation) {
       message.info('已保留手动填写的位置，请核对楼栋位置。');
     }
@@ -664,9 +664,6 @@ const EstatesPage: React.FC = () => {
           id="building-form"
           layout="vertical"
           initialValues={buildingInitialValues}
-          onValuesChange={(changedValues) => {
-            if ('address' in changedValues) setBuildingLocationTouched(true);
-          }}
           onFinish={(values) => saveBuilding.mutate(values)}
         >
           <Form.Item label="所属项目" name="estate_id"><Select allowClear options={(allEstates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></Form.Item>
@@ -674,14 +671,14 @@ const EstatesPage: React.FC = () => {
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}><Input type="number" min={1} /></Form.Item>
           <Form.Item label="电梯" name="elevator" valuePropName="checked"><Switch /></Form.Item>
           <Form.Item label="地址" name="address" rules={[{ required: true, whitespace: true, message: '请输入楼栋地址' }]}><Input /></Form.Item>
-          <Form.Item label="楼栋位置" extra={buildingLocationTouched && buildingAddress ? '地址已修改，请核对定位。' : undefined}>
+          <Form.Item label="楼栋位置">
             <LocationPicker
               ariaLabel="楼栋位置"
               value={formLocation({ address: buildingAddress, lat: buildingLat, lng: buildingLng })}
               fallbackLocation={(selectedBuildingEstate && formLocation(selectedBuildingEstate)) || defaultLocation}
               onChange={(location) => {
                 setBuildingLocationTouched(true);
-                buildingForm.setFieldsValue(location || { lat: null, lng: null });
+                buildingForm.setFieldsValue(location || { address: '', lat: null, lng: null });
               }}
             />
           </Form.Item>
