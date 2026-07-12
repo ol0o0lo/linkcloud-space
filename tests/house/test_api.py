@@ -335,6 +335,37 @@ class HouseApiTestCase(TestCase):
         self.assertNotIn("source_viewing_record_label", lease_payload)
         self.assertEqual(lease_payload["status__mapping"], LeaseStatus.get_choice_label(lease_payload["status"]))
 
+    def test_get_viewing_record_returns_org_scoped_detail(self):
+        landlord = Contact.objects.create(organization=self.org, name="详情房东", phone="13800138002", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="详情租客", phone="13900139002", roles=[ContactRole.TENANT])
+        house = House.objects.create(building=self.building, landlord=landlord, room_number="1802")
+        viewing = ViewingRecord.objects.create(
+            organization=self.org,
+            house=house,
+            contact=tenant,
+            customer_name="详情客户",
+            customer_phone="13900139002",
+            scheduled_at=timezone.now(),
+        )
+        other_org, other_house, _other_landlord, other_tenant = self.make_other_org_house()
+        other_viewing = ViewingRecord.objects.create(
+            organization=other_org,
+            house=other_house,
+            contact=other_tenant,
+            customer_name="异租户客户",
+            customer_phone="13900139222",
+            scheduled_at=timezone.now(),
+        )
+
+        response = self.client.get(f"/api/house/viewing-records/{viewing.pk}/")
+        payload = api_data(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["id"], viewing.pk)
+        self.assertEqual(payload["house"]["id"], house.pk)
+        self.assertEqual(payload["contact"]["id"], tenant.pk)
+        self.assertEqual(self.client.get(f"/api/house/viewing-records/{other_viewing.pk}/").status_code, 404)
+
     def test_list_buildings_searches_estate_names(self):
         Building.objects.create(organization=self.org, estate=self.estate, name="2栋", floors=18)
         other_estate = Estate.objects.create(

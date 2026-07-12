@@ -426,6 +426,10 @@ declare namespace API {
     lease_id: number;
   };
 
+  type appsHouseApiGetViewingRecordParams = {
+    record_id: number;
+  };
+
   type appsHouseApiListBuildingsParams = {
     estate_id?: number | null;
     keyword?: string | null;
