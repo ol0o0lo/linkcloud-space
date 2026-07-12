@@ -128,9 +128,11 @@ export const entityPreviewRegistry = {
 
 ```tsx
 function HousePreviewPanel({ id }: EntityPreviewPanelProps<number>) {
+  const workspace = useTenantWorkspace();
   const house = useQuery({
-    queryKey: ['entity-preview', 'house', id],
+    queryKey: ['entity-preview', workspace.selectedOrgSlug, 'house', id],
     queryFn: () => houseApi.getHouse(id),
+    enabled: Boolean(workspace.selectedOrgSlug),
     staleTime: 60_000,
     gcTime: 600_000,
   });
@@ -141,7 +143,7 @@ function HousePreviewPanel({ id }: EntityPreviewPanelProps<number>) {
 
 统一规则：
 
-- 查询键固定为 `['entity-preview', entityType, id]`，同一实体跨页面共享缓存且请求去重。
+- 查询键固定为 `['entity-preview', selectedOrgSlug, entityType, id]`，同一组织内的同一实体跨页面共享缓存且请求去重，并防止切换组织后复用旧组织的预览数据。
 - `staleTime` 默认一分钟，`gcTime` 默认十分钟；个别高频变化实体可在自己的面板中缩短失效时间。
 - Popover 使用约 200ms 悬停延迟，并仅在打开后挂载面板，避免鼠标快速扫过表格时批量请求。
 - 面板关闭后可卸载，React Query 缓存保留；再次悬停优先显示缓存数据并按失效策略刷新。
