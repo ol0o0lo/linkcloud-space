@@ -1,5 +1,5 @@
 import { Button, Modal, message, Spin } from 'antd';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getResourceInUseData } from '@/services/manual/apiError';
 import { type DeleteCheckOut, houseApi } from '@/services/manual/house';
 
@@ -57,12 +57,15 @@ export function ResourceDeleteModal({
   const [phase, setPhase] = useState<DeletePhase>('checking');
   const [check, setCheck] = useState<DeleteCheckOut | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const sessionRef = useRef(0);
 
   useEffect(() => {
     if (!open || !target) return;
+    const session = ++sessionRef.current;
     let active = true;
     setPhase('checking');
     setCheck(null);
+    setDeleting(false);
     const fetchCheck =
       target.type === 'estate'
         ? houseApi.checkEstateDelete
@@ -80,11 +83,13 @@ export function ResourceDeleteModal({
       });
     return () => {
       active = false;
+      if (sessionRef.current === session) sessionRef.current += 1;
     };
   }, [onClose, open, target]);
 
   const confirmDelete = async () => {
     if (!target) return;
+    const session = sessionRef.current;
     setDeleting(true);
     const removeTarget =
       target.type === 'estate'
@@ -92,9 +97,12 @@ export function ResourceDeleteModal({
         : houseApi.deleteBuilding;
     try {
       await removeTarget(target.id);
+      if (session !== sessionRef.current) return;
       await onDeleted();
+      if (session !== sessionRef.current) return;
       onClose();
     } catch (error) {
+      if (session !== sessionRef.current) return;
       const conflict = getResourceInUseData(error);
       if (conflict) {
         setCheck(conflict);
@@ -103,7 +111,7 @@ export function ResourceDeleteModal({
       }
       message.error('删除失败，请稍后重试');
     } finally {
-      setDeleting(false);
+      if (session === sessionRef.current) setDeleting(false);
     }
   };
 
@@ -112,11 +120,14 @@ export function ResourceDeleteModal({
       open={open}
       title="删除确认"
       destroyOnHidden
-      onCancel={onClose}
+      closable={!deleting}
+      keyboard={!deleting}
+      maskClosable={!deleting}
+      onCancel={deleting ? undefined : onClose}
       footer={
         phase === 'confirm'
           ? [
-              <Button key="cancel" onClick={onClose}>
+              <Button key="cancel" disabled={deleting} onClick={onClose}>
                 取消
               </Button>,
               <Button
@@ -136,7 +147,7 @@ export function ResourceDeleteModal({
             ]
       }
     >
-      {phase === 'checking' ? <Spin tip="正在检查关联资源" /> : null}
+      {phase === 'checking' ? <Spin description="正在检查关联资源" /> : null}
       {phase === 'confirm' && target ? <p>确认删除“{target.label}”？</p> : null}
       {phase === 'blocked' ? <ResourceList check={check} /> : null}
     </Modal>

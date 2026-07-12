@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ResourceDeleteModal } from './ResourceDeleteModal';
 
@@ -86,5 +86,47 @@ describe('ResourceDeleteModal', () => {
     expect(
       screen.queryByRole('button', { name: '确认删除' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('旧删除请求完成时不会影响已切换到的新删除目标', async () => {
+    let resolveDelete: (() => void) | undefined;
+    const onClose = vi.fn();
+    const onDeleted = vi.fn();
+    mockCheckEstateDelete.mockResolvedValue({
+      can_delete: true,
+      resources: [],
+    });
+    mockDeleteEstate.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveDelete = resolve;
+      }),
+    );
+    const { rerender } = render(
+      <ResourceDeleteModal
+        open
+        target={{ type: 'estate', id: 10, label: '星河湾' }}
+        onClose={onClose}
+        onDeleted={onDeleted}
+      />,
+    );
+
+    expect(await screen.findByText('确认删除“星河湾”？')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
+    rerender(
+      <ResourceDeleteModal
+        open
+        target={{ type: 'estate', id: 20, label: '月亮湾' }}
+        onClose={onClose}
+        onDeleted={onDeleted}
+      />,
+    );
+    expect(await screen.findByText('确认删除“月亮湾”？')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveDelete?.();
+    });
+    expect(onDeleted).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText('确认删除“月亮湾”？')).toBeInTheDocument();
   });
 });
