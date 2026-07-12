@@ -717,7 +717,7 @@ export type AppContextUsingGetResponses = {
 
 export type BuildingIn = {
   /** Estate Id */
-  estate_id: number;
+  estate_id?: number | null;
   /** Name */
   name: string;
   /** Floors */
@@ -742,8 +742,8 @@ export type BuildingOut = {
   /** Id */
   id: number;
   /** Estate Id */
-  estate_id: number;
-  estate: EstateSummaryOut;
+  estate_id: number | null;
+  estate: EstateSummaryOut | null;
   /** Name */
   name: string;
   /** Floors */
@@ -793,8 +793,10 @@ export type BuildingSummaryOut = {
   /** Name */
   name: string;
   /** Estate Id */
-  estate_id: number;
-  estate: EstateSummaryOut;
+  estate_id: number | null;
+  estate: EstateSummaryOut | null;
+  /** Address */
+  address: string;
 };
 
 export type BulkActionIn = {
@@ -898,14 +900,21 @@ export type DefaultBuildingOut = {
   /** Id */
   id: number;
   /** Estate Id */
-  estate_id: number;
-  estate: EstateSummaryOut;
+  estate_id: number | null;
+  estate: EstateSummaryOut | null;
   /** Name */
   name: string;
   /** Floors */
   floors: number;
   /** Address */
   address: string;
+};
+
+export type DeleteCheckOut = {
+  /** Can Delete */
+  can_delete: boolean;
+  /** Resources */
+  resources: RelatedResourceOut[];
 };
 
 export type EnumsUsingGetResponses = {
@@ -1020,6 +1029,28 @@ export type ForceLogoutOut = {
   deleted_sessions: number;
 };
 
+export type HouseBuildingsBuildingIdDeleteCheckUsingGetParams = {
+  building_id: number;
+};
+
+export type HouseBuildingsBuildingIdDeleteCheckUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: DeleteCheckOut;
+};
+
+export type HouseBuildingsBuildingIdUsingDeleteParams = {
+  building_id: number;
+};
+
+export type HouseBuildingsBuildingIdUsingDeleteResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, unknown>;
+};
+
 export type HouseBuildingsBuildingIdUsingGetParams = {
   building_id: number;
 };
@@ -1119,6 +1150,28 @@ export type HouseDefaultBuildingUsingPutResponses = {
    * OK
    */
   200: DefaultBuildingOut;
+};
+
+export type HouseEstatesEstateIdDeleteCheckUsingGetParams = {
+  estate_id: number;
+};
+
+export type HouseEstatesEstateIdDeleteCheckUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: DeleteCheckOut;
+};
+
+export type HouseEstatesEstateIdUsingDeleteParams = {
+  estate_id: number;
+};
+
+export type HouseEstatesEstateIdUsingDeleteResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, unknown>;
 };
 
 export type HouseEstatesEstateIdUsingGetParams = {
@@ -2973,6 +3026,34 @@ export type ReferralSummaryOut = {
   pending_review_count: number;
   /** Rewarded Count */
   rewarded_count: number;
+};
+
+export type RelatedResourceItemOut = {
+  /** Id */
+  id: number;
+  /** Label */
+  label: string;
+};
+
+export type RelatedResourceOut = {
+  /** Type */
+  type: string;
+  /** Label */
+  label: string;
+  /** Count */
+  count: number;
+  /** Items */
+  items: RelatedResourceItemOut[];
+  /** Truncated */
+  truncated: boolean;
+  target: RelatedResourceTargetOut;
+};
+
+export type RelatedResourceTargetOut = {
+  /** Path */
+  path: string;
+  /** Query */
+  query: Record<string, number | string>;
 };
 
 export type ResetMfaOut = {

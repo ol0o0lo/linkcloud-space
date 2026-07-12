@@ -3,14 +3,16 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Drawer, Empty, Form, Input, message, Segmented, Select, Space, Switch, Tag, Typography } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
-import { type BuildingOut, type EstateOut, houseApi } from '@/services/manual/house';
+import { type BuildingOut, type EstateOut, houseApi, type PageResult } from '@/services/manual/house';
 import { mediaCoverUrl } from '../constants';
+import { type DeleteTarget, ResourceDeleteModal } from './ResourceDeleteModal';
 
 const PAGE_SIZE = 20;
+const ALL_BUILDINGS_PAGE_SIZE = 500;
 type EstateViewMode = 'all' | 'estates' | 'buildings';
 type EstateTask = 'estate_address' | 'building_address' | 'no_building' | 'inactive';
 type EstateDrawerState = {
@@ -18,6 +20,10 @@ type EstateDrawerState = {
   buildingEditId?: number;
   buildingCreateEstateId?: number;
 };
+
+function getPositiveId(value: string | null) {
+  return value && /^[1-9]\d*$/.test(value) ? Number(value) : undefined;
+}
 
 function getEstateBuildings(buildings: BuildingOut[], estateId: number) {
   return buildings.filter((item) => item.estate_id === estateId);
@@ -34,6 +40,23 @@ function getBuildingSupplyText(building: BuildingOut) {
   if (building.elevator) return '有电梯，可优先承接高层房源';
   if ((building.floors || 0) >= 10) return '无电梯高楼层，建档时注意居住体验';
   return '无电梯，适合低楼层房源';
+}
+
+async function fetchAllBuildings(): Promise<PageResult<BuildingOut>> {
+  const items: BuildingOut[] = [];
+  let page = 1;
+  let total = 0;
+
+  while (true) {
+    const result = await houseApi.listBuildings({ page, page_size: ALL_BUILDINGS_PAGE_SIZE });
+    items.push(...result.items);
+    total = result.total;
+
+    if (!result.items.length || items.length >= total) break;
+    page += 1;
+  }
+
+  return { items, total, page: 1, page_size: ALL_BUILDINGS_PAGE_SIZE };
 }
 
 function getEstateDrawerStateFromSearch(search: string): EstateDrawerState {
@@ -90,20 +113,23 @@ function getEstateListStateFromSearch(search: string) {
     estatePage: Number.isFinite(estatePageValue) && estatePageValue > 0 ? estatePageValue : 1,
     buildingPage: Number.isFinite(buildingPageValue) && buildingPageValue > 0 ? buildingPageValue : 1,
     q: params.get('keyword') || undefined,
+    estateId: getPositiveId(params.get('estate_id')),
     view: view === 'estates' || view === 'buildings' ? view : 'all',
     task: task === 'estate_address' || task === 'building_address' || task === 'no_building' || task === 'inactive' ? task : undefined,
-  } satisfies { estatePage: number; buildingPage: number; q?: string; view: EstateViewMode; task?: EstateTask };
+  } satisfies { estatePage: number; buildingPage: number; q?: string; estateId?: number; view: EstateViewMode; task?: EstateTask };
 }
 
-function syncEstateListSearch(filters: { estatePage: number; buildingPage: number; q?: string; view: EstateViewMode; task?: EstateTask }) {
+function syncEstateListSearch(filters: { estatePage: number; buildingPage: number; q?: string; estateId?: number; view: EstateViewMode; task?: EstateTask }) {
   const params = new URLSearchParams(window.location.search);
   params.delete('keyword');
   params.delete('task');
   params.delete('view');
   params.delete('estate_page');
   params.delete('building_page');
+  params.delete('estate_id');
   if (filters.q) params.set('keyword', filters.q);
   if (filters.task) params.set('task', filters.task);
+  if (filters.estateId) params.set('estate_id', String(filters.estateId));
   const taskView = getTaskViewMode(filters.task, 'all');
   if (filters.view !== 'all' && filters.view !== taskView) params.set('view', filters.view);
   if (filters.estatePage > 1) params.set('estate_page', String(filters.estatePage));
@@ -128,7 +154,7 @@ type EstateFormValues = {
 };
 
 type BuildingFormValues = {
-  estate_id: number;
+  estate_id?: number | null;
   name: string;
   floors: number;
   elevator?: boolean;
@@ -144,6 +170,7 @@ const EstatesPage: React.FC = () => {
   const [estatePage, setEstatePage] = useState(initialListState.current.estatePage);
   const [buildingPage, setBuildingPage] = useState(initialListState.current.buildingPage);
   const [q, setQ] = useState<string | undefined>(initialListState.current.q);
+  const [estateId, setEstateId] = useState<number | undefined>(initialListState.current.estateId);
   const [viewMode, setViewMode] = useState<EstateViewMode>(initialListState.current.view);
   const [task, setTask] = useState<EstateTask | undefined>(initialListState.current.task);
   const [drawerState, setDrawerState] = useState<EstateDrawerState>(initialDrawerState.current);
@@ -152,6 +179,7 @@ const EstatesPage: React.FC = () => {
   const [draftBuildingEstateId, setDraftBuildingEstateId] = useState<number>();
   const [estateOpen, setEstateOpen] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.estate_property_type']);
   const estates = useQuery({ queryKey: ['house', 'estates', workspace.selectedOrgSlug, estatePage, q], queryFn: () => houseApi.listEstates({ page: estatePage, page_size: PAGE_SIZE, keyword: q }), enabled });
@@ -160,11 +188,23 @@ const EstatesPage: React.FC = () => {
     queryFn: () => houseApi.listEstates({ page: 1, page_size: 100, keyword: q }),
     enabled,
   });
-  const buildings = useQuery({ queryKey: ['house', 'buildings', workspace.selectedOrgSlug, buildingPage, q], queryFn: () => houseApi.listBuildings({ page: buildingPage, page_size: PAGE_SIZE, keyword: q }), enabled });
-  const allBuildings = useQuery({
-    queryKey: ['house', 'buildings', 'all', workspace.selectedOrgSlug, q],
-    queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100, keyword: q }),
+  const buildings = useQuery({
+    queryKey: ['house', 'buildings', workspace.selectedOrgSlug, buildingPage, q, estateId],
+    queryFn: () => houseApi.listBuildings({ page: buildingPage, page_size: PAGE_SIZE, keyword: q, ...(estateId ? { estate_id: estateId } : {}) }),
     enabled,
+  });
+  const allBuildings = useQuery({
+    queryKey: ['house', 'buildings', 'all', workspace.selectedOrgSlug],
+    queryFn: fetchAllBuildings,
+    enabled,
+  });
+  const estateBuildings = useQuery({
+    queryKey: ['house', 'buildings', 'estate', workspace.selectedOrgSlug, editingEstate?.id],
+    queryFn: () => {
+      if (!editingEstate) throw new Error('缺少项目 ID');
+      return houseApi.listBuildings({ estate_id: editingEstate.id, page: 1, page_size: 5 });
+    },
+    enabled: enabled && Boolean(editingEstate),
   });
   const saveEstate = useMutation({
     mutationFn: (values: EstateFormValues) => (editingEstate ? houseApi.patchEstate(editingEstate.id, values) : houseApi.createEstate(values)),
@@ -179,7 +219,7 @@ const EstatesPage: React.FC = () => {
   });
   const saveBuilding = useMutation({
     mutationFn: (values: BuildingFormValues) => {
-      const payload = { ...values, floors: Number(values.floors) };
+      const payload = { ...values, estate_id: values.estate_id ?? null, floors: Number(values.floors) };
       return editingBuilding ? houseApi.patchBuilding(editingBuilding.id, payload) : houseApi.createBuilding(payload);
     },
     onSuccess: async () => {
@@ -238,8 +278,20 @@ const EstatesPage: React.FC = () => {
     clearDrawerState();
   };
 
+  const refreshDeleteLists = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['house', 'estates'] }),
+      queryClient.invalidateQueries({ queryKey: ['house', 'buildings'] }),
+    ]);
+  }, [queryClient]);
+
+  const closeDeleteModal = useCallback(() => {
+    setDeleteTarget(null);
+    void refreshDeleteLists();
+  }, [refreshDeleteLists]);
+
   const estateInitialValues: Partial<EstateFormValues> = editingEstate || { property_type: 'residential', is_active: true };
-  const buildingInitialValues: Partial<BuildingFormValues> = editingBuilding || { estate_id: draftBuildingEstateId || allEstates.data?.items?.[0]?.id, floors: 1, elevator: false, is_active: true };
+  const buildingInitialValues: Partial<BuildingFormValues> = editingBuilding || { estate_id: draftBuildingEstateId, floors: 1, elevator: false, is_active: true };
   const estateOverviewRows = allEstates.data?.items || estates.data?.items || [];
   const buildingOverviewRows = allBuildings.data?.items || buildings.data?.items || [];
   const estateTableBaseRows = task ? estateOverviewRows : (estates.data?.items || []);
@@ -250,6 +302,8 @@ const EstatesPage: React.FC = () => {
   const estateTotal = task ? estateRows.length : estates.data?.total || 0;
   const buildingTotal = task ? buildingRows.length : buildings.data?.total || 0;
   const propertyTypeOptions = enumSelectOptions(houseEnums.data, 'house.estate_property_type');
+  const selectedEstate = estateId ? estateOverviewRows.find((item) => item.id === estateId) : undefined;
+  const selectedEstateName = selectedEstate?.display_name || selectedEstate?.name || (estateId ? `小区 #${estateId}` : '');
   const estateColumns: ProColumns<EstateOut>[] = [
     {
       title: '名称',
@@ -290,6 +344,9 @@ const EstatesPage: React.FC = () => {
           <Button type="link" size="small" onClick={() => openEstateEdit(record)}>
             {task === 'estate_address' && !record.address ? '补项目地址' : '编辑'}
           </Button>
+          <Button type="link" danger size="small" onClick={() => setDeleteTarget({ type: 'estate', id: record.id, label: record.display_name || record.name })}>
+            删除
+          </Button>
         </ResponsiveActions>
       ),
     },
@@ -316,14 +373,17 @@ const EstatesPage: React.FC = () => {
           >
             {task === 'building_address' && !record.address ? '补楼栋地址' : '编辑'}
           </Button>
+          <Button type="link" danger size="small" onClick={() => setDeleteTarget({ type: 'building', id: record.id, label: record.name })}>
+            删除
+          </Button>
         </ResponsiveActions>
       ),
     },
   ];
 
   useEffect(() => {
-    syncEstateListSearch({ estatePage, buildingPage, q, view: viewMode, task });
-  }, [estatePage, buildingPage, q, task, viewMode]);
+    syncEstateListSearch({ estatePage, buildingPage, q, estateId, view: viewMode, task });
+  }, [estateId, estatePage, buildingPage, q, task, viewMode]);
 
   useEffect(() => {
     if (!drawerState.estateEditId || editingEstate || estateOpen || !allEstates.isSuccess) return;
@@ -354,6 +414,7 @@ const EstatesPage: React.FC = () => {
       setEstatePage(listState.estatePage);
       setBuildingPage(listState.buildingPage);
       setQ(listState.q);
+      setEstateId(listState.estateId);
       setViewMode(listState.view);
       setTask(listState.task);
       setDrawerState(getEstateDrawerStateFromSearch(window.location.search));
@@ -375,6 +436,21 @@ const EstatesPage: React.FC = () => {
           onChange={(value) => setViewMode(value as EstateViewMode)}
         />
       </Space>
+      {estateId ? (
+        <Space style={{ marginBottom: 16 }}>
+          <Typography.Text>当前小区筛选：{selectedEstateName}</Typography.Text>
+          <Button
+            size="small"
+            onClick={() => {
+              setEstateId(undefined);
+              setBuildingPage(1);
+            }}
+            aria-label="清除小区筛选"
+          >
+            清除
+          </Button>
+        </Space>
+      ) : null}
       {effectiveViewMode !== 'buildings' ? (
         <Card>
           <ProTable<EstateOut>
@@ -463,6 +539,7 @@ const EstatesPage: React.FC = () => {
           />
         </Card>
       ) : null}
+      <ResourceDeleteModal open={Boolean(deleteTarget)} target={deleteTarget} onClose={closeDeleteModal} onDeleted={refreshDeleteLists} />
       <Drawer title={editingEstate ? '编辑项目' : '新建项目'} open={estateOpen} size="large" onClose={closeEstateDrawer} destroyOnHidden extra={<Button type="primary" htmlType="submit" form="estate-form" loading={saveEstate.isPending}>保存</Button>}>
         <Form
           id="estate-form"
@@ -479,6 +556,18 @@ const EstatesPage: React.FC = () => {
           <Form.Item label="地址" name="address" extra="可先留空，后续补齐项目地址。"><Input placeholder="例如：科技园路 1 号（可稍后补）" /></Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
         </Form>
+        {editingEstate && estateBuildings.data?.items.length ? (
+          <Card
+            size="small"
+            title="关联楼栋"
+            style={{ marginTop: 16 }}
+            extra={<a href={`/dashboard/property-rental/estates?view=buildings&estate_id=${editingEstate.id}`}>查看全部楼栋</a>}
+          >
+            {estateBuildings.data.items
+              .map((building) => building.name)
+              .join('、')}
+          </Card>
+        ) : null}
       </Drawer>
       <Drawer
         title={editingBuilding ? '编辑楼栋' : '新建楼栋'}
@@ -489,13 +578,36 @@ const EstatesPage: React.FC = () => {
         extra={<Button type="primary" htmlType="submit" form="building-form" loading={saveBuilding.isPending}>保存</Button>}
       >
         <Form id="building-form" layout="vertical" initialValues={buildingInitialValues} onFinish={(values) => saveBuilding.mutate(values)}>
-          <Form.Item label="所属项目" name="estate_id" rules={[{ required: true, message: '请选择项目' }]}><Select options={(allEstates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></Form.Item>
+          <Form.Item label="所属项目" name="estate_id"><Select allowClear options={(allEstates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></Form.Item>
           <Form.Item label="楼栋名" name="name" rules={[{ required: true, message: '请输入楼栋名' }]}><Input /></Form.Item>
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}><Input type="number" min={1} /></Form.Item>
           <Form.Item label="电梯" name="elevator" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item label="地址" name="address"><Input /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(previousValues, currentValues) => previousValues.estate_id !== currentValues.estate_id}>
+            {() => (
+              <Form.Item
+                label="地址"
+                name="address"
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator: async (_rule, value) => {
+                      if (getFieldValue('estate_id') === undefined || getFieldValue('estate_id') === null) {
+                        if (!String(value || '').trim()) throw new Error('非小区楼栋必须填写楼栋地址');
+                      }
+                    },
+                  }),
+                ]}
+              >
+                <Input />
+              </Form.Item>
+            )}
+          </Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
         </Form>
+        {editingBuilding?.estate ? (
+          <Card size="small" title="所属小区" style={{ marginTop: 16 }}>
+            {editingBuilding.estate.display_name || editingBuilding.estate.name}
+          </Card>
+        ) : null}
       </Drawer>
     </TenantSelectionGuard>
   );

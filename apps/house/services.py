@@ -3,12 +3,16 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
+from django.http import Http404
 
 from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
+from apps.house.exceptions import ResourceInUseException
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
+RESOURCE_PREVIEW_LIMIT = 5
 PUBLISH_RULES_SETTING_KEY = "property_rental.publish_rules"
 PUBLISH_RULE_MODE_REQUIRED = "required"
 PUBLISH_RULE_MODE_WARNING = "warn"
@@ -44,6 +48,96 @@ DEFAULT_HOUSE_PUBLISH_RULES = {
 if TYPE_CHECKING:
     from apps.accounts.models import User
     from apps.organizations.models import Organization
+
+
+def get_estate_delete_check(estate):
+    buildings = estate.buildings.order_by("name", "id")
+    count = buildings.count()
+    if not count:
+        return {"can_delete": True, "resources": []}
+
+    preview = buildings.only("id", "name", "address")[:RESOURCE_PREVIEW_LIMIT]
+    return {
+        "can_delete": False,
+        "resources": [
+            {
+                "type": "building",
+                "label": "关联楼栋",
+                "count": count,
+                "items": [{"id": building.pk, "label": f"{building.name} · {building.address}" if building.address else building.name} for building in preview],
+                "truncated": count > RESOURCE_PREVIEW_LIMIT,
+                "target": {"path": "/property-rental/estates", "query": {"view": "buildings", "estate_id": estate.pk}},
+            }
+        ],
+    }
+
+
+def get_building_delete_check(building):
+    houses = building.houses.order_by("room_number", "id")
+    count = houses.count()
+    if not count:
+        return {"can_delete": True, "resources": []}
+
+    preview = houses.only("id", "room_number")[:RESOURCE_PREVIEW_LIMIT]
+    return {
+        "can_delete": False,
+        "resources": [
+            {
+                "type": "house",
+                "label": "关联房源",
+                "count": count,
+                "items": [{"id": house.pk, "label": f"{building.name} / {house.room_number}"} for house in preview],
+                "truncated": count > RESOURCE_PREVIEW_LIMIT,
+                "target": {"path": "/property-rental/houses", "query": {"building_id": building.pk}},
+            }
+        ],
+    }
+
+
+def _delete_checked_resource(resource, get_delete_check, message: str) -> int:
+    check = get_delete_check(resource)
+    if not check["can_delete"]:
+        raise ResourceInUseException(message, check)
+
+    resource_id = resource.pk
+
+    try:
+        # Keep the outer row lock while a savepoint shields the follow-up
+        # delete check from a database-level PROTECT fallback.
+        with transaction.atomic():
+            deleted_count, _deleted_details = resource.delete()
+    except (IntegrityError, ProtectedError):
+        # Do not catch OperationalError (for example, SQLite's "database is locked"):
+        # without a reliable fresh read, it cannot be reported as RESOURCE_IN_USE.
+        check = get_delete_check(resource)
+        raise ResourceInUseException(message, check) from None
+
+    if not deleted_count:
+        raise Http404
+
+    return resource_id
+
+
+def delete_estate(organization: Organization, estate_id: int) -> int:
+    from apps.house.models import Estate
+
+    with transaction.atomic():
+        try:
+            estate = Estate.objects.select_for_update().get(pk=estate_id, organization=organization)
+        except Estate.DoesNotExist:
+            raise Http404 from None
+        return _delete_checked_resource(estate, get_estate_delete_check, "小区已关联楼栋，不能删除。")
+
+
+def delete_building(organization: Organization, building_id: int) -> int:
+    from apps.house.models import Building
+
+    with transaction.atomic():
+        try:
+            building = Building.objects.select_for_update().get(pk=building_id, organization=organization)
+        except Building.DoesNotExist:
+            raise Http404 from None
+        return _delete_checked_resource(building, get_building_delete_check, "楼栋已关联房源，不能删除。")
 
 
 def claim_landlord_contact_for_bound_phone(user: User, organization: Organization | None, phone: str | None):
@@ -83,7 +177,7 @@ def get_landlord_houses(user: User, organization: Organization):
         House.objects.select_related("building__estate", "landlord")
         .filter(
             landlord__user=user,
-            building__estate__organization=organization,
+            building__organization=organization,
         )
         .order_by("building__estate__name", "building__name", "room_number")
     )
@@ -97,7 +191,7 @@ def get_landlord_leases(user: User, organization: Organization):
         .filter(
             organization=organization,
             house__landlord__user=user,
-            house__building__estate__organization=organization,
+            house__building__organization=organization,
         )
         .order_by("-start_date", "-id")
     )

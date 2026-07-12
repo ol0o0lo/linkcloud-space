@@ -12,7 +12,7 @@ from apps.accounts.models import User
 from apps.accounts.services import bind_phone_to_user
 from apps.house.constants import ContactRole, EstatePropertyType, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
-from apps.house.services import claim_landlord_contact_for_bound_phone, get_landlord_houses, recalculate_house_status
+from apps.house.services import claim_landlord_contact_for_bound_phone, get_landlord_houses, get_landlord_leases, recalculate_house_status
 from apps.media.constants import MediaType, ResourceType
 from apps.media.services import collect_media_ref_field_ids, register_media_file
 
@@ -103,6 +103,65 @@ class HouseDomainTestCase(TestCase):
 
 
 class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
+    def test_standalone_building_can_be_saved_and_normalizes_identity_fields(self):
+        building = Building.objects.create(
+            organization=self.org,
+            estate=None,
+            name="  海滨  公寓  ",
+            address="  海滨路  20  号  ",
+            floors=18,
+        )
+
+        building.refresh_from_db()
+        self.assertEqual(building.name, "海滨 公寓")
+        self.assertEqual(building.address, "海滨路 20 号")
+
+    def test_building_rejects_name_containing_only_whitespace(self):
+        building = Building(organization=self.org, estate=None, name="   \t  ", address="海滨路 20 号", floors=18)
+        initial_count = Building.objects.count()
+
+        with self.assertRaises(ValidationError) as context:
+            building.save()
+
+        self.assertIn("name", context.exception.message_dict)
+        self.assertEqual(Building.objects.count(), initial_count)
+
+    def test_building_validates_length_after_normalizing_whitespace(self):
+        building = Building.objects.create(
+            organization=self.org,
+            estate=None,
+            name=f"海滨{' ' * 100}公寓",
+            address="海滨路 20 号",
+            floors=18,
+        )
+
+        building.refresh_from_db()
+        self.assertEqual(building.name, "海滨 公寓")
+
+    def test_standalone_building_requires_address(self):
+        building = Building(organization=self.org, estate=None, name="海滨公寓", address="", floors=18)
+
+        with self.assertRaises(ValidationError) as context:
+            building.full_clean()
+
+        self.assertEqual(context.exception.message_dict["address"], ["非小区楼栋必须填写楼栋地址。"])
+
+    def test_standalone_building_rejects_normalized_duplicate_but_allows_same_name_at_another_address(self):
+        Building.objects.create(organization=self.org, estate=None, name="海滨 公寓", address="海滨路 20 号", floors=18)
+
+        duplicate = Building(organization=self.org, estate=None, name="  海滨  公寓 ", address=" 海滨路  20  号 ", floors=20)
+        with self.assertRaises(ValidationError) as context:
+            duplicate.full_clean()
+        self.assertIn("address", context.exception.message_dict)
+
+        Building.objects.create(organization=self.org, estate=None, name="海滨 公寓", address="海滨路 21 号", floors=20)
+
+    def test_house_organization_comes_from_standalone_building(self):
+        building = Building.objects.create(organization=self.org, estate=None, name="海滨公寓", address="海滨路 20 号", floors=18)
+        house = self.make_house(building=building)
+
+        self.assertEqual(house.organization, self.org)
+
     def test_space_hierarchy_derives_house_organization_and_protects_parent_deletes(self):
         estate = self.make_estate()
         building = self.make_building(estate=estate)
@@ -120,8 +179,10 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         estate = self.make_estate()
         building = Building(organization=self.other_org, estate=estate, name="错租户楼", floors=8)
 
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError) as context:
             building.full_clean()
+
+        self.assertEqual(context.exception.message_dict["organization"], ["楼栋组织必须与项目片区组织一致。"])
 
     def test_estate_address_can_be_left_blank_for_governance_follow_up(self):
         estate = self.make_estate(name="待补地址项目", display_name="待补地址项目", address="")
@@ -207,6 +268,35 @@ class TestHouseMediaAndOwnership(HouseDomainTestCase):
         self.make_house(building=other_building, room_number="2201", landlord=other_landlord)
 
         self.assertEqual(list(get_landlord_houses(self.user, self.org)), [visible])
+
+    def test_landlord_queries_include_standalone_building_and_exclude_other_org(self):
+        landlord = self.make_contact(user=self.user, phone="13800138015")
+        tenant = self.make_tenant(phone="13900139015")
+        building = Building.objects.create(organization=self.org, estate=None, name="海滨公寓", address="海滨路 20 号", floors=8)
+        visible = self.make_house(building=building, room_number="801", landlord=landlord)
+        lease = Lease.objects.create(
+            organization=self.org,
+            house=visible,
+            tenant=tenant,
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=365),
+            monthly_rent=Decimal("4200"),
+        )
+        other_building = Building.objects.create(organization=self.other_org, estate=None, name="异地公寓", address="异地路 1 号", floors=6)
+        other_landlord = Contact.objects.create(organization=self.other_org, name="异地房东", phone="13800138016", roles=[ContactRole.LANDLORD], user=self.user)
+        other_tenant = Contact.objects.create(organization=self.other_org, name="异地租客", phone="13900139016", roles=[ContactRole.TENANT])
+        other_house = self.make_house(building=other_building, room_number="601", landlord=other_landlord)
+        Lease.objects.create(
+            organization=self.other_org,
+            house=other_house,
+            tenant=other_tenant,
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=365),
+            monthly_rent=Decimal("5200"),
+        )
+
+        self.assertEqual(list(get_landlord_houses(self.user, self.org)), [visible])
+        self.assertEqual(list(get_landlord_leases(self.user, self.org)), [lease])
 
     def test_media_refs_are_cleaned_resolved_ordered_and_collected_without_provider(self):
         estate_media = self.make_media(ResourceType.ESTATE_IMAGE, filename="estate.png", path=f"uploads/orgs/{self.org.pk}/estate.png")

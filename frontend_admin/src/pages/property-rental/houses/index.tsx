@@ -41,7 +41,12 @@ const PAGE_SIZE = 20;
 type HouseScopeFilters = {
   q?: string;
   status?: string;
+  buildingId?: number;
 };
+
+function getPositiveId(value: string | null) {
+  return value && /^[1-9]\d*$/.test(value) ? Number(value) : undefined;
+}
 
 function getHouseListStateFromSearch(search: string) {
   const params = new URLSearchParams(search);
@@ -50,13 +55,19 @@ function getHouseListStateFromSearch(search: string) {
     page: Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1,
     q: params.get('keyword') || undefined,
     status: params.get('status') || undefined,
+    buildingId: getPositiveId(params.get('building_id')),
   };
 }
 
 function syncHouseListSearch(filters: HouseScopeFilters & { page: number }) {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams(window.location.search);
+  params.delete('keyword');
+  params.delete('status');
+  params.delete('building_id');
+  params.delete('page');
   if (filters.q) params.set('keyword', filters.q);
   if (filters.status) params.set('status', filters.status);
+  if (filters.buildingId) params.set('building_id', String(filters.buildingId));
   if (filters.page > 1) params.set('page', String(filters.page));
   const nextSearch = params.toString();
   const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
@@ -85,6 +96,7 @@ const HousesPage: React.FC = () => {
   const [q, setQ] = useState<string | undefined>(initialListState.current.q);
   const [searchDraft, setSearchDraft] = useState(initialListState.current.q || '');
   const [status, setStatus] = useState<string | undefined>(initialListState.current.status);
+  const [buildingId, setBuildingId] = useState<number | undefined>(initialListState.current.buildingId);
   const [page, setPage] = useState(initialListState.current.page);
   const [publishConfirmHouseId, setPublishConfirmHouseId] = useState<
     number | null
@@ -102,6 +114,7 @@ const HousesPage: React.FC = () => {
       page,
       q,
       status,
+      buildingId,
     ],
     queryFn: () =>
       houseApi.listHouses({
@@ -109,8 +122,17 @@ const HousesPage: React.FC = () => {
         page_size: PAGE_SIZE,
         keyword: q,
         status,
+        ...(buildingId ? { building_id: buildingId } : {}),
       }),
     enabled,
+  });
+  const selectedBuilding = useQuery({
+    queryKey: ['house', 'building', workspace.selectedOrgSlug, buildingId],
+    queryFn: () => {
+      if (!buildingId) throw new Error('缺少楼栋 ID');
+      return houseApi.getBuilding(buildingId);
+    },
+    enabled: enabled && Boolean(buildingId),
   });
   const patchHouse = useMutation({
     mutationFn: ({
@@ -140,8 +162,9 @@ const HousesPage: React.FC = () => {
       page,
       q,
       status,
+      buildingId,
     });
-  }, [page, q, status]);
+  }, [buildingId, page, q, status]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -150,6 +173,7 @@ const HousesPage: React.FC = () => {
       setSearchDraft(listState.q || '');
       setStatus(listState.status);
       setPage(listState.page);
+      setBuildingId(listState.buildingId);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -269,6 +293,22 @@ const HousesPage: React.FC = () => {
 
   return (
     <TenantSelectionGuard title="房源">
+      {buildingId ? (
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Typography.Text>当前楼栋筛选：{selectedBuilding.data?.name || `楼栋 #${buildingId}`}</Typography.Text>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              setBuildingId(undefined);
+              setPage(1);
+            }}
+            aria-label="清除楼栋筛选"
+          >
+            清除
+          </Button>
+        </Card>
+      ) : null}
       <Card>
         <ProTable<HouseOut>
           rowKey="id"

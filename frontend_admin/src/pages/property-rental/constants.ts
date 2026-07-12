@@ -175,7 +175,7 @@ export function dateTimeInputValue(value?: string | null) {
 }
 
 type EstateLabelSource = { name?: string | null; display_name?: string | null };
-type BuildingLabelSource = { id?: number; name?: string | null; estate?: EstateLabelSource | null };
+type BuildingLabelSource = { id?: number; name?: string | null; address?: string | null; estate?: EstateLabelSource | null };
 type HouseLabelSource = {
   id?: number;
   room_number?: string | null;
@@ -196,17 +196,17 @@ export function houseLabel(source?: HouseLabelSource) {
   const house = source?.house || source;
   if (!house) return '-';
   if (house.label) return house.label;
-  const estateName = house.building?.estate?.display_name || house.building?.estate?.name;
-  const scopedLabel = [estateName, house.building?.name, house.room_number].filter(Boolean).join(' / ');
+  const scopedLabel = [buildingLabel(house.building), house.room_number].filter((value) => value && value !== '-').join(' / ');
   if (scopedLabel) return scopedLabel;
   return house.id ? `房源 #${house.id}` : '-';
 }
 
-export function buildingLabel(building?: BuildingLabelSource) {
+export function buildingLabel(building?: BuildingLabelSource | null) {
   if (!building) return '-';
   const name = building.name || (building.id ? `楼栋 #${building.id}` : '');
   const estateName = building.estate?.display_name || building.estate?.name;
-  return [estateName, name].filter(Boolean).join(' / ') || '-';
+  if (estateName) return [estateName, name].filter(Boolean).join(' / ');
+  return [name, building.address].filter(Boolean).join(' · ') || '-';
 }
 
 export function contactLabel(source?: ContactLabelSource) {

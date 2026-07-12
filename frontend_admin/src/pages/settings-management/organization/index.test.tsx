@@ -243,6 +243,24 @@ describe('OrganizationSettingsPage', () => {
     expect(within(settingsPanel!).getByLabelText('未知分类设置')).toBeInTheDocument();
   });
 
+  it('renders a standalone default building without an estate', async () => {
+    mockListBuildings.mockResolvedValue({
+      items: [{ id: 10, name: '独栋', estate_id: null, estate: null, floors: 3, address: '科技路 88 号' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('房源租赁设置');
+    expect(screen.getByLabelText('默认楼栋')).toBeInTheDocument();
+  });
+
   it('does not render the old strategy overview on organization settings page', async () => {
     render(
       <QueryClientProvider client={queryClient}>
@@ -355,6 +373,8 @@ describe('OrganizationSettingsPage', () => {
     await screen.findByText('房源租赁设置');
     fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
     fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
+    fireEvent.mouseDown(screen.getByLabelText('项目小区'));
+    fireEvent.click((await screen.findAllByText('星河湾')).at(-1) as HTMLElement);
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
     fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
@@ -428,6 +448,8 @@ describe('OrganizationSettingsPage', () => {
     await screen.findByText('房源租赁设置');
     fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
     fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
+    fireEvent.mouseDown(screen.getByLabelText('项目小区'));
+    fireEvent.click((await screen.findAllByText('星河湾')).at(-1) as HTMLElement);
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
     fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));

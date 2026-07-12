@@ -486,11 +486,11 @@ const HouseNewPage: React.FC = () => {
       >
         <Form
           layout="vertical"
-          initialValues={{ estate_id: estates.data?.items?.[0]?.id, floors: 1 }}
-          onFinish={(values) => createBuilding.mutate({ ...values, estate_id: values.estate_id || estates.data?.items?.[0]?.id, floors: Number(values.floors) })}
+          initialValues={{ floors: 1 }}
+          onFinish={(values) => createBuilding.mutate({ ...values, estate_id: values.estate_id ?? null, floors: Number(values.floors) })}
         >
           <Form.Item label="项目小区" name="estate_id">
-            <Select loading={estates.isLoading} options={(estates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />
+            <Select allowClear loading={estates.isLoading} options={(estates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />
           </Form.Item>
           <Form.Item label="楼栋名" name="name" rules={[{ required: true, message: '请输入楼栋名' }]}>
             <Input />
@@ -498,8 +498,24 @@ const HouseNewPage: React.FC = () => {
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="地址" name="address">
-            <Input />
+          <Form.Item noStyle shouldUpdate={(previousValues, currentValues) => previousValues.estate_id !== currentValues.estate_id}>
+            {() => (
+              <Form.Item
+                label="地址"
+                name="address"
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator: async (_rule, value) => {
+                      if (getFieldValue('estate_id') === undefined || getFieldValue('estate_id') === null) {
+                        if (!String(value || '').trim()) throw new Error('非小区楼栋必须填写楼栋地址');
+                      }
+                    },
+                  }),
+                ]}
+              >
+                <Input />
+              </Form.Item>
+            )}
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={createBuilding.isPending}>
             保存楼栋

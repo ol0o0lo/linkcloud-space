@@ -48,6 +48,20 @@ export async function appsHouseApiGetBuilding(
   });
 }
 
+/** 删除楼栋 DELETE /api/house/buildings/${param0}/ */
+export async function appsHouseApiDeleteBuildingEndpoint(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiDeleteBuildingEndpointParams,
+  options?: { [key: string]: any }
+) {
+  const { building_id: param0, ...queryParams } = params;
+  return request<Record<string, any>>(`/api/house/buildings/${param0}/`, {
+    method: "DELETE",
+    params: { ...queryParams },
+    ...(options || {}),
+  });
+}
+
 /** 更新楼栋 PATCH /api/house/buildings/${param0}/ */
 export async function appsHouseApiPatchBuilding(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -65,6 +79,23 @@ export async function appsHouseApiPatchBuilding(
     data: body,
     ...(options || {}),
   });
+}
+
+/** 检查楼栋删除关联资源 GET /api/house/buildings/${param0}/delete-check/ */
+export async function appsHouseApiCheckBuildingDelete(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiCheckBuildingDeleteParams,
+  options?: { [key: string]: any }
+) {
+  const { building_id: param0, ...queryParams } = params;
+  return request<API.DeleteCheckOut>(
+    `/api/house/buildings/${param0}/delete-check/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 获取联系人列表 GET /api/house/contacts/ */
@@ -203,6 +234,20 @@ export async function appsHouseApiGetEstate(
   });
 }
 
+/** 删除项目片区 DELETE /api/house/estates/${param0}/ */
+export async function appsHouseApiDeleteEstateEndpoint(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiDeleteEstateEndpointParams,
+  options?: { [key: string]: any }
+) {
+  const { estate_id: param0, ...queryParams } = params;
+  return request<Record<string, any>>(`/api/house/estates/${param0}/`, {
+    method: "DELETE",
+    params: { ...queryParams },
+    ...(options || {}),
+  });
+}
+
 /** 更新项目片区 PATCH /api/house/estates/${param0}/ */
 export async function appsHouseApiPatchEstate(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -220,6 +265,23 @@ export async function appsHouseApiPatchEstate(
     data: body,
     ...(options || {}),
   });
+}
+
+/** 检查项目片区删除关联资源 GET /api/house/estates/${param0}/delete-check/ */
+export async function appsHouseApiCheckEstateDelete(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiCheckEstateDeleteParams,
+  options?: { [key: string]: any }
+) {
+  const { estate_id: param0, ...queryParams } = params;
+  return request<API.DeleteCheckOut>(
+    `/api/house/estates/${param0}/delete-check/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 获取房源列表 GET /api/house/houses/ */

@@ -349,6 +349,7 @@ describe('House new page', () => {
     fireEvent.mouseDown(screen.getByLabelText('项目小区'));
     expect((await screen.findAllByText('星河湾花园')).at(-1)).toBeDefined();
     expect(screen.queryByText('xinghewan')).not.toBeInTheDocument();
+    fireEvent.click((await screen.findAllByText('星河湾花园')).at(-1) as HTMLElement);
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
     fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
@@ -360,5 +361,36 @@ describe('House new page', () => {
     })));
     expect(mockSetDefaultBuilding).toHaveBeenCalledWith(11);
     expect((await screen.findAllByText('星河湾 / 2 栋')).length).toBeGreaterThan(0);
+  });
+
+  it('creates a standalone building with its address', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    await screen.findAllByText('星河湾 / 1 栋');
+    fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
+    fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '独栋' } });
+    fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('地址'), { target: { value: '科技路 88 号' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
+
+    await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalledWith(expect.objectContaining({
+      estate_id: null,
+      name: '独栋',
+      floors: 3,
+      address: '科技路 88 号',
+    })));
+  });
+
+  it('requires an address when creating a standalone building', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    await screen.findAllByText('星河湾 / 1 栋');
+    fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
+    fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '独栋' } });
+    fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
+
+    expect(await screen.findByText('非小区楼栋必须填写楼栋地址')).toBeInTheDocument();
+    expect(mockCreateBuilding).not.toHaveBeenCalled();
   });
 });

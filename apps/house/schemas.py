@@ -8,6 +8,30 @@ from pydantic import ConfigDict, Field
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
 
 
+class RelatedResourceItemOut(Schema):
+    id: int
+    label: str
+
+
+class RelatedResourceTargetOut(Schema):
+    path: str
+    query: dict[str, int | str]
+
+
+class RelatedResourceOut(Schema):
+    type: str
+    label: str
+    count: int
+    items: list[RelatedResourceItemOut]
+    truncated: bool
+    target: RelatedResourceTargetOut
+
+
+class DeleteCheckOut(Schema):
+    can_delete: bool
+    resources: list[RelatedResourceOut]
+
+
 class EstateIn(Schema):
     name: str
     display_name: str
@@ -67,7 +91,7 @@ class EstateOut(Schema):
 
 
 class BuildingIn(Schema):
-    estate_id: int
+    estate_id: int | None = None
     name: str
     floors: int
     under_floors: int | None = None
@@ -101,8 +125,15 @@ class EstateSummaryOut(Schema):
 class BuildingSummaryOut(Schema):
     id: int
     name: str
-    estate_id: int
-    estate: EstateSummaryOut
+    estate_id: int | None
+    estate: EstateSummaryOut | None
+    address: str
+
+
+def building_display_label(building) -> str:
+    if building.estate_id:
+        return f"{building.estate.display_name or building.estate.name} / {building.name}"
+    return f"{building.name} · {building.address}"
 
 
 class ContactSummaryOut(Schema):
@@ -120,7 +151,7 @@ class HouseSummaryOut(Schema):
 
     @staticmethod
     def resolve_label(obj):
-        return f"{obj.building.estate.display_name or obj.building.estate.name} / {obj.building.name} / {obj.room_number}"
+        return f"{building_display_label(obj.building)} / {obj.room_number}"
 
 
 class ViewingRecordSummaryOut(Schema):
@@ -136,8 +167,8 @@ class ViewingRecordSummaryOut(Schema):
 
 class BuildingOut(Schema):
     id: int
-    estate_id: int
-    estate: EstateSummaryOut
+    estate_id: int | None
+    estate: EstateSummaryOut | None
     name: str
     floors: int
     under_floors: int | None
@@ -155,8 +186,8 @@ class DefaultBuildingIn(Schema):
 
 class DefaultBuildingOut(Schema):
     id: int
-    estate_id: int
-    estate: EstateSummaryOut
+    estate_id: int | None
+    estate: EstateSummaryOut | None
     name: str
     floors: int
     address: str

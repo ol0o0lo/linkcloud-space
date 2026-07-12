@@ -17,6 +17,7 @@ from apps.house.schemas import (
     ContactPatchIn,
     DefaultBuildingIn,
     DefaultBuildingOut,
+    DeleteCheckOut,
     EstateIn,
     EstateOut,
     EstatePatchIn,
@@ -31,7 +32,11 @@ from apps.house.schemas import (
     ViewingRecordPatchIn,
 )
 from apps.house.services import (
+    delete_building,
+    delete_estate,
     ensure_default_building,
+    get_building_delete_check,
+    get_estate_delete_check,
     get_landlord_houses,
     get_landlord_leases,
     set_default_building,
@@ -50,7 +55,7 @@ def _patch(obj, payload):
 
 
 def _get_house_in_org(house_id: int, org):
-    return get_object_or_404(House.objects.select_related("building__estate", "landlord"), pk=house_id, building__estate__organization=org)
+    return get_object_or_404(House.objects.select_related("building__estate", "landlord"), pk=house_id, building__organization=org)
 
 
 def _get_contact_in_org(contact_id: int, org):
@@ -90,9 +95,20 @@ def get_estate(request, estate_id: int):
     return get_object_or_404(Estate, pk=estate_id, organization=org)
 
 
+@router.get("/estates/{estate_id}/delete-check/", response=DeleteCheckOut, summary="检查项目片区删除关联资源")
+def check_estate_delete(request, estate_id: int):
+    return get_estate_delete_check(get_estate(request, estate_id))
+
+
 @router.patch("/estates/{estate_id}/", response=EstateOut, summary="更新项目片区")
 def patch_estate(request, estate_id: int, payload: EstatePatchIn):
     return _patch(get_estate(request, estate_id), payload)
+
+
+@router.delete("/estates/{estate_id}/", response={200: dict}, summary="删除项目片区")
+def delete_estate_endpoint(request, estate_id: int):
+    org = require_org_selected(request)
+    return {"deleted": delete_estate(org, estate_id)}
 
 
 @router.get("/buildings/", response=list[BuildingOut], summary="获取楼栋列表")
@@ -110,9 +126,9 @@ def list_buildings(request, estate_id: int | None = Query(None), keyword: str | 
 @router.post("/buildings/", response={201: BuildingOut}, summary="创建楼栋")
 def create_building(request, payload: BuildingIn):
     org = require_org_selected(request)
-    estate = get_object_or_404(Estate, pk=payload.estate_id, organization=org)
     data = payload.dict()
-    data.pop("estate_id")
+    estate_id = data.pop("estate_id")
+    estate = get_object_or_404(Estate, pk=estate_id, organization=org) if estate_id is not None else None
     building = Building.objects.create(organization=org, estate=estate, **data)
     return Status(201, building)
 
@@ -123,17 +139,28 @@ def get_building(request, building_id: int):
     return get_object_or_404(Building.objects.select_related("estate"), pk=building_id, organization=org)
 
 
+@router.get("/buildings/{building_id}/delete-check/", response=DeleteCheckOut, summary="检查楼栋删除关联资源")
+def check_building_delete(request, building_id: int):
+    return get_building_delete_check(get_building(request, building_id))
+
+
 @router.patch("/buildings/{building_id}/", response=BuildingOut, summary="更新楼栋")
 def patch_building(request, building_id: int, payload: BuildingPatchIn):
     building = get_building(request, building_id)
     data = payload.dict(exclude_unset=True)
-    estate_id = data.pop("estate_id", None)
-    if estate_id is not None:
-        building.estate = get_object_or_404(Estate, pk=estate_id, organization=building.organization)
+    if "estate_id" in data:
+        estate_id = data.pop("estate_id")
+        building.estate = get_object_or_404(Estate, pk=estate_id, organization=building.organization) if estate_id is not None else None
     for field, value in data.items():
         setattr(building, field, value)
     building.save()
     return building
+
+
+@router.delete("/buildings/{building_id}/", response={200: dict}, summary="删除楼栋")
+def delete_building_endpoint(request, building_id: int):
+    org = require_org_selected(request)
+    return {"deleted": delete_building(org, building_id)}
 
 
 @router.get("/default-building/", response=DefaultBuildingOut, summary="获取默认楼栋")
@@ -221,7 +248,7 @@ def list_houses(
     keyword: str | None = Query(None),
 ):
     org = require_org_selected(request)
-    qs = House.objects.filter(building__estate__organization=org).select_related("building__estate", "landlord").order_by("building__estate__name", "building__name", "room_number")
+    qs = House.objects.filter(building__organization=org).select_related("building__estate", "landlord").order_by("building__estate__name", "building__name", "room_number")
     if estate_id:
         qs = qs.filter(building__estate_id=estate_id)
     if building_id:

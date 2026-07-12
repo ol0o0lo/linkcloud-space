@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Card, Divider, Form, Input, InputNumber, Modal, message, Select, Space, Tabs, Typography } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { wrapTextStyle } from '@/pages/_shared/adminLayout';
+import { buildingLabel } from '@/pages/property-rental/constants';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { type BuildingOut, houseApi } from '@/services/manual/house';
 import {
@@ -21,7 +22,7 @@ import {
 } from '../shared';
 
 type DraftValues = Record<string, unknown>;
-type BuildingItem = BuildingOut | { id: number; name: string; estate_id: number; estate?: { id?: number; name?: string; display_name?: string } | null };
+type BuildingItem = BuildingOut | { id: number; name: string; address?: string | null; estate_id?: number | null; estate?: { id?: number; name?: string; display_name?: string } | null };
 
 const settingRowStyle: React.CSSProperties = {
   display: 'flex',
@@ -54,10 +55,7 @@ const DefaultBuildingControl: React.FC<{
         onChange(nextValue);
         setOpen(false);
       }}
-      options={buildings.map((item) => {
-        const estateName = item.estate?.display_name || item.estate?.name;
-        return { value: item.id, label: estateName ? `${estateName} / ${item.name}` : item.name };
-      })}
+      options={buildings.map((item) => ({ value: item.id, label: buildingLabel(item) }))}
       popupRender={(menu) => (
         <>
           {menu}
@@ -123,11 +121,11 @@ const OrganizationSettingsPage: React.FC = () => {
     () =>
       buildingItems.map((item) => ({
         ...item,
-        estate: item.estate || {
+        estate: item.estate || (item.estate_id == null ? null : {
           id: item.estate_id,
           name: estateNameById.get(item.estate_id) || '',
           display_name: estateNameById.get(item.estate_id) || '',
-        },
+        }),
       })),
     [buildingItems, estateNameById],
   );
@@ -241,11 +239,11 @@ const OrganizationSettingsPage: React.FC = () => {
         <Form
           form={buildingForm}
           layout="vertical"
-          initialValues={{ estate_id: estatesQuery.data?.items?.[0]?.id, floors: 1 }}
-          onFinish={(values) => createBuildingMutation.mutate({ ...values, estate_id: values.estate_id || estatesQuery.data?.items?.[0]?.id, floors: Number(values.floors) })}
+          initialValues={{ floors: 1 }}
+          onFinish={(values) => createBuildingMutation.mutate({ ...values, estate_id: values.estate_id ?? null, floors: Number(values.floors) })}
         >
           <Form.Item label="项目小区" name="estate_id">
-            <Select loading={estatesQuery.isLoading} options={(estatesQuery.data?.items || []).map((item) => ({ value: item.id, label: item.name }))} />
+            <Select allowClear loading={estatesQuery.isLoading} options={(estatesQuery.data?.items || []).map((item) => ({ value: item.id, label: item.name }))} />
           </Form.Item>
           <Form.Item label="楼栋名" name="name" rules={[{ required: true, message: '请输入楼栋名' }]}>
             <Input />
@@ -253,8 +251,24 @@ const OrganizationSettingsPage: React.FC = () => {
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}>
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item label="地址" name="address">
-            <Input />
+          <Form.Item noStyle shouldUpdate={(previousValues, currentValues) => previousValues.estate_id !== currentValues.estate_id}>
+            {() => (
+              <Form.Item
+                label="地址"
+                name="address"
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator: async (_rule, value) => {
+                      if (getFieldValue('estate_id') === undefined || getFieldValue('estate_id') === null) {
+                        if (!String(value || '').trim()) throw new Error('非小区楼栋必须填写楼栋地址');
+                      }
+                    },
+                  }),
+                ]}
+              >
+                <Input />
+              </Form.Item>
+            )}
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={createBuildingMutation.isPending}>
             保存楼栋
