@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
@@ -7,7 +8,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.http import Http404
 
-from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
+from apps.house.constants import ContactRole, HousePublishStatus, HouseStatus, LeaseStatus
 from apps.house.exceptions import ResourceInUseException
 from apps.settings.constants import ValueType
 
@@ -36,6 +37,28 @@ HOUSE_PUBLISH_ISSUE_LABELS = {
     "floor_plan": "缺户型图",
     "video": "视频不足",
 }
+
+
+def natural_room_sort_key(room_number: str) -> tuple[tuple[int, int | str], ...]:
+    """将房号分段，确保 2 排在 10 前、A2 排在 A10 前。"""
+    return tuple((0, int(part)) if part.isdigit() else (1, part.casefold()) for part in re.split(r"(\d+)", room_number) if part)
+
+
+def sort_houses_for_building(houses):
+    return sorted(houses, key=lambda house: (house.floor is None, house.floor or 0, natural_room_sort_key(house.room_number), house.pk))
+
+
+def building_map_counts(houses) -> dict[str, int]:
+    """统计已传入的有效房源，地图筛选不应改变该汇总。"""
+    houses = list(houses)
+    return {
+        "total": len(houses),
+        "vacant": sum(house.status == HouseStatus.VACANT for house in houses),
+        "rented": sum(house.status == HouseStatus.RENTED for house in houses),
+        "renovating": sum(house.status == HouseStatus.RENOVATING for house in houses),
+        "locked": sum(house.status == HouseStatus.LOCKED for house in houses),
+        "published": sum(house.publish_status == HousePublishStatus.PUBLISHED for house in houses),
+    }
 
 DEFAULT_HOUSE_PUBLISH_RULES = {
     "landlord": {"mode": PUBLISH_RULE_MODE_REQUIRED, "label": HOUSE_PUBLISH_RULE_LABELS["landlord"]},

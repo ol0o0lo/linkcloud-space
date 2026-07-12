@@ -182,6 +182,51 @@ class BuildingOut(Schema):
     is_active: bool
 
 
+class BuildingMapCountsOut(Schema):
+    total: int
+    vacant: int
+    rented: int
+    renovating: int
+    locked: int
+    published: int
+
+
+class BuildingMapUnlocatedCountOut(Schema):
+    count: int
+
+
+class BuildingMapMarkerOut(Schema):
+    id: int
+    estate: EstateSummaryOut | None
+    name: str
+    address: str
+    lat: Decimal
+    lng: Decimal
+    is_active: bool
+    counts: BuildingMapCountsOut
+
+    @staticmethod
+    def resolve_counts(obj):
+        return {name: getattr(obj, name) for name in ("total", "vacant", "rented", "renovating", "locked", "published")}
+
+
+class BuildingMapHouseOut(Schema):
+    id: int
+    room_number: str
+    floor: int | None
+    area: Decimal | None
+    asking_rent: Decimal | None
+    status: str
+    status__mapping: str
+    publish_status: str
+    publish_status__mapping: str
+
+
+class BuildingMapDetailOut(BuildingOut):
+    counts: BuildingMapCountsOut
+    houses: list[BuildingMapHouseOut]
+
+
 class DefaultBuildingIn(Schema):
     building_id: int
 

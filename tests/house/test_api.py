@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import user_logged_in
 from django.db import IntegrityError
+from django.db.models import Q
 from django.test import TestCase
 from django.utils import timezone
 
@@ -652,6 +653,77 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["total"], 1)
         self.assertEqual([item["id"] for item in payload["items"]], [other_building.pk])
+
+    def test_building_map_detail_orders_active_houses_by_floor_and_natural_room_number(self):
+        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.save()
+        House.objects.create(building=self.building, room_number="10", floor=1)
+        House.objects.create(building=self.building, room_number="2", floor=1)
+        House.objects.create(building=self.building, room_number="A10", floor=2)
+        House.objects.create(building=self.building, room_number="A2", floor=2)
+        inactive = House.objects.create(building=self.building, room_number="999", floor=9, is_active=False)
+
+        response = self.client.get(f"/api/house/building-map/{self.building.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        self.assertEqual([item["room_number"] for item in payload["houses"]], ["2", "10", "A2", "A10"])
+        self.assertNotIn(inactive.pk, [item["id"] for item in payload["houses"]])
+        self.assertEqual(payload["counts"], {"total": 4, "vacant": 4, "rented": 0, "renovating": 0, "locked": 0, "published": 0})
+
+    def test_building_map_filters_markers_by_house_status_but_keeps_full_active_counts(self):
+        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.save()
+        House.objects.create(building=self.building, room_number="101", status=HouseStatus.VACANT)
+        House.objects.create(building=self.building, room_number="102", status=HouseStatus.RENTED, publish_status=HousePublishStatus.PUBLISHED)
+
+        response = self.client.get("/api/house/building-map/?house_status=vacant&page=1&page_size=50")
+
+        self.assertEqual(response.status_code, 200)
+        item = api_data(response)["items"][0]
+        self.assertEqual(item["id"], self.building.pk)
+        self.assertEqual(item["counts"], {"total": 2, "vacant": 1, "rented": 1, "renovating": 0, "locked": 0, "published": 1})
+
+    def test_building_map_hides_unlocated_and_inactive_buildings_unless_requested(self):
+        initial_unlocated_count = Building.objects.filter(organization=self.org).filter(Q(lat__isnull=True) | Q(lng__isnull=True)).count()
+        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.save()
+        inactive = Building.objects.create(
+            organization=self.org,
+            estate=self.estate,
+            name="停用楼栋",
+            address="科技园停用楼栋",
+            floors=8,
+            lat=Decimal("22.534000"),
+            lng=Decimal("113.931000"),
+            is_active=False,
+        )
+        Building.objects.create(organization=self.org, estate=self.estate, name="待定位楼栋", address="科技园待定位楼栋", floors=8)
+
+        default_response = self.client.get("/api/house/building-map/?page=1&page_size=50")
+        inactive_response = self.client.get("/api/house/building-map/?include_inactive=true&page=1&page_size=50")
+        unlocated_response = self.client.get("/api/house/building-map-unlocated-count/")
+
+        self.assertEqual([item["id"] for item in api_data(default_response)["items"]], [self.building.pk])
+        self.assertEqual({item["id"] for item in api_data(inactive_response)["items"]}, {self.building.pk, inactive.pk})
+        self.assertEqual(api_data(unlocated_response), {"count": initial_unlocated_count})
+
+    def test_building_map_applies_keyword_bounds_and_organization_isolation(self):
+        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.save()
+        _other_org, other_house, _other_landlord, _other_tenant = self.make_other_org_house()
+        other_house.building.lat, other_house.building.lng = Decimal("22.533500"), Decimal("113.930500")
+        other_house.building.save()
+
+        keyword_response = self.client.get("/api/house/building-map/?keyword=科技园&page=1&page_size=50")
+        bounds_response = self.client.get("/api/house/building-map/?west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50")
+        invalid_bounds_response = self.client.get("/api/house/building-map/?west=114&south=22&east=113&north=23")
+        other_detail_response = self.client.get(f"/api/house/building-map/{other_house.building_id}/")
+
+        self.assertEqual([item["id"] for item in api_data(keyword_response)["items"]], [self.building.pk])
+        self.assertEqual([item["id"] for item in api_data(bounds_response)["items"]], [self.building.pk])
+        self.assertEqual(invalid_bounds_response.status_code, 422)
+        self.assertEqual(other_detail_response.status_code, 404)
 
     def test_create_standalone_building_with_null_or_omitted_estate(self):
         for name, payload in (
