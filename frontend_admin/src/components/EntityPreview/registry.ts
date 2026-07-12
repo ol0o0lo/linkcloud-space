@@ -35,4 +35,12 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
     ),
     getHref: (id) => `/property-rental/contacts?edit=${id}`,
   },
+  lease: {
+    Panel: lazy(() =>
+      import('./entities/lease/LeasePreviewPanel').then(
+        ({ LeasePreviewPanel }) => ({ default: LeasePreviewPanel }),
+      ),
+    ),
+    getHref: (id) => `/property-rental/leases?edit=${id}`,
+  },
 };
