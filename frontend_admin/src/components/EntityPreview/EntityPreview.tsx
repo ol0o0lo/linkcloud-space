@@ -8,6 +8,10 @@ import { entityPreviewRegistry } from './registry';
 import type { EntityPreviewProps } from './types';
 
 const useStyles = createStyles(({ token }) => ({
+  trigger: {
+    display: 'inline-block',
+    maxWidth: '100%',
+  },
   link: {
     color: token.colorText,
     display: 'inline-block',
@@ -54,17 +58,19 @@ export function EntityPreview({
       open={open}
       trigger={['hover', 'focus']}
     >
-      <Link
-        className={styles.link}
-        onKeyDown={(event: KeyboardEvent<HTMLAnchorElement>) => {
-          if (event.key === 'Escape') {
-            setOpen(false);
-          }
-        }}
-        to={target}
-      >
-        {children}
-      </Link>
+      <span className={styles.trigger}>
+        <Link
+          className={styles.link}
+          onKeyDown={(event: KeyboardEvent<HTMLAnchorElement>) => {
+            if (event.key === 'Escape') {
+              setOpen(false);
+            }
+          }}
+          to={target}
+        >
+          {children}
+        </Link>
+      </span>
     </Popover>
   );
 }

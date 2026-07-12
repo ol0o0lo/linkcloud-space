@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@umijs/max', () => ({
   Link: ({
     children,
+    className,
+    onKeyDown,
     to,
-    ...props
   }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
-    <a href={to} {...props}>
+    <a className={className} href={to} onKeyDown={onKeyDown}>
       {children}
     </a>
   ),
@@ -42,27 +43,27 @@ vi.mock('antd', () => ({
       undefined,
     );
     return (
-      <span
-        onFocus={() => {
+      <>
+        {React.cloneElement(children, {
+          onFocus: () => {
           timer.current = setTimeout(
             () => onOpenChange(true),
             mouseEnterDelay * 1000,
           );
-        }}
-        onMouseEnter={() => {
+          },
+          onMouseEnter: () => {
           timer.current = setTimeout(
             () => onOpenChange(true),
             mouseEnterDelay * 1000,
           );
-        }}
-        onMouseLeave={() => {
+          },
+          onMouseLeave: () => {
           clearTimeout(timer.current);
           onOpenChange(false);
-        }}
-      >
-        {children}
+          },
+        })}
         {open ? <div data-testid="preview-panel">{content}</div> : null}
-      </span>
+      </>
     );
   },
 }));
@@ -71,6 +72,12 @@ import { EntityPreview } from '../EntityPreview';
 import { entityPreviewRegistry } from '../registry';
 
 const Panel = ({ id }: { id: number }) => <div>房源预览 {id}</div>;
+
+function getPreviewTrigger() {
+  const link = screen.getByRole('link');
+  expect(link.parentElement?.tagName).toBe('SPAN');
+  return link.parentElement as HTMLSpanElement;
+}
 
 describe('EntityPreview', () => {
   beforeEach(() => {
@@ -120,7 +127,7 @@ describe('EntityPreview', () => {
       </EntityPreview>,
     );
 
-    fireEvent.mouseEnter(screen.getByRole('link'));
+    fireEvent.mouseEnter(getPreviewTrigger());
     act(() => vi.advanceTimersByTime(199));
     expect(screen.queryByText('房源预览 42')).not.toBeInTheDocument();
 
@@ -135,7 +142,7 @@ describe('EntityPreview', () => {
       </EntityPreview>,
     );
 
-    fireEvent.mouseEnter(screen.getByRole('link'));
+    fireEvent.mouseEnter(getPreviewTrigger());
     await act(async () => vi.advanceTimersByTime(200));
     expect(screen.getByText('房源预览 42')).toBeInTheDocument();
 
@@ -163,7 +170,7 @@ describe('EntityPreview', () => {
         </EntityPreview>
       </div>,
     );
-    fireEvent.mouseEnter(screen.getByRole('link'));
+    fireEvent.mouseEnter(getPreviewTrigger());
     await act(async () => vi.advanceTimersByTime(200));
 
     expect(screen.getByRole('alert')).toHaveTextContent('预览暂不可用');
