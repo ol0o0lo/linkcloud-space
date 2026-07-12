@@ -1,15 +1,21 @@
-from django.db.models import OuterRef, Q, Subquery
+from decimal import Decimal
+
+from django.db.models import Count, Exists, OuterRef, Q, Subquery
 from django.shortcuts import get_object_or_404
 
 from ninja import Query, Router, Status
+from ninja.errors import HttpError
 from ninja.pagination import paginate
 
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_org_selected
-from apps.house.constants import ContactRole, ViewingRecordStatus
+from apps.house.constants import ContactRole, HousePublishStatus, HouseStatus, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.house.schemas import (
     BuildingIn,
+    BuildingMapDetailOut,
+    BuildingMapMarkerOut,
+    BuildingMapUnlocatedCountOut,
     BuildingOut,
     BuildingPatchIn,
     ContactIn,
@@ -32,6 +38,7 @@ from apps.house.schemas import (
     ViewingRecordPatchIn,
 )
 from apps.house.services import (
+    building_map_counts,
     delete_building,
     delete_estate,
     ensure_default_building,
@@ -40,6 +47,7 @@ from apps.house.services import (
     get_landlord_houses,
     get_landlord_leases,
     set_default_building,
+    sort_houses_for_building,
 )
 from apps.organizations.models import OrganizationMember
 
@@ -189,6 +197,93 @@ def put_default_building(request, payload: DefaultBuildingIn):
         "name": building.name,
         "floors": building.floors,
         "address": building.address,
+    }
+
+
+def _building_map_queryset(org, *, house_status: str | None, include_inactive: bool):
+    qs = Building.objects.filter(organization=org, lat__isnull=False, lng__isnull=False).select_related("estate")
+    if not include_inactive:
+        qs = qs.filter(is_active=True)
+    if house_status:
+        qs = qs.filter(Exists(House.objects.filter(building_id=OuterRef("pk"), is_active=True, status=house_status)))
+    return qs.annotate(
+        total=Count("houses", filter=Q(houses__is_active=True)),
+        vacant=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.VACANT)),
+        rented=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.RENTED)),
+        renovating=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.RENOVATING)),
+        locked=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.LOCKED)),
+        published=Count("houses", filter=Q(houses__is_active=True, houses__publish_status=HousePublishStatus.PUBLISHED)),
+    )
+
+
+@router.get("/building-map/", response=list[BuildingMapMarkerOut], summary="获取楼栋房源地图标点")
+@paginate(LegacyPagination)
+def list_building_map(
+    request,
+    keyword: str | None = Query(None),
+    estate_id: int | None = Query(None),
+    house_status: str | None = Query(None),
+    include_inactive: bool = Query(False),
+    west: Decimal | None = Query(None),
+    south: Decimal | None = Query(None),
+    east: Decimal | None = Query(None),
+    north: Decimal | None = Query(None),
+):
+    bounds = (west, south, east, north)
+    if any(value is not None for value in bounds):
+        if any(value is None for value in bounds) or west >= east or south >= north:
+            raise HttpError(422, "地图范围无效")
+
+    org = require_org_selected(request)
+    qs = _building_map_queryset(org, house_status=house_status, include_inactive=include_inactive)
+    if estate_id is not None:
+        qs = qs.filter(estate_id=estate_id)
+    if keyword:
+        qs = qs.filter(Q(name__icontains=keyword) | Q(address__icontains=keyword) | Q(estate__name__icontains=keyword) | Q(estate__display_name__icontains=keyword))
+    if west is not None:
+        qs = qs.filter(lng__gte=west, lng__lte=east, lat__gte=south, lat__lte=north)
+    return qs.order_by("name", "id")
+
+
+@router.get("/building-map-unlocated-count/", response=BuildingMapUnlocatedCountOut, summary="获取待定位楼栋数量")
+def get_building_map_unlocated_count(request):
+    org = require_org_selected(request)
+    return {"count": Building.objects.filter(organization=org).filter(Q(lat__isnull=True) | Q(lng__isnull=True)).count()}
+
+
+@router.get("/building-map/{building_id}/", response=BuildingMapDetailOut, summary="获取楼栋房源地图详情")
+def get_building_map_detail(request, building_id: int):
+    org = require_org_selected(request)
+    building = get_object_or_404(Building.objects.select_related("estate"), pk=building_id, organization=org)
+    houses = sort_houses_for_building(building.houses.filter(is_active=True))
+    return {
+        "id": building.pk,
+        "estate_id": building.estate_id,
+        "estate": building.estate,
+        "name": building.name,
+        "floors": building.floors,
+        "under_floors": building.under_floors,
+        "year_built": building.year_built,
+        "elevator": building.elevator,
+        "lat": building.lat,
+        "lng": building.lng,
+        "address": building.address,
+        "is_active": building.is_active,
+        "counts": building_map_counts(houses),
+        "houses": [
+            {
+                "id": house.pk,
+                "room_number": house.room_number,
+                "floor": house.floor,
+                "area": house.area,
+                "asking_rent": house.asking_rent,
+                "status": house.status,
+                "status__mapping": HouseStatus.get_choice_label(house.status),
+                "publish_status": house.publish_status,
+                "publish_status__mapping": HousePublishStatus.get_choice_label(house.publish_status),
+            }
+            for house in houses
+        ],
     }
 
 

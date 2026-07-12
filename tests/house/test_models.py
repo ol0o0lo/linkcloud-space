@@ -103,6 +103,39 @@ class HouseDomainTestCase(TestCase):
 
 
 class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
+    def test_estate_allows_empty_location_but_rejects_coordinates_without_address(self):
+        estate = self.make_estate(address="", lat=None, lng=None)
+
+        estate.full_clean()
+        estate.lat = Decimal("22.533100")
+        estate.lng = Decimal("113.930400")
+        with self.assertRaises(ValidationError) as context:
+            estate.full_clean()
+
+        self.assertIn("address", context.exception.message_dict)
+
+    def test_building_requires_address_and_complete_valid_coordinate_pair(self):
+        building = Building(
+            organization=self.org,
+            estate=self.make_estate(),
+            name="1 栋",
+            address="",
+            floors=18,
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            building.full_clean()
+        self.assertIn("address", context.exception.message_dict)
+
+        building.address = "科技路 1 号"
+        building.lat = Decimal("22.533100")
+        with self.assertRaises(ValidationError) as context:
+            building.full_clean()
+        self.assertIn("lng", context.exception.message_dict)
+
+        building.lng = Decimal("113.930400")
+        building.full_clean()
+
     def test_standalone_building_can_be_saved_and_normalizes_identity_fields(self):
         building = Building.objects.create(
             organization=self.org,
@@ -144,7 +177,7 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         with self.assertRaises(ValidationError) as context:
             building.full_clean()
 
-        self.assertEqual(context.exception.message_dict["address"], ["非小区楼栋必须填写楼栋地址。"])
+        self.assertEqual(context.exception.message_dict["address"], ["楼栋地址不能为空。"])
 
     def test_standalone_building_rejects_normalized_duplicate_but_allows_same_name_at_another_address(self):
         Building.objects.create(organization=self.org, estate=None, name="海滨 公寓", address="海滨路 20 号", floors=18)
@@ -185,7 +218,7 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         self.assertEqual(context.exception.message_dict["organization"], ["楼栋组织必须与项目片区组织一致。"])
 
     def test_estate_address_can_be_left_blank_for_governance_follow_up(self):
-        estate = self.make_estate(name="待补地址项目", display_name="待补地址项目", address="")
+        estate = self.make_estate(name="待补地址项目", display_name="待补地址项目", address="", lat=None, lng=None)
 
         estate.refresh_from_db()
         self.assertEqual(estate.address, "")

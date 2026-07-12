@@ -410,6 +410,62 @@ export function adminWalletWithdrawalsWithdrawalIdReviewUsingPost({
   );
 }
 
+/** 获取待定位楼栋数量 GET /api/house/building-map-unlocated-count/ */
+export function houseBuildingMapUnlocatedCountUsingGet({
+  options,
+}: {
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.BuildingMapUnlocatedCountOut>(
+    '/api/house/building-map-unlocated-count/',
+    {
+      method: 'GET',
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取楼栋房源地图标点 GET /api/house/building-map/ */
+export function houseBuildingMapUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseBuildingMapUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedBuildingMapMarkerOut>('/api/house/building-map/', {
+    method: 'GET',
+    params: {
+      // page has a default value: 1
+      page: '1',
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取楼栋房源地图详情 GET /api/house/building-map/${param0}/ */
+export function houseBuildingMapBuildingIdUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseBuildingMapBuildingIdUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { building_id: param0, ...queryParams } = params;
+
+  return request<API.BuildingMapDetailOut>(
+    `/api/house/building-map/${param0}/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取楼栋列表 GET /api/house/buildings/ */
 export function houseBuildingsUsingGet({
   params,
@@ -954,6 +1010,27 @@ export function houseViewingRecordsUsingPost({
     data: body,
     ...(options || {}),
   });
+}
+
+/** 获取带看记录详情 GET /api/house/viewing-records/${param0}/ */
+export function houseViewingRecordsRecordIdUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseViewingRecordsRecordIdUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { record_id: param0, ...queryParams } = params;
+
+  return request<API.ViewingRecordOut>(
+    `/api/house/viewing-records/${param0}/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 更新带看记录 PATCH /api/house/viewing-records/${param0}/ */

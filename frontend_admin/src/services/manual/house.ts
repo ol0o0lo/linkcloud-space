@@ -10,6 +10,8 @@ import {
   appsHouseApiDeleteBuildingEndpoint,
   appsHouseApiDeleteEstateEndpoint,
   appsHouseApiGetBuilding,
+  appsHouseApiGetBuildingMapDetail,
+  appsHouseApiGetBuildingMapUnlocatedCount,
   appsHouseApiGetContact,
   appsHouseApiGetDefaultBuilding,
   appsHouseApiGetEstate,
@@ -17,6 +19,7 @@ import {
   appsHouseApiGetLease,
   appsHouseApiGetViewingRecord,
   appsHouseApiListBuildings,
+  appsHouseApiListBuildingMap,
   appsHouseApiListContacts,
   appsHouseApiListEstates,
   appsHouseApiListHouses,
@@ -42,6 +45,8 @@ export type EstateOut = API.EstateOut & {
   property_type__mapping?: string;
 };
 export type BuildingOut = API.BuildingOut;
+export type BuildingMapMarkerOut = API.BuildingMapMarkerOut;
+export type BuildingMapDetailOut = API.BuildingMapDetailOut;
 export type DefaultBuildingOut = API.DefaultBuildingOut;
 export type DeleteCheckOut = API.DeleteCheckOut;
 export type ContactOut = API.ContactOut & {
@@ -84,6 +89,10 @@ export const houseApi = {
   getDefaultBuilding: () => appsHouseApiGetDefaultBuilding() as Promise<DefaultBuildingOut>,
   setDefaultBuilding: (buildingId: number) =>
     appsHouseApiPutDefaultBuilding({ building_id: buildingId }) as Promise<DefaultBuildingOut>,
+  listBuildingMap: (params?: QueryParams) =>
+    appsHouseApiListBuildingMap((params ?? {}) as API.appsHouseApiListBuildingMapParams) as Promise<PageResult<BuildingMapMarkerOut>>,
+  getBuildingMapDetail: (buildingId: number) => appsHouseApiGetBuildingMapDetail({ building_id: buildingId }) as Promise<BuildingMapDetailOut>,
+  getBuildingMapUnlocatedCount: () => appsHouseApiGetBuildingMapUnlocatedCount() as Promise<API.BuildingMapUnlocatedCountOut>,
 
   listContacts: (params?: QueryParams) =>
     appsHouseApiListContacts((params ?? {}) as API.appsHouseApiListContactsParams) as Promise<PageResult<ContactOut>>,

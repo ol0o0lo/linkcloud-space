@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
@@ -7,11 +8,12 @@ from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.http import Http404
 
-from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
+from apps.house.constants import ContactRole, HousePublishStatus, HouseStatus, LeaseStatus
 from apps.house.exceptions import ResourceInUseException
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
+DEFAULT_LOCATION_SETTING_KEY = "property_rental.default_location"
 RESOURCE_PREVIEW_LIMIT = 5
 PUBLISH_RULES_SETTING_KEY = "property_rental.publish_rules"
 PUBLISH_RULE_MODE_REQUIRED = "required"
@@ -35,6 +37,28 @@ HOUSE_PUBLISH_ISSUE_LABELS = {
     "floor_plan": "缺户型图",
     "video": "视频不足",
 }
+
+
+def natural_room_sort_key(room_number: str) -> tuple[tuple[int, int | str], ...]:
+    """将房号分段，确保 2 排在 10 前、A2 排在 A10 前。"""
+    return tuple((0, int(part)) if part.isdigit() else (1, part.casefold()) for part in re.split(r"(\d+)", room_number) if part)
+
+
+def sort_houses_for_building(houses):
+    return sorted(houses, key=lambda house: (house.floor is None, house.floor or 0, natural_room_sort_key(house.room_number), house.pk))
+
+
+def building_map_counts(houses) -> dict[str, int]:
+    """统计已传入的有效房源，地图筛选不应改变该汇总。"""
+    houses = list(houses)
+    return {
+        "total": len(houses),
+        "vacant": sum(house.status == HouseStatus.VACANT for house in houses),
+        "rented": sum(house.status == HouseStatus.RENTED for house in houses),
+        "renovating": sum(house.status == HouseStatus.RENOVATING for house in houses),
+        "locked": sum(house.status == HouseStatus.LOCKED for house in houses),
+        "published": sum(house.publish_status == HousePublishStatus.PUBLISHED for house in houses),
+    }
 
 DEFAULT_HOUSE_PUBLISH_RULES = {
     "landlord": {"mode": PUBLISH_RULE_MODE_REQUIRED, "label": HOUSE_PUBLISH_RULE_LABELS["landlord"]},
@@ -350,8 +374,11 @@ def ensure_default_building(organization: Organization):
         organization=organization,
         estate=estate,
         name="默认楼栋",
-        defaults={"floors": 1, "address": ""},
+        defaults={"floors": 1, "address": "待补充地址"},
     )
+    if not building.address:
+        Building.objects.filter(pk=building.pk).update(address="待补充地址")
+        building.address = "待补充地址"
     OrganizationSetting.objects.update_or_create(organization=organization, setting=setting, defaults={"value": building.pk})
     return building
 

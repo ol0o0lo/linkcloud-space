@@ -1,6 +1,10 @@
+import math
+
+from django.core.exceptions import ValidationError
+
+from apps.house.services import DEFAULT_LOCATION_SETTING_KEY
 from apps.settings.constants import SettingWidget, ValueType
 from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting
-
 
 DEFAULT_WIDGET_BY_VALUE_TYPE = {
     ValueType.TEXT: SettingWidget.INPUT,
@@ -39,6 +43,20 @@ def _build_result(default: DefaultSetting, value, is_customized: bool) -> dict:
     }
 
 
+def validate_location_setting_value(key: str, value) -> None:
+    if key != DEFAULT_LOCATION_SETTING_KEY or value is None:
+        return
+    if not isinstance(value, dict) or set(value) != {"address", "lat", "lng"}:
+        raise ValidationError({"value": "默认定位必须包含 address、lat 和 lng。"})
+    address, lat, lng = value["address"], value["lat"], value["lng"]
+    if not isinstance(address, str) or not address.strip():
+        raise ValidationError({"value": "默认定位地址不能为空。"})
+    if any(isinstance(item, bool) or not isinstance(item, int | float) or not math.isfinite(item) for item in (lat, lng)):
+        raise ValidationError({"value": "默认定位经纬度必须是有限数字。"})
+    if not -90 <= lat <= 90 or not -180 <= lng <= 180:
+        raise ValidationError({"value": "默认定位经纬度超出范围。"})
+
+
 # ---------------------------------------------------------------------------
 # Org 设置
 # ---------------------------------------------------------------------------
@@ -71,6 +89,7 @@ def get_all_org_settings(org) -> list[dict]:
 
 def set_org_setting(org, key: str, value) -> OrganizationSetting:
     """覆盖 org 的某个 key（upsert）。"""
+    validate_location_setting_value(key, value)
     default = DefaultSetting.objects.get(key=key)
     obj, _ = OrganizationSetting.objects.update_or_create(
         organization=org,

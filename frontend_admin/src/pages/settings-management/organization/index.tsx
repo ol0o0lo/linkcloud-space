@@ -2,11 +2,13 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Card, Divider, Form, Input, InputNumber, Modal, message, Select, Space, Tabs, Typography } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { wrapTextStyle } from '@/pages/_shared/adminLayout';
+import { LocationPicker, type LocationValue } from '@/components/LocationPicker';
 import { buildingLabel } from '@/pages/property-rental/constants';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { type BuildingOut, houseApi } from '@/services/manual/house';
 import {
   appsSettingsApiListOrgSettings,
+  appsSettingsApiDeleteOrgSettingView,
   appsSettingsApiPutOrgSetting,
 } from '@/services/openapi/organizationSettings';
 import {
@@ -34,6 +36,12 @@ const settingRowStyle: React.CSSProperties = {
 };
 const settingMetaStyle: React.CSSProperties = { flex: '0 0 240px', minWidth: 200 };
 const settingControlStyle: React.CSSProperties = { flex: '1 1 320px', minWidth: 280 };
+
+function parseLocationValue(value: unknown): LocationValue | null {
+  if (!value || typeof value !== 'object') return null;
+  const { address, lat, lng } = value as LocationValue;
+  return typeof address === 'string' && Number.isFinite(lat) && Number.isFinite(lng) ? { address, lat, lng } : null;
+}
 
 const DefaultBuildingControl: React.FC<{
   value: unknown;
@@ -193,6 +201,26 @@ const OrganizationSettingsPage: React.FC = () => {
 
     if (setting.key === publishRulesSettingKey) {
       return <PublishRulesControl value={value} onCommit={onCommit} />;
+    }
+
+    if (setting.key === 'property_rental.default_location' || setting.widget === 'location_picker') {
+      return (
+        <LocationPicker
+          ariaLabel="默认定位"
+          value={parseLocationValue(value)}
+          fallbackLocation={null}
+          onChange={(nextValue) => {
+            if (nextValue) {
+              onCommit(nextValue);
+              return;
+            }
+            appsSettingsApiDeleteOrgSettingView({ key: setting.key })
+              .then(() => workspace.queryClient.invalidateQueries({ queryKey: settingsManagementQueryKeys.organization(workspace.selectedOrgSlug) }))
+              .catch(() => message.error('清除默认定位失败'));
+          }}
+          allowClear
+        />
+      );
     }
 
     return <SettingSchemaControl setting={setting} value={value} onChange={onChange} onCommit={onCommit} />;

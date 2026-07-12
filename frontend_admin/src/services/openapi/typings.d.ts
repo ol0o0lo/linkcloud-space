@@ -422,6 +422,10 @@ declare namespace API {
     estate_id: number;
   };
 
+  type appsHouseApiGetBuildingMapDetailParams = {
+    building_id: number;
+  };
+
   type appsHouseApiGetBuildingParams = {
     building_id: number;
   };
@@ -444,6 +448,19 @@ declare namespace API {
 
   type appsHouseApiGetViewingRecordParams = {
     record_id: number;
+  };
+
+  type appsHouseApiListBuildingMapParams = {
+    keyword?: string | null;
+    estate_id?: number | null;
+    house_status?: string | null;
+    include_inactive?: boolean;
+    west?: number | string | null;
+    south?: number | string | null;
+    east?: number | string | null;
+    north?: number | string | null;
+    page?: number;
+    page_size?: number | null;
   };
 
   type appsHouseApiListBuildingsParams = {
@@ -822,6 +839,93 @@ declare namespace API {
     is_active?: boolean;
   };
 
+  type BuildingMapCountsOut = {
+    /** Total */
+    total: number;
+    /** Vacant */
+    vacant: number;
+    /** Rented */
+    rented: number;
+    /** Renovating */
+    renovating: number;
+    /** Locked */
+    locked: number;
+    /** Published */
+    published: number;
+  };
+
+  type BuildingMapDetailOut = {
+    /** Id */
+    id: number;
+    /** Estate Id */
+    estate_id: number | null;
+    estate: EstateSummaryOut | null;
+    /** Name */
+    name: string;
+    /** Floors */
+    floors: number;
+    /** Under Floors */
+    under_floors: number | null;
+    /** Year Built */
+    year_built: number | null;
+    /** Elevator */
+    elevator: boolean;
+    /** Lat */
+    lat: string | null;
+    /** Lng */
+    lng: string | null;
+    /** Address */
+    address: string;
+    /** Is Active */
+    is_active: boolean;
+    counts: BuildingMapCountsOut;
+    /** Houses */
+    houses: BuildingMapHouseOut[];
+  };
+
+  type BuildingMapHouseOut = {
+    /** Id */
+    id: number;
+    /** Room Number */
+    room_number: string;
+    /** Floor */
+    floor: number | null;
+    /** Area */
+    area: string | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Publish Status */
+    publish_status: string;
+    /** Publish Status  Mapping */
+    publish_status__mapping: string;
+  };
+
+  type BuildingMapMarkerOut = {
+    /** Id */
+    id: number;
+    estate: EstateSummaryOut | null;
+    /** Name */
+    name: string;
+    /** Address */
+    address: string;
+    /** Lat */
+    lat: string;
+    /** Lng */
+    lng: string;
+    /** Is Active */
+    is_active: boolean;
+    counts: BuildingMapCountsOut;
+  };
+
+  type BuildingMapUnlocatedCountOut = {
+    /** Count */
+    count: number;
+  };
+
   type BuildingOut = {
     /** Id */
     id: number;
@@ -881,6 +985,10 @@ declare namespace API {
     estate: EstateSummaryOut | null;
     /** Address */
     address: string;
+    /** Lat */
+    lat: string | null;
+    /** Lng */
+    lng: string | null;
   };
 
   type BulkActionIn = {
@@ -1820,6 +1928,17 @@ declare namespace API {
   type PagedAdminUserOut = {
     /** Items */
     items: AdminUserOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedBuildingMapMarkerOut = {
+    /** Items */
+    items: BuildingMapMarkerOut[];
     /** Total */
     total: number;
     /** Page */

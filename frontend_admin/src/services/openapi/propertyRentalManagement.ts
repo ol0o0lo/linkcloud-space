@@ -2,6 +2,53 @@
 /* eslint-disable */
 import { request } from "@umijs/max";
 
+/** 获取待定位楼栋数量 GET /api/house/building-map-unlocated-count/ */
+export async function appsHouseApiGetBuildingMapUnlocatedCount(options?: {
+  [key: string]: any;
+}) {
+  return request<API.BuildingMapUnlocatedCountOut>(
+    "/api/house/building-map-unlocated-count/",
+    {
+      method: "GET",
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取楼栋房源地图标点 GET /api/house/building-map/ */
+export async function appsHouseApiListBuildingMap(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiListBuildingMapParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.PagedBuildingMapMarkerOut>("/api/house/building-map/", {
+    method: "GET",
+    params: {
+      // page has a default value: 1
+      page: "1",
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取楼栋房源地图详情 GET /api/house/building-map/${param0}/ */
+export async function appsHouseApiGetBuildingMapDetail(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiGetBuildingMapDetailParams,
+  options?: { [key: string]: any }
+) {
+  const { building_id: param0, ...queryParams } = params;
+  return request<API.BuildingMapDetailOut>(
+    `/api/house/building-map/${param0}/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取楼栋列表 GET /api/house/buildings/ */
 export async function appsHouseApiListBuildings(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

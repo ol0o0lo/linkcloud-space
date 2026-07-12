@@ -1,12 +1,15 @@
 import importlib
 
-import pytest
 from django.apps import apps as django_apps
+from django.core.exceptions import ValidationError
+
+import pytest
 from model_bakery import baker
 
 from apps.house.services import (
     DEFAULT_BUILDING_SETTING_KEY,
     DEFAULT_HOUSE_PUBLISH_RULES,
+    DEFAULT_LOCATION_SETTING_KEY,
     PUBLISH_RULES_SETTING_KEY,
     _default_building_setting,
     _publish_rules_setting,
@@ -171,6 +174,27 @@ class TestSetOrgSetting:
         with pytest.raises(DefaultSetting.DoesNotExist):
             set_org_setting(org, "nonexistent_key", "value")
 
+    def test_default_location_accepts_only_complete_location_value(self, org, db):
+        DefaultSetting.objects.create(
+            key=DEFAULT_LOCATION_SETTING_KEY,
+            value={},
+            value_type="json",
+        )
+
+        set_org_setting(
+            org,
+            DEFAULT_LOCATION_SETTING_KEY,
+            {"address": "科技园路 1 号", "lat": 22.540123, "lng": 113.934567},
+        )
+        assert get_org_setting(org, DEFAULT_LOCATION_SETTING_KEY)["value"]["lat"] == 22.540123
+
+        with pytest.raises(ValidationError):
+            set_org_setting(
+                org,
+                DEFAULT_LOCATION_SETTING_KEY,
+                {"address": "科技园路 1 号", "lat": 22.540123},
+            )
+
 
 @pytest.mark.django_db
 class TestDeleteOrgSetting:
@@ -300,7 +324,7 @@ class TestPublishRulesSetting:
 
     def test_evaluate_publish_state_splits_blocking_and_warning_issues(self, org):
         estate = baker.make("house.Estate", organization=org)
-        building = baker.make("house.Building", organization=org, estate=estate)
+        building = baker.make("house.Building", organization=org, estate=estate, address="测试楼栋地址")
         house = baker.make(
             "house.House",
             building=building,

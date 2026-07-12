@@ -29,6 +29,19 @@ def normalize_space_identity(value: str) -> str:
     return " ".join(value.split())
 
 
+def validate_coordinates(*, address: str, lat: Decimal | None, lng: Decimal | None, address_required: bool) -> None:
+    if address_required and not address:
+        raise ValidationError({"address": "楼栋地址不能为空。"})
+    if (lat is None) != (lng is None):
+        raise ValidationError({"lng" if lat is not None else "lat": "纬度和经度必须同时填写。"})
+    if lat is not None and not Decimal("-90") <= lat <= Decimal("90"):
+        raise ValidationError({"lat": "纬度必须在 -90 到 90 之间。"})
+    if lng is not None and not Decimal("-180") <= lng <= Decimal("180"):
+        raise ValidationError({"lng": "经度必须在 -180 到 180 之间。"})
+    if lat is not None and not address:
+        raise ValidationError({"address": "保存坐标时必须填写地址。"})
+
+
 class Estate(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="estates")
     name = models.CharField(max_length=100)
@@ -60,6 +73,10 @@ class Estate(CreateUpdateTimeModelMixin):
 
     def __str__(self):
         return self.display_name or self.name
+
+    def clean(self):
+        super().clean()
+        validate_coordinates(address=self.address, lat=self.lat, lng=self.lng, address_required=False)
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -93,8 +110,7 @@ class Building(CreateUpdateTimeModelMixin):
         super().clean()
         if self.estate_id and self.organization_id and self.estate.organization_id != self.organization_id:
             raise ValidationError({"organization": "楼栋组织必须与项目片区组织一致。"})
-        if not self.estate_id and not self.address:
-            raise ValidationError({"address": "非小区楼栋必须填写楼栋地址。"})
+        validate_coordinates(address=self.address, lat=self.lat, lng=self.lng, address_required=True)
 
         duplicates = type(self).objects.exclude(pk=self.pk)
         if self.estate_id and self.name and duplicates.filter(estate_id=self.estate_id, name=self.name).exists():
