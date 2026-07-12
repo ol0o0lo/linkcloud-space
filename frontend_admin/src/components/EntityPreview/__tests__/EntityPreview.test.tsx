@@ -42,6 +42,11 @@ vi.mock('antd', () => ({
     const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(
       undefined,
     );
+
+    if (!content) {
+      return children;
+    }
+
     return (
       <>
         {React.cloneElement(children, {

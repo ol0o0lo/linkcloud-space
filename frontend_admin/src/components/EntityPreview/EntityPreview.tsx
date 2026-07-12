@@ -44,13 +44,15 @@ export function EntityPreview({
   return (
     <Popover
       content={
-        open ? (
-          <EntityPreviewBoundary key={`${type}:${id}`}>
+        <EntityPreviewBoundary key={`${type}:${id}`}>
+          {open ? (
             <Suspense fallback={<EntityPreviewSkeleton />}>
               <Panel id={id} />
             </Suspense>
-          </EntityPreviewBoundary>
-        ) : null
+          ) : (
+            <EntityPreviewSkeleton />
+          )}
+        </EntityPreviewBoundary>
       }
       destroyOnHidden
       mouseEnterDelay={0.2}
