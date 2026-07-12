@@ -19,7 +19,10 @@ import {
   Typography,
 } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
-import { ContactPreview } from '@/components/EntityPreview';
+import {
+  ContactPreview,
+  EntityPreviewDetailDrawer,
+} from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -459,6 +462,11 @@ const ContactsPage: React.FC = () => {
           scroll={adminTableScroll}
         />
       </Card>
+      <EntityPreviewDetailDrawer
+        searchParam="preview"
+        title="联系人详情"
+        type="contact"
+      />
       <Drawer
         title={editing ? '编辑联系人' : '新建联系人'}
         open={drawerOpen}

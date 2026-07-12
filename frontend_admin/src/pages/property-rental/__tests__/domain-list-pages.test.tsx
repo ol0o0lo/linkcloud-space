@@ -176,7 +176,7 @@ vi.mock('@/pages/tenant/shared', () => ({
 vi.mock('@/components/EntityPreview', () => {
   const preview = (type: string) => ({ id, children }: { id?: number | null; children: React.ReactNode }) => <span data-preview={type} data-id={id}>{children}</span>;
   return {
-    BuildingPreview: preview('building'), ContactPreview: preview('contact'), EstatePreview: preview('estate'), HousePreview: preview('house'), LeasePreview: preview('lease'), ViewingPreview: preview('viewing'),
+    BuildingPreview: preview('building'), ContactPreview: preview('contact'), EntityPreviewDetailDrawer: () => null, EstatePreview: preview('estate'), HousePreview: preview('house'), LeasePreview: preview('lease'), ViewingPreview: preview('viewing'),
   };
 });
 

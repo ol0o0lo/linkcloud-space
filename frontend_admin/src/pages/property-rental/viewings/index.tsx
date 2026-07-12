@@ -27,7 +27,10 @@ import {
   theme,
 } from 'antd';
 import React, { useEffect, useState } from 'react';
-import { ViewingPreview } from '@/components/EntityPreview';
+import {
+  EntityPreviewDetailDrawer,
+  ViewingPreview,
+} from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -723,6 +726,11 @@ const ViewingsPage: React.FC = () => {
           scroll={adminTableScroll}
         />
       </Card>
+      <EntityPreviewDetailDrawer
+        searchParam="preview"
+        title="带看详情"
+        type="viewing"
+      />
       <Drawer
         title={editing ? '编辑带看' : '新建带看'}
         open={drawerOpen}

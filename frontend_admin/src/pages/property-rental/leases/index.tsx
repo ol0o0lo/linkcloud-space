@@ -28,7 +28,10 @@ import {
   theme,
 } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
-import { LeasePreview } from '@/components/EntityPreview';
+import {
+  EntityPreviewDetailDrawer,
+  LeasePreview,
+} from '@/components/EntityPreview';
 import {
   adminTableScroll,
   ResponsiveActions,
@@ -812,6 +815,11 @@ const LeasesPage: React.FC = () => {
           scroll={adminTableScroll}
         />
       </Card>
+      <EntityPreviewDetailDrawer
+        searchParam="preview"
+        title="租约详情"
+        type="lease"
+      />
       <Drawer
         title={editing ? '编辑租约' : '新建租约'}
         open={drawerOpen}
