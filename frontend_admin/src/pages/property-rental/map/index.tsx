@@ -91,11 +91,16 @@ const PropertyRentalMapPage: React.FC = () => {
           <Select allowClear value={houseStatus} onChange={setHouseStatus} placeholder="全部房态" options={[['vacant','空置'],['rented','已租'],['renovating','装修中'],['locked','封存']].map(([value,label]) => ({ value, label }))} />
           <Switch checked={includeInactive} onChange={setIncludeInactive} /> 包含停用楼栋
           <Typography.Text>结果 {markers.data?.total || 0} 栋 · 待定位 {unlocated.data?.count || 0} 栋</Typography.Text>
-          <Link to="/property-rental/estates?task=building_location">补充楼栋位置</Link>
+          <Link to={`/property-rental/estates?view=buildings&task=building_location${estateId ? `&estate_id=${estateId}` : ''}`}>补充待定位楼栋</Link>
         </Space>
       </Card>
       {loading && <Spin style={{ position: 'absolute', left: '50%', top: '50%', zIndex: 3 }} />}
-      {!markers.isLoading && !markers.data?.items.length && <Empty style={{ position: 'absolute', left: '50%', top: '45%', zIndex: 3 }} description="没有匹配的已定位楼栋" />}
+      {!markers.isLoading && !markers.data?.items.length && (
+        <Card size="small" style={{ position: 'absolute', left: '50%', top: '45%', zIndex: 3, transform: 'translate(-50%, -50%)', width: 320, textAlign: 'center' }}>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={unlocated.data?.count ? `当前筛选没有已定位楼栋；全空间还有 ${unlocated.data.count} 栋待定位` : '当前筛选没有已定位楼栋'} />
+          <Link to={`/property-rental/estates?view=buildings&task=building_location${estateId ? `&estate_id=${estateId}` : ''}`}>现在去补充楼栋位置</Link>
+        </Card>
+      )}
     </div>
     <Drawer open={Boolean(selectedBuildingId)} onClose={() => setSelectedBuildingId(undefined)} title={detail.data?.name || '楼栋汇总'} size="large">
       {detail.isLoading ? <Spin /> : detail.data && <><Typography.Paragraph>{detail.data.address}</Typography.Paragraph><Space wrap>{Object.entries(detail.data.counts).map(([key, value]) => <Tag key={key}>{key}: {value}</Tag>)}</Space><Card size="small" title="房源汇总" style={{ marginTop: 16 }}>{detail.data.houses.map((house) => <p key={house.id}><Link to={`/property-rental/houses/${house.id}`}>{house.room_number}</Link> · {house.status__mapping}</p>)}</Card><Space><Link to={`/property-rental/houses?building_id=${detail.data.id}`}>查看楼栋全部房源</Link><Link to={`/property-rental/buildings/${detail.data.id}?return_to=${encodeURIComponent(window.location.pathname + window.location.search)}`}>查看楼栋详情</Link></Space></>}

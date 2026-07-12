@@ -480,6 +480,21 @@ describe('Property rental domain list pages', () => {
     await waitFor(() => expect(mockListBuildings).toHaveBeenCalledWith({ page: 1, page_size: 20, keyword: undefined }));
   });
 
+  it('keeps the estate filter when opening the pending-location task', async () => {
+    window.history.pushState({}, '', '/property-rental/estates?view=buildings&task=building_location&estate_id=1');
+    mockListBuildings.mockResolvedValue({
+      items: [
+        buildingItem({ id: 2, estate_id: 1, name: '当前项目待定位楼栋', lat: null, lng: null }),
+        buildingItem({ id: 3, estate_id: 2, estate_display_name: '其他项目', name: '其他项目待定位楼栋', lat: null, lng: null }),
+      ], total: 2, page: 1, page_size: 500,
+    });
+
+    renderPage(<EstatesPage />);
+
+    expect(await screen.findByText('当前项目待定位楼栋')).toBeInTheDocument();
+    expect(screen.queryByText('其他项目待定位楼栋')).not.toBeInTheDocument();
+  });
+
   it('shows associated buildings only while editing an estate that has buildings', async () => {
     mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
     mockListBuildings.mockResolvedValue({ items: [buildingItem({ id: 2, name: '1 栋' })], total: 1, page: 1, page_size: 100 });

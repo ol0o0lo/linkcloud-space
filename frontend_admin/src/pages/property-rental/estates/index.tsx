@@ -331,7 +331,7 @@ const EstatesPage: React.FC = () => {
   const estateTableBaseRows = task ? estateOverviewRows : (estates.data?.items || []);
   const buildingTableBaseRows = task ? buildingOverviewRows : (buildings.data?.items || []);
   const estateRows = estateTableBaseRows.filter((item) => estateMatchesTask(item, buildingOverviewRows, task));
-  const buildingRows = buildingTableBaseRows.filter((item) => buildingMatchesTask(item, task));
+  const buildingRows = buildingTableBaseRows.filter((item) => (!estateId || item.estate_id === estateId) && buildingMatchesTask(item, task));
   const effectiveViewMode = getTaskViewMode(task, viewMode);
   const estateTotal = task ? estateRows.length : estates.data?.total || 0;
   const buildingTotal = task ? buildingRows.length : buildings.data?.total || 0;
