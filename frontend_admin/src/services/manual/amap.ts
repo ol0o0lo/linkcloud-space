@@ -9,6 +9,7 @@ interface UseAmapResult {
   AMap: AMapInstance | null;
   loading: boolean;
   error: Error | null;
+  reload: () => void;
 }
 
 declare global {
@@ -24,11 +25,12 @@ declare global {
  * 从后端 app-context 获取 amapJsapiKey 和 amapSecurityJsCode，
  * 在加载前设置 window._AMapSecurityConfig，返回 { AMap, loading, error }。
  */
-export function useAmap(): UseAmapResult {
+export function useAmap(plugins: string[] = []): UseAmapResult {
   const [AMap, setAMap] = useState<AMapInstance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const loadedRef = useRef(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (loadedRef.current) return;
@@ -55,7 +57,7 @@ export function useAmap(): UseAmapResult {
         const amap = await AMapLoader.load({
           key,
           version: '2.0',
-          plugins: ['AMap.Scale', 'AMap.ToolBar'],
+          plugins: [...new Set(['AMap.Scale', 'AMap.ToolBar', ...plugins])],
         });
 
         if (cancelled) return;
@@ -73,7 +75,18 @@ export function useAmap(): UseAmapResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [plugins.join(','), retry]);
 
-  return { AMap, loading, error };
+  return {
+    AMap,
+    loading,
+    error,
+    reload: () => {
+      loadedRef.current = false;
+      setAMap(null);
+      setError(null);
+      setLoading(true);
+      setRetry((value) => value + 1);
+    },
+  };
 }
