@@ -9,17 +9,20 @@ import {
   EntityPreviewDetailDrawer,
   EstatePreview,
 } from '@/components/EntityPreview';
+import { LocationPicker } from '@/components/LocationPicker';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { type BuildingOut, type EstateOut, houseApi, type PageResult } from '@/services/manual/house';
+import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import { mediaCoverUrl } from '../constants';
+import { formLocation, prefillBuildingLocation, settingLocation } from '../location-utils';
 import { type DeleteTarget, ResourceDeleteModal } from './ResourceDeleteModal';
 
 const PAGE_SIZE = 20;
 const ALL_BUILDINGS_PAGE_SIZE = 500;
 type EstateViewMode = 'all' | 'estates' | 'buildings';
-type EstateTask = 'estate_address' | 'building_address' | 'no_building' | 'inactive';
+type EstateTask = 'estate_address' | 'building_address' | 'building_location' | 'no_building' | 'inactive';
 type EstateDrawerState = {
   estateEditId?: number;
   buildingEditId?: number;
@@ -98,13 +101,14 @@ function estateMatchesTask(estate: EstateOut, buildings: BuildingOut[], task?: E
 
 function buildingMatchesTask(building: BuildingOut, task?: EstateTask) {
   if (task === 'building_address') return !building.address;
+  if (task === 'building_location') return building.lat == null || building.lng == null;
   if (task === 'inactive') return building.is_active === false;
   return true;
 }
 
 function getTaskViewMode(task: EstateTask | undefined, fallback: EstateViewMode) {
   if (task === 'estate_address' || task === 'no_building') return 'estates';
-  if (task === 'building_address') return 'buildings';
+  if (task === 'building_address' || task === 'building_location') return 'buildings';
   return fallback;
 }
 
@@ -120,7 +124,7 @@ function getEstateListStateFromSearch(search: string) {
     q: params.get('keyword') || undefined,
     estateId: getPositiveId(params.get('estate_id')),
     view: view === 'estates' || view === 'buildings' ? view : 'all',
-    task: task === 'estate_address' || task === 'building_address' || task === 'no_building' || task === 'inactive' ? task : undefined,
+    task: task === 'estate_address' || task === 'building_address' || task === 'building_location' || task === 'no_building' || task === 'inactive' ? task : undefined,
   } satisfies { estatePage: number; buildingPage: number; q?: string; estateId?: number; view: EstateViewMode; task?: EstateTask };
 }
 
@@ -155,6 +159,8 @@ type EstateFormValues = {
   city: string;
   district: string;
   address?: string;
+  lat?: number | string | null;
+  lng?: number | string | null;
   is_active?: boolean;
 };
 
@@ -164,6 +170,8 @@ type BuildingFormValues = {
   floors: number;
   elevator?: boolean;
   address?: string;
+  lat?: number | string | null;
+  lng?: number | string | null;
   is_active?: boolean;
 };
 
@@ -185,6 +193,17 @@ const EstatesPage: React.FC = () => {
   const [estateOpen, setEstateOpen] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [buildingLocationTouched, setBuildingLocationTouched] = useState(false);
+  const [estateForm] = Form.useForm<EstateFormValues>();
+  const [buildingForm] = Form.useForm<BuildingFormValues>();
+  const buildingEstateId = Form.useWatch('estate_id', buildingForm);
+  const buildingAddress = Form.useWatch('address', buildingForm);
+  const buildingLat = Form.useWatch('lat', buildingForm);
+  const buildingLng = Form.useWatch('lng', buildingForm);
+  const estateAddress = Form.useWatch('address', estateForm);
+  const estateLat = Form.useWatch('lat', estateForm);
+  const estateLng = Form.useWatch('lng', estateForm);
+  const previousBuildingEstateId = useRef<number | null | undefined>(undefined);
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.estate_property_type']);
   const estates = useQuery({ queryKey: ['house', 'estates', workspace.selectedOrgSlug, estatePage, q], queryFn: () => houseApi.listEstates({ page: estatePage, page_size: PAGE_SIZE, keyword: q }), enabled });
@@ -201,6 +220,11 @@ const EstatesPage: React.FC = () => {
   const allBuildings = useQuery({
     queryKey: ['house', 'buildings', 'all', workspace.selectedOrgSlug],
     queryFn: fetchAllBuildings,
+    enabled,
+  });
+  const orgSettings = useQuery({
+    queryKey: ['settings-management', 'organization', workspace.selectedOrgSlug],
+    queryFn: () => appsSettingsApiListOrgSettings(),
     enabled,
   });
   const estateBuildings = useQuery({
@@ -260,6 +284,8 @@ const EstatesPage: React.FC = () => {
     setEditingBuilding(null);
     setDraftBuildingEstateId(estateId);
     setBuildingOpen(true);
+    setBuildingLocationTouched(false);
+    previousBuildingEstateId.current = undefined;
     updateDrawerState({ buildingCreateEstateId: estateId });
   };
 
@@ -267,6 +293,8 @@ const EstatesPage: React.FC = () => {
     setDraftBuildingEstateId(undefined);
     setEditingBuilding(record);
     setBuildingOpen(true);
+    setBuildingLocationTouched(record.lat != null && record.lng != null);
+    previousBuildingEstateId.current = record.estate_id;
     updateDrawerState({ buildingEditId: record.id });
   };
 
@@ -280,6 +308,7 @@ const EstatesPage: React.FC = () => {
     setBuildingOpen(false);
     setEditingBuilding(null);
     setDraftBuildingEstateId(undefined);
+    setBuildingLocationTouched(false);
     clearDrawerState();
   };
 
@@ -308,7 +337,15 @@ const EstatesPage: React.FC = () => {
   const buildingTotal = task ? buildingRows.length : buildings.data?.total || 0;
   const propertyTypeOptions = enumSelectOptions(houseEnums.data, 'house.estate_property_type');
   const selectedEstate = estateId ? estateOverviewRows.find((item) => item.id === estateId) : undefined;
+  const selectedBuildingEstate = (allEstates.data?.items || []).find((item) => item.id === buildingEstateId);
+  const defaultLocation = settingLocation(orgSettings.data?.find((item) => item.key === 'property_rental.default_location')?.value);
   const selectedEstateName = selectedEstate?.display_name || selectedEstate?.name || (estateId ? `小区 #${estateId}` : '');
+  useEffect(() => {
+    if (estateOpen) estateForm.setFieldsValue(estateInitialValues);
+  }, [estateForm, estateOpen, editingEstate?.id]);
+  useEffect(() => {
+    if (buildingOpen) buildingForm.setFieldsValue(buildingInitialValues);
+  }, [buildingForm, buildingOpen, draftBuildingEstateId, editingBuilding?.id]);
   const estateColumns: ProColumns<EstateOut>[] = [
     {
       title: '名称',
@@ -422,6 +459,17 @@ const EstatesPage: React.FC = () => {
       setBuildingOpen(true);
     }
   }, [allBuildings.isSuccess, buildingOpen, buildingOverviewRows, drawerState.buildingCreateEstateId, drawerState.buildingEditId, editingBuilding]);
+
+  useEffect(() => {
+    if (!buildingOpen || previousBuildingEstateId.current === buildingEstateId) return;
+    const nextEstateLocation = selectedBuildingEstate ? formLocation(selectedBuildingEstate) : null;
+    if (!buildingLocationTouched && nextEstateLocation) {
+      buildingForm.setFieldsValue(prefillBuildingLocation(buildingForm.getFieldValue('address'), nextEstateLocation));
+    } else if (buildingLocationTouched && nextEstateLocation) {
+      message.info('已保留手动填写的位置，请核对楼栋位置。');
+    }
+    previousBuildingEstateId.current = buildingEstateId;
+  }, [buildingEstateId, buildingForm, buildingLocationTouched, buildingOpen, editingBuilding, selectedBuildingEstate]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -567,6 +615,7 @@ const EstatesPage: React.FC = () => {
       />
       <Drawer title={editingEstate ? '编辑项目' : '新建项目'} open={estateOpen} size="large" onClose={closeEstateDrawer} destroyOnHidden extra={<Button type="primary" htmlType="submit" form="estate-form" loading={saveEstate.isPending}>保存</Button>}>
         <Form
+          form={estateForm}
           id="estate-form"
           layout="vertical"
           initialValues={estateInitialValues}
@@ -579,6 +628,14 @@ const EstatesPage: React.FC = () => {
           <Form.Item label="城市" name="city" rules={[{ required: true, message: '请输入城市' }]}><Input /></Form.Item>
           <Form.Item label="区域" name="district" rules={[{ required: true, message: '请输入区域' }]}><Input /></Form.Item>
           <Form.Item label="地址" name="address" extra="可先留空，后续补齐项目地址。"><Input placeholder="例如：科技园路 1 号（可稍后补）" /></Form.Item>
+          <Form.Item label="项目位置">
+            <LocationPicker
+              ariaLabel="项目位置"
+              value={formLocation({ address: estateAddress, lat: estateLat, lng: estateLng })}
+              fallbackLocation={defaultLocation}
+              onChange={(location) => estateForm.setFieldsValue(location || { lat: null, lng: null })}
+            />
+          </Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
         </Form>
         {editingEstate && estateBuildings.data?.items.length ? (
@@ -602,29 +659,28 @@ const EstatesPage: React.FC = () => {
         destroyOnHidden
         extra={<Button type="primary" htmlType="submit" form="building-form" loading={saveBuilding.isPending}>保存</Button>}
       >
-        <Form id="building-form" layout="vertical" initialValues={buildingInitialValues} onFinish={(values) => saveBuilding.mutate(values)}>
+        <Form
+          form={buildingForm}
+          id="building-form"
+          layout="vertical"
+          initialValues={buildingInitialValues}
+          onFinish={(values) => saveBuilding.mutate(values)}
+        >
           <Form.Item label="所属项目" name="estate_id"><Select allowClear options={(allEstates.data?.items || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></Form.Item>
           <Form.Item label="楼栋名" name="name" rules={[{ required: true, message: '请输入楼栋名' }]}><Input /></Form.Item>
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}><Input type="number" min={1} /></Form.Item>
           <Form.Item label="电梯" name="elevator" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item noStyle shouldUpdate={(previousValues, currentValues) => previousValues.estate_id !== currentValues.estate_id}>
-            {() => (
-              <Form.Item
-                label="地址"
-                name="address"
-                rules={[
-                  ({ getFieldValue }) => ({
-                    validator: async (_rule, value) => {
-                      if (getFieldValue('estate_id') === undefined || getFieldValue('estate_id') === null) {
-                        if (!String(value || '').trim()) throw new Error('非小区楼栋必须填写楼栋地址');
-                      }
-                    },
-                  }),
-                ]}
-              >
-                <Input />
-              </Form.Item>
-            )}
+          <Form.Item label="地址" name="address" rules={[{ required: true, whitespace: true, message: '请输入楼栋地址' }]}><Input /></Form.Item>
+          <Form.Item label="楼栋位置">
+            <LocationPicker
+              ariaLabel="楼栋位置"
+              value={formLocation({ address: buildingAddress, lat: buildingLat, lng: buildingLng })}
+              fallbackLocation={(selectedBuildingEstate && formLocation(selectedBuildingEstate)) || defaultLocation}
+              onChange={(location) => {
+                setBuildingLocationTouched(true);
+                buildingForm.setFieldsValue(location || { address: '', lat: null, lng: null });
+              }}
+            />
           </Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
         </Form>
