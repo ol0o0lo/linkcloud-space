@@ -29,10 +29,10 @@ const viewing = {
   contact: { id: 8, name: '李联系人', phone: '13800000000' },
   customer_name: '王客户',
   customer_phone: '13900000000',
-  scheduled_at: '2026-07-08T10:00:00+08:00',
-  viewed_at: '2026-07-08T10:35:00+08:00',
-  status: 'completed',
-  status__mapping: '已完成',
+  scheduled_at: '2026-07-08T10:00:00',
+  viewed_at: '2026-07-08T10:35:00',
+  status: 'converted',
+  status__mapping: '已成交',
   assigned_to_id: 5,
   notes: '客户偏好朝南两居室',
   extra: {},
@@ -60,7 +60,7 @@ describe('ViewingPreviewPanel', () => {
     expect(screen.getByText('李联系人 / 13800000000')).toBeInTheDocument();
     expect(screen.getByText('2026-07-08 10:00')).toBeInTheDocument();
     expect(screen.getByText('2026-07-08 10:35')).toBeInTheDocument();
-    expect(screen.getByText('已完成')).toBeInTheDocument();
+    expect(screen.getByText('已成交')).toBeInTheDocument();
     expect(screen.getByText('客户偏好朝南两居室')).toBeInTheDocument();
     expect(screen.getByText('已签约')).toBeInTheDocument();
   });
