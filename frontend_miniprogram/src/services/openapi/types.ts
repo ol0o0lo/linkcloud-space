@@ -738,6 +738,93 @@ export type BuildingIn = {
   is_active?: boolean;
 };
 
+export type BuildingMapCountsOut = {
+  /** Total */
+  total: number;
+  /** Vacant */
+  vacant: number;
+  /** Rented */
+  rented: number;
+  /** Renovating */
+  renovating: number;
+  /** Locked */
+  locked: number;
+  /** Published */
+  published: number;
+};
+
+export type BuildingMapDetailOut = {
+  /** Id */
+  id: number;
+  /** Estate Id */
+  estate_id: number | null;
+  estate: EstateSummaryOut | null;
+  /** Name */
+  name: string;
+  /** Floors */
+  floors: number;
+  /** Under Floors */
+  under_floors: number | null;
+  /** Year Built */
+  year_built: number | null;
+  /** Elevator */
+  elevator: boolean;
+  /** Lat */
+  lat: string | null;
+  /** Lng */
+  lng: string | null;
+  /** Address */
+  address: string;
+  /** Is Active */
+  is_active: boolean;
+  counts: BuildingMapCountsOut;
+  /** Houses */
+  houses: BuildingMapHouseOut[];
+};
+
+export type BuildingMapHouseOut = {
+  /** Id */
+  id: number;
+  /** Room Number */
+  room_number: string;
+  /** Floor */
+  floor: number | null;
+  /** Area */
+  area: string | null;
+  /** Asking Rent */
+  asking_rent: string | null;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Publish Status */
+  publish_status: string;
+  /** Publish Status  Mapping */
+  publish_status__mapping: string;
+};
+
+export type BuildingMapMarkerOut = {
+  /** Id */
+  id: number;
+  estate: EstateSummaryOut | null;
+  /** Name */
+  name: string;
+  /** Address */
+  address: string;
+  /** Lat */
+  lat: string;
+  /** Lng */
+  lng: string;
+  /** Is Active */
+  is_active: boolean;
+  counts: BuildingMapCountsOut;
+};
+
+export type BuildingMapUnlocatedCountOut = {
+  /** Count */
+  count: number;
+};
+
 export type BuildingOut = {
   /** Id */
   id: number;
@@ -797,6 +884,10 @@ export type BuildingSummaryOut = {
   estate: EstateSummaryOut | null;
   /** Address */
   address: string;
+  /** Lat */
+  lat: string | null;
+  /** Lng */
+  lng: string | null;
 };
 
 export type BulkActionIn = {
@@ -1027,6 +1118,44 @@ export type EstateSummaryOut = {
 export type ForceLogoutOut = {
   /** Deleted Sessions */
   deleted_sessions: number;
+};
+
+export type HouseBuildingMapBuildingIdUsingGetParams = {
+  building_id: number;
+};
+
+export type HouseBuildingMapBuildingIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: BuildingMapDetailOut;
+};
+
+export type HouseBuildingMapUnlocatedCountUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: BuildingMapUnlocatedCountOut;
+};
+
+export type HouseBuildingMapUsingGetParams = {
+  keyword?: string | null;
+  estate_id?: number | null;
+  house_status?: string | null;
+  include_inactive?: boolean;
+  west?: number | string | null;
+  south?: number | string | null;
+  east?: number | string | null;
+  north?: number | string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseBuildingMapUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedBuildingMapMarkerOut;
 };
 
 export type HouseBuildingsBuildingIdDeleteCheckUsingGetParams = {
@@ -1502,6 +1631,17 @@ export type HouseSummaryOut = {
   /** Building Id */
   building_id: number;
   building: BuildingSummaryOut;
+};
+
+export type HouseViewingRecordsRecordIdUsingGetParams = {
+  record_id: number;
+};
+
+export type HouseViewingRecordsRecordIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: ViewingRecordOut;
 };
 
 export type HouseViewingRecordsRecordIdUsingPatchParams = {
@@ -2520,6 +2660,17 @@ export type PagedAdminRealNameVerificationRowOut = {
 export type PagedAdminUserOut = {
   /** Items */
   items: AdminUserOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedBuildingMapMarkerOut = {
+  /** Items */
+  items: BuildingMapMarkerOut[];
   /** Total */
   total: number;
   /** Page */
