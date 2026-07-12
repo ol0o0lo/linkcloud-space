@@ -307,6 +307,9 @@ const HouseDetailPage: React.FC = () => {
                       {house.data.building?.name || house.data.building_id}
                     </BuildingPreview>
                   </Descriptions.Item>
+                  <Descriptions.Item label="楼栋位置">
+                    {house.data.building?.lat == null || house.data.building?.lng == null ? '楼栋待定位' : '楼栋位置已维护'}
+                  </Descriptions.Item>
                   <Descriptions.Item label="房号">
                     <HousePreview id={house.data.id}>
                       {house.data.room_number}

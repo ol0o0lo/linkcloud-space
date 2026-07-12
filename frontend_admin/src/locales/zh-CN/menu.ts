@@ -70,6 +70,8 @@ export default {
   'menu.property-rental': '房源租赁',
   'menu.property-rental.workbench': '房源工作台',
   'menu.property-rental.houses': '房源',
+  'menu.property-rental.map': '房源地图',
+  'menu.property-rental.building-detail': '楼栋详情',
   'menu.property-rental.house-new': '新建房源',
   'menu.property-rental.house-detail': '房源详情',
   'menu.property-rental.estates': '项目楼栋',

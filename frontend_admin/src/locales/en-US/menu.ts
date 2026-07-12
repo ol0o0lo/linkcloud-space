@@ -70,6 +70,8 @@ export default {
   'menu.property-rental': 'Property Rental',
   'menu.property-rental.workbench': 'Rental Workbench',
   'menu.property-rental.houses': 'Houses',
+  'menu.property-rental.map': 'Property Map',
+  'menu.property-rental.building-detail': 'Building Detail',
   'menu.property-rental.house-new': 'New House',
   'menu.property-rental.house-detail': 'House Detail',
   'menu.property-rental.estates': 'Estates & Buildings',

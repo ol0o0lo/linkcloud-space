@@ -151,6 +151,18 @@ export default [
         redirect: '/property-rental/houses',
       },
       {
+        name: 'map',
+        icon: 'environment',
+        path: '/property-rental/map',
+        component: './property-rental/map',
+      },
+      {
+        name: 'building-detail',
+        path: '/property-rental/buildings/:id',
+        component: './property-rental/buildings/detail',
+        hideInMenu: true,
+      },
+      {
         name: 'houses',
         icon: 'home',
         path: '/property-rental/houses',
@@ -195,6 +207,11 @@ export default [
         component: './property-rental/leases',
       },
     ],
+  },
+  {
+    path: '/geo/map',
+    redirect: '/property-rental/map',
+    hideInMenu: true,
   },
   {
     path: '/tenant-operations',
