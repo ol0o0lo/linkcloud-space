@@ -443,7 +443,7 @@ describe('Property rental domain list pages', () => {
   it('uses a dedicated building avatar in building rows', async () => {
     renderPage(<EstatesPage />);
 
-    expect(await screen.findByTestId('building-avatar-placeholder')).toBeInTheDocument();
+    expect(await screen.findByTestId('building-avatar-placeholder')).toHaveAttribute('aria-label', 'bank');
   });
 
   it('starts building creation from an estate row and preselects that estate', async () => {

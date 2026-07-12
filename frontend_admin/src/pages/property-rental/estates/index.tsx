@@ -1,4 +1,4 @@
-import { ApartmentOutlined, ClusterOutlined, PlusOutlined } from '@ant-design/icons';
+import { BankOutlined, ClusterOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -360,7 +360,7 @@ const EstatesPage: React.FC = () => {
       dataIndex: 'name',
       render: (value, record) => (
         <Space size={8}>
-          <Avatar icon={<ApartmentOutlined data-testid="building-avatar-placeholder" />} shape="square" size={40} style={{ borderRadius: 6 }} />
+          <Avatar icon={<BankOutlined data-testid="building-avatar-placeholder" />} shape="square" size={40} style={{ borderRadius: 6 }} />
           <BuildingPreview id={record.id}>{value}</BuildingPreview>
         </Space>
       ),
