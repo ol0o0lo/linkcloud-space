@@ -12,7 +12,6 @@ import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared'
 import {
   PublishRulesControl,
   SettingSchemaControl,
-  SettingsToolbarCard,
   buildSettingSections,
   initialDraftValue,
   parseSettingValue,
@@ -115,9 +114,11 @@ const TeamSettingsPage: React.FC = () => {
   };
 
   return (
-    <TenantSelectionGuard title="团队设置">
-      <SettingsToolbarCard>
-        <Space orientation="vertical" style={{ width: '100%' }}>
+    <TenantSelectionGuard
+      title="团队设置"
+      extra={
+        <Space size={8}>
+          <Typography.Text type="secondary">选择团队</Typography.Text>
           <Select
             aria-label="团队"
             loading={teamsQuery.isLoading}
@@ -130,7 +131,8 @@ const TeamSettingsPage: React.FC = () => {
             style={{ width: 320, maxWidth: '100%' }}
           />
         </Space>
-      </SettingsToolbarCard>
+      }
+    >
       <Card loading={settingsQuery.isLoading}>
         <Tabs
           tabPlacement="start"

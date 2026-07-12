@@ -17,7 +17,15 @@ const {
 }));
 
 vi.mock('@/pages/tenant/shared', () => ({
-  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TenantSelectionGuard: ({ title, extra, children }: { title: string; extra?: React.ReactNode; children: React.ReactNode }) => (
+    <section>
+      <div>
+        <h1>{title}</h1>
+        {extra}
+      </div>
+      {children}
+    </section>
+  ),
   useTenantWorkspace: () => ({ selectedOrgSlug: 'acme', queryClient: { invalidateQueries: vi.fn() } }),
 }));
 
@@ -102,10 +110,14 @@ describe('TeamSettingsPage', () => {
     expect(screen.queryByText('当前策略：宽松发布')).not.toBeInTheDocument();
     expect(screen.queryByText('团队发布规则')).not.toBeInTheDocument();
     expect(screen.getAllByText('房源发布规则').length).toBeGreaterThan(0);
-    expect(screen.getByText('阻断发布：房东主体、租金')).toBeInTheDocument();
+    expect(screen.queryByText('阻断发布：房东主体、租金')).not.toBeInTheDocument();
+    expect(screen.queryByText('仅提醒：封面图、房源图片')).not.toBeInTheDocument();
+    expect(screen.queryByText('不校验：户型图、视频')).not.toBeInTheDocument();
     expect(screen.queryByText('空间继承')).not.toBeInTheDocument();
     expect(screen.queryByText('权限编组')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.ant-card')).toHaveLength(2);
+    expect(screen.getByText('选择团队')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '团队设置' }).parentElement).toContainElement(screen.getByLabelText('团队'));
+    expect(container.querySelectorAll('.ant-card')).toHaveLength(1);
     expect(screen.getByRole('tablist')).toHaveAttribute('aria-orientation', 'vertical');
 
     fireEvent.click(screen.getByRole('tab', { name: '通用设置' }));

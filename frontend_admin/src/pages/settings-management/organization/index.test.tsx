@@ -222,7 +222,9 @@ describe('OrganizationSettingsPage', () => {
     expect(screen.queryByText('当前发布策略')).not.toBeInTheDocument();
     expect(screen.queryByText('当前策略：标准发布')).not.toBeInTheDocument();
     expect(screen.queryByText('已自定义')).not.toBeInTheDocument();
-    expect(screen.getByText('阻断发布：房东主体、租金')).toBeInTheDocument();
+    expect(screen.queryByText('阻断发布：房东主体、租金')).not.toBeInTheDocument();
+    expect(screen.queryByText('仅提醒：封面图、房源图片、户型图')).not.toBeInTheDocument();
+    expect(screen.queryByText('不校验：视频')).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '设置项' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '新建楼栋' })).not.toBeInTheDocument();
     expect(screen.queryByText('保存设置')).not.toBeInTheDocument();

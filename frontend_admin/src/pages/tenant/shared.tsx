@@ -141,8 +141,9 @@ export function useTenantWorkspace() {
 
 export const TenantSelectionGuard: React.FC<{
   title: string;
+  extra?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ title, children }) => {
+}> = ({ title, extra, children }) => {
   const workspace = useTenantWorkspace();
 
   if (
@@ -154,7 +155,7 @@ export const TenantSelectionGuard: React.FC<{
 
   if (workspace.organizations.length === 0) {
     return (
-      <PageContainer title={title}>
+      <PageContainer title={title} extra={extra}>
         <Empty description="当前用户还没有可用空间，请先加入空间或联系管理员创建空间。" />
       </PageContainer>
     );
@@ -173,7 +174,7 @@ export const TenantSelectionGuard: React.FC<{
   }
 
   return (
-    <PageContainer title={title}>
+    <PageContainer title={title} extra={extra}>
       {children}
     </PageContainer>
   );

@@ -232,11 +232,10 @@ const TenantTeamsPage: React.FC = () => {
   );
 
   return (
-    <TenantSelectionGuard title="团队管理">
-      <Card>
-        <Flex align="center" justify="space-between" gap="small" wrap>
-          <Typography.Text strong>当前团队</Typography.Text>
-          <Flex align="center" gap="small" wrap>
+    <TenantSelectionGuard
+      title="团队管理"
+      extra={
+        <Flex align="center" gap="small" wrap>
             <Select
               aria-label="当前团队"
               loading={teamsQuery.isLoading}
@@ -259,9 +258,9 @@ const TenantTeamsPage: React.FC = () => {
             >
               新建团队
             </Button>
-          </Flex>
         </Flex>
-      </Card>
+      }
+    >
 
       <Card
         title="团队列表"

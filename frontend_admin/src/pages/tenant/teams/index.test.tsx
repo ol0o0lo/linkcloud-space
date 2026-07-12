@@ -26,8 +26,8 @@ const {
 }));
 
 vi.mock('../shared', () => ({
-  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
+  TenantSelectionGuard: ({ title, extra, children }: { title: string; extra?: React.ReactNode; children: React.ReactNode }) => (
+    <section><div><h1>{title}</h1>{extra}</div>{children}</section>
   ),
   formatPersonLabel: (user: {
     username?: string;
@@ -149,7 +149,8 @@ describe('TenantTeamsPage', () => {
       expect(screen.getAllByText('Growth').length).toBeGreaterThan(0);
     });
 
-    expect(screen.getAllByText('当前团队').length).toBeGreaterThan(0);
+    expect(screen.queryByText('当前团队')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '团队管理' }).parentElement).toContainElement(screen.getByLabelText('当前团队'));
     expect(screen.queryByText('团队概览')).not.toBeInTheDocument();
     expect(screen.queryByText('团队详情')).not.toBeInTheDocument();
     expect(screen.queryByText('团队结构')).not.toBeInTheDocument();

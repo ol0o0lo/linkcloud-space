@@ -1,6 +1,5 @@
-import { Button, Card, Input, InputNumber, Select, Space, Switch, Tag, Typography } from 'antd';
+import { Button, Card, Input, InputNumber, Select, Space, Switch, Typography } from 'antd';
 import React from 'react';
-import { wrapTextStyle } from '@/pages/_shared/adminLayout';
 import {
   HOUSE_PUBLISH_RULE_MODE,
   HOUSE_PUBLISH_RULE_PRESETS,
@@ -9,7 +8,6 @@ import {
   buildHousePublishRulesPreset,
   normalizeHousePublishRules,
   resolveHousePublishRulesPreset,
-  summarizeHousePublishRules as summarizePublishRules,
 } from '@/pages/property-rental/publish-rules';
 
 export type SettingOption = { label: string; value: string | number | boolean };
@@ -190,7 +188,6 @@ export const PublishRulesControl: React.FC<{
   onCommit: (value: unknown) => void;
 }> = ({ value, onCommit }) => {
   const rules = normalizeHousePublishRules(value);
-  const summary = summarizePublishRules(rules);
   const activePreset = resolveHousePublishRulesPreset(rules);
   const presetKeys = Object.keys(HOUSE_PUBLISH_RULE_PRESETS) as Array<keyof typeof HOUSE_PUBLISH_RULE_PRESETS>;
 
@@ -206,11 +203,6 @@ export const PublishRulesControl: React.FC<{
 
   return (
     <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-      <Space wrap size={8}>
-        <Tag color="red">阻断发布：{summary.blocking.join('、') || '无'}</Tag>
-        <Tag color="gold">仅提醒：{summary.warning.join('、') || '无'}</Tag>
-        <Tag>不校验：{summary.ignored.join('、') || '无'}</Tag>
-      </Space>
       <Space wrap size={8}>
         {presetKeys.map((presetKey) => (
           <Button key={presetKey} type={activePreset === presetKey ? 'primary' : 'default'} onClick={() => onCommit(buildHousePublishRulesPreset(presetKey))}>
