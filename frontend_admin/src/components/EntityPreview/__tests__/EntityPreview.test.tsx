@@ -3,7 +3,11 @@ import React, { lazy } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@umijs/max', () => ({
-  Link: ({ children, to, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
+  Link: ({
+    children,
+    to,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
     <a href={to} {...props}>
       {children}
     </a>
@@ -15,22 +19,41 @@ vi.mock('antd-style', () => ({
 }));
 
 vi.mock('antd', () => ({
-  Alert: ({ title }: { title: React.ReactNode }) => <div role="alert">{title}</div>,
-  Button: ({ children, onClick }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+  Alert: ({ title }: { title: React.ReactNode }) => (
+    <div role="alert">{title}</div>
+  ),
+  Button: ({
+    children,
+    onClick,
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type="button" onClick={onClick}>
       {children}
     </button>
   ),
   Skeleton: () => <div>正在加载</div>,
-  Popover: ({ children, content, mouseEnterDelay = 0, onOpenChange, open }: any) => {
-    const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  Popover: ({
+    children,
+    content,
+    mouseEnterDelay = 0,
+    onOpenChange,
+    open,
+  }: any) => {
+    const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(
+      undefined,
+    );
     return (
       <span
         onFocus={() => {
-          timer.current = setTimeout(() => onOpenChange(true), mouseEnterDelay * 1000);
+          timer.current = setTimeout(
+            () => onOpenChange(true),
+            mouseEnterDelay * 1000,
+          );
         }}
         onMouseEnter={() => {
-          timer.current = setTimeout(() => onOpenChange(true), mouseEnterDelay * 1000);
+          timer.current = setTimeout(
+            () => onOpenChange(true),
+            mouseEnterDelay * 1000,
+          );
         }}
         onMouseLeave={() => {
           clearTimeout(timer.current);
@@ -84,7 +107,10 @@ describe('EntityPreview', () => {
       </EntityPreview>,
     );
 
-    expect(screen.getByRole('link', { name: '春风里 2 号' })).toHaveAttribute('href', '/property-rental/houses/42');
+    expect(screen.getByRole('link', { name: '春风里 2 号' })).toHaveAttribute(
+      'href',
+      '/property-rental/houses/42',
+    );
   });
 
   it('悬停约 200ms 后才挂载 Panel 并传入 id', async () => {
@@ -118,7 +144,9 @@ describe('EntityPreview', () => {
   });
 
   it('Panel 抛错时隔离异常并保留宿主内容', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     const BrokenPanel = () => {
       throw new Error('broken panel');
     };
@@ -150,6 +178,9 @@ describe('EntityPreview', () => {
       </EntityPreview>,
     );
 
-    expect(screen.getByRole('link')).toHaveAttribute('href', '/custom/house/42');
+    expect(screen.getByRole('link')).toHaveAttribute(
+      'href',
+      '/custom/house/42',
+    );
   });
 });

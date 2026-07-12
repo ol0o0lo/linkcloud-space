@@ -1,7 +1,7 @@
 import { Link } from '@umijs/max';
 import { Popover } from 'antd';
 import { createStyles } from 'antd-style';
-import { Suspense, useState, type KeyboardEvent } from 'react';
+import { type KeyboardEvent, Suspense, useState } from 'react';
 import { EntityPreviewBoundary } from './EntityPreviewBoundary';
 import { EntityPreviewSkeleton } from './EntityPreviewState';
 import { entityPreviewRegistry } from './registry';
@@ -17,7 +17,12 @@ const useStyles = createStyles(({ token }) => ({
   },
 }));
 
-export function EntityPreview({ children, href, id, type }: EntityPreviewProps) {
+export function EntityPreview({
+  children,
+  href,
+  id,
+  type,
+}: EntityPreviewProps) {
   const { styles } = useStyles();
   const [open, setOpen] = useState(false);
   const definition = entityPreviewRegistry[type];

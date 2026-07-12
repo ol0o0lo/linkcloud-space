@@ -1,5 +1,5 @@
 import { Alert } from 'antd';
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 
 interface EntityPreviewBoundaryProps {
   children: ReactNode;
@@ -9,14 +9,15 @@ interface EntityPreviewBoundaryState {
   hasError: boolean;
 }
 
-export class EntityPreviewBoundary extends Component<EntityPreviewBoundaryProps, EntityPreviewBoundaryState> {
+export class EntityPreviewBoundary extends Component<
+  EntityPreviewBoundaryProps,
+  EntityPreviewBoundaryState
+> {
   state: EntityPreviewBoundaryState = { hasError: false };
 
   static getDerivedStateFromError(): EntityPreviewBoundaryState {
     return { hasError: true };
   }
-
-  componentDidCatch(_error: Error, _info: ErrorInfo) {}
 
   render() {
     if (this.state.hasError) {

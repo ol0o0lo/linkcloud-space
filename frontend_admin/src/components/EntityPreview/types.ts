@@ -1,6 +1,12 @@
 import type { ComponentType, LazyExoticComponent, ReactNode } from 'react';
 
-export type EntityPreviewType = 'house' | 'estate' | 'building' | 'contact' | 'lease' | 'viewing';
+export type EntityPreviewType =
+  | 'house'
+  | 'estate'
+  | 'building'
+  | 'contact'
+  | 'lease'
+  | 'viewing';
 
 export type EntityPreviewId = number;
 
@@ -23,4 +29,6 @@ export interface EntityPreviewDefinition {
   getHref: (id: EntityPreviewId) => string;
 }
 
-export type EntityPreviewRegistry = Partial<Record<EntityPreviewType, EntityPreviewDefinition>>;
+export type EntityPreviewRegistry = Partial<
+  Record<EntityPreviewType, EntityPreviewDefinition>
+>;
