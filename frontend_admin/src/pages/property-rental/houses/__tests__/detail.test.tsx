@@ -394,7 +394,7 @@ describe('House detail page', () => {
     expect((await screen.findAllByText(/王租客/)).length).toBeGreaterThan(0);
     expect(document.querySelector('[data-preview="viewing"][data-id="1"]')).toBeInTheDocument();
     expect(document.querySelector('[data-preview="contact"][data-id="6"]')).toBeInTheDocument();
-    expect(document.querySelector('[data-preview="lease"][data-id="2"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-preview="lease"][data-id="2"]')).toHaveTextContent('租约 #2 · 0 份');
     expect(
       screen
         .getAllByRole('link', { name: '查看租约' })
@@ -516,7 +516,7 @@ describe('House detail page', () => {
     expect((await screen.findAllByText(/王租客/)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('生效中')).length).toBeGreaterThan(0);
     expect(screen.queryByText('合同已归档')).not.toBeInTheDocument();
-    expect(screen.getByText('1 份')).toBeInTheDocument();
+    expect(screen.getByText('租约 #2 · 1 份')).toBeInTheDocument();
   });
 
   it('splits media management into image and video sections', async () => {

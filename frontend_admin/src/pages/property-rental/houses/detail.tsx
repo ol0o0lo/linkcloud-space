@@ -492,7 +492,7 @@ const HouseDetailPage: React.FC = () => {
                     dataIndex: 'contract_files',
                     render: (value, record) => (
                       <Space size={8}>
-                        <LeasePreview id={record.id}><span>{`${value?.length || 0} 份`}</span></LeasePreview>
+                        <LeasePreview id={record.id}><span>{`租约 #${record.id} · ${value?.length || 0} 份`}</span></LeasePreview>
                         {!value?.length ? (
                           <Tag color="orange">待补合同</Tag>
                         ) : null}
