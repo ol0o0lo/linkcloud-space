@@ -39,7 +39,6 @@ import {
   useEnums,
 } from '@/services/manual/enums';
 import { type ContactOut, houseApi } from '@/services/manual/house';
-import { CONTACT_ROLE } from '../constants';
 import {
   getLoadingAwareEmptyState,
   isInitialQueryPending,
@@ -68,24 +67,6 @@ function syncContactDrawerSearch(drawerState: ContactDrawerState) {
   if (nextUrl !== currentUrl) {
     window.history.replaceState(window.history.state, '', nextUrl);
   }
-}
-
-function hasRole(record: ContactOut, role: string) {
-  return record.roles?.includes(role);
-}
-
-function hasMissingRole(record: ContactOut) {
-  return !record.roles?.length;
-}
-
-function getContactStageText(record: ContactOut) {
-  if (hasMissingRole(record)) return '待补角色';
-  const isLandlord = hasRole(record, CONTACT_ROLE.LANDLORD);
-  const isTenant = hasRole(record, CONTACT_ROLE.TENANT);
-  if (isLandlord && isTenant) return '双向协同';
-  if (isLandlord) return '房东资源';
-  if (isTenant) return '租客线索';
-  return '待补角色';
 }
 
 function getContactBusinessInfo(record: ContactOut) {
@@ -338,14 +319,6 @@ const ContactsPage: React.FC = () => {
         (record.roles || []).map((role: string, index: number) => (
           <Tag key={role}>{record.roles__mapping?.[index] || roleLabel(role)}</Tag>
         )),
-    },
-    {
-      title: '业务阶段',
-      dataIndex: 'stage',
-      width: 140,
-      render: (_value, record) => (
-        <Typography.Text>{getContactStageText(record)}</Typography.Text>
-      ),
     },
     {
       title: '状态',

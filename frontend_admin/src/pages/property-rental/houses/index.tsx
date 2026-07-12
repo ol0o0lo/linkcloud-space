@@ -230,6 +230,17 @@ const HousesPage: React.FC = () => {
         <ContactPreview id={record.landlord_id}>{record.landlord_id ? contactLabel(record) : '待补房东'}</ContactPreview>,
     },
     {
+      title: '所属楼栋',
+      dataIndex: 'building',
+      search: false,
+      width: 160,
+      render: (_value, record) => (
+        <BuildingPreview id={record.building_id}>
+          {record.building?.name || `楼栋 #${record.building_id}`}
+        </BuildingPreview>
+      ),
+    },
+    {
       title: '挂牌租金',
       dataIndex: 'asking_rent',
       search: false,

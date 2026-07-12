@@ -29,6 +29,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import {
   EntityPreviewDetailDrawer,
+  LeasePreview,
   ViewingPreview,
 } from '@/components/EntityPreview';
 import {
@@ -622,14 +623,25 @@ const ViewingsPage: React.FC = () => {
               编辑
             </Button>
             {record.signed_lease_id ? (
-              <Button type="link" size="small" disabled>
-                签约
-              </Button>
+              <LeasePreview id={record.signed_lease_id}>查看租约</LeasePreview>
             ) : canCreateLease(record) ? (
               <Button type="link" size="small" href={leaseCreatePath(record)}>
                 签约
               </Button>
-            ) : null}
+            ) : (
+              <Button
+                type="link"
+                size="small"
+                disabled
+                title={
+                  record.status === VIEWING_STATUS.CONVERTED
+                    ? '请先补齐租客联系人'
+                    : '带看成交后才可签约'
+                }
+              >
+                签约
+              </Button>
+            )}
             <Dropdown
               menu={{
                 items: VIEWING_MORE_ACTIONS,

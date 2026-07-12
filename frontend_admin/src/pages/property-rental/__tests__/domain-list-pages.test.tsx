@@ -839,7 +839,7 @@ describe('Property rental domain list pages', () => {
 
     expect(await screen.findByRole('columnheader', { name: '主体信息' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '角色' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '业务阶段' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: '业务阶段' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '状态' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '操作' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '邮箱' })).not.toBeInTheDocument();
@@ -1438,9 +1438,10 @@ describe('Property rental domain list pages', () => {
     renderPage(<HousesPage />);
 
     expect(await screen.findByText('房源列表')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '所属楼栋' })).toBeInTheDocument();
     await screen.findByText('星河湾花园');
     expect(document.querySelector('[data-preview="estate"][data-id="1"]')).toHaveTextContent('星河湾花园');
-    expect(document.querySelector('[data-preview="building"][data-id="2"]')).toHaveTextContent('1 栋');
+    expect(document.querySelectorAll('[data-preview="building"][data-id="2"]')).toHaveLength(2);
     expect(document.querySelector('[data-preview="house"][data-id="99"]')).toBeInTheDocument();
     expect(document.querySelector('[data-preview="contact"][data-id="3"]')).toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
@@ -1836,7 +1837,8 @@ describe('Property rental domain list pages', () => {
     expect(row).toHaveTextContent(/未绑定租客/);
     expect(within(row).queryByRole('button', { name: '补租客' })).not.toBeInTheDocument();
     expect(within(row).getByRole('button', { name: '更多操作' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: '签约' })).not.toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: '签约' })).toBeDisabled();
+    expect(within(row).getByRole('button', { name: '签约' })).toHaveAttribute('title', '请先补齐租客联系人');
   });
 
   it('opens edit drawer with a warning when fixing converted viewings without linked contacts', async () => {
@@ -1857,7 +1859,7 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByLabelText('关联联系人')).toBeInTheDocument();
   });
 
-  it('disables sign action after a converted viewing already has a lease', async () => {
+  it('shows the existing lease after a converted viewing has signed', async () => {
     mockListViewings.mockResolvedValue({
       items: [viewingItem({ contact_id: 6, contact: defaultTenant, status: 'converted', signed_lease_id: 10 })],
       total: 1,
@@ -1868,10 +1870,25 @@ describe('Property rental domain list pages', () => {
     renderPage(<ViewingsPage />);
 
     const row = (await screen.findByText(/李客户/)).closest('tr') as HTMLElement;
-    expect(within(row).queryByRole('link', { name: '查看租约' })).not.toBeInTheDocument();
+    expect(within(row).getByText('查看租约').closest('[data-preview="lease"]')).toHaveAttribute('data-id', '10');
     expect(within(row).getByRole('button', { name: '编辑' })).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: '签约' })).not.toBeInTheDocument();
+    expect((row.textContent || '').indexOf('编辑')).toBeLessThan((row.textContent || '').indexOf('查看租约'));
+  });
+
+  it('keeps sign action visible but disabled before a viewing is converted', async () => {
+    mockListViewings.mockResolvedValue({
+      items: [viewingItem({ status: 'scheduled', signed_lease_id: null })],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+
+    renderPage(<ViewingsPage />);
+
+    const row = (await screen.findByText(/李客户/)).closest('tr') as HTMLElement;
     expect(within(row).getByRole('button', { name: '签约' })).toBeDisabled();
-    expect((row.textContent || '').indexOf('编辑')).toBeLessThan((row.textContent || '').indexOf('签约'));
+    expect(within(row).getByRole('button', { name: '签约' })).toHaveAttribute('title', '带看成交后才可签约');
   });
 
   it('filters pending lease viewings from URL', async () => {
