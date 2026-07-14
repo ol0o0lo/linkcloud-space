@@ -1,5 +1,7 @@
+import { AimOutlined } from '@ant-design/icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Spin } from 'antd';
+import { Link } from '@umijs/max';
+import { Alert, Button, Card, Empty, Spin } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TenantSelectionGuard,
@@ -22,6 +24,7 @@ const CHINA_CENTER: [number, number] = [104.1954, 35.8617];
 const VIEWPORT_DEBOUNCE_MS = 500;
 const VIEWPORT_MAX_WAIT_MS = 1500;
 const EMPTY_MARKERS: BuildingMapMarkerOut[] = [];
+const RESULT_PANEL_COLLAPSED_KEY = 'property-rental-map:result-panel-collapsed';
 
 type MapBounds = { west: number; south: number; east: number; north: number };
 
@@ -68,9 +71,13 @@ const PropertyRentalMapPage: React.FC = () => {
   >(initialState.current.selectedBuildingId);
   const [bounds, setBounds] = useState<MapBounds>();
   const [viewport, setViewport] = useState(initialState.current.viewport);
+  const [resultPanelCollapsed, setResultPanelCollapsed] = useState(
+    () => window.localStorage.getItem(RESULT_PANEL_COLLAPSED_KEY) === 'true',
+  );
   const mapNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const clusterRef = useRef<any>(null);
+  const markerInstancesRef = useRef<any[]>([]);
   const debounceRef = useRef<number | undefined>(undefined);
   const maxWaitRef = useRef<number | undefined>(undefined);
   const pendingBoundsRef = useRef<MapBounds | undefined>(undefined);
@@ -322,9 +329,14 @@ const PropertyRentalMapPage: React.FC = () => {
         ),
         zIndex: selected ? 120 : 100,
       });
-      marker.on('click', () => setSelectedBuildingId(item.id));
+      marker.on('click', () => {
+        setSelectedBuildingId(item.id);
+        userMovedRef.current = true;
+        mapRef.current?.panTo([Number(item.lng), Number(item.lat)]);
+      });
       return marker;
     });
+    markerInstancesRef.current = instances;
     if (AMap.MarkerClusterer)
       clusterRef.current = new AMap.MarkerClusterer(mapRef.current, instances);
     else mapRef.current.add(instances);
@@ -372,6 +384,26 @@ const PropertyRentalMapPage: React.FC = () => {
     setSelectedBuildingId(building.id);
     moveMapTo(Number(building.lng), Number(building.lat));
   };
+
+  const fitLocatedBuildings = () => {
+    if (!mapRef.current || !markerInstancesRef.current.length) return;
+    userMovedRef.current = true;
+    fittedInitialMarkersRef.current = true;
+    mapRef.current.setFitView(markerInstancesRef.current);
+  };
+
+  const toggleResultPanel = () => {
+    setResultPanelCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(RESULT_PANEL_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => mapRef.current?.resize());
+    return () => window.cancelAnimationFrame(frame);
+  }, [resultPanelCollapsed]);
 
   useEffect(() => {
     if (
@@ -439,6 +471,7 @@ const PropertyRentalMapPage: React.FC = () => {
             located={locatedItems}
             unlocated={unlocatedItems}
             unlocatedTotal={unlocated.data?.total || 0}
+            collapsed={resultPanelCollapsed}
             selectedId={selectedBuildingId}
             loading={markers.isLoading || unlocated.isLoading}
             locatedError={markers.isError}
@@ -446,6 +479,9 @@ const PropertyRentalMapPage: React.FC = () => {
             returnTo={returnTo}
             pendingListHref={pendingListHref}
             onSelect={selectBuilding}
+            onToggleCollapsed={toggleResultPanel}
+            onRetryLocated={() => markers.refetch()}
+            onRetryUnlocated={() => unlocated.refetch()}
           />
           <Card
             size="small"
@@ -467,7 +503,42 @@ const PropertyRentalMapPage: React.FC = () => {
             ) : (
               <div ref={mapNode} style={{ position: 'absolute', inset: 0 }} />
             )}
-            {mapLoading ? (
+            {!mapError && locatedItems.length ? (
+              <Button
+                icon={<AimOutlined />}
+                onClick={fitLocatedBuildings}
+                style={{ position: 'absolute', top: 12, right: 12, zIndex: 3 }}
+              >
+                适配当前结果
+              </Button>
+            ) : null}
+            {!mapError && !markers.isLoading && !locatedItems.length ? (
+              <Card
+                size="small"
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  zIndex: 2,
+                  width: 300,
+                  transform: 'translate(-50%, -50%)',
+                  textAlign: 'center',
+                }}
+              >
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    unlocated.data?.total
+                      ? `当前条件暂无已定位楼栋，另有 ${unlocated.data.total} 栋待定位`
+                      : '当前条件暂无楼栋'
+                  }
+                />
+                {unlocated.data?.total ? (
+                  <Link to={pendingListHref}>处理待定位楼栋</Link>
+                ) : null}
+              </Card>
+            ) : null}
+            {mapLoading || markers.isLoading ? (
               <Spin
                 size="large"
                 style={{
@@ -488,6 +559,7 @@ const PropertyRentalMapPage: React.FC = () => {
         detail={detail.data}
         returnTo={returnTo}
         onClose={() => setSelectedBuildingId(undefined)}
+        onRetry={() => detail.refetch()}
       />
     </TenantSelectionGuard>
   );

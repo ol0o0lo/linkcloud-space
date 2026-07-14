@@ -1,4 +1,9 @@
-import { EnvironmentOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  EnvironmentOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
 import { Link } from '@umijs/max';
 import {
   Alert,
@@ -121,12 +126,9 @@ export function MapToolbar({
           </Button>
         ) : null}
         <Space size={16} style={{ marginLeft: 'auto' }}>
-          <Typography.Text type="secondary">当前地图</Typography.Text>
+          <Typography.Text type="secondary">当前视野</Typography.Text>
           <Typography.Text type="secondary">
-            已定位 <Typography.Text strong>{counts.located}</Typography.Text>
-          </Typography.Text>
-          <Typography.Text type="secondary">
-            待定位 <Typography.Text strong>{counts.unlocated}</Typography.Text>
+            楼栋 <Typography.Text strong>{counts.located}</Typography.Text>
           </Typography.Text>
           <Typography.Text type="secondary">
             房源 <Typography.Text strong>{counts.total}</Typography.Text>
@@ -136,6 +138,10 @@ export function MapToolbar({
           </Typography.Text>
           <Typography.Text type="secondary">
             已租 <Typography.Text strong>{counts.rented}</Typography.Text>
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            待定位任务{' '}
+            <Typography.Text strong>{counts.unlocated}</Typography.Text>
           </Typography.Text>
           {updating ? (
             <Tag icon={<ReloadOutlined spin />} color="processing">
@@ -162,6 +168,7 @@ export function BuildingResultPanel({
   located,
   unlocated,
   unlocatedTotal,
+  collapsed,
   selectedId,
   loading,
   locatedError,
@@ -169,10 +176,14 @@ export function BuildingResultPanel({
   returnTo,
   pendingListHref,
   onSelect,
+  onToggleCollapsed,
+  onRetryLocated,
+  onRetryUnlocated,
 }: {
   located: BuildingMapMarkerOut[];
   unlocated: BuildingMapUnlocatedOut[];
   unlocatedTotal: number;
+  collapsed: boolean;
   selectedId?: number;
   loading: boolean;
   locatedError: boolean;
@@ -180,6 +191,9 @@ export function BuildingResultPanel({
   returnTo: string;
   pendingListHref: string;
   onSelect: (building: BuildingMapMarkerOut) => void;
+  onToggleCollapsed: () => void;
+  onRetryLocated: () => void;
+  onRetryUnlocated: () => void;
 }) {
   useEffect(() => {
     if (selectedId)
@@ -187,20 +201,70 @@ export function BuildingResultPanel({
         .getElementById(`building-map-result-${selectedId}`)
         ?.scrollIntoView({ block: 'nearest' });
   }, [selectedId]);
+  if (collapsed) {
+    return (
+      <Card
+        size="small"
+        styles={{ body: { padding: 7 } }}
+        style={{ width: 48, flex: '0 0 48px', height: '100%' }}
+      >
+        <Button
+          type="text"
+          icon={<MenuUnfoldOutlined />}
+          aria-label="展开楼栋结果"
+          title="展开楼栋结果"
+          onClick={onToggleCollapsed}
+        />
+        {unlocatedTotal ? (
+          <Badge
+            count={unlocatedTotal}
+            overflowCount={99}
+            color="#faad14"
+            title={`待定位楼栋 ${unlocatedTotal}`}
+            style={{ marginTop: 12 }}
+          />
+        ) : null}
+        <Typography.Text
+          type="secondary"
+          style={{ display: 'block', marginTop: 8, textAlign: 'center' }}
+        >
+          {located.length}
+        </Typography.Text>
+      </Card>
+    );
+  }
   return (
     <Card
       size="small"
       title={`楼栋结果 ${located.length}`}
+      extra={
+        <Button
+          type="text"
+          icon={<MenuFoldOutlined />}
+          aria-label="收起楼栋结果"
+          title="收起楼栋结果"
+          onClick={onToggleCollapsed}
+        />
+      }
       styles={{
         body: { padding: 0, height: 'calc(100% - 46px)', overflow: 'auto' },
       }}
-      style={{ width: 390, flex: '0 0 390px', height: '100%' }}
+      style={{
+        width: 'clamp(320px, 28vw, 390px)',
+        flex: '0 0 clamp(320px, 28vw, 390px)',
+        height: '100%',
+      }}
     >
       {unlocatedError ? (
         <Alert
           type="error"
           title="待定位任务加载失败"
           showIcon
+          action={
+            <Button size="small" onClick={onRetryUnlocated}>
+              重新加载
+            </Button>
+          }
           style={{ margin: 12 }}
         />
       ) : null}
@@ -249,6 +313,11 @@ export function BuildingResultPanel({
           type="error"
           title="楼栋结果加载失败"
           showIcon
+          action={
+            <Button size="small" onClick={onRetryLocated}>
+              重新加载
+            </Button>
+          }
           style={{ margin: 12 }}
         />
       ) : null}
@@ -266,7 +335,15 @@ export function BuildingResultPanel({
         renderItem={(item) => (
           <List.Item
             id={`building-map-result-${item.id}`}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(item)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onSelect(item);
+              }
+            }}
             style={{
               padding: 12,
               cursor: 'pointer',
@@ -318,6 +395,7 @@ export function BuildingDetailDrawer({
   detail,
   returnTo,
   onClose,
+  onRetry,
 }: {
   open: boolean;
   loading: boolean;
@@ -325,6 +403,7 @@ export function BuildingDetailDrawer({
   detail?: BuildingMapDetailOut;
   returnTo: string;
   onClose: () => void;
+  onRetry: () => void;
 }) {
   return (
     <Drawer
@@ -353,7 +432,18 @@ export function BuildingDetailDrawer({
         ) : null
       }
     >
-      {error ? <Alert type="error" title="楼栋详情加载失败" showIcon /> : null}
+      {error ? (
+        <Alert
+          type="error"
+          title="楼栋详情加载失败"
+          showIcon
+          action={
+            <Button size="small" onClick={onRetry}>
+              重新加载
+            </Button>
+          }
+        />
+      ) : null}
       {detail ? (
         <>
           <Typography.Paragraph type="secondary">
