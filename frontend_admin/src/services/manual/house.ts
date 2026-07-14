@@ -33,6 +33,7 @@ import {
   appsHouseApiPatchViewingRecord,
   appsHouseApiPutDefaultBuilding,
 } from '@/services/openapi/propertyRentalManagement';
+import { request } from '@umijs/max';
 
 export type PageResult<T> = {
   items: T[];
@@ -47,6 +48,14 @@ export type EstateOut = API.EstateOut & {
 export type BuildingOut = API.BuildingOut;
 export type BuildingMapMarkerOut = API.BuildingMapMarkerOut;
 export type BuildingMapDetailOut = API.BuildingMapDetailOut;
+export type BuildingMapUnlocatedOut = {
+  id: number;
+  estate: API.EstateSummaryOut | null;
+  name: string;
+  address: string;
+  is_active: boolean;
+  counts: API.BuildingMapCountsOut;
+};
 export type DefaultBuildingOut = API.DefaultBuildingOut;
 export type DeleteCheckOut = API.DeleteCheckOut;
 export type ContactOut = API.ContactOut & {
@@ -93,6 +102,8 @@ export const houseApi = {
     appsHouseApiListBuildingMap((params ?? {}) as API.appsHouseApiListBuildingMapParams) as Promise<PageResult<BuildingMapMarkerOut>>,
   getBuildingMapDetail: (buildingId: number) => appsHouseApiGetBuildingMapDetail({ building_id: buildingId }) as Promise<BuildingMapDetailOut>,
   getBuildingMapUnlocatedCount: () => appsHouseApiGetBuildingMapUnlocatedCount() as Promise<API.BuildingMapUnlocatedCountOut>,
+  listBuildingMapUnlocated: (params?: QueryParams) =>
+    request<PageResult<BuildingMapUnlocatedOut>>('/api/house/building-map-unlocated/', { method: 'GET', params: params ?? {} }),
 
   listContacts: (params?: QueryParams) =>
     appsHouseApiListContacts((params ?? {}) as API.appsHouseApiListContactsParams) as Promise<PageResult<ContactOut>>,

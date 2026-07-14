@@ -2,6 +2,7 @@ import { BankOutlined, ClusterOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { history } from '@umijs/max';
 import { Avatar, Button, Card, Drawer, Empty, Form, Input, message, Segmented, Select, Space, Switch, Tag, Typography } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -31,6 +32,11 @@ type EstateDrawerState = {
 
 function getPositiveId(value: string | null) {
   return value && /^[1-9]\d*$/.test(value) ? Number(value) : undefined;
+}
+
+function getMapReturnTo() {
+  const value = new URLSearchParams(window.location.search).get('return_to');
+  return value === '/dashboard/property-rental/map' || value?.startsWith('/dashboard/property-rental/map?') ? value : undefined;
 }
 
 function getEstateBuildings(buildings: BuildingOut[], estateId: number) {
@@ -251,7 +257,7 @@ const EstatesPage: React.FC = () => {
       const payload = { ...values, estate_id: values.estate_id ?? null, floors: Number(values.floors) };
       return editingBuilding ? houseApi.patchBuilding(editingBuilding.id, payload) : houseApi.createBuilding(payload);
     },
-    onSuccess: async () => {
+    onSuccess: async (building) => {
       message.success(editingBuilding ? '楼栋已更新' : '楼栋已创建');
       setBuildingOpen(false);
       setEditingBuilding(null);
@@ -259,6 +265,12 @@ const EstatesPage: React.FC = () => {
       setDrawerState((current) => ({ ...current, buildingEditId: undefined, buildingCreateEstateId: undefined }));
       syncEstateDrawerSearch({ ...drawerState, buildingEditId: undefined, buildingCreateEstateId: undefined });
       await queryClient.invalidateQueries({ queryKey: ['house', 'buildings'] });
+      const returnTo = getMapReturnTo();
+      if (returnTo) {
+        const target = new URL(returnTo, window.location.origin);
+        target.searchParams.set('selected_building_id', String(building.id));
+        history.push(`${target.pathname.replace(/^\/dashboard/, '')}${target.search}`);
+      }
     },
   });
 

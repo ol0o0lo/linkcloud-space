@@ -456,6 +456,7 @@ describe('Property rental domain list pages', () => {
     fireEvent.click(within(estateRow as HTMLTableRowElement).getByRole('button', { name: '新建楼栋' }));
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
+    fireEvent.change(screen.getByLabelText('地址'), { target: { value: '科技路 2 栋' } });
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
 
     await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalledWith(expect.objectContaining({
