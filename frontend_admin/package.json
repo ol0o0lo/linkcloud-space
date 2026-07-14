@@ -13,7 +13,7 @@
     "lint-staged": "lint-staged",
     "biome:lint": "biome lint",
     "biome": "biome check --write",
-    "openapi": "node scripts/prepare-openapi-codegen.js --run-max-openapi",
+    "openapi": "cross-env OPENAPI_CODEGEN=true node scripts/prepare-openapi-codegen.js --run-max-openapi",
     "prepare": "npx husky && max setup",
     "preview": "max preview --port 8000",
     "preview:build": "max build && max preview --port 8000",

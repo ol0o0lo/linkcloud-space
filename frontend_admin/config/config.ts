@@ -197,28 +197,35 @@ export default defineConfig({
   ],
 
   //================ pro 插件配置 =================
-  plugins: ['@umijs/max-plugin-openapi', '@umijs/request-record'],
-
-  /**
-   * @name openAPI 插件的配置
-   * @description 基于 openapi 的规范生成serve 和mock，能减少很多样板代码
-   * @doc https://pro.ant.design/zh-cn/docs/openapi/
-   */
-  openAPI: [
-    {
-      projectName: 'openapi',
-      requestLibPath: "import { request } from '@umijs/max'",
-      schemaPath: process.env.OPENAPI_SCHEMA_PATH || 'http://localhost:18000/api/openapi.json',
-      mock: false,
-    },
-    {
-      projectName: 'allauth',
-      requestLibPath: "import { request } from '@umijs/max'",
-      schemaPath: process.env.ALLAUTH_OPENAPI_SCHEMA_PATH || 'http://127.0.0.1:4523/export/openapi/2?version=3.0',
-      namespace: 'AllauthAPI',
-      mock: false,
-    },
+  plugins: [
+    '@umijs/request-record',
+    ...(process.env.OPENAPI_CODEGEN === 'true' ? ['@umijs/max-plugin-openapi'] : []),
   ],
+
+  ...(process.env.OPENAPI_CODEGEN === 'true'
+    ? {
+        /**
+         * @name openAPI 插件的配置
+         * @description 基于 openapi 的规范生成serve 和mock，能减少很多样板代码
+         * @doc https://pro.ant.design/zh-cn/docs/openapi/
+         */
+        openAPI: [
+          {
+            projectName: 'openapi',
+            requestLibPath: "import { request } from '@umijs/max'",
+            schemaPath: process.env.OPENAPI_SCHEMA_PATH || 'http://localhost:18000/api/openapi.json',
+            mock: false,
+          },
+          {
+            projectName: 'allauth',
+            requestLibPath: "import { request } from '@umijs/max'",
+            schemaPath: process.env.ALLAUTH_OPENAPI_SCHEMA_PATH || 'http://127.0.0.1:4523/export/openapi/2?version=3.0',
+            namespace: 'AllauthAPI',
+            mock: false,
+          },
+        ],
+      }
+    : {}),
 
   mock: {
     include: ['src/pages/**/_mock.ts'],
