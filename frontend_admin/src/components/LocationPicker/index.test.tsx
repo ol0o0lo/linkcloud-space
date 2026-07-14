@@ -1,12 +1,18 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocationPicker } from './index';
 
+const { mockUseAmap } = vi.hoisted(() => ({ mockUseAmap: vi.fn() }));
+
 vi.mock('@/services/manual/amap', () => ({
-  useAmap: () => ({ AMap: null, loading: false, error: null, reload: vi.fn() }),
+  useAmap: mockUseAmap,
 }));
 
 describe('LocationPicker', () => {
+  beforeEach(() => {
+    mockUseAmap.mockReturnValue({ AMap: null, loading: false, error: null, reload: vi.fn() });
+  });
+
   it('仅在确认草稿位置后回填表单值', async () => {
     const onChange = vi.fn();
     render(
@@ -42,5 +48,20 @@ describe('LocationPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: '项目位置' }));
     fireEvent.click(screen.getByRole('button', { name: '清除定位' }));
     expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it('弹窗完全打开后初始化并调整地图尺寸', async () => {
+    const map = { on: vi.fn(), resize: vi.fn(), destroy: vi.fn() };
+    const AMap = {
+      Map: vi.fn(function MapMock() { return map; }),
+      Geocoder: vi.fn(function GeocoderMock() {}),
+    };
+    mockUseAmap.mockReturnValue({ AMap, loading: false, error: null, reload: vi.fn() });
+    render(<LocationPicker ariaLabel="楼栋位置" value={null} fallbackLocation={{ address: '科技园路 1 号', lat: 22.54, lng: 113.93 }} onChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '楼栋位置' }));
+
+    await waitFor(() => expect(AMap.Map).toHaveBeenCalledOnce());
+    await waitFor(() => expect(map.resize).toHaveBeenCalledOnce());
   });
 });

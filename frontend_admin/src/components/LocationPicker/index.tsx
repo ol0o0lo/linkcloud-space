@@ -39,24 +39,34 @@ export function LocationPicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const geocoderRef = useRef<any>(null);
+  const draftRef = useRef<LocationValue | null>(null);
+
+  const updateDraft = (next: LocationValue) => {
+    draftRef.current = next;
+    setDraft(next);
+  };
 
   const reverseGeocode = (next: LocationValue) => {
     if (!geocoderRef.current) {
-      setDraft(next);
+      updateDraft(next);
       return;
     }
     geocoderRef.current.getAddress([next.lng, next.lat], (status: string, result: any) => {
       const address = status === 'complete' ? result?.regeocode?.formattedAddress || next.address : next.address;
-      setDraft({ ...next, address });
+      updateDraft({ ...next, address });
     });
   };
 
   const requestBrowserLocation = () => {
     navigator.geolocation?.getCurrentPosition(
-      (position) => reverseGeocode({ address: '', lat: position.coords.latitude, lng: position.coords.longitude }),
+      (position) => {
+        const next = { address: '', lat: position.coords.latitude, lng: position.coords.longitude };
+        mapRef.current?.setZoomAndCenter(16, [next.lng, next.lat]);
+        reverseGeocode(next);
+      },
       () => {
         message.warning('未获取当前位置，已显示中国范围。');
-        setDraft(CHINA_LOCATION);
+        updateDraft(CHINA_LOCATION);
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
     );
@@ -64,30 +74,41 @@ export function LocationPicker({
 
   const show = () => {
     const initial = toLocation(value) || toLocation(fallbackLocation);
-    setDraft(initial || CHINA_LOCATION);
+    updateDraft(initial || CHINA_LOCATION);
     setOpen(true);
     if (!initial) requestBrowserLocation();
   };
 
   useEffect(() => {
-    if (!open || !AMap || !containerRef.current || mapRef.current || !draft) return;
-    const map = new AMap.Map(containerRef.current, {
-      zoom: draft === CHINA_LOCATION ? 4 : 16,
-      center: [draft.lng, draft.lat],
-    });
-    mapRef.current = map;
-    geocoderRef.current = new AMap.Geocoder();
-    map.on('click', (event: any) => reverseGeocode({ address: '', lat: event.lnglat.lat, lng: event.lnglat.lng }));
-    map.on('dragend', () => {
-      const center = map.getCenter();
-      reverseGeocode({ address: '', lat: center.lat, lng: center.lng });
+    if (!open || !AMap || !draft) return;
+    let map: any = null;
+    let initializeFrame = 0;
+    const mountFrame = window.requestAnimationFrame(() => {
+      initializeFrame = window.requestAnimationFrame(() => {
+        const initial = draftRef.current;
+        if (!containerRef.current || mapRef.current || !initial) return;
+        map = new AMap.Map(containerRef.current, {
+          zoom: initial === CHINA_LOCATION ? 4 : 16,
+          center: [initial.lng, initial.lat],
+        });
+        mapRef.current = map;
+        geocoderRef.current = new AMap.Geocoder();
+        map.on('click', (event: any) => reverseGeocode({ address: '', lat: event.lnglat.lat, lng: event.lnglat.lng }));
+        map.on('dragend', () => {
+          const center = map.getCenter();
+          reverseGeocode({ address: '', lat: center.lat, lng: center.lng });
+        });
+        map.resize();
+      });
     });
     return () => {
-      map.destroy();
+      window.cancelAnimationFrame(mountFrame);
+      window.cancelAnimationFrame(initializeFrame);
+      map?.destroy();
       mapRef.current = null;
       geocoderRef.current = null;
     };
-  }, [AMap, open, draft?.lat, draft?.lng]);
+  }, [AMap, open]);
 
   const search = () => {
     if (!AMap || !searchText.trim()) return;
@@ -99,7 +120,7 @@ export function LocationPicker({
         return;
       }
       mapRef.current?.setZoomAndCenter(16, poi.location);
-      setDraft({ address: poi.address || poi.name || '', lat: poi.location.lat, lng: poi.location.lng });
+      updateDraft({ address: poi.address || poi.name || '', lat: poi.location.lat, lng: poi.location.lng });
     });
   };
 
@@ -133,7 +154,7 @@ export function LocationPicker({
               <Button onClick={search}>搜索</Button>
               <Button onClick={requestBrowserLocation}>定位到当前位置</Button>
             </Space.Compact>
-            <div ref={containerRef} style={{ height: 380, background: '#f5f5f5' }} />
+            <div ref={containerRef} style={{ width: '100%', height: 380, background: '#f5f5f5' }} />
             {loading && <Spin description="正在加载地图" />}
             <Typography.Text type={draft?.address ? undefined : 'secondary'}>
               {draft?.address || '未获取标准地址'} {draft ? `（${draft.lat.toFixed(6)}, ${draft.lng.toFixed(6)}）` : ''}
