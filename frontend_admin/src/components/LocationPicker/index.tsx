@@ -116,7 +116,7 @@ export function LocationPicker({
         onCancel={() => setOpen(false)}
         footer={
           <Space>
-            {allowClear && <Button onClick={() => { onChange(null); setOpen(false); }}>清除定位</Button>}
+            {allowClear && value && <Button onClick={() => { onChange(null); setOpen(false); }}>清除定位</Button>}
             <Button onClick={() => setOpen(false)}>取消</Button>
             <Button type="primary" disabled={!isLocation(draft)} onClick={() => { if (draft) onChange(draft); setOpen(false); }}>
               确定位置

@@ -10,6 +10,7 @@ import ViewingsPage from '../viewings';
 
 const {
   mockCreateBuilding,
+  mockCreateEstate,
   mockCreateContact,
   mockCreateLease,
   mockCreateViewingRecord,
@@ -24,12 +25,15 @@ const {
   mockListLeases,
   mockListViewings,
   mockPatchContact,
+  mockPatchBuilding,
+  mockPatchEstate,
   mockPatchHouse,
   mockPatchLease,
   mockPatchViewingRecord,
   mockUseTenantWorkspace,
 } = vi.hoisted(() => ({
   mockCreateBuilding: vi.fn(),
+  mockCreateEstate: vi.fn(),
   mockCreateContact: vi.fn(),
   mockCreateLease: vi.fn(),
   mockCreateViewingRecord: vi.fn(),
@@ -44,6 +48,8 @@ const {
   mockListViewings: vi.fn(),
   mockListLeases: vi.fn(),
   mockPatchContact: vi.fn(),
+  mockPatchBuilding: vi.fn(),
+  mockPatchEstate: vi.fn(),
   mockPatchHouse: vi.fn(),
   mockPatchLease: vi.fn(),
   mockPatchViewingRecord: vi.fn(),
@@ -180,9 +186,17 @@ vi.mock('@/components/EntityPreview', () => {
   };
 });
 
+vi.mock('@/components/LocationPicker', () => ({
+  LocationPicker: ({ ariaLabel, onChange, allowClear }: { ariaLabel: string; onChange: (value: unknown) => void; allowClear?: boolean }) => <span>
+    <button type="button" onClick={() => onChange({ address: `${ariaLabel}地图地址`, lat: 22.54321, lng: 113.98765 })}>{ariaLabel}</button>
+    {allowClear ? <button type="button" onClick={() => onChange(null)}>{`清除${ariaLabel}`}</button> : null}
+  </span>,
+}));
+
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
     createBuilding: mockCreateBuilding,
+    createEstate: mockCreateEstate,
     createContact: mockCreateContact,
     createLease: mockCreateLease,
     createViewingRecord: mockCreateViewingRecord,
@@ -196,6 +210,8 @@ vi.mock('@/services/manual/house', () => ({
     listViewingRecords: mockListViewings,
     listLeases: mockListLeases,
     patchContact: mockPatchContact,
+    patchBuilding: mockPatchBuilding,
+    patchEstate: mockPatchEstate,
     patchHouse: mockPatchHouse,
     patchLease: mockPatchLease,
     patchViewingRecord: mockPatchViewingRecord,
@@ -326,6 +342,7 @@ describe('Property rental domain list pages', () => {
     mockListViewings.mockResolvedValue({ items: [viewingItem()], total: 1, page: 1, page_size: 100 });
     mockListLeases.mockResolvedValue({ items: [leaseItem()], total: 1, page: 1, page_size: 100 });
     mockCreateBuilding.mockResolvedValue({ id: 7, estate_id: 1, name: '2 栋', floors: 28, elevator: false, address: '' });
+    mockCreateEstate.mockResolvedValue({ id: 9, name: '新项目', display_name: '新项目' });
     mockCreateContact.mockResolvedValue({ id: 8, name: '王租客', phone: '13700000000', roles: ['tenant'] });
     mockCreateLease.mockResolvedValue({ id: 10, house_id: 99, tenant_id: 6, status: 'pending' });
     mockCreateViewingRecord.mockResolvedValue({ id: 9, house_id: 99, customer_name: '赵客户', customer_phone: '13600000000', scheduled_at: '2026-07-02T10:00:00+08:00', status: 'scheduled' });
@@ -333,6 +350,8 @@ describe('Property rental domain list pages', () => {
     mockGetContact.mockResolvedValue({ id: 3, name: '张房东', phone: '13800000000', email: 'landlord@example.com', roles: ['landlord'], is_active: true });
     mockGetLease.mockResolvedValue(leaseItem());
     mockPatchContact.mockResolvedValue({ id: 3, name: '张房东', phone: '13800000000', roles: ['landlord'], is_active: true });
+    mockPatchBuilding.mockResolvedValue(defaultBuilding);
+    mockPatchEstate.mockResolvedValue(defaultEstate);
     mockPatchLease.mockResolvedValue({ id: 5, status: 'expired' });
     mockPatchViewingRecord.mockResolvedValue({ id: 4, house_id: 99, customer_name: '李客户', customer_phone: '13900000000', scheduled_at: '2026-07-01T10:00:00+08:00', status: 'viewed' });
   });
@@ -446,8 +465,29 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByTestId('building-avatar-placeholder')).toHaveAttribute('aria-label', 'bank');
   });
 
+  it('creates an estate with the confirmed map coordinates', async () => {
+    renderPage(<EstatesPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'plus 新建项目' }));
+    fireEvent.change(screen.getByLabelText('项目名称'), { target: { value: '新项目' } });
+    fireEvent.change(screen.getByLabelText('省份'), { target: { value: '广东省' } });
+    fireEvent.change(screen.getByLabelText('城市'), { target: { value: '深圳市' } });
+    fireEvent.change(screen.getByLabelText('区域'), { target: { value: '南山区' } });
+    fireEvent.click(screen.getByRole('button', { name: '项目位置' }));
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+    await waitFor(() => expect(mockCreateEstate).toHaveBeenCalledWith(expect.objectContaining({ address: '项目位置地图地址', lat: 22.54321, lng: 113.98765 })));
+  });
+
+  it('updates an estate with the confirmed map coordinates', async () => {
+    mockListEstates.mockResolvedValue({ items: [{ ...defaultEstate, property_type: 'residential', province: '广东省', city: '深圳市', district: '南山区', address: '旧项目地址', lat: 22.5, lng: 113.9, is_active: true }], total: 1, page: 1, page_size: 100 });
+    renderPage(<EstatesPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: '项目位置' }));
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+    await waitFor(() => expect(mockPatchEstate).toHaveBeenCalledWith(1, expect.objectContaining({ address: '项目位置地图地址', lat: 22.54321, lng: 113.98765 })));
+  });
+
   it('starts building creation from an estate row and preselects that estate', async () => {
-    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路' }], total: 1, page: 1, page_size: 100 });
+    mockListEstates.mockResolvedValue({ items: [{ id: 1, name: 'xinghewan', display_name: '星河湾花园', city: '深圳', district: '南山', address: '科技路', lat: 22.54, lng: 113.93 }], total: 1, page: 1, page_size: 100 });
 
     renderPage(<EstatesPage />);
 
@@ -463,7 +503,27 @@ describe('Property rental domain list pages', () => {
       estate_id: 1,
       name: '2 栋',
       floors: 28,
+      lat: 22.54,
+      lng: 113.93,
     })));
+  });
+
+  it('updates a building with the confirmed map coordinates', async () => {
+    mockListBuildings.mockResolvedValue({ items: [buildingItem({ address: '旧楼栋地址', lat: 22.5, lng: 113.9, is_active: true })], total: 1, page: 1, page_size: 100 });
+    renderPage(<EstatesPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[1]);
+    fireEvent.click(screen.getByRole('button', { name: '楼栋位置' }));
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+    await waitFor(() => expect(mockPatchBuilding).toHaveBeenCalledWith(2, expect.objectContaining({ address: '楼栋位置地图地址', lat: 22.54321, lng: 113.98765 })));
+  });
+
+  it('clears building coordinates without clearing its required address', async () => {
+    mockListBuildings.mockResolvedValue({ items: [buildingItem({ address: '保留的楼栋地址', lat: 22.5, lng: 113.9, is_active: true })], total: 1, page: 1, page_size: 100 });
+    renderPage(<EstatesPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[1]);
+    fireEvent.click(screen.getByRole('button', { name: '清除楼栋位置' }));
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+    await waitFor(() => expect(mockPatchBuilding).toHaveBeenCalledWith(2, expect.objectContaining({ address: '保留的楼栋地址', lat: null, lng: null })));
   });
 
   it('filters buildings by estate_id from the URL and clears the estate filter', async () => {

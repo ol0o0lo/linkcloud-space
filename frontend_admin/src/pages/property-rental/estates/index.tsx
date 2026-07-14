@@ -254,7 +254,12 @@ const EstatesPage: React.FC = () => {
   });
   const saveBuilding = useMutation({
     mutationFn: (values: BuildingFormValues) => {
-      const payload = { ...values, estate_id: values.estate_id ?? null, floors: Number(values.floors) };
+      const selectedEstate = (allEstates.data?.items || []).find((item) => item.id === values.estate_id);
+      const selectedEstateLocation = selectedEstate ? formLocation(selectedEstate) : null;
+      const inheritedLocation = !editingBuilding && !buildingLocationTouched && (values.lat == null || values.lng == null) && selectedEstateLocation
+        ? prefillBuildingLocation(values.address, selectedEstateLocation)
+        : {};
+      const payload = { ...values, ...inheritedLocation, estate_id: values.estate_id ?? null, floors: Number(values.floors) };
       return editingBuilding ? houseApi.patchBuilding(editingBuilding.id, payload) : houseApi.createBuilding(payload);
     },
     onSuccess: async (building) => {
@@ -640,12 +645,15 @@ const EstatesPage: React.FC = () => {
           <Form.Item label="城市" name="city" rules={[{ required: true, message: '请输入城市' }]}><Input /></Form.Item>
           <Form.Item label="区域" name="district" rules={[{ required: true, message: '请输入区域' }]}><Input /></Form.Item>
           <Form.Item label="地址" name="address" extra="可先留空，后续补齐项目地址。"><Input placeholder="例如：科技园路 1 号（可稍后补）" /></Form.Item>
+          <Form.Item name="lat" hidden><Input /></Form.Item>
+          <Form.Item name="lng" hidden><Input /></Form.Item>
           <Form.Item label="项目位置">
             <LocationPicker
               ariaLabel="项目位置"
               value={formLocation({ address: estateAddress, lat: estateLat, lng: estateLng })}
               fallbackLocation={defaultLocation}
               onChange={(location) => estateForm.setFieldsValue(location || { lat: null, lng: null })}
+              allowClear
             />
           </Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>
@@ -683,6 +691,8 @@ const EstatesPage: React.FC = () => {
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}><Input type="number" min={1} /></Form.Item>
           <Form.Item label="电梯" name="elevator" valuePropName="checked"><Switch /></Form.Item>
           <Form.Item label="地址" name="address" rules={[{ required: true, whitespace: true, message: '请输入楼栋地址' }]}><Input /></Form.Item>
+          <Form.Item name="lat" hidden><Input /></Form.Item>
+          <Form.Item name="lng" hidden><Input /></Form.Item>
           <Form.Item label="楼栋位置">
             <LocationPicker
               ariaLabel="楼栋位置"
@@ -690,8 +700,9 @@ const EstatesPage: React.FC = () => {
               fallbackLocation={(selectedBuildingEstate && formLocation(selectedBuildingEstate)) || defaultLocation}
               onChange={(location) => {
                 setBuildingLocationTouched(true);
-                buildingForm.setFieldsValue(location || { address: '', lat: null, lng: null });
+                buildingForm.setFieldsValue(location || { lat: null, lng: null });
               }}
+              allowClear
             />
           </Form.Item>
           <Form.Item label="启用" name="is_active" valuePropName="checked"><Switch /></Form.Item>

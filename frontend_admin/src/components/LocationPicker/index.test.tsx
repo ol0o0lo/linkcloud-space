@@ -35,4 +35,12 @@ describe('LocationPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: '默认定位' }));
     expect(getCurrentPosition).toHaveBeenCalledOnce();
   });
+
+  it('允许清除已有的可选定位', () => {
+    const onChange = vi.fn();
+    render(<LocationPicker ariaLabel="项目位置" value={{ address: '科技园路 1 号', lat: 22.54, lng: 113.93 }} fallbackLocation={null} onChange={onChange} allowClear />);
+    fireEvent.click(screen.getByRole('button', { name: '项目位置' }));
+    fireEvent.click(screen.getByRole('button', { name: '清除定位' }));
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
 });
