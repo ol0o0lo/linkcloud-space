@@ -68,6 +68,7 @@ import {
 } from '../loading';
 
 const PAGE_SIZE = 20;
+const SELECT_SEARCH_DEBOUNCE_MS = 300;
 type LeaseTask = 'contract';
 
 const LEASE_STATUS_ACTION_TEXT: Record<string, string> = {
@@ -110,6 +111,15 @@ function maskedPhone(phone?: string | null) {
   const nationalNumber = phone.replace(/\D/g, '').slice(-11);
   if (nationalNumber.length !== 11) return phone;
   return `${nationalNumber.slice(0, 3)}****${nationalNumber.slice(-4)}`;
+}
+
+function useDebouncedText(value: string, delay = SELECT_SEARCH_DEBOUNCE_MS) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedValue(value.trim()), delay);
+    return () => window.clearTimeout(timer);
+  }, [delay, value]);
+  return debouncedValue;
 }
 
 function getLeaseTenantInfo(record: LeaseOut) {
@@ -306,6 +316,10 @@ const LeasesPage: React.FC = () => {
   const [openedSourceViewing, setOpenedSourceViewing] = useState(false);
   const [openedSourceHouse, setOpenedSourceHouse] = useState(false);
   const [openedEditLease, setOpenedEditLease] = useState(false);
+  const [houseSearchText, setHouseSearchText] = useState('');
+  const [tenantSearchText, setTenantSearchText] = useState('');
+  const houseSearchKeyword = useDebouncedText(houseSearchText);
+  const tenantSearchKeyword = useDebouncedText(tenantSearchText);
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.lease_status']);
   const statusLabel = (value?: string | null) =>
@@ -315,14 +329,14 @@ const LeasesPage: React.FC = () => {
     'house.lease_status',
   );
   const houses = useQuery({
-    queryKey: ['house', 'leases', 'houses', workspace.selectedOrgSlug],
-    queryFn: () => houseApi.listHouses({ page: 1, page_size: 100 }),
+    queryKey: ['house', 'leases', 'houses', workspace.selectedOrgSlug, houseSearchKeyword],
+    queryFn: () => houseApi.listHouses({ page: 1, page_size: 20, keyword: houseSearchKeyword || undefined }),
     enabled,
   });
   const tenants = useQuery({
-    queryKey: ['house', 'leases', 'tenants', workspace.selectedOrgSlug],
+    queryKey: ['house', 'leases', 'tenants', workspace.selectedOrgSlug, tenantSearchKeyword],
     queryFn: () =>
-      houseApi.listContacts({ page: 1, page_size: 100, role: 'tenant' }),
+      houseApi.listContacts({ page: 1, page_size: 20, role: 'tenant', keyword: tenantSearchKeyword || undefined }),
     enabled,
   });
   const readySourceViewings = useQuery({
@@ -406,10 +420,6 @@ const LeasesPage: React.FC = () => {
       description: '先补齐租客主体，再继续签约。',
     },
   ] as const;
-  const tenantItems = useMemo(
-    () => [...createdTenants, ...(tenants.data?.items || [])],
-    [createdTenants, tenants.data],
-  );
   const sourceViewing = sourceViewingRecordId
     ? (sourceViewingLookup.data?.items || []).find(
         (item) => item.id === sourceViewingRecordId,
@@ -424,6 +434,27 @@ const LeasesPage: React.FC = () => {
   const staleSourceViewing = Boolean(
     sourceViewingRecordId && sourceViewingLookup.isSuccess && !sourceViewing,
   );
+  const houseItems = useMemo(() => {
+    const items = new Map<number, any>();
+    const add = (item: any) => {
+      if (item?.id) items.set(item.id, item);
+    };
+    (houses.data?.items || []).forEach(add);
+    add(editing?.house);
+    add(sourceViewing?.house);
+    return Array.from(items.values());
+  }, [editing?.house, houses.data?.items, sourceViewing?.house]);
+  const tenantItems = useMemo(() => {
+    const items = new Map<number, any>();
+    const add = (item: any) => {
+      if (item?.id) items.set(item.id, item);
+    };
+    (tenants.data?.items || []).forEach(add);
+    createdTenants.forEach(add);
+    add(editing?.tenant);
+    add((sourceViewing as any)?.contact);
+    return Array.from(items.values());
+  }, [createdTenants, editing?.tenant, sourceViewing, tenants.data?.items]);
   const sourceViewingOptions = useMemo(() => {
     const options = new Map<number, { value: number; label: string }>();
     (readySourceViewings.data?.items || []).forEach((item) => {
@@ -633,7 +664,7 @@ const LeasesPage: React.FC = () => {
     Number(formValues?.house_id || formInitialValues.house_id) || undefined;
   const selectedTenantId =
     Number(formValues?.tenant_id || formInitialValues.tenant_id) || undefined;
-  const selectedHouse = (houses.data?.items || []).find(
+  const selectedHouse = houseItems.find(
     (item) => item.id === selectedHouseId,
   );
   const selectedTenant = tenantItems.find(
@@ -940,7 +971,14 @@ const LeasesPage: React.FC = () => {
                             rules={[{ required: true, message: '请选择房源' }]}
                           >
                             <Select
-                              options={(houses.data?.items || []).map(
+                              showSearch={{
+                                filterOption: false,
+                                onSearch: setHouseSearchText,
+                              }}
+                              loading={houses.isFetching}
+                              notFoundContent={houses.isFetching ? '搜索中…' : '未找到房源'}
+                              placeholder="按房号、小区或楼栋搜索"
+                              options={houseItems.map(
                                 (item) => ({
                                   value: item.id,
                                   label: houseLabel(item),
@@ -960,6 +998,13 @@ const LeasesPage: React.FC = () => {
                                 noStyle
                               >
                                 <Select
+                                  showSearch={{
+                                    filterOption: false,
+                                    onSearch: setTenantSearchText,
+                                  }}
+                                  loading={tenants.isFetching}
+                                  notFoundContent={tenants.isFetching ? '搜索中…' : '未找到租客'}
+                                  placeholder="按姓名或手机号搜索"
                                   options={tenantItems.map((item) => ({
                                     value: item.id,
                                     label: contactLabel(item),
