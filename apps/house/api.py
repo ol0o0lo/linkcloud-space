@@ -16,6 +16,7 @@ from apps.house.schemas import (
     BuildingMapDetailOut,
     BuildingMapMarkerOut,
     BuildingMapUnlocatedCountOut,
+    BuildingMapUnlocatedOut,
     BuildingOut,
     BuildingPatchIn,
     ContactIn,
@@ -200,8 +201,9 @@ def put_default_building(request, payload: DefaultBuildingIn):
     }
 
 
-def _building_map_queryset(org, *, house_status: str | None, include_inactive: bool):
-    qs = Building.objects.filter(organization=org, lat__isnull=False, lng__isnull=False).select_related("estate")
+def _building_map_queryset(org, *, house_status: str | None, include_inactive: bool, located: bool = True):
+    qs = Building.objects.filter(organization=org).select_related("estate")
+    qs = qs.filter(lat__isnull=False, lng__isnull=False) if located else qs.filter(Q(lat__isnull=True) | Q(lng__isnull=True))
     if not include_inactive:
         qs = qs.filter(is_active=True)
     if house_status:
@@ -214,6 +216,14 @@ def _building_map_queryset(org, *, house_status: str | None, include_inactive: b
         locked=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.LOCKED)),
         published=Count("houses", filter=Q(houses__is_active=True, houses__publish_status=HousePublishStatus.PUBLISHED)),
     )
+
+
+def _filter_building_map_queryset(qs, *, keyword: str | None, estate_id: int | None):
+    if estate_id is not None:
+        qs = qs.filter(estate_id=estate_id)
+    if keyword:
+        qs = qs.filter(Q(name__icontains=keyword) | Q(address__icontains=keyword) | Q(estate__name__icontains=keyword) | Q(estate__display_name__icontains=keyword))
+    return qs
 
 
 @router.get("/building-map/", response=list[BuildingMapMarkerOut], summary="获取楼栋房源地图标点")
@@ -230,19 +240,29 @@ def list_building_map(
     north: Decimal | None = Query(None),
 ):
     bounds = (west, south, east, north)
-    if any(value is not None for value in bounds):
-        if any(value is None for value in bounds) or west >= east or south >= north:
-            raise HttpError(422, "地图范围无效")
+    if any(value is not None for value in bounds) and (any(value is None for value in bounds) or west >= east or south >= north):
+        raise HttpError(422, "地图范围无效")
 
     org = require_org_selected(request)
     qs = _building_map_queryset(org, house_status=house_status, include_inactive=include_inactive)
-    if estate_id is not None:
-        qs = qs.filter(estate_id=estate_id)
-    if keyword:
-        qs = qs.filter(Q(name__icontains=keyword) | Q(address__icontains=keyword) | Q(estate__name__icontains=keyword) | Q(estate__display_name__icontains=keyword))
+    qs = _filter_building_map_queryset(qs, keyword=keyword, estate_id=estate_id)
     if west is not None:
         qs = qs.filter(lng__gte=west, lng__lte=east, lat__gte=south, lat__lte=north)
     return qs.order_by("name", "id")
+
+
+@router.get("/building-map-unlocated/", response=list[BuildingMapUnlocatedOut], summary="获取待定位楼栋列表")
+@paginate(LegacyPagination)
+def list_building_map_unlocated(
+    request,
+    keyword: str | None = Query(None),
+    estate_id: int | None = Query(None),
+    house_status: str | None = Query(None),
+    include_inactive: bool = Query(False),
+):
+    org = require_org_selected(request)
+    qs = _building_map_queryset(org, house_status=house_status, include_inactive=include_inactive, located=False)
+    return _filter_building_map_queryset(qs, keyword=keyword, estate_id=estate_id).order_by("name", "id")
 
 
 @router.get("/building-map-unlocated-count/", response=BuildingMapUnlocatedCountOut, summary="获取待定位楼栋数量")

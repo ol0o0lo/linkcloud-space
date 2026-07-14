@@ -708,6 +708,29 @@ class HouseApiTestCase(TestCase):
         self.assertEqual({item["id"] for item in api_data(inactive_response)["items"]}, {self.building.pk, inactive.pk})
         self.assertEqual(api_data(unlocated_response), {"count": initial_unlocated_count})
 
+    def test_building_map_unlocated_list_uses_business_filters_and_counts(self):
+        pending = Building.objects.create(organization=self.org, estate=self.estate, name="待定位楼栋", address="科技园待定位楼栋", floors=8)
+        House.objects.create(building=pending, room_number="101", status=HouseStatus.VACANT)
+        House.objects.create(building=pending, room_number="102", status=HouseStatus.RENTED)
+        other_estate = Estate.objects.create(
+            organization=self.org,
+            name="其他项目",
+            display_name="其他项目",
+            property_type=EstatePropertyType.RESIDENTIAL,
+            province="广东",
+            city="深圳",
+            district="南山",
+            address="其他地址",
+        )
+        Building.objects.create(organization=self.org, estate=other_estate, name="其他待定位楼栋", address="其他地址 1 栋", floors=6)
+
+        response = self.client.get(f"/api/house/building-map-unlocated/?estate_id={self.estate.pk}&house_status=vacant&page=1&page_size=50")
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        self.assertEqual([item["id"] for item in payload["items"]], [pending.pk])
+        self.assertEqual(payload["items"][0]["counts"], {"total": 2, "vacant": 1, "rented": 1, "renovating": 0, "locked": 0, "published": 0})
+
     def test_building_map_applies_keyword_bounds_and_organization_isolation(self):
         self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
         self.building.save()

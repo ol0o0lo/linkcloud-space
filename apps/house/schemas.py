@@ -195,6 +195,19 @@ class BuildingMapUnlocatedCountOut(Schema):
     count: int
 
 
+class BuildingMapUnlocatedOut(Schema):
+    id: int
+    estate: EstateSummaryOut | None
+    name: str
+    address: str
+    is_active: bool
+    counts: BuildingMapCountsOut
+
+    @staticmethod
+    def resolve_counts(obj):
+        return {name: getattr(obj, name) for name in ("total", "vacant", "rented", "renovating", "locked", "published")}
+
+
 class BuildingMapMarkerOut(Schema):
     id: int
     estate: EstateSummaryOut | None
