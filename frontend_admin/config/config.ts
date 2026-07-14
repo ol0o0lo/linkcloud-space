@@ -231,6 +231,11 @@ export default defineConfig({
     include: ['src/pages/**/_mock.ts'],
     exclude: ['mock/requestRecord.mock.js'],
   },
+  // Utoopack 的开发态增量编译偶发让 HTML 资源清单与内存资源失步，
+  // 资源请求随后被 history fallback 返回为 HTML，表现为 Unexpected token '<'。
+  // 管理端优先使用 Umi 默认的 Webpack，以保证热更新稳定性。
+  utoopack: false,
+  /*
   utoopack: {
     module: {
       rules: {
@@ -241,6 +246,7 @@ export default defineConfig({
       },
     },
   },
+  */
   requestRecord: {},
   exportStatic: {},
   define: {
@@ -248,6 +254,7 @@ export default defineConfig({
     'process.env.COMMIT_HASH': commitHash,
     __APP_VERSION__: require('./../package.json').version,
     __UMI_VERSION__: require('@umijs/max/package.json').version,
-    __UTOO_VERSION__: require('@utoo/pack/package.json').version,
+    // __UTOO_VERSION__: require('@utoo/pack/package.json').version,
+    __UTOO_VERSION__: 'disabled',
   },
 });
