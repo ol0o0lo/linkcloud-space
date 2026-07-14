@@ -51,10 +51,12 @@ describe('LocationPicker', () => {
   });
 
   it('弹窗完全打开后初始化并调整地图尺寸', async () => {
-    const map = { on: vi.fn(), resize: vi.fn(), destroy: vi.fn() };
+    const map = { on: vi.fn(), add: vi.fn(), resize: vi.fn(), destroy: vi.fn() };
     const AMap = {
       Map: vi.fn(function MapMock() { return map; }),
       Geocoder: vi.fn(function GeocoderMock() {}),
+      AutoComplete: vi.fn(function AutoCompleteMock() { return { search: vi.fn() }; }),
+      Marker: vi.fn(function MarkerMock() { return { setPosition: vi.fn() }; }),
     };
     mockUseAmap.mockReturnValue({ AMap, loading: false, error: null, reload: vi.fn() });
     render(<LocationPicker ariaLabel="楼栋位置" value={null} fallbackLocation={{ address: '科技园路 1 号', lat: 22.54, lng: 113.93 }} onChange={vi.fn()} />);
@@ -63,5 +65,36 @@ describe('LocationPicker', () => {
 
     await waitFor(() => expect(AMap.Map).toHaveBeenCalledOnce());
     await waitFor(() => expect(map.resize).toHaveBeenCalledOnce());
+  });
+
+  it('联想 POI 并在点击候选后选中地图位置', async () => {
+    const onChange = vi.fn();
+    const marker = { setPosition: vi.fn() };
+    const map = { on: vi.fn(), add: vi.fn(), resize: vi.fn(), destroy: vi.fn(), setZoomAndCenter: vi.fn() };
+    const autocomplete = {
+      search: vi.fn((_keyword, callback) => callback('complete', {
+        tips: [{ name: '天河客运站', district: '广东省广州市天河区', address: '燕岭路633号', location: { lat: 23.170997, lng: 113.34213 } }],
+      })),
+    };
+    const geocoder = {
+      getAddress: vi.fn((_position, callback) => callback('complete', { regeocode: { formattedAddress: '广东省广州市天河区燕岭路633号天河客运站' } })),
+    };
+    const AMap = {
+      Map: vi.fn(function MapMock() { return map; }),
+      Geocoder: vi.fn(function GeocoderMock() { return geocoder; }),
+      AutoComplete: vi.fn(function AutoCompleteMock() { return autocomplete; }),
+      Marker: vi.fn(function MarkerMock() { return marker; }),
+    };
+    mockUseAmap.mockReturnValue({ AMap, loading: false, error: null, reload: vi.fn() });
+    render(<LocationPicker ariaLabel="楼栋位置" value={null} fallbackLocation={{ address: '科技园路 1 号', lat: 22.54, lng: 113.93 }} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '楼栋位置' }));
+    fireEvent.change(screen.getByPlaceholderText('搜索地址、POI、小区或楼栋'), { target: { value: '天河客运站' } });
+    fireEvent.click(await screen.findByText(/天河客运站 · 广东省广州市天河区燕岭路633号/));
+    fireEvent.click(screen.getByRole('button', { name: '确定位置' }));
+
+    expect(map.setZoomAndCenter).toHaveBeenCalledWith(16, [113.34213, 23.170997]);
+    expect(marker.setPosition).toHaveBeenCalledWith([113.34213, 23.170997]);
+    expect(onChange).toHaveBeenCalledWith({ address: '广东省广州市天河区燕岭路633号天河客运站', lat: 23.170997, lng: 113.34213 });
   });
 });
