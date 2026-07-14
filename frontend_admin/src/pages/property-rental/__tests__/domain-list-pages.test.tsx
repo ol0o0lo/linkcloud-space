@@ -1447,6 +1447,7 @@ describe('Property rental domain list pages', () => {
     expect(await screen.findByRole('link', { name: '编辑' })).toHaveAttribute('href', '/dashboard/property-rental/houses/99?action=edit');
     expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_issue: 'landlord' }));
+    expect(mockListHouses).toHaveBeenCalledWith(expect.objectContaining({ status: 'vacant' }));
   });
 
   it('filters houses by building_id from the URL and preserves unrelated query params when clearing the building filter', async () => {
@@ -1455,14 +1456,14 @@ describe('Property rental domain list pages', () => {
     renderPage(<HousesPage />);
 
     await waitFor(() => expect(mockGetBuilding).toHaveBeenCalledWith(11));
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ building_id: 11, page: 1, page_size: 20, keyword: undefined, status: undefined }));
+    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ building_id: 11, page: 1, page_size: 20, keyword: undefined, status: 'vacant' }));
     expect(await screen.findByText('当前楼栋筛选：1 栋')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '清除楼栋筛选' }));
 
     await waitFor(() => expect(window.location.search).not.toContain('building_id'));
     expect(new URLSearchParams(window.location.search).get('foo')).toBe('x');
-    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ page: 1, page_size: 20, keyword: undefined, status: undefined }));
+    await waitFor(() => expect(mockListHouses).toHaveBeenCalledWith({ page: 1, page_size: 20, keyword: undefined, status: 'vacant' }));
   });
 
   it('preserves unrelated URL params when changing the house status filter', async () => {
@@ -1830,7 +1831,7 @@ describe('Property rental domain list pages', () => {
     fireEvent.change(screen.getByPlaceholderText('搜索房号 / 项目 / 楼栋 / 房东'), { target: { value: 'A-101' } });
     fireEvent.click(screen.getByRole('button', { name: 'search' }));
 
-    await waitFor(() => expect(window.location.search).toBe('?keyword=A-101'));
+    await waitFor(() => expect(window.location.search).toBe('?keyword=A-101&status=vacant'));
   });
 
   it('restores house search state on browser popstate', async () => {

@@ -36,6 +36,7 @@ import {
   canHousePublish,
   contactLabel,
   HOUSE_PUBLISH_STATUS_COLOR,
+  HOUSE_STATUS,
   houseMediaReadinessText,
   mediaCoverUrl,
   moneyText,
@@ -60,7 +61,7 @@ function getHouseListStateFromSearch(search: string) {
   return {
     page: Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1,
     q: params.get('keyword') || undefined,
-    status: params.get('status') || undefined,
+    status: params.get('status') || HOUSE_STATUS.VACANT,
     buildingId: getPositiveId(params.get('building_id')),
   };
 }
