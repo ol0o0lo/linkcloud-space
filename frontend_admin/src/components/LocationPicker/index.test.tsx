@@ -65,6 +65,8 @@ describe('LocationPicker', () => {
 
     await waitFor(() => expect(AMap.Map).toHaveBeenCalledOnce());
     await waitFor(() => expect(map.resize).toHaveBeenCalledOnce());
+    expect(map.on).toHaveBeenCalledWith('click', expect.any(Function));
+    expect(map.on).not.toHaveBeenCalledWith('dragend', expect.any(Function));
   });
 
   it('联想 POI 并在点击候选后选中地图位置', async () => {

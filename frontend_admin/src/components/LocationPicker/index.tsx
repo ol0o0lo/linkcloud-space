@@ -106,10 +106,6 @@ export function LocationPicker({
         markerRef.current = new AMap.Marker({ position: [initial.lng, initial.lat] });
         map.add(markerRef.current);
         map.on('click', (event: any) => reverseGeocode({ address: '', lat: event.lnglat.lat, lng: event.lnglat.lng }));
-        map.on('dragend', () => {
-          const center = map.getCenter();
-          reverseGeocode({ address: '', lat: center.lat, lng: center.lng });
-        });
         map.resize();
       });
     });
