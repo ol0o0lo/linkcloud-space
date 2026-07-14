@@ -1518,7 +1518,7 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByRole('columnheader', { name: '所属楼栋' })).toBeInTheDocument();
     await screen.findByText('星河湾花园');
     expect(document.querySelector('[data-preview="estate"][data-id="1"]')).toHaveTextContent('星河湾花园');
-    expect(document.querySelectorAll('[data-preview="building"][data-id="2"]')).toHaveLength(2);
+    expect(document.querySelectorAll('[data-preview="building"][data-id="2"]')).toHaveLength(1);
     expect(document.querySelector('[data-preview="house"][data-id="99"]')).toBeInTheDocument();
     expect(document.querySelector('[data-preview="contact"][data-id="3"]')).toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();

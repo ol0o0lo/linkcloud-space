@@ -194,11 +194,6 @@ const HousesPage: React.FC = () => {
       width: 220,
       render: (_value, record) => {
         const coverUrl = mediaCoverUrl(record.images);
-        const estate = record.building?.estate;
-        const estateName =
-          estate?.display_name || estate?.name || '未关联项目';
-        const buildingName =
-          record.building?.name || `楼栋 #${record.building_id}`;
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <Avatar
@@ -209,15 +204,7 @@ const HousesPage: React.FC = () => {
               src={coverUrl}
               style={{ borderRadius: 6, flex: '0 0 auto' }}
             />
-            <Typography.Text ellipsis>
-              <EstatePreview id={estate?.id}>{estateName}</EstatePreview>
-              {' / '}
-              <BuildingPreview id={record.building_id}>
-                {buildingName}
-              </BuildingPreview>
-              {' / '}
-              <HousePreview id={record.id}>{record.room_number}</HousePreview>
-            </Typography.Text>
+            <HousePreview id={record.id}>{record.room_number}</HousePreview>
           </div>
         );
       },
@@ -234,12 +221,22 @@ const HousesPage: React.FC = () => {
       title: '所属楼栋',
       dataIndex: 'building',
       search: false,
-      width: 160,
-      render: (_value, record) => (
-        <BuildingPreview id={record.building_id}>
-          {record.building?.name || `楼栋 #${record.building_id}`}
-        </BuildingPreview>
-      ),
+      width: 180,
+      render: (_value, record) => {
+        const estate = record.building?.estate;
+        const estateName = estate?.display_name || estate?.name || '未关联项目';
+        const buildingName = record.building?.name || `楼栋 #${record.building_id}`;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <EstatePreview id={estate?.id}>
+              <Typography.Text ellipsis>{estateName}</Typography.Text>
+            </EstatePreview>
+            <BuildingPreview id={record.building_id}>
+              <Typography.Text ellipsis type="secondary">{buildingName}</Typography.Text>
+            </BuildingPreview>
+          </div>
+        );
+      },
     },
     {
       title: '挂牌租金',
