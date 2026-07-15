@@ -21,9 +21,7 @@ from apps.accounts.utils import (
     mask_real_name,
     normalize_id_number,
 )
-from apps.media.constants import ResourceType
-from apps.media.models import MediaFile
-from apps.media.services import extract_media_id, extract_media_ids, to_plain_media_ref
+from apps.media.services import delete_media_file, extract_media_id, extract_media_ids, to_plain_media_ref
 from apps.referrals.services import mark_referral_as_qualified
 
 
@@ -36,12 +34,7 @@ class RealNameEvaluation:
 
 
 def _delete_media_file(media_id: int) -> None:
-    media = MediaFile.objects.filter(pk=media_id).first()
-    if media is None:
-        return
-    if media.file:
-        media.file.delete(save=False)
-    media.delete()
+    delete_media_file(media_id)
 
 
 def validate_avatar_media_owner(*, instance, refs, media_by_id, field):
@@ -153,11 +146,7 @@ def evaluate_real_name_submission(*, user, real_name: str, id_number: str) -> Re
             status=RealNameStatus.REJECTED,
         )
 
-    duplicate = (
-        RealNameVerification.objects.filter(id_number_hash=hash_id_number(normalized_id), status=RealNameStatus.VERIFIED, is_current=True)
-        .exclude(user=user)
-        .exists()
-    )
+    duplicate = RealNameVerification.objects.filter(id_number_hash=hash_id_number(normalized_id), status=RealNameStatus.VERIFIED, is_current=True).exclude(user=user).exists()
     if duplicate:
         return RealNameEvaluation(
             failure_reason="",

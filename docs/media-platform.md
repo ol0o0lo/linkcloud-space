@@ -136,7 +136,7 @@ def build_example_thing_payload(thing):
     "resource_type": "avatar",
     "original_filename": "cover.png",
     "url": "https://example.com/cover.png",
-    "thumbnail": null,
+    "thumbnail": "https://example.com/cover-thumbnail.webp",
     "file_size": 123456,
     "created_at": "2026-06-20T10:00:00+08:00"
   }
@@ -148,6 +148,12 @@ def build_example_thing_payload(thing):
 - 业务输入输出字段名由业务自己决定
 - 平台兼容从业务列表的每个 item 提取 `media_id`
 - `apps/media` 不直接解释 `label`、`side`、`room` 等业务字段
+- 新上传的图片由 Celery 使用 Pillow 异步生成最大 480×480 的 WebP 缩略图
+- 图片原文件上限为 25 MB，直传确认会从对象存储读取真实大小进行校验
+- Worker 异常或 Broker 短暂不可用时，恢复任务会重新投递仍处于等待状态的新图片
+- 缩略图复用公共 Celery Worker，并通过任务限速、字节上限、像素上限和超时控制资源占用
+- 存量图片、生成中图片和生成失败图片的 `thumbnail` 回退为原图 URL
+- 视频和普通文件等非图片资源的 `thumbnail` 为 `null`
 
 ## 5. 上传与返回
 
@@ -186,6 +192,7 @@ scope=user
 - `resource_type`
 - `original_filename`
 - `url`
+- `thumbnail`（图片未生成缩略图时与 `url` 相同，非图片为 `null`）
 - `file_size`
 - `created_at`
 

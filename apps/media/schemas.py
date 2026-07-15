@@ -5,6 +5,7 @@ from ninja import Schema
 from pydantic import Field
 
 from apps.media.constants import MediaType
+from apps.media.services import get_media_thumbnail_url
 
 
 class OssTokenIn(Schema):
@@ -28,6 +29,7 @@ class MediaFileOut(Schema):
     resource_type: str
     original_filename: str
     url: str
+    thumbnail: str | None
     file_size: int
     created_at: datetime
 
@@ -37,6 +39,10 @@ class MediaFileOut(Schema):
             return obj.file.url
         except Exception:
             return obj.file.name or ""
+
+    @staticmethod
+    def resolve_thumbnail(obj):
+        return get_media_thumbnail_url(obj)
 
 
 class MediaRefIn(Schema):
@@ -49,7 +55,7 @@ class ResolvedMediaRefOut(Schema):
     resource_type: str | None = Field(None, description="媒体资源类型，例如 avatar、real_name_id_card。")
     original_filename: str | None = Field(None, description="原始文件名。")
     url: str | None = Field(None, description="动态生成的访问 URL，私有存储通常为临时签名 URL。")
-    thumbnail: str | None = Field(None, description="缩略图 URL，未生成时为 null。")
+    thumbnail: str | None = Field(None, description="缩略图 URL；图片未生成缩略图时回退原图，非图片为 null。")
     file_size: int | None = Field(None, description="文件大小，单位字节。")
     created_at: datetime | None = Field(None, description="媒体文件创建时间。")
 
@@ -58,4 +64,4 @@ class MediaFileConfirmIn(Schema):
     oss_path: str = Field(..., description="对象存储中的文件路径。")
     original_filename: str = Field(..., description="用户上传时的原始文件名。")
     resource_type: str = Field(..., description="资源类型，例如 avatar、org_logo。")
-    file_size: int = Field(..., description="文件大小，单位字节。")
+    file_size: int = Field(..., gt=0, description="客户端声明的文件大小，单位字节；后端会与对象存储实际大小核对。")

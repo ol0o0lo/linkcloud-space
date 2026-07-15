@@ -2,7 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.base.mixins import CreateUpdateTimeModelMixin
-from apps.media.constants import ResourceType
+from apps.media.constants import ResourceType, ThumbnailStatus
 
 
 def _media_upload_to(instance, filename):
@@ -21,9 +21,15 @@ class MediaFile(CreateUpdateTimeModelMixin):
     original_filename = models.CharField(max_length=255)
     file = models.FileField(upload_to=_media_upload_to)
     file_size = models.PositiveIntegerField(help_text="bytes")
+    thumbnail = models.FileField(upload_to=_media_upload_to, null=True, blank=True)
+    thumbnail_status = models.CharField(max_length=16, choices=ThumbnailStatus.choices, default=ThumbnailStatus.NOT_REQUESTED)
+    thumbnail_enqueued_at = models.DateTimeField(null=True, blank=True)
+    thumbnail_started_at = models.DateTimeField(null=True, blank=True)
+    thumbnail_generated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [models.Index(fields=["thumbnail_status", "thumbnail_enqueued_at"], name="media_thumb_recovery_idx")]
 
     def __str__(self):  # noqa: D105
         return f"{self.resource_type}:{self.original_filename}"

@@ -11,20 +11,20 @@ from uuid import uuid4
 from django.apps import apps
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.utils import timezone
 
 from alibabacloud_sts20150401.client import Client as StsClient
 from alibabacloud_sts20150401.models import AssumeRoleRequest
 from alibabacloud_tea_openapi.models import Config as TeaConfig
+from botocore.exceptions import ClientError
 
-from apps.media.constants import MediaExtension, MediaScope, ResourceType
-from apps.media.exceptions import InvalidExtensionException, InvalidScopeException
+from apps.media.constants import CONTRACT_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, MediaExtension, MediaScope, ResourceType, ThumbnailStatus
+from apps.media.exceptions import InvalidExtensionException, InvalidFileSizeException, InvalidScopeException, MediaStorageUnavailableException
 from apps.media.models import MediaFile
+from apps.media.thumbnails import is_image_path
 
 DEFAULT_ORPHAN_RETENTION = timedelta(hours=24)
-IMAGE_EXTENSIONS = {MediaExtension.JPG, MediaExtension.JPEG, MediaExtension.PNG, MediaExtension.WEBP}
-VIDEO_EXTENSIONS = {MediaExtension.MP4, MediaExtension.MOV, MediaExtension.AVI}
-CONTRACT_EXTENSIONS = {MediaExtension.PDF, MediaExtension.DOC, MediaExtension.DOCX}
 RESOURCE_TYPE_RULES = {
     ResourceType.AVATAR: {"scopes": {MediaScope.USER}, "extensions": IMAGE_EXTENSIONS},
     ResourceType.ORG_LOGO: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
@@ -165,6 +165,7 @@ def register_media_file(
     file_size: int,
     scope: str | None = None,
     object_id: int | None = None,
+    verify_storage_size: bool = False,
 ) -> MediaFile:
     """将已存在于 OSS 的文件路径登记为 MediaFile 记录。"""
     if scope is None:
@@ -181,14 +182,45 @@ def register_media_file(
         filename=original_filename,
         path=oss_path,
     )
+    if file_size <= 0:
+        raise InvalidFileSizeException("媒体文件不能为空")
+    is_image = is_image_path(oss_path)
+    if is_image:
+        if verify_storage_size:
+            try:
+                actual_size = default_storage.size(oss_path)
+            except FileNotFoundError as exc:
+                raise InvalidFileSizeException("已上传的图片不存在") from exc
+            except ClientError as exc:
+                error_code = str(exc.response.get("Error", {}).get("Code", ""))
+                if error_code in {"404", "NoSuchKey", "NotFound", "NoSuchObject"}:
+                    raise InvalidFileSizeException("已上传的图片不存在") from exc
+                raise MediaStorageUnavailableException() from exc
+            except Exception as exc:
+                raise MediaStorageUnavailableException() from exc
+            if actual_size != file_size:
+                raise InvalidFileSizeException("图片实际大小与上传确认信息不一致")
+            file_size = actual_size
+        if file_size > settings.MEDIA_IMAGE_MAX_FILE_SIZE:
+            raise InvalidFileSizeException(f"图片不能超过 {settings.MEDIA_IMAGE_MAX_FILE_SIZE // (1024 * 1024)} MB")
+
     mf = MediaFile(
         uploader=uploader,
         resource_type=resource_type,
         original_filename=original_filename,
         file_size=file_size,
+        thumbnail_status=ThumbnailStatus.PENDING if is_image else ThumbnailStatus.NOT_REQUESTED,
     )
     mf.file.name = oss_path
     mf.save()
+    if mf.thumbnail_status == ThumbnailStatus.PENDING:
+
+        def enqueue_thumbnail() -> None:
+            from apps.media.tasks import enqueue_media_thumbnail
+
+            enqueue_media_thumbnail(mf.pk)
+
+        transaction.on_commit(enqueue_thumbnail, robust=True)
     return mf
 
 
@@ -212,6 +244,10 @@ def upload_and_register(
         object_id=target_object_id,
         filename=file.name,
     )
+    if file.size <= 0:
+        raise InvalidFileSizeException("媒体文件不能为空")
+    if is_image_path(file.name) and file.size > settings.MEDIA_IMAGE_MAX_FILE_SIZE:
+        raise InvalidFileSizeException(f"图片不能超过 {settings.MEDIA_IMAGE_MAX_FILE_SIZE // (1024 * 1024)} MB")
 
     oss_path = generate_upload_path(
         scope=scope,
@@ -229,12 +265,28 @@ def upload_and_register(
     )
 
 
-def get_media_file_info(media_file: MediaFile) -> dict:
-    """返回前端展示需要的媒体资源信息。缩略图尚未生成时返回 None。"""
+def _file_url(file_field, fallback: str | None = None) -> str:
     try:
-        original_url = media_file.file.url
+        return file_field.url
     except Exception:
-        original_url = media_file.file.name or ""
+        if fallback is not None:
+            return fallback
+        return file_field.name or ""
+
+
+def get_media_thumbnail_url(media_file: MediaFile, *, original_url: str | None = None) -> str | None:
+    if not is_image_path(media_file.file.name):
+        return None
+    if original_url is None:
+        original_url = _file_url(media_file.file)
+    if media_file.thumbnail_status == ThumbnailStatus.READY and media_file.thumbnail:
+        return _file_url(media_file.thumbnail, fallback=original_url)
+    return original_url
+
+
+def get_media_file_info(media_file: MediaFile) -> dict:
+    """返回前端展示需要的媒体资源信息；图片缩略图不可用时回退原图。"""
+    original_url = _file_url(media_file.file)
 
     return {
         "id": media_file.pk,
@@ -243,7 +295,7 @@ def get_media_file_info(media_file: MediaFile) -> dict:
         "original": {
             "url": original_url,
         },
-        "thumbnail": None,
+        "thumbnail": get_media_thumbnail_url(media_file, original_url=original_url),
         "file_size": media_file.file_size,
         "created_at": media_file.created_at,
     }
@@ -396,6 +448,23 @@ class CleanupResult:
     deleted_ids: list[int]
 
 
+def delete_media_file(media_file_id: int, *, skip_processing: bool = False) -> bool:
+    """统一删除媒体原文件、缩略图和数据库记录。"""
+    with transaction.atomic():
+        queryset = MediaFile.objects.select_for_update().filter(pk=media_file_id)
+        if skip_processing:
+            queryset = queryset.exclude(thumbnail_status=ThumbnailStatus.PROCESSING)
+        media_file = queryset.first()
+        if media_file is None:
+            return False
+        if media_file.thumbnail:
+            media_file.thumbnail.delete(save=False)
+        if media_file.file:
+            media_file.file.delete(save=False)
+        media_file.delete()
+    return True
+
+
 def cleanup_unreferenced_media(
     *,
     referenced_media_ids: Iterable[int] | None = None,
@@ -419,12 +488,10 @@ def cleanup_unreferenced_media(
             referenced_ids.update(int(media_id) for media_id in callback() if media_id)
 
     cutoff = timezone.now() - older_than
-    candidates = MediaFile.objects.filter(created_at__lt=cutoff).exclude(pk__in=referenced_ids).order_by("pk")
+    candidate_ids = list(MediaFile.objects.filter(created_at__lt=cutoff).exclude(pk__in=referenced_ids).order_by("pk").values_list("pk", flat=True))
 
     deleted_ids = []
-    for media_file in candidates:
-        deleted_ids.append(media_file.pk)
-        if media_file.file:
-            media_file.file.delete(save=False)
-        media_file.delete()
+    for media_file_id in candidate_ids:
+        if delete_media_file(media_file_id, skip_processing=True):
+            deleted_ids.append(media_file_id)
     return CleanupResult(deleted_count=len(deleted_ids), deleted_ids=deleted_ids)

@@ -323,6 +323,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.media.tasks.cleanup_unreferenced_media_files",
         "schedule": crontab(hour=4, minute=0),
     },
+    "recover-pending-media-thumbnails": {
+        "task": "apps.media.tasks.recover_pending_media_thumbnails",
+        "schedule": crontab(minute="*/5"),
+    },
 }
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
@@ -354,6 +358,15 @@ NOTIFICATIONS_RETENTION_DAYS = env.int("NOTIFICATIONS_RETENTION_DAYS", default=9
 # any MediaFile that is not discovered from a MediaRefsField and is not
 # reported by MEDIA_REFERENCE_PROVIDERS becomes an orphan candidate.
 MEDIA_ORPHAN_RETENTION_HOURS = env.int("MEDIA_ORPHAN_RETENTION_HOURS", default=24)
+MEDIA_THUMBNAIL_SIZE = (480, 480)
+MEDIA_THUMBNAIL_QUALITY = 80
+MEDIA_THUMBNAIL_VERSION = "v1"
+MEDIA_IMAGE_MAX_FILE_SIZE = 25 * 1024 * 1024
+MEDIA_IMAGE_MAX_PIXELS = 40_000_000
+MEDIA_THUMBNAIL_RECOVERY_DELAY_MINUTES = 2
+MEDIA_THUMBNAIL_ENQUEUE_TIMEOUT_MINUTES = 15
+MEDIA_THUMBNAIL_PROCESSING_TIMEOUT_MINUTES = 10
+MEDIA_THUMBNAIL_RECOVERY_BATCH_SIZE = 100
 
 # Cross-app contract between business domains and the media platform.
 # Register one import-string provider per business module that stores media IDs

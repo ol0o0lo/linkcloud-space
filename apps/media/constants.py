@@ -21,6 +21,11 @@ class MediaExtension(StrChoices):
     DOCX = "docx", "DOCX"
 
 
+IMAGE_EXTENSIONS = {MediaExtension.JPG, MediaExtension.JPEG, MediaExtension.PNG, MediaExtension.WEBP}
+VIDEO_EXTENSIONS = {MediaExtension.MP4, MediaExtension.MOV, MediaExtension.AVI}
+CONTRACT_EXTENSIONS = {MediaExtension.PDF, MediaExtension.DOC, MediaExtension.DOCX}
+
+
 class ResourceType(StrChoices):
     AVATAR = "avatar", _("用户头像")
     ORG_LOGO = "org_logo", _("组织 Logo")
@@ -35,3 +40,11 @@ class MediaType(StrChoices):
     IMAGE = "image", _("图片")
     VIDEO = "video", _("视频")
     FILE = "file", _("文件")
+
+
+class ThumbnailStatus(StrChoices):
+    NOT_REQUESTED = "not_requested", _("未请求")
+    PENDING = "pending", _("等待生成")
+    PROCESSING = "processing", _("生成中")
+    READY = "ready", _("已生成")
+    FAILED = "failed", _("生成失败")

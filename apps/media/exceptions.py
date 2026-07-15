@@ -1,6 +1,6 @@
 from django.utils.translation import gettext_lazy as _
 
-from apps.base.exceptions import BadRequestException
+from apps.base.exceptions import AppException, BadRequestException
 
 
 class MediaException(BadRequestException):
@@ -25,3 +25,19 @@ class InvalidScopeException(MediaException):
     error = "INVALID_SCOPE"
     code = 400
     message = _("非法的 scope 参数")
+
+
+class InvalidFileSizeException(MediaException):
+    """媒体文件大小不合法。"""
+
+    error = "INVALID_FILE_SIZE"
+    code = 400
+    message = _("媒体文件大小不合法")
+
+
+class MediaStorageUnavailableException(AppException):
+    """对象存储暂时不可用。"""
+
+    error = "MEDIA_STORAGE_UNAVAILABLE"
+    code = 503
+    message = _("媒体存储暂时不可用，请稍后重试")

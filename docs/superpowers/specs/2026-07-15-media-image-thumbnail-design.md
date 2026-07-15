@@ -59,13 +59,16 @@ metadata:
 | 字段 | 类型 | 含义 |
 |------|------|------|
 | `thumbnail` | `FileField(null=True, blank=True)` | 缩略图对象路径 |
-| `thumbnail_status` | `CharField` | `not_requested`、`pending`、`ready`、`failed` |
+| `thumbnail_status` | `CharField` | `not_requested`、`pending`、`processing`、`ready`、`failed` |
+| `thumbnail_enqueued_at` | `DateTimeField(null=True, blank=True)` | 最近一次成功投递时间，避免恢复任务重复放大正常队列 |
+| `thumbnail_started_at` | `DateTimeField(null=True, blank=True)` | 开始处理时间，用于恢复异常退出的任务 |
 | `thumbnail_generated_at` | `DateTimeField(null=True, blank=True)` | 成功生成时间 |
 
 状态语义：
 
 - `not_requested`：存量记录或不属于图片的文件；不会被自动任务扫描。
-- `pending`：新图片已登记，等待或正在生成。
+- `pending`：新图片已登记，等待生成。
+- `processing`：Worker 已领取任务并开始生成。
 - `ready`：缩略图已生成且 `thumbnail` 有值。
 - `failed`：图片内容无效、不可解码或重试后仍生成失败。
 
@@ -101,7 +104,7 @@ metadata:
 统一规格：
 
 - 使用 `Image.open()` 解码并强制读取实际像素数据。
-- 使用 `ImageOps.exif_transpose()` 修正手机照片方向。
+- 使用 `ImageOps.exif_transpose(..., in_place=True)` 修正手机照片方向并减少完整图片复制。
 - 对动态 WebP 取第一帧，生成静态缩略图。
 - 使用 `Image.thumbnail((480, 480), Image.Resampling.LANCZOS)` 等比例缩放。
 - 最大宽高为 480px，不裁剪、不放大小图。
@@ -125,6 +128,9 @@ derived/thumbnails/v1/<media_file_id>.webp
 - 记录不存在时安全结束。
 - 非图片或 `not_requested` 记录不处理。
 - 存储读取、网络和临时写入错误自动重试 3 次，使用指数退避。
+- 任务使用 late ack 和 worker-lost 重投；定时恢复近期 `pending` 及超时 `processing` 记录，不处理存量 `not_requested` 记录。
+- 缩略图任务按 Worker 限制为每分钟最多启动 12 个，配合字节和像素上限控制并发资源峰值。
+- 缩略图复用公共 Celery Worker，通过任务限速、字节上限、像素上限和硬超时控制资源峰值；业务量明显增长后再评估拆分专用队列。
 - `UnidentifiedImageError`、解压炸弹错误、截断图片等确定性内容错误不重试，状态设为 `failed`。
 - 重试耗尽后将状态设为 `failed`，保留原图可访问能力。
 - 只有缩略图成功写入存储后才将数据库状态更新为 `ready`。
@@ -136,7 +142,7 @@ derived/thumbnails/v1/<media_file_id>.webp
 `get_media_file_info()` 统一计算一次原图 URL，并按状态返回：
 
 - 图片且 `ready`：`thumbnail` 为缩略图签名 URL。
-- 图片且为 `not_requested`、`pending` 或 `failed`：`thumbnail` 与 `url` 相同。
+- 图片且为 `not_requested`、`pending`、`processing` 或 `failed`：`thumbnail` 与 `url` 相同。
 - 非图片：`thumbnail` 为 `null`。
 
 这样存量图片和任务失败场景无需修改前端，现有的 `item.thumbnail || item.url` 逻辑继续有效。异步任务完成后，业务接口下一次解析媒体引用时会自然返回缩略图 URL。
@@ -165,10 +171,10 @@ derived/thumbnails/v1/<media_file_id>.webp
 缩略图参数作为 Django 设置提供默认值，避免散落魔法数字：
 
 - `MEDIA_THUMBNAIL_SIZE = (480, 480)`
-- `MEDIA_THUMBNAIL_FORMAT = "WEBP"`
 - `MEDIA_THUMBNAIL_QUALITY = 80`
 - `MEDIA_THUMBNAIL_VERSION = "v1"`
-- `MEDIA_IMAGE_MAX_PIXELS = 50_000_000`：Pillow 最大像素限制
+- `MEDIA_IMAGE_MAX_FILE_SIZE = 25 * 1024 * 1024`：图片原文件字节上限
+- `MEDIA_IMAGE_MAX_PIXELS = 40_000_000`：Pillow 最大像素限制
 
 首版只生成一个通用缩略图规格，不增加 small、medium、large 多档尺寸，也不做业务场景裁剪。
 

@@ -54,6 +54,7 @@ def confirm_upload(request, payload: MediaFileConfirmIn = ...):
         file_size=payload.file_size,
         scope=scope,
         object_id=object_id,
+        verify_storage_size=True,
     )
     return Status(201, mf)
 

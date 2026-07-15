@@ -1,6 +1,7 @@
 import io
 import json
 
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -8,6 +9,7 @@ from django.test import TestCase
 from PIL import Image
 
 from apps.accounts.models import User
+from apps.media.constants import ThumbnailStatus
 from apps.media.models import MediaFile
 from tests.api_helpers import api_data
 
@@ -90,7 +92,7 @@ class TestAvatarAPI(TestCase):
         self.assertEqual(data["avatar"][0]["resource_type"], "avatar")
         self.assertEqual(data["avatar"][0]["original_filename"], "avatar.png")
         self.assertEqual(data["avatar"][0]["url"], media.file.url)
-        self.assertIsNone(data["avatar"][0]["thumbnail"])
+        self.assertEqual(data["avatar"][0]["thumbnail"], media.file.url)
         self.assertEqual(data["avatar"][0]["file_size"], 123)
 
     def test_patch_avatar_replaces_ref_and_deletes_old_media(self):
@@ -103,7 +105,12 @@ class TestAvatarAPI(TestCase):
         )
         self.user.refresh_from_db()
         first_media_id = self.user.avatar[0]["media_id"]
-        first_media_path = MediaFile.objects.get(pk=first_media_id).file.name
+        first_media = MediaFile.objects.get(pk=first_media_id)
+        first_media_path = first_media.file.name
+        first_thumbnail_path = default_storage.save(f"derived/thumbnails/v1/{first_media_id}.webp", ContentFile(b"thumbnail"))
+        first_media.thumbnail.name = first_thumbnail_path
+        first_media.thumbnail_status = ThumbnailStatus.READY
+        first_media.save(update_fields=["thumbnail", "thumbnail_status"])
 
         resp = self.client.patch(
             _detail_url(self.user.pk),
@@ -117,6 +124,7 @@ class TestAvatarAPI(TestCase):
         self.assertNotEqual(self.user.avatar[0]["media_id"], first_media_id)
         self.assertFalse(MediaFile.objects.filter(pk=first_media_id).exists())
         self.assertFalse(default_storage.exists(first_media_path))
+        self.assertFalse(default_storage.exists(first_thumbnail_path))
 
     def test_patch_avatar_empty_clears_ref_and_deletes_media(self):
         media = self._upload_avatar_media()

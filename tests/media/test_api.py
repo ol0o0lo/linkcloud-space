@@ -1,6 +1,8 @@
 import json
 from unittest.mock import patch
 
+from django.test import override_settings
+
 import pytest
 
 from apps.accounts.models import User
@@ -117,7 +119,8 @@ class TestConfirmAPI:
         )
         assert resp.status_code == 401
 
-    def test_creates_media_file(self):
+    @patch("apps.media.services.default_storage.size", return_value=1024)
+    def test_creates_media_file(self, _storage_size):
         payload = {
             "oss_path": "uploads/users/1/abc.png",
             "original_filename": "photo.png",
@@ -130,6 +133,7 @@ class TestConfirmAPI:
         assert data["original_filename"] == "photo.png"
         assert data["resource_type"] == "avatar"
         assert "url" in data
+        assert data["thumbnail"] == data["url"]
         assert "order" not in data
         assert MediaFile.objects.filter(pk=data["id"]).exists()
 
@@ -143,7 +147,8 @@ class TestConfirmAPI:
         resp = self.client.post(CONFIRM_URL, payload, content_type="application/json")
         assert resp.status_code == 422
 
-    def test_org_scoped_house_media_confirm_requires_active_org_and_matching_org_path(self):
+    @patch("apps.media.services.default_storage.size", return_value=1024)
+    def test_org_scoped_house_media_confirm_requires_active_org_and_matching_org_path(self, _storage_size):
         org = Organization.objects.create(name="House Media Org", slug="house-media-org")
         OrganizationMember.objects.create(organization=org, user=self.user, is_owner=True)
 
@@ -183,6 +188,55 @@ class TestConfirmAPI:
 
         valid_resp = self.client.post(CONFIRM_URL, no_org_payload, content_type="application/json")
         assert valid_resp.status_code == 201
+
+    @patch("apps.media.services.default_storage.size", return_value=2048)
+    def test_confirm_rejects_declared_size_mismatch(self, _storage_size):
+        resp = self.client.post(
+            CONFIRM_URL,
+            {
+                "oss_path": "uploads/users/1/size-mismatch.png",
+                "original_filename": "size-mismatch.png",
+                "resource_type": ResourceType.AVATAR,
+                "file_size": 1024,
+            },
+            content_type="application/json",
+        )
+
+        assert resp.status_code == 400
+        assert api_error(resp)["error"] == "INVALID_FILE_SIZE"
+
+    @override_settings(MEDIA_IMAGE_MAX_FILE_SIZE=1024)
+    @patch("apps.media.services.default_storage.size", return_value=2048)
+    def test_confirm_rejects_oversized_stored_image(self, _storage_size):
+        resp = self.client.post(
+            CONFIRM_URL,
+            {
+                "oss_path": "uploads/users/1/oversized.png",
+                "original_filename": "oversized.png",
+                "resource_type": ResourceType.AVATAR,
+                "file_size": 2048,
+            },
+            content_type="application/json",
+        )
+
+        assert resp.status_code == 400
+        assert api_error(resp)["error"] == "INVALID_FILE_SIZE"
+
+    @patch("apps.media.services.default_storage.size", side_effect=RuntimeError("oss unavailable"))
+    def test_confirm_reports_storage_outage_as_retryable_service_error(self, _storage_size):
+        resp = self.client.post(
+            CONFIRM_URL,
+            {
+                "oss_path": "uploads/users/1/storage-outage.png",
+                "original_filename": "storage-outage.png",
+                "resource_type": ResourceType.AVATAR,
+                "file_size": 1024,
+            },
+            content_type="application/json",
+        )
+
+        assert resp.status_code == 503
+        assert api_error(resp)["error"] == "MEDIA_STORAGE_UNAVAILABLE"
 
     def test_confirm_rejects_resource_type_extension_mismatch(self):
         org = Organization.objects.create(name="Media Extension Org", slug="media-extension-org")
@@ -234,6 +288,7 @@ class TestUploadAPI:
         assert isinstance(data, list)
         assert len(data) == 1
         assert data[0]["original_filename"] == "photo.png"
+        assert data[0]["thumbnail"] == data[0]["url"]
         assert "order" not in data[0]
 
     def test_org_scope_requires_active_org(self):
@@ -287,3 +342,12 @@ class TestUploadAPI:
         resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": ResourceType.HOUSE_IMAGE, "scope": "org"}, format="multipart")
 
         assert resp.status_code == 400
+
+    @override_settings(MEDIA_IMAGE_MAX_FILE_SIZE=4)
+    def test_upload_rejects_oversized_image(self):
+        file = SimpleUploadedFile("photo.png", b"12345", content_type="image/png")
+
+        resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": ResourceType.AVATAR}, format="multipart")
+
+        assert resp.status_code == 400
+        assert api_error(resp)["error"] == "INVALID_FILE_SIZE"
