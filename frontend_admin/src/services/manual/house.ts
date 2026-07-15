@@ -42,10 +42,21 @@ export type PageResult<T> = {
   page_size: number;
 };
 
+export type InventoryCounts = {
+  total: number;
+  vacant: number;
+  rented: number;
+  renovating: number;
+  locked: number;
+  published: number;
+};
+
 export type EstateOut = API.EstateOut & {
+  building_count?: number;
+  counts?: InventoryCounts;
   property_type__mapping?: string;
 };
-export type BuildingOut = API.BuildingOut;
+export type BuildingOut = API.BuildingOut & { counts?: InventoryCounts };
 export type BuildingMapMarkerOut = API.BuildingMapMarkerOut;
 export type BuildingMapDetailOut = API.BuildingMapDetailOut;
 export type BuildingMapUnlocatedOut = {

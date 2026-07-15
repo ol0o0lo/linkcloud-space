@@ -90,6 +90,28 @@ class EstateOut(Schema):
         return obj.images_resolved
 
 
+class InventoryCountsOut(Schema):
+    total: int
+    vacant: int
+    rented: int
+    renovating: int
+    locked: int
+    published: int
+
+
+def resolve_inventory_counts(obj):
+    return {name: getattr(obj, f"inventory_{name}", 0) for name in ("total", "vacant", "rented", "renovating", "locked", "published")}
+
+
+class EstateDetailOut(EstateOut):
+    building_count: int
+    counts: InventoryCountsOut
+
+    @staticmethod
+    def resolve_counts(obj):
+        return resolve_inventory_counts(obj)
+
+
 class BuildingIn(Schema):
     estate_id: int | None = None
     name: str
@@ -180,6 +202,14 @@ class BuildingOut(Schema):
     lng: Decimal | None
     address: str
     is_active: bool
+
+
+class BuildingInventoryOut(BuildingOut):
+    counts: InventoryCountsOut
+
+    @staticmethod
+    def resolve_counts(obj):
+        return resolve_inventory_counts(obj)
 
 
 class BuildingMapCountsOut(Schema):

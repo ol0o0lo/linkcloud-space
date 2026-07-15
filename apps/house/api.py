@@ -13,6 +13,7 @@ from apps.house.constants import ContactRole, HousePublishStatus, HouseStatus, V
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.house.schemas import (
     BuildingIn,
+    BuildingInventoryOut,
     BuildingMapDetailOut,
     BuildingMapMarkerOut,
     BuildingMapUnlocatedCountOut,
@@ -26,6 +27,7 @@ from apps.house.schemas import (
     DefaultBuildingOut,
     DeleteCheckOut,
     EstateIn,
+    EstateDetailOut,
     EstateOut,
     EstatePatchIn,
     HouseIn,
@@ -54,6 +56,18 @@ from apps.organizations.models import OrganizationMember
 
 router = Router(tags=["房源/管理"])
 landlord_router = Router(tags=["房源/房东"])
+
+
+def _inventory_annotations(house_lookup: str):
+    active_houses = {f"{house_lookup}__is_active": True}
+    return {
+        "inventory_total": Count(house_lookup, filter=Q(**active_houses)),
+        "inventory_vacant": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__status": HouseStatus.VACANT})),
+        "inventory_rented": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__status": HouseStatus.RENTED})),
+        "inventory_renovating": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__status": HouseStatus.RENOVATING})),
+        "inventory_locked": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__status": HouseStatus.LOCKED})),
+        "inventory_published": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__publish_status": HousePublishStatus.PUBLISHED})),
+    }
 
 
 def _patch(obj, payload):
@@ -98,10 +112,15 @@ def create_estate(request, payload: EstateIn):
     return Status(201, estate)
 
 
-@router.get("/estates/{estate_id}/", response=EstateOut, summary="获取项目片区详情")
+@router.get("/estates/{estate_id}/", response=EstateDetailOut, summary="获取项目片区详情")
 def get_estate(request, estate_id: int):
     org = require_org_selected(request)
-    return get_object_or_404(Estate, pk=estate_id, organization=org)
+    return get_object_or_404(
+        Estate.objects.filter(pk=estate_id, organization=org).annotate(
+            building_count=Count("buildings", distinct=True),
+            **_inventory_annotations("buildings__houses"),
+        ),
+    )
 
 
 @router.get("/estates/{estate_id}/delete-check/", response=DeleteCheckOut, summary="检查项目片区删除关联资源")
@@ -120,11 +139,11 @@ def delete_estate_endpoint(request, estate_id: int):
     return {"deleted": delete_estate(org, estate_id)}
 
 
-@router.get("/buildings/", response=list[BuildingOut], summary="获取楼栋列表")
+@router.get("/buildings/", response=list[BuildingInventoryOut], summary="获取楼栋列表")
 @paginate(LegacyPagination)
 def list_buildings(request, estate_id: int | None = Query(None), keyword: str | None = Query(None)):
     org = require_org_selected(request)
-    qs = Building.objects.filter(organization=org).select_related("estate").order_by("estate__name", "name")
+    qs = Building.objects.filter(organization=org).select_related("estate").annotate(**_inventory_annotations("houses")).order_by("estate__name", "name")
     if estate_id:
         qs = qs.filter(estate_id=estate_id)
     if keyword:
@@ -142,10 +161,10 @@ def create_building(request, payload: BuildingIn):
     return Status(201, building)
 
 
-@router.get("/buildings/{building_id}/", response=BuildingOut, summary="获取楼栋详情")
+@router.get("/buildings/{building_id}/", response=BuildingInventoryOut, summary="获取楼栋详情")
 def get_building(request, building_id: int):
     org = require_org_selected(request)
-    return get_object_or_404(Building.objects.select_related("estate"), pk=building_id, organization=org)
+    return get_object_or_404(Building.objects.select_related("estate").annotate(**_inventory_annotations("houses")), pk=building_id, organization=org)
 
 
 @router.get("/buildings/{building_id}/delete-check/", response=DeleteCheckOut, summary="检查楼栋删除关联资源")

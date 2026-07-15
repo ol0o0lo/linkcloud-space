@@ -654,6 +654,28 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["total"], 1)
         self.assertEqual([item["id"] for item in payload["items"]], [other_building.pk])
 
+    def test_estate_and_building_details_include_active_house_inventory(self):
+        second_building = Building.objects.create(organization=self.org, estate=self.estate, name="2栋", address="科技园 2 栋", floors=18)
+        House.objects.create(building=self.building, room_number="101", status=HouseStatus.VACANT)
+        House.objects.create(building=self.building, room_number="102", status=HouseStatus.RENTED, publish_status=HousePublishStatus.PUBLISHED)
+        House.objects.create(building=second_building, room_number="201", status=HouseStatus.RENOVATING)
+        House.objects.create(building=second_building, room_number="202", status=HouseStatus.LOCKED, is_active=False)
+
+        estate_response = self.client.get(f"/api/house/estates/{self.estate.pk}/")
+        building_response = self.client.get(f"/api/house/buildings/{self.building.pk}/")
+        buildings_response = self.client.get(f"/api/house/buildings/?estate_id={self.estate.pk}")
+
+        expected_counts = {"total": 3, "vacant": 1, "rented": 1, "renovating": 1, "locked": 0, "published": 1}
+        self.assertEqual(estate_response.status_code, 200)
+        self.assertEqual(api_data(estate_response)["building_count"], 2)
+        self.assertEqual(api_data(estate_response)["counts"], expected_counts)
+        self.assertEqual(building_response.status_code, 200)
+        self.assertEqual(api_data(building_response)["counts"], {"total": 2, "vacant": 1, "rented": 1, "renovating": 0, "locked": 0, "published": 1})
+        self.assertEqual(buildings_response.status_code, 200)
+        building_counts = {item["id"]: item["counts"] for item in api_data(buildings_response)["items"]}
+        self.assertEqual(building_counts[self.building.pk], {"total": 2, "vacant": 1, "rented": 1, "renovating": 0, "locked": 0, "published": 1})
+        self.assertEqual(building_counts[second_building.pk], {"total": 1, "vacant": 0, "rented": 0, "renovating": 1, "locked": 0, "published": 0})
+
     def test_building_map_detail_orders_active_houses_by_floor_and_natural_room_number(self):
         self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
         self.building.save()

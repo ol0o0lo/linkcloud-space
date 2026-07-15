@@ -2,14 +2,10 @@ import { BankOutlined, ClusterOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { history } from '@umijs/max';
+import { history, Link } from '@umijs/max';
 import { Avatar, Button, Card, Drawer, Empty, Form, Input, message, Segmented, Select, Space, Switch, Tag, Typography } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  BuildingPreview,
-  EntityPreviewDetailDrawer,
-  EstatePreview,
-} from '@/components/EntityPreview';
+import { EntityPreviewDetailDrawer, EstatePreview } from '@/components/EntityPreview';
 import { LocationPicker } from '@/components/LocationPicker';
 import { adminTableScroll, ResponsiveActions } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
@@ -379,7 +375,7 @@ const EstatesPage: React.FC = () => {
               src={coverUrl}
               style={{ borderRadius: 6, flex: '0 0 auto' }}
             />
-            <EstatePreview id={record.id}><Typography.Text ellipsis>{record.display_name || record.name}</Typography.Text></EstatePreview>
+            <Link to={`/property-rental/estates/${record.id}`}><Typography.Text ellipsis>{record.display_name || record.name}</Typography.Text></Link>
           </div>
         );
       },
@@ -419,7 +415,7 @@ const EstatesPage: React.FC = () => {
       render: (value, record) => (
         <Space size={8}>
           <Avatar icon={<BankOutlined data-testid="building-avatar-placeholder" />} shape="square" size={40} style={{ borderRadius: 6 }} />
-          <BuildingPreview id={record.id}>{value}</BuildingPreview>
+          <Link to={`/property-rental/buildings/${record.id}`}>{value}</Link>
         </Space>
       ),
     },

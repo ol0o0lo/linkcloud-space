@@ -163,6 +163,12 @@ export default [
         hideInMenu: true,
       },
       {
+        name: 'estate-detail',
+        path: '/property-rental/estates/:id',
+        component: './property-rental/estates/detail',
+        hideInMenu: true,
+      },
+      {
         name: 'houses',
         icon: 'home',
         path: '/property-rental/houses',
