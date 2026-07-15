@@ -1544,7 +1544,7 @@ declare namespace API {
     original_filename: string;
     /** Resource Type 资源类型，例如 avatar、org_logo。 */
     resource_type: string;
-    /** File Size 文件大小，单位字节。 */
+    /** File Size 客户端声明的文件大小，单位字节；后端会与对象存储实际大小核对。 */
     file_size: number;
   };
 
@@ -1557,6 +1557,8 @@ declare namespace API {
     original_filename: string;
     /** Url */
     url: string;
+    /** Thumbnail */
+    thumbnail: string | null;
     /** File Size */
     file_size: number;
     /** Created At */
@@ -2181,7 +2183,7 @@ declare namespace API {
     original_filename?: string | null;
     /** Url 动态生成的访问 URL，私有存储通常为临时签名 URL。 */
     url?: string | null;
-    /** Thumbnail 缩略图 URL，未生成时为 null。 */
+    /** Thumbnail 缩略图 URL；图片未生成缩略图时回退原图，非图片为 null。 */
     thumbnail?: string | null;
     /** File Size 文件大小，单位字节。 */
     file_size?: number | null;
@@ -2470,7 +2472,7 @@ declare namespace API {
     original_filename?: string | null;
     /** Url 动态生成的访问 URL，私有存储通常为临时签名 URL。 */
     url?: string | null;
-    /** Thumbnail 缩略图 URL，未生成时为 null。 */
+    /** Thumbnail 缩略图 URL；图片未生成缩略图时回退原图，非图片为 null。 */
     thumbnail?: string | null;
     /** File Size 文件大小，单位字节。 */
     file_size?: number | null;
