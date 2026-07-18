@@ -1,5 +1,4 @@
 import { DownOutlined, PlusOutlined } from '@ant-design/icons';
-import { PageContainer } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Avatar,
@@ -17,6 +16,7 @@ import {
 import dayjs from 'dayjs';
 import type { FC } from 'react';
 import React, { useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import OperationModal from './components/OperationModal';
 import type { BasicListItemDataType } from './data.d';
 import {

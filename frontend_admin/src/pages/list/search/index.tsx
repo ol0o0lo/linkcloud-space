@@ -1,7 +1,7 @@
-import { PageContainer } from '@ant-design/pro-components';
 import { history, Outlet, useLocation, useMatch } from '@umijs/max';
 import { Input } from 'antd';
 import type { FC } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 
 type SearchProps = {
   children?: React.ReactNode;

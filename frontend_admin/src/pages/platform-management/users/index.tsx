@@ -1,6 +1,6 @@
 import {EllipsisOutlined} from '@ant-design/icons';
 import type {ActionType, ProColumns} from '@ant-design/pro-components';
-import {PageContainer, ProTable} from '@ant-design/pro-components';
+import {ProTable} from '@ant-design/pro-components';
 import {useMutation} from '@tanstack/react-query';
 import {
   AutoComplete,
@@ -20,6 +20,7 @@ import {
   type MenuProps,
 } from 'antd';
 import React, {useRef, useState} from 'react';
+import {PageContainer} from '@/components/PageContainer';
 import {
   adminTableScroll,
   fullWidthStyle,

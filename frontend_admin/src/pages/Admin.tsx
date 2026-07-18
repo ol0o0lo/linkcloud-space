@@ -1,8 +1,8 @@
 import { HeartTwoTone, SmileTwoTone } from '@ant-design/icons';
-import { PageContainer } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, Card, Typography } from 'antd';
 import React from 'react';
+import { PageContainer } from '@/components/PageContainer';
 
 const Admin: React.FC = () => {
   const intl = useIntl();

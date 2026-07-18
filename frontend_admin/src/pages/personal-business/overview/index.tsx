@@ -1,5 +1,4 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { PageContainer } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
@@ -20,6 +19,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import {
   adminTableScroll,
   codeWrapStyle,

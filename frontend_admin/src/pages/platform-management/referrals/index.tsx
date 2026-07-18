@@ -1,5 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Button,
@@ -15,6 +15,7 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useRef } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import {
   adminTableScroll,
   fullWidthStyle,

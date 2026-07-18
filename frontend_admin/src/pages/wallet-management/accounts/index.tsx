@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import {
   Button,
   Card,
@@ -20,6 +20,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useRef, useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import {
   adminTableScroll,
   drawerWidthXl,

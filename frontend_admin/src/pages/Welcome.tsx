@@ -4,10 +4,10 @@ import {
   SafetyCertificateOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { PageContainer } from '@ant-design/pro-components';
 import { useModel } from '@umijs/max';
 import { Alert, Card, Col, Row, Space, Statistic, Tag, Typography } from 'antd';
 import React from 'react';
+import { PageContainer } from '@/components/PageContainer';
 
 const { Paragraph, Text, Title } = Typography;
 

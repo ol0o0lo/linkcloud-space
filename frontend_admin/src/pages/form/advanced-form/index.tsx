@@ -3,7 +3,6 @@ import type { ProColumnType } from '@ant-design/pro-components';
 import {
   EditableProTable,
   FooterToolbar,
-  PageContainer,
   ProForm,
   ProFormDateRangePicker,
   ProFormSelect,
@@ -13,6 +12,7 @@ import {
 import { Card, Col, message, Popover, Row } from 'antd';
 import type { FC } from 'react';
 import { useRef, useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import { fakeSubmitForm } from './service';
 import useStyles from './style.style';
 

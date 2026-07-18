@@ -1,8 +1,8 @@
-import { PageContainer } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useModel } from '@umijs/max';
 import { Alert, Empty } from 'antd';
 import React from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import { appsBaseApiAppContext } from '@/services/openapi/appSystem';
 import {
   appsOrganizationsApiSelectOrg,
@@ -140,7 +140,7 @@ export function useTenantWorkspace() {
 }
 
 export const TenantSelectionGuard: React.FC<{
-  title: string;
+  title: React.ReactNode | false;
   extra?: React.ReactNode;
   children: React.ReactNode;
 }> = ({ title, extra, children }) => {

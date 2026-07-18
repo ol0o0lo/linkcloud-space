@@ -1,7 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons';
-import { PageContainer } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, List, Typography } from 'antd';
+import { PageContainer } from '@/components/PageContainer';
 import type { CardListItemDataType } from './data.d';
 import { queryFakeList } from './service';
 import useStyles from './style.style';

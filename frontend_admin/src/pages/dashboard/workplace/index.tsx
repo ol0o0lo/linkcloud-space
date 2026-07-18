@@ -1,10 +1,10 @@
 import { Radar } from '@ant-design/plots';
-import { PageContainer } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@umijs/max';
 import { Avatar, Card, Col, List, Row, Skeleton, Statistic } from 'antd';
 import dayjs from 'dayjs';
 import type { FC } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import EditableLinkGroup from './components/EditableLinkGroup';
 import type { ActivitiesType, CurrentUser } from './data.d';
 import { fakeChartData, queryActivities, queryProjectNotice } from './service';

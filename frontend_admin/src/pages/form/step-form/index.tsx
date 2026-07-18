@@ -1,5 +1,4 @@
 import {
-  PageContainer,
   ProForm,
   ProFormDigit,
   ProFormSelect,
@@ -17,6 +16,7 @@ import {
   Statistic,
 } from 'antd';
 import React, { useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import type { StepDataType } from './data.d';
 import useStyles from './style.style';
 

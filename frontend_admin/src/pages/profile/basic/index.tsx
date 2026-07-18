@@ -1,10 +1,11 @@
 import type { ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import type { DescriptionsProps } from 'antd';
 import { Badge, Card, Descriptions, Divider, Table } from 'antd';
 import type { FC } from 'react';
 import React from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import type { BasicGood, BasicProgress } from './data.d';
 import { queryBasicProfile } from './service';
 

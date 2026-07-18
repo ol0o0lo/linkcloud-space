@@ -1,6 +1,5 @@
 import { CheckOutlined, LinkOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PageContainer } from '@ant-design/pro-components';
 import {
   Button,
   Card,
@@ -17,6 +16,7 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import isToday from 'dayjs/plugin/isToday';
 import React, { useMemo, useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import {
   AdminToolbar,
   adminTableScroll,

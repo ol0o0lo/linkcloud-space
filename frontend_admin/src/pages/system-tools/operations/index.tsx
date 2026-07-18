@@ -1,6 +1,5 @@
 import { UploadOutlined } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { PageContainer } from '@ant-design/pro-components';
 import {
   Button,
   Card,
@@ -18,6 +17,7 @@ import {
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import React, { useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import {
   codeWrapStyle,
   fullWidthStyle,

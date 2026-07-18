@@ -1,5 +1,4 @@
 import { UserOutlined } from '@ant-design/icons';
-import { PageContainer } from '@ant-design/pro-components';
 import { Bubble, Conversations, Sender, Think, XProvider } from '@ant-design/x';
 import type {
   BubbleItemType,
@@ -15,6 +14,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 
 import type { ConversationItem, ParsedMessage } from './data';
 import { createChatProvider } from './service';

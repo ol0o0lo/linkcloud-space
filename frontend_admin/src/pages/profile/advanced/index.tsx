@@ -6,7 +6,6 @@ import {
 } from '@ant-design/icons';
 import {
   GridContent,
-  PageContainer,
   RouteContext,
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
@@ -29,6 +28,7 @@ import {
 import type { IconRenderType, StepsProps } from 'antd/es/steps';
 import type { FC } from 'react';
 import React, { useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import type { AdvancedProfileData } from './data.d';
 import { queryAdvancedProfile } from './service';
 import useStyles from './style.style';
@@ -367,6 +367,7 @@ const Advanced: FC = () => {
   return (
     <PageContainer
       title="单号：234231029431"
+      showTitle
       extra={action}
       className={styles.pageHeader}
       content={description}
