@@ -50,6 +50,10 @@
 - **`frontend_miniprogram` Node 版本**：在 `frontend_miniprogram/` 下运行 Node 命令前，优先执行 `nvm use 22`。
 - **`frontend_miniprogram` 约定**：优先沿用 uni-app / unibest / wot-ui-v2 的目录、路由、请求与组件模式；接口生成代码位于 `frontend_miniprogram/src/services/openapi`，不要手写覆盖生成文件。
 
+## 业务展示规则
+
+- **房源户型**：所有前端房源展示位置中，当 `bedrooms === 1` 且 `living_rooms === 0` 时必须统一显示为“单间”，不得显示为“一房零厅”、“一室零厅”、“1房0厅”或“1室0厅”；`bedrooms === 1` 且 `living_rooms === 1` 时应正常显示为“一室一厅”或当前界面约定的等价格式，不得显示为“单间”。该规则仅用于前端展示，不修改后端字段和原始数据；新增房源展示位置时应复用共享户型格式化逻辑。
+
 ## API 约定
 
 - 所有分页 Ninja API 必须使用 query params：`page`、`page_size`。

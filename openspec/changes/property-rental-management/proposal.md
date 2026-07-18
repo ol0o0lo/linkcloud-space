@@ -14,7 +14,7 @@
 - 新增 `ViewingRecord`（带看记录）模型：后台中介录入客户预约、已带看、取消、爽约、成交等轻量过程记录
 - 新增 `Lease`（租约）模型：House 绑定租客 Contact，含签约时间、租期、租金、状态、合同文件媒体引用列表与扩展字段
 - 顶层空间模型与核心业务事实纳入 `Organization` 作用域，其中 House 通过 `Building -> Estate` 推导组织归属，唯一约束按组织或父级隔离
-- 收紧关键数据约束：联系人归属、带看归属、租约并发、房源状态重算、房源媒体引用仅允许合法 `MediaFile` 且首图为封面
+- 收紧关键数据约束：联系人归属、带看归属、租约并发、租约与房态弱关联、房源媒体引用仅允许合法 `MediaFile` 且首图为封面
 - 复用现有 `apps/media` + `S3MediaStorage` / MinIO 文件体系存储项目图片、房源图片/视频和租约合同，并按 `docs/media-platform.md` 使用 `MediaRefsField` 保存 `media_id` 平铺引用对象
 - 新增 Django admin 注册
 - 新增 Django migrations

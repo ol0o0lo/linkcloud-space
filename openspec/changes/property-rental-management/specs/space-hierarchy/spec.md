@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: 项目片区档案管理
-系统 SHALL 提供 Estate 模型，字段：organization(FK→Organization)、name、display_name、developer、built_year、property_type(choices)、province、city、district、address、lat、lng、images(MediaRefsField)、description、is_active。Estate.images SHALL 保存有序媒体引用对象列表，每项至少包含 `media_id`。Estate 的定位 SHALL 表示项目片区/小区容器级位置，而非单栋楼的精确门牌点。
+系统 SHALL 提供 Estate 模型，字段：organization(FK→Organization)、name、display_name、developer、built_year、property_type(choices)、province、city、district、address、lat、lng、images(MediaRefsField)、description。Estate.images SHALL 保存有序媒体引用对象列表，每项至少包含 `media_id`。Estate 的定位 SHALL 表示项目片区/小区容器级位置，而非单栋楼的精确门牌点。
 
 #### Scenario: 创建项目片区
 - **WHEN** 创建 Estate 记录，提供 name
-- **THEN** 记录保存成功，is_active 默认 True
+- **THEN** 记录保存成功
 
 #### Scenario: 物业类型约束
 - **WHEN** 设置 Estate.property_type
@@ -16,11 +16,11 @@
 - **THEN** 数据库唯一约束阻止创建
 
 ### Requirement: 楼栋档案管理
-系统 SHALL 提供 Building 模型，字段包含 organization(FK→Organization)、estate(FK→Estate, PROTECT)、name、floors、under_floors、year_built、elevator、lat、lng、address、is_active。Building 的定位 SHALL 表示楼栋级精确位置，`elevator` SHALL 为布尔值表示该楼栋是否有电梯。
+系统 SHALL 提供 Building 模型，字段包含 organization(FK→Organization)、estate(FK→Estate, PROTECT)、name、floors、under_floors、year_built、elevator、lat、lng、address。Building 的定位 SHALL 表示楼栋级精确位置，`elevator` SHALL 为布尔值表示该楼栋是否有电梯。
 
 #### Scenario: 创建楼栋
 - **WHEN** 创建 Building 记录，提供 estate 和 name
-- **THEN** 记录保存成功，elevator 默认 False，is_active 默认 True
+- **THEN** 记录保存成功，elevator 默认 False
 
 #### Scenario: 项目片区内楼栋名称唯一
 - **WHEN** 在同一 Estate 下创建重复 Building.name
@@ -47,11 +47,11 @@
 - **THEN** 系统仍保留 Estate 作为上层容器，但实际业务定位以 Building 为主
 
 ### Requirement: 房源档案管理
-系统 SHALL 提供 House 模型，字段包含 building(FK→Building, PROTECT)、landlord(FK→Contact, null=True, blank=True, PROTECT)、room_number(自由格式)、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、orientation(choices)、decoration(choices)、has_elevator_access、status(choices, default=vacant)、images(MediaRefsField)、videos(MediaRefsField)、tags(JSONField)、public_description、internal_notes、extra(JSONField)、is_active。House.images 与 House.videos SHALL 保存有序媒体引用对象列表，每项至少包含 `media_id`。House 的组织归属 SHALL 通过 `Building -> Estate -> Organization` 推导。
+系统 SHALL 提供 House 模型，字段包含 building(FK→Building, PROTECT)、landlord(FK→Contact, null=True, blank=True, PROTECT)、room_number(自由格式)、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、orientation(choices)、decoration(choices)、has_elevator_access、status(choices, default=vacant)、images(MediaRefsField)、videos(MediaRefsField)、tags(JSONField)、public_description、internal_notes、extra(JSONField)。House.images 与 House.videos SHALL 保存有序媒体引用对象列表，每项至少包含 `media_id`。House 的组织归属 SHALL 通过 Building 推导。
 
 #### Scenario: 创建房源
 - **WHEN** 创建 House，提供 building 和 room_number
-- **THEN** 记录保存成功，status 默认 vacant，is_active 默认 True
+- **THEN** 记录保存成功，status 默认 vacant
 
 #### Scenario: 朝向约束
 - **WHEN** 设置 House.orientation
@@ -63,7 +63,7 @@
 
 #### Scenario: status 约束
 - **WHEN** 设置 House.status
-- **THEN** 只允许：vacant（空置）、rented（已租）、renovating（装修中）、locked（封存）
+- **THEN** 只允许：vacant（空置）、listed（招租中）、rented（已租）、renovating（装修中）、inactive（已停用）
 
 #### Scenario: 楼栋内房号唯一
 - **WHEN** 在同一 Building 下创建重复 room_number 的 House
@@ -98,20 +98,20 @@
 - **THEN** 数据库 PROTECT 阻止删除
 
 ### Requirement: 房源状态作为运营快照
-系统 SHALL 将 House.status 作为运营查询快照使用，租赁真相来源 SHALL 为 Lease；当 House 不处于人工锁定状态时，系统根据 Lease 重算房态。
+系统 SHALL 将 House.status 作为独立的运营查询快照使用，由人工或显式业务操作维护；Lease 仅作为关联记录，不自动驱动房态。
 
 #### Scenario: 新建房源默认空置
 - **WHEN** 创建 House 且未关联生效中的 Lease
 - **THEN** status 默认值为 vacant
 
-#### Scenario: 生效租约驱动已租状态
-- **WHEN** 该 House 存在至少一条 active 状态 Lease
-- **THEN** status 为 rented
+#### Scenario: 生效租约不驱动房态
+- **WHEN** 该 House 的 Lease 更新为 active
+- **THEN** House.status 保持原值
 
-#### Scenario: 无生效租约恢复空置
-- **WHEN** 该 House 不存在 active 状态 Lease，且当前 status 不是 locked 或 renovating
-- **THEN** status 为 vacant
+#### Scenario: 租约到期不恢复空置
+- **WHEN** 该 House 的 active Lease 更新为 expired 或 terminated
+- **THEN** House.status 保持原值
 
-#### Scenario: 手工封存和装修状态优先级更高
-- **WHEN** 该 House 当前 status 为 locked 或 renovating，且不存在 active 状态 Lease
-- **THEN** 系统保留当前 status，不自动恢复为 vacant
+#### Scenario: 显式维护房态
+- **WHEN** 管理员通过房源维护入口修改 House.status
+- **THEN** 系统保存合法的目标状态，不要求其与 Lease.status 自动一致

@@ -12,9 +12,9 @@
 
 ## 3. 空间层级模型
 
-- [x] 3.1 创建 `Estate` 模型：organization(FK→Organization, PROTECT)、name、display_name、developer、built_year、property_type(choices)、province、city、district、address、lat、lng、images(MediaRefsField, default=list, max_items=9)、description、is_active，并明确其坐标是项目/小区级定位
-- [x] 3.2 创建 `Building` 模型：organization(FK→Organization, PROTECT)、estate(FK→Estate, PROTECT)、name、floors、under_floors、year_built、elevator(default=False)、lat、lng、address、is_active，并明确其坐标是楼栋级精确定位
-- [x] 3.3 创建 `House` 模型：building(FK→Building, PROTECT)、landlord(FK→Contact, null=True, blank=True, PROTECT)、room_number、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、orientation(choices)、decoration(choices)、has_elevator_access、status(choices, default=vacant)、images(MediaRefsField, default=list, max_items=9)、videos(MediaRefsField, default=list, max_items=3)、tags(JSONField, default=list)、public_description、internal_notes、extra(JSONField, default=dict)、is_active
+- [x] 3.1 创建 `Estate` 模型：organization(FK→Organization, PROTECT)、name、display_name、developer、built_year、property_type(choices)、province、city、district、address、lat、lng、images(MediaRefsField, default=list, max_items=9)、description，并明确其坐标是项目/小区级定位
+- [x] 3.2 创建 `Building` 模型：organization(FK→Organization, PROTECT)、estate(FK→Estate, PROTECT)、name、floors、under_floors、year_built、elevator(default=False)、lat、lng、address，并明确其坐标是楼栋级精确定位
+- [x] 3.3 创建 `House` 模型：building(FK→Building, PROTECT)、landlord(FK→Contact, null=True, blank=True, PROTECT)、room_number、floor、area、interior_area、bedrooms、living_rooms、bathrooms、kitchens、balconies、orientation(choices)、decoration(choices)、has_elevator_access、status(choices: vacant/listed/rented/renovating/inactive, default=vacant)、images(MediaRefsField, default=list, max_items=9)、videos(MediaRefsField, default=list, max_items=3)、tags(JSONField, default=list)、public_description、internal_notes、extra(JSONField, default=dict)
 - [x] 3.4 为 Estate/Building/House 添加所有 choices 常量、`__str__` 方法和唯一约束（项目片区名、楼栋名称、房号）
 - [x] 3.5 为 Building 增加 organization 一致性校验，并明确 House 通过 `Building -> Estate` 推导组织归属
 - [x] 3.6 明确并实现 Estate 与 Building 的定位分层语义：Estate 用于项目级展示，Building 用于精确导航；城中村场景以 Building 定位为主
@@ -70,14 +70,13 @@
 - [x] 8.6 添加“创建 Lease 前 House.landlord 必须非空”的校验
 - [x] 8.7 为 Lease 增加可选 `source_viewing_record`，记录成交来源带看，并校验同组织、同房源、converted 状态及已关联租客一致性
 
-## 9. 租约状态信号
+## 9. 租约与房态弱关系
 
-- [x] 9.1 创建统一房态重算入口（服务层或领域方法），集中实现 House.status 的判定逻辑
-- [x] 9.2 创建 `apps/house/signals.py`，监听 Lease 的保存与删除事件，并委托给统一房态重算入口
-- [x] 9.3 若存在 active Lease，自动设 House.status = rented
-- [x] 9.4 若不存在 active Lease，且当前房态不是 locked / renovating，则自动设 House.status = vacant
-- [x] 9.5 在 `apps/house/apps.py` 的 `ready()` 中注册信号
-- [x] 9.6 明确 `locked / renovating > rented > vacant` 的房态优先级，并通过测试锁定行为
+- [x] 9.1 Lease 仅通过 House 外键保留业务记录和历史追溯能力
+- [x] 9.2 Lease 新增、更新、到期、迁移或删除不自动修改 House.status
+- [x] 9.3 移除 Lease 保存、删除信号和自动房态重算服务
+- [x] 9.4 House.status 由房源维护接口或其他显式运营动作独立修改
+- [x] 9.5 通过测试锁定租约状态变化不影响房态的行为
 
 ## 10. 租约重复激活校验
 
@@ -94,9 +93,9 @@
 
 ## 12. Django Admin 注册
 
-- [x] 12.1 注册 `EstateAdmin`：list_display=(name, display_name, property_type, city, is_active)，search_fields=(name, display_name)
-- [x] 12.2 注册 `BuildingAdmin`：list_display=(name, estate, floors, elevator, lat, lng, is_active)，list_filter=(estate, is_active)
-- [x] 12.3 注册 `HouseAdmin`：list_display=(room_number, building, landlord, floor, status, is_active)，list_filter=(status, decoration, orientation)，并提供登记出租方与房源媒体引用配置的可读编辑方式
+- [x] 12.1 注册 `EstateAdmin`：list_display=(name, display_name, property_type, city)，search_fields=(name, display_name)
+- [x] 12.2 注册 `BuildingAdmin`：list_display=(name, estate, floors, elevator, lat, lng)，list_filter=(estate)
+- [x] 12.3 注册 `HouseAdmin`：list_display=(room_number, building, landlord, floor, status)，list_filter=(status, decoration, orientation)，并提供登记出租方与房源媒体引用配置的可读编辑方式
 - [x] 12.3.1 在 HouseAdmin 中优化管理员建房流程：支持直接选择已有 landlord，或快速新建 landlord Contact 后回填 landlord
 - [x] 12.4 注册 `ContactAdmin`：list_display=(name, phone, roles, user, is_active)，list_filter=(is_active,)，并提供 roles 可读展示
 - [x] 12.5 注册 `ViewingRecordAdmin`：list_display=(house, customer_name, customer_phone, scheduled_at, viewed_at, status, assigned_to, is_active)，list_filter=(status, is_active, assigned_to)，search_fields=(customer_name, customer_phone, house__room_number)
@@ -118,8 +117,8 @@
 - [x] 13.5 测试 ViewingRecord 创建、状态枚举、临时客户信息、contact 可空、assigned_to 可空和 is_active 默认值
 - [x] 13.5.1 测试 ViewingRecord.organization 与 House.building.estate.organization 一致性，以及 contact 组织一致性校验
 - [x] 13.5.2 测试 ViewingRecord 标记为 converted 时不自动创建 Lease，成交租约仍需显式创建
-- [x] 13.6 测试 Lease 状态变更与删除后的 House.status 重算
-- [x] 13.6.1 测试所有 Lease 入口和 signal 都委托到统一房态重算方法
+- [x] 13.6 测试 Lease 状态变更、房源迁移与删除均不修改 House.status
+- [x] 13.6.1 测试 API 激活租约时保持房态不变
 - [x] 13.7 测试 Lease 重复 active 校验、数据库条件唯一约束和字段合法性校验
 - [x] 13.7.1 测试 Lease 与 House.building.estate、tenant 的 organization 一致性校验
 - [x] 13.7.2 测试对 `landlord is null` 的 House 创建 Lease 会被明确阻止

@@ -70,32 +70,24 @@
 - **WHEN** 上传租约合同
 - **THEN** 系统 SHALL 至少允许 pdf 格式；如需编辑文档，可扩展 doc、docx 格式
 
-### Requirement: 租约状态通过统一入口同步 House 状态
-系统 SHALL 通过统一的服务层或领域方法重算 House.status，并在 Lease 新增、更新、删除后调用该入口：若存在 active Lease，则设为 rented；若不存在 active Lease，且当前房态不是 locked 或 renovating，则设为 vacant。
-
-#### Scenario: 服务层或领域方法作为唯一重算入口
-- **WHEN** 系统因 Lease 新增、更新、删除需要刷新房态
-- **THEN** SHALL 调用统一的重算入口，而不是在多个保存路径中分别直接写 House.status
+### Requirement: 租约与房态保持弱关系
+系统 SHALL 将 Lease 作为关联房源的业务记录，不根据 Lease 的生命周期自动修改 House.status。
 
 #### Scenario: 租约生效
 - **WHEN** Lease.status 更新为 active
-- **THEN** 对应 House.status 自动更新为 rented
+- **THEN** 对应 House.status 保持不变
 
-#### Scenario: 租约终止或到期后无其他生效租约
-- **WHEN** Lease.status 更新为 expired 或 terminated，且该 House 不存在其他 active Lease
-- **THEN** 对应 House.status 自动更新为 vacant
+#### Scenario: 租约终止或到期
+- **WHEN** Lease.status 更新为 expired 或 terminated
+- **THEN** 对应 House.status 保持不变
 
-#### Scenario: 手工锁房状态不被覆盖
-- **WHEN** Lease.status 更新或删除后，该 House 不存在 active Lease，但当前 status 为 locked 或 renovating
-- **THEN** 系统保留原 status，不自动改为 vacant
+#### Scenario: 租约迁移房源
+- **WHEN** Lease.house 从一套房源修改为另一套房源
+- **THEN** 原房源与新房源的 House.status 均保持不变
 
-#### Scenario: 删除租约后重算房态
+#### Scenario: 删除租约
 - **WHEN** 删除一条 Lease
-- **THEN** 系统重新计算对应 House.status
-
-#### Scenario: 信号只作为兜底触发器
-- **WHEN** Django signal 参与 Lease 状态同步
-- **THEN** signal 内部仍调用统一重算入口，而不是维护独立的一套房态判断逻辑
+- **THEN** 对应 House.status 保持不变
 
 ### Requirement: 一套房同一时间只有一条 active 租约
 系统 SHALL 在创建或激活租约时检查同一 House 是否已有 active 状态租约，并用数据库约束保证并发场景下的最终一致性。

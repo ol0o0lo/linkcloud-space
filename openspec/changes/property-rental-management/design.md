@@ -11,7 +11,7 @@
 - Contact 支持延迟关联 User（房东注册时通过手机号自动认领）
 - House 通过 `landlord` 实现房源与房东的绑定，支持房东视角查询
 - House 图片/视频配置和 Lease 合同文件复用现有 `apps.media.MediaFile` 文件登记表，并用 `MediaRefsField` 保存稳定媒体引用
-- House.status 作为冗余快照字段，真相来自 Lease 表
+- House.status 作为唯一房源经营状态，由人工或显式业务操作维护；Lease 仅保留签约记录关系
 - 用数据库约束兜底关键唯一性与数据合法性
 - 注册 Django admin，生成完整 migrations
 
@@ -43,7 +43,6 @@
 | 12 | lng | DecimalField | null=True, blank=True | 经度（项目级定位） |
 | 13 | images | MediaRefsField[list[dict]] | default=list, 上限 9 | 项目图片媒体引用列表，首张为封面 |
 | 14 | description | TextField | blank=True | 项目介绍 |
-| 15 | is_active | bool | default=True | 是否启用 |
 
 唯一约束：`(organization, name)`
 
@@ -63,7 +62,6 @@
 | 8 | lat | DecimalField | null=True, blank=True | 纬度（楼栋级精确定位） |
 | 9 | lng | DecimalField | null=True, blank=True | 经度（楼栋级精确定位） |
 | 10 | address | str | blank=True | 楼栋详细地址 |
-| 11 | is_active | bool | default=True | 是否启用 |
 
 唯一约束：`(estate, name)`
 
@@ -87,14 +85,13 @@
 | 12 | orientation | choices | south / north / east / west / south_north / east_west, null=True | 朝向 |
 | 13 | decoration | choices | raw（毛坯）/ simple（简装）/ fine（精装）/ luxury（豪装）, null=True | 装修状况 |
 | 14 | has_elevator_access | bool | default=False | 房源是否可直接使用电梯 |
-| 15 | status | choices | vacant / rented / renovating / locked, default=vacant | 房态快照，真相源为 Lease |
+| 15 | status | choices | vacant / listed / rented / renovating / inactive, default=vacant | 唯一经营状态，由人工或显式业务操作维护 |
 | 16 | images | MediaRefsField[list[dict]] | default=list, 上限 9, 首张为封面 | 房源图片媒体引用列表 |
 | 17 | videos | MediaRefsField[list[dict]] | default=list, 上限 3 | 房源视频媒体引用列表 |
 | 18 | tags | JSONField[list[str]] | default=list | 灵活标签 |
 | 19 | public_description | TextField | blank=True | 对外描述（所有用户可见） |
 | 20 | internal_notes | TextField | blank=True | 内部描述（租户内成员可见） |
 | 21 | extra | JSONField[dict] | default=dict | 动态扩展（备注、密码等） |
-| 22 | is_active | bool | default=True | 是否启用 |
 
 唯一约束：`(building, room_number)`
 
@@ -170,7 +167,7 @@
 - `house.landlord` 必须非空时才允许创建 Lease
 - 当 `source_viewing_record` 非空时，必须属于同 organization、同 House、状态为 `converted`；若其 `contact` 非空，还必须等于 `tenant`
 
-房态联动：Lease 新增/更新/删除后，统一调用 `recalculate_status(house_id)` 重算 `House.status`
+房态关系：Lease 仅关联 House 用于记录和追溯，不因新增、更新、到期、迁移或删除自动修改 `House.status`
 
 ---
 
@@ -209,10 +206,11 @@
 
 | 值 | 中文 | 说明 |
 |----|------|------|
-| vacant | 空置 | 当前未出租 |
-| rented | 已租 | 存在生效中的租约 |
-| renovating | 装修中 | 人工锁定，不可出租 |
-| locked | 封存 | 人工锁定，不可出租（如纠纷、消防整改等） |
+| vacant | 空置 | 当前空置，尚未进入对外招租 |
+| listed | 招租中 | 当前空置且正在对外招租 |
+| rented | 已租 | 运营人员确认当前已经出租，不要求系统内存在租约 |
+| renovating | 装修中 | 当前处于装修或整备阶段 |
+| inactive | 已停用 | 不参与日常经营查询和统计 |
 
 ### Contact.roles
 
@@ -248,40 +246,26 @@
 
 ### House.status 状态机
 
-管理员操作与后台自动逻辑采用双层设计：
-
-**管理员手动操作**：允许管理员直接设置 House 为任意状态，不受流转限制。例如可将 vacant 直接标为 rented（房源可能通过其他渠道出租、或运维需要强制覆盖），也可将 renovating 直接切到 rented。
+House.status 是独立运营状态。允许管理员或显式业务操作直接设置为任意合法状态，不受租约状态驱动。例如可将 vacant 直接标为 rented，也可在租约到期后根据实际交接情况继续保留 rented。
 
 ```mermaid
 stateDiagram-v2
     [*] --> vacant: 新建房源默认
     state "管理员可自由标记任意状态" as any
     vacant --> any: 管理员手动
+    listed --> any: 管理员手动
     rented --> any: 管理员手动
     renovating --> any: 管理员手动
-    locked --> any: 管理员手动
+    inactive --> any: 管理员手动
     note right of any: 管理员可在 admin/API 中<br/>直接将状态设为任意值<br/>不受流转限制
-```
-
-**后台自动重算**：当 Lease 发生新增/更新/删除时，系统通过 `recalculate_status(house_id)` 按规则调整房态。自动逻辑不覆盖人工锁定的 `locked`/`renovating`。
-
-```mermaid
-stateDiagram-v2
-    [*] --> vacant: 新建房源默认
-    vacant --> rented: Lease 激活 (自动)
-    rented --> vacant: 无 active Lease (自动, 且非 locked/renovating)
-    state locked_renovating <<fork>>
-    vacant --> locked_renovating: 管理员手动封存/装修
-    locked_renovating --> vacant: 管理员手动解封/装修完成
 ```
 
 **规则**：
 
-- 管理员操作层：允许任意状态切换，不受方向限制。后端实现时仅需校验目标状态属于合法枚举值
-- 自动重算层：`vacant → rented` 由 Lease 激活触发；`rented → vacant` 由统一重算入口驱动（无 active Lease 时）
-- `renovating` 和 `locked` 是人工锁定态，优先级高于 `rented`，禁止被自动重算覆盖
-- 房态优先级（用于快照判定的逻辑层级）：`locked / renovating > rented > vacant`
-- 管理员可以手动将 `renovating` 或 `locked` 直接切到 `rented`，此时后台不会阻拦；但这不代表 House 下一定存在 active Lease
+- 允许任意状态切换，不受方向限制，后端只校验目标状态属于合法枚举值
+- Lease 与 House.status 是弱关系，Lease 激活、到期、终止、迁移和删除都不触发房态变更
+- House.status 与 Lease.status 可能暂时不一致，以实际运营确认结果为准
+- 租约仍保留 House 外键，以支持记录查询、历史追溯和同房源 active 租约唯一约束
 
 ### Lease.status 状态机
 
@@ -299,10 +283,10 @@ stateDiagram-v2
 **规则**：
 
 - `pending` 是新建租约的初始状态
-- `pending → active` 仅能由管理员在到达 `start_date` 附近手动触发，或系统定时任务在 `start_date` 当天自动激活；同时触发 House 房态重算（`vacant → rented`）
-- `pending → terminated` 签约后作废（如租客反悔），不进入生效，不触发房态变更
-- `active → expired` 由 `end_date` 到期后系统或定时任务自动推动；同时触发 House 房态重算（无其他 active Lease 则 `rented → vacant`）
-- `active → terminated` 提前解约（如双方协议退租、违约退租）；同时触发 House 房态重算（同上）
+- `pending → active` 由管理员或明确的租约流程触发，不修改 House.status
+- `pending → terminated` 表示签约后作废（如租客反悔），不修改 House.status
+- `active → expired` 表示租期自然结束，仅更新租约记录，不修改 House.status
+- `active → terminated` 表示提前解约（如双方协议退租、违约退租），不修改 House.status
 - `expired` 和 `terminated` 是终态，不可再流转
 - 禁止逆向流转：`active → pending`、`expired → active`、`terminated → active` 均不允许
 
@@ -324,15 +308,15 @@ Organization
         -> Lease.contract_files[] -> MediaFile (合同)
         -> images[] -> MediaFile (图片)
         -> videos[] -> MediaFile (视频)
-        -> status(由 Lease 重算)
+        -> status(独立运营维护)
 ```
 
 其中：
 - `Estate / Building / House` 是空间资产主数据，只回答“房子在哪里、长什么样、是否可运营”
 - `House.landlord` 表示房源登记出租方，不表示当前出租关系
 - `ViewingRecord` 表示后台中介录入的预约、带看、取消、爽约和成交记录，不表示租赁事实
-- `Lease` 表示当前或历史租赁事实，是房态真相来源
-- `status` 是面向查询与运营筛选的冗余快照，不是租赁真相来源
+- `Lease` 表示当前或历史租赁事实，用于记录和追溯
+- `status` 是面向查询与运营筛选的独立快照，不由 Lease 自动推导
 
 这样可以在第一版就把“建档 -> 认领 -> 带看 -> 出租 -> 退租”闭合起来，同时避免把账单、续租、催收、线索池等后续子域过早耦合进主模型
 
@@ -346,9 +330,9 @@ flowchart TD
     user["User<br/>用户"]
     media["MediaFile<br/>媒体文件"]
 
-    estate["Estate<br/>项目片区/小区容器<br/><br/>- organization_id<br/>- name / display_name<br/>- property_type<br/>- address<br/>- images[]<br/>- is_active"]
-    building["Building<br/>楼栋<br/><br/>- organization_id<br/>- estate_id<br/>- name<br/>- floors<br/>- elevator<br/>- is_active"]
-    house["House<br/>房源<br/><br/>- building_id<br/>- landlord_id(nullable)<br/>- room_number<br/>- status<br/>- images[]<br/>- videos[]<br/>- public_description<br/>- internal_notes<br/>- extra<br/>- is_active"]
+    estate["Estate<br/>项目片区/小区容器<br/><br/>- organization_id<br/>- name / display_name<br/>- property_type<br/>- address<br/>- images[]"]
+    building["Building<br/>楼栋<br/><br/>- organization_id<br/>- estate_id<br/>- name<br/>- floors<br/>- elevator"]
+    house["House<br/>房源<br/><br/>- building_id<br/>- landlord_id(nullable)<br/>- room_number<br/>- status<br/>- images[]<br/>- videos[]<br/>- public_description<br/>- internal_notes<br/>- extra"]
     contact["Contact<br/>联系人<br/><br/>- organization_id<br/>- name / phone<br/>- roles[]<br/>- user_id(nullable)<br/>- is_active"]
     viewing["ViewingRecord<br/>带看记录<br/><br/>- organization_id<br/>- house_id<br/>- contact_id(nullable)<br/>- customer_name / customer_phone<br/>- scheduled_at / viewed_at<br/>- status"]
     lease["Lease<br/>租约<br/><br/>- organization_id<br/>- house_id<br/>- tenant_id -> Contact<br/>- source_viewing_record_id(nullable)<br/>- status<br/>- contract_files[]<br/>- start_date / end_date"]
@@ -502,7 +486,7 @@ Contact
 2. 若暂时缺资料，可先保存为“未登记出租方”的空房
 3. 上架、维护图片、带看
 4. 租客确认承租时，若 `landlord` 为空，先补齐登记出租方
-5. 再创建 Lease，房态转为 `rented`
+5. 再创建 Lease；如实际运营需要，同时通过房源维护入口显式调整房态
 
 这样既缩短了管理员操作链路，也避免出现“租约已签但房东归属仍为空”的不完整数据状态。
 
@@ -565,25 +549,16 @@ sequenceDiagram
 
 **理由**：认领流程真正复杂的不是首绑，而是重复绑定、换号、跨组织重号。明确“不抢占、不跨组织、可幂等”三条规则，可以把自动化范围控制在安全区内，把歧义留给人工处理。
 
-### 9. House.status 是冗余快照字段，采用“统一重算入口”而不是“散落直写”
+### 9. House.status 与 Lease 保持弱关系
 
-**选择**：House 上保留 `status` 字段，但其更新入口收口到单一的服务层或领域方法，例如：
+**选择**：House 上保留独立的 `status` 运营字段，Lease 上保留 House 外键用于查询与历史追溯，但两者不建立自动状态同步。
 
-```
-recalculate_status(house_id)
-# 或 House.refresh_status_from_leases()
-```
+- Lease 新增、激活、到期、终止、迁移或删除均不修改 House.status
+- House.status 只能通过房源维护接口或其他明确的运营动作修改
+- 不注册 Lease 保存、删除信号，也不提供从 Lease 自动重算房态的服务入口
+- 允许 House.status 与 Lease.status 暂时不一致，以反映退租交接、清退、装修或线下出租等实际业务过程
 
-Lease 新增、更新、删除时统一调用该入口重算房态：
-- 若存在 active Lease，则设为 `rented`
-- 若不存在 active Lease，且当前房态不是 `locked` / `renovating`，则设为 `vacant`
-- `locked` / `renovating` 视为人工控制状态，不被普通租约结束直接覆盖
-
-**状态优先级**：`locked / renovating > rented > vacant`
-
-**信号角色**：Django signal 只作为兜底触发器或兼容入口，内部仍应委托给统一重算方法，不应在多个保存路径中直接拼写房态更新逻辑。
-
-**理由**：直接过滤 `House.objects.filter(status='vacant')` 比 JOIN Lease 表快；但真相来源是 Lease。把状态重算收口到单一入口，能减少批量更新、admin 保存、后续 API 服务层各写一套逻辑导致的漂移。
+**理由**：系统无法保证所有线下签约都录入 Lease，因此 Lease 不能作为房态真相来源。将 House.status 作为独立经营快照，可支持线下出租、退租交接、清退和装修等实际业务过程。
 
 ### 10. Estate、House 图片与 House 视频采用有序媒体引用对象列表
 
@@ -748,7 +723,7 @@ Lease
 
 **选择**：当前版本只保证“同一套房同一时间只有一条 `active` 租约”，不额外校验 `pending`、历史租约或未来租约在时间区间上的重叠。
 
-**理由**：V1 的重点是房态真相和运营闭环，不是完整的排班式时段编排。把限制收敛到 `active` 并发，能降低实现复杂度，也避免把历史脏数据修复逻辑提前塞进模型层。
+**理由**：V1 的重点是租约记录和运营闭环，不是完整的排班式时段编排。把限制收敛到 `active` 并发，能降低实现复杂度，也避免把历史脏数据修复逻辑提前塞进模型层。
 
 ### 15. 删除策略遵循“删业务关联，不直接删物理文件”
 
@@ -760,7 +735,7 @@ Lease
 
 ## Risks / Trade-offs
 
-- [状态不一致] status 与 Lease 状态可能不同步 → 在 Lease save/delete 信号或服务层统一重算
+- [状态不一致] House.status 与 Lease.status 允许不同步 → 界面明确分别展示房态与租约状态，房态只通过显式运营动作修改
 - [手机号认领边界] 项目同时存在手机注册、验证码登录、微信绑定手机号 → 后续实现需把 Contact 自动认领挂到统一手机号绑定流程
 - [自动认领误绑定] 若换号、重复绑定、跨组织重号时规则不清，可能出现错误认领 → 明确“仅当前组织、仅未绑定 Contact、已绑定不抢占、同用户幂等成功”
 - [跨组织数据串读] 若后续 API 忘记按 organization 过滤会越权 → 第一版就建立组织外键和约束，减少漏过滤概率
