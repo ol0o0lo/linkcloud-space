@@ -1,6 +1,9 @@
 import { HomeOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
+import { Icon } from '@iconify/react';
+import elevatorIcon from '@iconify-icons/tabler/elevator';
+import stairsIcon from '@iconify-icons/tabler/stairs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history } from '@umijs/max';
 import {
@@ -11,7 +14,9 @@ import {
   Input,
   Modal,
   message,
+  Popover,
   Select,
+  Space,
   Tag,
   Typography,
 } from 'antd';
@@ -26,6 +31,7 @@ import {
   adminTableScroll,
   ResponsiveActions,
 } from '@/pages/_shared/adminLayout';
+import { useUserTableColumnsState } from '@/hooks/useUserTableColumnsState';
 import {
   TenantSelectionGuard,
   useTenantWorkspace,
@@ -33,18 +39,40 @@ import {
 import { enumMapping, enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { type HouseOut, houseApi } from '@/services/manual/house';
 import {
-  canHousePublish,
-  contactLabel,
-  HOUSE_PUBLISH_STATUS_COLOR,
+  evaluateHousePublishState,
   HOUSE_STATUS,
+  houseDisplayTags,
   houseMediaReadinessText,
+  housePrimaryLayoutText,
   mediaCoverUrl,
   moneyText,
   STATUS_COLOR,
 } from '../constants';
 import { isInitialQueryPending } from '../loading';
+import { useHousePublishRules } from '../useHousePublishRules';
 
 const PAGE_SIZE = 20;
+const HOUSE_TABLE_COLUMNS_PREFERENCE_KEY =
+  'ui.table.property-rental.houses.columns.v1';
+const HOUSE_TABLE_COLUMN_KEYS = [
+  'house',
+  'layout',
+  'building',
+  'asking_rent',
+  'deposit_amount',
+  'landlord',
+  'has_elevator_access',
+  'media',
+  'effective_tags',
+  'internal_notes',
+  'status__mapping',
+  'actions',
+] as const;
+const BUILDING_ACCESS_ICON_STYLE: React.CSSProperties = {
+  display: 'inline-block',
+  marginInlineEnd: 4,
+  verticalAlign: '-0.125em',
+};
 type HouseScopeFilters = {
   q?: string;
   status?: string;
@@ -61,7 +89,7 @@ function getHouseListStateFromSearch(search: string) {
   return {
     page: Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1,
     q: params.get('keyword') || undefined,
-    status: params.get('status') || HOUSE_STATUS.VACANT,
+    status: params.get('status') || undefined,
     buildingId: getPositiveId(params.get('building_id')),
   };
 }
@@ -94,9 +122,73 @@ function buildHouseDetailHref(
   return `/dashboard/property-rental/houses/${houseId}${nextSearch ? `?${nextSearch}` : ''}`;
 }
 
+function HouseTags({ tags }: { tags: string[] }) {
+  if (!tags.length) return '-';
+
+  const renderTags = () =>
+    tags.map((tag) => (
+      <Tag key={tag} style={{ marginInlineEnd: 4 }}>
+        {tag}
+      </Tag>
+    ));
+
+  return (
+    <Popover
+      content={
+        <Space
+          aria-label="完整房源标签"
+          size={[4, 4]}
+          wrap
+          style={{ maxWidth: 360 }}
+        >
+          {renderTags()}
+        </Space>
+      }
+    >
+      <span
+        data-testid="house-tags-summary"
+        style={{
+          display: 'block',
+          maxWidth: 160,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          width: '100%',
+        }}
+      >
+        {renderTags()}
+      </span>
+    </Popover>
+  );
+}
+
+function houseLayoutText(house: HouseOut) {
+  const primaryLayout = housePrimaryLayoutText(house);
+  if (primaryLayout === '-' || house.bathrooms == null) return primaryLayout;
+  return `${primaryLayout} · ${house.bathrooms}卫`;
+}
+
+function houseLayoutFacts(house: HouseOut) {
+  return [
+    house.area ? `${house.area}㎡` : null,
+    house.floor != null ? `${house.floor}层` : null,
+    house.orientation
+      ? enumMapping(house.orientation, house.orientation__mapping)
+      : null,
+    house.decoration
+      ? enumMapping(house.decoration, house.decoration__mapping)
+      : null,
+  ].filter((value): value is string => Boolean(value));
+}
+
 const HousesPage: React.FC = () => {
   const workspace = useTenantWorkspace();
+  const publishRules = useHousePublishRules();
   const queryClient = useQueryClient();
+  const tableColumnsState = useUserTableColumnsState({
+    preferenceKey: HOUSE_TABLE_COLUMNS_PREFERENCE_KEY,
+    columnKeys: HOUSE_TABLE_COLUMN_KEYS,
+  });
   const initialListState = useRef(
     getHouseListStateFromSearch(window.location.search),
   );
@@ -105,11 +197,11 @@ const HousesPage: React.FC = () => {
   const [status, setStatus] = useState<string | undefined>(initialListState.current.status);
   const [buildingId, setBuildingId] = useState<number | undefined>(initialListState.current.buildingId);
   const [page, setPage] = useState(initialListState.current.page);
-  const [publishConfirmHouseId, setPublishConfirmHouseId] = useState<
+  const [listingConfirmHouseId, setListingConfirmHouseId] = useState<
     number | null
   >(null);
-  const [publishConfirmStatus, setPublishConfirmStatus] = useState<
-    'published' | 'unpublished' | null
+  const [listingConfirmStatus, setListingConfirmStatus] = useState<
+    'listed' | 'vacant' | null
   >(null);
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.house_status']);
@@ -154,12 +246,12 @@ const HousesPage: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: ['house', 'houses'] });
     },
   });
-  const openPublishConfirm = (
+  const openListingConfirm = (
     id: number,
-    nextStatus: 'published' | 'unpublished',
+    nextStatus: 'listed' | 'vacant',
   ) => {
-    setPublishConfirmHouseId(id);
-    setPublishConfirmStatus(nextStatus);
+    setListingConfirmHouseId(id);
+    setListingConfirmStatus(nextStatus);
   };
   const rows = houses.data?.items || [];
   const listLoading = isInitialQueryPending(houses);
@@ -191,7 +283,7 @@ const HousesPage: React.FC = () => {
       title: '房源',
       dataIndex: 'house',
       search: false,
-      width: 220,
+      width: 120,
       render: (_value, record) => {
         const coverUrl = mediaCoverUrl(record.images);
         return (
@@ -210,18 +302,32 @@ const HousesPage: React.FC = () => {
       },
     },
     {
-      title: '房东',
-      dataIndex: 'landlord',
+      title: '户型',
+      dataIndex: 'layout',
       search: false,
-      width: 180,
-      render: (_value, record) =>
-        <ContactPreview id={record.landlord_id}>{record.landlord_id ? contactLabel(record) : '待补房东'}</ContactPreview>,
+      width: 150,
+      render: (_value, record) => {
+        const facts = houseLayoutFacts(record);
+        const factsText = facts.join(' · ');
+        return (
+          <div
+            style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}
+          >
+            <Typography.Text>{houseLayoutText(record)}</Typography.Text>
+            {factsText ? (
+              <Typography.Text ellipsis title={factsText} type="secondary">
+                {factsText}
+              </Typography.Text>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       title: '所属楼栋',
       dataIndex: 'building',
       search: false,
-      width: 180,
+      width: 150,
       render: (_value, record) => {
         const estate = record.building?.estate;
         const estateName = estate?.display_name || estate?.name || '未关联项目';
@@ -246,33 +352,91 @@ const HousesPage: React.FC = () => {
       render: (_value, record) => moneyText(record.asking_rent),
     },
     {
+      title: '押金',
+      dataIndex: 'deposit_amount',
+      width: 100,
+      search: false,
+      render: (_value, record) => moneyText(record.deposit_amount),
+    },
+    {
+      title: '房东',
+      dataIndex: 'landlord',
+      search: false,
+      width: 150,
+      render: (_value, record) => (
+        <ContactPreview id={record.landlord_id}>
+          {record.landlord?.name || '待补房东'}
+        </ContactPreview>
+      ),
+    },
+    {
+      title: '电梯',
+      dataIndex: 'has_elevator_access',
+      search: false,
+      width: 90,
+      render: (value) =>
+        value ? (
+          <Tag
+            color="success"
+            icon={<Icon icon={elevatorIcon} width={14} height={14} />}
+            styles={{ icon: BUILDING_ACCESS_ICON_STYLE }}
+          >
+            电梯
+          </Tag>
+        ) : (
+          <Tag
+            color="gold"
+            icon={<Icon icon={stairsIcon} width={14} height={14} />}
+            styles={{ icon: BUILDING_ACCESS_ICON_STYLE }}
+          >
+            步梯
+          </Tag>
+        ),
+    },
+    {
       title: '媒体',
       dataIndex: 'media',
       search: false,
-      width: 120,
+      width: 110,
       render: (_value, record) => houseMediaReadinessText(record),
+    },
+    {
+      title: '标签',
+      dataIndex: 'effective_tags',
+      search: false,
+      width: 180,
+      render: (_value, record) => {
+        const tags = houseDisplayTags(record);
+        return <HouseTags tags={tags} />;
+      },
+    },
+    {
+      title: '内部备注',
+      dataIndex: 'internal_notes',
+      search: false,
+      width: 180,
+      render: (_value, record) =>
+        record.internal_notes ? (
+          <Typography.Text
+            ellipsis
+            title={record.internal_notes}
+            type="secondary"
+          >
+            {record.internal_notes}
+          </Typography.Text>
+        ) : (
+          '-'
+        ),
     },
     {
       title: '房态',
       dataIndex: 'status__mapping',
+      fixed: 'right',
       width: 80,
       search: false,
       render: (_value, record) => (
         <Tag color={STATUS_COLOR[record.status] || 'default'}>
           {enumMapping(record.status, record.status__mapping)}
-        </Tag>
-      ),
-    },
-    {
-      title: '发布',
-      dataIndex: 'publish_status__mapping',
-      width: 80,
-      search: false,
-      render: (_value, record) => (
-        <Tag
-          color={HOUSE_PUBLISH_STATUS_COLOR[record.publish_status] || 'default'}
-        >
-          {enumMapping(record.publish_status, record.publish_status__mapping)}
         </Tag>
       ),
     },
@@ -283,32 +447,41 @@ const HousesPage: React.FC = () => {
       search: false,
       width: 112,
       render: (_value, record) => {
-        const nextPublishStatus =
-          record.publish_status === 'published' ? 'unpublished' : 'published';
+        const isListed = record.status === HOUSE_STATUS.LISTED;
+        const canToggleListing = isListed || record.status === HOUSE_STATUS.VACANT;
+        const nextStatus = isListed ? HOUSE_STATUS.VACANT : HOUSE_STATUS.LISTED;
         return (
           <ResponsiveActions>
-            <a href={buildHouseDetailHref(record.id, 'edit')}>编辑</a>
+            <a href={buildHouseDetailHref(record.id, 'edit')}>编辑资料</a>
             <Dropdown
               trigger={['click']}
               menu={{
                 items: [
-                  { key: 'detail', label: '详情' },
                   {
                     key: 'publish',
-                    label:
-                      record.publish_status === 'published' ? '下架' : '发布',
+                    disabled:
+                      !canToggleListing ||
+                      (nextStatus === HOUSE_STATUS.LISTED &&
+                        publishRules.isPending),
+                    label: isListed ? '下架' : '发布',
                   },
                 ],
-                onClick: ({ key }) => {
-                  if (key === 'detail') {
-                    history.push(buildHouseDetailHref(record.id).replace('/dashboard', ''));
-                    return;
+                onClick: () => {
+                  if (
+                    nextStatus === HOUSE_STATUS.LISTED
+                  ) {
+                    const publishState = evaluateHousePublishState(
+                      record,
+                      publishRules.rules,
+                    );
+                    if (!publishState.canPublish) {
+                      message.warning(
+                        `请先补齐：${publishState.blockingIssues.join('、')}`,
+                      );
+                      return;
+                    }
                   }
-                  if (nextPublishStatus === 'published' && !canHousePublish(record)) {
-                    message.warning('请先补齐房东和租金');
-                    return;
-                  }
-                  openPublishConfirm(record.id, nextPublishStatus);
+                  openListingConfirm(record.id, nextStatus);
                 },
               }}
             >
@@ -350,6 +523,10 @@ const HousesPage: React.FC = () => {
             density: true,
             reload: false,
             setting: true,
+          }}
+          columnsState={{
+            value: tableColumnsState.value,
+            onChange: tableColumnsState.onChange,
           }}
           toolBarRender={() => [
             <Input.Search
@@ -405,37 +582,37 @@ const HousesPage: React.FC = () => {
         />
       </Card>
       <Modal
-        open={publishConfirmStatus !== null}
+        open={listingConfirmStatus !== null}
         aria-label={
-          publishConfirmStatus === 'published' ? '确认发布房源' : '确认下架房源'
+          listingConfirmStatus === HOUSE_STATUS.LISTED ? '确认发布房源' : '确认下架房源'
         }
         title={
-          publishConfirmStatus === 'published' ? '确认发布房源' : '确认下架房源'
+          listingConfirmStatus === HOUSE_STATUS.LISTED ? '确认发布房源' : '确认下架房源'
         }
-        okText={publishConfirmStatus === 'published' ? '确认发布' : '确认下架'}
+        okText={listingConfirmStatus === HOUSE_STATUS.LISTED ? '确认发布' : '确认下架'}
         cancelText="先取消"
         transitionName=""
         maskTransitionName=""
         onCancel={() => {
-          setPublishConfirmHouseId(null);
-          setPublishConfirmStatus(null);
+          setListingConfirmHouseId(null);
+          setListingConfirmStatus(null);
         }}
         onOk={async () => {
-          const nextStatus = publishConfirmStatus;
-          const nextId = publishConfirmHouseId;
+          const nextStatus = listingConfirmStatus;
+          const nextId = listingConfirmHouseId;
           if (!nextStatus || !nextId) return;
-          setPublishConfirmHouseId(null);
-          setPublishConfirmStatus(null);
+          setListingConfirmHouseId(null);
+          setListingConfirmStatus(null);
           await patchHouse.mutateAsync({
             id: nextId,
-            values: { publish_status: nextStatus },
+            values: { status: nextStatus },
           });
         }}
       >
         <Typography.Text>
-          {publishConfirmStatus === 'published'
-            ? '确认后会把这套房源切换为已发布状态，继续承接带看。'
-            : '确认后会把这套房源切换为已下架状态，前台将不再作为可发布房源展示。'}
+          {listingConfirmStatus === HOUSE_STATUS.LISTED
+            ? '确认后房源状态将切换为招租中，继续承接带看。'
+            : '确认后房源状态将切换为空置，不再对外展示。'}
         </Typography.Text>
       </Modal>
     </TenantSelectionGuard>

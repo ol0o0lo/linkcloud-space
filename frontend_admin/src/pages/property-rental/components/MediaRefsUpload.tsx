@@ -39,6 +39,7 @@ type Props = {
   mediaType: 'image' | 'video' | 'file';
   maxCount?: number;
   title?: string;
+  enableImageRoles?: boolean;
 };
 
 function clean(items: MediaRefValue[]) {
@@ -72,13 +73,14 @@ const MediaRefsUpload: React.FC<Props> = ({
   mediaType,
   maxCount,
   title,
+  enableImageRoles = true,
 }) => {
   const [uploading, setUploading] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<{
     title: string;
     url: string;
   }>();
-  const canSetImageRole = mediaType === 'image';
+  const canSetImageRole = mediaType === 'image' && enableImageRoles;
   const imageRoleOptions = HOUSE_IMAGE_ROLE_OPTIONS.filter(
     (role) => role.value !== 'cover',
   );

@@ -61,6 +61,10 @@ vi.mock('@umijs/max', () => ({
   },
 }));
 
+vi.mock('@/pages/property-rental/useHousePublishRules', () => ({
+  useHousePublishRules: () => ({ rules: {}, isPending: false }),
+}));
+
 vi.mock('@ant-design/pro-components', () => ({
   ProTable: ({ columns, dataSource = [], loading, locale }: any) => {
     const tableColumns = columns.filter((column: any) => !column.hideInTable);
@@ -139,9 +143,9 @@ describe('Property rental workbench', () => {
     vi.clearAllMocks();
     window.history.pushState({}, '', '/dashboard/property-rental/workbench');
     mockUseTenantWorkspace.mockImplementation(() => ({ selectedOrgSlug: 'org', queryClient: new QueryClient() }));
-    mockPatchHouse.mockResolvedValue({ id: 3, publish_status: 'published' });
+    mockPatchHouse.mockResolvedValue({ id: 3, status: 'listed' });
     mockListHouses.mockImplementation((params?: Record<string, unknown>) => {
-      const blockedHouse = { ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant', status__mapping: '空置', publish_status: 'draft', publish_status__mapping: '草稿' };
+      const blockedHouse = { ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant', status__mapping: '空置' };
       const publishedHouse = {
         ...houseSummary({ id: 2, roomNumber: '102' }),
         id: 2,
@@ -154,10 +158,8 @@ describe('Property rental workbench', () => {
           { media_id: 3, media_type: 'image', image_role: 'bedroom' },
         ],
         videos: [],
-        status: 'vacant',
-        status__mapping: '空置',
-        publish_status: 'published',
-        publish_status__mapping: '已发布',
+        status: 'listed',
+        status__mapping: '招租中',
       };
       const readyHouse = {
         ...houseSummary({ id: 3, roomNumber: '103', building: building2 }),
@@ -173,8 +175,6 @@ describe('Property rental workbench', () => {
         videos: [{ media_id: 13, media_type: 'video' }],
         status: 'vacant',
         status__mapping: '空置',
-        publish_status: 'draft',
-        publish_status__mapping: '草稿',
       };
       if (params?.publish_issue) return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
       if (params?.publish_blocked && params?.page_size === 1) return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
@@ -218,7 +218,7 @@ describe('Property rental workbench', () => {
   it('builds publish and workflow rows from API items without extra page wrappers', () => {
     const publishRows = buildPublishWorkbenchRows(
       [
-        { ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant', publish_status: 'draft' },
+        { ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant' },
       ] as never[],
       [
         {
@@ -233,7 +233,6 @@ describe('Property rental workbench', () => {
           ],
           videos: [{ media_id: 13, media_type: 'video' }],
           status: 'vacant',
-          publish_status: 'draft',
         },
       ] as never[],
     );
@@ -317,7 +316,6 @@ describe('Property rental workbench', () => {
     expect(screen.getByText('缺封面')).toBeInTheDocument();
     expect(screen.getByText('发布工作区')).toBeInTheDocument();
     expect(screen.getAllByText('空置').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('草稿').length).toBeGreaterThan(0);
     await waitFor(() => expect(mockListViewings).toHaveBeenCalledWith(expect.objectContaining({ pending_lease: true, contact_missing: true })));
     await waitFor(() => expect(mockListViewings).toHaveBeenCalledWith(expect.objectContaining({ pending_lease: true, contact_missing: false })));
     expect(mockListLeases).not.toHaveBeenCalledWith(expect.objectContaining({ contract_missing: true, page_size: 5 }));
@@ -392,7 +390,7 @@ describe('Property rental workbench', () => {
       if (params?.publish_blocked) return Promise.resolve({ items: [], total: 77, page: 1, page_size: Number(params?.page_size || 5) });
       if (params?.publish_ready) return Promise.resolve({ items: [], total: 66, page: 1, page_size: Number(params?.page_size || 5) });
       return Promise.resolve({
-        items: [{ ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant', publish_status: 'draft' }],
+        items: [{ ...houseSummary({ id: 1, roomNumber: '101' }), landlord_id: null, landlord: null, images: [], videos: [], status: 'vacant' }],
         total: 101,
         page: 1,
         page_size: 100,
@@ -432,7 +430,6 @@ describe('Property rental workbench', () => {
       images: [{ media_id: 1, media_type: 'image', image_role: 'bedroom' }],
       videos: [],
       status: 'vacant',
-      publish_status: 'draft',
       publish_can_publish: true,
       publish_blocking_issues: [],
       publish_warning_issues: ['缺封面', '图片不足', '缺户型图'],
@@ -443,23 +440,29 @@ describe('Property rental workbench', () => {
   });
 
   it('routes video-only publish warnings to album maintenance with a video task', () => {
-    expect(getHouseTaskLink({
-      ...houseSummary({ id: 7, roomNumber: '107' }),
-      landlord_id: 5,
-      landlord: { id: 5, name: '张房东', phone: '13800000000' },
-      asking_rent: '4200.00',
-      images: [
-        { media_id: 1, media_type: 'image', image_role: 'cover' },
-        { media_id: 2, media_type: 'image', image_role: 'floor_plan' },
-        { media_id: 3, media_type: 'image', image_role: 'bedroom' },
-      ],
-      videos: [],
-      status: 'vacant',
-      publish_status: 'draft',
-      publish_can_publish: true,
-      publish_blocking_issues: [],
-      publish_warning_issues: ['视频不足'],
-    } as never)).toEqual({
+    expect(getHouseTaskLink(
+      {
+        ...houseSummary({ id: 7, roomNumber: '107' }),
+        landlord_id: 5,
+        landlord: { id: 5, name: '张房东', phone: '13800000000' },
+        asking_rent: '4200.00',
+        images: [
+          { media_id: 1, media_type: 'image', image_role: 'cover' },
+          { media_id: 2, media_type: 'image', image_role: 'floor_plan' },
+          { media_id: 3, media_type: 'image', image_role: 'bedroom' },
+        ],
+        videos: [],
+        status: 'vacant',
+      } as never,
+      {
+        landlord: { mode: 'required' },
+        rent: { mode: 'required' },
+        cover: { mode: 'warn' },
+        images: { mode: 'warn', min_count: 3 },
+        floor_plan: { mode: 'warn' },
+        video: { mode: 'warn', min_count: 1 },
+      },
+    )).toEqual({
       label: '维护相册',
       path: '/property-rental/houses/7?action=media&task=video',
     });
@@ -471,7 +474,7 @@ describe('Property rental workbench', () => {
     fireEvent.click(await screen.findByRole('button', { name: '发布' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认发布' }));
 
-    await waitFor(() => expect(mockPatchHouse).toHaveBeenCalledWith(3, { publish_status: 'published' }));
+    await waitFor(() => expect(mockPatchHouse).toHaveBeenCalledWith(3, { status: 'listed' }));
   });
 
   it('shows empty workflow state when there are no signing tasks', async () => {

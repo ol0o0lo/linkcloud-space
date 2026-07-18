@@ -12,7 +12,6 @@ import {
   Button,
   Card,
   Col,
-  Descriptions,
   Dropdown,
   Drawer,
   Empty,
@@ -24,6 +23,7 @@ import {
   Select,
   Space,
   Tag,
+  Tooltip,
   Typography,
   theme,
 } from 'antd';
@@ -31,7 +31,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ContactPreview,
   EntityPreviewDetailDrawer,
-  LeasePreview,
+  HousePreview,
 } from '@/components/EntityPreview';
 import {
   adminTableScroll,
@@ -106,13 +106,6 @@ function getLeaseHouseInfo(record: LeaseOut) {
   };
 }
 
-function maskedPhone(phone?: string | null) {
-  if (!phone) return undefined;
-  const nationalNumber = phone.replace(/\D/g, '').slice(-11);
-  if (nationalNumber.length !== 11) return phone;
-  return `${nationalNumber.slice(0, 3)}****${nationalNumber.slice(-4)}`;
-}
-
 function useDebouncedText(value: string, delay = SELECT_SEARCH_DEBOUNCE_MS) {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
@@ -122,11 +115,32 @@ function useDebouncedText(value: string, delay = SELECT_SEARCH_DEBOUNCE_MS) {
   return debouncedValue;
 }
 
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getLeaseDefaultDates() {
+  const startDate = new Date();
+  const endDate = new Date(startDate);
+  const startMonth = startDate.getMonth();
+  endDate.setFullYear(endDate.getFullYear() + 1);
+  if (endDate.getMonth() !== startMonth) endDate.setDate(0);
+
+  return {
+    start_date: formatDateInputValue(startDate),
+    end_date: formatDateInputValue(endDate),
+    payment_day: startDate.getDate(),
+  };
+}
+
 function getLeaseTenantInfo(record: LeaseOut) {
   const tenant = record.tenant;
   return {
     name: tenant?.name || (tenant?.id ? `联系人 #${tenant.id}` : '-'),
-    phone: maskedPhone(tenant?.phone),
+    phone: tenant?.phone,
   };
 }
 
@@ -201,30 +215,6 @@ function syncLeaseDrawerSearch(drawerState: LeaseDrawerSearchState) {
   }
 }
 
-function getLeaseDrawerEntryText(options: {
-  editing: boolean;
-  sourceViewingLabel?: string;
-  sourceHouseId?: number;
-}) {
-  const { editing, sourceViewingLabel, sourceHouseId } = options;
-  if (editing) return '租约维护';
-  if (sourceViewingLabel) return '成交带看转签约';
-  if (sourceHouseId) return '房源直建租约';
-  return '手动新建租约';
-}
-
-function getLeaseNextStepText(options: {
-  editing: boolean;
-  status?: string;
-  contractFiles: Record<string, unknown>[];
-}) {
-  if (!options.contractFiles.length) return '合同可稍后在编辑租约中补充。';
-  if (!options.editing || options.status === 'pending') return '合同已归档，可在列表执行生效。';
-  if (options.status === 'active') return '持续维护履约状态，到期或退租时更新状态。';
-  if (options.status === 'expired' || options.status === 'terminated') return '确认备注和资料后完成归档。';
-  return '保存后回到租约队列继续跟进。';
-}
-
 function getLeaseEmptyState(options: {
   task?: string;
   openCreate: () => void;
@@ -288,9 +278,6 @@ const LeasesPage: React.FC = () => {
     'source_viewing_record_id',
     form,
   );
-  const formValues = Form.useWatch([], { form, preserve: true }) as
-    | Partial<LeaseFormValues>
-    | undefined;
   const [locationSearch, setLocationSearch] = useState(window.location.search);
   const initialListState = getLeaseListStateFromSearch(locationSearch);
   const initialDrawerState = getLeaseDrawerStateFromSearch(locationSearch);
@@ -336,7 +323,13 @@ const LeasesPage: React.FC = () => {
   const tenants = useQuery({
     queryKey: ['house', 'leases', 'tenants', workspace.selectedOrgSlug, tenantSearchKeyword],
     queryFn: () =>
-      houseApi.listContacts({ page: 1, page_size: 20, role: 'tenant', keyword: tenantSearchKeyword || undefined }),
+      houseApi.listContacts({
+        page: 1,
+        page_size: 20,
+        role: 'tenant',
+        task: 'active',
+        keyword: tenantSearchKeyword || undefined,
+      }),
     enabled,
   });
   const readySourceViewings = useQuery({
@@ -406,20 +399,6 @@ const LeasesPage: React.FC = () => {
   });
   const rows = leases.data?.items || [];
   const listLoading = isInitialQueryPending(leases);
-  const leaseEntryLinks = [
-    {
-      key: 'ready_viewings',
-      label: '去待签约带看',
-      href: '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=false',
-      description: '从已成交且主体完整的带看记录进入签约。',
-    },
-    {
-      key: 'missing_contact_viewings',
-      label: '去待补租客',
-      href: '/dashboard/property-rental/viewings?pending_lease=true&contact_missing=true',
-      description: '先补齐租客主体，再继续签约。',
-    },
-  ] as const;
   const sourceViewing = sourceViewingRecordId
     ? (sourceViewingLookup.data?.items || []).find(
         (item) => item.id === sourceViewingRecordId,
@@ -648,7 +627,7 @@ const LeasesPage: React.FC = () => {
   };
 
   const createInitialValues: Partial<LeaseFormValues> = {
-    payment_day: 1,
+    ...getLeaseDefaultDates(),
     ...(sourceHouseId ? { house_id: sourceHouseId } : {}),
     ...(sourceViewingRecordId
       ? { source_viewing_record_id: sourceViewingRecordId }
@@ -660,32 +639,6 @@ const LeasesPage: React.FC = () => {
   };
   const formInitialValues: Partial<LeaseFormValues> =
     editing || createInitialValues;
-  const selectedHouseId =
-    Number(formValues?.house_id || formInitialValues.house_id) || undefined;
-  const selectedTenantId =
-    Number(formValues?.tenant_id || formInitialValues.tenant_id) || undefined;
-  const selectedHouse = houseItems.find(
-    (item) => item.id === selectedHouseId,
-  );
-  const selectedTenant = tenantItems.find(
-    (item) => item.id === selectedTenantId,
-  );
-  const draftContractFiles =
-    ((formValues?.contract_files || formInitialValues.contract_files) as
-      | Record<string, unknown>[]
-      | undefined) || [];
-  const drawerEntryText = getLeaseDrawerEntryText({
-    editing: Boolean(editing),
-    sourceViewingLabel: selectedSourceViewing
-      ? `${selectedSourceViewing.customer_name} / ${houseLabel(selectedSourceViewing)}`
-      : undefined,
-    sourceHouseId,
-  });
-  const drawerNextStepText = getLeaseNextStepText({
-    editing: Boolean(editing),
-    status: editing?.status,
-    contractFiles: draftContractFiles,
-  });
   const columns: ProColumns<LeaseOut>[] = [
     {
       title: '房源',
@@ -695,9 +648,9 @@ const LeasesPage: React.FC = () => {
         const houseInfo = getLeaseHouseInfo(record);
         return (
           <Space orientation="vertical" size={2}>
-            <LeasePreview id={record.id}>
+            <HousePreview id={record.house_id}>
               <Typography.Text strong>{houseInfo.roomText}</Typography.Text>
-            </LeasePreview>
+            </HousePreview>
             {houseInfo.scopeText ? (
               <Typography.Text type="secondary">
                 {houseInfo.scopeText}
@@ -714,16 +667,15 @@ const LeasesPage: React.FC = () => {
       render: (_value, record) => {
         const tenantInfo = getLeaseTenantInfo(record);
         return (
-          <Space orientation="vertical" size={2}>
-            <ContactPreview id={record.tenant_id}>
-              <Typography.Text>{tenantInfo.name}</Typography.Text>
-            </ContactPreview>
-            {tenantInfo.phone ? (
-              <Typography.Text type="secondary">
-                {tenantInfo.phone}
-              </Typography.Text>
-            ) : null}
-          </Space>
+          <Tooltip
+            title={tenantInfo.phone ? `手机号：${tenantInfo.phone}` : undefined}
+          >
+            <span>
+              <ContactPreview id={record.tenant_id}>
+                <Typography.Text>{tenantInfo.name}</Typography.Text>
+              </ContactPreview>
+            </span>
+          </Tooltip>
         );
       },
     },
@@ -947,13 +899,7 @@ const LeasesPage: React.FC = () => {
               />
             ) : null}
 
-            <Row gutter={[16, 16]} align="top">
-              <Col xs={24} xl={15}>
-                <Space
-                  orientation="vertical"
-                  size={16}
-                  style={{ width: '100%' }}
-                >
+            <Space orientation="vertical" size={16} style={{ width: '100%' }}>
                   <div style={sectionStyle}>
                     <Space
                       orientation="vertical"
@@ -1105,12 +1051,10 @@ const LeasesPage: React.FC = () => {
                         <Typography.Text strong>合同归档</Typography.Text>
                       </div>
                       <Form.Item
-                        label="合同文件"
                         name="contract_files"
                         style={{ marginBottom: 0 }}
                       >
                         <MediaRefsUpload
-                          title="合同文件"
                           resourceType={
                             HOUSE_MEDIA_RESOURCE_TYPE.LEASE_CONTRACT
                           }
@@ -1136,81 +1080,7 @@ const LeasesPage: React.FC = () => {
                       </Form.Item>
                     </Space>
                   </div>
-                </Space>
-              </Col>
-
-              <Col xs={24} xl={9}>
-                <Card size="small" title="签约摘要">
-                  <Space
-                    orientation="vertical"
-                    size={12}
-                    style={{ width: '100%' }}
-                  >
-                    <Space wrap>
-                      <Tag color="blue">{drawerEntryText}</Tag>
-                      {editing?.status ? (
-                        <Tag color={STATUS_COLOR[editing.status] || 'default'}>
-                          {enumMapping(editing.status, editing.status__mapping)}
-                        </Tag>
-                      ) : null}
-                      {!draftContractFiles.length ? (
-                        <Tag color="orange">合同未归档</Tag>
-                      ) : (
-                        <Tag color="green">合同已上传</Tag>
-                      )}
-                    </Space>
-                    <Descriptions column={1} size="small">
-                      <Descriptions.Item label="房源">
-                        {selectedHouse ? houseLabel(selectedHouse) : '待选择'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="租客">
-                        {selectedTenant
-                          ? contactLabel(selectedTenant)
-                          : selectedSourceViewing?.customer_name
-                            ? `${selectedSourceViewing.customer_name} / ${selectedSourceViewing.customer_phone || '-'}`
-                            : '待选择'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="来源">
-                        {selectedSourceViewing
-                          ? `${selectedSourceViewing.customer_name} / ${houseLabel(selectedSourceViewing)}`
-                          : sourceHouseId && !editing
-                            ? '房源直建'
-                            : '手动录入'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="租期">
-                        {formValues?.start_date || formInitialValues.start_date
-                          ? `${formValues?.start_date || formInitialValues.start_date} 至 ${formValues?.end_date || formInitialValues.end_date || '待填'}`
-                          : '待填写'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="月租">
-                        {formValues?.monthly_rent ||
-                        formInitialValues.monthly_rent
-                          ? moneyText(
-                              formValues?.monthly_rent ||
-                                formInitialValues.monthly_rent,
-                            )
-                          : '待填写'}
-                      </Descriptions.Item>
-                    </Descriptions>
-                    <Space orientation="vertical" size={4}>
-                      <Typography.Text strong>下一步</Typography.Text>
-                      <Typography.Text type="secondary">
-                        {drawerNextStepText}
-                      </Typography.Text>
-                    </Space>
-                    {!editing ? (
-                      <Space wrap>
-                        {leaseEntryLinks.map((item) => (
-                          <Button key={item.key} size="small" href={item.href}>
-                            {item.label}
-                          </Button>
-                        ))}
-                      </Space>
-                    ) : null}
-                  </Space>
-                </Card>
-              </Col>
-            </Row>
+            </Space>
           </Space>
         </Form>
       </Drawer>

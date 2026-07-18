@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HouseNewPage from '../new';
 
-const { mockPush, mockListEstates, mockListBuildings, mockGetDefaultBuilding, mockSetDefaultBuilding, mockListContacts, mockCreateContact, mockCreateBuilding, mockCreateHouse, mockListOrgSettings } = vi.hoisted(() => ({
+const { mockPush, mockListEstates, mockListBuildings, mockGetDefaultBuilding, mockSetDefaultBuilding, mockListContacts, mockCreateContact, mockCreateBuilding, mockCreateHouse, mockGetTagSuggestions, mockListOrgSettings } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockListEstates: vi.fn(),
   mockListBuildings: vi.fn(),
@@ -13,6 +13,7 @@ const { mockPush, mockListEstates, mockListBuildings, mockGetDefaultBuilding, mo
   mockCreateContact: vi.fn(),
   mockCreateBuilding: vi.fn(),
   mockCreateHouse: vi.fn(),
+  mockGetTagSuggestions: vi.fn(),
   mockListOrgSettings: vi.fn(),
 }));
 
@@ -35,6 +36,7 @@ vi.mock('@/services/manual/house', () => ({
     createContact: mockCreateContact,
     createBuilding: mockCreateBuilding,
     createHouse: mockCreateHouse,
+    getTagSuggestions: mockGetTagSuggestions,
   },
 }));
 
@@ -49,8 +51,8 @@ async function clickNextWhenEnabled() {
 }
 
 const estateSummary = { id: 1, name: 'xinghewan', display_name: '星河湾' };
-const building1 = { id: 10, name: '1 栋', estate_id: 1, estate: estateSummary, floors: 20, address: '' };
-const building2 = { id: 11, name: '2 栋', estate_id: 1, estate: estateSummary, floors: 28, address: '' };
+const building1 = { id: 10, name: '1 栋', estate_id: 1, estate: estateSummary, floors: 20, address: '', tags: ['近地铁', '有电梯'] };
+const building2 = { id: 11, name: '2 栋', estate_id: 1, estate: estateSummary, floors: 28, address: '', tags: ['近公园'] };
 
 describe('House new page', () => {
   beforeEach(() => {
@@ -65,6 +67,7 @@ describe('House new page', () => {
     mockCreateContact.mockResolvedValue({ id: 21, name: '李房东', phone: '13900000000', roles: ['landlord'], is_active: true });
     mockCreateBuilding.mockResolvedValue(building2);
     mockCreateHouse.mockResolvedValue({ id: 99 });
+    mockGetTagSuggestions.mockResolvedValue({ tags: ['采光好', '近地铁'] });
     mockListOrgSettings.mockResolvedValue([
       {
         key: 'property_rental.publish_rules',
@@ -108,7 +111,7 @@ describe('House new page', () => {
     expect(screen.getByText('视频资料')).toBeInTheDocument();
     expect(screen.queryByText('发布检查仍有缺口')).not.toBeInTheDocument();
     await clickNextWhenEnabled();
-    await screen.findByText('确认房源草稿');
+    await screen.findByText('确认房源资料');
     expect(screen.queryByText('保存后建议动作')).not.toBeInTheDocument();
     expect(screen.getAllByText('待补房东').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
@@ -120,6 +123,31 @@ describe('House new page', () => {
     })));
     expect(mockCreateHouse.mock.calls.at(-1)?.[0]).not.toHaveProperty('landlord_id');
     expect(mockPush).toHaveBeenCalledWith('/property-rental/houses/99');
+  });
+
+  it('previews inherited building tags but submits only house-owned tags', async () => {
+    render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
+
+    await screen.findAllByText('星河湾 / 1 栋');
+    fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1808' } });
+    await clickNextWhenEnabled();
+
+    const inherited = await screen.findByLabelText('继承标签');
+    expect(within(inherited).getByText('近地铁')).toBeInTheDocument();
+    expect(within(inherited).getByText('有电梯')).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByLabelText('常用标签')).getByText('采光好'));
+    await clickNextWhenEnabled();
+    await screen.findByText('上传图片与视频');
+    await clickNextWhenEnabled();
+    await screen.findByText('确认房源资料');
+    fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
+
+    await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({
+      building_id: 10,
+      room_number: '1808',
+      tags: ['采光好'],
+    })));
   });
 
   it('shows carried-in source context when entering from building and landlord flows', async () => {
@@ -224,7 +252,7 @@ describe('House new page', () => {
     await clickNextWhenEnabled();
     await screen.findByText('上传图片与视频');
     await clickNextWhenEnabled();
-    await screen.findByText('确认房源草稿');
+    await screen.findByText('确认房源资料');
     fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
 
     await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({
@@ -243,7 +271,7 @@ describe('House new page', () => {
     await clickNextWhenEnabled();
     await screen.findByText('上传图片与视频');
     await clickNextWhenEnabled();
-    await screen.findByText('确认房源草稿');
+    await screen.findByText('确认房源资料');
     expect(screen.getAllByText('待补房东').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
 
@@ -266,7 +294,7 @@ describe('House new page', () => {
     await screen.findByText('上传图片与视频');
     await clickNextWhenEnabled();
 
-    expect(await screen.findByText('确认房源草稿')).toBeInTheDocument();
+    expect(await screen.findByText('确认房源资料')).toBeInTheDocument();
     expect(screen.queryByText('保存后可直接进入发布流程')).not.toBeInTheDocument();
     expect(screen.queryByText('提醒项：缺封面、图片不足、缺户型图')).not.toBeInTheDocument();
     expect(screen.queryByText('阻断项：')).not.toBeInTheDocument();
@@ -277,26 +305,26 @@ describe('House new page', () => {
 
     render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
 
-    expect(await screen.findByText('确认房源草稿')).toBeInTheDocument();
+    expect(await screen.findByText('确认房源资料')).toBeInTheDocument();
     expect(screen.queryByText('发布规则摘要')).not.toBeInTheDocument();
     expect(screen.queryByText('当前缺口清单')).not.toBeInTheDocument();
     expect(screen.queryByText('媒体状态')).not.toBeInTheDocument();
-    expect(screen.queryByText('草稿必补：楼栋')).not.toBeInTheDocument();
+    expect(screen.queryByText('基础必补：楼栋')).not.toBeInTheDocument();
     expect(screen.queryByText('当前摘要')).not.toBeInTheDocument();
   });
 
-  it('allows saving a draft as soon as the minimum draft fields are complete', async () => {
+  it('allows saving a house as soon as the minimum fields are complete', async () => {
     render(<QueryClientProvider client={new QueryClient()}><HouseNewPage /></QueryClientProvider>);
 
     expect((await screen.findAllByText('星河湾 / 1 栋')).length).toBeGreaterThan(0);
     expect(screen.queryByText('当前步骤重点')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '保存草稿' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '保存房源' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('房号'), { target: { value: '1701' } });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: '保存草稿' })).toBeEnabled());
-    expect(screen.queryByText('当前已满足草稿保存门槛')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '保存房源' })).toBeEnabled());
+    expect(screen.queryByText('当前已满足保存门槛')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '保存房源' }));
 
     await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({
       building_id: 10,
@@ -329,7 +357,7 @@ describe('House new page', () => {
     await clickNextWhenEnabled();
     await screen.findByText('上传图片与视频');
     await clickNextWhenEnabled();
-    await screen.findByText('确认房源草稿');
+    await screen.findByText('确认房源资料');
     fireEvent.click(screen.getByRole('button', { name: '保存并进入详情' }));
 
     await waitFor(() => expect(mockCreateHouse).toHaveBeenCalledWith(expect.objectContaining({

@@ -15,12 +15,13 @@ import {
   getHouseIssueActionHint,
   getHouseWarningIssues,
   getTrackedHousePublishIssues,
-  HOUSE_PUBLISH_STATUS_COLOR,
+  HOUSE_STATUS,
   houseLabel,
   houseMediaReadinessText,
   moneyText,
   STATUS_COLOR,
 } from './constants';
+import { useHousePublishRules } from './useHousePublishRules';
 
 const dashboardHref = (path: string) => `/dashboard${path}`;
 const HOUSE_ISSUE_TO_TASK: Record<string, 'landlord' | 'rent' | 'cover' | 'images' | 'floor_plan' | 'video'> = {
@@ -93,8 +94,8 @@ type PublishWorkbenchRow = {
   actionHint: string;
 };
 
-export function getHouseTaskLink(record: HouseOut) {
-  const issues = getTrackedHousePublishIssues(record);
+export function getHouseTaskLink(record: HouseOut, rules?: unknown) {
+  const issues = getTrackedHousePublishIssues(record, rules);
   const needsMetadata = issues.includes('缺房东') || issues.includes('缺租金');
   const needsMedia = issues.includes('缺封面') || issues.includes('图片不足') || issues.includes('缺户型图') || issues.includes('视频不足');
   const basePath = `/property-rental/houses/${record.id}`;
@@ -109,27 +110,27 @@ export function getHouseTaskLink(record: HouseOut) {
   if (needsMetadata && needsMedia) return { label: '处理发布问题', path: `${basePath}${nextSearch}` };
   if (needsMetadata) return { label: '补资料', path: `${basePath}${nextSearch}` };
   if (needsMedia) return { label: '维护相册', path: `${basePath}${nextSearch}` };
-  if (!issues.length && canHousePublish(record) && record.publish_status !== 'published') return { label: '检查后发布', path: basePath };
+  if (!issues.length && canHousePublish(record, rules) && record.status === HOUSE_STATUS.VACANT) return { label: '检查后发布', path: basePath };
   return { label: '详情', path: basePath };
 }
 
-export function buildPublishWorkbenchRows(blockedHouses: HouseOut[], readyHouses: HouseOut[]): PublishWorkbenchRow[] {
+export function buildPublishWorkbenchRows(blockedHouses: HouseOut[], readyHouses: HouseOut[], rules?: unknown): PublishWorkbenchRow[] {
   return [
     ...blockedHouses.map((house) => {
-      const action = getHouseTaskLink(house);
+      const action = getHouseTaskLink(house, rules);
       return {
         key: `blocked-${house.id}`,
         stage: 'blocked' as const,
         house,
-        issues: getTrackedHousePublishIssues(house),
+        issues: getTrackedHousePublishIssues(house, rules),
         actionLabel: action.label,
         actionPath: action.path,
-        actionHint: getHouseIssueActionHint(house),
+        actionHint: getHouseIssueActionHint(house, rules),
       };
     }),
     ...readyHouses.map((house) => {
-      const action = getHouseTaskLink(house);
-      const warnings = getHouseWarningIssues(house);
+      const action = getHouseTaskLink(house, rules);
+      const warnings = getHouseWarningIssues(house, rules);
       return {
         key: `ready-${house.id}`,
         stage: 'ready' as const,
@@ -180,6 +181,7 @@ function openDashboardPath(path: string, event?: React.MouseEvent<HTMLElement>) 
 
 const WorkbenchPage: React.FC = () => {
   const workspace = useTenantWorkspace();
+  const publishRules = useHousePublishRules();
   const queryClient = useQueryClient();
   const initialFilters = typeof window === 'undefined' ? { publishFilter: 'all' as const, workflowFilter: 'all' as const } : getWorkbenchFiltersFromSearch(window.location.search);
   const [publishFilter, setPublishFilter] = useState<PublishFilterValue>(initialFilters.publishFilter);
@@ -211,8 +213,20 @@ const WorkbenchPage: React.FC = () => {
   });
 
   const houseItems = houses.data?.items || [];
-  const blockedHouseItems = houseItems.filter((house) => house.publish_status !== 'published' && !canHousePublish(house));
-  const readyHouseItems = houseItems.filter((house) => house.publish_status !== 'published' && canHousePublish(house));
+  const blockedHouseItems = publishRules.isPending
+    ? []
+    : houseItems.filter(
+        (house) =>
+          house.status === HOUSE_STATUS.VACANT &&
+          !canHousePublish(house, publishRules.rules),
+      );
+  const readyHouseItems = publishRules.isPending
+    ? []
+    : houseItems.filter(
+        (house) =>
+          house.status === HOUSE_STATUS.VACANT &&
+          canHousePublish(house, publishRules.rules),
+      );
   const totalHouseCount = houses.data?.total || 0;
   const blockedCount = blockedHouseItems.length;
   const readyCount = readyHouseItems.length;
@@ -226,7 +240,11 @@ const WorkbenchPage: React.FC = () => {
     { key: 'lease', title: '待签约', value: readyLeaseCount },
   ];
   const visibleOverviewItems = overviewItems.filter((item, index) => index === 0 || item.value > 0);
-  const publishWorkbenchRows = buildPublishWorkbenchRows(blockedHouseItems.slice(0, 5), readyHouseItems.slice(0, 5));
+  const publishWorkbenchRows = buildPublishWorkbenchRows(
+    blockedHouseItems.slice(0, 5),
+    readyHouseItems.slice(0, 5),
+    publishRules.rules,
+  );
   const workflowTasks = buildWorkflowTasks(
     pendingLeaseMissingContacts.data?.items || [],
     pendingLeaseReady.data?.items || [],
@@ -336,7 +354,6 @@ const WorkbenchPage: React.FC = () => {
                   <Tag color={record.stage === 'blocked' ? 'orange' : 'blue'}>{record.stage === 'blocked' ? '阻断发布' : '待发布'}</Tag>
                   {record.stage === 'ready' && record.issues.length ? <Tag color="cyan">仅提醒</Tag> : null}
                   <Tag color={STATUS_COLOR[record.house.status] || 'default'}>{enumMapping(record.house.status, record.house.status__mapping)}</Tag>
-                  <Tag color={HOUSE_PUBLISH_STATUS_COLOR[record.house.publish_status] || 'default'}>{enumMapping(record.house.publish_status, record.house.publish_status__mapping)}</Tag>
                 </Space>
               ),
             },
@@ -344,8 +361,14 @@ const WorkbenchPage: React.FC = () => {
               title: '关键问题',
               dataIndex: 'issues',
               render: (_value, record) => {
-                const blockingIssues = getHouseBlockingIssues(record.house);
-                const warningIssues = record.stage === 'ready' ? record.issues : getHouseWarningIssues(record.house);
+                const blockingIssues = getHouseBlockingIssues(
+                  record.house,
+                  publishRules.rules,
+                );
+                const warningIssues =
+                  record.stage === 'ready'
+                    ? record.issues
+                    : getHouseWarningIssues(record.house, publishRules.rules);
                 if (blockingIssues.length || warningIssues.length) {
                   return (
                     <Space size={[4, 4]} wrap>
@@ -420,10 +443,10 @@ const WorkbenchPage: React.FC = () => {
           const nextId = publishConfirmHouseId;
           if (nextId === null) return;
           setPublishConfirmHouseId(null);
-          await patchHouse.mutateAsync({ id: nextId, values: { publish_status: 'published' } });
+          await patchHouse.mutateAsync({ id: nextId, values: { status: HOUSE_STATUS.LISTED } });
         }}
       >
-        <Typography.Text>这套房源已经具备发布条件，确认后会直接切换为已发布状态。</Typography.Text>
+        <Typography.Text>这套房源已经具备发布条件，确认后会直接切换为招租中。</Typography.Text>
       </Modal>
 
       <Card

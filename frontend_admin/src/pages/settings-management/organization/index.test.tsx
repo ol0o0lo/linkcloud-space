@@ -15,6 +15,7 @@ const {
   mockGetDefaultBuilding,
   mockSetDefaultBuilding,
   mockCreateBuilding,
+  mockGetTagSuggestions,
   mockUseTenantWorkspace,
 } = vi.hoisted(() => {
   type HouseApiMocks = {
@@ -59,6 +60,7 @@ const {
     mockGetDefaultBuilding: houseApiMocks.getDefaultBuilding,
     mockSetDefaultBuilding: houseApiMocks.setDefaultBuilding,
     mockCreateBuilding: houseApiMocks.createBuilding,
+    mockGetTagSuggestions: vi.fn(),
     mockUseTenantWorkspace: tenantWorkspaceMock,
   };
 });
@@ -91,6 +93,7 @@ vi.mock('@/services/manual/house', () => ({
     getDefaultBuilding: mockGetDefaultBuilding,
     setDefaultBuilding: mockSetDefaultBuilding,
     createBuilding: mockCreateBuilding,
+    getTagSuggestions: mockGetTagSuggestions,
   },
 }));
 
@@ -201,6 +204,7 @@ describe('OrganizationSettingsPage', () => {
     mockGetDefaultBuilding.mockResolvedValue(building);
     mockSetDefaultBuilding.mockResolvedValue(building);
     mockCreateBuilding.mockResolvedValue({ id: 11, name: '2 栋', estate_id: 1, estate });
+    mockGetTagSuggestions.mockResolvedValue({ tags: ['近地铁', '有电梯'] });
   });
 
   it('renders organization settings as user-friendly business sections with schema controls', async () => {
@@ -454,9 +458,10 @@ describe('OrganizationSettingsPage', () => {
     fireEvent.click((await screen.findAllByText('星河湾')).at(-1) as HTMLElement);
     fireEvent.change(screen.getByLabelText('楼栋名'), { target: { value: '2 栋' } });
     fireEvent.change(screen.getByLabelText('楼层'), { target: { value: '28' } });
+    fireEvent.click(await screen.findByText('近地铁'));
     fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
 
-    await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalledWith(expect.objectContaining({ estate_id: 1, name: '2 栋', floors: 28 })));
+    await waitFor(() => expect(mockCreateBuilding).toHaveBeenCalledWith(expect.objectContaining({ estate_id: 1, name: '2 栋', floors: 28, tags: ['近地铁'] })));
     expect(mockSetDefaultBuilding).not.toHaveBeenCalled();
 
     await waitFor(() => expect(mockPutSetting).toHaveBeenCalledWith({ key: 'property_rental.default_building_id' }, { value: 11 }));

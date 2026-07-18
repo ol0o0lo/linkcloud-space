@@ -41,6 +41,8 @@
     "@ant-design/x": "^2.8.0",
     "@ant-design/x-markdown": "^2.8.0",
     "@ant-design/x-sdk": "^2.8.0",
+    "@iconify-icons/tabler": "^1.2.95",
+    "@iconify/react": "^6.0.2",
     "@rc-component/util": "^1.11.0",
     "@tanstack/react-query": "^5.101.0",
     "antd": "^6.4.3",

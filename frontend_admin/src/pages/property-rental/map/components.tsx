@@ -10,57 +10,41 @@ import {
   Badge,
   Button,
   Card,
-  Col,
-  Drawer,
   Empty,
   Input,
   List,
-  Row,
   Select,
   Space,
-  Statistic,
-  Switch,
+  Spin,
   Tag,
   Typography,
 } from 'antd';
 import { useEffect } from 'react';
 import type {
-  BuildingMapDetailOut,
   BuildingMapMarkerOut,
   BuildingMapUnlocatedOut,
-  EstateOut,
 } from '@/services/manual/house';
-
-const countLabels: Record<string, string> = {
-  total: '总房源',
-  vacant: '空置',
-  rented: '已租',
-  renovating: '装修中',
-  locked: '封存',
-  published: '已发布',
-};
+import { HOUSE_STATUS, STATUS_COLOR } from '../constants';
+import { type EstateMapDisplayPoint, getMapPrimaryMetric } from './map-display';
 
 export function MapToolbar({
   keyword,
-  estateId,
   houseStatus,
-  includeInactive,
-  estates,
+  hasFilters,
   counts,
   updating,
   onKeywordChange,
-  onEstateChange,
+  onKeywordSearch,
   onHouseStatusChange,
-  onIncludeInactiveChange,
   onClear,
 }: {
   keyword: string;
-  estateId?: number;
   houseStatus?: string;
-  includeInactive: boolean;
-  estates: EstateOut[];
+  hasFilters: boolean;
   counts: {
+    levelLabel: string;
     located: number;
+    buildings: number;
     unlocated: number;
     total: number;
     vacant: number;
@@ -68,14 +52,10 @@ export function MapToolbar({
   };
   updating: boolean;
   onKeywordChange: (value: string) => void;
-  onEstateChange: (value?: number) => void;
+  onKeywordSearch: (value: string) => void;
   onHouseStatusChange: (value?: string) => void;
-  onIncludeInactiveChange: (value: boolean) => void;
   onClear: () => void;
 }) {
-  const hasFilters = Boolean(
-    keyword || estateId || houseStatus || includeInactive,
-  );
   return (
     <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
       <Space wrap size={10} className="w-full">
@@ -83,20 +63,9 @@ export function MapToolbar({
           allowClear
           value={keyword}
           onChange={(event) => onKeywordChange(event.target.value)}
+          onSearch={onKeywordSearch}
           placeholder="搜索小区、楼栋或地址"
           style={{ width: 300 }}
-        />
-        <Select
-          allowClear
-          showSearch
-          value={estateId}
-          onChange={onEstateChange}
-          placeholder="全部小区"
-          style={{ width: 180 }}
-          options={estates.map((item) => ({
-            value: item.id,
-            label: item.display_name || item.name,
-          }))}
         />
         <Select
           allowClear
@@ -106,20 +75,11 @@ export function MapToolbar({
           style={{ width: 130 }}
           options={[
             { value: 'vacant', label: '空置' },
+            { value: 'listed', label: '招租中' },
             { value: 'rented', label: '已租' },
             { value: 'renovating', label: '装修中' },
-            { value: 'locked', label: '封存' },
           ]}
         />
-        <Space size={6}>
-          <Switch
-            size="small"
-            checked={includeInactive}
-            onChange={onIncludeInactiveChange}
-            aria-label="包含停用楼栋"
-          />
-          <Typography.Text>包含停用</Typography.Text>
-        </Space>
         {hasFilters ? (
           <Button type="link" onClick={onClear}>
             清除筛选
@@ -128,8 +88,14 @@ export function MapToolbar({
         <Space size={16} style={{ marginLeft: 'auto' }}>
           <Typography.Text type="secondary">当前视野</Typography.Text>
           <Typography.Text type="secondary">
-            楼栋 <Typography.Text strong>{counts.located}</Typography.Text>
+            {counts.levelLabel}{' '}
+            <Typography.Text strong>{counts.located}</Typography.Text>
           </Typography.Text>
+          {counts.levelLabel === '楼栋' ? null : (
+            <Typography.Text type="secondary">
+              楼栋 <Typography.Text strong>{counts.buildings}</Typography.Text>
+            </Typography.Text>
+          )}
           <Typography.Text type="secondary">
             房源 <Typography.Text strong>{counts.total}</Typography.Text>
           </Typography.Text>
@@ -143,11 +109,14 @@ export function MapToolbar({
             待定位任务{' '}
             <Typography.Text strong>{counts.unlocated}</Typography.Text>
           </Typography.Text>
-          {updating ? (
-            <Tag icon={<ReloadOutlined spin />} color="processing">
-              正在更新地图
-            </Tag>
-          ) : null}
+          <Tag
+            icon={<ReloadOutlined spin={updating} />}
+            color="processing"
+            aria-hidden={!updating}
+            style={{ visibility: updating ? 'visible' : 'hidden' }}
+          >
+            正在更新地图
+          </Tag>
         </Space>
       </Space>
     </Card>
@@ -158,9 +127,184 @@ function CountTags({ counts }: { counts: BuildingMapMarkerOut['counts'] }) {
   return (
     <Space size={[4, 4]} wrap>
       <Tag color="blue">{counts.total} 套</Tag>
-      <Tag color="green">空置 {counts.vacant}</Tag>
-      <Tag>已租 {counts.rented}</Tag>
+      <Tag color={STATUS_COLOR[HOUSE_STATUS.VACANT]}>空置 {counts.vacant}</Tag>
+      <Tag color={STATUS_COLOR[HOUSE_STATUS.RENTED]}>已租 {counts.rented}</Tag>
     </Space>
+  );
+}
+
+export function EstateResultPanel({
+  points,
+  houseStatus,
+  collapsed,
+  focusedKey,
+  loading,
+  error,
+  truncated,
+  onSelect,
+  onToggleCollapsed,
+  onRetry,
+}: {
+  points: EstateMapDisplayPoint[];
+  houseStatus?: string;
+  collapsed: boolean;
+  focusedKey?: string;
+  loading: boolean;
+  error: boolean;
+  truncated: boolean;
+  onSelect: (point: EstateMapDisplayPoint) => void;
+  onToggleCollapsed: () => void;
+  onRetry: () => void;
+}) {
+  if (collapsed) {
+    return (
+      <Card
+        size="small"
+        styles={{ body: { padding: 7 } }}
+        style={{ width: 48, flex: '0 0 48px', height: '100%' }}
+      >
+        <Button
+          type="text"
+          icon={<MenuUnfoldOutlined />}
+          aria-label="展开小区结果"
+          title="展开小区结果"
+          onClick={onToggleCollapsed}
+        />
+        <Typography.Text
+          type="secondary"
+          aria-label={`当前视野项目 ${points.length} 个`}
+          title={`当前视野项目 ${points.length} 个`}
+          style={{ display: 'block', marginTop: 8, textAlign: 'center' }}
+        >
+          {points.length}个
+        </Typography.Text>
+      </Card>
+    );
+  }
+
+  return (
+    <Card
+      size="small"
+      title={`小区结果 ${points.length}`}
+      extra={
+        <Button
+          type="text"
+          icon={<MenuFoldOutlined />}
+          aria-label="收起小区结果"
+          title="收起小区结果"
+          onClick={onToggleCollapsed}
+        />
+      }
+      styles={{
+        body: { padding: 0, height: 'calc(100% - 46px)', overflow: 'auto' },
+      }}
+      style={{
+        width: 'clamp(320px, 28vw, 390px)',
+        flex: '0 0 clamp(320px, 28vw, 390px)',
+        height: '100%',
+      }}
+    >
+      {error ? (
+        <Alert
+          type="error"
+          title="小区结果加载失败"
+          showIcon
+          action={
+            <Button size="small" onClick={onRetry}>
+              重新加载
+            </Button>
+          }
+          style={{ margin: 12 }}
+        />
+      ) : null}
+      {truncated ? (
+        <Alert
+          type="info"
+          showIcon
+          title="当前区域结果较多"
+          description="继续放大地图可查看更完整的小区与楼栋结果。"
+          style={{ margin: 12 }}
+        />
+      ) : null}
+      <Spin spinning={loading}>
+        {!loading && !points.length ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="当前地图范围暂无已定位小区或独立楼栋"
+            style={{ padding: '36px 12px' }}
+          />
+        ) : (
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+            {points.map((point) => {
+              const metric = getMapPrimaryMetric(point.counts, houseStatus);
+              const focused = focusedKey === point.key;
+              return (
+                <li key={point.key}>
+                  <button
+                    type="button"
+                    aria-pressed={focused}
+                    onClick={() => onSelect(point)}
+                    style={{
+                      display: 'flex',
+                      width: '100%',
+                      gap: 12,
+                      padding: 12,
+                      border: 0,
+                      borderBottom: '1px solid #f0f0f0',
+                      borderLeft: focused
+                        ? '3px solid #1677ff'
+                        : '3px solid transparent',
+                      background: focused ? '#e6f4ff' : '#fff',
+                      color: 'inherit',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <EnvironmentOutlined
+                      style={{
+                        marginTop: 3,
+                        color: focused ? '#1677ff' : '#8c8c8c',
+                        fontSize: 18,
+                      }}
+                    />
+                    <Space
+                      orientation="vertical"
+                      size={5}
+                      className="min-w-0 flex-1"
+                    >
+                      <Space size={6} wrap>
+                        <Typography.Text strong>{point.name}</Typography.Text>
+                        {point.locationSource === 'building-centroid' ? (
+                          <Tag color="cyan">楼栋中心</Tag>
+                        ) : null}
+                        {point.kind === 'independent-building' ? (
+                          <Tag color="purple">独立楼栋</Tag>
+                        ) : null}
+                      </Space>
+                      <Typography.Text type="secondary" ellipsis>
+                        {point.address || '暂无地址'}
+                      </Typography.Text>
+                      <Space size={[4, 4]} wrap>
+                        <Tag color="blue">{point.buildingCount} 栋</Tag>
+                        <Tag color="green">
+                          {metric.label} {metric.value}
+                        </Tag>
+                        <Tag>已租 {point.counts.rented}</Tag>
+                        {point.unlocatedBuildingCount ? (
+                          <Tag color="orange">
+                            待定位 {point.unlocatedBuildingCount}
+                          </Tag>
+                        ) : null}
+                      </Space>
+                    </Space>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Spin>
+    </Card>
   );
 }
 
@@ -171,6 +315,7 @@ export function BuildingResultPanel({
   collapsed,
   selectedId,
   loading,
+  truncated,
   locatedError,
   unlocatedError,
   returnTo,
@@ -186,6 +331,7 @@ export function BuildingResultPanel({
   collapsed: boolean;
   selectedId?: number;
   loading: boolean;
+  truncated: boolean;
   locatedError: boolean;
   unlocatedError: boolean;
   returnTo: string;
@@ -196,10 +342,16 @@ export function BuildingResultPanel({
   onRetryUnlocated: () => void;
 }) {
   useEffect(() => {
-    if (selectedId)
-      document
-        .getElementById(`building-map-result-${selectedId}`)
-        ?.scrollIntoView({ block: 'nearest' });
+    if (!selectedId) return;
+    const item = document.getElementById(`building-map-result-${selectedId}`);
+    const scrollContainer = item?.closest<HTMLElement>('.ant-card-body');
+    if (!item || !scrollContainer) return;
+    const itemRect = item.getBoundingClientRect();
+    const containerRect = scrollContainer.getBoundingClientRect();
+    if (itemRect.top < containerRect.top)
+      scrollContainer.scrollTop -= containerRect.top - itemRect.top;
+    else if (itemRect.bottom > containerRect.bottom)
+      scrollContainer.scrollTop += itemRect.bottom - containerRect.bottom;
   }, [selectedId]);
   if (collapsed) {
     return (
@@ -226,9 +378,11 @@ export function BuildingResultPanel({
         ) : null}
         <Typography.Text
           type="secondary"
+          aria-label={`当前视野楼栋 ${located.length} 栋`}
+          title={`当前视野楼栋 ${located.length} 栋`}
           style={{ display: 'block', marginTop: 8, textAlign: 'center' }}
         >
-          {located.length}
+          {located.length}栋
         </Typography.Text>
       </Card>
     );
@@ -321,6 +475,15 @@ export function BuildingResultPanel({
           style={{ margin: 12 }}
         />
       ) : null}
+      {truncated ? (
+        <Alert
+          type="info"
+          showIcon
+          title="当前区域楼栋较多"
+          description="继续放大地图可查看更完整的楼栋结果。"
+          style={{ margin: 12 }}
+        />
+      ) : null}
       <List
         loading={loading}
         dataSource={located}
@@ -337,6 +500,7 @@ export function BuildingResultPanel({
             id={`building-map-result-${item.id}`}
             role="button"
             tabIndex={0}
+            aria-pressed={selectedId === item.id}
             onClick={() => onSelect(item)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
@@ -366,7 +530,6 @@ export function BuildingResultPanel({
               title={
                 <Space>
                   <Typography.Text strong>{item.name}</Typography.Text>
-                  {item.is_active ? null : <Tag>停用</Tag>}
                 </Space>
               }
               description={
@@ -385,107 +548,5 @@ export function BuildingResultPanel({
         )}
       />
     </Card>
-  );
-}
-
-export function BuildingDetailDrawer({
-  open,
-  loading,
-  error,
-  detail,
-  returnTo,
-  onClose,
-  onRetry,
-}: {
-  open: boolean;
-  loading: boolean;
-  error: boolean;
-  detail?: BuildingMapDetailOut;
-  returnTo: string;
-  onClose: () => void;
-  onRetry: () => void;
-}) {
-  return (
-    <Drawer
-      open={open}
-      loading={loading}
-      onClose={onClose}
-      title={detail?.name || '楼栋详情'}
-      size={520}
-      footer={
-        detail ? (
-          <Space>
-            <Link
-              to={`/property-rental/buildings/${detail.id}?return_to=${encodeURIComponent(returnTo)}`}
-            >
-              查看楼栋详情
-            </Link>
-            <Link to={`/property-rental/houses?building_id=${detail.id}`}>
-              查看全部房源
-            </Link>
-            <Link
-              to={`/property-rental/estates?view=buildings&building_edit=${detail.id}&return_to=${encodeURIComponent(returnTo)}`}
-            >
-              编辑楼栋位置
-            </Link>
-          </Space>
-        ) : null
-      }
-    >
-      {error ? (
-        <Alert
-          type="error"
-          title="楼栋详情加载失败"
-          showIcon
-          action={
-            <Button size="small" onClick={onRetry}>
-              重新加载
-            </Button>
-          }
-        />
-      ) : null}
-      {detail ? (
-        <>
-          <Typography.Paragraph type="secondary">
-            {detail.estate?.display_name || detail.estate?.name || '非小区楼栋'}{' '}
-            · {detail.address}
-          </Typography.Paragraph>
-          <Row gutter={[8, 8]}>
-            {Object.entries(detail.counts).map(([key, value]) => (
-              <Col span={8} key={key}>
-                <Card size="small">
-                  <Statistic
-                    title={countLabels[key] || key}
-                    value={value}
-                    styles={{ content: { fontSize: 20 } }}
-                  />
-                </Card>
-              </Col>
-            ))}
-          </Row>
-          <Card
-            size="small"
-            title={`房源 ${detail.houses.length} 套`}
-            style={{ marginTop: 16 }}
-          >
-            <List
-              size="small"
-              dataSource={detail.houses.slice(0, 12)}
-              locale={{ emptyText: '暂无有效房源' }}
-              renderItem={(house) => (
-                <List.Item extra={<Tag>{house.status__mapping}</Tag>}>
-                  <Link to={`/property-rental/houses/${house.id}`}>
-                    {house.room_number} 室
-                  </Link>
-                  <Typography.Text type="secondary">
-                    {house.floor == null ? '' : ` · ${house.floor} 层`}
-                  </Typography.Text>
-                </List.Item>
-              )}
-            />
-          </Card>
-        </>
-      ) : null}
-    </Drawer>
   );
 }

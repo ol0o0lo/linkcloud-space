@@ -29,6 +29,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import {
   EntityPreviewDetailDrawer,
+  HousePreview,
   LeasePreview,
   ViewingPreview,
 } from '@/components/EntityPreview';
@@ -98,18 +99,6 @@ function canCreateLease(record: ViewingRecordOut) {
 
 function leaseCreatePath(record: ViewingRecordOut) {
   return `/dashboard/property-rental/leases?source_viewing_record_id=${record.id}`;
-}
-
-function getViewingBusinessInfo(record: ViewingRecordOut) {
-  const secondaryParts = [
-    houseLabel(record),
-    needsContactCompletion(record) ? '未绑定租客' : undefined,
-    dateTimeText(record.scheduled_at),
-  ].filter(Boolean);
-  return {
-    primary: `${record.customer_name} / ${record.customer_phone}`,
-    secondary: secondaryParts.join(' · '),
-  };
 }
 
 function getViewingEmptyState(options: {
@@ -372,7 +361,12 @@ const ViewingsPage: React.FC = () => {
   const contacts = useQuery({
     queryKey: ['house', 'viewings', 'contacts', workspace.selectedOrgSlug],
     queryFn: () =>
-      houseApi.listContacts({ page: 1, page_size: 100, role: 'tenant' }),
+      houseApi.listContacts({
+        page: 1,
+        page_size: 100,
+        role: 'tenant',
+        task: 'active',
+      }),
     enabled,
   });
   const viewings = useQuery({
@@ -583,23 +577,53 @@ const ViewingsPage: React.FC = () => {
       scheduled_at: dateTimeInputValue(editing.scheduled_at),
     });
   }, [drawerOpen, editing?.id, form]);
-  const tenantItems = [...createdTenants, ...(contacts.data?.items || [])];
+  const tenantItems = Array.from(
+    new Map(
+      [
+        ...createdTenants,
+        ...(contacts.data?.items || []),
+        ...(editing?.contact ? [editing.contact] : []),
+      ].map((item) => [item.id, item]),
+    ).values(),
+  );
   const columns: ProColumns<ViewingRecordOut>[] = [
     {
-      title: '客户信息',
+      title: '客户名',
       dataIndex: 'customer_name',
-      width: 320,
-      render: (_value, record) => {
-        const businessInfo = getViewingBusinessInfo(record);
+      width: 180,
+      render: (value, record) => {
         return (
           <Space orientation="vertical" size={2}>
-            <ViewingPreview id={record.id}><Typography.Text strong>{businessInfo.primary}</Typography.Text></ViewingPreview>
-            <Typography.Text type="secondary">
-              {businessInfo.secondary}
-            </Typography.Text>
+            <ViewingPreview id={record.id}>
+              <Typography.Text strong>{value || '-'}</Typography.Text>
+            </ViewingPreview>
+            {needsContactCompletion(record) ? (
+              <Typography.Text type="secondary">未绑定租客</Typography.Text>
+            ) : null}
           </Space>
         );
       },
+    },
+    {
+      title: '客户手机号',
+      dataIndex: 'customer_phone',
+      width: 180,
+      render: (value) => value || '-',
+    },
+    {
+      title: '房源',
+      dataIndex: 'house',
+      width: 280,
+      render: (_value, record) => (
+        <Space orientation="vertical" size={2}>
+          <HousePreview id={record.house_id}>
+            <Typography.Text>{houseLabel(record)}</Typography.Text>
+          </HousePreview>
+          <Typography.Text type="secondary">
+            {dateTimeText(record.scheduled_at)}
+          </Typography.Text>
+        </Space>
+      ),
     },
     {
       title: '状态',

@@ -175,6 +175,12 @@ export default [
         component: './property-rental/houses',
       },
       {
+        name: 'vacancy-sync',
+        icon: 'sync',
+        path: '/property-rental/vacancy-sync',
+        component: './property-rental/vacancy-sync',
+      },
+      {
         name: 'house-new',
         icon: 'plusCircle',
         path: '/property-rental/houses/new',
@@ -199,6 +205,12 @@ export default [
         icon: 'contacts',
         path: '/property-rental/contacts',
         component: './property-rental/contacts',
+      },
+      {
+        name: 'responsibilities',
+        icon: 'partition',
+        path: '/property-rental/responsibilities',
+        component: './property-rental/responsibilities',
       },
       {
         name: 'viewings',

@@ -6,8 +6,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumSelectOptions, useEnums } from '@/services/manual/enums';
 import { type BuildingOut, type ContactOut, houseApi } from '@/services/manual/house';
-import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import MediaRefsUpload from '../components/MediaRefsUpload';
+import { PropertyTagSelect } from '../components/PropertyTagSelect';
 import {
   buildingLabel,
   CONTACT_ROLE,
@@ -16,9 +16,11 @@ import {
   getHouseMediaCompleteness,
   HOUSE_MEDIA_RESOURCE_TYPE,
   HOUSE_MEDIA_TYPE,
+  housePrimaryLayoutText,
   type MediaRefValue,
   moneyText,
 } from '../constants';
+import { useHousePublishRules } from '../useHousePublishRules';
 
 const STEP_ITEMS = [
   { title: '建档' },
@@ -42,8 +44,6 @@ type HouseWizardFormValues = Record<string, unknown> & {
   room_number?: string;
   videos?: MediaRefValue[];
 };
-
-const publishRulesSettingKey = 'property_rental.publish_rules';
 
 const useStyles = createStyles(({ token, css }) => ({
   sectionBlock: css`
@@ -72,7 +72,7 @@ function getMissingFields(values: HouseWizardFormValues, fields: Array<{ key: ke
 
 function getWizardReadiness(values: HouseWizardFormValues, publishRules?: unknown) {
   const publishState = evaluateHousePublishState(values, publishRules);
-  const draftMissing = getMissingFields(values, [
+  const baseMissing = getMissingFields(values, [
     { key: 'building_id', label: '楼栋' },
     { key: 'room_number', label: '房号' },
   ]);
@@ -81,8 +81,8 @@ function getWizardReadiness(values: HouseWizardFormValues, publishRules?: unknow
     { key: 'asking_rent', label: '挂牌租金' },
   ]);
   return {
-    draftMissing,
-    draftReady: !draftMissing.length,
+    baseMissing,
+    baseReady: !baseMissing.length,
     publishBlockingIssues: publishState.blockingIssues,
     publishWarningIssues: publishState.warningIssues,
     publishReady: publishState.canPublish,
@@ -127,8 +127,7 @@ function houseLayoutText(values: Record<string, unknown>) {
   if (!layout.length) return '-';
 
   return [
-    `${values.bedrooms || 0}室`,
-    `${values.living_rooms || 0}厅`,
+    housePrimaryLayoutText(values, { emptyAsZero: true }),
     `${values.bathrooms || 0}卫`,
     `${values.kitchens || 0}厨`,
     `${values.balconies || 0}阳台`,
@@ -149,26 +148,36 @@ const HouseNewPage: React.FC = () => {
   const [createdBuildings, setCreatedBuildings] = useState<BuildingOut[]>([]);
   const [createdLandlords, setCreatedLandlords] = useState<ContactOut[]>([]);
   const workspace = useTenantWorkspace();
+  const publishRules = useHousePublishRules();
   const enabled = Boolean(workspace.selectedOrgSlug);
   const houseEnums = useEnums(['house.house_orientation', 'house.house_decoration']);
   const estates = useQuery({ queryKey: ['house', 'new', 'estates', workspace.selectedOrgSlug], queryFn: () => houseApi.listEstates({ page: 1, page_size: 100 }), enabled });
   const buildings = useQuery({ queryKey: ['house', 'new', 'buildings', workspace.selectedOrgSlug], queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100 }), enabled });
   const defaultBuilding = useQuery({ queryKey: ['house', 'new', 'default-building', workspace.selectedOrgSlug], queryFn: () => houseApi.getDefaultBuilding(), enabled });
-  const contacts = useQuery({ queryKey: ['house', 'new', 'contacts', workspace.selectedOrgSlug], queryFn: () => houseApi.listContacts({ page: 1, page_size: 100, role: 'landlord' }), enabled });
-  const settings = useQuery({ queryKey: ['house', 'new', 'settings', workspace.selectedOrgSlug], queryFn: () => appsSettingsApiListOrgSettings(), enabled });
+  const contacts = useQuery({
+    queryKey: ['house', 'new', 'contacts', workspace.selectedOrgSlug],
+    queryFn: () =>
+      houseApi.listContacts({
+        page: 1,
+        page_size: 100,
+        role: 'landlord',
+        task: 'active',
+      }),
+    enabled,
+  });
+  const tagSuggestions = useQuery({ queryKey: ['house', 'tag-suggestions'], queryFn: () => houseApi.getTagSuggestions(), enabled });
   const buildingItems = useMemo(() => [...createdBuildings, ...(buildings.data?.items || [])], [buildings.data, createdBuildings]);
   const landlordItems = useMemo(() => [...createdLandlords, ...(contacts.data?.items || [])], [contacts.data, createdLandlords]);
   const orientationOptions = enumSelectOptions(houseEnums.data, 'house.house_orientation');
   const decorationOptions = enumSelectOptions(houseEnums.data, 'house.house_decoration');
   const selectedBuilding = buildingItems.find((item) => item.id === (formValues.building_id as number | undefined));
   const selectedLandlord = landlordItems.find((item) => item.id === (formValues.landlord_id as number | undefined));
-  const publishRules = useMemo(
-    () => settings.data?.find((item) => item.key === publishRulesSettingKey)?.value,
-    [settings.data],
+  const readiness = useMemo(
+    () => getWizardReadiness(formValues, publishRules.rules),
+    [formValues, publishRules.rules],
   );
-  const readiness = useMemo(() => getWizardReadiness(formValues, publishRules), [formValues, publishRules]);
   const mediaCompleteness = useMemo(() => getHouseMediaCompleteness(formValues), [formValues]);
-  const canAdvanceFromDraftStep = readiness.draftReady;
+  const canAdvanceFromBaseStep = readiness.baseReady;
   const createHouse = useMutation({
     mutationFn: (values: Record<string, unknown>) => houseApi.createHouse(values),
     onSuccess: (house) => {
@@ -227,7 +236,7 @@ const HouseNewPage: React.FC = () => {
     createHouse.mutate(payload);
   };
 
-  const saveDraftNow = async () => {
+  const saveHouseNow = async () => {
     try {
       await form.validateFields(STEP_FIELDS[0]);
     } catch {
@@ -373,6 +382,16 @@ const HouseNewPage: React.FC = () => {
                 </Form.Item>
               </Col>
               <Col span={24}>
+                <Form.Item label="房源标签" name="tags">
+                  <PropertyTagSelect
+                    inheritedTags={selectedBuilding?.tags}
+                    suggestions={tagSuggestions.data?.tags ?? []}
+                    suggestionsLoading={tagSuggestions.isLoading}
+                    suggestionsError={tagSuggestions.isError}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
                 <Form.Item label="对外描述" name="public_description">
                   <Input.TextArea rows={4} />
                 </Form.Item>
@@ -420,12 +439,12 @@ const HouseNewPage: React.FC = () => {
     return (
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <div>
-          <Typography.Title level={5} style={{ marginBottom: 4 }}>确认房源草稿</Typography.Title>
+          <Typography.Title level={5} style={{ marginBottom: 4 }}>确认房源资料</Typography.Title>
         </div>
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="当前业务状态">
             <Space wrap>
-              <Tag color={readiness.draftReady ? 'green' : 'orange'}>{readiness.draftReady ? '草稿可保存' : '草稿待补'}</Tag>
+              <Tag color={readiness.baseReady ? 'green' : 'orange'}>{readiness.baseReady ? '可以保存' : '基础资料待补'}</Tag>
               <Tag color={readiness.viewingReady ? 'blue' : 'orange'}>{readiness.viewingReady ? '可安排带看' : '带看资料待补'}</Tag>
               <Tag color={readiness.publishReady ? 'green' : 'orange'}>{readiness.publishReady ? '可进入发布流程' : '发布资料待补'}</Tag>
             </Space>
@@ -461,11 +480,11 @@ const HouseNewPage: React.FC = () => {
               {currentStep > 0 ? (
                 <Button onClick={goPrev}>上一步</Button>
               ) : null}
-              <Button onClick={() => void saveDraftNow()} disabled={!readiness.draftReady || createHouse.isPending} loading={createHouse.isPending}>
-                保存草稿
+              <Button onClick={() => void saveHouseNow()} disabled={!readiness.baseReady || createHouse.isPending} loading={createHouse.isPending}>
+                保存房源
               </Button>
               {currentStep < STEP_ITEMS.length - 1 ? (
-                <Button type="primary" onClick={() => void goNext()} disabled={currentStep === 0 && !canAdvanceFromDraftStep}>
+                <Button type="primary" onClick={() => void goNext()} disabled={currentStep === 0 && !canAdvanceFromBaseStep}>
                   下一步
                 </Button>
               ) : (
@@ -497,6 +516,13 @@ const HouseNewPage: React.FC = () => {
           </Form.Item>
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}>
             <Input />
+          </Form.Item>
+          <Form.Item label="标签" name="tags" extra="房源会在自身标签之后自动继承这些楼栋标签。">
+            <PropertyTagSelect
+              suggestions={tagSuggestions.data?.tags ?? []}
+              suggestionsLoading={tagSuggestions.isLoading}
+              suggestionsError={tagSuggestions.isError}
+            />
           </Form.Item>
           <Form.Item noStyle shouldUpdate={(previousValues, currentValues) => previousValues.estate_id !== currentValues.estate_id}>
             {() => (

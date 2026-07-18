@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_HOUSE_PUBLISH_RULES,
   buildHousePublishRulesPreset,
+  getTrackedHousePublishIssues,
   normalizeHousePublishRules,
   summarizeHousePublishRules,
 } from '../publish-rules';
@@ -46,5 +47,19 @@ describe('house publish rules', () => {
       floor_plan: { mode: 'off' },
       video: { mode: 'off', min_count: 1 },
     });
+  });
+
+  it('does not reintroduce issues disabled by organization rules', () => {
+    expect(
+      getTrackedHousePublishIssues(
+        {
+          landlord_id: 1,
+          asking_rent: '4200.00',
+          images: [],
+          videos: [],
+        },
+        buildHousePublishRulesPreset('relaxed'),
+      ),
+    ).toEqual([]);
   });
 });

@@ -1,14 +1,15 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Card, Divider, Form, Input, InputNumber, Modal, message, Select, Space, Tabs, Typography } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
-import { wrapTextStyle } from '@/pages/_shared/adminLayout';
 import { LocationPicker, type LocationValue } from '@/components/LocationPicker';
+import { wrapTextStyle } from '@/pages/_shared/adminLayout';
+import { PropertyTagSelect } from '@/pages/property-rental/components/PropertyTagSelect';
 import { buildingLabel } from '@/pages/property-rental/constants';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
 import { type BuildingOut, houseApi } from '@/services/manual/house';
 import {
-  appsSettingsApiListOrgSettings,
   appsSettingsApiDeleteOrgSettingView,
+  appsSettingsApiListOrgSettings,
   appsSettingsApiPutOrgSetting,
 } from '@/services/openapi/organizationSettings';
 import {
@@ -109,6 +110,12 @@ const OrganizationSettingsPage: React.FC = () => {
   const buildingsQuery = useQuery({
     queryKey: ['settings-management', 'organization', 'house-buildings', workspace.selectedOrgSlug],
     queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100 }),
+    enabled: Boolean(workspace.selectedOrgSlug),
+  });
+
+  const tagSuggestions = useQuery({
+    queryKey: ['house', 'tag-suggestions'],
+    queryFn: () => houseApi.getTagSuggestions(),
     enabled: Boolean(workspace.selectedOrgSlug),
   });
 
@@ -278,6 +285,13 @@ const OrganizationSettingsPage: React.FC = () => {
           </Form.Item>
           <Form.Item label="楼层" name="floors" rules={[{ required: true, message: '请输入楼层' }]}>
             <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="标签" name="tags" extra="房源会在自身标签之后自动继承这些楼栋标签。">
+            <PropertyTagSelect
+              suggestions={tagSuggestions.data?.tags ?? []}
+              suggestionsLoading={tagSuggestions.isLoading}
+              suggestionsError={tagSuggestions.isError}
+            />
           </Form.Item>
           <Form.Item noStyle shouldUpdate={(previousValues, currentValues) => previousValues.estate_id !== currentValues.estate_id}>
             {() => (

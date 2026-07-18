@@ -203,8 +203,8 @@ export function getHouseBlockingIssues(house: {
   videos?: Record<string, unknown>[];
   landlord_id?: number | null;
   asking_rent?: string | number | null;
-}) {
-  return evaluateHousePublishState(house).blockingIssues;
+}, rules?: unknown) {
+  return evaluateHousePublishState(house, rules).blockingIssues;
 }
 
 export function getHouseWarningIssues(house: {
@@ -212,8 +212,8 @@ export function getHouseWarningIssues(house: {
   videos?: Record<string, unknown>[];
   landlord_id?: number | null;
   asking_rent?: string | number | null;
-}) {
-  return evaluateHousePublishState(house).warningIssues;
+}, rules?: unknown) {
+  return evaluateHousePublishState(house, rules).warningIssues;
 }
 
 export function canHousePublish(house: {
@@ -221,8 +221,8 @@ export function canHousePublish(house: {
   videos?: Record<string, unknown>[];
   landlord_id?: number | null;
   asking_rent?: string | number | null;
-}) {
-  return evaluateHousePublishState(house).canPublish;
+}, rules?: unknown) {
+  return evaluateHousePublishState(house, rules).canPublish;
 }
 
 export function getTrackedHousePublishIssues(house: {
@@ -230,10 +230,9 @@ export function getTrackedHousePublishIssues(house: {
   videos?: Record<string, unknown>[];
   landlord_id?: number | null;
   asking_rent?: string | number | null;
-}) {
-  const blocking = getHouseBlockingIssues(house);
-  const warnings = getHouseWarningIssues(house);
-  if (!blocking.length && !warnings.length) return getHousePublishIssues(house);
+}, rules?: unknown) {
+  const blocking = getHouseBlockingIssues(house, rules);
+  const warnings = getHouseWarningIssues(house, rules);
   return [...blocking, ...warnings];
 }
 
@@ -243,10 +242,18 @@ export function houseMediaReadinessText(house: { images?: Record<string, unknown
   return `${images} 图 / ${videos} 视频`;
 }
 
-export function getHouseIssueActionHint(house: { images?: Record<string, unknown>[]; videos?: Record<string, unknown>[]; landlord_id?: number | null; asking_rent?: string | number | null }) {
-  const blocking = getHouseBlockingIssues(house);
-  const warnings = getHouseWarningIssues(house);
-  const issues = getTrackedHousePublishIssues(house);
+export function getHouseIssueActionHint(
+  house: {
+    images?: Record<string, unknown>[];
+    videos?: Record<string, unknown>[];
+    landlord_id?: number | null;
+    asking_rent?: string | number | null;
+  },
+  rules?: unknown,
+) {
+  const blocking = getHouseBlockingIssues(house, rules);
+  const warnings = getHouseWarningIssues(house, rules);
+  const issues = getTrackedHousePublishIssues(house, rules);
   if (!blocking.length && !warnings.length) return '资料已满足发布条件，可直接发布；展示素材可按优先级持续补齐。';
   if (!issues.length) return '资料完整，可安排发布或带看';
   if (!blocking.length && warnings.length) {

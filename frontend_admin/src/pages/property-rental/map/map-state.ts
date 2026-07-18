@@ -1,7 +1,12 @@
+import { HOUSE_STATUS } from '../constants';
+
 export function readMapSearchState(search: string) {
   const params = new URLSearchParams(search);
   const number = (key: string) => {
-    const value = Number(params.get(key));
+    const rawValue = params.get(key);
+    if (rawValue == null || rawValue.trim() === '') return undefined;
+
+    const value = Number(rawValue);
     return Number.isFinite(value) ? value : undefined;
   };
   const estateId = number('estate_id');
@@ -12,8 +17,7 @@ export function readMapSearchState(search: string) {
   return {
     keyword: params.get('keyword') || '',
     estateId: estateId && estateId > 0 ? estateId : undefined,
-    houseStatus: params.get('house_status') || undefined,
-    includeInactive: params.get('include_inactive') === 'true',
+    houseStatus: params.get('house_status') || HOUSE_STATUS.VACANT,
     selectedBuildingId:
       selectedBuildingId && selectedBuildingId > 0
         ? selectedBuildingId
@@ -26,7 +30,7 @@ export function readMapSearchState(search: string) {
       centerLng >= -180 &&
       centerLng <= 180 &&
       zoom != null &&
-      zoom >= 3 &&
+      zoom >= 2 &&
       zoom <= 20
         ? { lat: centerLat, lng: centerLng, zoom }
         : undefined,

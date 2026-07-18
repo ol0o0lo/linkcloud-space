@@ -54,6 +54,21 @@ describe('MediaRefsUpload', () => {
     ]);
   });
 
+  it('can disable house-specific image roles for building images', () => {
+    render(
+      <MediaRefsUpload
+        mediaType="image"
+        resourceType="building_image"
+        enableImageRoles={false}
+        value={[{ media_id: 1, media_type: 'image', label: '楼栋正门', url: '/building.png' }]}
+      />,
+    );
+
+    expect(screen.getByAltText('楼栋正门')).toBeInTheDocument();
+    expect(screen.queryByLabelText('楼栋正门角色')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '将楼栋正门设为首图' })).not.toBeInTheDocument();
+  });
+
   it('keeps image action button text compact for long filenames', () => {
     render(
       <MediaRefsUpload
