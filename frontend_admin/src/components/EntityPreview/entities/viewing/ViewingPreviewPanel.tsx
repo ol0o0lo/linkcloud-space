@@ -10,12 +10,22 @@ import { useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping } from '@/services/manual/enums';
 import { houseApi } from '@/services/manual/house';
 import {
+  EntityPreviewCard,
+  EntityPreviewCardBody,
+  EntityPreviewFact,
+  EntityPreviewFactGrid,
+  EntityPreviewField,
+  EntityPreviewFieldList,
+  EntityPreviewHeader,
+  EntityPreviewSection,
+} from '../../EntityPreviewCard';
+import {
   EntityPreviewError,
   EntityPreviewSkeleton,
 } from '../../EntityPreviewState';
 import type { EntityPreviewPanelProps } from '../../types';
 
-export function ViewingPreviewPanel({ id }: EntityPreviewPanelProps) {
+export function ViewingPreviewPanel({ id, variant }: EntityPreviewPanelProps) {
   const workspace = useTenantWorkspace();
   const viewing = useQuery({
     queryKey: ['entity-preview', workspace.selectedOrgSlug, 'viewing', id],
@@ -26,7 +36,7 @@ export function ViewingPreviewPanel({ id }: EntityPreviewPanelProps) {
   });
 
   if (viewing.isPending) {
-    return <EntityPreviewSkeleton />;
+    return <EntityPreviewSkeleton variant={variant} />;
   }
 
   if (viewing.isError) {
@@ -41,6 +51,63 @@ export function ViewingPreviewPanel({ id }: EntityPreviewPanelProps) {
   const customer = [viewing.data.customer_name, viewing.data.customer_phone]
     .filter(Boolean)
     .join(' / ');
+
+  if (variant === 'popover') {
+    const customerName = viewing.data.customer_name || '未知客户';
+
+    return (
+      <EntityPreviewCard
+        ariaLabel={`${customerName}带看预览`}
+        footerMeta={`带看 #${id}`}
+      >
+        <EntityPreviewHeader
+          highlight={
+            <Typography.Text>{houseLabel(viewing.data)}</Typography.Text>
+          }
+          subtitle={viewing.data.customer_phone || '-'}
+          tags={
+            <Space size={[4, 4]} wrap>
+              <Tag color={STATUS_COLOR[viewing.data.status] || 'default'}>
+                {enumMapping(viewing.data.status, viewing.data.status__mapping)}
+              </Tag>
+              <Tag color={viewing.data.signed_lease_id ? 'success' : 'default'}>
+                {viewing.data.signed_lease_id ? '已签约' : '未签约'}
+              </Tag>
+            </Space>
+          }
+          title={customerName}
+        />
+        <EntityPreviewCardBody>
+          <EntityPreviewSection>
+            <EntityPreviewFactGrid>
+              <EntityPreviewFact
+                label="联系人"
+                value={
+                  viewing.data.contact
+                    ? contactLabel(viewing.data)
+                    : '未绑定联系人'
+                }
+              />
+              <EntityPreviewFact
+                label="预约时间"
+                value={dateTimeText(viewing.data.scheduled_at)}
+              />
+            </EntityPreviewFactGrid>
+            <EntityPreviewFieldList>
+              <EntityPreviewField
+                label="实际带看"
+                value={dateTimeText(viewing.data.viewed_at)}
+              />
+              <EntityPreviewField
+                label="备注"
+                value={viewing.data.notes || '-'}
+              />
+            </EntityPreviewFieldList>
+          </EntityPreviewSection>
+        </EntityPreviewCardBody>
+      </EntityPreviewCard>
+    );
+  }
 
   return (
     <Space orientation="vertical" size={10} style={{ width: 330 }}>

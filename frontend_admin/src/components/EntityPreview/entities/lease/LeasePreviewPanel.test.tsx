@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderPreview } from '../../__tests__/renderPreview';
 
@@ -48,22 +48,59 @@ describe('LeasePreviewPanel', () => {
     useTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'org' });
   });
 
-  it('按组织缓存租约详情并展示代表性信息', async () => {
+  it('按组织缓存租约详情并展示分区悬浮预览', async () => {
     getLease.mockResolvedValue(lease);
 
-    const { queryClient } = renderPreview(<LeasePreviewPanel id={21} />);
+    const { queryClient } = renderPreview(
+      <LeasePreviewPanel id={21} variant="popover" />,
+    );
 
-    expect(
-      await screen.findByText('春风里公寓 / 2 号楼 / 901'),
-    ).toBeInTheDocument();
+    const preview = await screen.findByRole('region', {
+      name: '春风里公寓 / 2 号楼 / 901租约预览',
+    });
     expect(getLease).toHaveBeenCalledWith(21);
     expect(
       queryClient.getQueryData(['entity-preview', 'org', 'lease', 21]),
     ).toEqual(lease);
-    expect(screen.getByText('李租客 / 13900000000')).toBeInTheDocument();
-    expect(screen.getByText('2026-07-01 至 2027-06-30')).toBeInTheDocument();
-    expect(screen.getByText('¥5200.00')).toBeInTheDocument();
-    expect(screen.getByText('生效中')).toBeInTheDocument();
-    expect(screen.getByText('2 份')).toBeInTheDocument();
+    expect(
+      within(preview).getByText('春风里公寓 / 2 号楼 / 901'),
+    ).toBeInTheDocument();
+    expect(
+      within(preview).getByText('李租客 / 13900000000'),
+    ).toBeInTheDocument();
+    expect(within(preview).getByText('¥5200.00')).toHaveStyle({
+      fontSize: '18px',
+    });
+    expect(within(preview).getByText('生效中')).toBeInTheDocument();
+
+    const details = within(preview).getByRole('region', {
+      name: '预览详情内容',
+    });
+    expect(within(details).getByText('租期')).toBeInTheDocument();
+    expect(
+      within(details).getByText('2026-07-01 至 2027-06-30'),
+    ).toBeInTheDocument();
+    expect(within(details).getByText('押金')).toBeInTheDocument();
+    expect(within(details).getByText('¥10400.00')).toBeInTheDocument();
+    expect(within(details).getByText('付款日')).toBeInTheDocument();
+    expect(within(details).getByText('每月 5 日')).toBeInTheDocument();
+    expect(within(details).getByText('合同文件')).toBeInTheDocument();
+    expect(within(details).getByText('2 份')).toBeInTheDocument();
+    expect(within(preview).queryByText('核心信息')).not.toBeInTheDocument();
+    expect(within(preview).queryByText('补充信息')).not.toBeInTheDocument();
+    expect(within(preview).queryByText('点击查看详情')).not.toBeInTheDocument();
+  });
+
+  it('drawer 场景保持原有单列详情结构', async () => {
+    getLease.mockResolvedValue(lease);
+
+    renderPreview(<LeasePreviewPanel id={21} variant="drawer" />);
+
+    expect(
+      await screen.findByText('春风里公寓 / 2 号楼 / 901'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: '核心信息' }),
+    ).not.toBeInTheDocument();
   });
 });

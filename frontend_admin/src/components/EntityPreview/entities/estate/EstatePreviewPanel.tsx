@@ -5,12 +5,21 @@ import { useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping } from '@/services/manual/enums';
 import { houseApi } from '@/services/manual/house';
 import {
+  EntityPreviewCard,
+  EntityPreviewCardBody,
+  EntityPreviewField,
+  EntityPreviewFieldList,
+  EntityPreviewHeader,
+  EntityPreviewMedia,
+  EntityPreviewSection,
+} from '../../EntityPreviewCard';
+import {
   EntityPreviewError,
   EntityPreviewSkeleton,
 } from '../../EntityPreviewState';
 import type { EntityPreviewPanelProps } from '../../types';
 
-export function EstatePreviewPanel({ id }: EntityPreviewPanelProps) {
+export function EstatePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
   const workspace = useTenantWorkspace();
   const estate = useQuery({
     queryKey: ['entity-preview', workspace.selectedOrgSlug, 'estate', id],
@@ -21,7 +30,12 @@ export function EstatePreviewPanel({ id }: EntityPreviewPanelProps) {
   });
 
   if (estate.isPending) {
-    return <EntityPreviewSkeleton />;
+    return (
+      <EntityPreviewSkeleton
+        variant={variant}
+        withMedia={variant === 'popover'}
+      />
+    );
   }
 
   if (estate.isError) {
@@ -41,12 +55,56 @@ export function EstatePreviewPanel({ id }: EntityPreviewPanelProps) {
   ]
     .filter(Boolean)
     .join(' / ');
+  const locationSummary = [
+    estate.data.province,
+    estate.data.city,
+    estate.data.district,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const title = estate.data.display_name || estate.data.name;
+
+  if (variant === 'popover') {
+    return (
+      <EntityPreviewCard ariaLabel={`${title}预览`} footerMeta={`小区 #${id}`}>
+        <EntityPreviewMedia alt={title} entityLabel="小区" src={coverUrl} />
+        <EntityPreviewHeader
+          subtitle={[estate.data.city, estate.data.district]
+            .filter(Boolean)
+            .join(' · ')}
+          tags={
+            <Tag>
+              {enumMapping(
+                estate.data.property_type,
+                estate.data.property_type__mapping,
+              )}
+            </Tag>
+          }
+          title={title}
+        />
+        <EntityPreviewCardBody>
+          <EntityPreviewSection>
+            <EntityPreviewFieldList>
+              <EntityPreviewField
+                label="所在区域"
+                value={locationSummary || '-'}
+              />
+              <EntityPreviewField
+                label="详细地址"
+                value={estate.data.address || '-'}
+              />
+            </EntityPreviewFieldList>
+          </EntityPreviewSection>
+        </EntityPreviewCardBody>
+      </EntityPreviewCard>
+    );
+  }
 
   return (
     <Space orientation="vertical" size={12} style={{ width: 340 }}>
       {coverUrl ? (
         <Image
-          alt={estate.data.display_name || estate.data.name}
+          alt={title}
           height={128}
           preview={false}
           src={coverUrl}
@@ -56,7 +114,7 @@ export function EstatePreviewPanel({ id }: EntityPreviewPanelProps) {
       ) : null}
       <Space orientation="vertical" size={4} style={{ width: '100%' }}>
         <Typography.Text ellipsis strong>
-          {estate.data.display_name || estate.data.name}
+          {title}
         </Typography.Text>
         <Space size={4} wrap>
           <Tag>
@@ -64,9 +122,6 @@ export function EstatePreviewPanel({ id }: EntityPreviewPanelProps) {
               estate.data.property_type,
               estate.data.property_type__mapping,
             )}
-          </Tag>
-          <Tag color={estate.data.is_active ? 'green' : 'default'}>
-            {estate.data.is_active ? '启用' : '停用'}
           </Tag>
         </Space>
       </Space>

@@ -3,8 +3,9 @@ import { Descriptions, Image, Space, Tag, Typography } from 'antd';
 import {
   buildingLabel,
   contactLabel,
-  HOUSE_PUBLISH_STATUS_COLOR,
+  houseDisplayTags,
   houseLabel,
+  housePrimaryLayoutText,
   mediaCoverUrl,
   moneyText,
   STATUS_COLOR,
@@ -12,6 +13,17 @@ import {
 import { useTenantWorkspace } from '@/pages/tenant/shared';
 import { enumMapping } from '@/services/manual/enums';
 import { type HouseOut, houseApi } from '@/services/manual/house';
+import {
+  EntityPreviewCard,
+  EntityPreviewCardBody,
+  EntityPreviewFact,
+  EntityPreviewFactGrid,
+  EntityPreviewField,
+  EntityPreviewFieldList,
+  EntityPreviewHeader,
+  EntityPreviewMedia,
+  EntityPreviewSection,
+} from '../../EntityPreviewCard';
 import {
   EntityPreviewError,
   EntityPreviewSkeleton,
@@ -21,15 +33,47 @@ import { BuildingPreview } from '../building/BuildingPreview';
 
 function layoutText(house: HouseOut) {
   const rooms = [
-    house.bedrooms == null ? null : `${house.bedrooms}室`,
-    house.living_rooms == null ? null : `${house.living_rooms}厅`,
+    housePrimaryLayoutText(house),
     house.bathrooms == null ? null : `${house.bathrooms}卫`,
-  ].filter(Boolean);
+  ].filter((value) => value && value !== '-');
   const area = house.area ? `${house.area}㎡` : null;
   return [rooms.join(''), area].filter(Boolean).join(' / ') || '-';
 }
 
-export function HousePreviewPanel({ id }: EntityPreviewPanelProps) {
+function roomLayoutText(house: HouseOut) {
+  return (
+    [
+      housePrimaryLayoutText(house),
+      house.bathrooms == null ? null : `${house.bathrooms}卫`,
+    ]
+      .filter((value) => value && value !== '-')
+      .join('') || '-'
+  );
+}
+
+function floorOrientationText(house: HouseOut) {
+  return (
+    [
+      house.floor == null ? null : `${house.floor} 层`,
+      house.orientation__mapping || house.orientation,
+    ]
+      .filter(Boolean)
+      .join(' / ') || '-'
+  );
+}
+
+function amenitiesText(house: HouseOut) {
+  return [
+    house.decoration__mapping || house.decoration,
+    house.has_elevator_access ? '电梯可达' : null,
+    house.kitchens == null ? null : `${house.kitchens} 厨`,
+    house.balconies == null ? null : `${house.balconies} 阳台`,
+  ]
+    .filter(Boolean)
+    .join('、');
+}
+
+export function HousePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
   const workspace = useTenantWorkspace();
   const house = useQuery({
     queryKey: ['entity-preview', workspace.selectedOrgSlug, 'house', id],
@@ -40,7 +84,12 @@ export function HousePreviewPanel({ id }: EntityPreviewPanelProps) {
   });
 
   if (house.isPending) {
-    return <EntityPreviewSkeleton />;
+    return (
+      <EntityPreviewSkeleton
+        variant={variant}
+        withMedia={variant === 'popover'}
+      />
+    );
   }
 
   if (house.isError) {
@@ -53,12 +102,94 @@ export function HousePreviewPanel({ id }: EntityPreviewPanelProps) {
   const landlord = house.data.landlord_id
     ? contactLabel(house.data)
     : '待补房东';
+  const title = houseLabel(house.data);
+  const displayTags = houseDisplayTags(house.data);
+  const amenities = amenitiesText(house.data);
+  const hasSupplementary = Boolean(
+    amenities || displayTags.length || house.data.internal_notes,
+  );
+
+  if (variant === 'popover') {
+    return (
+      <EntityPreviewCard ariaLabel={`${title}预览`} footerMeta={`房源 #${id}`}>
+        <EntityPreviewMedia alt={title} entityLabel="房源" src={coverUrl} />
+        <EntityPreviewHeader
+          aside={
+            <Tag color={STATUS_COLOR[house.data.status] || 'default'}>
+              {enumMapping(house.data.status, house.data.status__mapping)}
+            </Tag>
+          }
+          highlight={
+            <Space size={8} wrap>
+              <Typography.Text strong type="danger" style={{ fontSize: 18 }}>
+                {moneyText(house.data.asking_rent)}
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                押金 {moneyText(house.data.deposit_amount)}
+              </Typography.Text>
+            </Space>
+          }
+          subtitle={house.data.building?.address || undefined}
+          title={title}
+        />
+        <EntityPreviewCardBody>
+          <EntityPreviewSection>
+            <EntityPreviewFactGrid>
+              <EntityPreviewFact
+                label="户型"
+                value={roomLayoutText(house.data)}
+              />
+              <EntityPreviewFact
+                label="面积"
+                value={house.data.area ? `${house.data.area}㎡` : '-'}
+              />
+              <EntityPreviewFact
+                label="楼层 / 朝向"
+                value={floorOrientationText(house.data)}
+              />
+              <EntityPreviewFact
+                label="所属楼栋"
+                value={buildingLabel(house.data.building)}
+              />
+              <EntityPreviewFact full label="房东" value={landlord} />
+            </EntityPreviewFactGrid>
+            {hasSupplementary ? (
+              <EntityPreviewFieldList>
+                {amenities ? (
+                  <EntityPreviewField label="配套" value={amenities} />
+                ) : null}
+                {house.data.internal_notes ? (
+                  <EntityPreviewField
+                    label="内部备注"
+                    value={house.data.internal_notes}
+                  />
+                ) : null}
+                {displayTags.length ? (
+                  <EntityPreviewField
+                    label="标签"
+                    value={
+                      <Typography.Text
+                        ellipsis={{ tooltip: displayTags.join(' · ') }}
+                        style={{ display: 'block' }}
+                      >
+                        {displayTags.join(' · ')}
+                      </Typography.Text>
+                    }
+                  />
+                ) : null}
+              </EntityPreviewFieldList>
+            ) : null}
+          </EntityPreviewSection>
+        </EntityPreviewCardBody>
+      </EntityPreviewCard>
+    );
+  }
 
   return (
     <Space orientation="vertical" size={12} style={{ width: 340 }}>
       {coverUrl ? (
         <Image
-          alt={houseLabel(house.data)}
+          alt={title}
           height={128}
           preview={false}
           src={coverUrl}
@@ -68,7 +199,7 @@ export function HousePreviewPanel({ id }: EntityPreviewPanelProps) {
       ) : null}
       <Space orientation="vertical" size={4} style={{ width: '100%' }}>
         <Typography.Text ellipsis strong>
-          {houseLabel(house.data)}
+          {title}
         </Typography.Text>
         <Typography.Text strong type="danger">
           {moneyText(house.data.asking_rent)}
@@ -76,16 +207,6 @@ export function HousePreviewPanel({ id }: EntityPreviewPanelProps) {
         <Space size={4} wrap>
           <Tag color={STATUS_COLOR[house.data.status] || 'default'}>
             {enumMapping(house.data.status, house.data.status__mapping)}
-          </Tag>
-          <Tag
-            color={
-              HOUSE_PUBLISH_STATUS_COLOR[house.data.publish_status] || 'default'
-            }
-          >
-            {enumMapping(
-              house.data.publish_status,
-              house.data.publish_status__mapping,
-            )}
           </Tag>
         </Space>
       </Space>

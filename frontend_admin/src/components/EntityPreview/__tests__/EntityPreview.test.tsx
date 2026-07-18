@@ -3,16 +3,14 @@ import React, { lazy } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@umijs/max', () => ({
-  Link: ({
-    children,
-    className,
-    onKeyDown,
-    to,
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
-    <a className={className} href={to} onKeyDown={onKeyDown}>
+  Link: React.forwardRef<
+    HTMLAnchorElement,
+    React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }
+  >(({ children, className, onKeyDown, to }, ref) => (
+    <a className={className} href={to} onKeyDown={onKeyDown} ref={ref}>
       {children}
     </a>
-  ),
+  )),
 }));
 
 vi.mock('antd-style', () => ({
@@ -38,10 +36,13 @@ vi.mock('antd', () => ({
     mouseEnterDelay = 0,
     onOpenChange,
     open,
+    styles,
+    trigger = ['hover'],
   }: any) => {
     const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(
       undefined,
     );
+    const actions = Array.isArray(trigger) ? trigger : [trigger];
 
     if (!content) {
       return children;
@@ -50,24 +51,41 @@ vi.mock('antd', () => ({
     return (
       <>
         {React.cloneElement(children, {
-          onFocus: () => {
-          timer.current = setTimeout(
-            () => onOpenChange(true),
-            mouseEnterDelay * 1000,
-          );
-          },
-          onMouseEnter: () => {
-          timer.current = setTimeout(
-            () => onOpenChange(true),
-            mouseEnterDelay * 1000,
-          );
-          },
-          onMouseLeave: () => {
-          clearTimeout(timer.current);
-          onOpenChange(false);
-          },
+          onFocus: actions.includes('focus')
+            ? () => {
+                timer.current = setTimeout(() => onOpenChange(true), 0);
+              }
+            : undefined,
+          onBlur: actions.includes('focus')
+            ? () => {
+                timer.current = setTimeout(() => onOpenChange(false), 0);
+              }
+            : undefined,
+          onMouseEnter: actions.includes('hover')
+            ? () => {
+                timer.current = setTimeout(
+                  () => onOpenChange(true),
+                  mouseEnterDelay * 1000,
+                );
+              }
+            : undefined,
+          onMouseLeave: actions.includes('hover')
+            ? () => {
+                clearTimeout(timer.current);
+                onOpenChange(false);
+              }
+            : undefined,
         })}
-        {open ? <div data-testid="preview-panel">{content}</div> : null}
+        {open ? (
+          <div data-testid="preview-popover-root" style={styles?.root}>
+            <div
+              data-testid="preview-popover-container"
+              style={styles?.container}
+            >
+              <div data-testid="preview-panel">{content}</div>
+            </div>
+          </div>
+        ) : null}
       </>
     );
   },
@@ -76,7 +94,21 @@ vi.mock('antd', () => ({
 import { EntityPreview } from '../EntityPreview';
 import { entityPreviewRegistry } from '../registry';
 
-const Panel = ({ id }: { id: number }) => <div>房源预览 {id}</div>;
+const Panel = ({
+  id,
+  variant,
+}: {
+  id: number;
+  variant: 'popover' | 'drawer';
+}) => (
+  <div>
+    {variant} 房源预览 {id}
+    {/* biome-ignore lint/a11y/noNoninteractiveTabindex: 模拟真实可聚焦的预览滚动区 */}
+    <section aria-label="预览详情内容" data-entity-preview-scroll tabIndex={0}>
+      可滚动的预览详情
+    </section>
+  </div>
+);
 
 function getPreviewTrigger() {
   const link = screen.getByRole('link');
@@ -90,6 +122,8 @@ describe('EntityPreview', () => {
     entityPreviewRegistry.house = {
       Panel: lazy(async () => ({ default: Panel })),
       getHref: (id) => `/property-rental/houses/${id}`,
+      popoverMedia: true,
+      popoverWidth: 460,
     };
   });
 
@@ -125,7 +159,7 @@ describe('EntityPreview', () => {
     );
   });
 
-  it('悬停约 200ms 后才挂载 Panel 并传入 id', async () => {
+  it('悬停约 1 秒后才挂载 Panel 并传入 popover 场景', async () => {
     render(
       <EntityPreview type="house" id={42}>
         春风里 2 号
@@ -133,11 +167,17 @@ describe('EntityPreview', () => {
     );
 
     fireEvent.mouseEnter(getPreviewTrigger());
-    act(() => vi.advanceTimersByTime(199));
-    expect(screen.queryByText('房源预览 42')).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(999));
+    expect(screen.queryByText('popover 房源预览 42')).not.toBeInTheDocument();
 
     await act(async () => vi.advanceTimersByTime(1));
-    expect(screen.getByText('房源预览 42')).toBeInTheDocument();
+    expect(screen.getByText('popover 房源预览 42')).toBeInTheDocument();
+    const root = screen.getByTestId('preview-popover-root');
+    expect(root).toHaveStyle({ width: '460px' });
+    expect(root.style.maxWidth).toBe('calc(100vw - 32px)');
+    expect(screen.getByTestId('preview-popover-container')).toHaveStyle({
+      padding: '0px',
+    });
   });
 
   it('Escape 关闭已打开的预览', async () => {
@@ -148,11 +188,158 @@ describe('EntityPreview', () => {
     );
 
     fireEvent.mouseEnter(getPreviewTrigger());
-    await act(async () => vi.advanceTimersByTime(200));
-    expect(screen.getByText('房源预览 42')).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(screen.getByText('popover 房源预览 42')).toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByRole('link'), { key: 'Escape' });
-    expect(screen.queryByText('房源预览 42')).not.toBeInTheDocument();
+    expect(screen.queryByText('popover 房源预览 42')).not.toBeInTheDocument();
+  });
+
+  it('ArrowDown 将焦点移入预览滚动区且不因触发链接失焦关闭', async () => {
+    render(
+      <EntityPreview type="house" id={42}>
+        春风里 2 号
+      </EntityPreview>,
+    );
+
+    const link = screen.getByRole('link');
+    act(() => link.focus());
+    await act(async () => vi.advanceTimersByTime(1000));
+
+    const scrollRegion = screen.getByRole('region', {
+      name: '预览详情内容',
+    });
+    fireEvent.keyDown(link, { key: 'ArrowDown' });
+    act(() => vi.runOnlyPendingTimers());
+
+    expect(scrollRegion).toHaveFocus();
+    expect(screen.getByText('popover 房源预览 42')).toBeInTheDocument();
+  });
+
+  it('正文内按 Escape 关闭预览并将焦点还给触发链接', async () => {
+    render(
+      <EntityPreview type="house" id={42}>
+        春风里 2 号
+      </EntityPreview>,
+    );
+
+    const link = screen.getByRole('link');
+    act(() => link.focus());
+    await act(async () => vi.advanceTimersByTime(1000));
+    const scrollRegion = screen.getByRole('region', {
+      name: '预览详情内容',
+    });
+    fireEvent.keyDown(link, { key: 'ArrowDown' });
+    act(() => vi.runOnlyPendingTimers());
+
+    fireEvent.keyDown(scrollRegion, { key: 'Escape' });
+    act(() => vi.runOnlyPendingTimers());
+
+    expect(screen.queryByText('popover 房源预览 42')).not.toBeInTheDocument();
+    expect(link).toHaveFocus();
+  });
+
+  it('焦点离开触发器与预览内容后关闭预览', async () => {
+    render(
+      <>
+        <EntityPreview type="house" id={42}>
+          春风里 2 号
+        </EntityPreview>
+        <button type="button">下一项</button>
+      </>,
+    );
+
+    const link = screen.getByRole('link');
+    act(() => link.focus());
+    await act(async () => vi.advanceTimersByTime(1000));
+    fireEvent.keyDown(link, { key: 'ArrowDown' });
+    act(() => vi.runOnlyPendingTimers());
+
+    act(() => screen.getByRole('button', { name: '下一项' }).focus());
+    act(() => vi.runOnlyPendingTimers());
+
+    expect(screen.queryByText('popover 房源预览 42')).not.toBeInTheDocument();
+  });
+
+  it('先由焦点打开后鼠标仍在预览区时不因失焦关闭', async () => {
+    render(
+      <>
+        <EntityPreview type="house" id={42}>
+          春风里 2 号
+        </EntityPreview>
+        <button type="button">下一项</button>
+      </>,
+    );
+
+    const trigger = getPreviewTrigger();
+    const link = screen.getByRole('link');
+    act(() => link.focus());
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(screen.getByText('popover 房源预览 42')).toBeInTheDocument();
+    fireEvent.pointerOver(trigger);
+
+    act(() => screen.getByRole('button', { name: '下一项' }).focus());
+    act(() => vi.advanceTimersByTime(0));
+
+    expect(screen.getByText('popover 房源预览 42')).toBeInTheDocument();
+
+    fireEvent.pointerOut(trigger, {
+      relatedTarget: screen.getByRole('button', { name: '下一项' }),
+    });
+    fireEvent.mouseLeave(trigger);
+    expect(screen.queryByText('popover 房源预览 42')).not.toBeInTheDocument();
+  });
+
+  it('图片实体的延迟面板使用媒体骨架', async () => {
+    entityPreviewRegistry.house = {
+      Panel: lazy(
+        () =>
+          new Promise<{ default: typeof Panel }>(() => {
+            // 保持 Suspense 加载态
+          }),
+      ),
+      getHref: (id) => `/property-rental/houses/${id}`,
+      popoverMedia: true,
+      popoverWidth: 460,
+    };
+
+    render(
+      <EntityPreview type="house" id={42}>
+        春风里 2 号
+      </EntityPreview>,
+    );
+    fireEvent.mouseEnter(getPreviewTrigger());
+    await act(async () => vi.advanceTimersByTime(1000));
+
+    expect(
+      screen.getByTestId('entity-preview-skeleton-media'),
+    ).toBeInTheDocument();
+  });
+
+  it('信息实体的延迟面板不渲染媒体骨架', async () => {
+    entityPreviewRegistry.contact = {
+      Panel: lazy(
+        () =>
+          new Promise<{ default: typeof Panel }>(() => {
+            // 保持 Suspense 加载态
+          }),
+      ),
+      getHref: (id) => `/property-rental/contacts?preview=${id}`,
+      popoverMedia: false,
+      popoverWidth: 390,
+    };
+
+    render(
+      <EntityPreview type="contact" id={12}>
+        张房东
+      </EntityPreview>,
+    );
+    fireEvent.mouseEnter(getPreviewTrigger());
+    await act(async () => vi.advanceTimersByTime(1000));
+
+    expect(
+      screen.queryByTestId('entity-preview-skeleton-media'),
+    ).not.toBeInTheDocument();
   });
 
   it('Panel 抛错时隔离异常并保留宿主内容', async () => {
@@ -165,6 +352,8 @@ describe('EntityPreview', () => {
     entityPreviewRegistry.house = {
       Panel: lazy(async () => ({ default: BrokenPanel })),
       getHref: (id) => `/property-rental/houses/${id}`,
+      popoverMedia: true,
+      popoverWidth: 460,
     };
 
     render(
@@ -176,7 +365,7 @@ describe('EntityPreview', () => {
       </div>,
     );
     fireEvent.mouseEnter(getPreviewTrigger());
-    await act(async () => vi.advanceTimersByTime(200));
+    await act(async () => vi.advanceTimersByTime(1000));
 
     expect(screen.getByRole('alert')).toHaveTextContent('预览暂不可用');
     expect(screen.getByText('宿主仍可用')).toBeInTheDocument();

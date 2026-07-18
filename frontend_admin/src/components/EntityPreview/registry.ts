@@ -9,6 +9,8 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
       ),
     ),
     getHref: (id) => `/property-rental/estates?preview_estate=${id}`,
+    popoverMedia: true,
+    popoverWidth: 460,
   },
   building: {
     Panel: lazy(() =>
@@ -18,6 +20,8 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
     ),
     getHref: (id) =>
       `/property-rental/estates?view=buildings&preview_building=${id}`,
+    popoverMedia: true,
+    popoverWidth: 460,
   },
   house: {
     Panel: lazy(() =>
@@ -26,6 +30,8 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
       ),
     ),
     getHref: (id) => `/property-rental/houses/${id}`,
+    popoverMedia: true,
+    popoverWidth: 460,
   },
   contact: {
     Panel: lazy(() =>
@@ -34,6 +40,8 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
       ),
     ),
     getHref: (id) => `/property-rental/contacts?preview=${id}`,
+    popoverMedia: false,
+    popoverWidth: 390,
   },
   lease: {
     Panel: lazy(() =>
@@ -42,6 +50,8 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
       ),
     ),
     getHref: (id) => `/property-rental/leases?preview=${id}`,
+    popoverMedia: false,
+    popoverWidth: 390,
   },
   viewing: {
     Panel: lazy(() =>
@@ -50,5 +60,7 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
       ),
     ),
     getHref: (id) => `/property-rental/viewings?preview=${id}`,
+    popoverMedia: false,
+    popoverWidth: 390,
   },
 };

@@ -1,9 +1,49 @@
 import { Alert, Button, Skeleton } from 'antd';
+import type { EntityPreviewVariant } from './types';
 
-export function EntityPreviewSkeleton() {
+interface EntityPreviewSkeletonProps {
+  variant: EntityPreviewVariant;
+  withMedia?: boolean;
+}
+
+export function EntityPreviewSkeleton({
+  variant,
+  withMedia = false,
+}: EntityPreviewSkeletonProps) {
+  if (variant === 'drawer') {
+    return (
+      <div aria-label="正在加载预览" role="status" style={{ width: 320 }}>
+        <Skeleton active paragraph={{ rows: 4 }} title />
+      </div>
+    );
+  }
+
   return (
-    <div style={{ width: 320 }}>
-      <Skeleton active paragraph={{ rows: 4 }} title />
+    <div
+      aria-label="正在加载预览"
+      role="status"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        width: '100%',
+      }}
+    >
+      {withMedia ? (
+        <div
+          aria-hidden
+          data-testid="entity-preview-skeleton-media"
+          style={{
+            background:
+              'linear-gradient(145deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.08))',
+            flex: '0 0 124px',
+            height: 124,
+          }}
+        />
+      ) : null}
+      <div style={{ padding: 12 }}>
+        <Skeleton active paragraph={{ rows: 4 }} title />
+      </div>
     </div>
   );
 }

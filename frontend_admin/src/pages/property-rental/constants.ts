@@ -21,22 +21,11 @@ export const CONTACT_ROLE = {
 
 export const HOUSE_STATUS = {
   VACANT: 'vacant',
+  LISTED: 'listed',
   RENTED: 'rented',
   RENOVATING: 'renovating',
-  LOCKED: 'locked',
+  INACTIVE: 'inactive',
 } as const;
-
-export const HOUSE_PUBLISH_STATUS = {
-  DRAFT: 'draft',
-  PUBLISHED: 'published',
-  UNPUBLISHED: 'unpublished',
-} as const;
-
-export const HOUSE_PUBLISH_STATUS_COLOR: Record<string, string> = {
-  [HOUSE_PUBLISH_STATUS.DRAFT]: 'default',
-  [HOUSE_PUBLISH_STATUS.PUBLISHED]: 'green',
-  [HOUSE_PUBLISH_STATUS.UNPUBLISHED]: 'orange',
-};
 
 export const HOUSE_IMAGE_ROLE_OPTIONS = [
   { value: 'cover', label: '封面' },
@@ -81,10 +70,11 @@ export const LEASE_STATUS = {
 } as const;
 
 export const STATUS_COLOR: Record<string, string> = {
-  [HOUSE_STATUS.VACANT]: 'green',
-  [HOUSE_STATUS.RENTED]: 'blue',
-  [HOUSE_STATUS.RENOVATING]: 'orange',
-  [HOUSE_STATUS.LOCKED]: 'red',
+  [HOUSE_STATUS.VACANT]: 'default',
+  [HOUSE_STATUS.LISTED]: 'blue',
+  [HOUSE_STATUS.RENTED]: 'default',
+  [HOUSE_STATUS.RENOVATING]: 'default',
+  [HOUSE_STATUS.INACTIVE]: 'default',
   [LEASE_STATUS.ACTIVE]: 'blue',
   [VIEWING_STATUS.CONVERTED]: 'purple',
 };
@@ -104,6 +94,7 @@ export const LEASE_STATUS_FLOW_OPTIONS: Record<string, string[]> = {
 
 export const HOUSE_MEDIA_RESOURCE_TYPE = {
   ESTATE_IMAGE: 'estate_image',
+  BUILDING_IMAGE: 'building_image',
   HOUSE_IMAGE: 'house_image',
   HOUSE_VIDEO: 'house_video',
   LEASE_CONTRACT: 'lease_contract',
@@ -157,6 +148,65 @@ export function mediaCoverUrl(items?: Record<string, unknown>[]) {
 
 export function moneyText(value?: string | number | null) {
   return value ? `¥${value}` : '-';
+}
+
+type HousePrimaryLayoutSource = {
+  bedrooms?: unknown;
+  living_rooms?: unknown;
+};
+
+type HousePrimaryLayoutOptions = {
+  bedroomLabel?: string;
+  livingRoomLabel?: string;
+  separator?: string;
+  emptyAsZero?: boolean;
+  formatCount?: (value: number) => string;
+};
+
+function hasLayoutCount(value: unknown) {
+  return value !== undefined && value !== null && value !== '';
+}
+
+function normalizeLayoutCount(value: unknown) {
+  const count = Number(value);
+  return Number.isFinite(count) ? count : 0;
+}
+
+export function isSingleRoomLayout(source: HousePrimaryLayoutSource) {
+  return (
+    hasLayoutCount(source.bedrooms) &&
+    hasLayoutCount(source.living_rooms) &&
+    normalizeLayoutCount(source.bedrooms) === 1 &&
+    normalizeLayoutCount(source.living_rooms) === 0
+  );
+}
+
+export function housePrimaryLayoutText(
+  source: HousePrimaryLayoutSource,
+  options: HousePrimaryLayoutOptions = {},
+) {
+  if (isSingleRoomLayout(source)) return '单间';
+
+  const {
+    bedroomLabel = '室',
+    livingRoomLabel = '厅',
+    separator = '',
+    emptyAsZero = false,
+    formatCount = String,
+  } = options;
+  const values = [
+    { value: source.bedrooms, label: bedroomLabel },
+    { value: source.living_rooms, label: livingRoomLabel },
+  ].filter((item) => emptyAsZero || hasLayoutCount(item.value));
+
+  return values.length
+    ? values
+        .map(
+          (item) =>
+            `${formatCount(normalizeLayoutCount(item.value))}${item.label}`,
+        )
+        .join(separator)
+    : '-';
 }
 
 export function dateTimeText(value?: string | null) {
@@ -214,4 +264,11 @@ export function contactLabel(source?: ContactLabelSource) {
   if (!contact) return '-';
   const name = contact.name || (contact.id ? `联系人 #${contact.id}` : '');
   return [name, contact.phone].filter(Boolean).join(' / ') || '-';
+}
+
+export function houseDisplayTags(house?: {
+  effective_tags?: string[] | null;
+  tags?: string[] | null;
+}) {
+  return house?.effective_tags ?? house?.tags ?? [];
 }

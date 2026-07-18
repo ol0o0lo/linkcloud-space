@@ -10,8 +10,11 @@ export type EntityPreviewType =
 
 export type EntityPreviewId = number;
 
+export type EntityPreviewVariant = 'popover' | 'drawer';
+
 export interface EntityPreviewPanelProps {
   id: EntityPreviewId;
+  variant: EntityPreviewVariant;
 }
 
 export interface EntityPreviewEntryProps {
@@ -27,6 +30,8 @@ export interface EntityPreviewProps extends EntityPreviewEntryProps {
 export interface EntityPreviewDefinition {
   Panel: LazyExoticComponent<ComponentType<EntityPreviewPanelProps>>;
   getHref: (id: EntityPreviewId) => string;
+  popoverMedia: boolean;
+  popoverWidth: number;
 }
 
 export type EntityPreviewRegistry = Partial<

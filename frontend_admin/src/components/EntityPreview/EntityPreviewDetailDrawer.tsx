@@ -5,7 +5,9 @@ import { entityPreviewRegistry } from './registry';
 import type { EntityPreviewType } from './types';
 
 function getPreviewId(searchParam: string) {
-  const value = Number(new URLSearchParams(window.location.search).get(searchParam));
+  const value = Number(
+    new URLSearchParams(window.location.search).get(searchParam),
+  );
   return Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
@@ -47,8 +49,8 @@ export function EntityPreviewDetailDrawer({
 
   return (
     <Drawer destroyOnHidden onClose={close} open size="large" title={title}>
-      <Suspense fallback={<EntityPreviewSkeleton />}>
-        <Panel id={id} />
+      <Suspense fallback={<EntityPreviewSkeleton variant="drawer" />}>
+        <Panel id={id} variant="drawer" />
       </Suspense>
     </Drawer>
   );
