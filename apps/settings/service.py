@@ -15,6 +15,21 @@ DEFAULT_WIDGET_BY_VALUE_TYPE = {
     ValueType.FLOAT: SettingWidget.INPUT_NUMBER,
 }
 
+SETTING_SCOPE_ORGANIZATION = "organization"
+SETTING_SCOPE_TEAM = "team"
+
+
+def _setting_supports_scope(setting: DefaultSetting, scope: str) -> bool:
+    scopes = setting.ui.get("scopes") if isinstance(setting.ui, dict) else None
+    return not isinstance(scopes, list) or scope in scopes
+
+
+def _get_default_for_scope(key: str, scope: str) -> DefaultSetting:
+    default = DefaultSetting.objects.get(key=key)
+    if not _setting_supports_scope(default, scope):
+        raise DefaultSetting.DoesNotExist(key)
+    return default
+
 
 def _serialize_value(value, value_type: str):
     """根据 value_type 处理返回值。password 脱敏，其余做类型转换。"""
@@ -64,7 +79,7 @@ def validate_location_setting_value(key: str, value) -> None:
 
 def get_org_setting(org, key: str) -> dict:
     """获取 org 某个 key 的值，fallback 到 default。"""
-    default = DefaultSetting.objects.get(key=key)
+    default = _get_default_for_scope(key, SETTING_SCOPE_ORGANIZATION)
     override = OrganizationSetting.objects.filter(organization=org, setting=default).first()
     if override:
         return _build_result(default, override.value, is_customized=True)
@@ -73,7 +88,7 @@ def get_org_setting(org, key: str) -> dict:
 
 def get_all_org_settings(org) -> list[dict]:
     """获取 org 全量设置项（所有 default key，标注是否已覆盖）。"""
-    defaults = DefaultSetting.objects.all()
+    defaults = [setting for setting in DefaultSetting.objects.all() if _setting_supports_scope(setting, SETTING_SCOPE_ORGANIZATION)]
     overrides = {
         os.setting_id: os.value
         for os in OrganizationSetting.objects.filter(organization=org).select_related("setting")
@@ -90,7 +105,7 @@ def get_all_org_settings(org) -> list[dict]:
 def set_org_setting(org, key: str, value) -> OrganizationSetting:
     """覆盖 org 的某个 key（upsert）。"""
     validate_location_setting_value(key, value)
-    default = DefaultSetting.objects.get(key=key)
+    default = _get_default_for_scope(key, SETTING_SCOPE_ORGANIZATION)
     obj, _ = OrganizationSetting.objects.update_or_create(
         organization=org,
         setting=default,
@@ -101,7 +116,7 @@ def set_org_setting(org, key: str, value) -> OrganizationSetting:
 
 def delete_org_setting(org, key: str) -> None:
     """删除 org 的覆盖，恢复使用默认值。"""
-    default = DefaultSetting.objects.get(key=key)
+    default = _get_default_for_scope(key, SETTING_SCOPE_ORGANIZATION)
     OrganizationSetting.objects.get(organization=org, setting=default).delete()
 
 
@@ -111,7 +126,7 @@ def delete_org_setting(org, key: str) -> None:
 
 
 def get_team_setting(team, key: str) -> dict:
-    default = DefaultSetting.objects.get(key=key)
+    default = _get_default_for_scope(key, SETTING_SCOPE_TEAM)
     override = TeamSetting.objects.filter(team=team, setting=default).first()
     if override:
         return _build_result(default, override.value, is_customized=True)
@@ -119,7 +134,7 @@ def get_team_setting(team, key: str) -> dict:
 
 
 def get_all_team_settings(team) -> list[dict]:
-    defaults = DefaultSetting.objects.all()
+    defaults = [setting for setting in DefaultSetting.objects.all() if _setting_supports_scope(setting, SETTING_SCOPE_TEAM)]
     overrides = {
         ts.setting_id: ts.value
         for ts in TeamSetting.objects.filter(team=team).select_related("setting")
@@ -134,7 +149,7 @@ def get_all_team_settings(team) -> list[dict]:
 
 
 def set_team_setting(team, key: str, value) -> TeamSetting:
-    default = DefaultSetting.objects.get(key=key)
+    default = _get_default_for_scope(key, SETTING_SCOPE_TEAM)
     obj, _ = TeamSetting.objects.update_or_create(
         team=team,
         setting=default,
@@ -144,7 +159,7 @@ def set_team_setting(team, key: str, value) -> TeamSetting:
 
 
 def delete_team_setting(team, key: str) -> None:
-    default = DefaultSetting.objects.get(key=key)
+    default = _get_default_for_scope(key, SETTING_SCOPE_TEAM)
     TeamSetting.objects.get(team=team, setting=default).delete()
 
 

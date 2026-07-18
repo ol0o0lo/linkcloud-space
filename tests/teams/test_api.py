@@ -33,9 +33,7 @@ class TestTeamAPI(TestCase):
     def _login(self):
         self.client.force_login(self.user)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": True}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": True})
         session.save()
 
     def test_list(self):
@@ -82,13 +80,26 @@ class TestTeamAPI(TestCase):
         self._login()
         resp = self.client.post(
             LIST_URL,
-            data=json.dumps({"name": "Engineering", "members": [self.user.pk]}),
+            data=json.dumps(
+                {
+                    "name": "Engineering",
+                    "phone": "13800138000",
+                    "wechat": "acme-service",
+                    "address": "深圳市南山区科技园",
+                    "business_hours": "周一至周日 09:00-21:00",
+                    "members": [self.user.pk],
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(Team.objects.count(), 1)
         team = Team.objects.get()
         self.assertEqual(team.name, "Engineering")
+        self.assertEqual(team.phone, "13800138000")
+        self.assertEqual(team.wechat, "acme-service")
+        self.assertEqual(team.address, "深圳市南山区科技园")
+        self.assertEqual(team.business_hours, "周一至周日 09:00-21:00")
         self.assertEqual(team.organization, self.org)
         self.assertIn(self.user, team.members.all())
 
@@ -124,12 +135,24 @@ class TestTeamAPI(TestCase):
         self._login()
         resp = self.client.patch(
             _detail_url(team.pk),
-            data=json.dumps({"name": "Platform"}),
+            data=json.dumps(
+                {
+                    "name": "Platform",
+                    "phone": "0755-12345678",
+                    "wechat": "platform-service",
+                    "address": "深圳市福田区中心路",
+                    "business_hours": "工作日 09:00-18:00",
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 200)
         team.refresh_from_db()
         self.assertEqual(team.name, "Platform")
+        self.assertEqual(team.phone, "0755-12345678")
+        self.assertEqual(team.wechat, "platform-service")
+        self.assertEqual(team.address, "深圳市福田区中心路")
+        self.assertEqual(team.business_hours, "工作日 09:00-18:00")
 
     def test_team_manager_can_update_bound_team_only(self):
         self.user = User.objects.create_user(username="manager", password="secret")  # noqa: S106

@@ -11,6 +11,8 @@ from model_bakery import baker
 from apps.access.constants import AccessScope
 from apps.access.models import OrganizationGroupBinding
 from apps.accounts.models import User
+from apps.media.constants import ResourceType
+from apps.media.models import MediaFile
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
 from tests.access.helpers import bind_org_role, make_access_group
@@ -84,6 +86,13 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self.assertNotIn("organization_data", self.client.session)
 
     def test_owner_can_update_organization_profile_and_limits(self):
+        logo = MediaFile.objects.create(
+            uploader=self.user,
+            resource_type=ResourceType.ORG_LOGO,
+            original_filename="logo.png",
+            file=f"uploads/orgs/{self.org.pk}/logo.png",
+            file_size=128,
+        )
         self._login()
         resp = self.client.patch(
             f"/api/organizations/{self.org.slug}/",
@@ -91,6 +100,8 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
                 {
                     "name": "Acme Updated",
                     "billing_email": "billing@example.com",
+                    "logo": [{"media_id": logo.pk, "media_type": "image"}],
+                    "description": "专业房源运营服务商",
                     "member_limit": 12,
                     "team_limit": 3,
                 }
@@ -102,8 +113,13 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self.org.refresh_from_db()
         self.assertEqual(self.org.name, "Acme Updated")
         self.assertEqual(self.org.billing_email, "billing@example.com")
+        self.assertEqual(self.org.logo, [{"media_id": logo.pk, "media_type": "image"}])
+        self.assertEqual(self.org.description, "专业房源运营服务商")
         self.assertEqual(self.org.member_limit, 12)
         self.assertEqual(self.org.team_limit, 3)
+        payload = api_data(resp)
+        self.assertEqual(payload["logo"][0]["media_id"], logo.pk)
+        self.assertEqual(payload["description"], "专业房源运营服务商")
 
     def test_owner_can_read_organization_detail(self):
         self.org.member_limit = 12

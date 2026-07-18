@@ -9,14 +9,13 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.base.mixins import CreateUpdateTimeModelMixin
+from apps.base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from apps.house.constants import (
     LEASE_STATUS_TRANSITIONS,
     ContactRole,
     EstatePropertyType,
     HouseDecoration,
     HouseOrientation,
-    HousePublishStatus,
     HouseStatus,
     LeaseStatus,
     ViewingRecordStatus,
@@ -27,6 +26,15 @@ from apps.media.fields import MediaRefsField
 
 def normalize_space_identity(value: str) -> str:
     return " ".join(value.split())
+
+
+def merge_tags(*tag_groups: list[str] | None) -> list[str]:
+    merged: list[str] = []
+    for tags in tag_groups:
+        for tag in tags or []:
+            if tag not in merged:
+                merged.append(tag)
+    return merged
 
 
 def validate_coordinates(*, address: str, lat: Decimal | None, lng: Decimal | None, address_required: bool) -> None:
@@ -65,7 +73,6 @@ class Estate(CreateUpdateTimeModelMixin):
         verbose_name="项目图片",
     )
     description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name", "id"]
@@ -94,7 +101,16 @@ class Building(CreateUpdateTimeModelMixin):
     lat = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="楼栋级精确导航定位")
     lng = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="楼栋级精确导航定位")
     address = models.CharField(max_length=255, blank=True)
-    is_active = models.BooleanField(default=True)
+    images = MediaRefsField(
+        blank=True,
+        default=list,
+        max_items=9,
+        allowed_media_types=[MediaType.IMAGE],
+        allowed_resource_types=[ResourceType.BUILDING_IMAGE],
+        business_validators=["apps.house.services.validate_org_scoped_media_refs"],
+        verbose_name="楼栋图片",
+    )
+    tags = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["estate__name", "name", "id"]
@@ -108,6 +124,8 @@ class Building(CreateUpdateTimeModelMixin):
 
     def clean(self):
         super().clean()
+        if not isinstance(self.tags, list):
+            raise ValidationError({"tags": "楼栋标签必须是列表。"})
         if self.estate_id and self.organization_id and self.estate.organization_id != self.organization_id:
             raise ValidationError({"organization": "楼栋组织必须与项目片区组织一致。"})
         validate_coordinates(address=self.address, lat=self.lat, lng=self.lng, address_required=True)
@@ -173,6 +191,64 @@ class Contact(CreateUpdateTimeModelMixin):
         super().save(*args, **kwargs)
 
 
+class PropertyResponsibility(BaseModelMixin):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="property_responsibilities")
+    member = models.ForeignKey("organizations.OrganizationMember", on_delete=models.CASCADE, related_name="property_responsibilities")
+    landlord = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True)
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True)
+    estate = models.ForeignKey(Estate, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True)
+
+    class Meta:
+        ordering = ["member__user__username", "landlord__name", "building__name", "estate__name", "id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(landlord__isnull=False, building__isnull=True, estate__isnull=True)
+                | Q(landlord__isnull=True, building__isnull=False, estate__isnull=True)
+                | Q(landlord__isnull=True, building__isnull=True, estate__isnull=False),
+                name="house_responsibility_one_target",
+            ),
+            models.UniqueConstraint(
+                fields=["member", "landlord"],
+                condition=Q(landlord__isnull=False),
+                name="house_responsibility_member_landlord_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["member", "building"],
+                condition=Q(building__isnull=False),
+                name="house_responsibility_member_building_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["member", "estate"],
+                condition=Q(estate__isnull=False),
+                name="house_responsibility_member_estate_unique",
+            ),
+        ]
+
+    def __str__(self):
+        """返回员工与职责目标的可读关系。"""
+        return f"{self.member.user} -> {self.landlord or self.building or self.estate}"
+
+    def clean(self):
+        super().clean()
+        if sum(target_id is not None for target_id in (self.landlord_id, self.building_id, self.estate_id)) != 1:
+            raise ValidationError("房源职责必须且只能选择一个房东、楼栋或小区。")
+        if self.member_id and self.organization_id and self.member.organization_id != self.organization_id:
+            raise ValidationError({"member": "员工必须属于当前组织。"})
+        if self.landlord_id:
+            if self.landlord.organization_id != self.organization_id:
+                raise ValidationError({"landlord": "房东必须属于当前组织。"})
+            if not self.landlord.has_role(ContactRole.LANDLORD):
+                raise ValidationError({"landlord": "职责目标联系人必须具备 landlord 角色。"})
+        if self.building_id and self.building.organization_id != self.organization_id:
+            raise ValidationError({"building": "楼栋必须属于当前组织。"})
+        if self.estate_id and self.estate.organization_id != self.organization_id:
+            raise ValidationError({"estate": "小区必须属于当前组织。"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
 class House(CreateUpdateTimeModelMixin):
     building = models.ForeignKey(Building, on_delete=models.PROTECT, related_name="houses")
     landlord = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="landlord_houses", null=True, blank=True)
@@ -191,7 +267,6 @@ class House(CreateUpdateTimeModelMixin):
     decoration = models.CharField(max_length=32, choices=HouseDecoration.choices, blank=True, null=True)
     has_elevator_access = models.BooleanField(default=False)
     status = models.CharField(max_length=32, choices=HouseStatus.choices, default=HouseStatus.VACANT, db_index=True)
-    publish_status = models.CharField(max_length=32, choices=HousePublishStatus.choices, default=HousePublishStatus.DRAFT, db_index=True)
     images = MediaRefsField(
         blank=True,
         default=list,
@@ -214,7 +289,6 @@ class House(CreateUpdateTimeModelMixin):
     public_description = models.TextField(blank=True)
     internal_notes = models.TextField(blank=True)
     extra = models.JSONField(default=dict, blank=True)
-    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["building__estate__name", "building__name", "room_number", "id"]
@@ -226,6 +300,10 @@ class House(CreateUpdateTimeModelMixin):
     @property
     def organization(self):
         return self.building.organization
+
+    @property
+    def effective_tags(self) -> list[str]:
+        return merge_tags(self.tags, self.building.tags)
 
     def clean(self):
         super().clean()

@@ -1,11 +1,12 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from ninja import Schema
 from pydantic import ConfigDict, Field
 
-from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
+from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
+from apps.organizations.schemas import OrgUserOut
 
 
 class RelatedResourceItemOut(Schema):
@@ -32,6 +33,10 @@ class DeleteCheckOut(Schema):
     resources: list[RelatedResourceOut]
 
 
+class TagSuggestionsOut(Schema):
+    tags: list[str]
+
+
 class EstateIn(Schema):
     name: str
     display_name: str
@@ -46,7 +51,6 @@ class EstateIn(Schema):
     lng: Decimal | None = None
     images: list[dict[str, Any]] = Field(default_factory=list)
     description: str = ""
-    is_active: bool = True
 
 
 class EstatePatchIn(Schema):
@@ -63,7 +67,6 @@ class EstatePatchIn(Schema):
     lng: Decimal | None = None
     images: list[dict[str, Any]] | None = None
     description: str | None = None
-    is_active: bool | None = None
 
 
 class EstateOut(Schema):
@@ -79,7 +82,6 @@ class EstateOut(Schema):
     lat: Decimal | None
     lng: Decimal | None
     images: list[dict[str, Any]]
-    is_active: bool
 
     @staticmethod
     def resolve_property_type__mapping(obj):
@@ -93,14 +95,13 @@ class EstateOut(Schema):
 class InventoryCountsOut(Schema):
     total: int
     vacant: int
+    listed: int
     rented: int
     renovating: int
-    locked: int
-    published: int
 
 
 def resolve_inventory_counts(obj):
-    return {name: getattr(obj, f"inventory_{name}", 0) for name in ("total", "vacant", "rented", "renovating", "locked", "published")}
+    return {name: getattr(obj, f"inventory_{name}", 0) for name in ("total", "vacant", "listed", "rented", "renovating")}
 
 
 class EstateDetailOut(EstateOut):
@@ -122,7 +123,8 @@ class BuildingIn(Schema):
     lat: Decimal | None = None
     lng: Decimal | None = None
     address: str = ""
-    is_active: bool = True
+    images: list[dict[str, Any]] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
 class BuildingPatchIn(Schema):
@@ -135,7 +137,8 @@ class BuildingPatchIn(Schema):
     lat: Decimal | None = None
     lng: Decimal | None = None
     address: str | None = None
-    is_active: bool | None = None
+    images: list[dict[str, Any]] | None = None
+    tags: list[str] | None = None
 
 
 class EstateSummaryOut(Schema):
@@ -201,7 +204,14 @@ class BuildingOut(Schema):
     lat: Decimal | None
     lng: Decimal | None
     address: str
-    is_active: bool
+    images: list[dict[str, Any]]
+    tags: list[str]
+
+    @staticmethod
+    def resolve_images(obj):
+        if isinstance(obj, dict):
+            return obj.get("images", [])
+        return obj.images_resolved
 
 
 class BuildingInventoryOut(BuildingOut):
@@ -215,10 +225,9 @@ class BuildingInventoryOut(BuildingOut):
 class BuildingMapCountsOut(Schema):
     total: int
     vacant: int
+    listed: int
     rented: int
     renovating: int
-    locked: int
-    published: int
 
 
 class BuildingMapUnlocatedCountOut(Schema):
@@ -230,12 +239,11 @@ class BuildingMapUnlocatedOut(Schema):
     estate: EstateSummaryOut | None
     name: str
     address: str
-    is_active: bool
     counts: BuildingMapCountsOut
 
     @staticmethod
     def resolve_counts(obj):
-        return {name: getattr(obj, name) for name in ("total", "vacant", "rented", "renovating", "locked", "published")}
+        return {name: getattr(obj, name) for name in ("total", "vacant", "listed", "rented", "renovating")}
 
 
 class BuildingMapMarkerOut(Schema):
@@ -245,12 +253,37 @@ class BuildingMapMarkerOut(Schema):
     address: str
     lat: Decimal
     lng: Decimal
-    is_active: bool
     counts: BuildingMapCountsOut
 
     @staticmethod
     def resolve_counts(obj):
-        return {name: getattr(obj, name) for name in ("total", "vacant", "rented", "renovating", "locked", "published")}
+        return {name: getattr(obj, name) for name in ("total", "vacant", "listed", "rented", "renovating")}
+
+
+class EstateMapMarkerOut(Schema):
+    id: int
+    name: str
+    display_name: str
+    address: str
+    lat: Decimal
+    lng: Decimal
+    location_source: Literal["estate", "building_centroid"]
+    building_count: int
+    located_building_count: int
+    unlocated_building_count: int
+    counts: BuildingMapCountsOut
+
+    @staticmethod
+    def resolve_lat(obj):
+        return obj.map_lat
+
+    @staticmethod
+    def resolve_lng(obj):
+        return obj.map_lng
+
+    @staticmethod
+    def resolve_counts(obj):
+        return {name: getattr(obj, name) for name in ("total", "vacant", "listed", "rented", "renovating")}
 
 
 class BuildingMapHouseOut(Schema):
@@ -261,8 +294,6 @@ class BuildingMapHouseOut(Schema):
     asking_rent: Decimal | None
     status: str
     status__mapping: str
-    publish_status: str
-    publish_status__mapping: str
 
 
 class BuildingMapDetailOut(BuildingOut):
@@ -321,6 +352,147 @@ class ContactOut(Schema):
         return [ContactRole.get_choice_label(role) for role in (obj.roles or [])]
 
 
+class PropertyResponsibilityUpdateIn(Schema):
+    landlord_ids: list[int] = Field(default_factory=list)
+    building_ids: list[int] = Field(default_factory=list)
+    estate_ids: list[int] = Field(default_factory=list)
+
+
+class PropertyResponsibilityMemberOut(Schema):
+    member_id: int
+    user: OrgUserOut
+    is_owner: bool
+    landlords: list[ContactSummaryOut]
+    buildings: list[BuildingSummaryOut]
+    estates: list[EstateSummaryOut]
+    responsible_house_count: int
+
+    @staticmethod
+    def resolve_member_id(obj):
+        return obj.pk
+
+    @staticmethod
+    def resolve_landlords(obj):
+        responsibilities = getattr(obj, "prefetched_property_responsibilities", None)
+        if responsibilities is None:
+            responsibilities = obj.property_responsibilities.select_related("landlord").all()
+        return [item.landlord for item in responsibilities if item.landlord_id]
+
+    @staticmethod
+    def resolve_buildings(obj):
+        responsibilities = getattr(obj, "prefetched_property_responsibilities", None)
+        if responsibilities is None:
+            responsibilities = obj.property_responsibilities.select_related("building__estate").all()
+        return [item.building for item in responsibilities if item.building_id]
+
+    @staticmethod
+    def resolve_estates(obj):
+        responsibilities = getattr(obj, "prefetched_property_responsibilities", None)
+        if responsibilities is None:
+            responsibilities = obj.property_responsibilities.select_related("estate").all()
+        return [item.estate for item in responsibilities if item.estate_id]
+
+
+class VacancySyncBuildingOverrideIn(Schema):
+    block_index: int = Field(..., ge=0)
+    building_id: int = Field(..., gt=0)
+
+
+class VacancySyncIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["preview", "apply"] = "preview"
+    raw_text: str
+    building_overrides: list[VacancySyncBuildingOverrideIn] = Field(default_factory=list)
+    ignored_lines: list[int] = Field(default_factory=list)
+    plan_hash: str | None = None
+
+
+class VacancySyncErrorOut(Schema):
+    code: str
+    message: str
+    block_index: int | None
+    line_number: int | None
+
+
+class VacancySyncLineOut(Schema):
+    line_number: int
+    raw: str
+    status: Literal["valid", "error", "ignored"]
+    error_code: str | None
+    message: str | None
+    room_number: str | None
+    floor: int | None
+    asking_rent: Decimal | None
+    bedrooms: int | None
+    living_rooms: int | None
+    tags: list[str]
+
+
+class VacancySyncBuildingCandidateOut(Schema):
+    id: int
+    name: str
+    address: str
+
+
+class VacancySyncBuildingMatchOut(Schema):
+    status: Literal["matched", "overridden", "ambiguous", "new", "created"]
+    building_id: int | None
+    name: str | None
+    address: str
+    candidates: list[VacancySyncBuildingCandidateOut]
+
+
+class VacancySyncHouseChangeOut(Schema):
+    house_id: int | None
+    room_number: str
+    before_status: str | None
+    after_status: str | None
+    changed_fields: list[str]
+
+
+class VacancySyncChangesOut(Schema):
+    create_houses: list[VacancySyncHouseChangeOut]
+    update_houses: list[VacancySyncHouseChangeOut]
+    mark_vacant: list[VacancySyncHouseChangeOut]
+    mark_rented: list[VacancySyncHouseChangeOut]
+    preserve_special_status: list[VacancySyncHouseChangeOut]
+    inactive_conflicts: list[VacancySyncHouseChangeOut]
+
+
+class VacancySyncBlockOut(Schema):
+    block_index: int
+    address: str
+    building_match: VacancySyncBuildingMatchOut
+    lines: list[VacancySyncLineOut]
+    changes: VacancySyncChangesOut
+    errors: list[VacancySyncErrorOut]
+
+
+class VacancySyncSummaryOut(Schema):
+    buildings: int
+    valid_lines: int
+    error_lines: int
+    ignored_lines: int
+    create_buildings: int
+    create_houses: int
+    update_houses: int
+    mark_vacant: int
+    mark_rented: int
+    preserve_special_status: int
+
+
+class VacancySyncOut(Schema):
+    mode: Literal["preview", "apply"]
+    applied: bool
+    can_apply: bool
+    plan_hash: str | None
+    force_rented: bool
+    summary: VacancySyncSummaryOut
+    blocks: list[VacancySyncBlockOut]
+    errors: list[VacancySyncErrorOut]
+
+
 class HouseIn(Schema):
     model_config = ConfigDict(extra="forbid")
 
@@ -364,14 +536,12 @@ class HousePatchIn(Schema):
     decoration: str | None = None
     has_elevator_access: bool | None = None
     status: str | None = None
-    publish_status: str | None = None
     images: list[dict[str, Any]] | None = None
     videos: list[dict[str, Any]] | None = None
     tags: list[str] | None = None
     public_description: str | None = None
     internal_notes: str | None = None
     extra: dict[str, Any] | None = None
-    is_active: bool | None = None
 
 
 class HouseOut(Schema):
@@ -398,15 +568,13 @@ class HouseOut(Schema):
     has_elevator_access: bool
     status: str
     status__mapping: str
-    publish_status: str
-    publish_status__mapping: str
     images: list[dict[str, Any]]
     videos: list[dict[str, Any]]
     tags: list[str]
+    effective_tags: list[str]
     public_description: str
     internal_notes: str
     extra: dict[str, Any]
-    is_active: bool
 
     @staticmethod
     def resolve_orientation__mapping(obj):
@@ -423,10 +591,6 @@ class HouseOut(Schema):
     @staticmethod
     def resolve_status__mapping(obj):
         return HouseStatus.get_choice_label(obj.status)
-
-    @staticmethod
-    def resolve_publish_status__mapping(obj):
-        return HousePublishStatus.get_choice_label(obj.publish_status)
 
     @staticmethod
     def resolve_images(obj):

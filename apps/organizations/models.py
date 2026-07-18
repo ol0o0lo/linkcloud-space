@@ -10,6 +10,8 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.access.constants import AccessScope
+from apps.media.constants import MediaType, ResourceType
+from apps.media.fields import MediaRefsField
 
 from ..base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from ..base.utils.email import send_email
@@ -30,6 +32,16 @@ class Organization(BaseModelMixin):
         error_messages={"invalid": _("Enter a valid name consisting of letters, numbers, underscores or hyphens.")},
     )
     billing_email = models.EmailField(null=True, blank=True, help_text="The email address that receipts are sent.")
+    logo = MediaRefsField(
+        blank=True,
+        default=list,
+        max_items=1,
+        allowed_media_types=[MediaType.IMAGE],
+        allowed_resource_types=[ResourceType.ORG_LOGO],
+        business_validators=["apps.organizations.services.validate_organization_media_refs"],
+        verbose_name=_("logo"),
+    )
+    description = models.TextField(blank=True, default="", verbose_name=_("description"))
     is_active = models.BooleanField(default=True)
     archived_at = models.DateTimeField(null=True, blank=True)
     member_limit = models.PositiveIntegerField(null=True, blank=True)

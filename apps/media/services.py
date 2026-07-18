@@ -30,6 +30,7 @@ RESOURCE_TYPE_RULES = {
     ResourceType.ORG_LOGO: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
     ResourceType.REAL_NAME_ID_CARD: {"scopes": {MediaScope.USER}, "extensions": IMAGE_EXTENSIONS},
     ResourceType.ESTATE_IMAGE: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
+    ResourceType.BUILDING_IMAGE: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
     ResourceType.HOUSE_IMAGE: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
     ResourceType.HOUSE_VIDEO: {"scopes": {MediaScope.ORG}, "extensions": VIDEO_EXTENSIONS},
     ResourceType.LEASE_CONTRACT: {"scopes": {MediaScope.ORG}, "extensions": CONTRACT_EXTENSIONS},

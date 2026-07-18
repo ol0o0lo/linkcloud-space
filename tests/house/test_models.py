@@ -10,9 +10,9 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.accounts.services import bind_phone_to_user
-from apps.house.constants import ContactRole, EstatePropertyType, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
+from apps.house.constants import ContactRole, EstatePropertyType, HouseStatus, LeaseStatus, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
-from apps.house.services import claim_landlord_contact_for_bound_phone, get_landlord_houses, get_landlord_leases, recalculate_house_status
+from apps.house.services import claim_landlord_contact_for_bound_phone, get_landlord_houses, get_landlord_leases
 from apps.media.constants import MediaType, ResourceType
 from apps.media.services import collect_media_ref_field_ids, register_media_file
 
@@ -179,6 +179,13 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
 
         self.assertEqual(context.exception.message_dict["address"], ["楼栋地址不能为空。"])
 
+    def test_house_effective_tags_prioritize_house_then_inherit_building_without_duplicates(self):
+        building = self.make_building(tags=["近地铁", "安静", "安静", "成熟配套"])
+        house = self.make_house(building=building, tags=["采光好", "近地铁", "采光好"])
+
+        self.assertEqual(house.tags, ["采光好", "近地铁", "采光好"])
+        self.assertEqual(house.effective_tags, ["采光好", "近地铁", "安静", "成熟配套"])
+
     def test_standalone_building_rejects_normalized_duplicate_but_allows_same_name_at_another_address(self):
         Building.objects.create(organization=self.org, estate=None, name="海滨 公寓", address="海滨路 20 号", floors=18)
 
@@ -333,21 +340,36 @@ class TestHouseMediaAndOwnership(HouseDomainTestCase):
 
     def test_media_refs_are_cleaned_resolved_ordered_and_collected_without_provider(self):
         estate_media = self.make_media(ResourceType.ESTATE_IMAGE, filename="estate.png", path=f"uploads/orgs/{self.org.pk}/estate.png")
+        building_media = self.make_media(ResourceType.BUILDING_IMAGE, filename="building.png", path=f"uploads/orgs/{self.org.pk}/building.png")
         house_media = self.make_media(ResourceType.HOUSE_IMAGE, filename="house.png", path=f"uploads/orgs/{self.org.pk}/house.png")
         video_media = self.make_media(ResourceType.HOUSE_VIDEO, filename="tour.mp4", path=f"uploads/orgs/{self.org.pk}/tour.mp4")
         estate = self.make_estate(images=[{"media_id": estate_media.pk, "media_type": MediaType.IMAGE, "label": "项目封面", "url": "stale"}])
+        building = self.make_building(
+            estate=estate,
+            images=[{"media_id": building_media.pk, "media_type": MediaType.IMAGE, "label": "楼栋外观", "url": "stale"}],
+        )
         house = self.make_house(
-            building=self.make_building(estate=estate),
+            building=building,
             images=[{"media_id": house_media.pk, "media_type": MediaType.IMAGE, "label": "房源封面", "url": "stale"}],
             videos=[{"media_id": video_media.pk, "media_type": MediaType.VIDEO, "label": "视频"}],
         )
 
         self.assertEqual(estate.images, [{"media_id": estate_media.pk, "media_type": MediaType.IMAGE, "label": "项目封面"}])
+        self.assertEqual(building.images_resolved[0]["url"], building_media.file.url)
+        self.assertEqual(building.images_resolved[0]["label"], "楼栋外观")
         self.assertEqual(house.images_resolved[0]["url"], house_media.file.url)
         self.assertEqual(house.images_resolved[0]["label"], "房源封面")
         ids, has_fields = collect_media_ref_field_ids()
         self.assertTrue(has_fields)
-        self.assertTrue({estate_media.pk, house_media.pk, video_media.pk}.issubset(ids))
+        self.assertTrue({estate_media.pk, building_media.pk, house_media.pk, video_media.pk}.issubset(ids))
+
+    def test_building_media_rejects_wrong_resource_type(self):
+        house_media = self.make_media(ResourceType.HOUSE_IMAGE)
+        building = self.make_building()
+        building.images = [{"media_id": house_media.pk, "media_type": MediaType.IMAGE}]
+
+        with transaction.atomic(), self.assertRaises(ValidationError):
+            building.save()
 
     def test_house_media_rejects_too_many_duplicates_and_wrong_resource_type(self):
         media = self.make_media(ResourceType.HOUSE_IMAGE)
@@ -367,10 +389,12 @@ class TestHouseMediaAndOwnership(HouseDomainTestCase):
 
 
 class TestHousePublishAndListingFields(HouseDomainTestCase):
-    def test_house_defaults_to_draft_publish_status_and_empty_listing_fields(self):
+    def test_house_defaults_to_vacant_status_and_empty_listing_fields(self):
         house = self.make_house()
 
-        self.assertEqual(house.publish_status, HousePublishStatus.DRAFT)
+        self.assertEqual(house.status, HouseStatus.VACANT)
+        self.assertFalse(hasattr(house, "publish_status"))
+        self.assertFalse(hasattr(house, "is_active"))
         self.assertIsNone(house.asking_rent)
         self.assertIsNone(house.deposit_amount)
 
@@ -413,7 +437,7 @@ class TestViewingAndLease(HouseDomainTestCase):
         with self.assertRaises(ValidationError):
             record.full_clean()
 
-    def test_lease_active_status_recalculates_house_status_and_respects_manual_locks(self):
+    def test_lease_status_changes_do_not_modify_house_status(self):
         landlord = self.make_contact(phone="13800138007")
         tenant = self.make_tenant()
         house = self.make_house(landlord=landlord)
@@ -428,17 +452,13 @@ class TestViewingAndLease(HouseDomainTestCase):
         )
 
         house.refresh_from_db()
-        self.assertEqual(house.status, HouseStatus.RENTED)
-        lease.status = LeaseStatus.TERMINATED
+        self.assertEqual(house.status, HouseStatus.VACANT)
+        house.status = HouseStatus.RENTED
+        house.save(update_fields=["status"])
+        lease.status = LeaseStatus.EXPIRED
         lease.save()
         house.refresh_from_db()
-        self.assertEqual(house.status, HouseStatus.VACANT)
-        house.status = HouseStatus.LOCKED
-        house.save(update_fields=["status"])
-        lease.delete()
-        recalculate_house_status(house.pk)
-        house.refresh_from_db()
-        self.assertEqual(house.status, HouseStatus.LOCKED)
+        self.assertEqual(house.status, HouseStatus.RENTED)
 
     def test_lease_status_rejects_reverse_or_terminal_transitions(self):
         landlord = self.make_contact(phone="13800138012")

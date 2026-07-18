@@ -1,16 +1,20 @@
 from decimal import Decimal
 
-from django.db.models import Count, Exists, OuterRef, Q, Subquery
+from django.db import transaction
+from django.db.models import Avg, Case, CharField, Count, DecimalField, Exists, F, IntegerField, OuterRef, Prefetch, Q, Subquery, Value, When
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 
 from ninja import Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
+from apps.access.constants import OrganizationPermission
+from apps.access.permissions import require_org_permission
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_org_selected
-from apps.house.constants import ContactRole, HousePublishStatus, HouseStatus, ViewingRecordStatus
-from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
+from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus, ViewingRecordStatus
+from apps.house.models import Building, Contact, Estate, House, Lease, PropertyResponsibility, ViewingRecord
 from apps.house.schemas import (
     BuildingIn,
     BuildingInventoryOut,
@@ -26,8 +30,9 @@ from apps.house.schemas import (
     DefaultBuildingIn,
     DefaultBuildingOut,
     DeleteCheckOut,
-    EstateIn,
     EstateDetailOut,
+    EstateIn,
+    EstateMapMarkerOut,
     EstateOut,
     EstatePatchIn,
     HouseIn,
@@ -36,6 +41,11 @@ from apps.house.schemas import (
     LeaseIn,
     LeaseOut,
     LeasePatchIn,
+    PropertyResponsibilityMemberOut,
+    PropertyResponsibilityUpdateIn,
+    TagSuggestionsOut,
+    VacancySyncIn,
+    VacancySyncOut,
     ViewingRecordIn,
     ViewingRecordOut,
     ViewingRecordPatchIn,
@@ -45,28 +55,57 @@ from apps.house.services import (
     delete_building,
     delete_estate,
     ensure_default_building,
+    evaluate_house_publish_state,
     get_building_delete_check,
     get_estate_delete_check,
     get_landlord_houses,
     get_landlord_leases,
+    get_org_house_publish_rules,
+    get_tag_suggestions,
     set_default_building,
     sort_houses_for_building,
 )
+from apps.house.vacancy_sync import apply_vacancy_sync, build_vacancy_sync_plan
 from apps.organizations.models import OrganizationMember
 
 router = Router(tags=["房源/管理"])
 landlord_router = Router(tags=["房源/房东"])
 
 
+@router.get("/tag-suggestions/", response=TagSuggestionsOut, summary="获取房源与楼栋标签快捷候选")
+def get_property_rental_tag_suggestions(request):
+    require_org_selected(request)
+    return {"tags": get_tag_suggestions()}
+
+
+@router.post("/vacancy-sync/", response=VacancySyncOut, summary="预览或执行房表空置同步")
+def vacancy_sync(request, payload: VacancySyncIn):
+    org = require_org_selected(request)
+    building_overrides = [item.dict() for item in payload.building_overrides]
+    if payload.mode == "preview":
+        return build_vacancy_sync_plan(
+            org,
+            raw_text=payload.raw_text,
+            building_overrides=building_overrides,
+            ignored_lines=payload.ignored_lines,
+        )
+    return apply_vacancy_sync(
+        org,
+        raw_text=payload.raw_text,
+        building_overrides=building_overrides,
+        ignored_lines=payload.ignored_lines,
+        expected_plan_hash=payload.plan_hash,
+    )
+
+
 def _inventory_annotations(house_lookup: str):
-    active_houses = {f"{house_lookup}__is_active": True}
+    active_houses = Q(**{f"{house_lookup}__status__in": HOUSE_ACTIVE_STATUSES})
     return {
-        "inventory_total": Count(house_lookup, filter=Q(**active_houses)),
-        "inventory_vacant": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__status": HouseStatus.VACANT})),
-        "inventory_rented": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__status": HouseStatus.RENTED})),
-        "inventory_renovating": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__status": HouseStatus.RENOVATING})),
-        "inventory_locked": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__status": HouseStatus.LOCKED})),
-        "inventory_published": Count(house_lookup, filter=Q(**active_houses, **{f"{house_lookup}__publish_status": HousePublishStatus.PUBLISHED})),
+        "inventory_total": Count(house_lookup, filter=active_houses),
+        "inventory_vacant": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.VACANT})),
+        "inventory_listed": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.LISTED})),
+        "inventory_rented": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENTED})),
+        "inventory_renovating": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENOVATING})),
     }
 
 
@@ -85,6 +124,16 @@ def _get_contact_in_org(contact_id: int, org):
     return get_object_or_404(Contact, pk=contact_id, organization=org)
 
 
+def _get_contact_for_new_business(contact_id: int, org, role: str):
+    contact = _get_contact_in_org(contact_id, org)
+    if not contact.is_active:
+        raise HttpError(422, "已停用联系人不能用于新业务")
+    if not contact.has_role(role):
+        role_label = "房东" if role == ContactRole.LANDLORD else "租客"
+        raise HttpError(422, f"联系人必须具备{role_label}角色")
+    return contact
+
+
 def _get_viewing_record_in_org(record_id: int, org):
     return get_object_or_404(ViewingRecord, pk=record_id, organization=org)
 
@@ -93,6 +142,95 @@ def _validate_assignee_in_org(user_id: int | None, org) -> None:
     if user_id is None:
         return
     get_object_or_404(OrganizationMember, organization=org, user_id=user_id)
+
+
+def _filter_responsible_houses(qs, org, member_id):
+    responsibilities = PropertyResponsibility.objects.filter(organization=org)
+    return (
+        qs.annotate(
+            has_landlord_responsibility=Exists(responsibilities.filter(landlord_id=OuterRef("landlord_id"))),
+            has_building_responsibility=Exists(responsibilities.filter(building_id=OuterRef("building_id"))),
+        )
+        .filter(
+            Q(has_landlord_responsibility=True, landlord__property_responsibilities__member_id=member_id)
+            | Q(
+                has_landlord_responsibility=False,
+                has_building_responsibility=True,
+                building__property_responsibilities__member_id=member_id,
+            )
+            | Q(
+                has_landlord_responsibility=False,
+                has_building_responsibility=False,
+                building__estate__property_responsibilities__member_id=member_id,
+            )
+        )
+        .distinct()
+    )
+
+
+def _property_responsibility_members_qs(org):
+    assignments = PropertyResponsibility.objects.select_related("landlord", "building__estate", "estate").order_by(
+        "landlord__name", "building__estate__name", "building__name", "estate__name", "id"
+    )
+    responsible_house_count = (
+        _filter_responsible_houses(House.objects.filter(building__organization=org), org, OuterRef("pk"))
+        .order_by()
+        .values("building__organization_id")
+        .annotate(total=Count("pk", distinct=True))
+        .values("total")
+    )
+    return (
+        OrganizationMember.objects.filter(organization=org)
+        .select_related("user")
+        .prefetch_related(Prefetch("property_responsibilities", queryset=assignments, to_attr="prefetched_property_responsibilities"))
+        .annotate(
+            responsible_house_count=Coalesce(
+                Subquery(responsible_house_count[:1], output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("user__first_name", "user__last_name", "user__username", "pk")
+    )
+
+
+@router.get("/staff-responsibilities/", response=list[PropertyResponsibilityMemberOut], summary="获取员工房源职责列表")
+@paginate(LegacyPagination)
+def list_staff_responsibilities(request, keyword: str | None = Query(None)):
+    org = require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
+    qs = _property_responsibility_members_qs(org)
+    if keyword:
+        qs = qs.filter(Q(user__first_name__icontains=keyword) | Q(user__last_name__icontains=keyword) | Q(user__username__icontains=keyword) | Q(user__email__icontains=keyword))
+    return qs
+
+
+@router.put("/staff-responsibilities/{member_id}/", response=PropertyResponsibilityMemberOut, summary="替换员工房源职责")
+def replace_staff_responsibilities(request, member_id: int, payload: PropertyResponsibilityUpdateIn):
+    org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
+    member = get_object_or_404(OrganizationMember.objects.select_related("user"), pk=member_id, organization=org)
+    landlord_ids = list(dict.fromkeys(payload.landlord_ids))
+    building_ids = list(dict.fromkeys(payload.building_ids))
+    estate_ids = list(dict.fromkeys(payload.estate_ids))
+    landlords = list(Contact.objects.filter(pk__in=landlord_ids, organization=org, is_active=True))
+    buildings = list(Building.objects.filter(pk__in=building_ids, organization=org).select_related("estate"))
+    estates = list(Estate.objects.filter(pk__in=estate_ids, organization=org))
+    if len(landlords) != len(landlord_ids) or any(not landlord.has_role(ContactRole.LANDLORD) for landlord in landlords):
+        raise HttpError(422, "房东职责目标无效、已停用或不属于当前组织")
+    if len(buildings) != len(building_ids):
+        raise HttpError(422, "楼栋职责目标无效或不属于当前组织")
+    if len(estates) != len(estate_ids):
+        raise HttpError(422, "小区职责目标无效或不属于当前组织")
+
+    with transaction.atomic():
+        PropertyResponsibility.objects.filter(organization=org, member=member).delete()
+        audit_fields = {"created_by": request.user.username, "updated_by": request.user.username}
+        for landlord in landlords:
+            PropertyResponsibility.objects.create(organization=org, member=member, landlord=landlord, **audit_fields)
+        for building in buildings:
+            PropertyResponsibility.objects.create(organization=org, member=member, building=building, **audit_fields)
+        for estate in estates:
+            PropertyResponsibility.objects.create(organization=org, member=member, estate=estate, **audit_fields)
+    return _property_responsibility_members_qs(org).get(pk=member.pk)
 
 
 @router.get("/estates/", response=list[EstateOut], summary="获取项目片区列表")
@@ -220,20 +358,13 @@ def put_default_building(request, payload: DefaultBuildingIn):
     }
 
 
-def _building_map_queryset(org, *, house_status: str | None, include_inactive: bool, located: bool = True):
+def _building_map_queryset(org, *, house_status: str | None, located: bool = True):
     qs = Building.objects.filter(organization=org).select_related("estate")
     qs = qs.filter(lat__isnull=False, lng__isnull=False) if located else qs.filter(Q(lat__isnull=True) | Q(lng__isnull=True))
-    if not include_inactive:
-        qs = qs.filter(is_active=True)
     if house_status:
-        qs = qs.filter(Exists(House.objects.filter(building_id=OuterRef("pk"), is_active=True, status=house_status)))
+        qs = qs.filter(Exists(House.objects.filter(building_id=OuterRef("pk"), status=house_status)))
     return qs.annotate(
-        total=Count("houses", filter=Q(houses__is_active=True)),
-        vacant=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.VACANT)),
-        rented=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.RENTED)),
-        renovating=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.RENOVATING)),
-        locked=Count("houses", filter=Q(houses__is_active=True, houses__status=HouseStatus.LOCKED)),
-        published=Count("houses", filter=Q(houses__is_active=True, houses__publish_status=HousePublishStatus.PUBLISHED)),
+        **_map_count_annotations("houses", Q(houses__status__in=HOUSE_ACTIVE_STATUSES)),
     )
 
 
@@ -241,8 +372,107 @@ def _filter_building_map_queryset(qs, *, keyword: str | None, estate_id: int | N
     if estate_id is not None:
         qs = qs.filter(estate_id=estate_id)
     if keyword:
-        qs = qs.filter(Q(name__icontains=keyword) | Q(address__icontains=keyword) | Q(estate__name__icontains=keyword) | Q(estate__display_name__icontains=keyword))
+        qs = qs.filter(
+            Q(name__icontains=keyword)
+            | Q(address__icontains=keyword)
+            | Q(estate__name__icontains=keyword)
+            | Q(estate__display_name__icontains=keyword)
+            | Q(estate__address__icontains=keyword)
+        )
     return qs
+
+
+def _map_count_annotations(house_lookup: str, active_houses: Q):
+    return {
+        "total": Count(house_lookup, filter=active_houses, distinct=True),
+        "vacant": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.VACANT}), distinct=True),
+        "listed": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.LISTED}), distinct=True),
+        "rented": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENTED}), distinct=True),
+        "renovating": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENOVATING}), distinct=True),
+    }
+
+
+def _validate_map_bounds(*, west: Decimal | None, south: Decimal | None, east: Decimal | None, north: Decimal | None) -> None:
+    bounds = (west, south, east, north)
+    if not any(value is not None for value in bounds):
+        return
+    if west is None or south is None or east is None or north is None or west >= east or south >= north:
+        raise HttpError(422, "地图范围无效")
+
+
+def _estate_map_queryset(org, *, keyword: str | None, estate_id: int | None, house_status: str | None):
+    eligible_buildings = Building.objects.filter(organization=org, estate_id=OuterRef("pk"))
+
+    located_buildings = eligible_buildings.filter(lat__isnull=False, lng__isnull=False)
+    building_centroid = located_buildings.values("estate_id").annotate(avg_lat=Avg("lat"), avg_lng=Avg("lng"))
+
+    qs = Estate.objects.filter(organization=org).filter(Exists(eligible_buildings))
+    if estate_id is not None:
+        qs = qs.filter(pk=estate_id)
+    if keyword:
+        keyword_buildings = eligible_buildings.filter(Q(name__icontains=keyword) | Q(address__icontains=keyword))
+        qs = qs.filter(Q(name__icontains=keyword) | Q(display_name__icontains=keyword) | Q(address__icontains=keyword) | Exists(keyword_buildings))
+    if house_status:
+        matching_houses = House.objects.filter(
+            building__organization=org,
+            building__estate_id=OuterRef("pk"),
+            status=house_status,
+        )
+        qs = qs.filter(Exists(matching_houses))
+
+    eligible_building_filter = Q(buildings__pk__isnull=False)
+    active_houses = eligible_building_filter & Q(buildings__houses__status__in=HOUSE_ACTIVE_STATUSES)
+    coordinate_field = DecimalField(max_digits=10, decimal_places=6)
+    qs = qs.annotate(
+        map_lat=Case(
+            When(lat__isnull=False, lng__isnull=False, then=F("lat")),
+            default=Subquery(building_centroid.values("avg_lat")[:1], output_field=coordinate_field),
+            output_field=coordinate_field,
+        ),
+        map_lng=Case(
+            When(lat__isnull=False, lng__isnull=False, then=F("lng")),
+            default=Subquery(building_centroid.values("avg_lng")[:1], output_field=coordinate_field),
+            output_field=coordinate_field,
+        ),
+        location_source=Case(
+            When(lat__isnull=False, lng__isnull=False, then=Value("estate")),
+            default=Value("building_centroid"),
+            output_field=CharField(),
+        ),
+        building_count=Count("buildings", filter=eligible_building_filter, distinct=True),
+        located_building_count=Count(
+            "buildings",
+            filter=eligible_building_filter & Q(buildings__lat__isnull=False, buildings__lng__isnull=False),
+            distinct=True,
+        ),
+        unlocated_building_count=Count(
+            "buildings",
+            filter=eligible_building_filter & (Q(buildings__lat__isnull=True) | Q(buildings__lng__isnull=True)),
+            distinct=True,
+        ),
+        **_map_count_annotations("buildings__houses", active_houses),
+    ).filter(map_lat__isnull=False, map_lng__isnull=False)
+    return qs
+
+
+@router.get("/estate-map/", response=list[EstateMapMarkerOut], summary="获取小区房源地图聚合标点")
+@paginate(LegacyPagination)
+def list_estate_map(
+    request,
+    keyword: str | None = Query(None),
+    estate_id: int | None = Query(None),
+    house_status: str | None = Query(None),
+    west: Decimal | None = Query(None),
+    south: Decimal | None = Query(None),
+    east: Decimal | None = Query(None),
+    north: Decimal | None = Query(None),
+):
+    _validate_map_bounds(west=west, south=south, east=east, north=north)
+    org = require_org_selected(request)
+    qs = _estate_map_queryset(org, keyword=keyword, estate_id=estate_id, house_status=house_status)
+    if west is not None:
+        qs = qs.filter(map_lng__gte=west, map_lng__lte=east, map_lat__gte=south, map_lat__lte=north)
+    return qs.order_by("display_name", "id")
 
 
 @router.get("/building-map/", response=list[BuildingMapMarkerOut], summary="获取楼栋房源地图标点")
@@ -252,19 +482,19 @@ def list_building_map(
     keyword: str | None = Query(None),
     estate_id: int | None = Query(None),
     house_status: str | None = Query(None),
-    include_inactive: bool = Query(False),
+    standalone_only: bool = Query(False),
     west: Decimal | None = Query(None),
     south: Decimal | None = Query(None),
     east: Decimal | None = Query(None),
     north: Decimal | None = Query(None),
 ):
-    bounds = (west, south, east, north)
-    if any(value is not None for value in bounds) and (any(value is None for value in bounds) or west >= east or south >= north):
-        raise HttpError(422, "地图范围无效")
+    _validate_map_bounds(west=west, south=south, east=east, north=north)
 
     org = require_org_selected(request)
-    qs = _building_map_queryset(org, house_status=house_status, include_inactive=include_inactive)
+    qs = _building_map_queryset(org, house_status=house_status)
     qs = _filter_building_map_queryset(qs, keyword=keyword, estate_id=estate_id)
+    if standalone_only:
+        qs = qs.filter(estate__isnull=True)
     if west is not None:
         qs = qs.filter(lng__gte=west, lng__lte=east, lat__gte=south, lat__lte=north)
     return qs.order_by("name", "id")
@@ -277,10 +507,9 @@ def list_building_map_unlocated(
     keyword: str | None = Query(None),
     estate_id: int | None = Query(None),
     house_status: str | None = Query(None),
-    include_inactive: bool = Query(False),
 ):
     org = require_org_selected(request)
-    qs = _building_map_queryset(org, house_status=house_status, include_inactive=include_inactive, located=False)
+    qs = _building_map_queryset(org, house_status=house_status, located=False)
     return _filter_building_map_queryset(qs, keyword=keyword, estate_id=estate_id).order_by("name", "id")
 
 
@@ -294,7 +523,7 @@ def get_building_map_unlocated_count(request):
 def get_building_map_detail(request, building_id: int):
     org = require_org_selected(request)
     building = get_object_or_404(Building.objects.select_related("estate"), pk=building_id, organization=org)
-    houses = sort_houses_for_building(building.houses.filter(is_active=True))
+    houses = sort_houses_for_building(building.houses.filter(status__in=HOUSE_ACTIVE_STATUSES))
     return {
         "id": building.pk,
         "estate_id": building.estate_id,
@@ -307,7 +536,8 @@ def get_building_map_detail(request, building_id: int):
         "lat": building.lat,
         "lng": building.lng,
         "address": building.address,
-        "is_active": building.is_active,
+        "images": building.images_resolved,
+        "tags": building.tags,
         "counts": building_map_counts(houses),
         "houses": [
             {
@@ -318,8 +548,6 @@ def get_building_map_detail(request, building_id: int):
                 "asking_rent": house.asking_rent,
                 "status": house.status,
                 "status__mapping": HouseStatus.get_choice_label(house.status),
-                "publish_status": house.publish_status,
-                "publish_status__mapping": HousePublishStatus.get_choice_label(house.publish_status),
             }
             for house in houses
         ],
@@ -331,17 +559,20 @@ def get_building_map_detail(request, building_id: int):
 def list_contacts(request, role: str | None = Query(None), task: str | None = Query(None), keyword: str | None = Query(None)):
     org = require_org_selected(request)
     qs = Contact.objects.filter(organization=org).order_by("name", "id")
-    if task == "inactive":
+    role_missing_task = task in {"role_missing", "role_missing_active", "role_missing_inactive"}
+    if task in {"active", "role_missing_active"}:
+        qs = qs.filter(is_active=True)
+    elif task in {"inactive", "role_missing_inactive"}:
         qs = qs.filter(is_active=False)
     if keyword:
-        qs = qs.filter(Q(name__icontains=keyword) | Q(phone__icontains=keyword))
-    if role or task in {"dual_role", "role_missing"}:
+        qs = qs.filter(Q(name__icontains=keyword) | Q(phone__icontains=keyword) | Q(email__icontains=keyword))
+    if role or task == "dual_role" or role_missing_task:
         contacts = list(qs)
         if role:
             contacts = [contact for contact in contacts if role in (contact.roles or [])]
         if task == "dual_role":
             contacts = [contact for contact in contacts if {ContactRole.LANDLORD, ContactRole.TENANT}.issubset(set(contact.roles or []))]
-        if task == "role_missing":
+        if role_missing_task:
             contacts = [contact for contact in contacts if not (contact.roles or [])]
         return contacts
     return qs
@@ -377,8 +608,8 @@ def list_houses(
     request,
     estate_id: int | None = Query(None),
     building_id: int | None = Query(None),
+    responsible_member_id: int | None = Query(None),
     status: str | None = Query(None),
-    publish_status: str | None = Query(None),
     keyword: str | None = Query(None),
 ):
     org = require_org_selected(request)
@@ -387,10 +618,10 @@ def list_houses(
         qs = qs.filter(building__estate_id=estate_id)
     if building_id:
         qs = qs.filter(building_id=building_id)
-    if status:
-        qs = qs.filter(status=status)
-    if publish_status:
-        qs = qs.filter(publish_status=publish_status)
+    if responsible_member_id:
+        member = get_object_or_404(OrganizationMember, pk=responsible_member_id, organization=org)
+        qs = _filter_responsible_houses(qs, org, member.pk)
+    qs = qs.filter(status=status) if status else qs.exclude(status=HouseStatus.INACTIVE)
     if keyword:
         qs = qs.filter(
             Q(room_number__icontains=keyword)
@@ -410,7 +641,7 @@ def create_house(request, payload: HouseIn):
     data = payload.dict()
     data.pop("building_id")
     landlord_id = data.pop("landlord_id", None)
-    landlord = _get_contact_in_org(landlord_id, org) if landlord_id is not None else None
+    landlord = _get_contact_for_new_business(landlord_id, org, ContactRole.LANDLORD) if landlord_id is not None else None
     if landlord is not None:
         data["landlord"] = landlord
     house = House.objects.create(building=building, **data)
@@ -426,15 +657,23 @@ def get_house(request, house_id: int):
 @router.patch("/houses/{house_id}/", response=HouseOut, summary="更新房源")
 def patch_house(request, house_id: int, payload: HousePatchIn):
     house = get_house(request, house_id)
+    previous_status = house.status
     data = payload.dict(exclude_unset=True)
     building_id = data.pop("building_id", None)
     if building_id is not None:
         house.building = get_object_or_404(Building, pk=building_id, organization=house.organization)
     if "landlord_id" in data:
         landlord_id = data.pop("landlord_id")
-        house.landlord = _get_contact_in_org(landlord_id, house.organization) if landlord_id is not None else None
+        if landlord_id is None:
+            house.landlord = None
+        elif landlord_id != house.landlord_id:
+            house.landlord = _get_contact_for_new_business(landlord_id, house.organization, ContactRole.LANDLORD)
     for field, value in data.items():
         setattr(house, field, value)
+    if previous_status != HouseStatus.LISTED and house.status == HouseStatus.LISTED:
+        publish_state = evaluate_house_publish_state(house, get_org_house_publish_rules(house.organization))
+        if publish_state["blocking_issues"]:
+            raise HttpError(422, f"房源暂不能发布：{'、'.join(publish_state['blocking_issues'])}")
     house.save()
     return house
 
@@ -497,7 +736,7 @@ def create_viewing_record(request, payload: ViewingRecordIn):
     _validate_assignee_in_org(data.get("assigned_to_id"), org)
     data["house"] = _get_house_in_org(house_id, org)
     if contact_id is not None:
-        data["contact"] = _get_contact_in_org(contact_id, org)
+        data["contact"] = _get_contact_for_new_business(contact_id, org, ContactRole.TENANT)
     record = ViewingRecord.objects.create(organization=org, **data)
     return Status(201, record)
 
@@ -511,7 +750,10 @@ def patch_viewing_record(request, record_id: int, payload: ViewingRecordPatchIn)
         record.house = _get_house_in_org(data.pop("house_id"), org)
     if "contact_id" in data:
         contact_id = data.pop("contact_id")
-        record.contact = _get_contact_in_org(contact_id, org) if contact_id is not None else None
+        if contact_id is None:
+            record.contact = None
+        elif contact_id != record.contact_id:
+            record.contact = _get_contact_for_new_business(contact_id, org, ContactRole.TENANT)
     if "assigned_to_id" in data:
         _validate_assignee_in_org(data["assigned_to_id"], org)
     for field, value in data.items():
@@ -557,7 +799,7 @@ def create_lease(request, payload: LeaseIn):
     tenant_id = data.pop("tenant_id")
     source_viewing_record_id = data.pop("source_viewing_record_id", None)
     data["house"] = _get_house_in_org(house_id, org)
-    data["tenant"] = _get_contact_in_org(tenant_id, org)
+    data["tenant"] = _get_contact_for_new_business(tenant_id, org, ContactRole.TENANT)
     if source_viewing_record_id is not None:
         data["source_viewing_record"] = _get_viewing_record_in_org(source_viewing_record_id, org)
     lease = Lease.objects.create(organization=org, **data)
@@ -577,7 +819,9 @@ def patch_lease(request, lease_id: int, payload: LeasePatchIn):
     if "house_id" in data:
         lease.house = _get_house_in_org(data.pop("house_id"), lease.organization)
     if "tenant_id" in data:
-        lease.tenant = _get_contact_in_org(data.pop("tenant_id"), lease.organization)
+        tenant_id = data.pop("tenant_id")
+        if tenant_id != lease.tenant_id:
+            lease.tenant = _get_contact_for_new_business(tenant_id, lease.organization, ContactRole.TENANT)
     if "source_viewing_record_id" in data:
         source_viewing_record_id = data.pop("source_viewing_record_id")
         lease.source_viewing_record = _get_viewing_record_in_org(source_viewing_record_id, lease.organization) if source_viewing_record_id is not None else None

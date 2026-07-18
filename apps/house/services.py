@@ -8,12 +8,13 @@ from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.http import Http404
 
-from apps.house.constants import ContactRole, HousePublishStatus, HouseStatus, LeaseStatus
+from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus
 from apps.house.exceptions import ResourceInUseException
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
 DEFAULT_LOCATION_SETTING_KEY = "property_rental.default_location"
+TAG_SUGGESTIONS_SETTING_KEY = "property_rental.tag_suggestions"
 RESOURCE_PREVIEW_LIMIT = 5
 PUBLISH_RULES_SETTING_KEY = "property_rental.publish_rules"
 PUBLISH_RULE_MODE_REQUIRED = "required"
@@ -38,6 +39,17 @@ HOUSE_PUBLISH_ISSUE_LABELS = {
     "video": "视频不足",
 }
 
+DEFAULT_TAG_SUGGESTIONS = [
+    "近地铁",
+    "交通便利",
+    "成熟配套",
+    "有电梯",
+    "采光好",
+    "南北通透",
+    "精装修",
+    "拎包入住",
+]
+
 
 def natural_room_sort_key(room_number: str) -> tuple[tuple[int, int | str], ...]:
     """将房号分段，确保 2 排在 10 前、A2 排在 A10 前。"""
@@ -50,15 +62,23 @@ def sort_houses_for_building(houses):
 
 def building_map_counts(houses) -> dict[str, int]:
     """统计已传入的有效房源，地图筛选不应改变该汇总。"""
-    houses = list(houses)
+    houses = [house for house in houses if house.status in HOUSE_ACTIVE_STATUSES]
     return {
         "total": len(houses),
         "vacant": sum(house.status == HouseStatus.VACANT for house in houses),
+        "listed": sum(house.status == HouseStatus.LISTED for house in houses),
         "rented": sum(house.status == HouseStatus.RENTED for house in houses),
         "renovating": sum(house.status == HouseStatus.RENOVATING for house in houses),
-        "locked": sum(house.status == HouseStatus.LOCKED for house in houses),
-        "published": sum(house.publish_status == HousePublishStatus.PUBLISHED for house in houses),
     }
+
+
+def get_tag_suggestions() -> list[str]:
+    from apps.settings.models import DefaultSetting
+    from apps.settings.values import normalize_tag_list
+
+    setting = DefaultSetting.objects.filter(key=TAG_SUGGESTIONS_SETTING_KEY).first()
+    return normalize_tag_list(setting.value if setting else DEFAULT_TAG_SUGGESTIONS, strict=False)
+
 
 DEFAULT_HOUSE_PUBLISH_RULES = {
     "landlord": {"mode": PUBLISH_RULE_MODE_REQUIRED, "label": HOUSE_PUBLISH_RULE_LABELS["landlord"]},
@@ -391,23 +411,6 @@ def set_default_building(organization: Organization, building_id: int):
     building = Building.objects.select_related("estate").get(pk=building_id, organization=organization)
     OrganizationSetting.objects.update_or_create(organization=organization, setting=setting, defaults={"value": building.pk})
     return building
-
-
-@transaction.atomic
-def recalculate_house_status(house_id: int):
-    """统一重算房态；人工 locked/renovating 不被无 active 租约时覆盖。"""
-    from apps.house.models import House, Lease
-
-    house = House.objects.select_for_update().get(pk=house_id)
-    if house.status in {HouseStatus.LOCKED, HouseStatus.RENOVATING}:
-        return house
-
-    has_active = Lease.objects.filter(house_id=house_id, status=LeaseStatus.ACTIVE).exists()
-    next_status = HouseStatus.RENTED if has_active else HouseStatus.VACANT
-    if house.status != next_status:
-        House.objects.filter(pk=house.pk).update(status=next_status)
-        house.status = next_status
-    return house
 
 
 def validate_org_scoped_media_refs(*, instance, refs, media_by_id, field):

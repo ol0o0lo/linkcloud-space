@@ -31,15 +31,13 @@ class HouseDecoration(StrChoices):
 
 class HouseStatus(StrChoices):
     VACANT = "vacant", "空置"
+    LISTED = "listed", "招租中"
     RENTED = "rented", "已租"
     RENOVATING = "renovating", "装修中"
-    LOCKED = "locked", "封存"
+    INACTIVE = "inactive", "已停用"
 
 
-class HousePublishStatus(StrChoices):
-    DRAFT = "draft", "草稿"
-    PUBLISHED = "published", "已发布"
-    UNPUBLISHED = "unpublished", "已下架"
+HOUSE_ACTIVE_STATUSES = (HouseStatus.VACANT, HouseStatus.LISTED, HouseStatus.RENTED, HouseStatus.RENOVATING)
 
 
 class ViewingRecordStatus(StrChoices):

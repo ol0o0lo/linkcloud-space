@@ -3,6 +3,7 @@ from django.db import models
 
 from apps.base.mixins import BaseModelMixin
 from apps.settings.constants import SettingWidget, ValueType
+from apps.settings.values import normalize_tag_list
 
 
 class DefaultSetting(BaseModelMixin):
@@ -23,6 +24,11 @@ class DefaultSetting(BaseModelMixin):
 
     def __str__(self):
         return self.key
+
+    def clean(self):
+        super().clean()
+        if self.widget == SettingWidget.TAGS:
+            self.value = normalize_tag_list(self.value)
 
 
 class OrganizationSetting(BaseModelMixin):

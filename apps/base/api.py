@@ -73,7 +73,7 @@ def list_enums(request):
     """返回前端筛选和回显需要的后端枚举值。"""
     from apps.access.constants import AccessPermission, AccessRoleCode, AccessScope, FinancePermission, OrganizationPermission, SettingsPermission, TeamPermission
     from apps.accounts.constants import AdminUserRole, PhoneCountryCode, RealNameIdCardSide, RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
-    from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HousePublishStatus, HouseStatus, LeaseStatus, ViewingRecordStatus
+    from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
     from apps.media.constants import MediaExtension, MediaScope, MediaType, ResourceType
     from apps.notifications.constants import NotificationChannel, NotificationDispatchScope, NotificationDispatchStatus
     from apps.referrals.constants import ReferralDisplayLevel, ReferralRecordStatus, ReferralTriggerEvent
@@ -100,7 +100,6 @@ def list_enums(request):
         "house.house_orientation": HouseOrientation,
         "house.house_decoration": HouseDecoration,
         "house.house_status": HouseStatus,
-        "house.house_publish_status": HousePublishStatus,
         "house.viewing_record_status": ViewingRecordStatus,
         "house.lease_status": LeaseStatus,
         "media.scope": MediaScope,

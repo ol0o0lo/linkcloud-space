@@ -19,3 +19,4 @@ class SettingWidget(StrChoices):
     SELECT = "select", "选择器"
     JSON_EDITOR = "json_editor", "JSON 编辑器"
     LOCATION_PICKER = "location_picker", "地址选择器"
+    TAGS = "tags", "标签输入"

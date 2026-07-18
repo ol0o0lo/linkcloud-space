@@ -31,6 +31,7 @@ class ResourceType(StrChoices):
     ORG_LOGO = "org_logo", _("组织 Logo")
     REAL_NAME_ID_CARD = "real_name_id_card", _("实名认证身份证图片")
     ESTATE_IMAGE = "estate_image", _("项目图片")
+    BUILDING_IMAGE = "building_image", _("楼栋图片")
     HOUSE_IMAGE = "house_image", _("房源图片")
     HOUSE_VIDEO = "house_video", _("房源视频")
     LEASE_CONTRACT = "lease_contract", _("租约合同")

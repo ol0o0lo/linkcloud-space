@@ -11,6 +11,7 @@ from apps.house.services import (
     DEFAULT_HOUSE_PUBLISH_RULES,
     DEFAULT_LOCATION_SETTING_KEY,
     PUBLISH_RULES_SETTING_KEY,
+    TAG_SUGGESTIONS_SETTING_KEY,
     _default_building_setting,
     _publish_rules_setting,
     evaluate_house_publish_state,
@@ -156,6 +157,35 @@ class TestGetAllOrgSettings:
         assert result["widget"] == "input"
         assert result["ui"] == {"placeholder": "smtp.example.com"}
         assert result["category"] == "general"
+
+    def test_system_only_setting_is_hidden_from_org_and_team_scopes(self, org, team):
+        setting = DefaultSetting.objects.create(
+            key=TAG_SUGGESTIONS_SETTING_KEY,
+            value=["近地铁"],
+            value_type="json",
+            widget="tags",
+            ui={"scopes": ["system"]},
+        )
+        OrganizationSetting.objects.create(organization=org, setting=setting, value=["组织覆盖标签"])
+        TeamSetting.objects.create(team=team, setting=setting, value=["团队覆盖标签"])
+
+        assert TAG_SUGGESTIONS_SETTING_KEY not in {item["key"] for item in get_all_org_settings(org)}
+        assert TAG_SUGGESTIONS_SETTING_KEY not in {item["key"] for item in get_all_team_settings(team)}
+        with pytest.raises(DefaultSetting.DoesNotExist):
+            get_org_setting(org, TAG_SUGGESTIONS_SETTING_KEY)
+        with pytest.raises(DefaultSetting.DoesNotExist):
+            set_org_setting(org, TAG_SUGGESTIONS_SETTING_KEY, ["采光好"])
+        with pytest.raises(DefaultSetting.DoesNotExist):
+            get_team_setting(team, TAG_SUGGESTIONS_SETTING_KEY)
+        with pytest.raises(DefaultSetting.DoesNotExist):
+            set_team_setting(team, TAG_SUGGESTIONS_SETTING_KEY, ["采光好"])
+        with pytest.raises(DefaultSetting.DoesNotExist):
+            delete_org_setting(org, TAG_SUGGESTIONS_SETTING_KEY)
+        with pytest.raises(DefaultSetting.DoesNotExist):
+            delete_team_setting(team, TAG_SUGGESTIONS_SETTING_KEY)
+
+        assert OrganizationSetting.objects.filter(organization=org, setting=setting, value=["组织覆盖标签"]).exists()
+        assert TeamSetting.objects.filter(team=team, setting=setting, value=["团队覆盖标签"]).exists()
 
 
 @pytest.mark.django_db
@@ -359,3 +389,46 @@ class TestPublishRulesSetting:
         assert setting.value == DEFAULT_HOUSE_PUBLISH_RULES
         assert setting.value_type == "json"
         assert setting.category == "property_rental"
+
+
+@pytest.mark.django_db
+class TestTagSuggestionsSetting:
+    def test_tags_widget_normalizes_whitespace_empty_values_and_duplicates(self):
+        setting = DefaultSetting(
+            key=TAG_SUGGESTIONS_SETTING_KEY,
+            value=[" 近地铁 ", "近地铁", "南北   通透", ""],
+            value_type="json",
+            widget="tags",
+        )
+
+        setting.full_clean()
+
+        assert setting.value == ["近地铁", "南北 通透"]
+
+    def test_tags_widget_rejects_non_string_items(self):
+        setting = DefaultSetting(
+            key=TAG_SUGGESTIONS_SETTING_KEY,
+            value=["近地铁", 1],
+            value_type="json",
+            widget="tags",
+        )
+
+        with pytest.raises(ValidationError):
+            setting.full_clean()
+
+    def test_migration_creates_global_setting_without_overwriting_existing_value(self):
+        migration = importlib.import_module("apps.settings.migrations.0008_property_rental_tag_suggestions")
+        migration.ensure_property_rental_tag_suggestions(django_apps, None)
+
+        setting = DefaultSetting.objects.get(key=TAG_SUGGESTIONS_SETTING_KEY)
+        assert setting.value == migration.DEFAULT_TAG_SUGGESTIONS
+        assert setting.widget == "tags"
+        assert setting.ui["scopes"] == ["system"]
+
+        setting.value = ["自定义全局标签"]
+        setting.save(update_fields=["value"])
+        migration.ensure_property_rental_tag_suggestions(django_apps, None)
+        setting.refresh_from_db()
+
+        assert setting.value == ["自定义全局标签"]
+        assert setting.description == "仅作为楼栋和房源标签录入时的快捷候选，不会自动添加，也不限制手动输入。"

@@ -3,6 +3,8 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
+from apps.media.schemas import MediaRefIn, ResolvedMediaRefOut
+
 
 class OrganizationCreateIn(Schema):
     name: str = Field(..., description="租户名称。")
@@ -20,15 +22,23 @@ class OrganizationOut(Schema):
     name: str
     slug: str
     billing_email: str | None = None
+    logo: list[ResolvedMediaRefOut] = []
+    description: str = ""
     is_active: bool
     member_limit: int | None = None
     team_limit: int | None = None
+
+    @staticmethod
+    def resolve_logo(obj):
+        return obj.logo_resolved
 
 
 class OrganizationPatchIn(Schema):
     name: str | None = Field(None, description="租户显示名称。")
     slug: str | None = Field(None, description="租户 slug。")
     billing_email: str | None = Field(None, description="租户账单联系邮箱。")
+    logo: list[MediaRefIn] | None = Field(None, max_length=1, description="租户 Logo 媒体引用，最多 1 个。")
+    description: str | None = Field(None, description="租户介绍。")
     member_limit: int | None = Field(None, description="成员数量上限，null 表示不限。")
     team_limit: int | None = Field(None, description="团队数量上限，null 表示不限。")
 

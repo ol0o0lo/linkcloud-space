@@ -58,7 +58,14 @@ def create_team(request, payload: TeamIn):
     member_ids = _validate_members(payload.members, org)
     pre_create_team(request)
     with transaction.atomic():
-        team = Team.objects.create(organization=org, name=payload.name)
+        team = Team.objects.create(
+            organization=org,
+            name=payload.name,
+            phone=payload.phone,
+            wechat=payload.wechat,
+            address=payload.address,
+            business_hours=payload.business_hours,
+        )
         if member_ids:
             team.members.set(member_ids)
         post_create_team(request, team)
@@ -73,12 +80,14 @@ def get_team(request, team_id: int):
 
 @router.patch("/{team_id}/", response=TeamOut, summary="更新团队")
 def patch_team(request, team_id: int, payload: TeamPatchIn):
-    """更新团队名称或成员列表，成员变更需要额外的成员管理权限。"""
+    """更新团队资料或成员列表，成员变更需要额外的成员管理权限。"""
     team = require_team_permission(request, team_id, TeamPermission.UPDATE)
     org = team.organization
-    if payload.name is not None:
-        team.name = payload.name
-        team.save(update_fields=["name", "updated_at"])
+    data = payload.dict(exclude_unset=True, exclude={"members"})
+    if data:
+        for field, value in data.items():
+            setattr(team, field, value)
+        team.save(update_fields=[*data, "updated_at"])
     if payload.members is not None:
         require_team_permission(request, team_id, TeamPermission.MEMBER_MANAGE)
         member_ids = _validate_members(payload.members, org)
