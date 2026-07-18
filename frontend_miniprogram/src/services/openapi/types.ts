@@ -734,8 +734,39 @@ export type BuildingIn = {
   lng?: number | string | null;
   /** Address */
   address?: string;
-  /** Is Active */
-  is_active?: boolean;
+  /** Images */
+  images?: Record<string, unknown>[];
+  /** Tags */
+  tags?: string[];
+};
+
+export type BuildingInventoryOut = {
+  /** Id */
+  id: number;
+  /** Estate Id */
+  estate_id: number | null;
+  estate: EstateSummaryOut | null;
+  /** Name */
+  name: string;
+  /** Floors */
+  floors: number;
+  /** Under Floors */
+  under_floors: number | null;
+  /** Year Built */
+  year_built: number | null;
+  /** Elevator */
+  elevator: boolean;
+  /** Lat */
+  lat: string | null;
+  /** Lng */
+  lng: string | null;
+  /** Address */
+  address: string;
+  /** Images */
+  images: Record<string, unknown>[];
+  /** Tags */
+  tags: string[];
+  counts: InventoryCountsOut;
 };
 
 export type BuildingMapCountsOut = {
@@ -743,14 +774,12 @@ export type BuildingMapCountsOut = {
   total: number;
   /** Vacant */
   vacant: number;
+  /** Listed */
+  listed: number;
   /** Rented */
   rented: number;
   /** Renovating */
   renovating: number;
-  /** Locked */
-  locked: number;
-  /** Published */
-  published: number;
 };
 
 export type BuildingMapDetailOut = {
@@ -775,8 +804,10 @@ export type BuildingMapDetailOut = {
   lng: string | null;
   /** Address */
   address: string;
-  /** Is Active */
-  is_active: boolean;
+  /** Images */
+  images: Record<string, unknown>[];
+  /** Tags */
+  tags: string[];
   counts: BuildingMapCountsOut;
   /** Houses */
   houses: BuildingMapHouseOut[];
@@ -797,10 +828,6 @@ export type BuildingMapHouseOut = {
   status: string;
   /** Status  Mapping */
   status__mapping: string;
-  /** Publish Status */
-  publish_status: string;
-  /** Publish Status  Mapping */
-  publish_status__mapping: string;
 };
 
 export type BuildingMapMarkerOut = {
@@ -815,14 +842,23 @@ export type BuildingMapMarkerOut = {
   lat: string;
   /** Lng */
   lng: string;
-  /** Is Active */
-  is_active: boolean;
   counts: BuildingMapCountsOut;
 };
 
 export type BuildingMapUnlocatedCountOut = {
   /** Count */
   count: number;
+};
+
+export type BuildingMapUnlocatedOut = {
+  /** Id */
+  id: number;
+  estate: EstateSummaryOut | null;
+  /** Name */
+  name: string;
+  /** Address */
+  address: string;
+  counts: BuildingMapCountsOut;
 };
 
 export type BuildingOut = {
@@ -847,8 +883,10 @@ export type BuildingOut = {
   lng: string | null;
   /** Address */
   address: string;
-  /** Is Active */
-  is_active: boolean;
+  /** Images */
+  images: Record<string, unknown>[];
+  /** Tags */
+  tags: string[];
 };
 
 export type BuildingPatchIn = {
@@ -870,8 +908,10 @@ export type BuildingPatchIn = {
   lng?: number | string | null;
   /** Address */
   address?: string | null;
-  /** Is Active */
-  is_active?: boolean | null;
+  /** Images */
+  images?: Record<string, unknown>[] | null;
+  /** Tags */
+  tags?: string[] | null;
 };
 
 export type BuildingSummaryOut = {
@@ -1015,6 +1055,36 @@ export type EnumsUsingGetResponses = {
   200: unknown;
 };
 
+export type EstateDetailOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Display Name */
+  display_name: string;
+  /** Property Type */
+  property_type: string;
+  /** Property Type  Mapping */
+  property_type__mapping: string;
+  /** Province */
+  province: string;
+  /** City */
+  city: string;
+  /** District */
+  district: string;
+  /** Address */
+  address: string;
+  /** Lat */
+  lat: string | null;
+  /** Lng */
+  lng: string | null;
+  /** Images */
+  images: Record<string, unknown>[];
+  /** Building Count */
+  building_count: number;
+  counts: InventoryCountsOut;
+};
+
 export type EstateIn = {
   /** Name */
   name: string;
@@ -1042,8 +1112,30 @@ export type EstateIn = {
   images?: Record<string, unknown>[];
   /** Description */
   description?: string;
-  /** Is Active */
-  is_active?: boolean;
+};
+
+export type EstateMapMarkerOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Display Name */
+  display_name: string;
+  /** Address */
+  address: string;
+  /** Lat */
+  lat: string;
+  /** Lng */
+  lng: string;
+  /** Location Source */
+  location_source: 'estate' | 'building_centroid';
+  /** Building Count */
+  building_count: number;
+  /** Located Building Count */
+  located_building_count: number;
+  /** Unlocated Building Count */
+  unlocated_building_count: number;
+  counts: BuildingMapCountsOut;
 };
 
 export type EstateOut = {
@@ -1071,8 +1163,6 @@ export type EstateOut = {
   lng: string | null;
   /** Images */
   images: Record<string, unknown>[];
-  /** Is Active */
-  is_active: boolean;
 };
 
 export type EstatePatchIn = {
@@ -1102,8 +1192,6 @@ export type EstatePatchIn = {
   images?: Record<string, unknown>[] | null;
   /** Description */
   description?: string | null;
-  /** Is Active */
-  is_active?: boolean | null;
 };
 
 export type EstateSummaryOut = {
@@ -1138,11 +1226,26 @@ export type HouseBuildingMapUnlocatedCountUsingGetResponses = {
   200: BuildingMapUnlocatedCountOut;
 };
 
+export type HouseBuildingMapUnlocatedUsingGetParams = {
+  keyword?: string | null;
+  estate_id?: number | null;
+  house_status?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseBuildingMapUnlocatedUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedBuildingMapUnlocatedOut;
+};
+
 export type HouseBuildingMapUsingGetParams = {
   keyword?: string | null;
   estate_id?: number | null;
   house_status?: string | null;
-  include_inactive?: boolean;
+  standalone_only?: boolean;
   west?: number | string | null;
   south?: number | string | null;
   east?: number | string | null;
@@ -1188,7 +1291,7 @@ export type HouseBuildingsBuildingIdUsingGetResponses = {
   /**
    * OK
    */
-  200: BuildingOut;
+  200: BuildingInventoryOut;
 };
 
 export type HouseBuildingsBuildingIdUsingPatchParams = {
@@ -1213,7 +1316,7 @@ export type HouseBuildingsUsingGetResponses = {
   /**
    * OK
    */
-  200: PagedBuildingOut;
+  200: PagedBuildingInventoryOut;
 };
 
 export type HouseBuildingsUsingPostResponses = {
@@ -1281,6 +1384,25 @@ export type HouseDefaultBuildingUsingPutResponses = {
   200: DefaultBuildingOut;
 };
 
+export type HouseEstateMapUsingGetParams = {
+  keyword?: string | null;
+  estate_id?: number | null;
+  house_status?: string | null;
+  west?: number | string | null;
+  south?: number | string | null;
+  east?: number | string | null;
+  north?: number | string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseEstateMapUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedEstateMapMarkerOut;
+};
+
 export type HouseEstatesEstateIdDeleteCheckUsingGetParams = {
   estate_id: number;
 };
@@ -1311,7 +1433,7 @@ export type HouseEstatesEstateIdUsingGetResponses = {
   /**
    * OK
    */
-  200: EstateOut;
+  200: EstateDetailOut;
 };
 
 export type HouseEstatesEstateIdUsingPatchParams = {
@@ -1370,8 +1492,8 @@ export type HouseHousesHouseIdUsingPatchResponses = {
 export type HouseHousesUsingGetParams = {
   estate_id?: number | null;
   building_id?: number | null;
+  responsible_member_id?: number | null;
   status?: string | null;
-  publish_status?: string | null;
   keyword?: string | null;
   page?: number;
   page_size?: number | null;
@@ -1548,24 +1670,20 @@ export type HouseOut = {
   status: string;
   /** Status  Mapping */
   status__mapping: string;
-  /** Publish Status */
-  publish_status: string;
-  /** Publish Status  Mapping */
-  publish_status__mapping: string;
   /** Images */
   images: Record<string, unknown>[];
   /** Videos */
   videos: Record<string, unknown>[];
   /** Tags */
   tags: string[];
+  /** Effective Tags */
+  effective_tags: string[];
   /** Public Description */
   public_description: string;
   /** Internal Notes */
   internal_notes: string;
   /** Extra */
   extra: Record<string, unknown>;
-  /** Is Active */
-  is_active: boolean;
 };
 
 export type HousePatchIn = {
@@ -1603,8 +1721,6 @@ export type HousePatchIn = {
   has_elevator_access?: boolean | null;
   /** Status */
   status?: string | null;
-  /** Publish Status */
-  publish_status?: string | null;
   /** Images */
   images?: Record<string, unknown>[] | null;
   /** Videos */
@@ -1617,8 +1733,30 @@ export type HousePatchIn = {
   internal_notes?: string | null;
   /** Extra */
   extra?: Record<string, unknown> | null;
-  /** Is Active */
-  is_active?: boolean | null;
+};
+
+export type HouseStaffResponsibilitiesMemberIdUsingPutParams = {
+  member_id: number;
+};
+
+export type HouseStaffResponsibilitiesMemberIdUsingPutResponses = {
+  /**
+   * OK
+   */
+  200: PropertyResponsibilityMemberOut;
+};
+
+export type HouseStaffResponsibilitiesUsingGetParams = {
+  keyword?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseStaffResponsibilitiesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedPropertyResponsibilityMemberOut;
 };
 
 export type HouseSummaryOut = {
@@ -1631,6 +1769,20 @@ export type HouseSummaryOut = {
   /** Building Id */
   building_id: number;
   building: BuildingSummaryOut;
+};
+
+export type HouseTagSuggestionsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: TagSuggestionsOut;
+};
+
+export type HouseVacancySyncUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: VacancySyncOut;
 };
 
 export type HouseViewingRecordsRecordIdUsingGetParams = {
@@ -1712,6 +1864,19 @@ export type InternalWalletWithdrawalsWithdrawalIdRetryUsingPostResponses = {
    * OK
    */
   200: WithdrawalPayoutOut;
+};
+
+export type InventoryCountsOut = {
+  /** Total */
+  total: number;
+  /** Vacant */
+  vacant: number;
+  /** Listed */
+  listed: number;
+  /** Rented */
+  rented: number;
+  /** Renovating */
+  renovating: number;
 };
 
 export type InviteByKeyKeyAcceptUsingPostParams = {
@@ -1875,6 +2040,13 @@ export type LeasePatchIn = {
   /** Extra */
   extra?: Record<string, unknown> | null;
 };
+
+export enum Location_sourceEnum {
+  'estate' = 'estate',
+  'building_centroid' = 'building_centroid',
+}
+
+export type ILocation_sourceEnum = keyof typeof Location_sourceEnum;
 
 export enum Media_typeEnum {
   'image' = 'image',
@@ -2060,6 +2232,20 @@ export type MeOut = {
   /** Unread Count */
   unread_count?: number;
 };
+
+export enum ModeEnum {
+  'preview' = 'preview',
+  'apply' = 'apply',
+}
+
+export type IModeEnum = keyof typeof ModeEnum;
+
+export enum ModeEnum2 {
+  'preview' = 'preview',
+  'apply' = 'apply',
+}
+
+export type IModeEnum2 = keyof typeof ModeEnum2;
 
 export type NotificationActorOut = {
   /** Id */
@@ -2670,6 +2856,17 @@ export type PagedAdminUserOut = {
   page_size: number;
 };
 
+export type PagedBuildingInventoryOut = {
+  /** Items */
+  items: BuildingInventoryOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedBuildingMapMarkerOut = {
   /** Items */
   items: BuildingMapMarkerOut[];
@@ -2681,9 +2878,9 @@ export type PagedBuildingMapMarkerOut = {
   page_size: number;
 };
 
-export type PagedBuildingOut = {
+export type PagedBuildingMapUnlocatedOut = {
   /** Items */
-  items: BuildingOut[];
+  items: BuildingMapUnlocatedOut[];
   /** Total */
   total: number;
   /** Page */
@@ -2695,6 +2892,17 @@ export type PagedBuildingOut = {
 export type PagedContactOut = {
   /** Items */
   items: ContactOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedEstateMapMarkerOut = {
+  /** Items */
+  items: EstateMapMarkerOut[];
   /** Total */
   total: number;
   /** Page */
@@ -2772,6 +2980,17 @@ export type PagedNotificationDispatchOut = {
 export type PagedNotificationOut = {
   /** Items */
   items: NotificationOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedPropertyResponsibilityMemberOut = {
+  /** Items */
+  items: PropertyResponsibilityMemberOut[];
   /** Total */
   total: number;
   /** Page */
@@ -2882,6 +3101,31 @@ export type PermissionOut = {
 export type PhoneCodeVerifyIn = {
   /** Code 短信验证码。 */
   code: string;
+};
+
+export type PropertyResponsibilityMemberOut = {
+  /** Member Id */
+  member_id: number;
+  user: OrgUserOut;
+  /** Is Owner */
+  is_owner: boolean;
+  /** Landlords */
+  landlords: ContactSummaryOut[];
+  /** Buildings */
+  buildings: BuildingSummaryOut[];
+  /** Estates */
+  estates: EstateSummaryOut[];
+  /** Responsible House Count */
+  responsible_house_count: number;
+};
+
+export type PropertyResponsibilityUpdateIn = {
+  /** Landlord Ids */
+  landlord_ids?: number[];
+  /** Building Ids */
+  building_ids?: number[];
+  /** Estate Ids */
+  estate_ids?: number[];
 };
 
 export type PublicInviteOut = {
@@ -3471,6 +3715,24 @@ export type SplitPhoneSignupIn = {
   password: string;
 };
 
+export enum StatusEnum {
+  'matched' = 'matched',
+  'overridden' = 'overridden',
+  'ambiguous' = 'ambiguous',
+  'new' = 'new',
+  'created' = 'created',
+}
+
+export type IStatusEnum = keyof typeof StatusEnum;
+
+export enum StatusEnum2 {
+  'valid' = 'valid',
+  'error' = 'error',
+  'ignored' = 'ignored',
+}
+
+export type IStatusEnum2 = keyof typeof StatusEnum2;
+
 export type SuccessOut = {
   /** Success */
   success: boolean;
@@ -3487,6 +3749,11 @@ export type SwitchListItemOut = {
   is_primary: boolean;
   /** Is Current */
   is_current: boolean;
+};
+
+export type TagSuggestionsOut = {
+  /** Tags */
+  tags: string[];
 };
 
 export type TeamBindingOut = {
@@ -3812,6 +4079,166 @@ export type UsersUsingGetResponses = {
    * OK
    */
   200: PagedUserOut;
+};
+
+export type VacancySyncBlockOut = {
+  /** Block Index */
+  block_index: number;
+  /** Address */
+  address: string;
+  building_match: VacancySyncBuildingMatchOut;
+  /** Lines */
+  lines: VacancySyncLineOut[];
+  changes: VacancySyncChangesOut;
+  /** Errors */
+  errors: VacancySyncErrorOut[];
+};
+
+export type VacancySyncBuildingCandidateOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Address */
+  address: string;
+};
+
+export type VacancySyncBuildingMatchOut = {
+  /** Status */
+  status: 'matched' | 'overridden' | 'ambiguous' | 'new' | 'created';
+  /** Building Id */
+  building_id: number | null;
+  /** Name */
+  name: string | null;
+  /** Address */
+  address: string;
+  /** Candidates */
+  candidates: VacancySyncBuildingCandidateOut[];
+};
+
+export type VacancySyncBuildingOverrideIn = {
+  /** Block Index */
+  block_index: number;
+  /** Building Id */
+  building_id: number;
+};
+
+export type VacancySyncChangesOut = {
+  /** Create Houses */
+  create_houses: VacancySyncHouseChangeOut[];
+  /** Update Houses */
+  update_houses: VacancySyncHouseChangeOut[];
+  /** Mark Vacant */
+  mark_vacant: VacancySyncHouseChangeOut[];
+  /** Mark Rented */
+  mark_rented: VacancySyncHouseChangeOut[];
+  /** Preserve Special Status */
+  preserve_special_status: VacancySyncHouseChangeOut[];
+  /** Inactive Conflicts */
+  inactive_conflicts: VacancySyncHouseChangeOut[];
+};
+
+export type VacancySyncErrorOut = {
+  /** Code */
+  code: string;
+  /** Message */
+  message: string;
+  /** Block Index */
+  block_index: number | null;
+  /** Line Number */
+  line_number: number | null;
+};
+
+export type VacancySyncHouseChangeOut = {
+  /** House Id */
+  house_id: number | null;
+  /** Room Number */
+  room_number: string;
+  /** Before Status */
+  before_status: string | null;
+  /** After Status */
+  after_status: string | null;
+  /** Changed Fields */
+  changed_fields: string[];
+};
+
+export type VacancySyncIn = {
+  /** Mode */
+  mode?: 'preview' | 'apply';
+  /** Raw Text */
+  raw_text: string;
+  /** Building Overrides */
+  building_overrides?: VacancySyncBuildingOverrideIn[];
+  /** Ignored Lines */
+  ignored_lines?: number[];
+  /** Plan Hash */
+  plan_hash?: string | null;
+};
+
+export type VacancySyncLineOut = {
+  /** Line Number */
+  line_number: number;
+  /** Raw */
+  raw: string;
+  /** Status */
+  status: 'valid' | 'error' | 'ignored';
+  /** Error Code */
+  error_code: string | null;
+  /** Message */
+  message: string | null;
+  /** Room Number */
+  room_number: string | null;
+  /** Floor */
+  floor: number | null;
+  /** Asking Rent */
+  asking_rent: string | null;
+  /** Bedrooms */
+  bedrooms: number | null;
+  /** Living Rooms */
+  living_rooms: number | null;
+  /** Tags */
+  tags: string[];
+};
+
+export type VacancySyncOut = {
+  /** Mode */
+  mode: 'preview' | 'apply';
+  /** Applied */
+  applied: boolean;
+  /** Can Apply */
+  can_apply: boolean;
+  /** Plan Hash */
+  plan_hash: string | null;
+  /** Force Rented */
+  force_rented: boolean;
+  summary: VacancySyncSummaryOut;
+  /** Blocks */
+  blocks: VacancySyncBlockOut[];
+  /** Errors */
+  errors: VacancySyncErrorOut[];
+};
+
+export type VacancySyncSummaryOut = {
+  /** Buildings */
+  buildings: number;
+  /** Valid Lines */
+  valid_lines: number;
+  /** Error Lines */
+  error_lines: number;
+  /** Ignored Lines */
+  ignored_lines: number;
+  /** Create Buildings */
+  create_buildings: number;
+  /** Create Houses */
+  create_houses: number;
+  /** Update Houses */
+  update_houses: number;
+  /** Mark Vacant */
+  mark_vacant: number;
+  /** Mark Rented */
+  mark_rented: number;
+  /** Preserve Special Status */
+  preserve_special_status: number;
 };
 
 export type VersionUsingGetResponses = {

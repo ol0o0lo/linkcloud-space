@@ -17,13 +17,17 @@ import {
   appsHouseApiGetEstate,
   appsHouseApiGetHouse,
   appsHouseApiGetLease,
+  appsHouseApiGetPropertyRentalTagSuggestions,
   appsHouseApiGetViewingRecord,
   appsHouseApiListBuildings,
   appsHouseApiListBuildingMap,
+  appsHouseApiListBuildingMapUnlocated,
   appsHouseApiListContacts,
+  appsHouseApiListEstateMap,
   appsHouseApiListEstates,
   appsHouseApiListHouses,
   appsHouseApiListLeases,
+  appsHouseApiListStaffResponsibilities,
   appsHouseApiListViewingRecords,
   appsHouseApiPatchBuilding,
   appsHouseApiPatchContact,
@@ -32,8 +36,9 @@ import {
   appsHouseApiPatchLease,
   appsHouseApiPatchViewingRecord,
   appsHouseApiPutDefaultBuilding,
+  appsHouseApiReplaceStaffResponsibilities,
+  appsHouseApiVacancySync,
 } from '@/services/openapi/propertyRentalManagement';
-import { request } from '@umijs/max';
 
 export type PageResult<T> = {
   items: T[];
@@ -45,10 +50,9 @@ export type PageResult<T> = {
 export type InventoryCounts = {
   total: number;
   vacant: number;
+  listed: number;
   rented: number;
   renovating: number;
-  locked: number;
-  published: number;
 };
 
 export type EstateOut = API.EstateOut & {
@@ -56,17 +60,13 @@ export type EstateOut = API.EstateOut & {
   counts?: InventoryCounts;
   property_type__mapping?: string;
 };
-export type BuildingOut = API.BuildingOut & { counts?: InventoryCounts };
+export type BuildingOut = API.BuildingOut & {
+  counts?: InventoryCounts;
+};
 export type BuildingMapMarkerOut = API.BuildingMapMarkerOut;
 export type BuildingMapDetailOut = API.BuildingMapDetailOut;
-export type BuildingMapUnlocatedOut = {
-  id: number;
-  estate: API.EstateSummaryOut | null;
-  name: string;
-  address: string;
-  is_active: boolean;
-  counts: API.BuildingMapCountsOut;
-};
+export type EstateMapMarkerOut = API.EstateMapMarkerOut;
+export type BuildingMapUnlocatedOut = API.BuildingMapUnlocatedOut;
 export type DefaultBuildingOut = API.DefaultBuildingOut;
 export type DeleteCheckOut = API.DeleteCheckOut;
 export type ContactOut = API.ContactOut & {
@@ -76,7 +76,6 @@ export type HouseOut = API.HouseOut & {
   orientation__mapping?: string;
   decoration__mapping?: string;
   status__mapping?: string;
-  publish_status__mapping?: string;
 };
 export type ViewingRecordOut = API.ViewingRecordOut & {
   status__mapping?: string;
@@ -84,6 +83,12 @@ export type ViewingRecordOut = API.ViewingRecordOut & {
 export type LeaseOut = API.LeaseOut & {
   status__mapping?: string;
 };
+export type PropertyResponsibilityOut = API.PropertyResponsibilityMemberOut;
+export type PropertyResponsibilityUpdateIn = API.PropertyResponsibilityUpdateIn;
+export type VacancySyncInput = API.VacancySyncIn;
+export type VacancySyncResult = API.VacancySyncOut;
+export type VacancySyncBlock = API.VacancySyncBlockOut;
+export type VacancySyncLine = API.VacancySyncLineOut;
 
 type QueryParams = Record<string, unknown>;
 type Payload = Record<string, unknown>;
@@ -111,10 +116,14 @@ export const houseApi = {
     appsHouseApiPutDefaultBuilding({ building_id: buildingId }) as Promise<DefaultBuildingOut>,
   listBuildingMap: (params?: QueryParams) =>
     appsHouseApiListBuildingMap((params ?? {}) as API.appsHouseApiListBuildingMapParams) as Promise<PageResult<BuildingMapMarkerOut>>,
+  listEstateMap: (params?: QueryParams) =>
+    appsHouseApiListEstateMap((params ?? {}) as API.appsHouseApiListEstateMapParams) as Promise<PageResult<EstateMapMarkerOut>>,
   getBuildingMapDetail: (buildingId: number) => appsHouseApiGetBuildingMapDetail({ building_id: buildingId }) as Promise<BuildingMapDetailOut>,
   getBuildingMapUnlocatedCount: () => appsHouseApiGetBuildingMapUnlocatedCount() as Promise<API.BuildingMapUnlocatedCountOut>,
   listBuildingMapUnlocated: (params?: QueryParams) =>
-    request<PageResult<BuildingMapUnlocatedOut>>('/api/house/building-map-unlocated/', { method: 'GET', params: params ?? {} }),
+    appsHouseApiListBuildingMapUnlocated((params ?? {}) as API.appsHouseApiListBuildingMapUnlocatedParams) as Promise<PageResult<BuildingMapUnlocatedOut>>,
+  getTagSuggestions: () => appsHouseApiGetPropertyRentalTagSuggestions() as Promise<API.TagSuggestionsOut>,
+  vacancySync: (data: VacancySyncInput) => appsHouseApiVacancySync(data) as Promise<VacancySyncResult>,
 
   listContacts: (params?: QueryParams) =>
     appsHouseApiListContacts((params ?? {}) as API.appsHouseApiListContactsParams) as Promise<PageResult<ContactOut>>,
@@ -122,6 +131,17 @@ export const houseApi = {
   createContact: (data: Payload) => appsHouseApiCreateContact(data as API.ContactIn) as Promise<ContactOut>,
   patchContact: (contactId: number, data: Payload) =>
     appsHouseApiPatchContact({ contact_id: contactId }, data as API.ContactPatchIn) as Promise<ContactOut>,
+
+  listStaffResponsibilities: (params?: QueryParams) =>
+    appsHouseApiListStaffResponsibilities((params ?? {}) as API.appsHouseApiListStaffResponsibilitiesParams) as Promise<PageResult<PropertyResponsibilityOut>>,
+  replaceStaffResponsibilities: (
+    memberId: number,
+    data: PropertyResponsibilityUpdateIn,
+  ) =>
+    appsHouseApiReplaceStaffResponsibilities(
+      { member_id: memberId },
+      data,
+    ) as Promise<PropertyResponsibilityOut>,
 
   listHouses: (params?: QueryParams) =>
     appsHouseApiListHouses((params ?? {}) as API.appsHouseApiListHousesParams) as Promise<PageResult<HouseOut>>,

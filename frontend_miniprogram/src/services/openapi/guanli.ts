@@ -425,6 +425,29 @@ export function houseBuildingMapUnlocatedCountUsingGet({
   );
 }
 
+/** 获取待定位楼栋列表 GET /api/house/building-map-unlocated/ */
+export function houseBuildingMapUnlocatedUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseBuildingMapUnlocatedUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedBuildingMapUnlocatedOut>(
+    '/api/house/building-map-unlocated/',
+    {
+      method: 'GET',
+      params: {
+        // page has a default value: 1
+        page: '1',
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取楼栋房源地图标点 GET /api/house/building-map/ */
 export function houseBuildingMapUsingGet({
   params,
@@ -475,7 +498,7 @@ export function houseBuildingsUsingGet({
   params: API.HouseBuildingsUsingGetParams;
   options?: CustomRequestOptions_;
 }) {
-  return request<API.PagedBuildingOut>('/api/house/buildings/', {
+  return request<API.PagedBuildingInventoryOut>('/api/house/buildings/', {
     method: 'GET',
     params: {
       // page has a default value: 1
@@ -515,7 +538,7 @@ export function houseBuildingsBuildingIdUsingGet({
 }) {
   const { building_id: param0, ...queryParams } = params;
 
-  return request<API.BuildingOut>(`/api/house/buildings/${param0}/`, {
+  return request<API.BuildingInventoryOut>(`/api/house/buildings/${param0}/`, {
     method: 'GET',
     params: { ...queryParams },
     ...(options || {}),
@@ -695,6 +718,26 @@ export function houseDefaultBuildingUsingPut({
   });
 }
 
+/** 获取小区房源地图聚合标点 GET /api/house/estate-map/ */
+export function houseEstateMapUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseEstateMapUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedEstateMapMarkerOut>('/api/house/estate-map/', {
+    method: 'GET',
+    params: {
+      // page has a default value: 1
+      page: '1',
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
 /** 获取项目片区列表 GET /api/house/estates/ */
 export function houseEstatesUsingGet({
   params,
@@ -744,7 +787,7 @@ export function houseEstatesEstateIdUsingGet({
 }) {
   const { estate_id: param0, ...queryParams } = params;
 
-  return request<API.EstateOut>(`/api/house/estates/${param0}/`, {
+  return request<API.EstateDetailOut>(`/api/house/estates/${param0}/`, {
     method: 'GET',
     params: { ...queryParams },
     ...(options || {}),
@@ -969,6 +1012,86 @@ export function houseLeasesLeaseIdUsingPatch({
       'Content-Type': 'application/json',
     },
     params: { ...queryParams },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 获取员工房源职责列表 GET /api/house/staff-responsibilities/ */
+export function houseStaffResponsibilitiesUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseStaffResponsibilitiesUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedPropertyResponsibilityMemberOut>(
+    '/api/house/staff-responsibilities/',
+    {
+      method: 'GET',
+      params: {
+        // page has a default value: 1
+        page: '1',
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 替换员工房源职责 PUT /api/house/staff-responsibilities/${param0}/ */
+export function houseStaffResponsibilitiesMemberIdUsingPut({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseStaffResponsibilitiesMemberIdUsingPutParams;
+  body: API.PropertyResponsibilityUpdateIn;
+  options?: CustomRequestOptions_;
+}) {
+  const { member_id: param0, ...queryParams } = params;
+
+  return request<API.PropertyResponsibilityMemberOut>(
+    `/api/house/staff-responsibilities/${param0}/`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取房源与楼栋标签快捷候选 GET /api/house/tag-suggestions/ */
+export function houseTagSuggestionsUsingGet({
+  options,
+}: {
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.TagSuggestionsOut>('/api/house/tag-suggestions/', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 预览或执行房表空置同步 POST /api/house/vacancy-sync/ */
+export function houseVacancySyncUsingPost({
+  body,
+  options,
+}: {
+  body: API.VacancySyncIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.VacancySyncOut>('/api/house/vacancy-sync/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
     data: body,
     ...(options || {}),
   });

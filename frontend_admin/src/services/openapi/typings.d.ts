@@ -454,11 +454,19 @@ declare namespace API {
     keyword?: string | null;
     estate_id?: number | null;
     house_status?: string | null;
-    include_inactive?: boolean;
+    standalone_only?: boolean;
     west?: number | string | null;
     south?: number | string | null;
     east?: number | string | null;
     north?: number | string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListBuildingMapUnlocatedParams = {
+    keyword?: string | null;
+    estate_id?: number | null;
+    house_status?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -478,6 +486,18 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type appsHouseApiListEstateMapParams = {
+    keyword?: string | null;
+    estate_id?: number | null;
+    house_status?: string | null;
+    west?: number | string | null;
+    south?: number | string | null;
+    east?: number | string | null;
+    north?: number | string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsHouseApiListEstatesParams = {
     keyword?: string | null;
     page?: number;
@@ -487,8 +507,8 @@ declare namespace API {
   type appsHouseApiListHousesParams = {
     estate_id?: number | null;
     building_id?: number | null;
+    responsible_member_id?: number | null;
     status?: string | null;
-    publish_status?: string | null;
     keyword?: string | null;
     page?: number;
     page_size?: number | null;
@@ -509,6 +529,12 @@ declare namespace API {
   };
 
   type appsHouseApiListMyLeasesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListStaffResponsibilitiesParams = {
+    keyword?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -545,6 +571,10 @@ declare namespace API {
 
   type appsHouseApiPatchViewingRecordParams = {
     record_id: number;
+  };
+
+  type appsHouseApiReplaceStaffResponsibilitiesParams = {
+    member_id: number;
   };
 
   type appsMediaApiOssTokenParams = {
@@ -835,8 +865,39 @@ declare namespace API {
     lng?: number | string | null;
     /** Address */
     address?: string;
-    /** Is Active */
-    is_active?: boolean;
+    /** Images */
+    images?: Record<string, any>[];
+    /** Tags */
+    tags?: string[];
+  };
+
+  type BuildingInventoryOut = {
+    /** Id */
+    id: number;
+    /** Estate Id */
+    estate_id: number | null;
+    estate: EstateSummaryOut | null;
+    /** Name */
+    name: string;
+    /** Floors */
+    floors: number;
+    /** Under Floors */
+    under_floors: number | null;
+    /** Year Built */
+    year_built: number | null;
+    /** Elevator */
+    elevator: boolean;
+    /** Lat */
+    lat: string | null;
+    /** Lng */
+    lng: string | null;
+    /** Address */
+    address: string;
+    /** Images */
+    images: Record<string, any>[];
+    /** Tags */
+    tags: string[];
+    counts: InventoryCountsOut;
   };
 
   type BuildingMapCountsOut = {
@@ -844,14 +905,12 @@ declare namespace API {
     total: number;
     /** Vacant */
     vacant: number;
+    /** Listed */
+    listed: number;
     /** Rented */
     rented: number;
     /** Renovating */
     renovating: number;
-    /** Locked */
-    locked: number;
-    /** Published */
-    published: number;
   };
 
   type BuildingMapDetailOut = {
@@ -876,8 +935,10 @@ declare namespace API {
     lng: string | null;
     /** Address */
     address: string;
-    /** Is Active */
-    is_active: boolean;
+    /** Images */
+    images: Record<string, any>[];
+    /** Tags */
+    tags: string[];
     counts: BuildingMapCountsOut;
     /** Houses */
     houses: BuildingMapHouseOut[];
@@ -898,10 +959,6 @@ declare namespace API {
     status: string;
     /** Status  Mapping */
     status__mapping: string;
-    /** Publish Status */
-    publish_status: string;
-    /** Publish Status  Mapping */
-    publish_status__mapping: string;
   };
 
   type BuildingMapMarkerOut = {
@@ -916,14 +973,23 @@ declare namespace API {
     lat: string;
     /** Lng */
     lng: string;
-    /** Is Active */
-    is_active: boolean;
     counts: BuildingMapCountsOut;
   };
 
   type BuildingMapUnlocatedCountOut = {
     /** Count */
     count: number;
+  };
+
+  type BuildingMapUnlocatedOut = {
+    /** Id */
+    id: number;
+    estate: EstateSummaryOut | null;
+    /** Name */
+    name: string;
+    /** Address */
+    address: string;
+    counts: BuildingMapCountsOut;
   };
 
   type BuildingOut = {
@@ -948,8 +1014,10 @@ declare namespace API {
     lng: string | null;
     /** Address */
     address: string;
-    /** Is Active */
-    is_active: boolean;
+    /** Images */
+    images: Record<string, any>[];
+    /** Tags */
+    tags: string[];
   };
 
   type BuildingPatchIn = {
@@ -971,8 +1039,10 @@ declare namespace API {
     lng?: number | string | null;
     /** Address */
     address?: string | null;
-    /** Is Active */
-    is_active?: boolean | null;
+    /** Images */
+    images?: Record<string, any>[] | null;
+    /** Tags */
+    tags?: string[] | null;
   };
 
   type BuildingSummaryOut = {
@@ -1109,6 +1179,36 @@ declare namespace API {
     resources: RelatedResourceOut[];
   };
 
+  type EstateDetailOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Display Name */
+    display_name: string;
+    /** Property Type */
+    property_type: string;
+    /** Property Type  Mapping */
+    property_type__mapping: string;
+    /** Province */
+    province: string;
+    /** City */
+    city: string;
+    /** District */
+    district: string;
+    /** Address */
+    address: string;
+    /** Lat */
+    lat: string | null;
+    /** Lng */
+    lng: string | null;
+    /** Images */
+    images: Record<string, any>[];
+    /** Building Count */
+    building_count: number;
+    counts: InventoryCountsOut;
+  };
+
   type EstateIn = {
     /** Name */
     name: string;
@@ -1136,8 +1236,30 @@ declare namespace API {
     images?: Record<string, any>[];
     /** Description */
     description?: string;
-    /** Is Active */
-    is_active?: boolean;
+  };
+
+  type EstateMapMarkerOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Display Name */
+    display_name: string;
+    /** Address */
+    address: string;
+    /** Lat */
+    lat: string;
+    /** Lng */
+    lng: string;
+    /** Location Source */
+    location_source: "estate" | "building_centroid";
+    /** Building Count */
+    building_count: number;
+    /** Located Building Count */
+    located_building_count: number;
+    /** Unlocated Building Count */
+    unlocated_building_count: number;
+    counts: BuildingMapCountsOut;
   };
 
   type EstateOut = {
@@ -1165,8 +1287,6 @@ declare namespace API {
     lng: string | null;
     /** Images */
     images: Record<string, any>[];
-    /** Is Active */
-    is_active: boolean;
   };
 
   type EstatePatchIn = {
@@ -1196,8 +1316,6 @@ declare namespace API {
     images?: Record<string, any>[] | null;
     /** Description */
     description?: string | null;
-    /** Is Active */
-    is_active?: boolean | null;
   };
 
   type EstateSummaryOut = {
@@ -1302,24 +1420,20 @@ declare namespace API {
     status: string;
     /** Status  Mapping */
     status__mapping: string;
-    /** Publish Status */
-    publish_status: string;
-    /** Publish Status  Mapping */
-    publish_status__mapping: string;
     /** Images */
     images: Record<string, any>[];
     /** Videos */
     videos: Record<string, any>[];
     /** Tags */
     tags: string[];
+    /** Effective Tags */
+    effective_tags: string[];
     /** Public Description */
     public_description: string;
     /** Internal Notes */
     internal_notes: string;
     /** Extra */
     extra: Record<string, any>;
-    /** Is Active */
-    is_active: boolean;
   };
 
   type HousePatchIn = {
@@ -1357,8 +1471,6 @@ declare namespace API {
     has_elevator_access?: boolean | null;
     /** Status */
     status?: string | null;
-    /** Publish Status */
-    publish_status?: string | null;
     /** Images */
     images?: Record<string, any>[] | null;
     /** Videos */
@@ -1371,8 +1483,6 @@ declare namespace API {
     internal_notes?: string | null;
     /** Extra */
     extra?: Record<string, any> | null;
-    /** Is Active */
-    is_active?: boolean | null;
   };
 
   type HouseSummaryOut = {
@@ -1409,6 +1519,19 @@ declare namespace API {
     page?: number;
     /** Page Size */
     page_size?: number | null;
+  };
+
+  type InventoryCountsOut = {
+    /** Total */
+    total: number;
+    /** Vacant */
+    vacant: number;
+    /** Listed */
+    listed: number;
+    /** Rented */
+    rented: number;
+    /** Renovating */
+    renovating: number;
   };
 
   type InviteIn = {
@@ -1938,6 +2061,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedBuildingInventoryOut = {
+    /** Items */
+    items: BuildingInventoryOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedBuildingMapMarkerOut = {
     /** Items */
     items: BuildingMapMarkerOut[];
@@ -1949,9 +2083,9 @@ declare namespace API {
     page_size: number;
   };
 
-  type PagedBuildingOut = {
+  type PagedBuildingMapUnlocatedOut = {
     /** Items */
-    items: BuildingOut[];
+    items: BuildingMapUnlocatedOut[];
     /** Total */
     total: number;
     /** Page */
@@ -1963,6 +2097,17 @@ declare namespace API {
   type PagedContactOut = {
     /** Items */
     items: ContactOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedEstateMapMarkerOut = {
+    /** Items */
+    items: EstateMapMarkerOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2040,6 +2185,17 @@ declare namespace API {
   type PagedNotificationOut = {
     /** Items */
     items: NotificationOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedPropertyResponsibilityMemberOut = {
+    /** Items */
+    items: PropertyResponsibilityMemberOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2150,6 +2306,31 @@ declare namespace API {
   type PhoneCodeVerifyIn = {
     /** Code 短信验证码。 */
     code: string;
+  };
+
+  type PropertyResponsibilityMemberOut = {
+    /** Member Id */
+    member_id: number;
+    user: OrgUserOut;
+    /** Is Owner */
+    is_owner: boolean;
+    /** Landlords */
+    landlords: ContactSummaryOut[];
+    /** Buildings */
+    buildings: BuildingSummaryOut[];
+    /** Estates */
+    estates: EstateSummaryOut[];
+    /** Responsible House Count */
+    responsible_house_count: number;
+  };
+
+  type PropertyResponsibilityUpdateIn = {
+    /** Landlord Ids */
+    landlord_ids?: number[];
+    /** Building Ids */
+    building_ids?: number[];
+    /** Estate Ids */
+    estate_ids?: number[];
   };
 
   type PublicInviteOut = {
@@ -2580,6 +2761,11 @@ declare namespace API {
     is_current: boolean;
   };
 
+  type TagSuggestionsOut = {
+    /** Tags */
+    tags: string[];
+  };
+
   type TeamBindingOut = {
     /** Id */
     id: number;
@@ -2692,6 +2878,166 @@ declare namespace API {
   type UserStatusPatchIn = {
     /** Is Active 是否启用用户。 */
     is_active: boolean;
+  };
+
+  type VacancySyncBlockOut = {
+    /** Block Index */
+    block_index: number;
+    /** Address */
+    address: string;
+    building_match: VacancySyncBuildingMatchOut;
+    /** Lines */
+    lines: VacancySyncLineOut[];
+    changes: VacancySyncChangesOut;
+    /** Errors */
+    errors: VacancySyncErrorOut[];
+  };
+
+  type VacancySyncBuildingCandidateOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Address */
+    address: string;
+  };
+
+  type VacancySyncBuildingMatchOut = {
+    /** Status */
+    status: "matched" | "overridden" | "ambiguous" | "new" | "created";
+    /** Building Id */
+    building_id: number | null;
+    /** Name */
+    name: string | null;
+    /** Address */
+    address: string;
+    /** Candidates */
+    candidates: VacancySyncBuildingCandidateOut[];
+  };
+
+  type VacancySyncBuildingOverrideIn = {
+    /** Block Index */
+    block_index: number;
+    /** Building Id */
+    building_id: number;
+  };
+
+  type VacancySyncChangesOut = {
+    /** Create Houses */
+    create_houses: VacancySyncHouseChangeOut[];
+    /** Update Houses */
+    update_houses: VacancySyncHouseChangeOut[];
+    /** Mark Vacant */
+    mark_vacant: VacancySyncHouseChangeOut[];
+    /** Mark Rented */
+    mark_rented: VacancySyncHouseChangeOut[];
+    /** Preserve Special Status */
+    preserve_special_status: VacancySyncHouseChangeOut[];
+    /** Inactive Conflicts */
+    inactive_conflicts: VacancySyncHouseChangeOut[];
+  };
+
+  type VacancySyncErrorOut = {
+    /** Code */
+    code: string;
+    /** Message */
+    message: string;
+    /** Block Index */
+    block_index: number | null;
+    /** Line Number */
+    line_number: number | null;
+  };
+
+  type VacancySyncHouseChangeOut = {
+    /** House Id */
+    house_id: number | null;
+    /** Room Number */
+    room_number: string;
+    /** Before Status */
+    before_status: string | null;
+    /** After Status */
+    after_status: string | null;
+    /** Changed Fields */
+    changed_fields: string[];
+  };
+
+  type VacancySyncIn = {
+    /** Mode */
+    mode?: "preview" | "apply";
+    /** Raw Text */
+    raw_text: string;
+    /** Building Overrides */
+    building_overrides?: VacancySyncBuildingOverrideIn[];
+    /** Ignored Lines */
+    ignored_lines?: number[];
+    /** Plan Hash */
+    plan_hash?: string | null;
+  };
+
+  type VacancySyncLineOut = {
+    /** Line Number */
+    line_number: number;
+    /** Raw */
+    raw: string;
+    /** Status */
+    status: "valid" | "error" | "ignored";
+    /** Error Code */
+    error_code: string | null;
+    /** Message */
+    message: string | null;
+    /** Room Number */
+    room_number: string | null;
+    /** Floor */
+    floor: number | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Bedrooms */
+    bedrooms: number | null;
+    /** Living Rooms */
+    living_rooms: number | null;
+    /** Tags */
+    tags: string[];
+  };
+
+  type VacancySyncOut = {
+    /** Mode */
+    mode: "preview" | "apply";
+    /** Applied */
+    applied: boolean;
+    /** Can Apply */
+    can_apply: boolean;
+    /** Plan Hash */
+    plan_hash: string | null;
+    /** Force Rented */
+    force_rented: boolean;
+    summary: VacancySyncSummaryOut;
+    /** Blocks */
+    blocks: VacancySyncBlockOut[];
+    /** Errors */
+    errors: VacancySyncErrorOut[];
+  };
+
+  type VacancySyncSummaryOut = {
+    /** Buildings */
+    buildings: number;
+    /** Valid Lines */
+    valid_lines: number;
+    /** Error Lines */
+    error_lines: number;
+    /** Ignored Lines */
+    ignored_lines: number;
+    /** Create Buildings */
+    create_buildings: number;
+    /** Create Houses */
+    create_houses: number;
+    /** Update Houses */
+    update_houses: number;
+    /** Mark Vacant */
+    mark_vacant: number;
+    /** Mark Rented */
+    mark_rented: number;
+    /** Preserve Special Status */
+    preserve_special_status: number;
   };
 
   type ViewingRecordIn = {

@@ -15,6 +15,26 @@ export async function appsHouseApiGetBuildingMapUnlocatedCount(options?: {
   );
 }
 
+/** 获取待定位楼栋列表 GET /api/house/building-map-unlocated/ */
+export async function appsHouseApiListBuildingMapUnlocated(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiListBuildingMapUnlocatedParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.PagedBuildingMapUnlocatedOut>(
+    "/api/house/building-map-unlocated/",
+    {
+      method: "GET",
+      params: {
+        // page has a default value: 1
+        page: "1",
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取楼栋房源地图标点 GET /api/house/building-map/ */
 export async function appsHouseApiListBuildingMap(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -55,7 +75,7 @@ export async function appsHouseApiListBuildings(
   params: API.appsHouseApiListBuildingsParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.PagedBuildingOut>("/api/house/buildings/", {
+  return request<API.PagedBuildingInventoryOut>("/api/house/buildings/", {
     method: "GET",
     params: {
       // page has a default value: 1
@@ -88,7 +108,7 @@ export async function appsHouseApiGetBuilding(
   options?: { [key: string]: any }
 ) {
   const { building_id: param0, ...queryParams } = params;
-  return request<API.BuildingOut>(`/api/house/buildings/${param0}/`, {
+  return request<API.BuildingInventoryOut>(`/api/house/buildings/${param0}/`, {
     method: "GET",
     params: { ...queryParams },
     ...(options || {}),
@@ -235,6 +255,23 @@ export async function appsHouseApiPutDefaultBuilding(
   });
 }
 
+/** 获取小区房源地图聚合标点 GET /api/house/estate-map/ */
+export async function appsHouseApiListEstateMap(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiListEstateMapParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.PagedEstateMapMarkerOut>("/api/house/estate-map/", {
+    method: "GET",
+    params: {
+      // page has a default value: 1
+      page: "1",
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
 /** 获取项目片区列表 GET /api/house/estates/ */
 export async function appsHouseApiListEstates(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -274,7 +311,7 @@ export async function appsHouseApiGetEstate(
   options?: { [key: string]: any }
 ) {
   const { estate_id: param0, ...queryParams } = params;
-  return request<API.EstateOut>(`/api/house/estates/${param0}/`, {
+  return request<API.EstateDetailOut>(`/api/house/estates/${param0}/`, {
     method: "GET",
     params: { ...queryParams },
     ...(options || {}),
@@ -456,6 +493,73 @@ export async function appsHouseApiPatchLease(
       "Content-Type": "application/json",
     },
     params: { ...queryParams },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 获取员工房源职责列表 GET /api/house/staff-responsibilities/ */
+export async function appsHouseApiListStaffResponsibilities(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiListStaffResponsibilitiesParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.PagedPropertyResponsibilityMemberOut>(
+    "/api/house/staff-responsibilities/",
+    {
+      method: "GET",
+      params: {
+        // page has a default value: 1
+        page: "1",
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 替换员工房源职责 PUT /api/house/staff-responsibilities/${param0}/ */
+export async function appsHouseApiReplaceStaffResponsibilities(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiReplaceStaffResponsibilitiesParams,
+  body: API.PropertyResponsibilityUpdateIn,
+  options?: { [key: string]: any }
+) {
+  const { member_id: param0, ...queryParams } = params;
+  return request<API.PropertyResponsibilityMemberOut>(
+    `/api/house/staff-responsibilities/${param0}/`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取房源与楼栋标签快捷候选 GET /api/house/tag-suggestions/ */
+export async function appsHouseApiGetPropertyRentalTagSuggestions(options?: {
+  [key: string]: any;
+}) {
+  return request<API.TagSuggestionsOut>("/api/house/tag-suggestions/", {
+    method: "GET",
+    ...(options || {}),
+  });
+}
+
+/** 预览或执行房表空置同步 POST /api/house/vacancy-sync/ */
+export async function appsHouseApiVacancySync(
+  body: API.VacancySyncIn,
+  options?: { [key: string]: any }
+) {
+  return request<API.VacancySyncOut>("/api/house/vacancy-sync/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     data: body,
     ...(options || {}),
   });
