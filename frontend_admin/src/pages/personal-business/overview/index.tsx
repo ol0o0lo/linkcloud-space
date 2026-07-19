@@ -360,7 +360,7 @@ const PersonalBusinessPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer title="个人业务概览">
+    <PageContainer title="个人概览">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
           <div style={sectionStyle}>

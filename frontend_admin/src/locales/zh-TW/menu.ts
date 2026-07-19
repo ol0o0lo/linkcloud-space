@@ -74,6 +74,8 @@ export default {
   'menu.platform-management.referrals': '裂變管理',
   'menu.system-tools': '系統工具',
   'menu.system-tools.operations': '運維工具',
-  'menu.personal-business': '個人業務',
-  'menu.personal-business.overview': '個人業務概覽',
+  'menu.personal-business': '個人',
+  'menu.personal-business.overview': '個人概覽',
+  'menu.personal-business.notifications': '通知中心',
+  'menu.personal-business.favorites': '我的收藏',
 };

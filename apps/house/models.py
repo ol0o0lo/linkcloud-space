@@ -322,6 +322,19 @@ class House(CreateUpdateTimeModelMixin):
         super().save(*args, **kwargs)
 
 
+class HouseFavorite(CreateUpdateTimeModelMixin):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="house_favorites")
+    house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="favorites")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "house"], name="house_favorite_user_house_unique")]
+
+    def __str__(self):  # noqa: D105
+        return f"{self.user} -> {self.house}"
+
+
 class ViewingRecord(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="viewing_records")
     house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="viewing_records")

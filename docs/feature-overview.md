@@ -71,14 +71,25 @@
 
 详见 [media-platform.md](./media-platform.md)。
 
-## 9. 前端结构
+## 9. 普通用户收藏
+
+- 普通登录用户无需选择租户即可收藏公开业务对象
+- 收藏、取消收藏均为幂等操作
+- 目标下架后保留收藏关系，但不再返回目标详情
+- 支持汇总全部收藏及按业务类型筛选
+- 当前支持房源、楼栋和小区收藏
+- 管理端“个人”分组提供按类型切换的收藏管理入口
+
+通用化边界和业务接入方式详见 [user-favorite-capability.md](./user-favorite-capability.md)。
+
+## 10. 前端结构
 
 - `frontend_admin/`：后台管理端
 - `frontend_miniprogram/`：小程序端 + H5
 
 详见 [frontend-structure.md](./frontend-structure.md)。
 
-## 10. 基础设施
+## 11. 基础设施
 
 - Docker Compose
 - Just 命令
@@ -87,7 +98,7 @@
 - pytest、Playwright、model-bakery
 - gunicorn、WhiteNoise、S3/MinIO、Celery + Redis
 
-## 11. 优先复用的公共能力
+## 12. 优先复用的公共能力
 
 - 认证与多端登录
 - 组织、团队、多租户上下文
@@ -96,5 +107,6 @@
 - 媒体
 - 设置
 - 实名认证流程
+- 普通用户收藏
 
 新增业务优先基于这些能力扩展，不平行再造。

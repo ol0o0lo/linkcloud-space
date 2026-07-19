@@ -89,8 +89,10 @@ export default {
   'menu.platform-management.referrals': 'Referral Management',
   'menu.system-tools': 'System Tools',
   'menu.system-tools.operations': 'Operations Tools',
-  'menu.personal-business': 'Personal Business',
-  'menu.personal-business.overview': 'Personal Business Overview',
+  'menu.personal-business': 'Personal',
+  'menu.personal-business.overview': 'Personal Overview',
+  'menu.personal-business.notifications': 'Notification Center',
+  'menu.personal-business.favorites': 'My Favorites',
   'menu.geo': 'Geo',
   'menu.geo.map': 'Map',
 };

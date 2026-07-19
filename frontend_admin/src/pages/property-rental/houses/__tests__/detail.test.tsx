@@ -19,6 +19,9 @@ const {
   mockPatchHouse,
   mockGetTagSuggestions,
   mockUseAmap,
+  mockGetFavorites,
+  mockPutFavorite,
+  mockRemoveFavorite,
 } = vi.hoisted(() => ({
   mockUseParams: vi.fn(),
   mockGetHouse: vi.fn(),
@@ -29,6 +32,9 @@ const {
   mockPatchHouse: vi.fn(),
   mockGetTagSuggestions: vi.fn(),
   mockUseAmap: vi.fn(),
+  mockGetFavorites: vi.fn(),
+  mockPutFavorite: vi.fn(),
+  mockRemoveFavorite: vi.fn(),
 }));
 
 vi.mock('@umijs/max', () => ({
@@ -81,6 +87,12 @@ vi.mock('@/services/manual/house', () => ({
 
 vi.mock('@/services/manual/amap', () => ({
   useAmap: mockUseAmap,
+}));
+
+vi.mock('@/services/manual/favorites', () => ({
+  getMyFavorites: mockGetFavorites,
+  putFavorite: mockPutFavorite,
+  removeFavorite: mockRemoveFavorite,
 }));
 
 const estateSummary = { id: 1, name: 'xinghewan', display_name: '星河湾' };
@@ -176,6 +188,14 @@ describe('House detail page', () => {
       ...completeHouse,
       status: 'listed',
     });
+    mockGetFavorites.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 1,
+    });
+    mockPutFavorite.mockResolvedValue({});
+    mockRemoveFavorite.mockResolvedValue({ success: true });
     mockGetTagSuggestions.mockResolvedValue({ tags: ['采光好', '南北通透'] });
     mockUseAmap.mockReturnValue({
       AMap: null,
@@ -301,6 +321,41 @@ describe('House detail page', () => {
     expect(
       within(detailCard as HTMLElement).queryByText('挂牌租金'),
     ).not.toBeInTheDocument();
+  });
+
+  it('toggles the favorite icon and turns it red after favoriting', async () => {
+    mockGetHouse.mockResolvedValue({ ...completeHouse, status: 'listed' });
+    mockGetFavorites.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 1,
+    });
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <HouseDetailPage />
+      </QueryClientProvider>,
+    );
+
+    const favoriteButton = await screen.findByRole('button', {
+      name: '收藏房源',
+    });
+    await waitFor(() => expect(favoriteButton).toBeEnabled());
+    fireEvent.click(favoriteButton);
+
+    await waitFor(() =>
+      expect(mockPutFavorite).toHaveBeenCalledWith('house', 99),
+    );
+    const activeButton = await screen.findByRole('button', {
+      name: '取消收藏',
+    });
+    expect(activeButton).toHaveStyle({ color: '#ff4d4f' });
+
+    fireEvent.click(activeButton);
+    await waitFor(() =>
+      expect(mockRemoveFavorite).toHaveBeenCalledWith('house', 99),
+    );
   });
 
   it('groups house fields and places tags after internal notes in the material card', async () => {

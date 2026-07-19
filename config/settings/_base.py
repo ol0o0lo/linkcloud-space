@@ -95,6 +95,7 @@ INSTALLED_APPS = [
     "apps.teams",
     "apps.access",
     "apps.house",
+    "apps.favorites",
     "apps.wallet",
     "apps.referrals",
     "apps.notifications",

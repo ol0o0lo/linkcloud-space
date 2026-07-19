@@ -80,6 +80,50 @@ def get_tag_suggestions() -> list[str]:
     return normalize_tag_list(setting.value if setting else DEFAULT_TAG_SUGGESTIONS, strict=False)
 
 
+def get_public_houses_queryset():
+    """返回可被普通用户全局检索的公开房源。"""
+    from apps.house.models import House
+
+    return (
+        House.objects.filter(
+            status=HouseStatus.LISTED,
+            building__organization__is_active=True,
+        )
+        .select_related("building__estate", "building__organization")
+        .order_by("-updated_at", "-pk")
+    )
+
+
+def get_public_buildings_queryset():
+    """返回至少包含一套公开房源的楼栋。"""
+    from apps.house.models import Building
+
+    return (
+        Building.objects.filter(
+            organization__is_active=True,
+            houses__status=HouseStatus.LISTED,
+        )
+        .select_related("estate", "organization")
+        .distinct()
+        .order_by("estate__name", "name", "pk")
+    )
+
+
+def get_public_estates_queryset():
+    """返回至少包含一套公开房源的小区。"""
+    from apps.house.models import Estate
+
+    return (
+        Estate.objects.filter(
+            organization__is_active=True,
+            buildings__houses__status=HouseStatus.LISTED,
+        )
+        .select_related("organization")
+        .distinct()
+        .order_by("name", "pk")
+    )
+
+
 DEFAULT_HOUSE_PUBLISH_RULES = {
     "landlord": {"mode": PUBLISH_RULE_MODE_REQUIRED, "label": HOUSE_PUBLISH_RULE_LABELS["landlord"]},
     "rent": {"mode": PUBLISH_RULE_MODE_REQUIRED, "label": HOUSE_PUBLISH_RULE_LABELS["rent"]},

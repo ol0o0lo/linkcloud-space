@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.db.models import ProtectedError
 
-from apps.house.models import Building, Contact, Estate, House, Lease, PropertyResponsibility, ViewingRecord
+from apps.house.models import Building, Contact, Estate, House, HouseFavorite, Lease, PropertyResponsibility, ViewingRecord
 
 
 class ProtectedDeleteMessageMixin:
@@ -38,6 +38,14 @@ class HouseAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
         ("媒体", {"fields": ("images", "videos")}),
         ("描述", {"fields": ("tags", "public_description", "internal_notes", "extra")}),
     )
+
+
+@admin.register(HouseFavorite)
+class HouseFavoriteAdmin(admin.ModelAdmin):
+    list_display = ("user", "house", "is_active", "created_at", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("user__username", "house__room_number", "house__building__name")
+    autocomplete_fields = ("user", "house")
 
 
 @admin.register(Contact)

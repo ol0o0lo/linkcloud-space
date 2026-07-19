@@ -99,9 +99,10 @@ export default {
   'menu.super-admin.referrals': '裂变管理',
   'menu.super-admin.notification-dispatches': '平台通知广播',
   'menu.super-admin.operations': '运维工具',
-  'menu.personal-business': '个人业务',
-  'menu.personal-business.overview': '个人业务概览',
+  'menu.personal-business': '个人',
+  'menu.personal-business.overview': '个人概览',
   'menu.personal-business.notifications': '通知中心',
+  'menu.personal-business.favorites': '我的收藏',
   'menu.geo': '地理',
   'menu.geo.map': '地图',
 };

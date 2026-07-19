@@ -12,12 +12,13 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '租户/公开邀请': 'public-organization-invites',
   '租户/档案': 'organization-profile',
   '通知/消息': 'notifications',
-  '通知分发': 'notificationDispatches',
+  通知分发: 'notificationDispatches',
   '团队/基础': 'teams',
   '用户/账户': 'user-account',
   '用户/管理': 'user-admin',
   '用户/实名': 'real-name',
   '用户/实名管理': 'real-name-admin',
+  '用户/收藏': 'user-favorites',
   '钱包/用户': 'user-wallet',
   '钱包/管理': 'wallet-admin',
   '钱包/内部': 'wallet-internal',
@@ -50,10 +51,19 @@ const ALLAUTH_TAG_CODEGEN_MAP = {
   Tokens: 'tokens',
 };
 
-const HTTP_METHODS = new Set(['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']);
+const HTTP_METHODS = new Set([
+  'get',
+  'put',
+  'post',
+  'delete',
+  'options',
+  'head',
+  'patch',
+  'trace',
+]);
 
 function hasNonAscii(value) {
-  return /[^\x00-\x7F]/.test(value);
+  return Array.from(value).some((character) => character.codePointAt(0) > 0x7f);
 }
 
 function rewriteTag(tag, tagMap, missingTags) {
@@ -89,15 +99,24 @@ function transformOpenApiTags(schema, tagMap = OPENAPI_TAG_CODEGEN_MAP) {
     }
 
     for (const [method, operation] of Object.entries(pathItem)) {
-      if (!HTTP_METHODS.has(method) || !operation || typeof operation !== 'object' || !Array.isArray(operation.tags)) {
+      if (
+        !HTTP_METHODS.has(method) ||
+        !operation ||
+        typeof operation !== 'object' ||
+        !Array.isArray(operation.tags)
+      ) {
         continue;
       }
-      operation.tags = operation.tags.map((tag) => rewriteTag(tag, tagMap, missingTags));
+      operation.tags = operation.tags.map((tag) =>
+        rewriteTag(tag, tagMap, missingTags),
+      );
     }
   }
 
   if (missingTags.size > 0) {
-    throw new Error(`Missing OpenAPI codegen tag mapping: ${Array.from(missingTags).sort().join(', ')}`);
+    throw new Error(
+      `Missing OpenAPI codegen tag mapping: ${Array.from(missingTags).sort().join(', ')}`,
+    );
   }
 
   return transformed;
@@ -107,7 +126,10 @@ function rewriteAllauthPath(pathname) {
   if (typeof pathname !== 'string') {
     return pathname;
   }
-  return pathname.replace('/api/allauth/{client}/v1/', '/api/allauth/browser/v1/');
+  return pathname.replace(
+    '/api/allauth/{client}/v1/',
+    '/api/allauth/browser/v1/',
+  );
 }
 
 function transformAllauthSchema(schema, tagMap = ALLAUTH_TAG_CODEGEN_MAP) {

@@ -15,6 +15,7 @@ from apps.base.api import router as base_router
 from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
 from apps.base.responses import EnvelopedNinjaAPI
+from apps.favorites.api import router as favorites_router
 from apps.house.api import landlord_router as house_landlord_router
 from apps.house.api import router as house_router
 from apps.media.api import router as media_router
@@ -82,3 +83,4 @@ api.add_router("/settings/teams/", settings_team_router)
 api.add_router("/settings/user/", settings_user_router)
 api.add_router("/house/", house_router)
 api.add_router("/house/landlord/", house_landlord_router)
+api.add_router("/users/me/favorite/", favorites_router)

@@ -62,7 +62,9 @@ describe('backend capability routes', () => {
   });
 
   it('registers the settings management pages without touching account settings tabs', () => {
-    const settingsGroup = routes.find((route) => route.path === '/settings-management');
+    const settingsGroup = routes.find(
+      (route) => route.path === '/settings-management',
+    );
 
     expect(settingsGroup).toBeDefined();
     expect(settingsGroup?.routes?.map((route) => route.path)).toEqual([
@@ -73,14 +75,22 @@ describe('backend capability routes', () => {
   });
 
   it('registers wallet management pages', () => {
-    const superAdminGroup = routes.find((route) => route.path === '/super-admin');
+    const superAdminGroup = routes.find(
+      (route) => route.path === '/super-admin',
+    );
 
-    expect(superAdminGroup?.routes?.map((route) => route.path)).toContain('/super-admin/wallet/accounts');
-    expect(superAdminGroup?.routes?.map((route) => route.path)).toContain('/super-admin/wallet/withdrawals');
+    expect(superAdminGroup?.routes?.map((route) => route.path)).toContain(
+      '/super-admin/wallet/accounts',
+    );
+    expect(superAdminGroup?.routes?.map((route) => route.path)).toContain(
+      '/super-admin/wallet/withdrawals',
+    );
   });
 
   it('registers super admin pages behind the superuser access gate', () => {
-    const superAdminGroup = routes.find((route) => route.path === '/super-admin');
+    const superAdminGroup = routes.find(
+      (route) => route.path === '/super-admin',
+    );
     const paths = superAdminGroup?.routes?.map((route) => route.path) ?? [];
 
     expect(superAdminGroup).toBeDefined();
@@ -97,9 +107,13 @@ describe('backend capability routes', () => {
     ]);
   });
 
-  it('registers system tools and personal business pages', () => {
-    const tenantOperationsGroup = routes.find((route) => route.path === '/tenant-operations');
-    const personalGroup = routes.find((route) => route.path === '/personal-business');
+  it('registers system tools and personal pages', () => {
+    const tenantOperationsGroup = routes.find(
+      (route) => route.path === '/tenant-operations',
+    );
+    const personalGroup = routes.find(
+      (route) => route.path === '/personal-business',
+    );
 
     expect(tenantOperationsGroup?.routes?.map((route) => route.path)).toEqual([
       '/tenant-operations',
@@ -108,12 +122,18 @@ describe('backend capability routes', () => {
     expect(personalGroup?.routes?.map((route) => route.path)).toEqual([
       '/personal-business',
       '/personal-business/overview',
+      '/personal-business/favorites',
       '/personal-business/notifications',
     ]);
+    expect(zhCN['menu.personal-business']).toBe('个人');
+    expect(zhCN['menu.personal-business.overview']).toBe('个人概览');
+    expect(zhCN['menu.personal-business.favorites']).toBe('我的收藏');
   });
 
   it('provides zh-CN menu translations for every named route', () => {
-    const missingKeys = collectMenuKeys(routes as AppRoute[]).filter((key) => !(key in zhCN));
+    const missingKeys = collectMenuKeys(routes as AppRoute[]).filter(
+      (key) => !(key in zhCN),
+    );
 
     expect(missingKeys).toEqual([]);
   });
@@ -122,13 +142,19 @@ describe('backend capability routes', () => {
 describe('个人中心路由', () => {
   it('个人中心是主入口，个人设置不再作为菜单项显示', () => {
     const accountGroup = routes.find((route) => route.path === '/account');
-    const namedChildren = accountGroup?.routes?.filter((route) => route.name) ?? [];
+    const namedChildren =
+      accountGroup?.routes?.filter((route) => route.name) ?? [];
 
     expect(namedChildren.map((route) => route.path)).toEqual([
       '/account/center',
     ]);
 
-    expect(accountGroup?.routes?.some((route) => route.path === '/account/settings')).toBe(true);
-    expect(accountGroup?.routes?.find((route) => route.path === '/account/settings')?.name).toBeUndefined();
+    expect(
+      accountGroup?.routes?.some((route) => route.path === '/account/settings'),
+    ).toBe(true);
+    expect(
+      accountGroup?.routes?.find((route) => route.path === '/account/settings')
+        ?.name,
+    ).toBeUndefined();
   });
 });

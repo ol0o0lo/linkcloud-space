@@ -6,6 +6,7 @@ from ninja import Schema
 from pydantic import ConfigDict, Field
 
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
+from apps.media.schemas import ResolvedMediaRefOut
 from apps.organizations.schemas import OrgUserOut
 
 
@@ -599,6 +600,107 @@ class HouseOut(Schema):
     @staticmethod
     def resolve_videos(obj):
         return obj.videos_resolved
+
+
+class PublicPublisherOut(Schema):
+    slug: str
+    name: str
+    logo: list[ResolvedMediaRefOut]
+    description: str
+
+    @staticmethod
+    def resolve_logo(obj):
+        return obj.logo_resolved
+
+
+class PublicEstateOut(Schema):
+    id: int
+    name: str
+    display_name: str
+    province: str
+    city: str
+    district: str
+    address: str
+
+
+class PublicBuildingOut(Schema):
+    id: int
+    name: str
+    address: str
+    lat: Decimal | None
+    lng: Decimal | None
+    estate: PublicEstateOut | None
+
+
+class FavoriteBuildingTargetOut(PublicBuildingOut):
+    floors: int
+    elevator: bool
+    images: list[ResolvedMediaRefOut]
+    tags: list[str]
+    publisher: PublicPublisherOut
+
+    @staticmethod
+    def resolve_images(obj):
+        return obj.images_resolved
+
+    @staticmethod
+    def resolve_publisher(obj):
+        return obj.organization
+
+
+class FavoriteEstateTargetOut(PublicEstateOut):
+    lat: Decimal | None
+    lng: Decimal | None
+    images: list[ResolvedMediaRefOut]
+    description: str
+    publisher: PublicPublisherOut
+
+    @staticmethod
+    def resolve_images(obj):
+        return obj.images_resolved
+
+    @staticmethod
+    def resolve_publisher(obj):
+        return obj.organization
+
+
+class PublicHouseListOut(Schema):
+    id: int
+    room_number: str
+    floor: int | None
+    area: Decimal | None
+    asking_rent: Decimal | None
+    bedrooms: int | None
+    living_rooms: int | None
+    bathrooms: int | None
+    orientation: str | None
+    orientation__mapping: str
+    decoration: str | None
+    decoration__mapping: str
+    has_elevator_access: bool
+    images: list[ResolvedMediaRefOut]
+    tags: list[str]
+    effective_tags: list[str]
+    public_description: str
+    building: PublicBuildingOut
+    publisher: PublicPublisherOut
+    updated_at: datetime
+
+    @staticmethod
+    def resolve_orientation__mapping(obj):
+        return HouseOrientation.get_choice_label(obj.orientation) if obj.orientation else ""
+
+    @staticmethod
+    def resolve_decoration__mapping(obj):
+        return HouseDecoration.get_choice_label(obj.decoration) if obj.decoration else ""
+
+    @staticmethod
+    def resolve_images(obj):
+        return obj.images_resolved
+
+    @staticmethod
+    def resolve_publisher(obj):
+        return obj.building.organization
 
 
 class ViewingRecordIn(Schema):

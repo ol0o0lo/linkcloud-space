@@ -3,6 +3,8 @@ import {
   EditOutlined,
   EnvironmentOutlined,
   FileAddOutlined,
+  HeartFilled,
+  HeartOutlined,
   MoreOutlined,
   ScheduleOutlined,
   SwapOutlined,
@@ -44,6 +46,15 @@ import {
   TenantSelectionGuard,
   useTenantWorkspace,
 } from '@/pages/tenant/shared';
+import type {
+  FavoriteItem,
+  FavoritePage,
+} from '@/services/manual/favorites';
+import {
+  getMyFavorites,
+  putFavorite,
+  removeFavorite,
+} from '@/services/manual/favorites';
 import {
   enumMapping,
   enumSelectOptions,
@@ -115,6 +126,12 @@ const useStyles = createStyles(({ css, token }) => ({
   identityBlock: css`
     padding-bottom: 18px;
     border-bottom: 1px solid ${token.colorBorderSecondary};
+  `,
+  identityHeader: css`
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
   `,
   statusLine: css`
     display: flex;
@@ -606,6 +623,18 @@ const HouseDetailPage: React.FC = () => {
     },
   });
   const relatedEnabled = enabled && house.data?.id === houseId;
+  const favoriteQueryKey = ['favorite', 'list', 'house', houseId];
+  const favoriteQuery = useQuery({
+    queryKey: favoriteQueryKey,
+    queryFn: () =>
+      getMyFavorites({
+        target_type: 'house',
+        target_id: houseId,
+        page: 1,
+        page_size: 1,
+      }),
+    enabled: relatedEnabled,
+  });
   const editOpen =
     relatedEnabled && (focusAction === 'edit' || focusAction === 'media');
   const buildings = useQuery({
@@ -651,11 +680,30 @@ const HouseDetailPage: React.FC = () => {
       houseApi.listLeases({ page: 1, page_size: 5, house_id: houseId }),
     enabled: relatedEnabled,
   });
+  const toggleFavorite = useMutation({
+    mutationFn: async (isFavorite: boolean): Promise<FavoriteItem | null> => {
+      if (isFavorite) {
+        await removeFavorite('house', houseId);
+        return null;
+      }
+      return putFavorite('house', houseId);
+    },
+    onSuccess: (favorite, wasFavorite) => {
+      queryClient.setQueryData<FavoritePage>(favoriteQueryKey, {
+        items: wasFavorite || !favorite ? [] : [favorite],
+        total: wasFavorite || !favorite ? 0 : 1,
+        page: 1,
+        page_size: 1,
+      });
+      message.success(wasFavorite ? '已取消收藏' : '已收藏');
+    },
+  });
   const patchHouse = useMutation({
     mutationFn: (values: Record<string, unknown>) =>
       houseApi.patchHouse(houseId, values),
     onSuccess: (next) => {
       queryClient.setQueryData(queryKey, next);
+      void queryClient.invalidateQueries({ queryKey: favoriteQueryKey });
       message.success('房源已更新');
     },
   });
@@ -898,9 +946,51 @@ const HouseDetailPage: React.FC = () => {
               <Col xs={24} lg={9}>
                 <div className={styles.summaryPane}>
                   <div className={styles.identityBlock}>
-                    <Typography.Title level={4} style={{ margin: 0 }}>
-                      {houseTitle(currentHouse)}
-                    </Typography.Title>
+                    <div className={styles.identityHeader}>
+                      <Typography.Title level={4} style={{ margin: 0 }}>
+                        {houseTitle(currentHouse)}
+                      </Typography.Title>
+                      <Button
+                        aria-label={
+                          favoriteQuery.data?.items.length
+                            ? '取消收藏'
+                            : '收藏房源'
+                        }
+                        disabled={
+                          !favoriteQuery.data ||
+                          (!isPublished && !favoriteQuery.data.items.length)
+                        }
+                        icon={
+                          favoriteQuery.data?.items.length ? (
+                            <HeartFilled />
+                          ) : (
+                            <HeartOutlined />
+                          )
+                        }
+                        loading={
+                          favoriteQuery.isLoading || toggleFavorite.isPending
+                        }
+                        shape="circle"
+                        style={
+                          favoriteQuery.data?.items.length
+                            ? { color: token.colorError }
+                            : undefined
+                        }
+                        title={
+                          favoriteQuery.data?.items.length
+                            ? '取消收藏'
+                            : isPublished
+                              ? '收藏房源'
+                              : '仅公开招租房源可收藏'
+                        }
+                        type="text"
+                        onClick={() =>
+                          toggleFavorite.mutate(
+                            Boolean(favoriteQuery.data?.items.length),
+                          )
+                        }
+                      />
+                    </div>
                     <div className={styles.statusLine}>
                       <Tag
                         color={STATUS_COLOR[currentHouse.status] || 'default'}
@@ -1504,9 +1594,7 @@ const HouseDetailPage: React.FC = () => {
       )}
       <Modal
         open={publishConfirmStatus !== null}
-        title={
-          publishConfirmStatus === HOUSE_STATUS.LISTED ? '确认发布房源' : '确认下架房源'
-        }
+        title={publishConfirmStatus === HOUSE_STATUS.LISTED ? '确认发布房源' : '确认下架房源'}
         okText={publishConfirmStatus === HOUSE_STATUS.LISTED ? '确认发布' : '确认下架'}
         cancelText="先取消"
         transitionName=""

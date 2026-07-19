@@ -318,6 +318,12 @@ export default [
         component: './personal-business/overview',
       },
       {
+        name: 'favorites',
+        icon: 'heart',
+        path: '/personal-business/favorites',
+        component: './personal-business/favorites',
+      },
+      {
         name: 'notifications',
         icon: 'bell',
         path: '/personal-business/notifications',
