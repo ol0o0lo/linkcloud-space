@@ -27,6 +27,7 @@ class NotificationChannel(StrChoices):
 class NotificationDispatchScope(StrChoices):
     PLATFORM = "platform", "Platform"
     ORGANIZATION = "organization", "Organization"
+    TEAMS = "teams", "Teams"
     USERS = "users", "Users"
 
 

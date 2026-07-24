@@ -20,10 +20,15 @@ class NotificationActorOut(Schema):
 
 class NotificationOut(Schema):
     id: int
+    category: str
     title: str
     body: str
     url: str | None = None
+    data: dict
+    target_type: str | None = None
+    target_id: int | None = None
     is_read: bool
+    expires_at: datetime | None = None
     created_at: datetime
     actor: NotificationActorOut | None = None
 
@@ -42,6 +47,17 @@ class NotificationOut(Schema):
             full_name=full_name,
             avatar_url=obj.actor.avatar_url,
         )
+
+    @staticmethod
+    def resolve_target_type(obj) -> str | None:
+        content_type = obj.target_content_type
+        if content_type is None:
+            return None
+        return f"{content_type.app_label}.{content_type.model}"
+
+    @staticmethod
+    def resolve_target_id(obj) -> int | None:
+        return obj.target_object_id
 
 
 class NotificationPatchIn(Schema):
@@ -69,12 +85,18 @@ class NotificationPreferenceOut(Schema):
     description: str = ""
     default_channels: list[str] = []
     default_channels__mapping: list[str]
+    required_channels: list[str] = []
+    required_channels__mapping: list[str]
     in_app: bool
     email: bool
 
     @staticmethod
     def resolve_default_channels__mapping(obj):
         return [NotificationChannel.get_choice_label(channel) for channel in (_obj_value(obj, "default_channels") or [])]
+
+    @staticmethod
+    def resolve_required_channels__mapping(obj):
+        return [NotificationChannel.get_choice_label(channel) for channel in (_obj_value(obj, "required_channels") or [])]
 
 
 class NotificationPreferencePatchIn(Schema):
@@ -83,13 +105,41 @@ class NotificationPreferencePatchIn(Schema):
 
 
 class NotificationDispatchIn(Schema):
-    scope: Literal["platform", "organization", "users"]
+    scope: Literal["platform", "organization", "teams", "users"]
     scope_ids: list[int] = Field(default_factory=list)
     category: str = ""
     title: str
     body: str = ""
     url: str | None = None
     data: dict = Field(default_factory=dict)
+
+
+class NotificationDispatchTargetOut(Schema):
+    id: int
+    label: str
+    description: str = ""
+    avatar_url: str | None = None
+
+    @staticmethod
+    def resolve_label(obj) -> str:
+        organization_name = getattr(obj, "name", None)
+        if organization_name is not None:
+            return organization_name
+        full_name = (obj.get_full_name() or "").strip()
+        return full_name or obj.username
+
+    @staticmethod
+    def resolve_description(obj) -> str:
+        organization_slug = getattr(obj, "slug", None)
+        if organization_slug is not None:
+            return organization_slug
+        if getattr(obj, "organization_id", None) is not None:
+            return obj.organization.name
+        return " · ".join(value for value in (obj.username, obj.email) if value)
+
+    @staticmethod
+    def resolve_avatar_url(obj) -> str | None:
+        return getattr(obj, "avatar_url", None)
 
 
 class NotificationDispatchOut(Schema):

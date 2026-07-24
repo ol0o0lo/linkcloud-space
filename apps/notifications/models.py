@@ -48,7 +48,28 @@ class NotificationDispatch(BaseModelMixin):
         if self.scope == NotificationDispatchScope.PLATFORM and self.scope_ids:
             raise ValidationError({"scope_ids": "Platform dispatches must not include scope_ids."})
         if self.scope != NotificationDispatchScope.PLATFORM and not self.scope_ids:
-            raise ValidationError({"scope_ids": "Organization and users dispatches require scope_ids."})
+            raise ValidationError({"scope_ids": "Organization, teams, and users dispatches require scope_ids."})
+        if self.scope == NotificationDispatchScope.TEAMS:
+            if self.owner_organization_id is None:
+                raise ValidationError({"owner_organization": "Team dispatches must belong to an organization."})
+
+            from apps.teams.models import Team
+
+            target_ids = set(self.scope_ids)
+            team_ids = set(
+                Team.objects.filter(
+                    organization_id=self.owner_organization_id,
+                    pk__in=target_ids,
+                ).values_list("pk", flat=True)
+            )
+            if team_ids != target_ids:
+                raise ValidationError({"scope_ids": "Team dispatches can only target teams in the owner organization."})
+        if self.url:
+            normalized_url = self.url.lower()
+            is_internal_path = self.url.startswith("/") and not self.url.startswith(("//", "/\\"))
+            is_http_url = normalized_url.startswith(("http://", "https://"))
+            if not is_internal_path and not is_http_url:
+                raise ValidationError({"url": "URL must be an internal path or use the http/https scheme."})
 
     def __str__(self):
         """Return a readable label for the dispatch."""

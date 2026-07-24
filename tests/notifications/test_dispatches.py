@@ -29,6 +29,60 @@ class TestNotificationDispatchModel:
 
         assert "scope_ids" in exc.value.message_dict
 
+    def test_team_scope_requires_teams_from_owner_organization(self):
+        owner_org = baker.make("organizations.Organization")
+        other_org = baker.make("organizations.Organization")
+        other_team = baker.make("teams.Team", organization=other_org)
+        dispatch = NotificationDispatch(
+            owner_organization=owner_org,
+            scope=NotificationDispatchScope.TEAMS,
+            scope_ids=[other_team.pk],
+            title="Hello",
+        )
+
+        with pytest.raises(ValidationError) as exc:
+            dispatch.full_clean()
+
+        assert "scope_ids" in exc.value.message_dict
+
+    def test_team_scope_requires_owner_organization(self):
+        team = baker.make("teams.Team")
+        dispatch = NotificationDispatch(
+            scope=NotificationDispatchScope.TEAMS,
+            scope_ids=[team.pk],
+            title="Hello",
+        )
+
+        with pytest.raises(ValidationError) as exc:
+            dispatch.full_clean()
+
+        assert "owner_organization" in exc.value.message_dict
+
+    @pytest.mark.parametrize("url", [None, "", "/dashboard/notifications", "http://example.com/notice", "HTTPS://example.com/notice"])
+    def test_dispatch_url_accepts_safe_destinations(self, url):
+        dispatch = NotificationDispatch(
+            scope=NotificationDispatchScope.PLATFORM,
+            scope_ids=[],
+            title="Hello",
+            url=url,
+        )
+
+        dispatch.full_clean()
+
+    @pytest.mark.parametrize("url", ["javascript:alert(1)", "data:text/html,hello", "//example.com/notice", "/\\example.com/notice"])
+    def test_dispatch_url_rejects_unsafe_destinations(self, url):
+        dispatch = NotificationDispatch(
+            scope=NotificationDispatchScope.PLATFORM,
+            scope_ids=[],
+            title="Hello",
+            url=url,
+        )
+
+        with pytest.raises(ValidationError) as exc:
+            dispatch.full_clean()
+
+        assert "url" in exc.value.message_dict
+
     def test_scope_ids_must_be_list(self):
         dispatch = NotificationDispatch(scope=NotificationDispatchScope.USERS, scope_ids={"id": 1}, title="Hello")
 
@@ -105,6 +159,36 @@ class TestNotificationDispatchExecution:
         recipients = resolve_dispatch_recipients(dispatch)
 
         assert [u.pk for u in recipients] == [owner_member.pk, shared_member.pk]
+
+    def test_execute_team_dispatch_intersects_active_org_members_and_deduplicates(self):
+        org = baker.make("organizations.Organization")
+        other_org = baker.make("organizations.Organization")
+        team_one = baker.make("teams.Team", organization=org, name="One")
+        team_two = baker.make("teams.Team", organization=org, name="Two")
+        shared_member = User.objects.create_user(username="shared-team-member")
+        stale_team_member = User.objects.create_user(username="stale-team-member")
+        inactive_member = User.objects.create_user(username="inactive-team-member", is_active=False)
+        organization_only_member = User.objects.create_user(username="organization-only-member")
+        OrganizationMember.objects.create(organization=org, user=shared_member)
+        OrganizationMember.objects.create(organization=other_org, user=stale_team_member)
+        OrganizationMember.objects.create(organization=org, user=inactive_member)
+        OrganizationMember.objects.create(organization=org, user=organization_only_member)
+        team_one.members.add(shared_member, stale_team_member, inactive_member)
+        team_two.members.add(shared_member)
+        dispatch = NotificationDispatch.objects.create(
+            owner_organization=org,
+            scope=NotificationDispatchScope.TEAMS,
+            scope_ids=[team_one.pk, team_two.pk],
+            title="Team update",
+        )
+
+        execute_dispatch(dispatch.pk)
+
+        dispatch.refresh_from_db()
+        assert dispatch.target_count == 1
+        assert dispatch.delivered_count == 1
+        assert list(Notification.objects.filter(dispatch=dispatch).values_list("recipient_id", flat=True)) == [shared_member.pk]
+        assert Notification.objects.get(dispatch=dispatch).organization_id == org.pk
 
     def test_execute_dispatch_creates_notifications_and_updates_counts(self, settings):
         settings.NOTIFICATIONS_CATEGORIES = [{"key": "ops", "label": "Ops", "default_channels": (NotificationChannel.IN_APP,)}]

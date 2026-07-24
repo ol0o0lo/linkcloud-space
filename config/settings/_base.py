@@ -96,9 +96,11 @@ INSTALLED_APPS = [
     "apps.access",
     "apps.house",
     "apps.favorites",
+    "apps.analytics",
     "apps.wallet",
     "apps.referrals",
     "apps.notifications",
+    "apps.team_operations",
     "apps.settings",
     "maintenance_mode",
     "allauth",
@@ -343,12 +345,137 @@ SITE_URL = f"{SITE_SCHEME}://{SITE_DOMAIN}"
 AMAP_JSAPI_KEY = env("AMAP_JSAPI_KEY", default="")
 AMAP_SECURITY_JS_CODE = env("AMAP_SECURITY_JS_CODE", default="")
 
+# 通用行为分析。目标定义负责把事件安全地归属到组织；客户端不能直接指定 organization。
+ANALYTICS_TARGETS = {
+    "house": {
+        "label": "房源",
+        "model": "house.House",
+        "organization_path": "organization",
+        "organization_filter": "building__organization",
+        "public_filters": {"status": "listed"},
+        "ranking_select_related": ("building__estate",),
+        "ranking_display": (
+            {"target_type": "building", "target_id_path": "building_id", "label_path": "building.name"},
+            {"target_type": "house", "target_id_path": "pk", "label_path": "room_number"},
+        ),
+    },
+    "building": {
+        "label": "楼栋",
+        "model": "house.Building",
+        "organization_path": "organization",
+        "organization_filter": "organization",
+    },
+    "estate": {
+        "label": "小区",
+        "model": "house.Estate",
+        "organization_path": "organization",
+        "organization_filter": "organization",
+    },
+    "viewing_record": {
+        "label": "带看",
+        "model": "house.ViewingRecord",
+        "organization_path": "organization",
+        "organization_filter": "organization",
+    },
+    "lease": {
+        "label": "租约",
+        "model": "house.Lease",
+        "organization_path": "organization",
+        "organization_filter": "organization",
+    },
+}
+ANALYTICS_EVENTS = [
+    {
+        "key": "house.exposure",
+        "label": "房源曝光",
+        "target_types": ("house",),
+        "allow_anonymous": True,
+        "deduplicate_seconds": 60,
+        "property_keys": ("page", "referrer", "campaign", "position"),
+    },
+    {
+        "key": "house.view",
+        "label": "房源浏览",
+        "target_types": ("house",),
+        "allow_anonymous": True,
+        "deduplicate_seconds": 1800,
+        "property_keys": ("page", "referrer", "campaign", "share_token"),
+    },
+    {
+        "key": "house.phone_click",
+        "label": "电话咨询点击",
+        "target_types": ("house",),
+        "allow_anonymous": True,
+        "deduplicate_seconds": 5,
+        "property_keys": ("page", "button", "campaign"),
+    },
+    {
+        "key": "house.online_consult_click",
+        "label": "在线咨询点击",
+        "target_types": ("house",),
+        "allow_anonymous": True,
+        "deduplicate_seconds": 5,
+        "property_keys": ("page", "button", "campaign"),
+    },
+    {
+        "key": "house.share",
+        "label": "房源分享",
+        "target_types": ("house",),
+        "allow_anonymous": True,
+        "deduplicate_seconds": 5,
+        "property_keys": ("page", "channel", "campaign"),
+    },
+    {
+        "key": "house.qrcode_view",
+        "label": "二维码展示",
+        "target_types": ("house",),
+        "allow_anonymous": True,
+        "deduplicate_seconds": 300,
+        "property_keys": ("page", "campaign"),
+    },
+    {
+        "key": "house.favorite",
+        "label": "房源收藏",
+        "target_types": ("house",),
+        "allow_anonymous": False,
+        "client_collectible": False,
+        "deduplicate_seconds": 5,
+        "property_keys": ("page", "campaign"),
+    },
+    {
+        "key": "viewing.requested",
+        "label": "预约带看",
+        "target_types": ("house", "viewing_record"),
+        "allow_anonymous": False,
+        "client_collectible": False,
+        "deduplicate_seconds": 5,
+        "property_keys": ("page", "campaign"),
+    },
+    {
+        "key": "lease.created",
+        "label": "生成租约",
+        "target_types": ("house", "lease"),
+        "allow_anonymous": False,
+        "client_collectible": False,
+        "deduplicate_seconds": 0,
+        "property_keys": ("source_viewing_record_id",),
+    },
+]
+ANALYTICS_MAX_PROPERTIES_BYTES = 8192
+ANALYTICS_MAX_EVENT_AGE_DAYS = 7
+ANALYTICS_MAX_QUERY_DAYS = 366
+ANALYTICS_PUBLIC_RATE_LIMIT_PER_MINUTE = 120
+ANALYTICS_PUBLIC_SOURCES = ("h5", "miniprogram", "public")
+
 # Default page size used by the ninja LegacyPagination paginator.
 DEFAULT_PAGE_SIZE = 50
 
 # Models registered here get a post_delete receiver that cleans up Notification
 # rows whose GenericForeignKey targets them. Add producer-app models as needed.
-NOTIFICATIONS_TARGET_MODELS: list[str] = []
+NOTIFICATIONS_TARGET_MODELS: list[str] = [
+    "team_operations.TeamAnnouncement",
+    "team_operations.TaskAssignment",
+]
 
 # Default retention window for notifications without an explicit `expires_at`.
 # The `purge_expired_notifications` celery task / `purge_notifications`
@@ -390,10 +517,47 @@ MEDIA_REFERENCE_PROVIDERS: list[str] = [
 #     "label": "Comments",
 #     "description": "Replies to your posts.",
 #     "default_channels": (NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+#     "required_channels": (NotificationChannel.IN_APP,),
 #   }
-# Out of the box, no categories are registered. Add entries here as downstream
-# apps introduce notification subjects.
-NOTIFICATIONS_CATEGORIES: list[dict] = []
+# `required_channels` cannot be disabled through user preferences. Add entries
+# here as downstream apps introduce notification subjects.
+NOTIFICATIONS_CATEGORIES: list[dict] = [
+    {
+        "key": "team.announcement",
+        "label": "团队公告",
+        "description": "团队或组织发布的新公告。",
+        "default_channels": ("in_app",),
+        "required_channels": ("in_app",),
+    },
+    {
+        "key": "team.task.assigned",
+        "label": "任务分配",
+        "description": "有新的日常任务分配给你。",
+        "default_channels": ("in_app",),
+        "required_channels": ("in_app",),
+    },
+    {
+        "key": "team.task.completed",
+        "label": "任务完成",
+        "description": "你下发的任务已完成。",
+        "default_channels": ("in_app",),
+        "required_channels": ("in_app",),
+    },
+    {
+        "key": "team.task.rejected",
+        "label": "任务拒绝",
+        "description": "你下发的任务被执行人拒绝。",
+        "default_channels": ("in_app",),
+        "required_channels": ("in_app",),
+    },
+    {
+        "key": "team.task.cancelled",
+        "label": "任务取消",
+        "description": "分配给你的任务已被取消。",
+        "default_channels": ("in_app",),
+        "required_channels": ("in_app",),
+    },
+]
 
 # DJANGO DEBUG TOOLBAR SETTINGS
 if DEBUG is True:

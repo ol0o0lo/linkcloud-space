@@ -4,11 +4,12 @@ from ninja.pagination import paginate
 
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated
-from apps.favorites.schemas import FavoriteOut
+from apps.favorites.schemas import FavoriteOut, FavoriteTargetTypeOut
 from apps.favorites.services import (
     FavoriteTargetNotFound,
     FavoriteTargetTypeUnsupported,
-    get_active_favorites,
+    get_favorite_target_types,
+    get_favorites,
     put_favorite,
     remove_favorite,
     resolve_favorites,
@@ -18,17 +19,30 @@ from apps.favorites.services import (
 router = Router(tags=["用户/收藏"])
 
 
+class FavoritePagination(LegacyPagination):
+    def paginate_queryset(self, queryset, pagination, **params) -> dict:
+        result = super().paginate_queryset(queryset, pagination, **params)
+        result["items"] = resolve_favorites(result["items"])
+        return result
+
+
+@router.get("/type/", response=list[FavoriteTargetTypeOut], summary="获取收藏目标类型")
+def list_favorite_target_types(request):
+    require_authenticated(request)
+    return get_favorite_target_types(request.user)
+
+
 @router.get("/", response=list[FavoriteOut], summary="获取我的收藏")
-@paginate(LegacyPagination)
+@paginate(FavoritePagination)
 def list_favorites(request, target_type: str | None = Query(None), target_id: str | None = Query(None)):
     require_authenticated(request)
     if target_id is not None and target_type is None:
         raise HttpError(422, "按目标筛选收藏时必须提供 target_type")
     try:
-        favorites = get_active_favorites(request.user, target_type=target_type, target_id=target_id)
+        favorites = get_favorites(request.user, target_type=target_type, target_id=target_id)
     except FavoriteTargetTypeUnsupported as error:
         raise HttpError(422, f"不支持的收藏目标类型：{error}") from error
-    return resolve_favorites(favorites)
+    return favorites
 
 
 @router.put("/", response={200: FavoriteOut, 201: FavoriteOut}, summary="收藏目标")

@@ -5,6 +5,6 @@ from apps.favorites.models import Favorite
 
 @admin.register(Favorite)
 class FavoriteAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "target_type", "target_id", "is_active", "updated_at")
-    list_filter = ("target_type", "is_active")
+    list_display = ("id", "user", "target_type", "target_id", "created_at")
+    list_filter = ("target_type",)
     search_fields = ("user__username", "target_id")

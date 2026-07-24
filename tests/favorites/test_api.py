@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -6,6 +7,8 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.favorites.models import Favorite
+from apps.favorites.registry import get_target_adapter
+from apps.favorites.services import get_favorites
 from apps.house.constants import ContactRole, EstatePropertyType, HouseStatus
 from apps.house.models import Building, Contact, Estate, House, HouseFavorite
 from tests.api_helpers import api_data
@@ -86,7 +89,9 @@ class FavoriteApiTestCase(TestCase):
         self.assertEqual(created["target_id"], str(house.pk))
         self.assertTrue(created["available"])
         self.assertEqual(created["target"]["id"], house.pk)
-        self.assertTrue(Favorite.objects.filter(user=user, target_type="house", target_id=str(house.pk), is_active=True).exists())
+        self.assertEqual(created["display"]["title"], "1栋 · 501")
+        self.assertIn({"label": "户型", "value": "单间"}, created["display"]["facts"])
+        self.assertTrue(Favorite.objects.filter(user=user, target_type="house", target_id=str(house.pk)).exists())
         self.assertFalse(HouseFavorite.objects.filter(user=user, house=house).exists())
         self.assertEqual(api_data(self.client.get("/api/users/me/favorite/", favorite_query))["items"][0]["target_id"], str(house.pk))
 
@@ -197,3 +202,44 @@ class FavoriteApiTestCase(TestCase):
         self.assertEqual(self.client.get("/api/users/me/favorite/", {"target_id": "1"}).status_code, 422)
         self.assertEqual(self.client.put("/api/users/me/favorite/?target_type=unknown&target_id=1").status_code, 422)
         self.assertEqual(self.client.delete("/api/users/me/favorite/?target_type=unknown&target_id=1").status_code, 422)
+
+    def test_favorite_types_include_registered_metadata_and_counts(self):
+        user = User.objects.create_user(username="favorite-types-user", password="secret")  # noqa: S106
+        house = self.make_house(org_slug="favorite-types", org_name="收藏类型发布方", room_number="1001")
+        Favorite.objects.create(user=user, target_type="house", target_id=str(house.pk))
+        Favorite.objects.create(user=user, target_type="building", target_id=str(house.building_id))
+
+        self.assertEqual(self.client.get("/api/users/me/favorite/type/").status_code, 401)
+        self.client.force_login(user)
+        response = self.client.get("/api/users/me/favorite/type/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            api_data(response),
+            [
+                {"target_type": "house", "display_name": "房源", "order": 10, "favorite_count": 1},
+                {"target_type": "building", "display_name": "楼栋", "order": 20, "favorite_count": 1},
+                {"target_type": "estate", "display_name": "小区", "order": 30, "favorite_count": 0},
+            ],
+        )
+
+    def test_favorite_list_only_resolves_targets_in_current_page(self):
+        user = User.objects.create_user(username="favorite-page-user", password="secret")  # noqa: S106
+        houses = [self.make_house(org_slug=f"favorite-page-{index}", org_name=f"分页发布方{index}", room_number=str(1100 + index)) for index in range(3)]
+        for house in houses:
+            Favorite.objects.create(user=user, target_type="house", target_id=str(house.pk))
+        expected_target_id = list(get_favorites(user, target_type="house").values_list("target_id", flat=True))[1]
+        adapter = get_target_adapter("house")
+        self.client.force_login(user)
+
+        with patch.object(adapter, "get_visible_targets", wraps=adapter.get_visible_targets) as get_visible_targets:
+            response = self.client.get(
+                "/api/users/me/favorite/",
+                {"target_type": "house", "page": 2, "page_size": 1},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        self.assertEqual(payload["total"], 3)
+        self.assertEqual([item["target_id"] for item in payload["items"]], [expected_target_id])
+        get_visible_targets.assert_called_once_with([expected_target_id])

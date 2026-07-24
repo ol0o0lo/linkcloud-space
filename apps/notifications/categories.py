@@ -12,6 +12,7 @@ plain dict (the cheapest thing to type by hand in `_base.py`):
             "label": "Comments on your posts",
             "description": "When someone replies to a post you authored.",
             "default_channels": (NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+            "required_channels": (NotificationChannel.IN_APP,),
         },
     ]
 
@@ -41,6 +42,7 @@ class NotificationCategory:
     label: str
     description: str
     default_channels: tuple[str, ...]
+    required_channels: tuple[str, ...]
 
 
 DEFAULT_CHANNELS: tuple[str, ...] = (NotificationChannel.IN_APP,)
@@ -57,6 +59,7 @@ def _normalize(entry: dict) -> NotificationCategory:
         label=entry.get("label", entry["key"]),
         description=entry.get("description", ""),
         default_channels=tuple(entry.get("default_channels", DEFAULT_CHANNELS)),
+        required_channels=tuple(entry.get("required_channels", ())),
     )
 
 
@@ -94,6 +97,8 @@ def filter_recipients(users: Iterable, category: str, channel: str) -> list:
 
     cat = get_category(category)
     if cat is None:
+        return users
+    if channel in cat.required_channels:
         return users
 
     default_on = channel in cat.default_channels

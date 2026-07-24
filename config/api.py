@@ -11,12 +11,14 @@ from apps.access.api import permissions_router as access_permissions_router
 from apps.access.api import team_bindings_router as access_team_bindings_router
 from apps.access.api import team_roles_router as access_team_roles_router
 from apps.accounts.api import admin_real_name_router, admin_users_router, real_name_router, users_router
+from apps.analytics.api import router as analytics_router
 from apps.base.api import router as base_router
 from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
 from apps.base.responses import EnvelopedNinjaAPI
 from apps.favorites.api import router as favorites_router
 from apps.house.api import landlord_router as house_landlord_router
+from apps.house.api import public_router as house_public_router
 from apps.house.api import router as house_router
 from apps.media.api import router as media_router
 from apps.notifications.api import dispatches_router as notification_dispatches_router
@@ -39,6 +41,7 @@ from apps.referrals.api import router as referrals_router
 from apps.settings.api import org_router as settings_org_router
 from apps.settings.api import team_router as settings_team_router
 from apps.settings.api import user_router as settings_user_router
+from apps.team_operations.api import router as team_operations_router
 from apps.teams.api import router as teams_router
 from apps.wallet.api import admin_router as wallet_admin_router
 from apps.wallet.api import internal_router as wallet_internal_router
@@ -65,6 +68,8 @@ api.add_router("/organization-invites/", org_invites_router)
 api.add_router("/invite-by-key/", public_invites_router)
 api.add_router("/notification-dispatches/", notification_dispatches_router)
 api.add_router("/notifications/", notifications_router)
+api.add_router("/team-operations/", team_operations_router)
+api.add_router("/analytics/", analytics_router)
 api.add_router("/organization-members/", org_members_router)
 api.add_router("/organization-settings/", org_settings_router)
 api.add_router("/organizations/", orgs_router)
@@ -83,4 +88,5 @@ api.add_router("/settings/teams/", settings_team_router)
 api.add_router("/settings/user/", settings_user_router)
 api.add_router("/house/", house_router)
 api.add_router("/house/landlord/", house_landlord_router)
+api.add_router("/public/houses/", house_public_router)
 api.add_router("/users/me/favorite/", favorites_router)

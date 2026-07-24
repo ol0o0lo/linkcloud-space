@@ -703,6 +703,31 @@ class PublicHouseListOut(Schema):
         return obj.building.organization
 
 
+class PublicHouseDetailOut(PublicHouseListOut):
+    interior_area: Decimal | None
+    deposit_amount: Decimal | None
+    kitchens: int | None
+    balconies: int | None
+    videos: list[ResolvedMediaRefOut]
+
+    @staticmethod
+    def resolve_videos(obj):
+        return obj.videos_resolved
+
+
+class PublicHouseFiltersOut(Schema):
+    rent_min: Decimal | None
+    rent_max: Decimal | None
+    area_min: Decimal | None
+    area_max: Decimal | None
+    provinces: list[str]
+    cities: list[str]
+    districts: list[str]
+    bedrooms: list[int]
+    living_rooms: list[int]
+    tags: list[str]
+
+
 class ViewingRecordIn(Schema):
     model_config = ConfigDict(extra="forbid")
 

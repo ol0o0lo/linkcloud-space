@@ -18,6 +18,13 @@ COMMENTS_CATEGORY = {
     "default_channels": (NotificationChannel.IN_APP,),
 }
 
+REQUIRED_CATEGORY = {
+    "key": "required",
+    "label": "Required",
+    "default_channels": (NotificationChannel.IN_APP,),
+    "required_channels": (NotificationChannel.IN_APP,),
+}
+
 
 @pytest.mark.django_db
 class TestNotify:
@@ -49,6 +56,14 @@ class TestNotify:
         NotificationPreference.objects.create(user=self.alice, category="orphan", in_app=False)
         notify([self.alice], title="hi", category="orphan")
         assert Notification.objects.count() == 1
+
+    def test_required_channel_ignores_disabled_preference(self, settings):
+        settings.NOTIFICATIONS_CATEGORIES = [REQUIRED_CATEGORY]
+        NotificationPreference.objects.create(user=self.alice, category="required", in_app=False)
+
+        notify([self.alice], title="must arrive", category="required")
+
+        assert Notification.objects.filter(recipient=self.alice, category="required").exists()
 
     def test_raises_when_recipient_not_in_org(self):
         org = baker.make("organizations.Organization")

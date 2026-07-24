@@ -52,12 +52,23 @@ class FinancePermission(StrChoices):
     REPORT_EXPORT = "finance.finance_report_export", "导出财务报表"
 
 
+class AnalyticsPermission(StrChoices):
+    VIEW = "analytics.analytics_view", "查看经营分析"
+
+
+class TeamOperationsPermission(StrChoices):
+    ANNOUNCEMENT_MANAGE = "team_operations.announcement_manage", "管理团队公告"
+    TASK_MANAGE = "team_operations.task_manage", "管理日常任务"
+
+
 ALL_PERMISSION_ENUMS = (
     AccessPermission,
     OrganizationPermission,
     TeamPermission,
     SettingsPermission,
     FinancePermission,
+    AnalyticsPermission,
+    TeamOperationsPermission,
 )
 
 # 全量权限 key，供系统角色（如 org_admin）直接复用。
@@ -88,6 +99,8 @@ SYSTEM_ROLE_DEFINITIONS = {
             TeamPermission.MEMBER_MANAGE,
             SettingsPermission.TEAM_SETTING_VIEW,
             SettingsPermission.TEAM_SETTING_MANAGE,
+            TeamOperationsPermission.ANNOUNCEMENT_MANAGE,
+            TeamOperationsPermission.TASK_MANAGE,
         ],
     },
     AccessRoleCode.TEAM_FINANCE: {

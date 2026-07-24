@@ -1,7 +1,8 @@
 from decimal import Decimal
+from typing import Literal
 
 from django.db import transaction
-from django.db.models import Avg, Case, CharField, Count, DecimalField, Exists, F, IntegerField, OuterRef, Prefetch, Q, Subquery, Value, When
+from django.db.models import Avg, Case, CharField, Count, DecimalField, Exists, F, IntegerField, Max, Min, OuterRef, Prefetch, Q, Subquery, Value, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 
@@ -43,6 +44,9 @@ from apps.house.schemas import (
     LeasePatchIn,
     PropertyResponsibilityMemberOut,
     PropertyResponsibilityUpdateIn,
+    PublicHouseDetailOut,
+    PublicHouseFiltersOut,
+    PublicHouseListOut,
     TagSuggestionsOut,
     VacancySyncIn,
     VacancySyncOut,
@@ -61,6 +65,7 @@ from apps.house.services import (
     get_landlord_houses,
     get_landlord_leases,
     get_org_house_publish_rules,
+    get_public_houses_queryset,
     get_tag_suggestions,
     set_default_building,
     sort_houses_for_building,
@@ -70,6 +75,103 @@ from apps.organizations.models import OrganizationMember
 
 router = Router(tags=["房源/管理"])
 landlord_router = Router(tags=["房源/房东"])
+public_router = Router(tags=["房源/公开"])
+
+
+@public_router.get("/", response=list[PublicHouseListOut], auth=None, summary="全局搜索公开房源")
+@paginate(LegacyPagination)
+def list_public_houses(
+    request,
+    keyword: str | None = Query(None),
+    province: str | None = Query(None),
+    city: str | None = Query(None),
+    district: str | None = Query(None),
+    min_rent: Decimal | None = Query(None),
+    max_rent: Decimal | None = Query(None),
+    min_area: Decimal | None = Query(None),
+    max_area: Decimal | None = Query(None),
+    bedrooms: int | None = Query(None),
+    living_rooms: int | None = Query(None),
+    decoration: str | None = Query(None),
+    has_elevator_access: bool | None = Query(None),
+    tags: list[str] | None = Query(None),
+    publisher_slug: str | None = Query(None),
+    sort: Literal["latest", "rent_asc", "rent_desc", "area_asc", "area_desc"] = Query("latest"),
+):
+    qs = get_public_houses_queryset()
+    if keyword:
+        qs = qs.filter(
+            Q(room_number__icontains=keyword)
+            | Q(public_description__icontains=keyword)
+            | Q(building__name__icontains=keyword)
+            | Q(building__address__icontains=keyword)
+            | Q(building__estate__name__icontains=keyword)
+            | Q(building__estate__display_name__icontains=keyword)
+            | Q(building__organization__name__icontains=keyword)
+        )
+    if province:
+        qs = qs.filter(building__estate__province__iexact=province)
+    if city:
+        qs = qs.filter(building__estate__city__iexact=city)
+    if district:
+        qs = qs.filter(building__estate__district__iexact=district)
+    if min_rent is not None:
+        qs = qs.filter(asking_rent__gte=min_rent)
+    if max_rent is not None:
+        qs = qs.filter(asking_rent__lte=max_rent)
+    if min_area is not None:
+        qs = qs.filter(area__gte=min_area)
+    if max_area is not None:
+        qs = qs.filter(area__lte=max_area)
+    if bedrooms is not None:
+        qs = qs.filter(bedrooms=bedrooms)
+    if living_rooms is not None:
+        qs = qs.filter(living_rooms=living_rooms)
+    if decoration:
+        qs = qs.filter(decoration=decoration)
+    if has_elevator_access is not None:
+        qs = qs.filter(has_elevator_access=has_elevator_access)
+    for tag in tags or []:
+        qs = qs.filter(Q(tags__contains=[tag]) | Q(building__tags__contains=[tag]))
+    if publisher_slug:
+        qs = qs.filter(building__organization__slug=publisher_slug)
+
+    ordering = {
+        "latest": ("-updated_at", "-pk"),
+        "rent_asc": (F("asking_rent").asc(nulls_last=True), "-pk"),
+        "rent_desc": (F("asking_rent").desc(nulls_last=True), "-pk"),
+        "area_asc": (F("area").asc(nulls_last=True), "-pk"),
+        "area_desc": (F("area").desc(nulls_last=True), "-pk"),
+    }
+    return qs.order_by(*ordering[sort])
+
+
+@public_router.get("/filters/", response=PublicHouseFiltersOut, auth=None, summary="获取公开房源筛选项")
+def get_public_house_filters(request):
+    qs = get_public_houses_queryset()
+    amounts = qs.aggregate(
+        rent_min=Min("asking_rent"),
+        rent_max=Max("asking_rent"),
+        area_min=Min("area"),
+        area_max=Max("area"),
+    )
+    tag_values: set[str] = set()
+    for house_tags, building_tags in qs.values_list("tags", "building__tags"):
+        tag_values.update(tag for tag in [*(building_tags or []), *(house_tags or [])] if isinstance(tag, str) and tag.strip())
+    return {
+        **amounts,
+        "provinces": list(qs.exclude(building__estate__province="").values_list("building__estate__province", flat=True).distinct().order_by("building__estate__province")),
+        "cities": list(qs.exclude(building__estate__city="").values_list("building__estate__city", flat=True).distinct().order_by("building__estate__city")),
+        "districts": list(qs.exclude(building__estate__district="").values_list("building__estate__district", flat=True).distinct().order_by("building__estate__district")),
+        "bedrooms": list(qs.exclude(bedrooms__isnull=True).values_list("bedrooms", flat=True).distinct().order_by("bedrooms")),
+        "living_rooms": list(qs.exclude(living_rooms__isnull=True).values_list("living_rooms", flat=True).distinct().order_by("living_rooms")),
+        "tags": sorted(tag_values),
+    }
+
+
+@public_router.get("/{house_id}/", response=PublicHouseDetailOut, auth=None, summary="获取公开房源详情")
+def get_public_house(request, house_id: int):
+    return get_object_or_404(get_public_houses_queryset(), pk=house_id)
 
 
 @router.get("/tag-suggestions/", response=TagSuggestionsOut, summary="获取房源与楼栋标签快捷候选")

@@ -16,6 +16,14 @@ def resolve_dispatch_recipients(dispatch: NotificationDispatch) -> list[User]:
         recipients = recipients.filter(organizationmember__organization_id=dispatch.owner_organization_id)
     elif dispatch.scope == NotificationDispatchScope.ORGANIZATION:
         recipients = recipients.filter(organizationmember__organization_id__in=dispatch.scope_ids)
+    elif dispatch.scope == NotificationDispatchScope.TEAMS:
+        if dispatch.owner_organization_id is None:
+            return []
+        recipients = recipients.filter(
+            organizationmember__organization_id=dispatch.owner_organization_id,
+            teams__organization_id=dispatch.owner_organization_id,
+            teams__pk__in=dispatch.scope_ids,
+        )
     elif dispatch.scope == NotificationDispatchScope.USERS:
         recipients = recipients.filter(pk__in=dispatch.scope_ids)
 
