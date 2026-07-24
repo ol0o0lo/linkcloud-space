@@ -885,7 +885,6 @@ const EstatesPage: React.FC = () => {
       }}
     >
       <Space size={8} wrap>
-        <Typography.Text type="secondary">视图</Typography.Text>
         <Segmented
           aria-label="项目楼栋视图筛选"
           options={[

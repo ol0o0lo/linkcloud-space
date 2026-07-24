@@ -608,26 +608,7 @@ const ContactsPage: React.FC = () => {
   );
 
   return (
-    <TenantSelectionGuard
-      title="联系人"
-      extra={
-        enabled ? (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() =>
-              openCreate(
-                roleFilter === 'landlord' || roleFilter === 'tenant'
-                  ? roleFilter
-                  : undefined,
-              )
-            }
-          >
-            新建联系人
-          </Button>
-        ) : undefined
-      }
-    >
+    <TenantSelectionGuard title="联系人">
       <Card>
         <div
           style={{
@@ -687,6 +668,21 @@ const ContactsPage: React.FC = () => {
               }}
               style={{ width: 280 }}
             />
+            {enabled ? (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() =>
+                  openCreate(
+                    roleFilter === 'landlord' || roleFilter === 'tenant'
+                      ? roleFilter
+                      : undefined,
+                  )
+                }
+              >
+                新建联系人
+              </Button>
+            ) : null}
           </Space>
         </div>
         <ProTable<ContactOut>
