@@ -244,7 +244,25 @@ export default [
     routes: [
       {
         path: '/tenant-operations',
-        redirect: '/tenant-operations/notification-dispatches',
+        redirect: '/tenant-operations/workbench',
+      },
+      {
+        name: 'workbench',
+        icon: 'dashboard',
+        path: '/tenant-operations/workbench',
+        component: './team-operations/workbench',
+      },
+      {
+        name: 'announcements',
+        icon: 'sound',
+        path: '/tenant-operations/announcements',
+        component: './team-operations/announcements',
+      },
+      {
+        name: 'tasks',
+        icon: 'checkSquare',
+        path: '/tenant-operations/tasks',
+        component: './team-operations/tasks',
       },
       {
         name: 'notification-dispatches',

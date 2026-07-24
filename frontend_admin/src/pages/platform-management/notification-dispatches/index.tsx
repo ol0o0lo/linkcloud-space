@@ -1,53 +1,48 @@
+import { CopyOutlined, SendOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useLocation, useModel } from '@umijs/max';
 import {
+  Alert,
   Button,
   Card,
   Descriptions,
   Drawer,
-  Form,
-  Input,
-  Modal,
   Popover,
-  Radio,
+  Progress,
+  Skeleton,
   Space,
   Tag,
   Typography,
 } from 'antd';
 import dayjs from 'dayjs';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PageContainer } from '@/components/PageContainer';
 import {
-  adminTableScroll,
   drawerWidthMd,
   fullWidthStyle,
   ResponsiveActions,
-  toolbarControlStyle,
   wrapTextStyle,
 } from '@/pages/_shared/adminLayout';
+import { useTenantWorkspace } from '@/pages/tenant/shared';
+import type { NotificationDispatchManagementContext } from '@/services/manual/notificationDispatches';
+import { appsBaseApiAppContext } from '@/services/openapi/appSystem';
 import {
-  enumMapping,
-  enumSelectOptions,
-  useEnums,
-} from '@/services/manual/enums';
-import {
-  appsNotificationsApiCreateDispatch,
   appsNotificationsApiGetDispatch,
   appsNotificationsApiListDispatches,
 } from '@/services/openapi/notificationDispatches';
 import { platformQueryKeys } from '../shared';
+import NotificationDispatchCreateModal, {
+  type DispatchScope,
+} from './CreateNotificationDispatchModal';
+import { useStyles } from './styles';
 
-type CreateDispatchFormValues = {
-  scope: API.NotificationDispatchIn['scope'];
-  scope_ids_text?: string;
-  category?: string;
-  title: string;
-  body?: string;
-  url?: string;
-};
-
-type NotificationDispatchWithMapping = API.NotificationDispatchOut & {
+type NotificationDispatchWithMapping = Omit<
+  API.NotificationDispatchOut,
+  'scope'
+> & {
+  scope: DispatchScope;
   scope__mapping?: string;
   status__mapping?: string;
 };
@@ -57,34 +52,26 @@ type DispatchInsight = NotificationDispatchWithMapping & {
   status_label: string;
   status_color: string;
   delivery_ratio: string;
+  delivery_percent: number;
 };
+
 type TablePageParams = {
   current?: number;
   pageSize?: number;
 };
 
-const DEFAULT_CREATE_FORM_VALUES: Pick<
-  CreateDispatchFormValues,
-  'scope' | 'category'
-> = {
-  scope: 'platform',
-  category: '',
+const SCOPE_LABELS: Record<DispatchScope, string> = {
+  platform: '全平台',
+  organization: '指定空间',
+  teams: '指定团队',
+  users: '指定用户',
 };
 
-const contentPreviewStyle: React.CSSProperties = {
-  maxWidth: 320,
-  display: '-webkit-box',
-  overflow: 'hidden',
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: 'vertical',
-  wordBreak: 'break-word',
-};
-
-const titlePreviewStyle: React.CSSProperties = {
-  maxWidth: 320,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
+const STATUS_META: Record<string, { label: string; color: string }> = {
+  pending: { label: '等待发送', color: 'gold' },
+  sending: { label: '发送中', color: 'blue' },
+  sent: { label: '发送完成', color: 'green' },
+  failed: { label: '发送失败', color: 'red' },
 };
 
 const dispatchPopoverBodyStyle: React.CSSProperties = {
@@ -102,132 +89,149 @@ const dispatchPopoverTitleStyle: React.CSSProperties = {
   color: '#fff',
 };
 
-const detailSummaryStyle: React.CSSProperties = {
-  padding: 16,
-  border: '1px solid var(--ant-color-border-secondary)',
-  borderRadius: 8,
-  background: 'var(--ant-color-fill-quaternary)',
-};
-
-const detailBodyStyle: React.CSSProperties = {
-  padding: 16,
-  border: '1px solid var(--ant-color-border-secondary)',
-  borderRadius: 8,
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-};
-
-function parseScopeIdTokens(value?: string) {
-  if (!value) return [];
-  return value.split(',').map((item) => item.trim());
-}
-
-function hasInvalidScopeIdToken(value?: string) {
-  const tokens = parseScopeIdTokens(value);
-  return tokens.some((item) => !/^[1-9]\d*$/.test(item));
-}
-
-function parseScopeIds(value?: string) {
-  return parseScopeIdTokens(value).map((item) => Number(item));
-}
-
-function formatScope(
-  scope?: string,
-  scopeMapping?: string,
-  scopeIds: number[] = [],
-) {
-  const label = enumMapping(scope, scopeMapping);
-  if (scope === 'platform') return label;
-  return scopeIds.length ? `${label} (${scopeIds.join(', ')})` : label;
+function formatScope(item: NotificationDispatchWithMapping) {
+  const count = new Set(item.scope_ids || []).size;
+  if (item.scope === 'platform') return SCOPE_LABELS.platform;
+  if (item.scope === 'organization') {
+    return item.owner_organization_id ? '当前空间' : `指定空间 · ${count} 个`;
+  }
+  if (item.scope === 'teams') {
+    return `指定团队 · ${count} 个`;
+  }
+  if (item.scope === 'users') {
+    return `${item.owner_organization_id ? '指定成员' : '指定用户'} · ${count} 人`;
+  }
+  return item.scope__mapping || item.scope || '-';
 }
 
 function buildDispatchInsight(
   item: NotificationDispatchWithMapping,
 ): DispatchInsight {
-  const scopeLabel = formatScope(
-    item.scope,
-    item.scope__mapping,
-    item.scope_ids,
-  );
-  const statusLabel = enumMapping(item.status, item.status__mapping);
   const delivered = item.delivered_count || 0;
   const target = item.target_count || 0;
-  const ratio = target ? `${delivered}/${target}` : '0/0';
-
-  if (item.status === 'failed') {
-    return {
-      ...item,
-      scope_label: scopeLabel,
-      status_label: statusLabel,
-      status_color: 'red',
-      delivery_ratio: ratio,
-    };
-  }
-
-  if (item.status === 'sending') {
-    return {
-      ...item,
-      scope_label: scopeLabel,
-      status_label: statusLabel,
-      status_color: 'blue',
-      delivery_ratio: ratio,
-    };
-  }
-
-  if (item.status === 'pending') {
-    return {
-      ...item,
-      scope_label: scopeLabel,
-      status_label: statusLabel,
-      status_color: 'gold',
-      delivery_ratio: ratio,
-    };
-  }
+  const statusMeta = STATUS_META[item.status] || {
+    label: item.status__mapping || item.status || '未知状态',
+    color: 'default',
+  };
 
   return {
     ...item,
-    scope_label: scopeLabel,
-    status_label: statusLabel,
-    status_color: 'green',
-    delivery_ratio: ratio,
+    scope_label: formatScope(item),
+    status_label: statusMeta.label,
+    status_color: statusMeta.color,
+    delivery_ratio: target ? `${delivered}/${target}` : '0/0',
+    delivery_percent: target
+      ? Math.min(100, Math.round((delivered / target) * 100))
+      : 0,
   };
 }
 
+function isDispatchActive(status?: string) {
+  return status === 'pending' || status === 'sending';
+}
+
 const NotificationDispatchesPage: React.FC = () => {
+  const { styles } = useStyles();
+  const location = useLocation();
+  const { initialState } = useModel('@@initialState');
+  const workspace = useTenantWorkspace();
+  const isSuperuser = Boolean(initialState?.currentUser?.is_superuser);
+  const isTenantMode = location.pathname.includes('/tenant-operations/');
+  const managementContext: NotificationDispatchManagementContext = isTenantMode
+    ? 'tenant'
+    : 'platform';
+  const selectedOrgSlug = isTenantMode
+    ? workspace.selectedOrgSlug || workspace.selectedOrganization?.slug
+    : undefined;
   const [detailId, setDetailId] = useState<number>();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSource, setCreateSource] =
+    useState<NotificationDispatchWithMapping>();
+  const [hasActiveDispatches, setHasActiveDispatches] = useState(false);
   const tableActionRef = useRef<ActionType>(null);
-  const [form] = Form.useForm<CreateDispatchFormValues>();
-  const dispatchEnums = useEnums(['notifications.dispatch_scope']);
+  const managementBoundaryRef = useRef(
+    isTenantMode ? `tenant:${selectedOrgSlug || ''}` : 'platform',
+  );
+  const tenantContextQuery = useQuery({
+    queryKey: ['notification-dispatches', 'tenant-context', selectedOrgSlug],
+    queryFn: () => appsBaseApiAppContext(),
+    enabled: isTenantMode && Boolean(selectedOrgSlug),
+    initialData:
+      workspace.appContext?.org?.slug === selectedOrgSlug
+        ? workspace.appContext
+        : undefined,
+    staleTime: 60_000,
+  });
+  const currentOrganization = tenantContextQuery.data?.org;
+  const canManageDispatches = isTenantMode
+    ? isSuperuser || Boolean(currentOrganization?.is_owner)
+    : isSuperuser;
 
   const detailQuery = useQuery({
-    queryKey: platformQueryKeys.notificationDispatchDetail(detailId),
+    queryKey: [
+      ...platformQueryKeys.notificationDispatchDetail(detailId),
+      isTenantMode ? 'tenant' : 'platform',
+      selectedOrgSlug,
+    ],
     queryFn: () =>
-      appsNotificationsApiGetDispatch({ dispatch_id: detailId || 0 }),
+      appsNotificationsApiGetDispatch({
+        dispatch_id: detailId || 0,
+        management_context: managementContext,
+      }),
     enabled: Boolean(detailId),
   });
-  const createMutation = useMutation({
-    mutationFn: (payload: API.NotificationDispatchIn) =>
-      appsNotificationsApiCreateDispatch(payload),
-    onSuccess: async () => {
-      setCreateOpen(false);
-      form.resetFields();
-      tableActionRef.current?.reload();
-    },
-  });
+  useEffect(() => {
+    const nextBoundary = isTenantMode
+      ? `tenant:${selectedOrgSlug || ''}`
+      : 'platform';
+    if (managementBoundaryRef.current === nextBoundary) return;
 
-  const scopeValue = Form.useWatch('scope', form) || 'platform';
+    managementBoundaryRef.current = nextBoundary;
+    setDetailId(undefined);
+    setCreateOpen(false);
+    setCreateSource(undefined);
+    setHasActiveDispatches(false);
+    tableActionRef.current?.reload();
+  }, [isTenantMode, selectedOrgSlug]);
+
+  useEffect(() => {
+    if (!hasActiveDispatches) return undefined;
+    const timer = window.setInterval(() => {
+      tableActionRef.current?.reload();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [hasActiveDispatches]);
+
+  const detailStatus = detailQuery.data?.status;
+  useEffect(() => {
+    if (!detailId || !isDispatchActive(detailStatus)) return undefined;
+    const timer = window.setInterval(() => {
+      void detailQuery.refetch();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [detailId, detailQuery.refetch, detailStatus]);
+
+  const openCreate = (source?: NotificationDispatchWithMapping) => {
+    setCreateSource(source);
+    setDetailId(undefined);
+    setCreateOpen(true);
+  };
+
+  const closeCreate = () => {
+    setCreateSource(undefined);
+    setCreateOpen(false);
+  };
 
   const dispatchColumns: ProColumns<DispatchInsight>[] = [
     {
-      title: '分发主题',
+      title: '通知内容',
       dataIndex: 'title',
-      width: 280,
+      width: 235,
       render: (_value, record) => (
         <Popover
           trigger="hover"
           placement="rightTop"
-          mouseEnterDelay={0.5}
+          mouseEnterDelay={0.4}
           color="rgba(0, 0, 0, 0.88)"
           content={
             <Space
@@ -244,21 +248,23 @@ const NotificationDispatchesPage: React.FC = () => {
             </Space>
           }
         >
-          <Space orientation="vertical" size={4} style={fullWidthStyle}>
-            <Typography.Text style={titlePreviewStyle}>
+          <Space orientation="vertical" size={3} style={fullWidthStyle}>
+            <Typography.Text strong className={styles.titlePreview}>
               {record.title}
             </Typography.Text>
             <Typography.Text type="secondary">
-              <span style={contentPreviewStyle}>{record.body || '无正文'}</span>
+              <span className={styles.contentPreview}>
+                {record.body || '无正文'}
+              </span>
             </Typography.Text>
           </Space>
         </Popover>
       ),
     },
     {
-      title: '目标范围',
+      title: '发送范围',
       dataIndex: 'scope',
-      width: 180,
+      width: 130,
       render: (_value, record) => (
         <Tag
           color={
@@ -266,7 +272,9 @@ const NotificationDispatchesPage: React.FC = () => {
               ? 'purple'
               : record.scope === 'organization'
                 ? 'blue'
-                : 'default'
+                : record.scope === 'teams'
+                  ? 'cyan'
+                  : 'default'
           }
         >
           {record.scope_label}
@@ -274,30 +282,45 @@ const NotificationDispatchesPage: React.FC = () => {
       ),
     },
     {
-      title: '投递状态',
+      title: '状态',
       dataIndex: 'status',
-      width: 140,
+      width: 90,
       render: (_value, record) => (
         <Tag color={record.status_color}>{record.status_label}</Tag>
       ),
     },
     {
-      title: '目标与结果',
+      title: '投递结果',
       dataIndex: 'target_count',
-      width: 140,
-      render: (_value, record) => (
-        <Space orientation="vertical" size={4}>
-          <Typography.Text>{`送达 ${record.delivery_ratio}`}</Typography.Text>
-          {record.url ? (
-            <Typography.Text type="secondary">有链接</Typography.Text>
-          ) : null}
-        </Space>
-      ),
+      width: 120,
+      render: (_value, record) => {
+        if (record.status === 'pending' && !record.target_count) {
+          return <Typography.Text type="secondary">等待统计</Typography.Text>;
+        }
+        if (record.status === 'failed' && !record.target_count) {
+          return <Typography.Text type="danger">未完成投递</Typography.Text>;
+        }
+        return (
+          <Space
+            orientation="vertical"
+            size={2}
+            className={styles.deliveryCell}
+          >
+            <Typography.Text>{record.delivery_ratio}</Typography.Text>
+            <Progress
+              percent={record.delivery_percent}
+              showInfo={false}
+              size="small"
+              status={record.status === 'failed' ? 'exception' : 'normal'}
+            />
+          </Space>
+        );
+      },
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
-      width: 170,
+      width: 150,
       render: (_value, record) => (
         <Typography.Text>
           {dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}
@@ -307,16 +330,19 @@ const NotificationDispatchesPage: React.FC = () => {
     {
       title: '操作',
       dataIndex: 'actions',
-      width: 140,
+      fixed: 'right',
+      width: 64,
       render: (_value, record) => (
         <ResponsiveActions>
-          <a
+          <Button
+            type="link"
+            size="small"
             onClick={() => {
               setDetailId(record.id);
             }}
           >
             详情
-          </a>
+          </Button>
         </ResponsiveActions>
       ),
     },
@@ -326,151 +352,96 @@ const NotificationDispatchesPage: React.FC = () => {
     ? buildDispatchInsight(detailQuery.data as NotificationDispatchWithMapping)
     : undefined;
 
+  if (isTenantMode && tenantContextQuery.isLoading) {
+    return (
+      <PageContainer title={isTenantMode ? '通知分发' : '平台通知广播'}>
+        <Card loading />
+      </PageContainer>
+    );
+  }
+
+  if (isTenantMode && !currentOrganization) {
+    return (
+      <PageContainer title={isTenantMode ? '通知分发' : '平台通知广播'}>
+        <Alert
+          type="warning"
+          showIcon
+          title="请先选择空间"
+          description="选择空间后才能查看和创建该空间的通知分发。"
+        />
+      </PageContainer>
+    );
+  }
+
+  if (!canManageDispatches) {
+    return (
+      <PageContainer title={isTenantMode ? '通知分发' : '平台通知广播'}>
+        <Alert
+          type="warning"
+          showIcon
+          title="仅空间所有者可以分发通知"
+          description="你仍可在通知中心查看收到的消息；如需分发通知，请联系空间所有者。"
+        />
+      </PageContainer>
+    );
+  }
+
   return (
-    <PageContainer title="通知分发管理">
+    <PageContainer title={isTenantMode ? '通知分发' : '平台通知广播'}>
       <Card>
         <ProTable<DispatchInsight>
           actionRef={tableActionRef}
           rowKey="id"
-          headerTitle="分发列表"
+          headerTitle="分发记录"
           columns={dispatchColumns}
           request={async (params: TablePageParams) => {
             const result = await appsNotificationsApiListDispatches({
               page: params.current || 1,
               page_size: params.pageSize || 10,
+              management_context: managementContext,
             });
+            const items = (
+              (result.items || []) as NotificationDispatchWithMapping[]
+            ).map((item) => buildDispatchInsight(item));
+            setHasActiveDispatches(
+              items.some((item) => isDispatchActive(item.status)),
+            );
             return {
-              data: (
-                (result.items || []) as NotificationDispatchWithMapping[]
-              ).map((item) => buildDispatchInsight(item)),
+              data: items,
               total: result.total || 0,
               success: true,
             };
           }}
           search={false}
-          options={{ density: true, reload: false, setting: true }}
+          options={{ density: false, reload: true, setting: false }}
           toolBarRender={() => [
             <Button
               key="create"
               type="primary"
-              onClick={() => {
-                form.resetFields();
-                form.setFieldsValue(DEFAULT_CREATE_FORM_VALUES);
-                setCreateOpen(true);
-              }}
+              icon={<SendOutlined />}
+              aria-label="新建通知"
+              onClick={() => openCreate()}
             >
-              新建分发
+              新建通知
             </Button>,
           ]}
           ghost
-          scroll={adminTableScroll}
-          pagination={{ defaultPageSize: 10 }}
+          scroll={{ x: 760 }}
+          pagination={{ defaultPageSize: 10, showSizeChanger: false }}
         />
 
-        <Modal
-          title="新建通知分发"
+        <NotificationDispatchCreateModal
           open={createOpen}
-          okText="确定"
-          cancelText="取消"
-          confirmLoading={createMutation.isPending}
-          onCancel={() => {
-            form.resetFields();
-            setCreateOpen(false);
+          isTenantMode={isTenantMode}
+          managementContext={managementContext}
+          currentOrganization={currentOrganization || undefined}
+          source={createSource}
+          onCancel={closeCreate}
+          onSuccess={() => {
+            closeCreate();
+            tableActionRef.current?.reload();
           }}
-          onOk={async () => {
-            try {
-              const values = await form.validateFields();
-              const scopeIds = parseScopeIds(values.scope_ids_text);
-              const payload: API.NotificationDispatchIn = {
-                scope: values.scope,
-                category: values.category || '',
-                title: values.title,
-                body: values.body || '',
-                data: {},
-              };
-              if (values.url) payload.url = values.url;
-              if (values.scope !== 'platform') payload.scope_ids = scopeIds;
-              await createMutation.mutateAsync(payload);
-            } catch (error) {
-              if (!(error instanceof Error)) return;
-              throw error;
-            }
-          }}
-        >
-          <Space orientation="vertical" size={12} style={fullWidthStyle}>
-            <Form
-              form={form}
-              layout="vertical"
-              initialValues={DEFAULT_CREATE_FORM_VALUES}
-            >
-              <Form.Item
-                label="范围"
-                name="scope"
-                rules={[{ required: true, message: '请选择范围' }]}
-              >
-                <Radio.Group
-                  optionType="button"
-                  buttonStyle="solid"
-                  options={enumSelectOptions(
-                    dispatchEnums.data,
-                    'notifications.dispatch_scope',
-                  )}
-                />
-              </Form.Item>
-              <Form.Item
-                label="目标 ID 列表"
-                name="scope_ids_text"
-                dependencies={['scope']}
-                extra={
-                  scopeValue === 'platform'
-                    ? '全平台无需填写目标 ID。'
-                    : '使用英文逗号分隔多个正整数 ID。'
-                }
-                rules={[
-                  {
-                    validator: async (_rule, value) => {
-                      if (form.getFieldValue('scope') === 'platform') return;
-                      if (!value?.trim())
-                        throw new Error('请输入至少一个正整数 ID');
-                      if (hasInvalidScopeIdToken(value))
-                        throw new Error(
-                          '目标 ID 只能填写用英文逗号分隔的正整数',
-                        );
-                      if (!parseScopeIds(value).length)
-                        throw new Error('请输入至少一个正整数 ID');
-                    },
-                  },
-                ]}
-              >
-                <Input
-                  placeholder={
-                    scopeValue === 'organization' ? '例如 1,2' : '例如 10,11'
-                  }
-                />
-              </Form.Item>
-              <Form.Item label="类别" name="category">
-                <Input placeholder="可选，例如 marketing" />
-              </Form.Item>
-              <Form.Item
-                label="标题"
-                name="title"
-                rules={[{ required: true, message: '请输入标题' }]}
-              >
-                <Input />
-              </Form.Item>
-              <Form.Item
-                label="内容"
-                name="body"
-                rules={[{ required: true, message: '请输入内容' }]}
-              >
-                <Input.TextArea rows={4} />
-              </Form.Item>
-              <Form.Item label="链接" name="url">
-                <Input placeholder="可选链接" />
-              </Form.Item>
-            </Form>
-          </Space>
-        </Modal>
+        />
 
         <Drawer
           title="分发详情"
@@ -478,77 +449,137 @@ const NotificationDispatchesPage: React.FC = () => {
           onClose={() => {
             setDetailId(undefined);
           }}
-          width={drawerWidthMd}
+          size={drawerWidthMd}
+          extra={
+            detailQuery.data ? (
+              <Button
+                icon={<CopyOutlined />}
+                onClick={() =>
+                  openCreate(
+                    detailQuery.data as NotificationDispatchWithMapping,
+                  )
+                }
+              >
+                复用内容
+              </Button>
+            ) : null
+          }
         >
-          <Space orientation="vertical" size={12} style={fullWidthStyle}>
-            <div style={detailSummaryStyle}>
-              <Space orientation="vertical" size={12} style={fullWidthStyle}>
-                <Typography.Text strong>
-                  {detailQuery.data?.title || '-'}
-                </Typography.Text>
-                <Space wrap size={[8, 8]}>
-                  {detailInsight ? (
-                    <>
-                      <Tag
-                        color={
-                          detailInsight.scope === 'platform'
-                            ? 'purple'
-                            : detailInsight.scope === 'organization'
-                              ? 'blue'
-                              : 'default'
-                        }
-                      >
-                        {detailInsight.scope_label}
-                      </Tag>
-                      <Tag color={detailInsight.status_color}>
-                        {detailInsight.status_label}
-                      </Tag>
-                    </>
-                  ) : null}
-                  <Typography.Text type="secondary">
-                    {detailQuery.data
-                      ? `送达 ${detailQuery.data.delivered_count}/${detailQuery.data.target_count}`
-                      : '送达 -'}
+          {detailQuery.isLoading ? <Skeleton active /> : null}
+          {detailQuery.isError ? (
+            <Alert
+              type="error"
+              showIcon
+              title="分发详情加载失败"
+              description="请关闭后重试，或稍后刷新页面。"
+            />
+          ) : null}
+          {detailQuery.data && detailInsight ? (
+            <Space orientation="vertical" size={16} style={fullWidthStyle}>
+              <div className={styles.detailSummary}>
+                <Space orientation="vertical" size={12} style={fullWidthStyle}>
+                  <Typography.Text strong>
+                    {detailQuery.data.title || '-'}
                   </Typography.Text>
+                  <Space wrap size={[8, 8]}>
+                    <Tag
+                      color={
+                        detailInsight.scope === 'platform'
+                          ? 'purple'
+                          : detailInsight.scope === 'organization'
+                            ? 'blue'
+                            : detailInsight.scope === 'teams'
+                              ? 'cyan'
+                              : 'default'
+                      }
+                    >
+                      {detailInsight.scope_label}
+                    </Tag>
+                    <Tag color={detailInsight.status_color}>
+                      {detailInsight.status_label}
+                    </Tag>
+                  </Space>
+                  {detailInsight.target_count ? (
+                    <Progress
+                      percent={detailInsight.delivery_percent}
+                      status={
+                        detailInsight.status === 'failed'
+                          ? 'exception'
+                          : 'normal'
+                      }
+                      format={() => `送达 ${detailInsight.delivery_ratio}`}
+                    />
+                  ) : (
+                    <Typography.Text type="secondary">
+                      {isDispatchActive(detailInsight.status)
+                        ? '正在统计目标人数…'
+                        : '尚无投递结果'}
+                    </Typography.Text>
+                  )}
                 </Space>
-              </Space>
-            </div>
+              </div>
 
-            <Descriptions column={2} bordered size="small">
-              <Descriptions.Item label="类别">
-                {detailQuery.data?.category || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="创建人">
-                {detailQuery.data?.created_by || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="创建时间">
-                {detailQuery.data?.created_at
-                  ? dayjs(detailQuery.data.created_at).format(
-                      'YYYY-MM-DD HH:mm',
-                    )
-                  : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="发送时间">
-                {detailQuery.data?.sent_at
-                  ? dayjs(detailQuery.data.sent_at).format('YYYY-MM-DD HH:mm')
-                  : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="链接" span={2}>
-                <span style={wrapTextStyle}>
-                  {detailQuery.data?.url || '-'}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="错误信息" span={2}>
-                <span style={wrapTextStyle}>
-                  {detailQuery.data?.error_message || '-'}
-                </span>
-              </Descriptions.Item>
-            </Descriptions>
+              {detailQuery.data.error_message ? (
+                <Alert
+                  type="error"
+                  showIcon
+                  title="分发失败"
+                  description={detailQuery.data.error_message}
+                />
+              ) : null}
 
-            <div style={detailBodyStyle}>
-              <Typography.Text>{detailQuery.data?.body || '-'}</Typography.Text>
-            </div>
-          </Space>
+              <Descriptions column={1} bordered size="small">
+                <Descriptions.Item label="发送范围">
+                  {detailInsight.scope_label}
+                </Descriptions.Item>
+                {detailQuery.data.scope !== 'platform' ? (
+                  <Descriptions.Item label="目标 ID">
+                    <div className={styles.targetTags}>
+                      {(detailQuery.data.scope_ids || []).map((id) => (
+                        <Tag key={id}>{id}</Tag>
+                      ))}
+                    </div>
+                  </Descriptions.Item>
+                ) : null}
+                <Descriptions.Item label="通知分类">
+                  {detailQuery.data.category || '不分类'}
+                </Descriptions.Item>
+                <Descriptions.Item label="创建人">
+                  {detailQuery.data.created_by || '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="创建时间">
+                  {detailQuery.data.created_at
+                    ? dayjs(detailQuery.data.created_at).format(
+                        'YYYY-MM-DD HH:mm',
+                      )
+                    : '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="发送时间">
+                  {detailQuery.data.sent_at
+                    ? dayjs(detailQuery.data.sent_at).format('YYYY-MM-DD HH:mm')
+                    : '尚未完成'}
+                </Descriptions.Item>
+                <Descriptions.Item label="点击链接">
+                  {detailQuery.data.url ? (
+                    <Typography.Link href={detailQuery.data.url}>
+                      <span style={wrapTextStyle}>{detailQuery.data.url}</span>
+                    </Typography.Link>
+                  ) : (
+                    '-'
+                  )}
+                </Descriptions.Item>
+              </Descriptions>
+
+              <div>
+                <Typography.Text strong>通知内容</Typography.Text>
+                <div className={styles.detailBody} style={{ marginTop: 8 }}>
+                  <Typography.Text>
+                    {detailQuery.data.body || '-'}
+                  </Typography.Text>
+                </div>
+              </div>
+            </Space>
+          ) : null}
         </Drawer>
       </Card>
     </PageContainer>

@@ -117,6 +117,9 @@ describe('backend capability routes', () => {
 
     expect(tenantOperationsGroup?.routes?.map((route) => route.path)).toEqual([
       '/tenant-operations',
+      '/tenant-operations/workbench',
+      '/tenant-operations/announcements',
+      '/tenant-operations/tasks',
       '/tenant-operations/notification-dispatches',
     ]);
     expect(personalGroup?.routes?.map((route) => route.path)).toEqual([

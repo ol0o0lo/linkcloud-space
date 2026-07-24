@@ -47,6 +47,8 @@ type NotificationInsight = API.NotificationOut & {
   source_summary: string;
   action_summary: string;
   time_summary: string;
+  category_label: string;
+  category_color: string;
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -76,6 +78,17 @@ function buildNotificationInsight(
   const actorName = item.actor?.full_name || item.actor?.username;
   const sourceLabel = actorName ? `来自 ${actorName}` : '系统触达';
   const createdAt = dayjs(item.created_at);
+  const category = item.category || '';
+  const categoryLabel = category.startsWith('team.task')
+    ? '团队任务'
+    : category === 'team.announcement'
+      ? '团队公告'
+      : '普通通知';
+  const categoryColor = category.startsWith('team.task')
+    ? 'gold'
+    : category === 'team.announcement'
+      ? 'blue'
+      : 'default';
 
   if (!item.is_read) {
     return {
@@ -90,6 +103,8 @@ function buildNotificationInsight(
         ? '这条通知由明确用户触发，必要时可继续追溯来源。'
         : '系统类通知主要用于平台提醒和公告。',
       action_summary: item.url ? '可继续跳转处理' : '暂无后续跳转',
+      category_label: categoryLabel,
+      category_color: categoryColor,
       time_summary: createdAt.isToday()
         ? `今天 ${createdAt.format('HH:mm')} 到达`
         : `${createdAt.format('YYYY-MM-DD HH:mm')} 到达`,
@@ -108,6 +123,8 @@ function buildNotificationInsight(
       ? '来源清晰，后续需要时可以继续定位到具体用户。'
       : '系统通知已经进入已读状态，可继续作为平台记录。',
     action_summary: item.url ? '已读但可继续跳转' : '已读存档',
+    category_label: categoryLabel,
+    category_color: categoryColor,
     time_summary: createdAt.isToday()
       ? `今天 ${createdAt.format('HH:mm')} 已确认`
       : `${createdAt.format('YYYY-MM-DD HH:mm')} 已确认`,
@@ -135,8 +152,10 @@ const NotificationsAdminPage: React.FC = () => {
   });
   const detailQuery = useQuery({
     queryKey: ['platform-management', 'notification-detail', detailId],
-    queryFn: () =>
-      appsNotificationsApiGetNotification({ notification_id: detailId! }),
+    queryFn: () => {
+      if (!detailId) throw new Error('缺少通知 ID');
+      return appsNotificationsApiGetNotification({ notification_id: detailId });
+    },
     enabled: Boolean(detailId),
   });
   const patchMutation = useMutation({
@@ -180,6 +199,7 @@ const NotificationsAdminPage: React.FC = () => {
           <Typography.Text style={wrapTextStyle}>
             {record.title || '无标题'}
           </Typography.Text>
+          <Tag color={record.category_color}>{record.category_label}</Tag>
           <Typography.Text type="secondary" style={notificationPreviewStyle}>
             {record.body || '无正文'}
           </Typography.Text>
@@ -348,11 +368,25 @@ const NotificationsAdminPage: React.FC = () => {
             <Descriptions.Item label="通知来源">
               {detailData?.source_label || '-'}
             </Descriptions.Item>
+            <Descriptions.Item label="通知类别">
+              {detailData ? (
+                <Tag color={detailData.category_color}>
+                  {detailData.category_label}
+                </Tag>
+              ) : (
+                '-'
+              )}
+            </Descriptions.Item>
             <Descriptions.Item label="来源说明">
               {detailData?.source_summary || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="后续动作">
               {detailData?.action_summary || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="业务目标">
+              {detailData?.target_type && detailData.target_id
+                ? `${detailData.target_type} #${detailData.target_id}`
+                : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="到达时间">
               {detailData
