@@ -8,20 +8,26 @@ const mockTwoFactorTrust = vi.fn();
 const mockFetchUserInfo = vi.fn();
 const mockSwitchList = vi.fn();
 const mockSetInitialState = vi.fn();
-const mockHistoryPush = vi.fn();
+const mockHistoryReplace = vi.fn();
 const mockSuccess = vi.fn();
 const mockError = vi.fn();
-const mockFormattedMessage = ({ defaultMessage }: { defaultMessage: string }) => defaultMessage;
+const mockFormattedMessage = ({ defaultMessage }: { defaultMessage: string }) =>
+  defaultMessage;
+const authenticatedUser = {
+  id: 1,
+  username: 'admin',
+};
 
 vi.mock('@umijs/max', () => ({
   FormattedMessage: mockFormattedMessage,
   Helmet: ({ children }: any) => <>{children}</>,
   SelectLang: () => null,
   history: {
-    push: mockHistoryPush,
+    replace: mockHistoryReplace,
   },
   useIntl: () => ({
-    formatMessage: ({ defaultMessage }: { defaultMessage: string }) => defaultMessage,
+    formatMessage: ({ defaultMessage }: { defaultMessage: string }) =>
+      defaultMessage,
   }),
   useModel: () => ({
     initialState: {
@@ -47,6 +53,7 @@ vi.mock('antd', () => {
         {children}
       </button>
     ),
+    Spin: ({ description }: any) => <div>{description}</div>,
   };
 });
 
@@ -65,7 +72,9 @@ vi.mock('@ant-design/pro-components', () => {
   });
 
   const LoginForm = ({ children, initialValues, onFinish }: any) => {
-    const [values, setValues] = React.useState<Record<string, string | boolean>>(initialValues || {});
+    const [values, setValues] = React.useState<
+      Record<string, string | boolean>
+    >(initialValues || {});
     const setValue = (name: string, value: string | boolean) =>
       setValues((current) => ({ ...current, [name]: value }));
 
@@ -156,10 +165,7 @@ describe('admin 登录 MFA 流程', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    mockFetchUserInfo.mockResolvedValue({
-      id: 1,
-      username: 'admin',
-    });
+    mockFetchUserInfo.mockResolvedValue(undefined);
     mockSwitchList.mockResolvedValue([
       {
         id: 1,
@@ -172,14 +178,72 @@ describe('admin 登录 MFA 流程', () => {
     window.history.replaceState({}, '', '/user/login');
   });
 
+  it('已有会话进入登录页时应恢复状态并直接跳转', async () => {
+    mockFetchUserInfo.mockResolvedValueOnce(authenticatedUser);
+    window.history.replaceState(
+      {},
+      '',
+      '/user/login?redirect=%2Fsettings-management%2Forganization',
+    );
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    await waitFor(() => {
+      expect(mockFetchUserInfo).toHaveBeenCalledTimes(1);
+    });
+    expect(mockLogin).not.toHaveBeenCalled();
+    expect(mockSwitchList).toHaveBeenCalledWith({ skipErrorHandler: true });
+    expect(mockHistoryReplace).toHaveBeenCalledWith(
+      '/settings-management/organization',
+    );
+  });
+
+  it('重复登录返回 409 时应按已有会话恢复并跳转', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(authenticatedUser);
+    mockLogin.mockRejectedValueOnce({
+      response: {
+        status: 409,
+      },
+    });
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
+      target: { value: 'admin@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('密码'), {
+      target: { value: 'secret123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '提交' }));
+
+    await waitFor(() => {
+      expect(mockHistoryReplace).toHaveBeenCalledWith(
+        '/property-rental/houses',
+      );
+    });
+    expect(mockSuccess).not.toHaveBeenCalled();
+    expect(mockError).not.toHaveBeenCalled();
+  });
+
   it('邮箱登录返回 mfa_authenticate 时应进入二次验证码校验', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(authenticatedUser);
     mockLogin.mockRejectedValueOnce({
       response: {
         status: 401,
         data: {
           flows: [
             { id: 'login' },
-            { id: 'mfa_authenticate', is_pending: true, types: ['totp', 'recovery_codes'] },
+            {
+              id: 'mfa_authenticate',
+              is_pending: true,
+              types: ['totp', 'recovery_codes'],
+            },
           ],
         },
       },
@@ -198,7 +262,7 @@ describe('admin 登录 MFA 流程', () => {
     const { default: Login } = await import('./index');
     render(<Login />);
 
-    fireEvent.change(screen.getByPlaceholderText('邮箱 / 手机号'), {
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
       target: { value: 'admin@example.com' },
     });
     fireEvent.change(screen.getByPlaceholderText('密码'), {
@@ -206,7 +270,9 @@ describe('admin 登录 MFA 流程', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '提交' }));
 
-    expect(await screen.findByPlaceholderText('6 位验证码或恢复码')).toBeInTheDocument();
+    expect(
+      await screen.findByPlaceholderText('6 位验证码或恢复码'),
+    ).toBeInTheDocument();
     expect(mockError).not.toHaveBeenCalled();
     expect(mockLogin).toHaveBeenCalledWith(
       { client: 'browser' },
@@ -228,7 +294,7 @@ describe('admin 登录 MFA 流程', () => {
     });
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockFetchUserInfo).toHaveBeenCalled();
-    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/houses');
+    expect(mockHistoryReplace).toHaveBeenCalledWith('/property-rental/houses');
   });
 
   it('遇到未知 allauth flow 时应提示具体 flow id', async () => {
@@ -247,7 +313,7 @@ describe('admin 登录 MFA 流程', () => {
     const { default: Login } = await import('./index');
     render(<Login />);
 
-    fireEvent.change(screen.getByPlaceholderText('邮箱 / 手机号'), {
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
       target: { value: 'admin@example.com' },
     });
     fireEvent.change(screen.getByPlaceholderText('密码'), {
@@ -263,12 +329,15 @@ describe('admin 登录 MFA 流程', () => {
   });
 
   it('邮箱中的全角句号应在提交前规范化', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(authenticatedUser);
     mockLogin.mockResolvedValueOnce({});
 
     const { default: Login } = await import('./index');
     render(<Login />);
 
-    fireEvent.change(screen.getByPlaceholderText('邮箱 / 手机号'), {
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
       target: { value: 'admin@example。com' },
     });
     fireEvent.change(screen.getByPlaceholderText('密码'), {
@@ -283,16 +352,19 @@ describe('admin 登录 MFA 流程', () => {
         { skipErrorHandler: true },
       );
     });
-    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/houses');
+    expect(mockHistoryReplace).toHaveBeenCalledWith('/property-rental/houses');
   });
 
   it('登录成功后应同步当前空间到 initialState', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(authenticatedUser);
     mockLogin.mockResolvedValueOnce({});
 
     const { default: Login } = await import('./index');
     render(<Login />);
 
-    fireEvent.change(screen.getByPlaceholderText('邮箱 / 手机号'), {
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
       target: { value: 'admin@example.com' },
     });
     fireEvent.change(screen.getByPlaceholderText('密码'), {
@@ -327,6 +399,9 @@ describe('admin 登录 MFA 流程', () => {
   });
 
   it('二步验证后返回 mfa_trust 时应继续完成登录', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(authenticatedUser);
     mockLogin.mockRejectedValueOnce({
       response: {
         status: 401,
@@ -342,9 +417,7 @@ describe('admin 登录 MFA 流程', () => {
       response: {
         status: 401,
         data: {
-          flows: [
-            { id: 'mfa_trust', is_pending: true },
-          ],
+          flows: [{ id: 'mfa_trust', is_pending: true }],
         },
       },
     });
@@ -362,7 +435,7 @@ describe('admin 登录 MFA 流程', () => {
     const { default: Login } = await import('./index');
     render(<Login />);
 
-    fireEvent.change(screen.getByPlaceholderText('邮箱 / 手机号'), {
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
       target: { value: 'admin@example.com' },
     });
     fireEvent.change(screen.getByPlaceholderText('密码'), {
@@ -370,7 +443,9 @@ describe('admin 登录 MFA 流程', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '提交' }));
 
-    expect(await screen.findByPlaceholderText('6 位验证码或恢复码')).toBeInTheDocument();
+    expect(
+      await screen.findByPlaceholderText('6 位验证码或恢复码'),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText('6 位验证码或恢复码'), {
       target: { value: '123456' },
     });
@@ -385,6 +460,6 @@ describe('admin 登录 MFA 流程', () => {
     });
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockFetchUserInfo).toHaveBeenCalled();
-    expect(mockHistoryPush).toHaveBeenCalledWith('/property-rental/houses');
+    expect(mockHistoryReplace).toHaveBeenCalledWith('/property-rental/houses');
   });
 });

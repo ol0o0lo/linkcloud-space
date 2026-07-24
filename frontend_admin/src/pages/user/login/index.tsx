@@ -1,8 +1,9 @@
+import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import {
-  LockOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
-import { LoginForm, ProFormCheckbox, ProFormText } from '@ant-design/pro-components';
+  LoginForm,
+  ProFormCheckbox,
+  ProFormText,
+} from '@ant-design/pro-components';
 import {
   FormattedMessage,
   Helmet,
@@ -11,21 +12,24 @@ import {
   useIntl,
   useModel,
 } from '@umijs/max';
-import { Alert, App } from 'antd';
+import { Alert, App, Spin } from 'antd';
 import { createStyles } from 'antd-style';
-import React, { startTransition, useState } from 'react';
+import React, { startTransition, useEffect, useRef, useState } from 'react';
 import { Footer } from '@/components';
 import { postBrowserV1AuthLogin } from '@/services/allauth/authAccount';
 import {
   postBrowserV1AuthTwofaAuthenticate,
   postBrowserV1AuthTwofaTrust,
 } from '@/services/allauth/authTwoFactor';
-import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations';
 import {
   formatUnsupportedFlowMessage,
   parseLoginFlowState,
 } from '@/services/manual/allauthFlow';
-import { DEFAULT_POST_LOGIN_PATH, normalizeAdminPath } from '@/utils/adminRouting';
+import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations';
+import {
+  DEFAULT_POST_LOGIN_PATH,
+  normalizeAdminPath,
+} from '@/utils/adminRouting';
 import { normalizeEmailLikeInput } from '@/utils/email';
 import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import Settings from '../../../../config/defaultSettings';
@@ -50,6 +54,32 @@ type PendingMfaState = {
   types: string[];
 };
 
+/**
+ * Validate redirect URL to prevent open redirect attacks.
+ * Only allow same-origin relative paths starting with '/'.
+ */
+function getSafeRedirectUrl(redirect: string | null): string {
+  if (!redirect?.startsWith('/')) return DEFAULT_POST_LOGIN_PATH;
+
+  if (redirect.startsWith('//')) return DEFAULT_POST_LOGIN_PATH;
+
+  try {
+    const parsed = new URL(redirect, window.location.origin);
+    if (parsed.origin !== window.location.origin)
+      return DEFAULT_POST_LOGIN_PATH;
+    return `${normalizeAdminPath(parsed.pathname)}${parsed.search}${parsed.hash}`;
+  } catch {
+    return DEFAULT_POST_LOGIN_PATH;
+  }
+}
+
+function getPostLoginRedirectUrl(): string {
+  const currentHref = window.location.href || '/user/login';
+  const currentOrigin = window.location.origin || 'http://localhost';
+  const currentUrl = new URL(currentHref, currentOrigin);
+  return getSafeRedirectUrl(currentUrl.searchParams.get('redirect'));
+}
+
 function buildAllauthLoginData(body: LoginFormValues) {
   const identifier = (body.username || '').trim();
   const normalizedEmailIdentifier = normalizeEmailLikeInput(identifier);
@@ -71,7 +101,12 @@ function isAllauthValidationError(error: any) {
 
 function getAllauthErrorMessage(error: any, fallback: string) {
   const detail = error?.response?.data?.errors?.[0] || error?.data?.errors?.[0];
-  return detail?.message || error?.response?.data?.message || error?.message || fallback;
+  return (
+    detail?.message ||
+    error?.response?.data?.message ||
+    error?.message ||
+    fallback
+  );
 }
 
 const useStyles = createStyles(({ token }) => {
@@ -95,6 +130,12 @@ const useStyles = createStyles(({ token }) => {
       backgroundImage:
         'linear-gradient(135deg, #f6f8fb 0%, #eef6f2 45%, #f8fafc 100%)',
       backgroundSize: 'cover',
+    },
+    sessionLoading: {
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   };
 });
@@ -126,36 +167,17 @@ const LoginMessage: React.FC<{
 
 const Login: React.FC = () => {
   const [userLoginState, setUserLoginState] = useState<LoginResult>({});
+  const [checkingSession, setCheckingSession] = useState(true);
   const [pendingMfa, setPendingMfa] = useState<PendingMfaState>({
     active: false,
     types: [],
   });
+  const sessionCheckRef = useRef<Promise<boolean> | null>(null);
   const type = 'account';
   const { initialState, setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
   const { message } = App.useApp();
   const intl = useIntl();
-
-  /**
-   * Validate redirect URL to prevent open redirect attacks
-   * Only allow same-origin relative paths starting with '/'
-   */
-  const getSafeRedirectUrl = (redirect: string | null): string => {
-    if (!redirect?.startsWith('/')) return DEFAULT_POST_LOGIN_PATH;
-
-    // Block protocol-relative URLs (//example.com)
-    if (redirect.startsWith('//')) return DEFAULT_POST_LOGIN_PATH;
-
-    try {
-      const parsed = new URL(redirect, window.location.origin);
-      // Only allow same-origin URLs
-      if (parsed.origin !== window.location.origin) return DEFAULT_POST_LOGIN_PATH;
-      // Return the path with query and hash preserved
-      return `${normalizeAdminPath(parsed.pathname)}${parsed.search}${parsed.hash}`;
-    } catch {
-      return DEFAULT_POST_LOGIN_PATH;
-    }
-  };
 
   const fetchOrganizations = async () => {
     try {
@@ -168,9 +190,10 @@ const Login: React.FC = () => {
   };
 
   const hydrateAuthenticatedState = async () => {
-    const userInfo = await initialState?.fetchUserInfo?.();
+    const userInfo =
+      initialState?.currentUser || (await initialState?.fetchUserInfo?.());
     if (!userInfo) {
-      return;
+      return false;
     }
 
     const organizations = await fetchOrganizations();
@@ -184,7 +207,30 @@ const Login: React.FC = () => {
         selectedOrgSlug,
       }));
     });
+    return true;
   };
+
+  const redirectAuthenticatedUser = () => {
+    history.replace(getPostLoginRedirectUrl());
+  };
+
+  useEffect(() => {
+    let active = true;
+    sessionCheckRef.current ||= hydrateAuthenticatedState();
+
+    void sessionCheckRef.current.then((authenticated) => {
+      if (!active) return;
+      if (authenticated) {
+        redirectAuthenticatedUser();
+        return;
+      }
+      setCheckingSession(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const finishLogin = async () => {
     const defaultLoginSuccessMessage = intl.formatMessage({
@@ -193,12 +239,7 @@ const Login: React.FC = () => {
     });
     message.success(defaultLoginSuccessMessage);
     await hydrateAuthenticatedState();
-    const currentHref = window.location.href || '/user/login';
-    const currentOrigin = window.location.origin || 'http://localhost';
-    const currentUrl = new URL(currentHref, currentOrigin);
-    const urlParams = currentUrl.searchParams;
-    const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
-    history.push(redirectUrl);
+    redirectAuthenticatedUser();
   };
 
   const handleSubmit = async (values: LoginFormValues) => {
@@ -232,7 +273,9 @@ const Login: React.FC = () => {
           return;
         }
 
-        message.error(getAllauthErrorMessage(error, '验证码校验失败，请重试！'));
+        message.error(
+          getAllauthErrorMessage(error, '验证码校验失败，请重试！'),
+        );
         return;
       }
     }
@@ -259,11 +302,21 @@ const Login: React.FC = () => {
 
       setUserLoginState(msg);
     } catch (error) {
+      if ((error as any)?.response?.status === 409) {
+        const authenticated = await hydrateAuthenticatedState();
+        if (authenticated) {
+          redirectAuthenticatedUser();
+          return;
+        }
+      }
+
       const flowState = parseLoginFlowState(error);
       if (flowState?.kind === 'pending_mfa') {
         setPendingMfa({
           active: true,
-          types: Array.isArray(flowState.flow.types) ? flowState.flow.types : [],
+          types: Array.isArray(flowState.flow.types)
+            ? flowState.flow.types
+            : [],
         });
         setUserLoginState({});
         return;
@@ -310,132 +363,142 @@ const Login: React.FC = () => {
           padding: '32px 0',
         }}
       >
-        <LoginForm
-          contentStyle={{
-            minWidth: 280,
-            maxWidth: '75vw',
-          }}
-          logo={<img alt="logo" src={logoUrl} />}
-          title={Settings.title}
-          subTitle={intl.formatMessage({
-            id: 'pages.layouts.userLayout.title',
-          })}
-          initialValues={{
-            autoLogin: true,
-          }}
-          onFinish={async (values) => {
-            await handleSubmit(values as LoginFormValues);
-          }}
-        >
-          {status === 'error' && loginType === 'account' && (
-            <LoginMessage
-              content={intl.formatMessage({
-                id: 'pages.login.accountLogin.errorMessage',
-                defaultMessage: '账户或密码错误',
-              })}
-            />
-          )}
-          {pendingMfa.active ? (
-            <>
-              <Alert
-                style={{
-                  marginBottom: 24,
-                }}
-                title="请输入身份验证器验证码或恢复码"
-                description={
-                  pendingMfa.types.includes('recovery_codes')
-                    ? '当前账号开启了多因素认证，请输入 6 位验证码，或直接输入恢复码完成登录。'
-                    : '当前账号开启了多因素认证，请输入身份验证器当前显示的 6 位验证码完成登录。'
-                }
-                type="info"
-                showIcon
-              />
-              <ProFormText
-                name="code"
-                fieldProps={{
-                  size: 'large',
-                }}
-                placeholder="6 位验证码或恢复码"
-                rules={[
-                  {
-                    required: true,
-                    message: '请输入验证码或恢复码！',
-                  },
-                ]}
-              />
-            </>
-          ) : (
-            <>
-              <ProFormText
-                name="username"
-                fieldProps={{
-                  size: 'large',
-                  prefix: <UserOutlined />,
-                }}
-                placeholder={intl.formatMessage({
-                  id: 'pages.login.username.placeholder',
-                  defaultMessage: '邮箱 / 手机号',
+        {checkingSession ? (
+          <div
+            className={styles.sessionLoading}
+            role="status"
+            aria-live="polite"
+          >
+            <Spin size="large" description="正在恢复登录状态…" />
+          </div>
+        ) : (
+          <LoginForm
+            contentStyle={{
+              minWidth: 280,
+              maxWidth: '75vw',
+            }}
+            logo={<img alt="logo" src={logoUrl} />}
+            title={Settings.title}
+            subTitle={intl.formatMessage({
+              id: 'pages.layouts.userLayout.title',
+            })}
+            initialValues={{
+              autoLogin: true,
+            }}
+            onFinish={async (values) => {
+              await handleSubmit(values as LoginFormValues);
+            }}
+          >
+            {status === 'error' && loginType === 'account' && (
+              <LoginMessage
+                content={intl.formatMessage({
+                  id: 'pages.login.accountLogin.errorMessage',
+                  defaultMessage: '账户或密码错误',
                 })}
-                rules={[
-                  {
-                    required: true,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.username.required"
-                        defaultMessage="请输入邮箱或手机号!"
-                      />
-                    ),
-                  },
-                ]}
               />
-              <ProFormText.Password
-                name="password"
-                fieldProps={{
-                  size: 'large',
-                  prefix: <LockOutlined />,
-                }}
-                placeholder={intl.formatMessage({
-                  id: 'pages.login.password.placeholder',
-                  defaultMessage: '密码',
-                })}
-                rules={[
-                  {
-                    required: true,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.password.required"
-                        defaultMessage="请输入密码！"
-                      />
-                    ),
-                  },
-                ]}
-              />
-              <div
-                style={{
-                  marginBottom: 24,
-                }}
-              >
-                <ProFormCheckbox noStyle name="autoLogin">
-                  <FormattedMessage
-                    id="pages.login.rememberMe"
-                    defaultMessage="自动登录"
-                  />
-                </ProFormCheckbox>
-                <a
-                  href="#"
+            )}
+            {pendingMfa.active ? (
+              <>
+                <Alert
                   style={{
-                    float: 'right',
+                    marginBottom: 24,
+                  }}
+                  title="请输入身份验证器验证码或恢复码"
+                  description={
+                    pendingMfa.types.includes('recovery_codes')
+                      ? '当前账号开启了多因素认证，请输入 6 位验证码，或直接输入恢复码完成登录。'
+                      : '当前账号开启了多因素认证，请输入身份验证器当前显示的 6 位验证码完成登录。'
+                  }
+                  type="info"
+                  showIcon
+                />
+                <ProFormText
+                  name="code"
+                  fieldProps={{
+                    size: 'large',
+                  }}
+                  placeholder="6 位验证码或恢复码"
+                  rules={[
+                    {
+                      required: true,
+                      message: '请输入验证码或恢复码！',
+                    },
+                  ]}
+                />
+              </>
+            ) : (
+              <>
+                <ProFormText
+                  name="username"
+                  fieldProps={{
+                    size: 'large',
+                    prefix: <UserOutlined />,
+                  }}
+                  placeholder={intl.formatMessage({
+                    id: 'pages.login.username.placeholder',
+                    defaultMessage: '邮箱 / 手机号',
+                  })}
+                  rules={[
+                    {
+                      required: true,
+                      message: (
+                        <FormattedMessage
+                          id="pages.login.username.required"
+                          defaultMessage="请输入邮箱或手机号!"
+                        />
+                      ),
+                    },
+                  ]}
+                />
+                <ProFormText.Password
+                  name="password"
+                  fieldProps={{
+                    size: 'large',
+                    prefix: <LockOutlined />,
+                  }}
+                  placeholder={intl.formatMessage({
+                    id: 'pages.login.password.placeholder',
+                    defaultMessage: '密码',
+                  })}
+                  rules={[
+                    {
+                      required: true,
+                      message: (
+                        <FormattedMessage
+                          id="pages.login.password.required"
+                          defaultMessage="请输入密码！"
+                        />
+                      ),
+                    },
+                  ]}
+                />
+                <div
+                  style={{
+                    marginBottom: 24,
                   }}
                 >
-                  <FormattedMessage
-                    id="pages.login.forgotPassword"
-                    defaultMessage="忘记密码"
-                  />
-                </a>
-              </div>
-            </>
-          )}
-        </LoginForm>
+                  <ProFormCheckbox noStyle name="autoLogin">
+                    <FormattedMessage
+                      id="pages.login.rememberMe"
+                      defaultMessage="自动登录"
+                    />
+                  </ProFormCheckbox>
+                  <a
+                    href="#"
+                    style={{
+                      float: 'right',
+                    }}
+                  >
+                    <FormattedMessage
+                      id="pages.login.forgotPassword"
+                      defaultMessage="忘记密码"
+                    />
+                  </a>
+                </div>
+              </>
+            )}
+          </LoginForm>
+        )}
       </div>
       <Footer />
     </div>
