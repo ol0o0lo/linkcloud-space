@@ -4,6 +4,7 @@ import { getCurrentInstance, onMounted, onUnmounted } from 'vue'
 import { navigateToInterceptor } from '@/router/interceptor'
 import { tabbarStore } from '@/tabbar/store'
 import { permission } from '@/router/permission'
+import { flushAnalyticsEvents } from '@/services/analytics'
 
 const { proxy } = (getCurrentInstance() || {}) as any
 const router = proxy?.$router
@@ -26,12 +27,16 @@ onShow((options) => {
 })
 onHide(() => {
   console.log('App Hide')
+  void flushAnalyticsEvents()
 })
 
 // #ifdef H5
 function syncTabbarWhenPageVisible() {
   if (document.visibilityState === 'visible') {
     tabbarStore.syncCurIdxByCurrentPageAsync()
+  }
+  else {
+    void flushAnalyticsEvents()
   }
 }
 

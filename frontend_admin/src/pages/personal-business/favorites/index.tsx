@@ -1,11 +1,8 @@
 import {
-  ApartmentOutlined,
-  BankOutlined,
   CalendarOutlined,
   EnvironmentOutlined,
   HeartFilled,
   HeartOutlined,
-  HomeOutlined,
   PictureOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -25,50 +22,23 @@ import {
 } from 'antd';
 import { createStyles } from 'antd-style';
 import dayjs from 'dayjs';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PageContainer } from '@/components/PageContainer';
+import { favoriteKeys } from '@/services/manual/favoriteHooks';
+import type { FavoriteItem } from '@/services/manual/favorites';
 import {
-  housePrimaryLayoutText,
-  mediaCoverUrl,
-  moneyText,
-} from '@/pages/property-rental/constants';
-import type {
-  FavoriteBuildingTarget,
-  FavoriteEstateTarget,
-  FavoriteHouseTarget,
-  FavoriteItem,
+  getFavoriteTypes,
+  getMyFavorites,
+  removeFavorite,
 } from '@/services/manual/favorites';
-import { getMyFavorites, removeFavorite } from '@/services/manual/favorites';
+import './targets';
+import {
+  normalizeFavoriteTargetTypes,
+  type ResolvedFavoriteTargetDefinition,
+  resolveFavoriteTargetDefinition,
+} from './targetRegistry';
 
 const PAGE_SIZE = 12;
-const favoriteQueryKey = ['personal', 'favorites'] as const;
-const favoriteTabs = [
-  {
-    key: 'house',
-    label: '房源',
-    icon: <HomeOutlined aria-hidden />,
-    description: '把心仪的房间留在这里，随时回来比较租金、户型与位置。',
-    emptyTitle: '还没有收藏房源',
-    emptyDescription: '看到心仪房源时，点亮红心就能在这里快速找到。',
-  },
-  {
-    key: 'building',
-    label: '楼栋',
-    icon: <ApartmentOutlined aria-hidden />,
-    description: '按楼栋整理你的居住偏好，集中查看位置、楼层与配套。',
-    emptyTitle: '还没有收藏楼栋',
-    emptyDescription: '收藏感兴趣的楼栋，之后比较房源时会更省心。',
-  },
-  {
-    key: 'estate',
-    label: '小区',
-    icon: <BankOutlined aria-hidden />,
-    description: '保留喜欢的小区，慢慢比较区域环境与社区氛围。',
-    emptyTitle: '还没有收藏小区',
-    emptyDescription: '遇到喜欢的小区时，点亮红心把它保存到这里。',
-  },
-] as const;
-type FavoriteTargetType = (typeof favoriteTabs)[number]['key'];
 
 const useStyles = createStyles(({ css, token }) => ({
   page: css`
@@ -523,84 +493,21 @@ const useStyles = createStyles(({ css, token }) => ({
   `,
 }));
 
-function isHouseFavorite(item: FavoriteItem): item is FavoriteItem & {
-  target_type: 'house';
-  target: FavoriteHouseTarget;
-} {
-  return item.target_type === 'house' && item.available && item.target !== null;
-}
-
-function isBuildingFavorite(item: FavoriteItem): item is FavoriteItem & {
-  target_type: 'building';
-  target: FavoriteBuildingTarget;
-} {
-  return (
-    item.target_type === 'building' && item.available && item.target !== null
-  );
-}
-
-function isEstateFavorite(item: FavoriteItem): item is FavoriteItem & {
-  target_type: 'estate';
-  target: FavoriteEstateTarget;
-} {
-  return (
-    item.target_type === 'estate' && item.available && item.target !== null
-  );
-}
-
-function houseTitle(house: FavoriteHouseTarget) {
-  const estateName =
-    house.building.estate?.display_name || house.building.estate?.name;
-  return [estateName, house.building.name, house.room_number]
-    .filter(Boolean)
-    .join(' · ');
-}
-
 function FavoriteCard({
   item,
+  definition,
   removing,
   onRemove,
 }: {
   item: FavoriteItem;
+  definition: ResolvedFavoriteTargetDefinition;
   removing: boolean;
   onRemove: () => void;
 }) {
   const { styles, cx } = useStyles();
-  const house = isHouseFavorite(item) ? item.target : null;
-  const building = isBuildingFavorite(item) ? item.target : null;
-  const estate = isEstateFavorite(item) ? item.target : null;
-  const target = house || building || estate;
-  const cover = target ? mediaCoverUrl(target.images) : undefined;
-  const targetTypeLabel =
-    favoriteTabs.find((tab) => tab.key === item.target_type)?.label ||
-    item.target_type;
-  const title = house
-    ? houseTitle(house)
-    : building
-      ? [building.estate?.display_name || building.estate?.name, building.name]
-          .filter(Boolean)
-          .join(' · ')
-      : estate
-        ? estate.display_name || estate.name
-        : `${targetTypeLabel}收藏`;
-  const subtitle = house
-    ? house.building.address || '地址待补充'
-    : building
-      ? building.address || '楼栋地址待补充'
-      : estate
-        ? [estate.province, estate.city, estate.district, estate.address]
-            .filter(Boolean)
-            .join(' · ') || '小区地址待补充'
-        : '该内容当前不再公开';
-  const publisher = target?.publisher.name;
-  const description = house
-    ? house.public_description
-    : estate
-      ? estate.description
-      : undefined;
-  const tags = house
-    ? house.effective_tags || house.tags || []
-    : building?.tags || [];
+  const presentation = definition.renderer(item, definition.metadata);
+  const { coverUrl, description, facts, publisher, subtitle, tags, title } =
+    presentation;
 
   return (
     <article aria-label={title} className={styles.cardArticle}>
@@ -614,11 +521,11 @@ function FavoriteCard({
             !item.available && styles.mediaUnavailable,
           )}
         >
-          {cover ? (
+          {coverUrl ? (
             <Image
               alt={title}
               preview={false}
-              src={cover}
+              src={coverUrl}
               styles={{
                 image: { height: '100%', objectFit: 'cover', width: '100%' },
                 root: { height: '100%', width: '100%' },
@@ -628,7 +535,9 @@ function FavoriteCard({
             <div className={styles.mediaPlaceholder}>
               <PictureOutlined />
               <span>
-                {item.available ? `暂无${targetTypeLabel}图片` : '内容暂不可见'}
+                {item.available
+                  ? `暂无${definition.displayName}图片`
+                  : '内容暂不可见'}
               </span>
             </div>
           )}
@@ -658,10 +567,12 @@ function FavoriteCard({
         </div>
 
         <div className={styles.cardBody}>
-          <div className={styles.publisher}>
-            <UserOutlined />
-            <span>{publisher || `${targetTypeLabel}信息暂不可见`}</span>
-          </div>
+          {publisher ? (
+            <div className={styles.publisher}>
+              <UserOutlined />
+              <span>{publisher}</span>
+            </div>
+          ) : null}
 
           <Typography.Title className={styles.cardTitle} level={4}>
             {title}
@@ -671,26 +582,17 @@ function FavoriteCard({
             <span>{subtitle}</span>
           </div>
 
-          {house ? (
+          {facts.length ? (
             <div className={styles.highlights}>
-              <span className={styles.rent}>
-                {moneyText(house.asking_rent)}/月
-              </span>
-              <span className={styles.fact}>
-                {housePrimaryLayoutText(house)}
-              </span>
-              <span className={styles.fact}>
-                {house.area ? `${house.area}㎡` : '面积待补充'}
-              </span>
-            </div>
-          ) : null}
-
-          {building ? (
-            <div className={styles.highlights}>
-              <span className={styles.fact}>{building.floors} 层</span>
-              <span className={styles.fact}>
-                {building.elevator ? '配备电梯' : '暂无电梯'}
-              </span>
+              {facts.map((fact) => (
+                <span
+                  className={fact.emphasis ? styles.rent : styles.fact}
+                  key={`${fact.label}:${fact.value}`}
+                  title={fact.label}
+                >
+                  {fact.value}
+                </span>
+              ))}
             </div>
           ) : null}
 
@@ -711,7 +613,7 @@ function FavoriteCard({
 
           {tags.length ? (
             <div className={styles.featureTags}>
-              {[...new Set(tags)].slice(0, 3).map((tag) => (
+              {tags.slice(0, 3).map((tag) => (
                 <span className={styles.featureTag} key={tag}>
                   {tag}
                 </span>
@@ -724,7 +626,7 @@ function FavoriteCard({
               <CalendarOutlined />
               {dayjs(item.created_at).format('YYYY年M月D日')}收藏
             </span>
-            <span>{targetTypeLabel}</span>
+            <span>{definition.displayName}</span>
           </footer>
         </div>
       </Card>
@@ -736,33 +638,69 @@ export default function FavoritesPage() {
   const { styles } = useStyles();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [targetType, setTargetType] = useState<FavoriteTargetType>('house');
+  const [targetType, setTargetType] = useState<string>();
+  const favoriteTypesQuery = useQuery({
+    queryKey: favoriteKeys.types(),
+    queryFn: getFavoriteTypes,
+  });
+  const favoriteTypes = useMemo(
+    () => normalizeFavoriteTargetTypes(favoriteTypesQuery.data || []),
+    [favoriteTypesQuery.data],
+  );
+  const definitions = useMemo(
+    () => favoriteTypes.map(resolveFavoriteTargetDefinition),
+    [favoriteTypes],
+  );
+  const definitionsByType = useMemo(
+    () => new Map(definitions.map((item) => [item.targetType, item])),
+    [definitions],
+  );
+  const activeTargetType =
+    (targetType && definitionsByType.has(targetType) && targetType) ||
+    definitions[0]?.targetType;
+  const activeDefinition = activeTargetType
+    ? definitionsByType.get(activeTargetType)
+    : undefined;
   const favoritesQuery = useQuery({
-    queryKey: [...favoriteQueryKey, targetType, page],
+    queryKey: activeTargetType
+      ? favoriteKeys.list({
+          target_type: activeTargetType,
+          page,
+          page_size: PAGE_SIZE,
+        })
+      : [...favoriteKeys.lists(), 'disabled'],
     queryFn: () =>
       getMyFavorites({
-        target_type: targetType,
+        target_type: activeTargetType,
         page,
         page_size: PAGE_SIZE,
       }),
+    enabled: Boolean(activeTargetType),
   });
   const removeMutation = useMutation({
     mutationFn: (item: FavoriteItem) =>
       removeFavorite(item.target_type, item.target_id),
-    onSuccess: async () => {
+    onSuccess: async (_, item) => {
       message.success('已取消收藏');
       if ((favoritesQuery.data?.items.length || 0) === 1 && page > 1) {
         setPage((current) => current - 1);
       }
-      await queryClient.invalidateQueries({ queryKey: favoriteQueryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: favoriteKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: favoriteKeys.types() }),
+        queryClient.invalidateQueries({
+          queryKey: favoriteKeys.target(item.target_type, item.target_id),
+        }),
+      ]);
     },
     onError: () => message.error('取消收藏失败，请稍后重试'),
   });
 
   const items = favoritesQuery.data?.items || [];
-  const total = favoritesQuery.data?.total || 0;
-  const activeTab =
-    favoriteTabs.find((tab) => tab.key === targetType) || favoriteTabs[0];
+  const total =
+    favoritesQuery.data?.total ??
+    activeDefinition?.metadata.favorite_count ??
+    0;
 
   return (
     <PageContainer title="我的收藏">
@@ -789,34 +727,56 @@ export default function FavoritesPage() {
           </div>
         </section>
 
-        <Tabs
-          activeKey={targetType}
-          className={styles.tabs}
-          items={favoriteTabs.map((tab) => ({
-            icon: tab.icon,
-            key: tab.key,
-            label: tab.label,
-          }))}
-          onChange={(key) => {
-            setTargetType(key as FavoriteTargetType);
-            setPage(1);
-          }}
-        />
+        {favoriteTypesQuery.isError ? (
+          <Alert
+            action={
+              <Button
+                size="small"
+                onClick={() => void favoriteTypesQuery.refetch()}
+              >
+                重新加载
+              </Button>
+            }
+            className={styles.error}
+            description="暂时无法读取可用的收藏类型，请检查网络后重试。"
+            showIcon
+            title="收藏类型加载失败"
+            type="error"
+          />
+        ) : null}
+
+        {definitions.length ? (
+          <Tabs
+            activeKey={activeTargetType}
+            className={styles.tabs}
+            items={definitions.map((definition) => ({
+              icon: definition.icon,
+              key: definition.targetType,
+              label: definition.displayName,
+            }))}
+            onChange={(key) => {
+              setTargetType(key);
+              setPage(1);
+            }}
+          />
+        ) : null}
 
         <section aria-live="polite">
-          <div className={styles.sectionHeader}>
-            <div>
-              <Typography.Title className={styles.sectionTitle} level={3}>
-                {activeTab.label}收藏
-              </Typography.Title>
-              <Typography.Text className={styles.sectionDescription}>
-                {activeTab.description}
-              </Typography.Text>
+          {activeDefinition ? (
+            <div className={styles.sectionHeader}>
+              <div>
+                <Typography.Title className={styles.sectionTitle} level={3}>
+                  {activeDefinition.displayName}收藏
+                </Typography.Title>
+                <Typography.Text className={styles.sectionDescription}>
+                  {activeDefinition.description}
+                </Typography.Text>
+              </div>
+              <span className={styles.resultCount}>
+                {favoritesQuery.isLoading ? '正在整理收藏…' : `共 ${total} 项`}
+              </span>
             </div>
-            <span className={styles.resultCount}>
-              {favoritesQuery.isLoading ? '正在整理收藏…' : `共 ${total} 项`}
-            </span>
-          </div>
+          ) : null}
 
           {favoritesQuery.isError ? (
             <Alert
@@ -836,7 +796,30 @@ export default function FavoritesPage() {
             />
           ) : null}
 
-          {favoritesQuery.isLoading ? (
+          {favoriteTypesQuery.isLoading ? (
+            <div className={styles.loadingState}>
+              <Spin size="large" />
+              <Typography.Text type="secondary">
+                正在读取收藏类型…
+              </Typography.Text>
+            </div>
+          ) : favoriteTypesQuery.isError ? null : !activeDefinition ? (
+            <div className={styles.emptyState}>
+              <Empty
+                description={
+                  <span>
+                    <Typography.Text className={styles.emptyTitle} strong>
+                      暂无可用的收藏类型
+                    </Typography.Text>
+                    <Typography.Text className={styles.emptyDescription}>
+                      业务接入收藏能力后，会自动出现在这里。
+                    </Typography.Text>
+                  </span>
+                }
+                image={<HeartOutlined className={styles.emptyIcon} />}
+              />
+            </div>
+          ) : favoritesQuery.isLoading ? (
             <div className={styles.loadingState}>
               <Spin size="large" />
               <Typography.Text type="secondary">
@@ -847,6 +830,9 @@ export default function FavoritesPage() {
             <div className={styles.grid}>
               {items.map((item) => (
                 <FavoriteCard
+                  definition={
+                    definitionsByType.get(item.target_type) || activeDefinition
+                  }
                   item={item}
                   key={item.id}
                   removing={
@@ -863,10 +849,10 @@ export default function FavoritesPage() {
                 description={
                   <span>
                     <Typography.Text className={styles.emptyTitle} strong>
-                      {activeTab.emptyTitle}
+                      {activeDefinition.emptyTitle}
                     </Typography.Text>
                     <Typography.Text className={styles.emptyDescription}>
-                      {activeTab.emptyDescription}
+                      {activeDefinition.emptyDescription}
                     </Typography.Text>
                   </span>
                 }

@@ -345,7 +345,7 @@ describe('House detail page', () => {
     fireEvent.click(favoriteButton);
 
     await waitFor(() =>
-      expect(mockPutFavorite).toHaveBeenCalledWith('house', 99),
+      expect(mockPutFavorite).toHaveBeenCalledWith('house', '99'),
     );
     const activeButton = await screen.findByRole('button', {
       name: '取消收藏',
@@ -354,7 +354,7 @@ describe('House detail page', () => {
 
     fireEvent.click(activeButton);
     await waitFor(() =>
-      expect(mockRemoveFavorite).toHaveBeenCalledWith('house', 99),
+      expect(mockRemoveFavorite).toHaveBeenCalledWith('house', '99'),
     );
   });
 

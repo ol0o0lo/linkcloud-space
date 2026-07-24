@@ -4,7 +4,12 @@ const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
 
 vi.mock('@umijs/max', () => ({ request: mockRequest }));
 
-import { getMyFavorites, putFavorite, removeFavorite } from './favorites';
+import {
+  getFavoriteTypes,
+  getMyFavorites,
+  putFavorite,
+  removeFavorite,
+} from './favorites';
 
 describe('favorites client', () => {
   beforeEach(() => {
@@ -19,6 +24,15 @@ describe('favorites client', () => {
       method: 'GET',
       params: { page: 2, page_size: 12 },
     });
+  });
+
+  it('读取后端注册的收藏目标类型', async () => {
+    await getFavoriteTypes();
+
+    expect(mockRequest).toHaveBeenCalledWith(
+      '/api/users/me/favorite/type/',
+      { method: 'GET' },
+    );
   });
 
   it('通过通用接口收藏和取消目标', async () => {

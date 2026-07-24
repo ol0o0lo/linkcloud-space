@@ -157,6 +157,12 @@ export default [
         component: './property-rental/map',
       },
       {
+        name: 'analytics',
+        icon: 'barChart',
+        path: '/property-rental/analytics',
+        component: './property-rental/analytics',
+      },
+      {
         name: 'building-detail',
         path: '/property-rental/buildings/:id',
         component: './property-rental/buildings/detail',

@@ -2,17 +2,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetFavorites, mockRemoveFavorite } = vi.hoisted(() => ({
-  mockGetFavorites: vi.fn(),
-  mockRemoveFavorite: vi.fn(),
-}));
+const { mockGetFavoriteTypes, mockGetFavorites, mockRemoveFavorite } =
+  vi.hoisted(() => ({
+    mockGetFavoriteTypes: vi.fn(),
+    mockGetFavorites: vi.fn(),
+    mockRemoveFavorite: vi.fn(),
+  }));
 
 vi.mock('@/components/PageContainer', () => ({
   PageContainer: ({ children }: any) => <section>{children}</section>,
 }));
 
 vi.mock('@/services/manual/favorites', () => ({
+  getFavoriteTypes: mockGetFavoriteTypes,
   getMyFavorites: mockGetFavorites,
+  putFavorite: vi.fn(),
   removeFavorite: mockRemoveFavorite,
 }));
 
@@ -22,6 +26,26 @@ describe('我的收藏页面', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRemoveFavorite.mockResolvedValue({ success: true });
+    mockGetFavoriteTypes.mockResolvedValue([
+      {
+        target_type: 'house',
+        display_name: '房源',
+        order: 10,
+        favorite_count: 1,
+      },
+      {
+        target_type: 'building',
+        display_name: '楼栋',
+        order: 20,
+        favorite_count: 0,
+      },
+      {
+        target_type: 'estate',
+        display_name: '小区',
+        order: 30,
+        favorite_count: 0,
+      },
+    ]);
     mockGetFavorites.mockResolvedValue({
       items: [
         {
@@ -30,6 +54,10 @@ describe('我的收藏页面', () => {
           target_id: '18',
           available: true,
           created_at: '2026-07-19T10:00:00+08:00',
+          display: {
+            title: '云岸花园 · 1栋 · 801',
+            subtitle: '科技园路 1 号',
+          },
           target: {
             id: 18,
             room_number: '801',
@@ -85,6 +113,7 @@ describe('我的收藏页面', () => {
     expect(screen.getByText('单间')).toBeInTheDocument();
     expect(screen.getByText('¥3200.00/月')).toBeInTheDocument();
     expect(screen.getByText('发布方甲')).toBeInTheDocument();
+    expect(screen.getByText('2026年7月19日收藏')).toBeInTheDocument();
     expect(mockGetFavorites).toHaveBeenCalledWith({
       target_type: 'house',
       page: 1,
@@ -168,7 +197,7 @@ describe('我的收藏页面', () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: '楼栋' }));
+    fireEvent.click(await screen.findByRole('tab', { name: '楼栋' }));
     await waitFor(() =>
       expect(screen.getByText('云岸花园 · 1栋')).toBeInTheDocument(),
     );
@@ -184,6 +213,60 @@ describe('我的收藏页面', () => {
     );
     expect(mockGetFavorites).toHaveBeenCalledWith({
       target_type: 'estate',
+      page: 1,
+      page_size: 12,
+    });
+  });
+
+  it('根据后端类型动态生成 Tab，并用通用摘要展示未知业务', async () => {
+    mockGetFavoriteTypes.mockResolvedValue([
+      {
+        target_type: 'article',
+        display_name: '文章',
+        order: 5,
+        favorite_count: 1,
+      },
+    ]);
+    mockGetFavorites.mockResolvedValue({
+      items: [
+        {
+          id: 8,
+          target_type: 'article',
+          target_id: 'guide-2026',
+          available: true,
+          created_at: '2026-07-19T10:00:00+08:00',
+          display: {
+            title: '第一次租房指南',
+            subtitle: '从看房到签约的完整清单',
+            description: '帮助普通租客避开常见问题。',
+            tags: ['租房攻略'],
+            facts: [{ label: '阅读时长', value: '8 分钟' }],
+          },
+          target: { id: 'guide-2026', author: '链云编辑部' },
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 12,
+    });
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FavoritesPage />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole('tab', { name: '文章' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: '房源' })).not.toBeInTheDocument();
+    expect(await screen.findByText('第一次租房指南')).toBeInTheDocument();
+    expect(screen.getByText('从看房到签约的完整清单')).toBeInTheDocument();
+    expect(screen.getByText('帮助普通租客避开常见问题。')).toBeInTheDocument();
+    expect(screen.getByText('8 分钟')).toBeInTheDocument();
+    expect(screen.getByText('租房攻略')).toBeInTheDocument();
+    expect(mockGetFavorites).toHaveBeenCalledWith({
+      target_type: 'article',
       page: 1,
       page_size: 12,
     });

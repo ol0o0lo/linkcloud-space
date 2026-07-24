@@ -87,12 +87,34 @@ export type FavoriteEstateTarget = {
   };
 };
 
+export type FavoriteDisplayFact = {
+  label: string;
+  value: string;
+};
+
+export type FavoriteDisplay = {
+  title: string;
+  subtitle: string;
+  cover_url?: string | null;
+  description?: string | null;
+  tags?: string[];
+  facts?: FavoriteDisplayFact[];
+};
+
+export type FavoriteTargetType = {
+  target_type: string;
+  display_name: string;
+  order: number;
+  favorite_count: number;
+};
+
 export type FavoriteItem = {
   id: number;
   target_type: string;
   target_id: string;
   created_at: string;
   available: boolean;
+  display?: FavoriteDisplay | null;
   target:
     | FavoriteHouseTarget
     | FavoriteBuildingTarget
@@ -107,6 +129,12 @@ export type FavoritePage = {
   page: number;
   page_size: number;
 };
+
+export function getFavoriteTypes() {
+  return request<FavoriteTargetType[]>('/api/users/me/favorite/type/', {
+    method: 'GET',
+  });
+}
 
 export function getMyFavorites(params: {
   page?: number;

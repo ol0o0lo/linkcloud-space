@@ -72,6 +72,7 @@ export default {
   'menu.property-rental.houses': '房源',
   'menu.property-rental.vacancy-sync': '房表同步',
   'menu.property-rental.map': '房源地图',
+  'menu.property-rental.analytics': '经营分析',
   'menu.property-rental.building-detail': '楼栋详情',
   'menu.property-rental.estate-detail': '项目详情',
   'menu.property-rental.house-new': '新建房源',

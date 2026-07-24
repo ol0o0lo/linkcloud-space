@@ -72,6 +72,7 @@ export default {
   'menu.property-rental.houses': 'Houses',
   'menu.property-rental.vacancy-sync': 'Vacancy Sync',
   'menu.property-rental.map': 'Property Map',
+  'menu.property-rental.analytics': 'Business Analytics',
   'menu.property-rental.building-detail': 'Building Detail',
   'menu.property-rental.estate-detail': 'Estate Detail',
   'menu.property-rental.house-new': 'New House',
