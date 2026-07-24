@@ -10,6 +10,7 @@ import {
   Drawer,
   Form,
   Input,
+  Modal,
   message,
   Select,
   Space,
@@ -39,6 +40,114 @@ import { getLoadingAwareEmptyState, isInitialQueryPending } from '../loading';
 
 const PAGE_SIZE = 20;
 
+const EMPTY_RESPONSIBILITIES: Required<PropertyResponsibilityUpdateIn> = {
+  building_ids: [],
+  estate_ids: [],
+  landlord_ids: [],
+};
+
+function normalizeResponsibilities(
+  values: PropertyResponsibilityUpdateIn,
+): Required<PropertyResponsibilityUpdateIn> {
+  return {
+    building_ids: values.building_ids || [],
+    estate_ids: values.estate_ids || [],
+    landlord_ids: values.landlord_ids || [],
+  };
+}
+
+function ResponsibilityScopeSummaryItem({
+  color,
+  items,
+  title,
+}: {
+  color: string;
+  items: { id: number; label: string }[];
+  title: string;
+}) {
+  return (
+    <Space size={[4, 4]} wrap>
+      <Typography.Text type="secondary">{title}</Typography.Text>
+      {items.length ? (
+        <>
+          <Tag color={color}>{items.length} 项</Tag>
+          {items.slice(0, 2).map((item) => (
+            <Tag key={item.id}>{item.label}</Tag>
+          ))}
+          {items.length > 2 ? <Typography.Text type="secondary">+{items.length - 2}</Typography.Text> : null}
+        </>
+      ) : (
+        <Typography.Text type="secondary">未分配</Typography.Text>
+      )}
+    </Space>
+  );
+}
+
+function ResponsibilityScopeSummary({
+  record,
+}: {
+  record: PropertyResponsibilityOut;
+}) {
+  return (
+    <Space orientation="vertical" size={4}>
+      <ResponsibilityScopeSummaryItem
+        title="房东"
+        color="blue"
+        items={record.landlords.map((item) => ({ id: item.id, label: item.name }))}
+      />
+      <ResponsibilityScopeSummaryItem
+        title="楼栋"
+        color="cyan"
+        items={record.buildings.map((item) => ({ id: item.id, label: buildingLabel(item) }))}
+      />
+      <ResponsibilityScopeSummaryItem
+        title="小区"
+        color="green"
+        items={record.estates.map((item) => ({ id: item.id, label: item.display_name || item.name }))}
+      />
+    </Space>
+  );
+}
+
+function ResponsibilityScopeSection({
+  children,
+  color,
+  description,
+  priority,
+  selectedCount,
+  title,
+}: {
+  children: React.ReactNode;
+  color: string;
+  description: string;
+  priority: number;
+  selectedCount: number;
+  title: string;
+}) {
+  return (
+    <Card size="small" style={{ marginBottom: 12 }}>
+      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+        <Space size={8} wrap>
+          <Tag color={color}>{priority}</Tag>
+          <Typography.Text strong>{title}</Typography.Text>
+          <Tag>{selectedCount} 项</Tag>
+        </Space>
+        <Typography.Text type="secondary">{description}</Typography.Text>
+        {children}
+        <Typography.Text type="secondary">留空表示不在该层分配。</Typography.Text>
+      </Space>
+    </Card>
+  );
+}
+
+function selectedOptionLabels(
+  ids: number[],
+  options: { label: string; value: number }[],
+) {
+  const labels = new Map(options.map((option) => [option.value, option.label]));
+  return ids.map((id) => labels.get(id) || `#${id}`);
+}
+
 const StaffResponsibilitiesPage: React.FC = () => {
   const workspace = useTenantWorkspace();
   const [page, setPage] = useState(1);
@@ -50,6 +159,10 @@ const StaffResponsibilitiesPage: React.FC = () => {
   const [previewing, setPreviewing] =
     useState<PropertyResponsibilityOut | null>(null);
   const [form] = Form.useForm<PropertyResponsibilityUpdateIn>();
+  const [draftResponsibilities, setDraftResponsibilities] = useState(
+    EMPTY_RESPONSIBILITIES,
+  );
+  const [pendingResponsibilities, setPendingResponsibilities] = useState<Required<PropertyResponsibilityUpdateIn> | null>(null);
   const enabled = Boolean(workspace.selectedOrgSlug);
 
   const responsibilities = useQuery({
@@ -111,11 +224,13 @@ const StaffResponsibilitiesPage: React.FC = () => {
 
   useEffect(() => {
     if (!editing) return;
-    form.setFieldsValue({
+    const values = normalizeResponsibilities({
       landlord_ids: editing.landlords.map((item) => item.id),
       building_ids: editing.buildings.map((item) => item.id),
       estate_ids: editing.estates.map((item) => item.id),
     });
+    form.setFieldsValue(values);
+    setDraftResponsibilities(values);
   }, [editing, form]);
 
   const saveResponsibilities = useMutation({
@@ -126,6 +241,8 @@ const StaffResponsibilitiesPage: React.FC = () => {
     onSuccess: async () => {
       message.success('员工负责范围已更新');
       setEditing(null);
+      setPendingResponsibilities(null);
+      setDraftResponsibilities(EMPTY_RESPONSIBILITIES);
       form.resetFields();
       await workspace.queryClient.invalidateQueries({
         queryKey: ['house', 'staff-responsibilities'],
@@ -185,55 +302,10 @@ const StaffResponsibilitiesPage: React.FC = () => {
       ),
     },
     {
-      title: '负责房东',
-      dataIndex: 'landlords',
-      width: 280,
-      render: (_value, record) =>
-        record.landlords.length ? (
-          <Space size={[4, 4]} wrap>
-            {record.landlords.map((item) => (
-              <Tag key={item.id} color="blue">
-                {item.name}
-              </Tag>
-            ))}
-          </Space>
-        ) : (
-          <Typography.Text type="secondary">未分配</Typography.Text>
-        ),
-    },
-    {
-      title: '负责楼栋',
-      dataIndex: 'buildings',
-      width: 300,
-      render: (_value, record) =>
-        record.buildings.length ? (
-          <Space size={[4, 4]} wrap>
-            {record.buildings.map((item) => (
-              <Tag key={item.id} color="cyan">
-                {buildingLabel(item)}
-              </Tag>
-            ))}
-          </Space>
-        ) : (
-          <Typography.Text type="secondary">未分配</Typography.Text>
-        ),
-    },
-    {
-      title: '负责小区',
-      dataIndex: 'estates',
-      width: 280,
-      render: (_value, record) =>
-        record.estates.length ? (
-          <Space size={[4, 4]} wrap>
-            {record.estates.map((item) => (
-              <Tag key={item.id} color="green">
-                {item.display_name || item.name}
-              </Tag>
-            ))}
-          </Space>
-        ) : (
-          <Typography.Text type="secondary">未分配</Typography.Text>
-        ),
+      title: '负责范围',
+      dataIndex: 'responsibility_scope',
+      width: 360,
+      render: (_value, record) => <ResponsibilityScopeSummary record={record} />,
     },
     {
       title: '负责房源',
@@ -253,9 +325,9 @@ const StaffResponsibilitiesPage: React.FC = () => {
             type="link"
             size="small"
             icon={<EditOutlined />}
-            onClick={() => setEditing(record)}
+          onClick={() => setEditing(record)}
           >
-            分配范围
+            配置分工
           </Button>
           <Button
             type="link"
@@ -299,13 +371,6 @@ const StaffResponsibilitiesPage: React.FC = () => {
 
   return (
     <TenantSelectionGuard title="员工分工">
-      <Alert
-        type="info"
-        showIcon
-        title="按房东、楼栋或小区分配日常维护范围"
-        description="职责按房东 > 楼栋 > 小区解析。房源命中房东绑定后不再采用楼栋和小区绑定；没有房东绑定时才依次回落到楼栋、小区。"
-        style={{ marginBottom: 16 }}
-      />
       <Card>
         <ProTable<PropertyResponsibilityOut>
           rowKey="member_id"
@@ -356,14 +421,16 @@ const StaffResponsibilitiesPage: React.FC = () => {
       <Drawer
         title={
           editing
-            ? `分配负责范围 · ${formatPersonLabel(editing.user)}`
-            : '分配负责范围'
+            ? `配置分工 · ${formatPersonLabel(editing.user)}`
+            : '配置分工'
         }
         open={Boolean(editing)}
         size={drawerWidthLg}
         destroyOnHidden
         onClose={() => {
           setEditing(null);
+          setPendingResponsibilities(null);
+          setDraftResponsibilities(EMPTY_RESPONSIBILITIES);
           form.resetFields();
         }}
         extra={
@@ -377,72 +444,148 @@ const StaffResponsibilitiesPage: React.FC = () => {
           </Button>
         }
       >
-        <Alert
-          type="warning"
-          showIcon
-          title="保存会整体替换该员工当前的房东、楼栋和小区职责"
-          style={{ marginBottom: 16 }}
-        />
+        <div style={{ margin: '0 4px 16px' }}>
+          <Space size={6} wrap>
+            <Typography.Text type="secondary">分配顺序</Typography.Text>
+            <Tag color="blue" bordered={false}>房东</Tag>
+            <Typography.Text type="secondary" aria-hidden>
+              →
+            </Typography.Text>
+            <Tag color="cyan" bordered={false}>楼栋</Tag>
+            <Typography.Text type="secondary" aria-hidden>
+              →
+            </Typography.Text>
+            <Tag color="green" bordered={false}>小区</Tag>
+          </Space>
+          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
+            同一房源会归属至最先命中的范围；保存前还可再次确认。
+          </Typography.Text>
+        </div>
         <Form<PropertyResponsibilityUpdateIn>
           id="property-responsibility-form"
           form={form}
           layout="vertical"
           initialValues={{ landlord_ids: [], building_ids: [], estate_ids: [] }}
-          onFinish={(values) =>
-            saveResponsibilities.mutateAsync({
-              landlord_ids: values.landlord_ids || [],
-              building_ids: values.building_ids || [],
-              estate_ids: values.estate_ids || [],
-            })
-          }
+          onValuesChange={(_changedValues, values) => setDraftResponsibilities(normalizeResponsibilities(values))}
+          onFinish={(values) => setPendingResponsibilities(normalizeResponsibilities(values))}
         >
-          <Form.Item
-            name="landlord_ids"
-            label="负责房东"
-            extra="覆盖这些房东名下、已登记房东关系的全部房源。"
+          <ResponsibilityScopeSection
+            priority={1}
+            title="房东范围"
+            color="blue"
+            selectedCount={draftResponsibilities.landlord_ids.length}
+            description="直接负责所选房东的关联房源，优先级最高。"
           >
-            <Select
-              mode="multiple"
-              allowClear
-              showSearch={{ optionFilterProp: 'label' }}
-              maxTagCount="responsive"
-              placeholder="选择房东"
-              loading={landlordOptionsQuery.isLoading}
-              options={landlordOptions}
-            />
-          </Form.Item>
-          <Form.Item
-            name="building_ids"
-            label="负责楼栋"
-            extra="仅在房源没有房东级职责时生效，优先于小区级职责。"
+            <Form.Item name="landlord_ids" style={{ marginBottom: 0 }}>
+              <Select
+                aria-label="房东范围"
+                mode="multiple"
+                allowClear
+                showSearch={{ optionFilterProp: 'label' }}
+                maxTagCount="responsive"
+                placeholder="选择房东"
+                loading={landlordOptionsQuery.isLoading}
+                options={landlordOptions}
+              />
+            </Form.Item>
+          </ResponsibilityScopeSection>
+          <ResponsibilityScopeSection
+            priority={2}
+            title="楼栋范围"
+            color="cyan"
+            selectedCount={draftResponsibilities.building_ids.length}
+            description="补充分配，仅对未命中房东范围的房源生效。"
           >
-            <Select
-              mode="multiple"
-              allowClear
-              showSearch={{ optionFilterProp: 'label' }}
-              maxTagCount="responsive"
-              placeholder="选择楼栋"
-              loading={buildingOptionsQuery.isLoading}
-              options={buildingOptions}
-            />
-          </Form.Item>
-          <Form.Item
-            name="estate_ids"
-            label="负责小区"
-            extra="仅在房源没有房东级和楼栋级职责时生效。"
+            <Form.Item name="building_ids" style={{ marginBottom: 0 }}>
+              <Select
+                aria-label="楼栋范围"
+                mode="multiple"
+                allowClear
+                showSearch={{ optionFilterProp: 'label' }}
+                maxTagCount="responsive"
+                placeholder="选择楼栋"
+                loading={buildingOptionsQuery.isLoading}
+                options={buildingOptions}
+              />
+            </Form.Item>
+          </ResponsibilityScopeSection>
+          <ResponsibilityScopeSection
+            priority={3}
+            title="小区范围"
+            color="green"
+            selectedCount={draftResponsibilities.estate_ids.length}
+            description="兜底分配，仅对未命中前两层范围的房源生效。"
           >
-            <Select
-              mode="multiple"
-              allowClear
-              showSearch={{ optionFilterProp: 'label' }}
-              maxTagCount="responsive"
-              placeholder="选择小区"
-              loading={estateOptionsQuery.isLoading}
-              options={estateOptions}
-            />
-          </Form.Item>
+            <Form.Item name="estate_ids" style={{ marginBottom: 0 }}>
+              <Select
+                aria-label="小区范围"
+                mode="multiple"
+                allowClear
+                showSearch={{ optionFilterProp: 'label' }}
+                maxTagCount="responsive"
+                placeholder="选择小区"
+                loading={estateOptionsQuery.isLoading}
+                options={estateOptions}
+              />
+            </Form.Item>
+          </ResponsibilityScopeSection>
         </Form>
       </Drawer>
+
+      <Modal
+        title="确认替换分工"
+        open={Boolean(pendingResponsibilities)}
+        okText="确认替换分工"
+        cancelText="返回修改"
+        confirmLoading={saveResponsibilities.isPending}
+        onCancel={() => setPendingResponsibilities(null)}
+        onOk={async () => {
+          if (!pendingResponsibilities) return;
+          await saveResponsibilities.mutateAsync(pendingResponsibilities);
+        }}
+      >
+        {pendingResponsibilities ? (
+          <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+            {pendingResponsibilities.landlord_ids.length || pendingResponsibilities.building_ids.length || pendingResponsibilities.estate_ids.length ? (
+              <Alert
+                type="warning"
+                showIcon
+                title="本次保存会完全替换该员工现有分工"
+                description="请核对以下三个层级的选择后再确认。"
+              />
+            ) : (
+              <Alert
+                type="error"
+                showIcon
+                title="取消全部负责范围"
+                description="确认后，该员工将不再负责任何房东、楼栋或小区范围。"
+              />
+            )}
+            {[
+              {
+                title: '房东范围',
+                labels: selectedOptionLabels(pendingResponsibilities.landlord_ids, landlordOptions),
+              },
+              {
+                title: '楼栋范围',
+                labels: selectedOptionLabels(pendingResponsibilities.building_ids, buildingOptions),
+              },
+              {
+                title: '小区范围',
+                labels: selectedOptionLabels(pendingResponsibilities.estate_ids, estateOptions),
+              },
+            ].map((scope) => (
+              <div key={scope.title}>
+                <Typography.Text strong>{scope.title}</Typography.Text>
+                <Typography.Text type="secondary"> · {scope.labels.length} 项</Typography.Text>
+                <div>
+                  {scope.labels.length ? scope.labels.join('、') : <Typography.Text type="secondary">未分配</Typography.Text>}
+                </div>
+              </div>
+            ))}
+          </Space>
+        ) : null}
+      </Modal>
 
       <Drawer
         title={
