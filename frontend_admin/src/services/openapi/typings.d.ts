@@ -194,6 +194,186 @@ declare namespace API {
     is_superuser?: boolean | null;
   };
 
+  type AnalyticsCollectErrorOut = {
+    /** Index */
+    index: number;
+    /** Event Name */
+    event_name: string;
+    /** Message */
+    message: string;
+  };
+
+  type AnalyticsCollectOut = {
+    /** Accepted */
+    accepted: number;
+    /** Duplicates */
+    duplicates: number;
+    /** Event Ids */
+    event_ids: number[];
+    /** Errors */
+    errors: AnalyticsCollectErrorOut[];
+  };
+
+  type AnalyticsEventDefinitionOut = {
+    /** Key */
+    key: string;
+    /** Label */
+    label: string;
+    /** Target Types */
+    target_types: string[];
+    /** Allow Anonymous */
+    allow_anonymous: boolean;
+    /** Client Collectible */
+    client_collectible: boolean;
+  };
+
+  type AnalyticsEventIn = {
+    /** Event Name */
+    event_name: string;
+    /** Target Type */
+    target_type: string;
+    /** Target Id */
+    target_id: string | number;
+    /** Source */
+    source?: string;
+    /** Anonymous Id */
+    anonymous_id?: string;
+    /** Session Id */
+    session_id?: string;
+    /** Occurred At */
+    occurred_at?: string | null;
+    /** Properties */
+    properties?: Record<string, any>;
+    /** Idempotency Key */
+    idempotency_key?: string;
+  };
+
+  type AnalyticsEventsIn = {
+    /** Events */
+    events: AnalyticsEventIn[];
+  };
+
+  type AnalyticsMetricOut = {
+    /** Event Name */
+    event_name: string;
+    /** Label */
+    label: string;
+    /** Count */
+    count: number;
+    /** Unique Visitors */
+    unique_visitors: number;
+  };
+
+  type AnalyticsOverviewOut = {
+    /** Start Date */
+    start_date: string;
+    /** End Date */
+    end_date: string;
+    /** Total Events */
+    total_events: number;
+    /** Unique Visitors */
+    unique_visitors: number;
+    /** Metrics */
+    metrics: AnalyticsMetricOut[];
+  };
+
+  type AnalyticsTargetDisplayItemOut = {
+    /** Target Type */
+    target_type: string;
+    /** Target Id */
+    target_id: string;
+    /** Label */
+    label: string;
+  };
+
+  type AnalyticsTargetMetricOut = {
+    /** Target Id */
+    target_id: string;
+    /** Label */
+    label: string;
+    /** Display Items */
+    display_items: AnalyticsTargetDisplayItemOut[];
+    /** Total */
+    total: number;
+    /** Unique Visitors */
+    unique_visitors: number;
+    /** Metrics */
+    metrics: Record<string, any>;
+  };
+
+  type AnalyticsTrendPointOut = {
+    /** Date */
+    date: string;
+    /** Event Name */
+    event_name: string;
+    /** Count */
+    count: number;
+    /** Unique Visitors */
+    unique_visitors: number;
+  };
+
+  type AnnouncementIn = {
+    /** Team Id 团队 ID；为空时表示整个组织。 */
+    team_id?: number | null;
+    /** Title */
+    title: string;
+    /** Body */
+    body: string;
+    /** Require Acknowledgement */
+    require_acknowledgement?: boolean;
+    /** Expires At */
+    expires_at?: string | null;
+  };
+
+  type AnnouncementOut = {
+    /** Id */
+    id: number;
+    /** Organization Id */
+    organization_id: number;
+    /** Team Id */
+    team_id?: number | null;
+    /** Team Name */
+    team_name?: string | null;
+    /** Title */
+    title: string;
+    /** Body */
+    body: string;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Require Acknowledgement */
+    require_acknowledgement: boolean;
+    published_by?: UserSummaryOut | null;
+    /** Published At */
+    published_at?: string | null;
+    /** Expires At */
+    expires_at?: string | null;
+    /** Is Recipient */
+    is_recipient?: boolean;
+    /** Is Acknowledged */
+    is_acknowledged?: boolean;
+    /** Can Manage */
+    can_manage?: boolean;
+    /** Recipient Count */
+    recipient_count?: number;
+    /** Acknowledged Count */
+    acknowledged_count?: number;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type AnnouncementReceiptOut = {
+    /** Announcement Id */
+    announcement_id: number;
+    /** Recipient Id */
+    recipient_id: number;
+    /** Acknowledged At */
+    acknowledged_at?: string | null;
+  };
+
   type AppContextOrgOut = {
     /** Id */
     id: number;
@@ -406,6 +586,48 @@ declare namespace API {
     user_id: number;
   };
 
+  type appsAnalyticsApiGetOverviewParams = {
+    start_date?: string | null;
+    end_date?: string | null;
+    source?: string | null;
+  };
+
+  type appsAnalyticsApiGetTargetsParams = {
+    target_type: string;
+    start_date?: string | null;
+    end_date?: string | null;
+    source?: string | null;
+    /** 逗号分隔的事件名称。 */
+    event_names?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsAnalyticsApiGetTrendsParams = {
+    start_date?: string | null;
+    end_date?: string | null;
+    source?: string | null;
+    /** 逗号分隔的事件名称。 */
+    event_names?: string | null;
+  };
+
+  type appsFavoritesApiDeleteUserFavoriteParams = {
+    target_type: string;
+    target_id: string;
+  };
+
+  type appsFavoritesApiListFavoritesParams = {
+    target_type?: string | null;
+    target_id?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsFavoritesApiPutUserFavoriteParams = {
+    target_type: string;
+    target_id: string;
+  };
+
   type appsHouseApiCheckBuildingDeleteParams = {
     building_id: number;
   };
@@ -444,6 +666,10 @@ declare namespace API {
 
   type appsHouseApiGetLeaseParams = {
     lease_id: number;
+  };
+
+  type appsHouseApiGetPublicHouseParams = {
+    house_id: number;
   };
 
   type appsHouseApiGetViewingRecordParams = {
@@ -533,6 +759,26 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type appsHouseApiListPublicHousesParams = {
+    keyword?: string | null;
+    province?: string | null;
+    city?: string | null;
+    district?: string | null;
+    min_rent?: number | string | null;
+    max_rent?: number | string | null;
+    min_area?: number | string | null;
+    max_area?: number | string | null;
+    bedrooms?: number | null;
+    living_rooms?: number | null;
+    decoration?: string | null;
+    has_elevator_access?: boolean | null;
+    tags?: string[] | null;
+    publisher_slug?: string | null;
+    sort?: "latest" | "rent_asc" | "rent_desc" | "area_asc" | "area_desc";
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsHouseApiListStaffResponsibilitiesParams = {
     keyword?: string | null;
     page?: number;
@@ -586,12 +832,19 @@ declare namespace API {
     resource_type?: string | null;
   };
 
+  type appsNotificationsApiCreateDispatchParams = {
+    /** 管理上下文：自动、平台或当前租户。 */
+    management_context?: "auto" | "platform" | "tenant";
+  };
+
   type appsNotificationsApiDeleteNotificationParams = {
     notification_id: number;
   };
 
   type appsNotificationsApiGetDispatchParams = {
     dispatch_id: number;
+    /** 管理上下文：自动、平台或当前租户。 */
+    management_context?: "auto" | "platform" | "tenant";
   };
 
   type appsNotificationsApiGetNotificationParams = {
@@ -599,12 +852,27 @@ declare namespace API {
   };
 
   type appsNotificationsApiListDispatchesParams = {
+    /** 管理上下文：自动、平台或当前租户。 */
+    management_context?: "auto" | "platform" | "tenant";
     page?: number;
     page_size?: number | null;
   };
 
   type appsNotificationsApiListDispatchNotificationsParams = {
     dispatch_id: number;
+    /** 管理上下文：自动、平台或当前租户。 */
+    management_context?: "auto" | "platform" | "tenant";
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsNotificationsApiListDispatchTargetsParams = {
+    /** 目标范围。 */
+    scope: "organization" | "teams" | "users";
+    /** 按名称、标识或邮箱搜索目标。 */
+    keyword?: string;
+    /** 管理上下文：自动、平台或当前租户。 */
+    management_context?: "auto" | "platform" | "tenant";
     page?: number;
     page_size?: number | null;
   };
@@ -775,6 +1043,78 @@ declare namespace API {
   type appsSettingsApiPutUserSettingParams = {
     /** 个人设置 key。 */
     key: string;
+  };
+
+  type appsTeamOperationsApiAcceptTaskAssignmentParams = {
+    assignment_id: number;
+  };
+
+  type appsTeamOperationsApiAcknowledgeAnnouncementEndpointParams = {
+    announcement_id: number;
+  };
+
+  type appsTeamOperationsApiCancelTaskParams = {
+    task_id: number;
+  };
+
+  type appsTeamOperationsApiCompleteTaskAssignmentParams = {
+    assignment_id: number;
+  };
+
+  type appsTeamOperationsApiGetAnnouncementParams = {
+    announcement_id: number;
+  };
+
+  type appsTeamOperationsApiGetTaskAssignmentParams = {
+    assignment_id: number;
+  };
+
+  type appsTeamOperationsApiGetTaskParams = {
+    task_id: number;
+  };
+
+  type appsTeamOperationsApiListAnnouncementsParams = {
+    team_id?: number | null;
+    status?: string | null;
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsTeamOperationsApiListTaskAssigneesParams = {
+    team_id?: number | null;
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsTeamOperationsApiListTaskAssignmentsParams = {
+    status?: string | null;
+    overdue?: boolean | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsTeamOperationsApiListTasksParams = {
+    team_id?: number | null;
+    status?: string | null;
+    priority?: string | null;
+    keyword?: string | null;
+    mine?: boolean | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsTeamOperationsApiPublishAnnouncementEndpointParams = {
+    announcement_id: number;
+  };
+
+  type appsTeamOperationsApiRejectTaskAssignmentParams = {
+    assignment_id: number;
+  };
+
+  type appsTeamOperationsApiWithdrawAnnouncementEndpointParams = {
+    announcement_id: number;
   };
 
   type appsTeamsApiDeleteTeamParams = {
@@ -1153,6 +1493,23 @@ declare namespace API {
     permission_keys?: string[] | null;
   };
 
+  type DailyDashboardOut = {
+    /** Pending Acceptance */
+    pending_acceptance: number;
+    /** In Progress */
+    in_progress: number;
+    /** Due Today */
+    due_today: number;
+    /** Overdue */
+    overdue: number;
+    /** Completed Today */
+    completed_today: number;
+    /** Unacknowledged Announcements */
+    unacknowledged_announcements: number;
+    /** Urgent Items */
+    urgent_items?: TaskAssignmentOut[];
+  };
+
   type DefaultBuildingIn = {
     /** Building Id */
     building_id: number;
@@ -1325,6 +1682,55 @@ declare namespace API {
     name: string;
     /** Display Name */
     display_name: string;
+  };
+
+  type FavoriteDisplayFactOut = {
+    /** Label */
+    label: string;
+    /** Value */
+    value: string;
+  };
+
+  type FavoriteOut = {
+    /** Id */
+    id: number;
+    /** Target Type */
+    target_type: string;
+    /** Target Id */
+    target_id: string;
+    /** Created At */
+    created_at: string;
+    /** Available */
+    available: boolean;
+    display: FavoriteTargetDisplayOut | null;
+    /** Target */
+    target: Record<string, any> | null;
+  };
+
+  type FavoriteTargetDisplayOut = {
+    /** Title */
+    title: string;
+    /** Subtitle */
+    subtitle?: string;
+    /** Cover Url */
+    cover_url?: string | null;
+    /** Description */
+    description?: string;
+    /** Tags */
+    tags?: string[];
+    /** Facts */
+    facts?: FavoriteDisplayFactOut[];
+  };
+
+  type FavoriteTargetTypeOut = {
+    /** Target Type */
+    target_type: string;
+    /** Display Name */
+    display_name: string;
+    /** Order */
+    order: number;
+    /** Favorite Count */
+    favorite_count: number;
   };
 
   type ForceLogoutOut = {
@@ -1811,7 +2217,7 @@ declare namespace API {
 
   type NotificationDispatchIn = {
     /** Scope */
-    scope: "platform" | "organization" | "users";
+    scope: "platform" | "organization" | "teams" | "users";
     /** Scope Ids */
     scope_ids?: number[];
     /** Category */
@@ -1867,17 +2273,38 @@ declare namespace API {
     updated_at: string;
   };
 
+  type NotificationDispatchTargetOut = {
+    /** Id */
+    id: number;
+    /** Label */
+    label: string;
+    /** Description */
+    description?: string;
+    /** Avatar Url */
+    avatar_url?: string | null;
+  };
+
   type NotificationOut = {
     /** Id */
     id: number;
+    /** Category */
+    category: string;
     /** Title */
     title: string;
     /** Body */
     body: string;
     /** Url */
     url?: string | null;
+    /** Data */
+    data: Record<string, any>;
+    /** Target Type */
+    target_type?: string | null;
+    /** Target Id */
+    target_id?: number | null;
     /** Is Read */
     is_read: boolean;
+    /** Expires At */
+    expires_at?: string | null;
     /** Created At */
     created_at: string;
     actor?: NotificationActorOut | null;
@@ -1899,6 +2326,10 @@ declare namespace API {
     default_channels?: string[];
     /** Default Channels  Mapping */
     default_channels__mapping: string[];
+    /** Required Channels */
+    required_channels?: string[];
+    /** Required Channels  Mapping */
+    required_channels__mapping: string[];
     /** In App */
     in_app: boolean;
     /** Email */
@@ -1950,6 +2381,10 @@ declare namespace API {
     slug: string;
     /** Billing Email */
     billing_email?: string | null;
+    /** Logo */
+    logo?: ResolvedMediaRefOut[];
+    /** Description */
+    description?: string;
     /** Is Active */
     is_active: boolean;
     /** Member Limit */
@@ -1965,6 +2400,10 @@ declare namespace API {
     slug?: string | null;
     /** Billing Email 租户账单联系邮箱。 */
     billing_email?: string | null;
+    /** Logo 租户 Logo 媒体引用，最多 1 个。 */
+    logo?: MediaRefIn[] | null;
+    /** Description 租户介绍。 */
+    description?: string | null;
     /** Member Limit 成员数量上限，null 表示不限。 */
     member_limit?: number | null;
     /** Team Limit 团队数量上限，null 表示不限。 */
@@ -2061,6 +2500,28 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedAnalyticsTargetMetricOut = {
+    /** Items */
+    items: AnalyticsTargetMetricOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedAnnouncementOut = {
+    /** Items */
+    items: AnnouncementOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedBuildingInventoryOut = {
     /** Items */
     items: BuildingInventoryOut[];
@@ -2127,6 +2588,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedFavoriteOut = {
+    /** Items */
+    items: FavoriteOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedHouseOut = {
     /** Items */
     items: HouseOut[];
@@ -2182,6 +2654,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedNotificationDispatchTargetOut = {
+    /** Items */
+    items: NotificationDispatchTargetOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedNotificationOut = {
     /** Items */
     items: NotificationOut[];
@@ -2204,9 +2687,31 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedPublicHouseListOut = {
+    /** Items */
+    items: PublicHouseListOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedReferralRecordOut = {
     /** Items */
     items: ReferralRecordOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedTaskAssignmentOut = {
+    /** Items */
+    items: TaskAssignmentOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2229,6 +2734,17 @@ declare namespace API {
   type PagedUserOut = {
     /** Items */
     items: UserOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedUserSummaryOut = {
+    /** Items */
+    items: UserSummaryOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2273,6 +2789,17 @@ declare namespace API {
   type PagedWithdrawalOut = {
     /** Items */
     items: WithdrawalOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedWorkTaskOut = {
+    /** Items */
+    items: WorkTaskOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2333,6 +2860,152 @@ declare namespace API {
     estate_ids?: number[];
   };
 
+  type PublicBuildingOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Address */
+    address: string;
+    /** Lat */
+    lat: string | null;
+    /** Lng */
+    lng: string | null;
+    estate: PublicEstateOut | null;
+  };
+
+  type PublicEstateOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Display Name */
+    display_name: string;
+    /** Province */
+    province: string;
+    /** City */
+    city: string;
+    /** District */
+    district: string;
+    /** Address */
+    address: string;
+  };
+
+  type PublicHouseDetailOut = {
+    /** Id */
+    id: number;
+    /** Room Number */
+    room_number: string;
+    /** Floor */
+    floor: number | null;
+    /** Area */
+    area: string | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Bedrooms */
+    bedrooms: number | null;
+    /** Living Rooms */
+    living_rooms: number | null;
+    /** Bathrooms */
+    bathrooms: number | null;
+    /** Orientation */
+    orientation: string | null;
+    /** Orientation  Mapping */
+    orientation__mapping: string;
+    /** Decoration */
+    decoration: string | null;
+    /** Decoration  Mapping */
+    decoration__mapping: string;
+    /** Has Elevator Access */
+    has_elevator_access: boolean;
+    /** Images */
+    images: ResolvedMediaRefOut[];
+    /** Tags */
+    tags: string[];
+    /** Effective Tags */
+    effective_tags: string[];
+    /** Public Description */
+    public_description: string;
+    building: PublicBuildingOut;
+    publisher: PublicPublisherOut;
+    /** Updated At */
+    updated_at: string;
+    /** Interior Area */
+    interior_area: string | null;
+    /** Deposit Amount */
+    deposit_amount: string | null;
+    /** Kitchens */
+    kitchens: number | null;
+    /** Balconies */
+    balconies: number | null;
+    /** Videos */
+    videos: ResolvedMediaRefOut[];
+  };
+
+  type PublicHouseFiltersOut = {
+    /** Rent Min */
+    rent_min: string | null;
+    /** Rent Max */
+    rent_max: string | null;
+    /** Area Min */
+    area_min: string | null;
+    /** Area Max */
+    area_max: string | null;
+    /** Provinces */
+    provinces: string[];
+    /** Cities */
+    cities: string[];
+    /** Districts */
+    districts: string[];
+    /** Bedrooms */
+    bedrooms: number[];
+    /** Living Rooms */
+    living_rooms: number[];
+    /** Tags */
+    tags: string[];
+  };
+
+  type PublicHouseListOut = {
+    /** Id */
+    id: number;
+    /** Room Number */
+    room_number: string;
+    /** Floor */
+    floor: number | null;
+    /** Area */
+    area: string | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Bedrooms */
+    bedrooms: number | null;
+    /** Living Rooms */
+    living_rooms: number | null;
+    /** Bathrooms */
+    bathrooms: number | null;
+    /** Orientation */
+    orientation: string | null;
+    /** Orientation  Mapping */
+    orientation__mapping: string;
+    /** Decoration */
+    decoration: string | null;
+    /** Decoration  Mapping */
+    decoration__mapping: string;
+    /** Has Elevator Access */
+    has_elevator_access: boolean;
+    /** Images */
+    images: ResolvedMediaRefOut[];
+    /** Tags */
+    tags: string[];
+    /** Effective Tags */
+    effective_tags: string[];
+    /** Public Description */
+    public_description: string;
+    building: PublicBuildingOut;
+    publisher: PublicPublisherOut;
+    /** Updated At */
+    updated_at: string;
+  };
+
   type PublicInviteOut = {
     /** Organization Name */
     organization_name: string;
@@ -2344,6 +3017,17 @@ declare namespace API {
     is_expired: boolean;
     /** Is Already Member */
     is_already_member: boolean;
+  };
+
+  type PublicPublisherOut = {
+    /** Slug */
+    slug: string;
+    /** Name */
+    name: string;
+    /** Logo */
+    logo: ResolvedMediaRefOut[];
+    /** Description */
+    description: string;
   };
 
   type RealNameIdCardMediaIn = {
@@ -2766,6 +3450,57 @@ declare namespace API {
     tags: string[];
   };
 
+  type TaskActionIn = {
+    /** Result */
+    result?: string;
+  };
+
+  type TaskAssignmentOut = {
+    /** Id */
+    id: number;
+    /** Task Id */
+    task_id: number;
+    /** Task Title */
+    task_title: string;
+    /** Task Description */
+    task_description: string;
+    /** Task Type */
+    task_type: string;
+    /** Priority */
+    priority: string;
+    /** Priority  Mapping */
+    priority__mapping: string;
+    /** Task Status */
+    task_status: string;
+    /** Task Status  Mapping */
+    task_status__mapping: string;
+    /** Team Id */
+    team_id?: number | null;
+    /** Team Name */
+    team_name?: string | null;
+    assignee: UserSummaryOut;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Due At */
+    due_at?: string | null;
+    /** Is Overdue */
+    is_overdue: boolean;
+    /** Accepted At */
+    accepted_at?: string | null;
+    /** Completed At */
+    completed_at?: string | null;
+    /** Rejected At */
+    rejected_at?: string | null;
+    /** Result */
+    result: string;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
   type TeamBindingOut = {
     /** Id */
     id: number;
@@ -2782,8 +3517,27 @@ declare namespace API {
   type TeamIn = {
     /** Name 团队名称。 */
     name: string;
+    /** Phone 团队联系电话。 */
+    phone?: string;
+    /** Wechat 团队客服微信号。 */
+    wechat?: string;
+    /** Address 团队地址。 */
+    address?: string;
+    /** Business Hours 团队营业时间。 */
+    business_hours?: string;
     /** Members 初始成员用户 ID 列表。 */
     members?: number[];
+  };
+
+  type TeamOperationsCapabilitiesOut = {
+    /** Announcement Organization Manage */
+    announcement_organization_manage: boolean;
+    /** Announcement Team Ids */
+    announcement_team_ids?: number[];
+    /** Task Organization Manage */
+    task_organization_manage: boolean;
+    /** Task Team Ids */
+    task_team_ids?: number[];
   };
 
   type TeamOut = {
@@ -2791,6 +3545,14 @@ declare namespace API {
     id: number;
     /** Name */
     name: string;
+    /** Phone */
+    phone?: string;
+    /** Wechat */
+    wechat?: string;
+    /** Address */
+    address?: string;
+    /** Business Hours */
+    business_hours?: string;
     /** Members */
     members: number[];
     /** Member Details */
@@ -2804,6 +3566,14 @@ declare namespace API {
   type TeamPatchIn = {
     /** Name 新的团队名称。 */
     name?: string | null;
+    /** Phone 团队联系电话。 */
+    phone?: string | null;
+    /** Wechat 团队客服微信号。 */
+    wechat?: string | null;
+    /** Address 团队地址。 */
+    address?: string | null;
+    /** Business Hours 团队营业时间。 */
+    business_hours?: string | null;
     /** Members 新的团队成员用户 ID 列表。 */
     members?: number[] | null;
   };
@@ -2878,6 +3648,15 @@ declare namespace API {
   type UserStatusPatchIn = {
     /** Is Active 是否启用用户。 */
     is_active: boolean;
+  };
+
+  type UserSummaryOut = {
+    /** Id */
+    id: number;
+    /** Username */
+    username: string;
+    /** Full Name */
+    full_name: string;
   };
 
   type VacancySyncBlockOut = {
@@ -3289,5 +4068,70 @@ declare namespace API {
     reason?: string;
     /** Idempotency Key */
     idempotency_key: string;
+  };
+
+  type WorkTaskIn = {
+    /** Team Id 团队 ID；为空时表示组织级任务。 */
+    team_id?: number | null;
+    /** Title */
+    title: string;
+    /** Description */
+    description?: string;
+    /** Task Type */
+    task_type?: string;
+    /** Priority */
+    priority?: string;
+    /** Due At */
+    due_at?: string | null;
+    /** Assignee Ids */
+    assignee_ids: number[];
+    /** Url */
+    url?: string;
+    /** Data */
+    data?: Record<string, any>;
+  };
+
+  type WorkTaskOut = {
+    /** Id */
+    id: number;
+    /** Organization Id */
+    organization_id: number;
+    /** Team Id */
+    team_id?: number | null;
+    /** Team Name */
+    team_name?: string | null;
+    /** Title */
+    title: string;
+    /** Description */
+    description: string;
+    /** Task Type */
+    task_type: string;
+    /** Priority */
+    priority: string;
+    /** Priority  Mapping */
+    priority__mapping: string;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Due At */
+    due_at?: string | null;
+    creator?: UserSummaryOut | null;
+    /** Url */
+    url: string;
+    /** Data */
+    data: Record<string, any>;
+    /** Completed At */
+    completed_at?: string | null;
+    /** Cancelled At */
+    cancelled_at?: string | null;
+    /** Can Manage */
+    can_manage?: boolean;
+    /** Assignments */
+    assignments?: TaskAssignmentOut[];
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
   };
 }

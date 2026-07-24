@@ -8,6 +8,7 @@ import * as accessPermissions from "./accessPermissions";
 import * as accessTeamBindings from "./accessTeamBindings";
 import * as accessTeamRoles from "./accessTeamRoles";
 import * as adminReferrals from "./adminReferrals";
+import * as analytics from "./analytics";
 import * as appSystem from "./appSystem";
 import * as mediaFiles from "./mediaFiles";
 import * as notificationDispatches from "./notificationDispatches";
@@ -19,14 +20,17 @@ import * as organizations from "./organizations";
 import * as organizationSettings from "./organizationSettings";
 import * as propertyRentalLandlord from "./propertyRentalLandlord";
 import * as propertyRentalManagement from "./propertyRentalManagement";
+import * as publicHouses from "./publicHouses";
 import * as publicOrganizationInvites from "./publicOrganizationInvites";
 import * as realName from "./realName";
 import * as realNameAdmin from "./realNameAdmin";
 import * as referrals from "./referrals";
+import * as teamOperations from "./teamOperations";
 import * as teams from "./teams";
 import * as teamSettings from "./teamSettings";
 import * as userAccount from "./userAccount";
 import * as userAdmin from "./userAdmin";
+import * as userFavorites from "./userFavorites";
 import * as userSettings from "./userSettings";
 import * as userWallet from "./userWallet";
 import * as walletAdmin from "./walletAdmin";
@@ -43,6 +47,8 @@ export default {
   publicOrganizationInvites,
   notificationDispatches,
   notifications,
+  teamOperations,
+  analytics,
   organizationMembers,
   organizationProfile,
   organizations,
@@ -61,4 +67,6 @@ export default {
   userSettings,
   propertyRentalManagement,
   propertyRentalLandlord,
+  publicHouses,
+  userFavorites,
 };

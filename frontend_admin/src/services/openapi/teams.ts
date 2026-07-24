@@ -62,7 +62,7 @@ export async function appsTeamsApiDeleteTeam(
   });
 }
 
-/** 更新团队 更新团队名称或成员列表，成员变更需要额外的成员管理权限。 PATCH /api/teams/${param0}/ */
+/** 更新团队 更新团队资料或成员列表，成员变更需要额外的成员管理权限。 PATCH /api/teams/${param0}/ */
 export async function appsTeamsApiPatchTeam(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsTeamsApiPatchTeamParams,

@@ -13,6 +13,7 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '租户/档案': 'organization-profile',
   '通知/消息': 'notifications',
   通知分发: 'notificationDispatches',
+  团队运营: 'team-operations',
   '团队/基础': 'teams',
   '用户/账户': 'user-account',
   '用户/管理': 'user-admin',
@@ -29,6 +30,9 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '设置/个人设置': 'user-settings',
   '房源/房东': 'property-rental-landlord',
   '房源/管理': 'property-rental-management',
+  '房源/公开': 'public-houses',
+  '公开/行为采集': 'public-analytics-events',
+  经营分析: 'analytics',
 };
 
 const ALLAUTH_TAG_CODEGEN_MAP = {
