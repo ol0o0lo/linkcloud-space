@@ -38,6 +38,7 @@
 ### 扩展业务能力
 
 - 实名认证：用户提交、日志时间线、后台审核、撤销与重试
+- 通用数据埋点：登录/匿名批量采集、租户隔离、去重幂等、趋势与排行分析
 - 后端统一 API 文档、错误处理和多鉴权方式
 - Celery + Redis 后台任务
 - WhiteNoise 静态资源服务与 S3/MinIO 兼容媒体存储支持
@@ -73,6 +74,7 @@ docs/                  项目文档
 - `apps/access`：RBAC 角色、权限、绑定关系
 - `apps/notifications`：站内/邮件通知与偏好设置
 - `apps/media`：通用媒体存储平台，提供 OSS/STS 上传、服务端上传、`media_ids` 校验与顺序回显、Provider 驱动的延迟清理
+- `apps/analytics`：通用数据埋点采集、目标注册、租户隔离和经营分析查询
 - `apps/settings`：用户/组织/团队三级设置
 - `apps/base`：SPA 壳、应用上下文、CSRF、第三方登录跳转、通用工具
 
@@ -164,6 +166,7 @@ just format                # 格式化代码
 - [docs/environment.md](docs/environment.md)：环境变量说明
 - [docs/frontend-structure.md](docs/frontend-structure.md)：前端工程结构与边界
 - [docs/media-platform.md](docs/media-platform.md)：媒体平台接入约定
+- [docs/analytics-platform.md](docs/analytics-platform.md)：通用数据埋点方案
 
 ## 适合继续扩展的方向
 

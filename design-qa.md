@@ -147,6 +147,103 @@ final result: blocked
 
 ---
 
+# 租户通知分发方案 2 QA（2026-07-19）
+
+**Source visual truth**
+
+- Reference: `/Users/lan/.codex/visualizations/2026/07/19/019f786a-21fb-7060-bf6f-2033e125b62f/notification-dispatch-option-2.png`
+- Size: 1487 × 1058。
+- Approved direction: 租户空间内的双栏通知编辑器，左侧编辑接收范围与内容，右侧实时预览、发送摘要和不可撤回提示，底部同时展示发送对象与操作按钮。
+
+**Implementation evidence**
+
+- Route: `http://localhost:8080/dashboard/tenant-operations/notification-dispatches`
+- Final screenshot: `/Users/lan/.codex/visualizations/2026/07/19/019f786a-21fb-7060-bf6f-2033e125b62f/notification-dispatch-option-2-implementation-final.png`
+- Full comparison: `/Users/lan/.codex/visualizations/2026/07/19/019f786a-21fb-7060-bf6f-2033e125b62f/notification-dispatch-option-2-comparison-final.png`
+- Focused comparison: `/Users/lan/.codex/visualizations/2026/07/19/019f786a-21fb-7060-bf6f-2033e125b62f/notification-dispatch-option-2-comparison-focused-final.png`
+- Viewport: 1487 × 1058，DPR 2，浅色主题，当前空间 LAN。
+- State: “指定团队”，已选 `1 · LAN`、`2 · LAN`，标题“设备例行维护通知”，98 / 2000 字正文，站内任务详情链接；未点击“确认发送”，未创建真实分发记录。
+
+**Route and permission matrix**
+
+- 租户路由只显示“空间全员 / 指定团队 / 指定成员”，创建、列表、详情和候选请求均使用 `management_context=tenant`。
+- 平台路由只显示“全平台 / 指定空间 / 指定用户”，请求使用 `management_context=platform`。
+- 超级管理员进入租户路由时仍按当前空间边界执行；空间切换会关闭编辑器、清理详情和旧候选并刷新列表。
+
+**Primary interactions tested**
+
+- 从“空间全员”切换到“指定团队”，选择两个团队后，选择说明、右侧接收范围和底部发送对象同步更新。
+- 标题、正文和点击链接输入后，预览标题、正文、字数、铃铛图标和“查看详情”同步更新。
+- 未选择通知分类时明确展示“站内通知”；选择分类后的代码路径展示“按分类偏好投递”。
+- 850 × 900 与 575 × 900 断点无页面横向溢出，弹窗保持在视口内，正文区域可滚动，底部操作始终可达。
+- 干净新页签重新加载后，页面正常渲染且 error-level console 日志为 0；长期开发页签中此前存在的 OpenAPI 重新生成瞬时 HMR 缺失模块日志未在新加载中复现。
+
+**Full-view comparison evidence**
+
+- 最终弹窗为 1040 × 955.5，位置 `top=52`、`left=223.5`、`bottom=1007.5`，与参考图的整体尺寸、首屏占比和底部动作位置一致。
+- 标题与当前空间标签、弹窗内蓝色空间边界、左/右栏比例、右侧分区、底部摘要和按钮均与方案 2 保持相同信息层级。
+- 实现使用真实项目侧栏、租户上下文、团队候选和通知分类能力，没有用静态假数据代替业务交互。
+
+**Focused region comparison evidence**
+
+- Header: “发送空间通知”与“当前空间：LAN”并列，边界提示明确说明不会触达其他空间。
+- Form: 连续三段范围按钮、多选团队、分类、255 字标题、2000 字正文和站内/HTTP(S) 链接校验均完整。
+- Preview: 分类标签、铃铛、标题、“刚刚”、四行正文摘要与“查看详情”形成独立通知卡。
+- Summary: 当前空间、接收范围、预计人数和通知渠道四项右对齐展示；风险提示收敛在摘要下方。
+- Footer: 左侧明确本次发送对象，右侧保留取消与确认发送，桌面和平板/手机宽度下均可到达。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 使用项目 Ant Design / 系统字体；弹窗标题、分区标题、通知标题、说明文字和计数层级清楚，未出现异常截断。
+- Spacing and layout rhythm: 桌面为约 57 / 43 双栏，36 px 弹窗内边距，栏间分隔、24 px 分区节奏和固定页脚与参考一致。
+- Colors and visual tokens: 复用 Ant Design 主色、信息色、警告色、边框、背景和圆角 token；未新增独立品牌色。
+- Image quality and assets: 该界面无内容图片；所有可见图标来自 `@ant-design/icons`，没有占位图、CSS 绘图或手写 SVG。
+- Copy and content: 使用租户语义“空间全员 / 指定团队 / 指定成员”，不再出现租户可发“全平台”的歧义。
+
+**Findings**
+
+- No actionable P0/P1/P2 visual, interaction, responsive, or permission-boundary issue remains.
+- [P3] 参考图展示“约 36 人”，当前团队候选接口没有可靠的跨团队去重人数，因此实现有意显示“发送后统计”，避免伪造接收人数。
+- [P3] 当前测试数据中的团队名称为“1”“2”；选择器已展示真实团队名称与空间，后续可通过改善业务数据命名提升可读性。
+
+**Comparison history**
+
+1. First pass: 标题仍为“新建通知分发”，空间边界在弹窗外，右侧是两个独立 Card，底部为整块黄色提示。
+2. Fix: 改为“发送空间通知 + 当前空间标签”，将边界提示移入弹窗，合并右侧预览/摘要轨道，并把风险提示和发送对象分别放回摘要与页脚。
+3. Second pass: 弹窗高度和左右栏比例偏离参考，控件密度过高。
+4. Fix: 对齐 52 px 顶部位置、1040 px 宽度、36 px 内边距、约 57 / 43 双栏比例，使用 large 控件和 2000 字正文限制。
+5. Final evidence: 正式截图、完整对照图和聚焦对照图显示弹窗尺寸、层级、预览、摘要和页脚已对齐；桌面、850 px、575 px 运行时检查均通过。
+
+**Implementation checklist**
+
+- [x] 租户/平台发送范围按路由隔离。
+- [x] 租户标题与当前空间标签。
+- [x] 弹窗内空间边界提示。
+- [x] 可搜索多选团队并说明重复成员去重。
+- [x] 标题、正文、分类、链接实时预览。
+- [x] 当前空间、接收范围、预计人数、通知渠道摘要。
+- [x] 不可撤回风险提示与底部发送对象。
+- [x] 850 px / 575 px 无横向溢出且页脚可达。
+- [x] 当前页面测试、TypeScript、Biome、Ant Design lint 与 diff whitespace 检查通过。
+
+**Verification evidence**
+
+- Vitest: `6 passed`。
+- TypeScript: `tsc --noEmit` passed。
+- Biome: 3 个目标文件通过，无修复。
+- Ant Design lint: 3 个目标文件，无问题。
+- `git diff --check`: passed。
+- Backend notification dispatch tests: `47 passed`；Django check 与 migration dry-run 通过。
+
+**Follow-up polish**
+
+- 若后端增加团队交集人数预估接口，可把“发送后统计”升级为可靠的预计人数。
+- 分发详情后续可展示团队名称快照和明确收件人，而不只展示目标 ID。
+
+final result: passed
+
+---
+
 # 房源详情实现 QA（2026-07-17）
 
 **Source visual truth**
@@ -416,3 +513,14 @@ final result: passed
 - Blocker: approved `file://` mockups cannot be captured by Browser Use for the required combined source/implementation comparison.
 
 final result: blocked
+
+---
+
+# 当前任务 QA 状态：租户通知分发方案 2
+
+- Full report: 本文件中的“租户通知分发方案 2 QA（2026-07-19）”。
+- Final screenshot: `/Users/lan/.codex/visualizations/2026/07/19/019f786a-21fb-7060-bf6f-2033e125b62f/notification-dispatch-option-2-implementation-final.png`。
+- Full comparison: `/Users/lan/.codex/visualizations/2026/07/19/019f786a-21fb-7060-bf6f-2033e125b62f/notification-dispatch-option-2-comparison-final.png`。
+- Focused comparison: `/Users/lan/.codex/visualizations/2026/07/19/019f786a-21fb-7060-bf6f-2033e125b62f/notification-dispatch-option-2-comparison-focused-final.png`。
+
+final result: passed
