@@ -53,6 +53,7 @@ export default {
   'menu.tenant-workbench': '空间工作台',
   'menu.tenant-workbench.overview': '空间概览',
   'menu.tenant-workbench.profile': '空间资料',
+  'menu.tenant-workbench.subscription': '订阅与权益',
   'menu.tenant-workbench.members': '成员管理',
   'menu.tenant-workbench.invites': '邀请管理',
   'menu.tenant-workbench.teams': '团队管理',

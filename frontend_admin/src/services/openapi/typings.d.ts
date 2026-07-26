@@ -1045,6 +1045,39 @@ declare namespace API {
     key: string;
   };
 
+  type appsSubscriptionsApiAdminListInvoiceRequestsParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsSubscriptionsApiAdminListOrdersParams = {
+    organization_id?: number | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsSubscriptionsApiAdminProcessInvoiceRequestParams = {
+    invoice_request_id: number;
+  };
+
+  type appsSubscriptionsApiAdminRefundOrderParams = {
+    order_id: number;
+  };
+
+  type appsSubscriptionsApiGetOrderParams = {
+    order_no: string;
+  };
+
+  type appsSubscriptionsApiListInvoiceRequestsParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsSubscriptionsApiListOrdersParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsTeamOperationsApiAcceptTaskAssignmentParams = {
     assignment_id: number;
   };
@@ -1475,6 +1508,17 @@ declare namespace API {
     name: string;
     /** Phone */
     phone: string;
+  };
+
+  type CurrentSubscriptionOut = {
+    /** Plan */
+    plan: Record<string, any>;
+    /** Entitlement */
+    entitlement: Record<string, any>;
+    /** Usage */
+    usage: Record<string, any>;
+    /** Subscription */
+    subscription: Record<string, any> | null;
   };
 
   type CustomRoleCreateIn = {
@@ -1974,6 +2018,83 @@ declare namespace API {
     updated_at: string;
   };
 
+  type InvoiceProcessIn = {
+    /** Status */
+    status: string;
+    /** Invoice Number */
+    invoice_number?: string;
+    /** File Url */
+    file_url?: string;
+    /** Admin Note */
+    admin_note?: string;
+  };
+
+  type InvoiceProfileIn = {
+    /** Invoice Type */
+    invoice_type: string;
+    /** Title */
+    title: string;
+    /** Tax Number */
+    tax_number?: string;
+    /** Recipient Email */
+    recipient_email: string;
+    /** Registered Address */
+    registered_address?: string;
+    /** Registered Phone */
+    registered_phone?: string;
+    /** Bank Name */
+    bank_name?: string;
+    /** Bank Account */
+    bank_account?: string;
+  };
+
+  type InvoiceProfileOut = {
+    /** Invoice Type */
+    invoice_type: string;
+    /** Title */
+    title: string;
+    /** Tax Number */
+    tax_number?: string;
+    /** Recipient Email */
+    recipient_email: string;
+    /** Registered Address */
+    registered_address?: string;
+    /** Registered Phone */
+    registered_phone?: string;
+    /** Bank Name */
+    bank_name?: string;
+    /** Bank Account */
+    bank_account?: string;
+    /** Organization Id */
+    organization_id: number;
+  };
+
+  type InvoiceRequestIn = {
+    /** Order Id */
+    order_id: number;
+  };
+
+  type InvoiceRequestOut = {
+    /** Id */
+    id: number;
+    /** Order Id */
+    order_id: number;
+    /** Status */
+    status: string;
+    /** Profile Snapshot */
+    profile_snapshot: Record<string, any>;
+    /** Invoice Number */
+    invoice_number: string;
+    /** Issued At */
+    issued_at: string | null;
+    /** File Url */
+    file_url: string;
+    /** Admin Note */
+    admin_note: string;
+    /** Created At */
+    created_at: string;
+  };
+
   type LeaseIn = {
     /** House Id */
     house_id: number;
@@ -2387,10 +2508,6 @@ declare namespace API {
     description?: string;
     /** Is Active */
     is_active: boolean;
-    /** Member Limit */
-    member_limit?: number | null;
-    /** Team Limit */
-    team_limit?: number | null;
   };
 
   type OrganizationPatchIn = {
@@ -2404,10 +2521,6 @@ declare namespace API {
     logo?: MediaRefIn[] | null;
     /** Description 租户介绍。 */
     description?: string | null;
-    /** Member Limit 成员数量上限，null 表示不限。 */
-    member_limit?: number | null;
-    /** Team Limit 团队数量上限，null 表示不限。 */
-    team_limit?: number | null;
   };
 
   type OrganizationStatusPatchIn = {
@@ -2420,10 +2533,6 @@ declare namespace API {
     member_count: number;
     /** Team Count */
     team_count: number;
-    /** Member Limit */
-    member_limit?: number | null;
-    /** Team Limit */
-    team_limit?: number | null;
   };
 
   type OrgSelectOut = {
@@ -2621,6 +2730,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedInvoiceRequestOut = {
+    /** Items */
+    items: InvoiceRequestOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedLeaseOut = {
     /** Items */
     items: LeaseOut[];
@@ -2701,6 +2821,17 @@ declare namespace API {
   type PagedReferralRecordOut = {
     /** Items */
     items: ReferralRecordOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedSaaSOrderOut = {
+    /** Items */
+    items: SaaSOrderOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2833,6 +2964,23 @@ declare namespace API {
   type PhoneCodeVerifyIn = {
     /** Code 短信验证码。 */
     code: string;
+  };
+
+  type PlanOut = {
+    /** Code */
+    code: string;
+    /** Name */
+    name: string;
+    /** Description */
+    description: string;
+    /** Display Order */
+    display_order: number;
+    /** Is Active */
+    is_active: boolean;
+    /** Prices */
+    prices: Record<string, any>[];
+    /** Entitlement */
+    entitlement: Record<string, any> | null;
   };
 
   type PropertyResponsibilityMemberOut = {
@@ -3028,6 +3176,15 @@ declare namespace API {
     logo: ResolvedMediaRefOut[];
     /** Description */
     description: string;
+  };
+
+  type PurchaseOrderIn = {
+    /** Target Plan Code */
+    target_plan_code: string;
+    /** Billing Cycle */
+    billing_cycle: string;
+    /** Payment Mode */
+    payment_mode: string;
   };
 
   type RealNameIdCardMediaIn = {
@@ -3295,6 +3452,17 @@ declare namespace API {
     rewarded_count: number;
   };
 
+  type RefundIn = {
+    /** Amount */
+    amount: number;
+    /** Reason */
+    reason: string;
+    /** Proof */
+    proof?: string;
+    /** Subscription Action */
+    subscription_action: string;
+  };
+
   type RelatedResourceItemOut = {
     /** Id */
     id: number;
@@ -3350,6 +3518,41 @@ declare namespace API {
     user: number;
     /** Role 要绑定的角色 ID。 */
     role: number;
+  };
+
+  type SaaSOrderOut = {
+    /** Id */
+    id: number;
+    /** Order No */
+    order_no: string;
+    /** Order Type */
+    order_type: string;
+    /** Status */
+    status: string;
+    /** Close Reason */
+    close_reason: string;
+    /** Target Plan Code */
+    target_plan_code: string;
+    /** Billing Cycle */
+    billing_cycle: string;
+    /** List Amount */
+    list_amount: number;
+    /** Credit Amount */
+    credit_amount: number;
+    /** Payable Amount */
+    payable_amount: number;
+    /** Expires At */
+    expires_at: string;
+    /** Paid At */
+    paid_at: string | null;
+    /** Refund Status */
+    refund_status: string;
+    /** Refunded Amount */
+    refunded_amount: number;
+    /** Created At */
+    created_at: string;
+    /** Payment */
+    payment?: Record<string, any> | null;
   };
 
   type SetPrimaryOut = {

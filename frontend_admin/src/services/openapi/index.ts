@@ -25,6 +25,8 @@ import * as publicOrganizationInvites from "./publicOrganizationInvites";
 import * as realName from "./realName";
 import * as realNameAdmin from "./realNameAdmin";
 import * as referrals from "./referrals";
+import * as subscriptions from "./subscriptions";
+import * as subscriptionsAdmin from "./subscriptionsAdmin";
 import * as teamOperations from "./teamOperations";
 import * as teams from "./teams";
 import * as teamSettings from "./teamSettings";
@@ -60,6 +62,8 @@ export default {
   userWallet,
   walletAdmin,
   walletInternal,
+  subscriptions,
+  subscriptionsAdmin,
   referrals,
   adminReferrals,
   organizationSettings,

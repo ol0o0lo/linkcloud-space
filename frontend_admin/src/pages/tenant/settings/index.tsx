@@ -5,7 +5,6 @@ import {
   Col,
   Form,
   Input,
-  InputNumber,
   Row,
   Select,
   Space,
@@ -21,7 +20,6 @@ import {
 } from '@/services/openapi/organizationProfile';
 import {
   appsOrganizationsApiGetOrganization,
-  appsOrganizationsApiGetOrganizationUsage,
   appsOrganizationsApiPatchOrganization,
   appsOrganizationsApiPatchOrganizationStatus,
   appsOrganizationsApiTransferOwner,
@@ -34,13 +32,6 @@ import {
   tenantQueryKeys,
   useTenantWorkspace,
 } from '../shared';
-
-function formatLimitLabel(used: number, limit?: number | null) {
-  if (!limit) {
-    return `${used} / 不限`;
-  }
-  return `${used} / ${limit}`;
-}
 
 const TenantSettingsPage: React.FC = () => {
   const workspace = useTenantWorkspace();
@@ -59,14 +50,6 @@ const TenantSettingsPage: React.FC = () => {
   const profileQuery = useQuery({
     queryKey: tenantQueryKeys.organizationProfile(workspace.selectedOrgSlug),
     queryFn: () => appsOrganizationsApiGetSettings(),
-    enabled: Boolean(workspace.selectedOrgSlug),
-  });
-  const usageQuery = useQuery({
-    queryKey: tenantQueryKeys.usage(workspace.selectedOrgSlug),
-    queryFn: () =>
-      appsOrganizationsApiGetOrganizationUsage({
-        slug: requireTenantSlug(workspace.selectedOrgSlug),
-      }),
     enabled: Boolean(workspace.selectedOrgSlug),
   });
   const membersQuery = useQuery({
@@ -91,8 +74,6 @@ const TenantSettingsPage: React.FC = () => {
         profileQuery.data?.billing_email ??
         detailQuery.data.billing_email ??
         '',
-      member_limit: detailQuery.data.member_limit ?? undefined,
-      team_limit: detailQuery.data.team_limit ?? undefined,
     });
     setStatusValue(detailQuery.data.is_active);
   }, [detailQuery.data, form, profileQuery.data]);
@@ -131,9 +112,6 @@ const TenantSettingsPage: React.FC = () => {
       });
       await workspace.queryClient.invalidateQueries({
         queryKey: tenantQueryKeys.organizations,
-      });
-      await workspace.queryClient.invalidateQueries({
-        queryKey: tenantQueryKeys.usage(nextSlug),
       });
     },
   });
@@ -178,13 +156,6 @@ const TenantSettingsPage: React.FC = () => {
     [membersQuery.data],
   );
 
-  const usage = usageQuery.data;
-  const memberCount = usage?.member_count || 0;
-  const teamCount = usage?.team_count || 0;
-  const memberLimit =
-    usage?.member_limit ?? detailQuery.data?.member_limit ?? null;
-  const teamLimit = usage?.team_limit ?? detailQuery.data?.team_limit ?? null;
-
   return (
     <TenantSelectionGuard title="空间资料">
       <Row gutter={[16, 16]}>
@@ -193,8 +164,7 @@ const TenantSettingsPage: React.FC = () => {
             title="基础资料"
             loading={
               detailQuery.isLoading ||
-              profileQuery.isLoading ||
-              usageQuery.isLoading
+              profileQuery.isLoading
             }
           >
             <Form
@@ -219,34 +189,9 @@ const TenantSettingsPage: React.FC = () => {
               <Form.Item label="账单邮箱" name="billing_email">
                 <Input />
               </Form.Item>
-              <Row gutter={16}>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="成员上限"
-                    name="member_limit"
-                    extra={`当前使用：成员 ${formatLimitLabel(memberCount, memberLimit)}`}
-                  >
-                    <InputNumber
-                      min={1}
-                      style={fullWidthStyle}
-                      placeholder="留空表示不限"
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="团队上限"
-                    name="team_limit"
-                    extra={`当前使用：团队 ${formatLimitLabel(teamCount, teamLimit)}`}
-                  >
-                    <InputNumber
-                      min={1}
-                      style={fullWidthStyle}
-                      placeholder="留空表示不限"
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
+              <Typography.Paragraph type="secondary">
+                成员、团队与房源的数量上限由“订阅与权益”统一管理。
+              </Typography.Paragraph>
               <Button
                 type="primary"
                 htmlType="submit"

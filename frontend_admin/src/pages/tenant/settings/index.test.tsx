@@ -6,7 +6,6 @@ import TenantSettingsPage from './index';
 
 const {
   mockGetOrganization,
-  mockGetOrganizationUsage,
   mockGetSettings,
   mockUpdateSettings,
   mockPatchOrganization,
@@ -16,7 +15,6 @@ const {
   mockWorkspace,
 } = vi.hoisted(() => ({
   mockGetOrganization: vi.fn(),
-  mockGetOrganizationUsage: vi.fn(),
   mockGetSettings: vi.fn(),
   mockUpdateSettings: vi.fn(),
   mockPatchOrganization: vi.fn(),
@@ -64,7 +62,6 @@ vi.mock('../shared', () => ({
 
 vi.mock('@/services/openapi/organizations', () => ({
   appsOrganizationsApiGetOrganization: mockGetOrganization,
-  appsOrganizationsApiGetOrganizationUsage: mockGetOrganizationUsage,
   appsOrganizationsApiPatchOrganization: mockPatchOrganization,
   appsOrganizationsApiPatchOrganizationStatus: mockPatchOrganizationStatus,
   appsOrganizationsApiTransferOwner: mockTransferOwner,
@@ -97,14 +94,6 @@ describe('TenantSettingsPage', () => {
       slug: 'acme',
       billing_email: 'billing@example.com',
       is_active: false,
-      member_limit: 12,
-      team_limit: 3,
-    });
-    mockGetOrganizationUsage.mockResolvedValue({
-      member_count: 2,
-      team_count: 1,
-      member_limit: 12,
-      team_limit: 3,
     });
     mockGetSettings.mockResolvedValue({
       billing_email: 'billing@example.com',
@@ -115,8 +104,6 @@ describe('TenantSettingsPage', () => {
       slug: 'acme',
       billing_email: 'saved@example.com',
       is_active: false,
-      member_limit: 20,
-      team_limit: 5,
     });
     mockPatchOrganizationStatus.mockResolvedValue({
       id: 1,
@@ -124,8 +111,6 @@ describe('TenantSettingsPage', () => {
       slug: 'acme',
       billing_email: 'billing@example.com',
       is_active: true,
-      member_limit: 12,
-      team_limit: 3,
     });
     mockTransferOwner.mockResolvedValue({ success: true });
     mockUpdateSettings.mockResolvedValue({});
@@ -149,7 +134,6 @@ describe('TenantSettingsPage', () => {
     await waitFor(() => {
       expect(mockGetOrganization).toHaveBeenCalledWith({ slug: 'acme' });
       expect(mockGetSettings).toHaveBeenCalled();
-      expect(mockGetOrganizationUsage).toHaveBeenCalledWith({ slug: 'acme' });
       expect(mockListMembers).toHaveBeenCalledWith({ page: 1, page_size: 100 });
     });
 
@@ -176,18 +160,8 @@ describe('TenantSettingsPage', () => {
       screen.queryByRole('link', { name: '去空间设置调整发布规则' }),
     ).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      const spinButtons = screen.getAllByRole('spinbutton');
-      expect(spinButtons[0]).toHaveValue('12');
-      expect(spinButtons[1]).toHaveValue('3');
-      expect(screen.getByRole('switch')).toHaveAttribute(
-        'aria-checked',
-        'false',
-      );
-    });
-
-    expect(screen.getByText('当前使用：成员 2 / 12')).toBeInTheDocument();
-    expect(screen.getByText('当前使用：团队 1 / 3')).toBeInTheDocument();
+    expect(screen.getByText('成员、团队与房源的数量上限由“订阅与权益”统一管理。')).toBeInTheDocument();
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   });
 
   it('saves organization profile and toggles archive status', async () => {

@@ -52,6 +52,7 @@ export default {
   'menu.tenant-workbench': '租戶工作臺',
   'menu.tenant-workbench.overview': '租戶概覽',
   'menu.tenant-workbench.profile': '租戶資料',
+  'menu.tenant-workbench.subscription': '訂閱與權益',
   'menu.tenant-workbench.members': '成員管理',
   'menu.tenant-workbench.invites': '邀請管理',
   'menu.tenant-workbench.teams': '團隊管理',

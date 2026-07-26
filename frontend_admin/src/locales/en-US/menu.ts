@@ -53,6 +53,7 @@ export default {
   'menu.tenant-workbench': 'Tenant Workspace',
   'menu.tenant-workbench.overview': 'Tenant Overview',
   'menu.tenant-workbench.profile': 'Tenant Profile',
+  'menu.tenant-workbench.subscription': 'Subscription & Entitlements',
   'menu.tenant-workbench.members': 'Member Management',
   'menu.tenant-workbench.invites': 'Invite Management',
   'menu.tenant-workbench.teams': 'Team Management',

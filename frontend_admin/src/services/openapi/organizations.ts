@@ -31,7 +31,7 @@ export async function appsOrganizationsApiGetOrganization(
   });
 }
 
-/** 更新租户资料和限制 更新当前选中租户的基础资料、账单邮箱和成员/团队上限。 PATCH /api/organizations/${param0}/ */
+/** 更新租户资料 更新当前选中租户的基础资料和账单邮箱。 PATCH /api/organizations/${param0}/ */
 export async function appsOrganizationsApiPatchOrganization(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsOrganizationsApiPatchOrganizationParams,
@@ -122,7 +122,7 @@ export async function appsOrganizationsApiTransferOwner(
   );
 }
 
-/** 获取租户用量 返回当前租户成员数、团队数及对应上限。 GET /api/organizations/${param0}/usage/ */
+/** 获取租户用量 返回当前租户成员数、团队数。配额由订阅权益接口提供。 GET /api/organizations/${param0}/usage/ */
 export async function appsOrganizationsApiGetOrganizationUsage(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsOrganizationsApiGetOrganizationUsageParams,

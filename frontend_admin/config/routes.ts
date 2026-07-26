@@ -64,6 +64,12 @@ export default [
         component: './tenant/settings',
       },
       {
+        name: 'subscription',
+        icon: 'creditCard',
+        path: '/tenant/subscription',
+        component: './tenant/subscription',
+      },
+      {
         name: 'members',
         icon: 'team',
         path: '/tenant/members',

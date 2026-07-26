@@ -23,6 +23,8 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '钱包/用户': 'user-wallet',
   '钱包/管理': 'wallet-admin',
   '钱包/内部': 'wallet-internal',
+  'SaaS 订阅/组织': 'subscriptions',
+  'SaaS 订阅/平台管理': 'subscriptions-admin',
   '裂变/用户': 'referrals',
   '裂变/管理': 'admin-referrals',
   '设置/租户设置': 'organization-settings',
