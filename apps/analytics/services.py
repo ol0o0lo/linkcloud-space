@@ -6,13 +6,13 @@ from typing import Any
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import IntegrityError
-from django.db.models import Count, Q
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
-from apps.analytics.models import AnalyticsEvent
+from apps.analytics.models import AnalyticsDailyMetric, AnalyticsEvent
 from apps.analytics.registry import (
     AnalyticsEventDefinition,
     get_event_definition,
@@ -91,7 +91,7 @@ def resolve_target(*, target_type: str, target_id: str | int, public: bool):
     except (ObjectDoesNotExist, ValueError, TypeError) as exc:
         raise AnalyticsValidationError("分析目标不存在或不可采集。") from exc
     organization = resolve_path(target, target_definition.organization_path)
-    return target_type, target_definition, target, organization
+    return target_type, target, organization
 
 
 def record_event(
@@ -123,7 +123,7 @@ def record_event(
     if public and source not in settings.ANALYTICS_PUBLIC_SOURCES:
         raise AnalyticsValidationError(f"公开采集不支持来源：{source}。")
 
-    target_type, _target_definition, target, target_org = resolve_target(target_type=target_type, target_id=target_id, public=public)
+    target_type, target, target_org = resolve_target(target_type=target_type, target_id=target_id, public=public)
     if target_type not in definition.target_types:
         raise AnalyticsValidationError(f"事件 {event_name} 不支持目标类型 {target_type}。")
     if organization is not None and target_org.pk != organization.pk:
@@ -158,20 +158,21 @@ def record_event(
             return existing, False
 
     try:
-        event = AnalyticsEvent.objects.create(
-            organization=organization,
-            actor=actor if actor is not None and getattr(actor, "is_authenticated", False) else None,
-            event_name=event_name,
-            target_type=target_type,
-            target_id=str(target.pk),
-            source=source,
-            anonymous_id_hash=anonymous_hash,
-            session_id_hash=session_hash,
-            visitor_key=visitor_key,
-            properties=properties,
-            idempotency_key=idempotency_key,
-            occurred_at=occurred_at,
-        )
+        with transaction.atomic():
+            event = AnalyticsEvent.objects.create(
+                organization=organization,
+                actor=actor if actor is not None and getattr(actor, "is_authenticated", False) else None,
+                event_name=event_name,
+                target_type=target_type,
+                target_id=str(target.pk),
+                source=source,
+                anonymous_id_hash=anonymous_hash,
+                session_id_hash=session_hash,
+                visitor_key=visitor_key,
+                properties=properties,
+                idempotency_key=idempotency_key,
+                occurred_at=occurred_at,
+            )
     except IntegrityError:
         if idempotency_key:
             existing = AnalyticsEvent.objects.get(organization=organization, source=source, idempotency_key=idempotency_key)
@@ -242,30 +243,89 @@ def event_queryset(organization, start_date: date, end_date: date, source: str |
     return qs
 
 
+def raw_start_date() -> date:
+    """返回仍保存原始事件的最早自然日。"""
+    retention_days = max(1, settings.ANALYTICS_RAW_RETENTION_DAYS)
+    return timezone.localdate() - timedelta(days=retention_days - 1)
+
+
+def _split_date_range(start_date: date, end_date: date):
+    first_raw_day = raw_start_date()
+    historical = (start_date, min(end_date, first_raw_day - timedelta(days=1))) if start_date < first_raw_day else None
+    raw = (max(start_date, first_raw_day), end_date) if end_date >= first_raw_day else None
+    return historical, raw
+
+
+def _daily_queryset(organization, start_date: date, end_date: date, scope: str, source: str | None):
+    return AnalyticsDailyMetric.objects.filter(
+        organization=organization,
+        date__range=(start_date, end_date),
+        scope=scope,
+        source=source or AnalyticsDailyMetric.ALL_SOURCE,
+    )
+
+
+def _merge_counts(result: dict[str, int], rows, key: str, value: str):
+    for row in rows:
+        result[row[key]] = result.get(row[key], 0) + (row[value] or 0)
+
+
+def _unique_visitors_available(historical, raw) -> bool:
+    return historical is None or (raw is None and historical[0] == historical[1])
+
+
 def overview_metrics(organization, start_date: date, end_date: date, source: str | None = None) -> dict:
-    qs = event_queryset(organization, start_date, end_date, source)
-    grouped = {
-        row["event_name"]: row
-        for row in qs.values("event_name").annotate(
-            count=Count("id"),
-            unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key="")),
-        )
-    }
+    historical, raw = _split_date_range(start_date, end_date)
+    counts: dict[str, int] = {}
+    visitors: dict[str, int] = {}
+    if historical:
+        history_qs = _daily_queryset(organization, *historical, AnalyticsDailyMetric.SCOPE_EVENT, source)
+        _merge_counts(counts, history_qs.values("event_name").annotate(count=Sum("event_count")), "event_name", "count")
+        if _unique_visitors_available(historical, raw):
+            _merge_counts(visitors, history_qs.values("event_name").annotate(unique_visitors=Sum("unique_visitors")), "event_name", "unique_visitors")
+    if raw:
+        raw_qs = event_queryset(organization, *raw, source)
+        _merge_counts(counts, raw_qs.values("event_name").annotate(count=Count("id")), "event_name", "count")
+        if _unique_visitors_available(historical, raw):
+            _merge_counts(
+                visitors,
+                raw_qs.values("event_name").annotate(unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key=""))),
+                "event_name",
+                "unique_visitors",
+            )
+    visitors_available = _unique_visitors_available(historical, raw)
     metrics = [
         {
             "event_name": definition.key,
             "label": definition.label,
-            "count": grouped.get(definition.key, {}).get("count", 0),
-            "unique_visitors": grouped.get(definition.key, {}).get("unique_visitors", 0),
+            "count": counts.get(definition.key, 0),
+            "unique_visitors": visitors.get(definition.key, 0) if visitors_available else None,
         }
         for definition in get_event_definitions()
     ]
-    totals = qs.aggregate(count=Count("id"), unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key="")))
+    total_events = 0
+    unique_visitors = None
+    if historical:
+        totals = _daily_queryset(organization, *historical, AnalyticsDailyMetric.SCOPE_ALL, source).aggregate(
+            count=Sum("event_count"),
+            unique_visitors=Sum("unique_visitors"),
+        )
+        total_events += totals["count"] or 0
+        if visitors_available:
+            unique_visitors = totals["unique_visitors"] or 0
+    if raw:
+        totals = event_queryset(organization, *raw, source).aggregate(
+            count=Count("id"),
+            unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key="")),
+        )
+        total_events += totals["count"] or 0
+        if visitors_available:
+            unique_visitors = totals["unique_visitors"] or 0
     return {
         "start_date": start_date,
         "end_date": end_date,
-        "total_events": totals["count"],
-        "unique_visitors": totals["unique_visitors"],
+        "total_events": total_events,
+        "unique_visitors": unique_visitors,
         "metrics": metrics,
     }
 
@@ -277,14 +337,31 @@ def trend_metrics(organization, start_date: date, end_date: date, source: str | 
     unknown = sorted(set(selected) - allowed)
     if unknown:
         raise AnalyticsValidationError(f"未注册的事件：{', '.join(unknown)}。")
-    rows = (
-        event_queryset(organization, start_date, end_date, source)
-        .filter(event_name__in=selected)
-        .annotate(date=TruncDate("occurred_at"))
-        .values("date", "event_name")
-        .annotate(count=Count("id"), unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key="")))
-    )
-    values = {(row["date"], row["event_name"]): row for row in rows}
+    historical, raw = _split_date_range(start_date, end_date)
+    values: dict[tuple[date, str], dict] = {}
+
+    def add_rows(rows):
+        for row in rows:
+            key = (row["date"], row["event_name"])
+            current = values.setdefault(key, {"count": 0, "unique_visitors": 0})
+            current["count"] += row["count"] or 0
+            current["unique_visitors"] += row["unique_visitors"] or 0
+
+    if historical:
+        add_rows(
+            _daily_queryset(organization, *historical, AnalyticsDailyMetric.SCOPE_EVENT, source)
+            .filter(event_name__in=selected)
+            .values("date", "event_name")
+            .annotate(count=Sum("event_count"), unique_visitors=Sum("unique_visitors"))
+        )
+    if raw:
+        add_rows(
+            event_queryset(organization, *raw, source)
+            .filter(event_name__in=selected)
+            .annotate(date=TruncDate("occurred_at", tzinfo=timezone.get_current_timezone()))
+            .values("date", "event_name")
+            .annotate(count=Count("id"), unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key="")))
+        )
     result = []
     current = start_date
     while current <= end_date:
@@ -299,15 +376,44 @@ def target_metrics(organization, start_date: date, end_date: date, target_type: 
     target_definition = get_target_definition(target_type)
     if target_definition is None:
         raise AnalyticsValidationError(f"未注册的目标类型：{target_type}。")
-    qs = event_queryset(organization, start_date, end_date, source).filter(target_type=target_type)
-    if event_names:
-        qs = qs.filter(event_name__in=event_names)
-    totals = qs.values("target_id").annotate(total=Count("id"), unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key="")))
-    grouped = qs.values("target_id", "event_name").annotate(count=Count("id"))
-    by_target: dict[str, dict] = {row["target_id"]: {"metrics": {}, "total": row["total"], "unique_visitors": row["unique_visitors"]} for row in totals}
-    for row in grouped:
-        item = by_target[row["target_id"]]
-        item["metrics"][row["event_name"]] = row["count"]
+    historical, raw = _split_date_range(start_date, end_date)
+    by_target: dict[str, dict] = {}
+
+    def target_values(target_id: str):
+        return by_target.setdefault(target_id, {"metrics": {}, "total": 0, "unique_visitors": None})
+
+    def add_totals(rows):
+        for row in rows:
+            target_values(row["target_id"])["total"] += row["total"] or 0
+
+    def add_metrics(rows):
+        for row in rows:
+            metrics = target_values(row["target_id"])["metrics"]
+            metrics[row["event_name"]] = metrics.get(row["event_name"], 0) + (row["count"] or 0)
+
+    visitor_available = _unique_visitors_available(historical, raw) and (not historical or not event_names or len(set(event_names)) == 1)
+    if historical:
+        total_scope = AnalyticsDailyMetric.SCOPE_TARGET_EVENT if event_names else AnalyticsDailyMetric.SCOPE_TARGET
+        total_qs = _daily_queryset(organization, *historical, total_scope, source).filter(target_type=target_type)
+        if event_names:
+            total_qs = total_qs.filter(event_name__in=event_names)
+        add_totals(total_qs.values("target_id").annotate(total=Sum("event_count")))
+        metric_qs = _daily_queryset(organization, *historical, AnalyticsDailyMetric.SCOPE_TARGET_EVENT, source).filter(target_type=target_type)
+        if event_names:
+            metric_qs = metric_qs.filter(event_name__in=event_names)
+        add_metrics(metric_qs.values("target_id", "event_name").annotate(count=Sum("event_count")))
+        if visitor_available:
+            for row in total_qs.values("target_id").annotate(unique_visitors=Sum("unique_visitors")):
+                target_values(row["target_id"])["unique_visitors"] = row["unique_visitors"] or 0
+    if raw:
+        raw_qs = event_queryset(organization, *raw, source).filter(target_type=target_type)
+        if event_names:
+            raw_qs = raw_qs.filter(event_name__in=event_names)
+        add_totals(raw_qs.values("target_id").annotate(total=Count("id")))
+        add_metrics(raw_qs.values("target_id", "event_name").annotate(count=Count("id")))
+        if visitor_available:
+            for row in raw_qs.values("target_id").annotate(unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key=""))):
+                target_values(row["target_id"])["unique_visitors"] = row["unique_visitors"] or 0
 
     target_ids = list(by_target)
     targets = target_definition.model_class.objects.filter(pk__in=target_ids, **{target_definition.organization_filter: organization})

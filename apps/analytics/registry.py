@@ -80,10 +80,6 @@ def get_target_definition(key: str) -> AnalyticsTargetDefinition | None:
     return _normalize_target(key, entry) if entry else None
 
 
-def get_target_definitions() -> list[AnalyticsTargetDefinition]:
-    return [_normalize_target(key, entry) for key, entry in settings.ANALYTICS_TARGETS.items()]
-
-
 def get_event_definition(key: str) -> AnalyticsEventDefinition | None:
     for entry in settings.ANALYTICS_EVENTS:
         if entry.get("key") == key:

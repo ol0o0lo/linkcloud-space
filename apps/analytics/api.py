@@ -3,6 +3,7 @@ from datetime import date
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import transaction
 from django.utils.crypto import salted_hmac
 
 from ninja import Query, Router
@@ -64,30 +65,31 @@ def _collect(events: list[AnalyticsEventIn], request) -> dict:
     duplicates = 0
     event_ids = []
     errors = []
-    for index, payload in enumerate(events):
-        try:
-            event, created = record_event(
-                payload.event_name,
-                target_type=payload.target_type,
-                target_id=payload.target_id,
-                actor=actor,
-                source=payload.source,
-                anonymous_id=payload.anonymous_id,
-                session_id=payload.session_id,
-                occurred_at=payload.occurred_at,
-                properties=payload.properties,
-                idempotency_key=payload.idempotency_key,
-                public=True,
-                client=True,
-            )
-        except AnalyticsValidationError as exc:
-            errors.append({"index": index, "event_name": payload.event_name, "message": str(exc)})
-            continue
-        event_ids.append(event.pk)
-        if created:
-            accepted += 1
-        else:
-            duplicates += 1
+    with transaction.atomic():
+        for index, payload in enumerate(events):
+            try:
+                event, created = record_event(
+                    payload.event_name,
+                    target_type=payload.target_type,
+                    target_id=payload.target_id,
+                    actor=actor,
+                    source=payload.source,
+                    anonymous_id=payload.anonymous_id,
+                    session_id=payload.session_id,
+                    occurred_at=payload.occurred_at,
+                    properties=payload.properties,
+                    idempotency_key=payload.idempotency_key,
+                    public=True,
+                    client=True,
+                )
+            except AnalyticsValidationError as exc:
+                errors.append({"index": index, "event_name": payload.event_name, "message": str(exc)})
+                continue
+            event_ids.append(event.pk)
+            if created:
+                accepted += 1
+            else:
+                duplicates += 1
     return {"accepted": accepted, "duplicates": duplicates, "event_ids": event_ids, "errors": errors}
 
 

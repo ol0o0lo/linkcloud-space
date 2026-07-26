@@ -70,6 +70,10 @@ function conversionPercent(value: number, base: number) {
   return Math.min(100, Math.round((value / base) * 1000) / 10);
 }
 
+function visitorValue(value: number | null | undefined) {
+  return value ?? '—';
+}
+
 function entityId(value: unknown) {
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? id : undefined;
@@ -209,6 +213,10 @@ const AnalyticsPage: React.FC = () => {
     },
   ];
   const failed = overview.isError || trends.isError || targets.isError;
+  const includesHistoricalData = range[0].isBefore(
+    dayjs().subtract(29, 'day'),
+    'day',
+  );
 
   return (
     <TenantSelectionGuard title="经营分析">
@@ -238,6 +246,11 @@ const AnalyticsPage: React.FC = () => {
                 { label: '服务端业务', value: 'server' },
               ]}
             />
+            {includesHistoricalData ? (
+              <Typography.Text type="secondary">
+                超过近30天，区间访客数不提供。
+              </Typography.Text>
+            ) : null}
           </Space>
         </Card>
 
@@ -263,7 +276,7 @@ const AnalyticsPage: React.FC = () => {
             <Card loading={overview.isLoading}>
               <Statistic
                 title="独立访客"
-                value={overview.data?.unique_visitors || 0}
+                value={visitorValue(overview.data?.unique_visitors)}
               />
             </Card>
           </Col>
@@ -276,7 +289,9 @@ const AnalyticsPage: React.FC = () => {
                     title={metric?.label || eventName}
                     value={metric?.count || 0}
                     suffix={
-                      metric ? ` / ${metric.unique_visitors} 人` : undefined
+                      metric
+                        ? ` / ${visitorValue(metric.unique_visitors)} 人`
+                        : undefined
                     }
                   />
                 </Card>
@@ -350,7 +365,12 @@ const AnalyticsPage: React.FC = () => {
                 render: (_, record) => <HouseRankingTarget record={record} />,
               },
               { title: '总行为', dataIndex: 'total', width: 100 },
-              { title: '访客', dataIndex: 'unique_visitors', width: 100 },
+              {
+                title: '访客',
+                dataIndex: 'unique_visitors',
+                width: 100,
+                render: visitorValue,
+              },
               {
                 title: '浏览',
                 width: 100,

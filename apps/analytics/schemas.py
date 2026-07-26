@@ -46,14 +46,14 @@ class AnalyticsMetricOut(Schema):
     event_name: str
     label: str
     count: int
-    unique_visitors: int
+    unique_visitors: int | None
 
 
 class AnalyticsOverviewOut(Schema):
     start_date: date
     end_date: date
     total_events: int
-    unique_visitors: int
+    unique_visitors: int | None
     metrics: list[AnalyticsMetricOut]
 
 
@@ -75,5 +75,5 @@ class AnalyticsTargetMetricOut(Schema):
     label: str
     display_items: list[AnalyticsTargetDisplayItemOut]
     total: int
-    unique_visitors: int
+    unique_visitors: int | None
     metrics: dict[str, int]

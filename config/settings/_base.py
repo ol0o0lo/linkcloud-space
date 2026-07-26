@@ -343,6 +343,10 @@ CELERY_BEAT_SCHEDULE = {
         # in compose.yml; in production use a dedicated beat process.
         "schedule": crontab(hour=3, minute=0),
     },
+    "rollup-and-purge-analytics-events": {
+        "task": "apps.analytics.tasks.rollup_and_purge_analytics_events_task",
+        "schedule": crontab(hour=2, minute=0),
+    },
     "cleanup-unreferenced-media": {
         "task": "apps.media.tasks.cleanup_unreferenced_media_files",
         "schedule": crontab(hour=4, minute=0),
@@ -485,6 +489,7 @@ ANALYTICS_EVENTS = [
 ANALYTICS_MAX_PROPERTIES_BYTES = 8192
 ANALYTICS_MAX_EVENT_AGE_DAYS = 7
 ANALYTICS_MAX_QUERY_DAYS = 366
+ANALYTICS_RAW_RETENTION_DAYS = 30
 ANALYTICS_PUBLIC_RATE_LIMIT_PER_MINUTE = 120
 ANALYTICS_PUBLIC_SOURCES = ("h5", "miniprogram", "public")
 

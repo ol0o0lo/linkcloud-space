@@ -49,3 +49,39 @@ class AnalyticsEvent(models.Model):
     def __str__(self):
         """返回事件与分析目标的可读标识。"""
         return f"{self.event_name}: {self.target_type}/{self.target_id}"
+
+
+class AnalyticsDailyMetric(models.Model):
+    """按系统时区汇总的历史行为指标。"""
+
+    ALL_SOURCE = ""
+    SCOPE_ALL = "all"
+    SCOPE_EVENT = "event"
+    SCOPE_TARGET = "target"
+    SCOPE_TARGET_EVENT = "target_event"
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="analytics_daily_metrics",
+    )
+    date = models.DateField()
+    source = models.CharField(max_length=32, blank=True)
+    scope = models.CharField(max_length=16)
+    event_name = models.CharField(max_length=96, blank=True)
+    target_type = models.CharField(max_length=64, blank=True)
+    target_id = models.CharField(max_length=64, blank=True)
+    event_count = models.PositiveBigIntegerField()
+    unique_visitors = models.PositiveBigIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("organization", "source", "scope", "date", "event_name", "target_type", "target_id"),
+                name="analytics_daily_metric_uniq",
+            ),
+        ]
+
+    def __str__(self):
+        """返回每日指标的可读标识。"""
+        return f"{self.date}: {self.scope}"

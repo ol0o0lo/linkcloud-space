@@ -1,5 +1,5 @@
 import json
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import user_logged_in
@@ -9,7 +9,9 @@ from django.utils import timezone
 from model_bakery import baker
 
 from apps.accounts.models import User
-from apps.analytics.models import AnalyticsEvent
+from apps.analytics.models import AnalyticsDailyMetric, AnalyticsEvent
+from apps.analytics.services import raw_start_date
+from apps.analytics.tasks import rollup_and_purge_analytics_events
 from apps.house.constants import ContactRole, HouseStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.organizations.signals import user_logged_in_receiver
@@ -152,6 +154,57 @@ class AnalyticsApiTestCase(TestCase):
 
         self.assertEqual(api_data(response)["accepted"], 0)
         self.assertIn("只能由服务端业务产生", api_data(response)["errors"][0]["message"])
+
+    def test_rollup_keeps_daily_metrics_and_historical_uv_limit(self):
+        recent_historical_day = raw_start_date() - timedelta(days=1)
+        older_historical_day = recent_historical_day - timedelta(days=1)
+        for day, event_name, visitor_key in (
+            (recent_historical_day, "house.view", "anonymous:visitor-a"),
+            (recent_historical_day, "house.phone_click", "anonymous:visitor-a"),
+            (older_historical_day, "house.view", "anonymous:visitor-b"),
+        ):
+            AnalyticsEvent.objects.create(
+                organization=self.org,
+                event_name=event_name,
+                target_type="house",
+                target_id=str(self.house.pk),
+                source="h5",
+                visitor_key=visitor_key,
+                occurred_at=timezone.make_aware(datetime.combine(day, time(hour=12))),
+            )
+        AnalyticsEvent.objects.create(
+            organization=self.org,
+            event_name="house.view",
+            target_type="house",
+            target_id=str(self.house.pk),
+            source="h5",
+            visitor_key="anonymous:visitor-c",
+            occurred_at=timezone.now(),
+        )
+
+        self.assertEqual(rollup_and_purge_analytics_events(), 3)
+        self.assertEqual(AnalyticsEvent.objects.count(), 1)
+        daily_total = AnalyticsDailyMetric.objects.get(
+            organization=self.org,
+            date=recent_historical_day,
+            source=AnalyticsDailyMetric.ALL_SOURCE,
+            scope=AnalyticsDailyMetric.SCOPE_ALL,
+        )
+        self.assertEqual((daily_total.event_count, daily_total.unique_visitors), (2, 1))
+
+        single_day = self.client.get(f"/api/analytics/overview/?start_date={recent_historical_day}&end_date={recent_historical_day}")
+        historical_range = self.client.get(f"/api/analytics/overview/?start_date={older_historical_day}&end_date={recent_historical_day}")
+        mixed_range = self.client.get(f"/api/analytics/overview/?start_date={older_historical_day}&end_date={timezone.localdate()}")
+        targets = self.client.get(
+            f"/api/analytics/targets/?target_type=house&start_date={recent_historical_day}&end_date={recent_historical_day}&page=1&page_size=10"
+        )
+
+        self.assertEqual(api_data(single_day)["unique_visitors"], 1)
+        self.assertIsNone(api_data(historical_range)["unique_visitors"])
+        self.assertEqual(api_data(historical_range)["total_events"], 3)
+        self.assertIsNone(api_data(mixed_range)["unique_visitors"])
+        self.assertEqual(api_data(mixed_range)["total_events"], 4)
+        self.assertEqual(api_data(targets)["items"][0]["unique_visitors"], 1)
 
     def test_overview_trends_and_target_ranking_aggregate_current_org(self):
         now = timezone.now()

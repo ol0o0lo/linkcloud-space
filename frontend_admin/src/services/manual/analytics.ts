@@ -23,14 +23,14 @@ export type AnalyticsMetric = {
   event_name: string;
   label: string;
   count: number;
-  unique_visitors: number;
+  unique_visitors: number | null;
 };
 
 export type AnalyticsOverview = {
   start_date: string;
   end_date: string;
   total_events: number;
-  unique_visitors: number;
+  unique_visitors: number | null;
   metrics: AnalyticsMetric[];
 };
 
@@ -46,7 +46,7 @@ export type AnalyticsTargetMetric = {
   label: string;
   display_items: AnalyticsTargetDisplayItem[];
   total: number;
-  unique_visitors: number;
+  unique_visitors: number | null;
   metrics: Record<string, number>;
 };
 
