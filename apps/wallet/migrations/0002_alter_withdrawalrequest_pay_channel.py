@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('wallet', '0001_initial'),
+        ("wallet", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='withdrawalrequest',
-            name='pay_channel',
-            field=models.CharField(choices=[('wechat', '微信提现')], default='wechat', max_length=32),
+            model_name="withdrawalrequest",
+            name="pay_channel",
+            field=models.CharField(choices=[("wechat", "微信提现")], default="wechat", max_length=32),
         ),
     ]

@@ -124,12 +124,9 @@ class WechatPayClient:
         timestamp = str(int(time.time()))
         nonce = uuid.uuid4().hex.upper()
         message = f"{method}\n{path}\n{timestamp}\n{nonce}\n{body}\n".encode("utf-8")
-        signature = base64.b64encode(
-            self.private_key.sign(message, padding.PKCS1v15(), hashes.SHA256())
-        ).decode("utf-8")
+        signature = base64.b64encode(self.private_key.sign(message, padding.PKCS1v15(), hashes.SHA256())).decode("utf-8")
         authorization = (
-            'WECHATPAY2-SHA256-RSA2048 '
-            f'mchid="{self.config.mch_id}",nonce_str="{nonce}",signature="{signature}",timestamp="{timestamp}",serial_no="{self.config.serial_no}"'
+            f'WECHATPAY2-SHA256-RSA2048 mchid="{self.config.mch_id}",nonce_str="{nonce}",signature="{signature}",timestamp="{timestamp}",serial_no="{self.config.serial_no}"'
         )
         return {
             "Accept": "application/json",
