@@ -71,13 +71,23 @@ def get_version(request):
 @router.get("/enums/", auth=None, summary="获取后端枚举映射")
 def list_enums(request):
     """返回前端筛选和回显需要的后端枚举值。"""
-    from apps.access.constants import AccessPermission, AccessRoleCode, AccessScope, FinancePermission, OrganizationPermission, SettingsPermission, TeamPermission
+    from apps.access.constants import (
+        AccessPermission,
+        AccessRoleCode,
+        AccessScope,
+        FinancePermission,
+        OrganizationPermission,
+        SettingsPermission,
+        SubscriptionPermission,
+        TeamPermission,
+    )
     from apps.accounts.constants import AdminUserRole, PhoneCountryCode, RealNameIdCardSide, RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
     from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
     from apps.media.constants import MediaExtension, MediaScope, MediaType, ResourceType
     from apps.notifications.constants import NotificationChannel, NotificationDispatchScope, NotificationDispatchStatus
     from apps.referrals.constants import ReferralDisplayLevel, ReferralRecordStatus, ReferralTriggerEvent
     from apps.settings.constants import SettingWidget, ValueType
+    from apps.subscriptions.constants import BillingCycle, InvoiceStatus, OrderStatus, OrderType, PaymentMode, RefundStatus, SubscriptionStatus
     from apps.wallet.constants import PayoutStatus, WalletEntryType, WithdrawalPayChannel, WithdrawalStatus
 
     registry = {
@@ -88,6 +98,7 @@ def list_enums(request):
         "access.team_permission": TeamPermission,
         "access.settings_permission": SettingsPermission,
         "access.finance_permission": FinancePermission,
+        "access.subscription_permission": SubscriptionPermission,
         "accounts.admin_user_role": AdminUserRole,
         "accounts.phone_country_code": PhoneCountryCode,
         "accounts.real_name_status": RealNameStatus,
@@ -118,6 +129,13 @@ def list_enums(request):
         "wallet.withdrawal_pay_channel": WithdrawalPayChannel,
         "wallet.withdrawal_status": WithdrawalStatus,
         "wallet.payout_status": PayoutStatus,
+        "subscriptions.billing_cycle": BillingCycle,
+        "subscriptions.subscription_status": SubscriptionStatus,
+        "subscriptions.order_type": OrderType,
+        "subscriptions.order_status": OrderStatus,
+        "subscriptions.payment_mode": PaymentMode,
+        "subscriptions.refund_status": RefundStatus,
+        "subscriptions.invoice_status": InvoiceStatus,
     }
     keys = request.GET.get("keys")
     if keys:

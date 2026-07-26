@@ -57,6 +57,18 @@ WALLET_WECHAT_QUERY_RETRY_MINUTES = env.int("WALLET_WECHAT_QUERY_RETRY_MINUTES",
 WALLET_WECHAT_QUERY_MAX_RETRIES = env.int("WALLET_WECHAT_QUERY_MAX_RETRIES", default=6)
 WALLET_WECHAT_CERT_REFRESH_SECONDS = env.int("WALLET_WECHAT_CERT_REFRESH_SECONDS", default=3600)
 
+SUBSCRIPTIONS_WECHAT_PAY_ENABLED = env.bool("SUBSCRIPTIONS_WECHAT_PAY_ENABLED", default=False)
+SUBSCRIPTIONS_WECHAT_MCH_ID = env("SUBSCRIPTIONS_WECHAT_MCH_ID", default="")
+SUBSCRIPTIONS_WECHAT_NATIVE_APP_ID = env("SUBSCRIPTIONS_WECHAT_NATIVE_APP_ID", default="")
+SUBSCRIPTIONS_WECHAT_MINIPROGRAM_APP_ID = env("SUBSCRIPTIONS_WECHAT_MINIPROGRAM_APP_ID", default="")
+SUBSCRIPTIONS_WECHAT_SERIAL_NO = env("SUBSCRIPTIONS_WECHAT_SERIAL_NO", default="")
+SUBSCRIPTIONS_WECHAT_PRIVATE_KEY = env("SUBSCRIPTIONS_WECHAT_PRIVATE_KEY", default="")
+SUBSCRIPTIONS_WECHAT_PLATFORM_CERT = env("SUBSCRIPTIONS_WECHAT_PLATFORM_CERT", default="")
+SUBSCRIPTIONS_WECHAT_API_V3_KEY = env("SUBSCRIPTIONS_WECHAT_API_V3_KEY", default="")
+SUBSCRIPTIONS_WECHAT_NOTIFY_URL = env("SUBSCRIPTIONS_WECHAT_NOTIFY_URL", default="")
+SUBSCRIPTIONS_WECHAT_API_BASE_URL = env("SUBSCRIPTIONS_WECHAT_API_BASE_URL", default="https://api.mch.weixin.qq.com")
+SUBSCRIPTIONS_WECHAT_TIMEOUT_SECONDS = env.int("SUBSCRIPTIONS_WECHAT_TIMEOUT_SECONDS", default=8)
+
 ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 if DEBUG:
@@ -98,6 +110,7 @@ INSTALLED_APPS = [
     "apps.favorites",
     "apps.analytics",
     "apps.wallet",
+    "apps.subscriptions",
     "apps.referrals",
     "apps.notifications",
     "apps.team_operations",
@@ -316,6 +329,14 @@ CACHES = {
 CELERY_BROKER_URL = REDIS_URL
 CELERY_BROKER_TRANSPORT_OPTIONS = {"global_keyprefix": REDIS_PREFIX}
 CELERY_BEAT_SCHEDULE = {
+    "close-expired-saas-orders": {
+        "task": "apps.subscriptions.tasks.close_expired_saas_orders_task",
+        "schedule": crontab(minute="*/5"),
+    },
+    "expire-saas-subscriptions": {
+        "task": "apps.subscriptions.tasks.expire_saas_subscriptions_task",
+        "schedule": crontab(minute="*/5"),
+    },
     "purge-expired-notifications": {
         "task": "apps.notifications.tasks.purge_expired_notifications",
         # Daily at 03:00 UTC. The worker is started with `-B` (embedded beat)

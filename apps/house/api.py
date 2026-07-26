@@ -739,6 +739,9 @@ def list_houses(
 @router.post("/houses/", response={201: HouseOut}, summary="创建房源")
 def create_house(request, payload: HouseIn):
     org = require_org_selected(request)
+    from apps.subscriptions.entitlements import EntitlementService
+
+    EntitlementService.check_can_add(org, "house")
     building = get_object_or_404(Building, pk=payload.building_id, organization=org)
     data = payload.dict()
     data.pop("building_id")

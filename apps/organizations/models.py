@@ -23,6 +23,7 @@ def get_user_model():
 
 
 class Organization(BaseModelMixin):
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, editable=False, on_delete=models.SET_NULL, related_name="created_organizations")
     name = models.CharField(max_length=75, verbose_name=_("display name"))
     slug = models.SlugField(
         max_length=40,
@@ -53,6 +54,8 @@ class Organization(BaseModelMixin):
         return self.name
 
     def clean(self):
+        if self.pk and self.created_by_id != type(self).objects.filter(pk=self.pk).values_list("created_by_id", flat=True).first():
+            raise ValidationError({"created_by": [_("Organization creator cannot be changed.")]})
         if get_user_model().objects.filter(username=self.slug).exists() is True:
             raise ValidationError({"slug": [_("Account name is already taken.")]})
 

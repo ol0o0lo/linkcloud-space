@@ -52,6 +52,11 @@ class FinancePermission(StrChoices):
     REPORT_EXPORT = "finance.finance_report_export", "导出财务报表"
 
 
+class SubscriptionPermission(StrChoices):
+    VIEW = "subscriptions.subscription_view", "查看订阅与支付记录"
+    MANAGE = "subscriptions.subscription_manage", "管理订阅、购买与开票"
+
+
 class AnalyticsPermission(StrChoices):
     VIEW = "analytics.analytics_view", "查看经营分析"
 
@@ -67,6 +72,7 @@ ALL_PERMISSION_ENUMS = (
     TeamPermission,
     SettingsPermission,
     FinancePermission,
+    SubscriptionPermission,
     AnalyticsPermission,
     TeamOperationsPermission,
 )
@@ -88,6 +94,8 @@ SYSTEM_ROLE_DEFINITIONS = {
             FinancePermission.BILL_VIEW,
             FinancePermission.BILL_REFUND,
             FinancePermission.REPORT_EXPORT,
+            SubscriptionPermission.VIEW,
+            SubscriptionPermission.MANAGE,
         ],
     },
     AccessRoleCode.TEAM_MANAGER: {

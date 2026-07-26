@@ -25,8 +25,6 @@ class OrganizationOut(Schema):
     logo: list[ResolvedMediaRefOut] = []
     description: str = ""
     is_active: bool
-    member_limit: int | None = None
-    team_limit: int | None = None
 
     @staticmethod
     def resolve_logo(obj):
@@ -39,8 +37,6 @@ class OrganizationPatchIn(Schema):
     billing_email: str | None = Field(None, description="租户账单联系邮箱。")
     logo: list[MediaRefIn] | None = Field(None, max_length=1, description="租户 Logo 媒体引用，最多 1 个。")
     description: str | None = Field(None, description="租户介绍。")
-    member_limit: int | None = Field(None, description="成员数量上限，null 表示不限。")
-    team_limit: int | None = Field(None, description="团队数量上限，null 表示不限。")
 
 
 class OrganizationStatusPatchIn(Schema):
@@ -50,8 +46,6 @@ class OrganizationStatusPatchIn(Schema):
 class OrganizationUsageOut(Schema):
     member_count: int
     team_count: int
-    member_limit: int | None = None
-    team_limit: int | None = None
 
 
 class SwitchListItemOut(Schema):

@@ -232,6 +232,19 @@ WECHAT_APP_SECRET = { type = "str", default = "", help_text = "微信开放平�
 WECHAT_MINIPROGRAM_APP_ID = { type = "str", default = "", help_text = "微信小程序 AppID" }
 WECHAT_MINIPROGRAM_APP_SECRET = { type = "str", default = "", help_text = "微信小程序 AppSecret" }
 
+# SaaS 微信收款（与个人钱包出款分离）
+SUBSCRIPTIONS_WECHAT_PAY_ENABLED = { type = "bool", default = false, help_text = "启用组织 SaaS 微信收款" }
+SUBSCRIPTIONS_WECHAT_MCH_ID = { type = "str", default = "", help_text = "SaaS 收款微信商户号" }
+SUBSCRIPTIONS_WECHAT_NATIVE_APP_ID = { type = "str", default = "", help_text = "Native 扫码支付关联 AppID" }
+SUBSCRIPTIONS_WECHAT_MINIPROGRAM_APP_ID = { type = "str", default = "", help_text = "JSAPI 小程序 AppID" }
+SUBSCRIPTIONS_WECHAT_SERIAL_NO = { type = "str", default = "", help_text = "商户证书序列号" }
+SUBSCRIPTIONS_WECHAT_PRIVATE_KEY = { type = "str", default = "", help_text = "商户私钥 PEM 内容" }
+SUBSCRIPTIONS_WECHAT_PLATFORM_CERT = { type = "str", default = "", help_text = "微信支付平台证书 PEM 内容" }
+SUBSCRIPTIONS_WECHAT_API_V3_KEY = { type = "str", default = "", help_text = "微信支付 API v3 密钥" }
+SUBSCRIPTIONS_WECHAT_NOTIFY_URL = { type = "str", default = "", help_text = "微信支付回调 HTTPS 地址" }
+SUBSCRIPTIONS_WECHAT_API_BASE_URL = { type = "str", default = "https://api.mch.weixin.qq.com", help_text = "微信支付 API 地址" }
+SUBSCRIPTIONS_WECHAT_TIMEOUT_SECONDS = { type = "int", default = 8, help_text = "微信支付请求超时秒数" }
+
 # Email Settings
 DEFAULT_FROM_EMAIL = { type = "str", default = "", help_text = "发件人邮箱地址，如 your@163.com，需与 EMAIL_URL 中的用户名一致。" }
 EMAIL_URL = { type = "str", default = "", help_text = "SMTP connection URL，格式示例：smtp+ssl://your@163.com:授权码@smtp.163.com:465" }

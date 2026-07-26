@@ -61,7 +61,7 @@ def create_organization(request, payload: OrganizationCreateIn):
     require_authenticated(request)
     pre_create_organization(request)
     with transaction.atomic():
-        org = Organization.objects.create(name=payload.name, slug=payload.slug)
+        org = Organization.objects.create(name=payload.name, slug=payload.slug, created_by=request.user)
         OrganizationMember.objects.create(organization=org, user=request.user, is_owner=True, is_primary=True)
         post_create_organization(request, org)
     save_org_data(request, org)
@@ -114,9 +114,9 @@ def get_organization(request, slug: str):
     return _selected_owner_org(request, slug)
 
 
-@orgs_router.patch("/{slug}/", response=OrganizationOut, summary="更新租户资料和限制")
+@orgs_router.patch("/{slug}/", response=OrganizationOut, summary="更新租户资料")
 def patch_organization(request, slug: str, payload: OrganizationPatchIn):
-    """更新当前选中租户的基础资料、账单邮箱和成员/团队上限。"""
+    """更新当前选中租户的基础资料和账单邮箱。"""
     org = _selected_owner_org(request, slug)
     data = payload.dict(exclude_unset=True)
     for field, value in data.items():
@@ -160,13 +160,11 @@ def transfer_owner(request, slug: str, payload: TransferOwnerIn):
 
 @orgs_router.get("/{slug}/usage/", response=OrganizationUsageOut, summary="获取租户用量")
 def get_organization_usage(request, slug: str):
-    """返回当前租户成员数、团队数及对应上限。"""
+    """返回当前租户成员数、团队数。配额由订阅权益接口提供。"""
     org = _selected_owner_org(request, slug)
     return {
         "member_count": OrganizationMember.objects.filter(organization=org).count(),
         "team_count": Team.objects.filter(organization=org).count(),
-        "member_limit": org.member_limit,
-        "team_limit": org.team_limit,
     }
 
 
@@ -255,6 +253,9 @@ def search_members(request, keyword: str = Query("", description="待搜索的�
 def create_member(request, payload: MemberIn):
     """向当前租户新增一个成员，并可选择是否授予 owner 身份。"""
     org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
+    from apps.subscriptions.entitlements import EntitlementService
+
+    EntitlementService.check_can_add(org, "member")
     membership = OrganizationMember.objects.create(organization=org, user_id=payload.user, is_owner=payload.is_owner)
     return Status(201, membership)
 
@@ -410,6 +411,9 @@ def accept_invite_by_key(request, key: str = Path(..., description="邀请 key�
         raise HttpError(409, "You're already a member of this organization.")
     is_owner = invite.is_owner and invite.organization.is_owner(invite.sender)
     with transaction.atomic():
+        from apps.subscriptions.entitlements import EntitlementService
+
+        EntitlementService.check_can_add(invite.organization, "member")
         OrganizationMember.objects.get_or_create(organization=invite.organization, user=request.user, is_owner=is_owner)
         if invite.access_role_id:
             assign_org_role(invite.organization, request.user, invite.access_role)

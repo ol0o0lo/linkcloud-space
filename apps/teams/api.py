@@ -55,6 +55,9 @@ def list_teams(request, keyword: str | None = Query(None, description="按团队
 def create_team(request, payload: TeamIn):
     """在当前租户下创建一个新团队，并可设置初始成员。"""
     org = require_org_permission(request, TeamPermission.CREATE)
+    from apps.subscriptions.entitlements import EntitlementService
+
+    EntitlementService.check_can_add(org, "team")
     member_ids = _validate_members(payload.members, org)
     pre_create_team(request)
     with transaction.atomic():

@@ -30,6 +30,7 @@ class OrganizationAPITestBase(TestCase):
             username="owner",
             email="owner@example.com",
             password="secret",  # noqa: S106
+            phone_verified=True,
         )
         self.org = baker.make("organizations.Organization", name="Acme", billing_email="owner@example.com")
         baker.make("organizations.OrganizationMember", organization=self.org, user=self.user, is_owner=True)
@@ -52,6 +53,7 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self.assertEqual(resp.status_code, 201)
         new_org = Organization.objects.get(slug="new-co")
         self.assertTrue(new_org.is_owner(self.user))
+        self.assertEqual(new_org.created_by, self.user)
 
     def test_switch_list(self):
         other = baker.make("organizations.Organization", name="Other Co")
@@ -85,7 +87,7 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self.assertTrue(api_data(resp)["success"])
         self.assertNotIn("organization_data", self.client.session)
 
-    def test_owner_can_update_organization_profile_and_limits(self):
+    def test_owner_can_update_organization_profile(self):
         logo = MediaFile.objects.create(
             uploader=self.user,
             resource_type=ResourceType.ORG_LOGO,
@@ -102,8 +104,6 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
                     "billing_email": "billing@example.com",
                     "logo": [{"media_id": logo.pk, "media_type": "image"}],
                     "description": "专业房源运营服务商",
-                    "member_limit": 12,
-                    "team_limit": 3,
                 }
             ),
             content_type="application/json",
@@ -115,17 +115,13 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self.assertEqual(self.org.billing_email, "billing@example.com")
         self.assertEqual(self.org.logo, [{"media_id": logo.pk, "media_type": "image"}])
         self.assertEqual(self.org.description, "专业房源运营服务商")
-        self.assertEqual(self.org.member_limit, 12)
-        self.assertEqual(self.org.team_limit, 3)
         payload = api_data(resp)
         self.assertEqual(payload["logo"][0]["media_id"], logo.pk)
         self.assertEqual(payload["description"], "专业房源运营服务商")
 
     def test_owner_can_read_organization_detail(self):
-        self.org.member_limit = 12
-        self.org.team_limit = 3
         self.org.is_active = False
-        self.org.save(update_fields=["member_limit", "team_limit", "is_active"])
+        self.org.save(update_fields=["is_active"])
         self._login()
 
         resp = self.client.get(f"/api/organizations/{self.org.slug}/")
@@ -135,8 +131,6 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         self.assertEqual(payload["name"], self.org.name)
         self.assertEqual(payload["slug"], self.org.slug)
         self.assertEqual(payload["billing_email"], "owner@example.com")
-        self.assertEqual(payload["member_limit"], 12)
-        self.assertEqual(payload["team_limit"], 3)
         self.assertFalse(payload["is_active"])
 
     def test_owner_can_archive_and_restore_organization(self):
@@ -179,9 +173,6 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         other_member = User.objects.create_user(username="other", email="other@example.com", password="secret")  # noqa: S106
         baker.make("organizations.OrganizationMember", organization=self.org, user=other_member, is_owner=False)
         baker.make("teams.Team", organization=self.org)
-        self.org.member_limit = 5
-        self.org.team_limit = 2
-        self.org.save(update_fields=["member_limit", "team_limit"])
         self._login()
 
         resp = self.client.get(f"/api/organizations/{self.org.slug}/usage/")
@@ -190,8 +181,6 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         data = api_data(resp)
         self.assertEqual(data["member_count"], 2)
         self.assertEqual(data["team_count"], 1)
-        self.assertEqual(data["member_limit"], 5)
-        self.assertEqual(data["team_limit"], 2)
 
 
 class TestOrganizationMemberViewSet(OrganizationAPITestBase):

@@ -15,6 +15,7 @@ class OrganizationForm(forms.ModelForm):
 
     def save(self, commit=True):
         if self.instance.pk is None:
+            self.instance.created_by = self.request.user
             instance = super().save(commit=True)
             OrganizationMember.objects.create(organization=instance, user=self.request.user, is_owner=True)
             save_counts(self.request)

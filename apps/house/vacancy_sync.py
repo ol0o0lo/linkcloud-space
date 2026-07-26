@@ -636,6 +636,12 @@ def apply_vacancy_sync(organization, *, raw_text: str, building_overrides: list[
     if not expected_plan_hash or expected_plan_hash != plan["plan_hash"]:
         raise VacancySyncConflictException(data={"current_plan": plan})
 
+    new_house_count = sum(len(block["changes"]["create_houses"]) for block in plan["blocks"])
+    if new_house_count:
+        from apps.subscriptions.entitlements import EntitlementService
+
+        EntitlementService.check_can_add(organization, "house", new_house_count)
+
     result = deepcopy(plan)
     result["mode"] = "apply"
     result["applied"] = True
