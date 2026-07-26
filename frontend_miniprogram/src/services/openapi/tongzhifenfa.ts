@@ -19,6 +19,8 @@ export function notificationDispatchesUsingGet({
     {
       method: 'GET',
       params: {
+        // management_context has a default value: auto
+        management_context: 'auto',
         // page has a default value: 1
         page: '1',
         ...params,
@@ -30,9 +32,12 @@ export function notificationDispatchesUsingGet({
 
 /** 创建通知分发 创建通知分发记录，并异步入队执行。 POST /api/notification-dispatches/ */
 export function notificationDispatchesUsingPost({
+  params,
   body,
   options,
 }: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.NotificationDispatchesUsingPostParams;
   body: API.NotificationDispatchIn;
   options?: CustomRequestOptions_;
 }) {
@@ -40,6 +45,11 @@ export function notificationDispatchesUsingPost({
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+    },
+    params: {
+      // management_context has a default value: auto
+      management_context: 'auto',
+      ...params,
     },
     data: body,
     ...(options || {}),
@@ -61,7 +71,11 @@ export function notificationDispatchesDispatchIdUsingGet({
     `/api/notification-dispatches/${param0}/`,
     {
       method: 'GET',
-      params: { ...queryParams },
+      params: {
+        // management_context has a default value: auto
+        management_context: 'auto',
+        ...queryParams,
+      },
       ...(options || {}),
     }
   );
@@ -83,9 +97,36 @@ export function notificationDispatchesDispatchIdNotificationsUsingGet({
     {
       method: 'GET',
       params: {
+        // management_context has a default value: auto
+        management_context: 'auto',
         // page has a default value: 1
         page: '1',
         ...queryParams,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取通知分发目标候选 返回当前管理员有权选择的启用组织、当前组织团队或用户候选。 GET /api/notification-dispatches/targets/ */
+export function notificationDispatchesTargetsUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.NotificationDispatchesTargetsUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedNotificationDispatchTargetOut>(
+    '/api/notification-dispatches/targets/',
+    {
+      method: 'GET',
+      params: {
+        // management_context has a default value: auto
+        management_context: 'auto',
+        // page has a default value: 1
+        page: '1',
+        ...params,
       },
       ...(options || {}),
     }

@@ -54,6 +54,10 @@ function handleLogout() {
     },
   })
 }
+
+function goSubscription() {
+  uni.navigateTo({ url: '/pages/subscription/index' })
+}
 </script>
 
 <template>
@@ -63,6 +67,12 @@ function handleLogout() {
     </view>
     <view class="mt-3 break-all px-3">
       {{ JSON.stringify(userInfo, null, 2) }}
+    </view>
+
+    <view v-if="tokenStore.hasLogin" class="mt-4 px-3">
+      <button class="w-full" @click="goSubscription">
+        订阅与权益
+      </button>
     </view>
 
     <view class="mt-[60vh] px-3">

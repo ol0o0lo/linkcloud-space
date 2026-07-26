@@ -41,7 +41,7 @@ export function organizationsSlugUsingGet({
   });
 }
 
-/** 更新租户资料和限制 更新当前选中租户的基础资料、账单邮箱和成员/团队上限。 PATCH /api/organizations/${param0}/ */
+/** 更新租户资料 更新当前选中租户的基础资料和账单邮箱。 PATCH /api/organizations/${param0}/ */
 export function organizationsSlugUsingPatch({
   params,
   body,
@@ -155,7 +155,7 @@ export function organizationsSlugTransferOwnerUsingPost({
   );
 }
 
-/** 获取租户用量 返回当前租户成员数、团队数及对应上限。 GET /api/organizations/${param0}/usage/ */
+/** 获取租户用量 返回当前租户成员数、团队数。配额由订阅权益接口提供。 GET /api/organizations/${param0}/usage/ */
 export function organizationsSlugUsageUsingGet({
   params,
   options,
@@ -274,7 +274,7 @@ export function teamsTeamIdUsingDelete({
   });
 }
 
-/** 更新团队 更新团队名称或成员列表，成员变更需要额外的成员管理权限。 PATCH /api/teams/${param0}/ */
+/** 更新团队 更新团队资料或成员列表，成员变更需要额外的成员管理权限。 PATCH /api/teams/${param0}/ */
 export function teamsTeamIdUsingPatch({
   params,
   body,

@@ -27,9 +27,12 @@ export function displayModeEnum2(field: API.ModeEnum2) {
 }
 
 export function displayScopeEnum(field: API.ScopeEnum) {
-  return { platform: 'platform', organization: 'organization', users: 'users' }[
-    field
-  ];
+  return {
+    platform: 'platform',
+    organization: 'organization',
+    teams: 'teams',
+    users: 'users',
+  }[field];
 }
 
 export function displaySideEnum(field: API.SideEnum) {

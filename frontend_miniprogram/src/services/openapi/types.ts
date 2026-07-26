@@ -365,6 +365,55 @@ export type AdminReferralsRecordsUsingGetResponses = {
   200: PagedReferralRecordOut;
 };
 
+export type AdminSubscriptionsInvoiceRequestsInvoiceRequestIdUsingPatchParams =
+  {
+    invoice_request_id: number;
+  };
+
+export type AdminSubscriptionsInvoiceRequestsInvoiceRequestIdUsingPatchResponses =
+  {
+    /**
+     * OK
+     */
+    200: InvoiceRequestOut;
+  };
+
+export type AdminSubscriptionsInvoiceRequestsUsingGetParams = {
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AdminSubscriptionsInvoiceRequestsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedInvoiceRequestOut;
+};
+
+export type AdminSubscriptionsOrdersOrderIdRefundUsingPostParams = {
+  order_id: number;
+};
+
+export type AdminSubscriptionsOrdersOrderIdRefundUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: SaaSOrderOut;
+};
+
+export type AdminSubscriptionsOrdersUsingGetParams = {
+  organization_id?: number | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AdminSubscriptionsOrdersUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedSaaSOrderOut;
+};
+
 export type AdminUserCreateIn = {
   /** Username 用户名。 */
   username: string;
@@ -633,6 +682,246 @@ export type AdminWalletWithdrawalsWithdrawalIdReviewUsingPostResponses = {
    * OK
    */
   200: WithdrawalOut;
+};
+
+export type AnalyticsCollectErrorOut = {
+  /** Index */
+  index: number;
+  /** Event Name */
+  event_name: string;
+  /** Message */
+  message: string;
+};
+
+export type AnalyticsCollectOut = {
+  /** Accepted */
+  accepted: number;
+  /** Duplicates */
+  duplicates: number;
+  /** Event Ids */
+  event_ids: number[];
+  /** Errors */
+  errors: AnalyticsCollectErrorOut[];
+};
+
+export type AnalyticsDefinitionsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: AnalyticsEventDefinitionOut[];
+};
+
+export type AnalyticsEventDefinitionOut = {
+  /** Key */
+  key: string;
+  /** Label */
+  label: string;
+  /** Target Types */
+  target_types: string[];
+  /** Allow Anonymous */
+  allow_anonymous: boolean;
+  /** Client Collectible */
+  client_collectible: boolean;
+};
+
+export type AnalyticsEventIn = {
+  /** Event Name */
+  event_name: string;
+  /** Target Type */
+  target_type: string;
+  /** Target Id */
+  target_id: string | number;
+  /** Source */
+  source?: string;
+  /** Anonymous Id */
+  anonymous_id?: string;
+  /** Session Id */
+  session_id?: string;
+  /** Occurred At */
+  occurred_at?: string | null;
+  /** Properties */
+  properties?: Record<string, unknown>;
+  /** Idempotency Key */
+  idempotency_key?: string;
+};
+
+export type AnalyticsEventsIn = {
+  /** Events */
+  events: AnalyticsEventIn[];
+};
+
+export type AnalyticsEventsUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: AnalyticsCollectOut;
+};
+
+export type AnalyticsMetricOut = {
+  /** Event Name */
+  event_name: string;
+  /** Label */
+  label: string;
+  /** Count */
+  count: number;
+  /** Unique Visitors */
+  unique_visitors: number;
+};
+
+export type AnalyticsOverviewOut = {
+  /** Start Date */
+  start_date: string;
+  /** End Date */
+  end_date: string;
+  /** Total Events */
+  total_events: number;
+  /** Unique Visitors */
+  unique_visitors: number;
+  /** Metrics */
+  metrics: AnalyticsMetricOut[];
+};
+
+export type AnalyticsOverviewUsingGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
+  source?: string | null;
+};
+
+export type AnalyticsOverviewUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: AnalyticsOverviewOut;
+};
+
+export type AnalyticsTargetDisplayItemOut = {
+  /** Target Type */
+  target_type: string;
+  /** Target Id */
+  target_id: string;
+  /** Label */
+  label: string;
+};
+
+export type AnalyticsTargetMetricOut = {
+  /** Target Id */
+  target_id: string;
+  /** Label */
+  label: string;
+  /** Display Items */
+  display_items: AnalyticsTargetDisplayItemOut[];
+  /** Total */
+  total: number;
+  /** Unique Visitors */
+  unique_visitors: number;
+  /** Metrics */
+  metrics: Record<string, number>;
+};
+
+export type AnalyticsTargetsUsingGetParams = {
+  target_type: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  source?: string | null;
+  /** 逗号分隔的事件名称。 */
+  event_names?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AnalyticsTargetsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedAnalyticsTargetMetricOut;
+};
+
+export type AnalyticsTrendPointOut = {
+  /** Date */
+  date: string;
+  /** Event Name */
+  event_name: string;
+  /** Count */
+  count: number;
+  /** Unique Visitors */
+  unique_visitors: number;
+};
+
+export type AnalyticsTrendsUsingGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
+  source?: string | null;
+  /** 逗号分隔的事件名称。 */
+  event_names?: string | null;
+};
+
+export type AnalyticsTrendsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: AnalyticsTrendPointOut[];
+};
+
+export type AnnouncementIn = {
+  /** Team Id 团队 ID；为空时表示整个组织。 */
+  team_id?: number | null;
+  /** Title */
+  title: string;
+  /** Body */
+  body: string;
+  /** Require Acknowledgement */
+  require_acknowledgement?: boolean;
+  /** Expires At */
+  expires_at?: string | null;
+};
+
+export type AnnouncementOut = {
+  /** Id */
+  id: number;
+  /** Organization Id */
+  organization_id: number;
+  /** Team Id */
+  team_id?: number | null;
+  /** Team Name */
+  team_name?: string | null;
+  /** Title */
+  title: string;
+  /** Body */
+  body: string;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Require Acknowledgement */
+  require_acknowledgement: boolean;
+  published_by?: UserSummaryOut | null;
+  /** Published At */
+  published_at?: string | null;
+  /** Expires At */
+  expires_at?: string | null;
+  /** Is Recipient */
+  is_recipient?: boolean;
+  /** Is Acknowledged */
+  is_acknowledged?: boolean;
+  /** Can Manage */
+  can_manage?: boolean;
+  /** Recipient Count */
+  recipient_count?: number;
+  /** Acknowledged Count */
+  acknowledged_count?: number;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type AnnouncementReceiptOut = {
+  /** Announcement Id */
+  announcement_id: number;
+  /** Recipient Id */
+  recipient_id: number;
+  /** Acknowledged At */
+  acknowledged_at?: string | null;
 };
 
 export type AppContextOrgOut = {
@@ -1006,6 +1295,17 @@ export type ContactSummaryOut = {
   phone: string;
 };
 
+export type CurrentSubscriptionOut = {
+  /** Plan */
+  plan: Record<string, unknown>;
+  /** Entitlement */
+  entitlement: Record<string, unknown>;
+  /** Usage */
+  usage: Record<string, unknown>;
+  /** Subscription */
+  subscription: Record<string, unknown> | null;
+};
+
 export type CustomRoleCreateIn = {
   /** Name 角色显示名称，需在当前作用域内唯一。 */
   name: string;
@@ -1020,6 +1320,23 @@ export type CustomRolePatchIn = {
   name?: string | null;
   /** Permission Keys 新的权限 key 列表。 */
   permission_keys?: string[] | null;
+};
+
+export type DailyDashboardOut = {
+  /** Pending Acceptance */
+  pending_acceptance: number;
+  /** In Progress */
+  in_progress: number;
+  /** Due Today */
+  due_today: number;
+  /** Overdue */
+  overdue: number;
+  /** Completed Today */
+  completed_today: number;
+  /** Unacknowledged Announcements */
+  unacknowledged_announcements: number;
+  /** Urgent Items */
+  urgent_items?: TaskAssignmentOut[];
 };
 
 export type DefaultBuildingIn = {
@@ -1201,6 +1518,55 @@ export type EstateSummaryOut = {
   name: string;
   /** Display Name */
   display_name: string;
+};
+
+export type FavoriteDisplayFactOut = {
+  /** Label */
+  label: string;
+  /** Value */
+  value: string;
+};
+
+export type FavoriteOut = {
+  /** Id */
+  id: number;
+  /** Target Type */
+  target_type: string;
+  /** Target Id */
+  target_id: string;
+  /** Created At */
+  created_at: string;
+  /** Available */
+  available: boolean;
+  display: FavoriteTargetDisplayOut | null;
+  /** Target */
+  target: Record<string, unknown> | null;
+};
+
+export type FavoriteTargetDisplayOut = {
+  /** Title */
+  title: string;
+  /** Subtitle */
+  subtitle?: string;
+  /** Cover Url */
+  cover_url?: string | null;
+  /** Description */
+  description?: string;
+  /** Tags */
+  tags?: string[];
+  /** Facts */
+  facts?: FavoriteDisplayFactOut[];
+};
+
+export type FavoriteTargetTypeOut = {
+  /** Target Type */
+  target_type: string;
+  /** Display Name */
+  display_name: string;
+  /** Order */
+  order: number;
+  /** Favorite Count */
+  favorite_count: number;
 };
 
 export type ForceLogoutOut = {
@@ -1949,6 +2315,83 @@ export type InviteOut = {
   updated_at: string;
 };
 
+export type InvoiceProcessIn = {
+  /** Status */
+  status: string;
+  /** Invoice Number */
+  invoice_number?: string;
+  /** File Url */
+  file_url?: string;
+  /** Admin Note */
+  admin_note?: string;
+};
+
+export type InvoiceProfileIn = {
+  /** Invoice Type */
+  invoice_type: string;
+  /** Title */
+  title: string;
+  /** Tax Number */
+  tax_number?: string;
+  /** Recipient Email */
+  recipient_email: string;
+  /** Registered Address */
+  registered_address?: string;
+  /** Registered Phone */
+  registered_phone?: string;
+  /** Bank Name */
+  bank_name?: string;
+  /** Bank Account */
+  bank_account?: string;
+};
+
+export type InvoiceProfileOut = {
+  /** Invoice Type */
+  invoice_type: string;
+  /** Title */
+  title: string;
+  /** Tax Number */
+  tax_number?: string;
+  /** Recipient Email */
+  recipient_email: string;
+  /** Registered Address */
+  registered_address?: string;
+  /** Registered Phone */
+  registered_phone?: string;
+  /** Bank Name */
+  bank_name?: string;
+  /** Bank Account */
+  bank_account?: string;
+  /** Organization Id */
+  organization_id: number;
+};
+
+export type InvoiceRequestIn = {
+  /** Order Id */
+  order_id: number;
+};
+
+export type InvoiceRequestOut = {
+  /** Id */
+  id: number;
+  /** Order Id */
+  order_id: number;
+  /** Status */
+  status: string;
+  /** Profile Snapshot */
+  profile_snapshot: Record<string, unknown>;
+  /** Invoice Number */
+  invoice_number: string;
+  /** Issued At */
+  issued_at: string | null;
+  /** File Url */
+  file_url: string;
+  /** Admin Note */
+  admin_note: string;
+  /** Created At */
+  created_at: string;
+};
+
 export type LeaseIn = {
   /** House Id */
   house_id: number;
@@ -2260,6 +2703,8 @@ export type NotificationActorOut = {
 
 export type NotificationDispatchesDispatchIdNotificationsUsingGetParams = {
   dispatch_id: number;
+  /** 管理上下文：自动、平台或当前租户。 */
+  management_context?: 'auto' | 'platform' | 'tenant';
   page?: number;
   page_size?: number | null;
 };
@@ -2273,6 +2718,8 @@ export type NotificationDispatchesDispatchIdNotificationsUsingGetResponses = {
 
 export type NotificationDispatchesDispatchIdUsingGetParams = {
   dispatch_id: number;
+  /** 管理上下文：自动、平台或当前租户。 */
+  management_context?: 'auto' | 'platform' | 'tenant';
 };
 
 export type NotificationDispatchesDispatchIdUsingGetResponses = {
@@ -2282,7 +2729,27 @@ export type NotificationDispatchesDispatchIdUsingGetResponses = {
   200: NotificationDispatchOut;
 };
 
+export type NotificationDispatchesTargetsUsingGetParams = {
+  /** 目标范围。 */
+  scope: 'organization' | 'teams' | 'users';
+  /** 按名称、标识或邮箱搜索目标。 */
+  keyword?: string;
+  /** 管理上下文：自动、平台或当前租户。 */
+  management_context?: 'auto' | 'platform' | 'tenant';
+  page?: number;
+  page_size?: number | null;
+};
+
+export type NotificationDispatchesTargetsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedNotificationDispatchTargetOut;
+};
+
 export type NotificationDispatchesUsingGetParams = {
+  /** 管理上下文：自动、平台或当前租户。 */
+  management_context?: 'auto' | 'platform' | 'tenant';
   page?: number;
   page_size?: number | null;
 };
@@ -2294,6 +2761,11 @@ export type NotificationDispatchesUsingGetResponses = {
   200: PagedNotificationDispatchOut;
 };
 
+export type NotificationDispatchesUsingPostParams = {
+  /** 管理上下文：自动、平台或当前租户。 */
+  management_context?: 'auto' | 'platform' | 'tenant';
+};
+
 export type NotificationDispatchesUsingPostResponses = {
   /**
    * OK
@@ -2303,7 +2775,7 @@ export type NotificationDispatchesUsingPostResponses = {
 
 export type NotificationDispatchIn = {
   /** Scope */
-  scope: 'platform' | 'organization' | 'users';
+  scope: 'platform' | 'organization' | 'teams' | 'users';
   /** Scope Ids */
   scope_ids?: number[];
   /** Category */
@@ -2359,17 +2831,38 @@ export type NotificationDispatchOut = {
   updated_at: string;
 };
 
+export type NotificationDispatchTargetOut = {
+  /** Id */
+  id: number;
+  /** Label */
+  label: string;
+  /** Description */
+  description?: string;
+  /** Avatar Url */
+  avatar_url?: string | null;
+};
+
 export type NotificationOut = {
   /** Id */
   id: number;
+  /** Category */
+  category: string;
   /** Title */
   title: string;
   /** Body */
   body: string;
   /** Url */
   url?: string | null;
+  /** Data */
+  data: Record<string, unknown>;
+  /** Target Type */
+  target_type?: string | null;
+  /** Target Id */
+  target_id?: number | null;
   /** Is Read */
   is_read: boolean;
+  /** Expires At */
+  expires_at?: string | null;
   /** Created At */
   created_at: string;
   actor?: NotificationActorOut | null;
@@ -2391,6 +2884,10 @@ export type NotificationPreferenceOut = {
   default_channels?: string[];
   /** Default Channels  Mapping */
   default_channels__mapping: string[];
+  /** Required Channels */
+  required_channels?: string[];
+  /** Required Channels  Mapping */
+  required_channels__mapping: string[];
   /** In App */
   in_app: boolean;
   /** Email */
@@ -2640,12 +3137,12 @@ export type OrganizationOut = {
   slug: string;
   /** Billing Email */
   billing_email?: string | null;
+  /** Logo */
+  logo?: ResolvedMediaRefOut[];
+  /** Description */
+  description?: string;
   /** Is Active */
   is_active: boolean;
-  /** Member Limit */
-  member_limit?: number | null;
-  /** Team Limit */
-  team_limit?: number | null;
 };
 
 export type OrganizationPatchIn = {
@@ -2655,10 +3152,10 @@ export type OrganizationPatchIn = {
   slug?: string | null;
   /** Billing Email 租户账单联系邮箱。 */
   billing_email?: string | null;
-  /** Member Limit 成员数量上限，null 表示不限。 */
-  member_limit?: number | null;
-  /** Team Limit 团队数量上限，null 表示不限。 */
-  team_limit?: number | null;
+  /** Logo 租户 Logo 媒体引用，最多 1 个。 */
+  logo?: MediaRefIn[] | null;
+  /** Description 租户介绍。 */
+  description?: string | null;
 };
 
 export type OrganizationSettingsUpdateSettingsUsingPatchResponses = {
@@ -2785,10 +3282,6 @@ export type OrganizationUsageOut = {
   member_count: number;
   /** Team Count */
   team_count: number;
-  /** Member Limit */
-  member_limit?: number | null;
-  /** Team Limit */
-  team_limit?: number | null;
 };
 
 export type OrgSelectOut = {
@@ -2848,6 +3341,28 @@ export type PagedAdminRealNameVerificationRowOut = {
 export type PagedAdminUserOut = {
   /** Items */
   items: AdminUserOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedAnalyticsTargetMetricOut = {
+  /** Items */
+  items: AnalyticsTargetMetricOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedAnnouncementOut = {
+  /** Items */
+  items: AnnouncementOut[];
   /** Total */
   total: number;
   /** Page */
@@ -2922,6 +3437,17 @@ export type PagedEstateOut = {
   page_size: number;
 };
 
+export type PagedFavoriteOut = {
+  /** Items */
+  items: FavoriteOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedHouseOut = {
   /** Items */
   items: HouseOut[];
@@ -2936,6 +3462,17 @@ export type PagedHouseOut = {
 export type PagedInviteOut = {
   /** Items */
   items: InviteOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedInvoiceRequestOut = {
+  /** Items */
+  items: InvoiceRequestOut[];
   /** Total */
   total: number;
   /** Page */
@@ -2977,6 +3514,17 @@ export type PagedNotificationDispatchOut = {
   page_size: number;
 };
 
+export type PagedNotificationDispatchTargetOut = {
+  /** Items */
+  items: NotificationDispatchTargetOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedNotificationOut = {
   /** Items */
   items: NotificationOut[];
@@ -2999,9 +3547,42 @@ export type PagedPropertyResponsibilityMemberOut = {
   page_size: number;
 };
 
+export type PagedPublicHouseListOut = {
+  /** Items */
+  items: PublicHouseListOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedReferralRecordOut = {
   /** Items */
   items: ReferralRecordOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedSaaSOrderOut = {
+  /** Items */
+  items: SaaSOrderOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedTaskAssignmentOut = {
+  /** Items */
+  items: TaskAssignmentOut[];
   /** Total */
   total: number;
   /** Page */
@@ -3024,6 +3605,17 @@ export type PagedTeamOut = {
 export type PagedUserOut = {
   /** Items */
   items: UserOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedUserSummaryOut = {
+  /** Items */
+  items: UserSummaryOut[];
   /** Total */
   total: number;
   /** Page */
@@ -3076,6 +3668,17 @@ export type PagedWithdrawalOut = {
   page_size: number;
 };
 
+export type PagedWorkTaskOut = {
+  /** Items */
+  items: WorkTaskOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PayoutCreateIn = {
   /** Provider */
   provider: string;
@@ -3103,6 +3706,23 @@ export type PhoneCodeVerifyIn = {
   code: string;
 };
 
+export type PlanOut = {
+  /** Code */
+  code: string;
+  /** Name */
+  name: string;
+  /** Description */
+  description: string;
+  /** Display Order */
+  display_order: number;
+  /** Is Active */
+  is_active: boolean;
+  /** Prices */
+  prices: Record<string, unknown>[];
+  /** Entitlement */
+  entitlement: Record<string, unknown> | null;
+};
+
 export type PropertyResponsibilityMemberOut = {
   /** Member Id */
   member_id: number;
@@ -3128,6 +3748,197 @@ export type PropertyResponsibilityUpdateIn = {
   estate_ids?: number[];
 };
 
+export type PublicBuildingOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Address */
+  address: string;
+  /** Lat */
+  lat: string | null;
+  /** Lng */
+  lng: string | null;
+  estate: PublicEstateOut | null;
+};
+
+export type PublicEstateOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Display Name */
+  display_name: string;
+  /** Province */
+  province: string;
+  /** City */
+  city: string;
+  /** District */
+  district: string;
+  /** Address */
+  address: string;
+};
+
+export type PublicHouseDetailOut = {
+  /** Id */
+  id: number;
+  /** Room Number */
+  room_number: string;
+  /** Floor */
+  floor: number | null;
+  /** Area */
+  area: string | null;
+  /** Asking Rent */
+  asking_rent: string | null;
+  /** Bedrooms */
+  bedrooms: number | null;
+  /** Living Rooms */
+  living_rooms: number | null;
+  /** Bathrooms */
+  bathrooms: number | null;
+  /** Orientation */
+  orientation: string | null;
+  /** Orientation  Mapping */
+  orientation__mapping: string;
+  /** Decoration */
+  decoration: string | null;
+  /** Decoration  Mapping */
+  decoration__mapping: string;
+  /** Has Elevator Access */
+  has_elevator_access: boolean;
+  /** Images */
+  images: ResolvedMediaRefOut[];
+  /** Tags */
+  tags: string[];
+  /** Effective Tags */
+  effective_tags: string[];
+  /** Public Description */
+  public_description: string;
+  building: PublicBuildingOut;
+  publisher: PublicPublisherOut;
+  /** Updated At */
+  updated_at: string;
+  /** Interior Area */
+  interior_area: string | null;
+  /** Deposit Amount */
+  deposit_amount: string | null;
+  /** Kitchens */
+  kitchens: number | null;
+  /** Balconies */
+  balconies: number | null;
+  /** Videos */
+  videos: ResolvedMediaRefOut[];
+};
+
+export type PublicHouseFiltersOut = {
+  /** Rent Min */
+  rent_min: string | null;
+  /** Rent Max */
+  rent_max: string | null;
+  /** Area Min */
+  area_min: string | null;
+  /** Area Max */
+  area_max: string | null;
+  /** Provinces */
+  provinces: string[];
+  /** Cities */
+  cities: string[];
+  /** Districts */
+  districts: string[];
+  /** Bedrooms */
+  bedrooms: number[];
+  /** Living Rooms */
+  living_rooms: number[];
+  /** Tags */
+  tags: string[];
+};
+
+export type PublicHouseListOut = {
+  /** Id */
+  id: number;
+  /** Room Number */
+  room_number: string;
+  /** Floor */
+  floor: number | null;
+  /** Area */
+  area: string | null;
+  /** Asking Rent */
+  asking_rent: string | null;
+  /** Bedrooms */
+  bedrooms: number | null;
+  /** Living Rooms */
+  living_rooms: number | null;
+  /** Bathrooms */
+  bathrooms: number | null;
+  /** Orientation */
+  orientation: string | null;
+  /** Orientation  Mapping */
+  orientation__mapping: string;
+  /** Decoration */
+  decoration: string | null;
+  /** Decoration  Mapping */
+  decoration__mapping: string;
+  /** Has Elevator Access */
+  has_elevator_access: boolean;
+  /** Images */
+  images: ResolvedMediaRefOut[];
+  /** Tags */
+  tags: string[];
+  /** Effective Tags */
+  effective_tags: string[];
+  /** Public Description */
+  public_description: string;
+  building: PublicBuildingOut;
+  publisher: PublicPublisherOut;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type PublicHousesFiltersUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseFiltersOut;
+};
+
+export type PublicHousesHouseIdUsingGetParams = {
+  house_id: number;
+};
+
+export type PublicHousesHouseIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseDetailOut;
+};
+
+export type PublicHousesUsingGetParams = {
+  keyword?: string | null;
+  province?: string | null;
+  city?: string | null;
+  district?: string | null;
+  min_rent?: number | string | null;
+  max_rent?: number | string | null;
+  min_area?: number | string | null;
+  max_area?: number | string | null;
+  bedrooms?: number | null;
+  living_rooms?: number | null;
+  decoration?: string | null;
+  has_elevator_access?: boolean | null;
+  tags?: string[] | null;
+  publisher_slug?: string | null;
+  sort?: 'latest' | 'rent_asc' | 'rent_desc' | 'area_asc' | 'area_desc';
+  page?: number;
+  page_size?: number | null;
+};
+
+export type PublicHousesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedPublicHouseListOut;
+};
+
 export type PublicInviteOut = {
   /** Organization Name */
   organization_name: string;
@@ -3139,6 +3950,26 @@ export type PublicInviteOut = {
   is_expired: boolean;
   /** Is Already Member */
   is_already_member: boolean;
+};
+
+export type PublicPublisherOut = {
+  /** Slug */
+  slug: string;
+  /** Name */
+  name: string;
+  /** Logo */
+  logo: ResolvedMediaRefOut[];
+  /** Description */
+  description: string;
+};
+
+export type PurchaseOrderIn = {
+  /** Target Plan Code */
+  target_plan_code: string;
+  /** Billing Cycle */
+  billing_cycle: string;
+  /** Payment Mode */
+  payment_mode: string;
 };
 
 export type RealNameIdCardMediaIn = {
@@ -3425,6 +4256,17 @@ export type ReferralSummaryOut = {
   rewarded_count: number;
 };
 
+export type RefundIn = {
+  /** Amount */
+  amount: number;
+  /** Reason */
+  reason: string;
+  /** Proof */
+  proof?: string;
+  /** Subscription Action */
+  subscription_action: string;
+};
+
 export type RelatedResourceItemOut = {
   /** Id */
   id: number;
@@ -3482,9 +4324,45 @@ export type RoleBindingIn = {
   role: number;
 };
 
+export type SaaSOrderOut = {
+  /** Id */
+  id: number;
+  /** Order No */
+  order_no: string;
+  /** Order Type */
+  order_type: string;
+  /** Status */
+  status: string;
+  /** Close Reason */
+  close_reason: string;
+  /** Target Plan Code */
+  target_plan_code: string;
+  /** Billing Cycle */
+  billing_cycle: string;
+  /** List Amount */
+  list_amount: number;
+  /** Credit Amount */
+  credit_amount: number;
+  /** Payable Amount */
+  payable_amount: number;
+  /** Expires At */
+  expires_at: string;
+  /** Paid At */
+  paid_at: string | null;
+  /** Refund Status */
+  refund_status: string;
+  /** Refunded Amount */
+  refunded_amount: number;
+  /** Created At */
+  created_at: string;
+  /** Payment */
+  payment?: Record<string, unknown> | null;
+};
+
 export enum ScopeEnum {
   'platform' = 'platform',
   'organization' = 'organization',
+  'teams' = 'teams',
   'users' = 'users',
 }
 
@@ -3733,6 +4611,90 @@ export enum StatusEnum2 {
 
 export type IStatusEnum2 = keyof typeof StatusEnum2;
 
+export type SubscriptionsCurrentUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: CurrentSubscriptionOut;
+};
+
+export type SubscriptionsInvoiceProfileUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: InvoiceProfileOut | null;
+};
+
+export type SubscriptionsInvoiceProfileUsingPutResponses = {
+  /**
+   * OK
+   */
+  200: InvoiceProfileOut;
+};
+
+export type SubscriptionsInvoiceRequestsUsingGetParams = {
+  page?: number;
+  page_size?: number | null;
+};
+
+export type SubscriptionsInvoiceRequestsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedInvoiceRequestOut;
+};
+
+export type SubscriptionsInvoiceRequestsUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: InvoiceRequestOut;
+};
+
+export type SubscriptionsOrdersOrderNoUsingGetParams = {
+  order_no: string;
+};
+
+export type SubscriptionsOrdersOrderNoUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: SaaSOrderOut;
+};
+
+export type SubscriptionsOrdersUsingGetParams = {
+  page?: number;
+  page_size?: number | null;
+};
+
+export type SubscriptionsOrdersUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedSaaSOrderOut;
+};
+
+export type SubscriptionsOrdersUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: SaaSOrderOut;
+};
+
+export type SubscriptionsPaymentsWechatNotifyUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, unknown>;
+};
+
+export type SubscriptionsPlansUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PlanOut[];
+};
+
 export type SuccessOut = {
   /** Success */
   success: boolean;
@@ -3756,6 +4718,57 @@ export type TagSuggestionsOut = {
   tags: string[];
 };
 
+export type TaskActionIn = {
+  /** Result */
+  result?: string;
+};
+
+export type TaskAssignmentOut = {
+  /** Id */
+  id: number;
+  /** Task Id */
+  task_id: number;
+  /** Task Title */
+  task_title: string;
+  /** Task Description */
+  task_description: string;
+  /** Task Type */
+  task_type: string;
+  /** Priority */
+  priority: string;
+  /** Priority  Mapping */
+  priority__mapping: string;
+  /** Task Status */
+  task_status: string;
+  /** Task Status  Mapping */
+  task_status__mapping: string;
+  /** Team Id */
+  team_id?: number | null;
+  /** Team Name */
+  team_name?: string | null;
+  assignee: UserSummaryOut;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Due At */
+  due_at?: string | null;
+  /** Is Overdue */
+  is_overdue: boolean;
+  /** Accepted At */
+  accepted_at?: string | null;
+  /** Completed At */
+  completed_at?: string | null;
+  /** Rejected At */
+  rejected_at?: string | null;
+  /** Result */
+  result: string;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
 export type TeamBindingOut = {
   /** Id */
   id: number;
@@ -3772,8 +4785,232 @@ export type TeamBindingOut = {
 export type TeamIn = {
   /** Name 团队名称。 */
   name: string;
+  /** Phone 团队联系电话。 */
+  phone?: string;
+  /** Wechat 团队客服微信号。 */
+  wechat?: string;
+  /** Address 团队地址。 */
+  address?: string;
+  /** Business Hours 团队营业时间。 */
+  business_hours?: string;
   /** Members 初始成员用户 ID 列表。 */
   members?: number[];
+};
+
+export type TeamOperationsAnnouncementsAnnouncementIdAcknowledgeUsingPostParams =
+  {
+    announcement_id: number;
+  };
+
+export type TeamOperationsAnnouncementsAnnouncementIdAcknowledgeUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: AnnouncementReceiptOut;
+  };
+
+export type TeamOperationsAnnouncementsAnnouncementIdPublishUsingPostParams = {
+  announcement_id: number;
+};
+
+export type TeamOperationsAnnouncementsAnnouncementIdPublishUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: AnnouncementOut;
+  };
+
+export type TeamOperationsAnnouncementsAnnouncementIdUsingGetParams = {
+  announcement_id: number;
+};
+
+export type TeamOperationsAnnouncementsAnnouncementIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: AnnouncementOut;
+};
+
+export type TeamOperationsAnnouncementsAnnouncementIdWithdrawUsingPostParams = {
+  announcement_id: number;
+};
+
+export type TeamOperationsAnnouncementsAnnouncementIdWithdrawUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: AnnouncementOut;
+  };
+
+export type TeamOperationsAnnouncementsUsingGetParams = {
+  team_id?: number | null;
+  status?: string | null;
+  keyword?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type TeamOperationsAnnouncementsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedAnnouncementOut;
+};
+
+export type TeamOperationsAnnouncementsUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: AnnouncementOut;
+};
+
+export type TeamOperationsCapabilitiesOut = {
+  /** Announcement Organization Manage */
+  announcement_organization_manage: boolean;
+  /** Announcement Team Ids */
+  announcement_team_ids?: number[];
+  /** Task Organization Manage */
+  task_organization_manage: boolean;
+  /** Task Team Ids */
+  task_team_ids?: number[];
+};
+
+export type TeamOperationsCapabilitiesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: TeamOperationsCapabilitiesOut;
+};
+
+export type TeamOperationsDashboardDailyUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: DailyDashboardOut;
+};
+
+export type TeamOperationsTaskAssigneesUsingGetParams = {
+  team_id?: number | null;
+  keyword?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type TeamOperationsTaskAssigneesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedUserSummaryOut;
+};
+
+export type TeamOperationsTaskAssignmentsAssignmentIdAcceptUsingPostParams = {
+  assignment_id: number;
+};
+
+export type TeamOperationsTaskAssignmentsAssignmentIdAcceptUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: TaskAssignmentOut;
+  };
+
+export type TeamOperationsTaskAssignmentsAssignmentIdCompleteUsingPostParams = {
+  assignment_id: number;
+};
+
+export type TeamOperationsTaskAssignmentsAssignmentIdCompleteUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: TaskAssignmentOut;
+  };
+
+export type TeamOperationsTaskAssignmentsAssignmentIdRejectUsingPostParams = {
+  assignment_id: number;
+};
+
+export type TeamOperationsTaskAssignmentsAssignmentIdRejectUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: TaskAssignmentOut;
+  };
+
+export type TeamOperationsTaskAssignmentsAssignmentIdUsingGetParams = {
+  assignment_id: number;
+};
+
+export type TeamOperationsTaskAssignmentsAssignmentIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: TaskAssignmentOut;
+};
+
+export type TeamOperationsTaskAssignmentsUsingGetParams = {
+  status?: string | null;
+  overdue?: boolean | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type TeamOperationsTaskAssignmentsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedTaskAssignmentOut;
+};
+
+export type TeamOperationsTasksTaskIdCancelUsingPostParams = {
+  task_id: number;
+};
+
+export type TeamOperationsTasksTaskIdCancelUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: WorkTaskOut;
+};
+
+export type TeamOperationsTasksTaskIdUsingGetParams = {
+  task_id: number;
+};
+
+export type TeamOperationsTasksTaskIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: WorkTaskOut;
+};
+
+export type TeamOperationsTasksUsingGetParams = {
+  team_id?: number | null;
+  status?: string | null;
+  priority?: string | null;
+  keyword?: string | null;
+  mine?: boolean | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type TeamOperationsTasksUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedWorkTaskOut;
+};
+
+export type TeamOperationsTasksUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: WorkTaskOut;
 };
 
 export type TeamOut = {
@@ -3781,6 +5018,14 @@ export type TeamOut = {
   id: number;
   /** Name */
   name: string;
+  /** Phone */
+  phone?: string;
+  /** Wechat */
+  wechat?: string;
+  /** Address */
+  address?: string;
+  /** Business Hours */
+  business_hours?: string;
   /** Members */
   members: number[];
   /** Member Details */
@@ -3794,6 +5039,14 @@ export type TeamOut = {
 export type TeamPatchIn = {
   /** Name 新的团队名称。 */
   name?: string | null;
+  /** Phone 团队联系电话。 */
+  phone?: string | null;
+  /** Wechat 团队客服微信号。 */
+  wechat?: string | null;
+  /** Address 团队地址。 */
+  address?: string | null;
+  /** Business Hours 团队营业时间。 */
+  business_hours?: string | null;
   /** Members 新的团队成员用户 ID 列表。 */
   members?: number[] | null;
 };
@@ -3973,6 +5226,55 @@ export type UsersImpersonateSearchUsingGetResponses = {
   200: ImpersonateUserOut[];
 };
 
+export type UsersMeFavoriteTypeUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: FavoriteTargetTypeOut[];
+};
+
+export type UsersMeFavoriteUsingDeleteParams = {
+  target_type: string;
+  target_id: string;
+};
+
+export type UsersMeFavoriteUsingDeleteResponses = {
+  /**
+   * OK
+   */
+  200: unknown;
+};
+
+export type UsersMeFavoriteUsingGetParams = {
+  target_type?: string | null;
+  target_id?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type UsersMeFavoriteUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedFavoriteOut;
+};
+
+export type UsersMeFavoriteUsingPutParams = {
+  target_type: string;
+  target_id: string;
+};
+
+export type UsersMeFavoriteUsingPutResponses = {
+  /**
+   * OK
+   */
+  200: FavoriteOut;
+  /**
+   * Created
+   */
+  201: FavoriteOut;
+};
+
 export type UsersMeMfaAuthenticatorsAuthenticatorTypeUsingDeleteParams = {
   authenticator_type: string;
 };
@@ -4043,6 +5345,15 @@ export type UsersMeWechatPhoneUsingPostResponses = {
 export type UserStatusPatchIn = {
   /** Is Active 是否启用用户。 */
   is_active: boolean;
+};
+
+export type UserSummaryOut = {
+  /** Id */
+  id: number;
+  /** Username */
+  username: string;
+  /** Full Name */
+  full_name: string;
 };
 
 export type UsersUserIdUsingGetParams = {
@@ -4568,4 +5879,69 @@ export type WithdrawalReviewIn = {
   reason?: string;
   /** Idempotency Key */
   idempotency_key: string;
+};
+
+export type WorkTaskIn = {
+  /** Team Id 团队 ID；为空时表示组织级任务。 */
+  team_id?: number | null;
+  /** Title */
+  title: string;
+  /** Description */
+  description?: string;
+  /** Task Type */
+  task_type?: string;
+  /** Priority */
+  priority?: string;
+  /** Due At */
+  due_at?: string | null;
+  /** Assignee Ids */
+  assignee_ids: number[];
+  /** Url */
+  url?: string;
+  /** Data */
+  data?: Record<string, unknown>;
+};
+
+export type WorkTaskOut = {
+  /** Id */
+  id: number;
+  /** Organization Id */
+  organization_id: number;
+  /** Team Id */
+  team_id?: number | null;
+  /** Team Name */
+  team_name?: string | null;
+  /** Title */
+  title: string;
+  /** Description */
+  description: string;
+  /** Task Type */
+  task_type: string;
+  /** Priority */
+  priority: string;
+  /** Priority  Mapping */
+  priority__mapping: string;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Due At */
+  due_at?: string | null;
+  creator?: UserSummaryOut | null;
+  /** Url */
+  url: string;
+  /** Data */
+  data: Record<string, unknown>;
+  /** Completed At */
+  completed_at?: string | null;
+  /** Cancelled At */
+  cancelled_at?: string | null;
+  /** Can Manage */
+  can_manage?: boolean;
+  /** Assignments */
+  assignments?: TaskAssignmentOut[];
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
 };
