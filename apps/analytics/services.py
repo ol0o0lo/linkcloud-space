@@ -190,39 +190,6 @@ def record_event_safely(event_name: str, **kwargs) -> tuple[AnalyticsEvent, bool
         return None
 
 
-def track_event(event_name: str, *, target, actor=None, source: str = "server", properties=None, idempotency_key: str = "") -> tuple[AnalyticsEvent, bool]:
-    """供后端业务模块使用的最小采集接口。"""
-    event_definition = get_event_definition(event_name)
-    matching_target = None
-    for target_type in event_definition.target_types if event_definition else ():
-        definition = get_target_definition(target_type)
-        if definition and isinstance(target, definition.model_class):
-            matching_target = target_type
-            break
-    if matching_target is None:
-        raise AnalyticsValidationError(f"事件 {event_name} 与目标模型不匹配。")
-    organization = resolve_path(target, get_target_definition(matching_target).organization_path)
-    return record_event(
-        event_name,
-        target_type=matching_target,
-        target_id=target.pk,
-        organization=organization,
-        actor=actor,
-        source=source,
-        properties=properties,
-        idempotency_key=idempotency_key,
-    )
-
-
-def track_event_safely(event_name: str, **kwargs) -> tuple[AnalyticsEvent, bool] | None:
-    """业务侧尽力采集；分析故障不能阻断核心业务事务。"""
-    try:
-        return track_event(event_name, **kwargs)
-    except Exception:
-        logger.exception("Failed to track analytics event %s", event_name)
-        return None
-
-
 def normalize_date_range(start_date: date | None, end_date: date | None) -> tuple[date, date]:
     end_date = end_date or timezone.localdate()
     start_date = start_date or end_date - timedelta(days=29)

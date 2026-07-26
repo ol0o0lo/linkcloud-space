@@ -2,8 +2,8 @@ import binascii
 import os
 from datetime import timedelta
 
-from django.apps import apps
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -16,10 +16,6 @@ from apps.media.fields import MediaRefsField
 from ..base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from ..base.utils.email import send_email
 from .managers import OrganizationInviteQuerySet, OrganizationMemberQuerySet, OrganizationQuerySet
-
-
-def get_user_model():
-    return apps.get_model(settings.AUTH_USER_MODEL)
 
 
 class Organization(BaseModelMixin):

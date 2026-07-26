@@ -42,12 +42,12 @@ class LegacyPagination(PaginationBase):
         }
 
 
-def make_pagination(default_page_size: int = 15, default_ordering: str = "") -> type[LegacyPagination]:
+def make_pagination(default_page_size: int = 15) -> type[LegacyPagination]:
     """Build a ``LegacyPagination`` subclass with view-specific defaults."""
     return type(
         "LegacyPagination_custom",
         (LegacyPagination,),
-        {"default_page_size": default_page_size, "default_ordering": default_ordering},
+        {"default_page_size": default_page_size},
     )
 
 

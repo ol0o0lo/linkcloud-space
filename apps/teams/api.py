@@ -9,7 +9,6 @@ from apps.access.services import has_permission
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_selected
 from apps.organizations.models import OrganizationMember
-from apps.teams.hooks import post_create_team, pre_create_team
 from apps.teams.models import Team
 from apps.teams.schemas import TeamIn, TeamOut, TeamPatchIn
 
@@ -59,7 +58,6 @@ def create_team(request, payload: TeamIn):
 
     EntitlementService.check_can_add(org, "team")
     member_ids = _validate_members(payload.members, org)
-    pre_create_team(request)
     with transaction.atomic():
         team = Team.objects.create(
             organization=org,
@@ -71,7 +69,6 @@ def create_team(request, payload: TeamIn):
         )
         if member_ids:
             team.members.set(member_ids)
-        post_create_team(request, team)
     return Status(201, team)
 
 

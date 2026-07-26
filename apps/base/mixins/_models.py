@@ -20,15 +20,3 @@ class AuditModelMixin(models.Model):
 class BaseModelMixin(CreateUpdateTimeModelMixin, AuditModelMixin):
     class Meta:
         abstract = True
-
-
-class TimeStampModelMixin(CreateUpdateTimeModelMixin):
-    class Meta:
-        abstract = True
-
-
-class BaseListModelMixin(BaseModelMixin):
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        abstract = True

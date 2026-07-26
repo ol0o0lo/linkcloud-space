@@ -1,14 +1,9 @@
 from email.utils import formataddr
 
-from django.apps import apps
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
-
-
-def get_user_model():
-    """Return the active user model."""
-    return apps.get_model(settings.AUTH_USER_MODEL)
 
 
 def get_user_email(user):

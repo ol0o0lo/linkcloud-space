@@ -14,16 +14,12 @@ import qrcode
 import qrcode.image.svg
 
 
-def _static_asset_prefix(asset_subdir: str) -> str:
-    return f"{settings.STATIC_URL.rstrip('/')}/{asset_subdir.strip('/')}/"
-
-
 def _rewrite_index_asset_urls(content: bytes, asset_subdir: str | None = None) -> bytes:
     if not asset_subdir:
         return content
 
     html = content.decode("utf-8")
-    asset_prefix = _static_asset_prefix(asset_subdir)
+    asset_prefix = f"{settings.STATIC_URL.rstrip('/')}/{asset_subdir.strip('/')}/"
 
     def replace_asset_url(match: re.Match[str]) -> str:
         attr = match.group("attr")
@@ -56,6 +52,7 @@ def _static_index_response(
     content = _rewrite_index_asset_urls(content, asset_subdir)
     get_token(request)
     return HttpResponse(content, content_type="text/html; charset=utf-8")
+
 
 class DashboardSPAView(generic.View):
     def get(self, request, *args, **kwargs):
