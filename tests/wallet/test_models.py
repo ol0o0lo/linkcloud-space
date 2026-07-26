@@ -4,8 +4,9 @@ from django.test import TestCase
 from model_bakery import baker
 
 from apps.accounts.models import User
+from apps.payments.models import PayoutTransaction
 from apps.wallet.constants import WithdrawalPayChannel
-from apps.wallet.models import WalletAccount, WalletLedger, WithdrawalPayout, WithdrawalRequest
+from apps.wallet.models import WalletAccount, WalletLedger, WithdrawalRequest
 
 
 class WalletModelTests(TestCase):
@@ -55,19 +56,25 @@ class WalletModelTests(TestCase):
             pay_channel=WithdrawalPayChannel.WECHAT,
             payee_account_snapshot={"masked_account": "***0001"},
         )
-        WithdrawalPayout.objects.create(
-            withdrawal_request=withdrawal,
-            provider="mock_provider",
+        PayoutTransaction.objects.create(
+            biz_type="wallet.withdrawal",
+            biz_id=str(withdrawal.pk),
+            provider="wechat",
             out_trade_no="out-1",
             idempotency_key="payout-1",
+            amount=withdrawal.net_amount,
+            payee_snapshot=withdrawal.payee_account_snapshot,
             status="pending",
         )
 
         with self.assertRaises(IntegrityError):
-            WithdrawalPayout.objects.create(
-                withdrawal_request=withdrawal,
-                provider="mock_provider",
+            PayoutTransaction.objects.create(
+                biz_type="wallet.withdrawal",
+                biz_id=str(withdrawal.pk),
+                provider="wechat",
                 out_trade_no="out-1",
                 idempotency_key="payout-2",
+                amount=withdrawal.net_amount,
+                payee_snapshot=withdrawal.payee_account_snapshot,
                 status="pending",
             )

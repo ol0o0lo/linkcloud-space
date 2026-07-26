@@ -1,11 +1,13 @@
 import math
 import secrets
-from dataclasses import dataclass
 from datetime import timedelta
 
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils import timezone
 
+from apps.payments.constants import PaymentMode, PaymentStatus
+from apps.payments.models import PaymentTransaction
+from apps.payments.services import create_payment, start_checkout
 from apps.subscriptions.constants import (
     MAX_SUBSCRIPTION_DAYS,
     MONTH_DAYS,
@@ -16,22 +18,13 @@ from apps.subscriptions.constants import (
     OrderCloseReason,
     OrderStatus,
     OrderType,
-    PaymentMode,
-    PaymentStatus,
     RefundStatus,
     RefundSubscriptionAction,
     SubscriptionKind,
     SubscriptionStatus,
 )
 from apps.subscriptions.exceptions import SubscriptionRuleException
-from apps.subscriptions.models import PaymentTransaction, Plan, PlanEntitlement, PlanPrice, SaaSOrder, Subscription, SubscriptionAuditLog, SubscriptionSettings
-from apps.subscriptions.wechat_client import WechatCheckoutClient, is_wechat_checkout_enabled
-
-
-@dataclass(frozen=True, slots=True)
-class PaymentSuccessResult:
-    order: SaaSOrder
-    subscription_activated: bool
+from apps.subscriptions.models import Plan, PlanEntitlement, PlanPrice, SaaSOrder, Subscription, SubscriptionAuditLog, SubscriptionSettings
 
 
 def _now():
@@ -171,14 +164,6 @@ def _next_order_no() -> str:
     return f"S{_now():%Y%m%d%H%M%S}{secrets.token_hex(5).upper()}"
 
 
-def _next_transaction_no() -> str:
-    return f"P{_now():%Y%m%d%H%M%S}{secrets.token_hex(5).upper()}"
-
-
-def get_wechat_checkout_client() -> WechatCheckoutClient:
-    return WechatCheckoutClient()
-
-
 @transaction.atomic
 def create_purchase_order(*, organization, created_by, target_plan_code: str, billing_cycle: str, payment_mode: str) -> tuple[SaaSOrder, PaymentTransaction]:
     """服务端按当前版本计算价格并生成唯一待支付订单。"""
@@ -194,7 +179,7 @@ def create_purchase_order(*, organization, created_by, target_plan_code: str, bi
         raise SubscriptionRuleException("升级后的应付金额必须大于零。")
 
     now = _now()
-    superseded_order_nos = list(SaaSOrder.objects.filter(organization=organization, status=OrderStatus.PENDING_PAYMENT).values_list("order_no", flat=True))
+    superseded_order_ids = list(SaaSOrder.objects.filter(organization=organization, status=OrderStatus.PENDING_PAYMENT).values_list("pk", flat=True))
     SaaSOrder.objects.filter(organization=organization, status=OrderStatus.PENDING_PAYMENT).update(
         status=OrderStatus.CLOSED,
         close_reason=OrderCloseReason.SUPERSEDED,
@@ -216,38 +201,36 @@ def create_purchase_order(*, organization, created_by, target_plan_code: str, bi
         expires_at=now + timedelta(minutes=ORDER_EXPIRY_MINUTES),
         created_by=created_by,
     )
-    payment = PaymentTransaction.objects.create(order=order, payment_mode=payment_mode, transaction_no=_next_transaction_no())
-    if superseded_order_nos and is_wechat_checkout_enabled():
+    payment = create_payment(
+        biz_type="subscriptions.saas_order",
+        biz_id=str(order.pk),
+        amount=order.payable_amount,
+        description=f"链云空间 {order.plan_snapshot.get('name', 'SaaS 服务')}",
+        payment_mode=payment_mode,
+        expires_at=order.expires_at,
+    )
+    if superseded_order_ids:
         from apps.subscriptions.tasks import close_saas_order_in_wechat_task
 
-        for order_no in superseded_order_nos:
-            transaction.on_commit(lambda order_no=order_no: close_saas_order_in_wechat_task.delay(order_no))
+        for order_id in superseded_order_ids:
+            transaction.on_commit(lambda order_id=order_id: close_saas_order_in_wechat_task.delay(order_id))
     audit(action="order_created", organization=organization, target=order, actor=created_by, after={"order_type": order_type, "payable_amount": payable_amount})
     return order, payment
 
 
-@transaction.atomic
 def initiate_wechat_payment(*, order: SaaSOrder, payment: PaymentTransaction, user) -> dict:
-    """向微信创建 Native 或 JSAPI 交易，并保存最小化请求与响应快照。"""
-    order = SaaSOrder.objects.select_for_update().get(pk=order.pk)
-    payment = PaymentTransaction.objects.select_for_update().get(pk=payment.pk)
+    """由支付模块向微信创建 Native 或 JSAPI 交易。"""
     if order.status != OrderStatus.PENDING_PAYMENT or payment.status != PaymentStatus.PENDING:
         raise SubscriptionRuleException("当前订单不能再次发起支付。")
-    client = get_wechat_checkout_client()
-    if payment.payment_mode == PaymentMode.NATIVE:
-        checkout = client.create_native_order(order=order)
-    else:
+    openid = ""
+    if payment.payment_mode == PaymentMode.MINIPROGRAM:
         from allauth.socialaccount.models import SocialAccount
 
         account = SocialAccount.objects.filter(user=user, provider="wechat_miniprogram").first()
         openid = (account.extra_data or {}).get("openid") if account else ""
         if not openid:
             raise SubscriptionRuleException("小程序支付前请先绑定有效的微信小程序账号。")
-        checkout = client.create_miniprogram_order(order=order, openid=openid)
-    payment.request_snapshot = checkout.get("request_snapshot", {"out_trade_no": order.order_no, "amount": {"total": order.payable_amount}})
-    payment.response_snapshot = checkout.get("response_snapshot", {})
-    payment.save(update_fields=["request_snapshot", "response_snapshot", "updated_at"])
-    return {key: value for key, value in checkout.items() if key not in {"request_snapshot", "response_snapshot"}}
+    return start_checkout(payment=payment, openid=openid)
 
 
 def _apply_paid_order(order: SaaSOrder, *, paid_at) -> Subscription:
@@ -264,9 +247,7 @@ def _apply_paid_order(order: SaaSOrder, *, paid_at) -> Subscription:
         subscription.entitlement_snapshot = order.entitlement_snapshot
         subscription.source_order = order
         subscription.ended_at = None
-        subscription.save(
-            update_fields=["kind", "status", "billing_cycle", "plan_snapshot", "price_snapshot", "entitlement_snapshot", "source_order", "ended_at", "updated_at"]
-        )
+        subscription.save(update_fields=["kind", "status", "billing_cycle", "plan_snapshot", "price_snapshot", "entitlement_snapshot", "source_order", "ended_at", "updated_at"])
         return subscription
 
     if order.order_type == OrderType.RENEWAL and subscription and subscription.status == SubscriptionStatus.ACTIVE and subscription.ends_at and subscription.ends_at > now:
@@ -295,46 +276,28 @@ def _apply_paid_order(order: SaaSOrder, *, paid_at) -> Subscription:
 
 
 @transaction.atomic
-def handle_wechat_payment_success(*, order_no: str, provider_trade_no: str, callback_event_id: str, response_snapshot: dict | None = None) -> PaymentSuccessResult:
-    """以订单号、微信交易号和事件号三重幂等地确认支付并开通订阅。"""
-    order = SaaSOrder.objects.select_for_update().select_related("organization").get(order_no=order_no)
-    payment = PaymentTransaction.objects.select_for_update().filter(order=order).first()
-    if payment is None:
-        raise SubscriptionRuleException("订单缺少支付流水。")
-    if payment.callback_event_id == callback_event_id or (order.status == OrderStatus.PAID and payment.provider_trade_no == provider_trade_no):
-        return PaymentSuccessResult(order=order, subscription_activated=True)
+def fulfill_saas_order_payment(*, payment: PaymentTransaction) -> None:
+    """处理支付模块确认成功的 SaaS 订单交易。"""
+    if payment.biz_type != "subscriptions.saas_order":
+        return
+    order = SaaSOrder.objects.select_for_update().select_related("organization").get(pk=payment.biz_id)
     if order.status == OrderStatus.CLOSED and order.close_reason == OrderCloseReason.SUPERSEDED:
-        payment.provider_trade_no = provider_trade_no
-        payment.callback_event_id = callback_event_id
         payment.status = PaymentStatus.EXCEPTION
-        payment.paid_at = _now()
-        payment.response_snapshot = response_snapshot or {}
-        payment.save(update_fields=["provider_trade_no", "callback_event_id", "status", "paid_at", "response_snapshot", "updated_at"])
-        audit(action="late_payment_requires_manual_refund", organization=order.organization, target=order, after={"provider_trade_no": provider_trade_no})
-        return PaymentSuccessResult(order=order, subscription_activated=False)
+        payment.save(update_fields=["status", "updated_at"])
+        audit(action="late_payment_requires_manual_refund", organization=order.organization, target=order, after={"provider_trade_no": payment.provider_trade_no})
+        return
     if order.status not in {OrderStatus.PENDING_PAYMENT, OrderStatus.CLOSED}:
         raise SubscriptionRuleException("当前订单不能确认支付。")
     if order.status == OrderStatus.CLOSED and order.close_reason != OrderCloseReason.TIMEOUT:
         raise SubscriptionRuleException("当前订单不能确认支付。")
 
-    paid_at = _now()
-    try:
-        payment.provider_trade_no = provider_trade_no
-        payment.callback_event_id = callback_event_id
-        payment.status = PaymentStatus.SUCCEEDED
-        payment.paid_at = paid_at
-        payment.response_snapshot = response_snapshot or {}
-        payment.save(update_fields=["provider_trade_no", "callback_event_id", "status", "paid_at", "response_snapshot", "updated_at"])
-    except IntegrityError as exc:
-        raise SubscriptionRuleException("微信支付回调已被其他订单使用。") from exc
-    subscription = _apply_paid_order(order, paid_at=paid_at)
+    subscription = _apply_paid_order(order, paid_at=payment.paid_at or _now())
     order.status = OrderStatus.PAID
-    order.paid_at = paid_at
+    order.paid_at = payment.paid_at or _now()
     order.close_reason = ""
     order.closed_at = None
     order.save(update_fields=["status", "paid_at", "close_reason", "closed_at", "updated_at"])
-    audit(action="payment_succeeded", organization=order.organization, target=order, after={"provider_trade_no": provider_trade_no, "subscription_id": subscription.pk})
-    return PaymentSuccessResult(order=order, subscription_activated=True)
+    audit(action="payment_succeeded", organization=order.organization, target=order, after={"provider_trade_no": payment.provider_trade_no, "subscription_id": subscription.pk})
 
 
 @transaction.atomic

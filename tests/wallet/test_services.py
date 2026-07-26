@@ -2,16 +2,24 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from model_bakery import baker
 from allauth.socialaccount.models import SocialAccount
+from model_bakery import baker
 
 from apps.accounts.models import User
+from apps.payments.models import PayoutTransaction
+from apps.payments.services import mark_payout_result
 from apps.wallet.constants import PayoutStatus, WithdrawalPayChannel, WithdrawalStatus
 from apps.wallet.exceptions import UnsupportedWithdrawalChannelException, WalletPayoutProviderRejectedException, WechatBindingRequiredException
-from apps.wallet.providers.base import ProviderQueryResult, ProviderTransferResult
-from apps.wallet.models import WithdrawalPayout
-from apps.wallet.services import apply_wallet_adjustment, apply_wallet_credit, ensure_wallet_account
-from apps.wallet.services import approve_withdrawal, cancel_withdrawal, create_withdrawal_payout, handle_payout_callback, submit_withdrawal, sync_processing_withdrawals
+from apps.wallet.services import (
+    apply_wallet_adjustment,
+    apply_wallet_credit,
+    approve_withdrawal,
+    cancel_withdrawal,
+    create_withdrawal_payout,
+    ensure_wallet_account,
+    submit_withdrawal,
+    sync_processing_withdrawals,
+)
 
 
 class WalletLedgerServiceTests(TestCase):
@@ -199,24 +207,21 @@ class WalletWithdrawalServiceTests(TestCase):
             client_request_id="withdraw-3",
         )
         approve_withdrawal(withdrawal=withdrawal, operator=admin, approved=True, reason="ok", idempotency_key="review-1")
-        with patch("apps.wallet.services.get_payout_provider") as mock_get_provider:
-            provider = mock_get_provider.return_value
-            provider.create_transfer.return_value = ProviderTransferResult(
-                provider="wechat",
-                out_trade_no="out-2",
-                accepted=True,
-                status="processing",
-                request_payload={"amount": 900},
-                response_payload={"mocked": True},
-            )
-            create_withdrawal_payout(withdrawal=withdrawal, provider="wechat", out_trade_no="out-2", request_payload={"amount": 900}, idempotency_key="payout-2")
+        with patch("apps.payments.services.build_wechat_config"), patch("apps.payments.services.WechatPayClient") as mock_client:
+            mock_client.return_value.create_payout.return_value = {
+                "accepted": True,
+                "provider_trade_no": "",
+                "request_snapshot": {"amount": 900},
+                "response_snapshot": {"mocked": True},
+            }
+            create_withdrawal_payout(withdrawal=withdrawal, out_trade_no="out-2", idempotency_key="payout-2")
 
-        handle_payout_callback(
+        mark_payout_result(
             provider="wechat",
             out_trade_no="out-2",
             provider_trade_no="trade-2",
-            callback_status="success",
-            response_payload={"trade_status": "SUCCESS"},
+            succeeded=True,
+            response_snapshot={"trade_status": "SUCCESS"},
         )
 
         wallet = ensure_wallet_account(user)
@@ -226,8 +231,9 @@ class WalletWithdrawalServiceTests(TestCase):
         self.assertEqual(wallet.frozen_balance, 0)
         self.assertEqual(wallet.total_withdrawn, 1000)
 
-    @patch("apps.wallet.services.get_payout_provider")
-    def test_create_withdrawal_payout_enters_paying_only_after_provider_accepts(self, mock_get_provider):
+    @patch("apps.payments.services.WechatPayClient")
+    @patch("apps.payments.services.build_wechat_config")
+    def test_create_withdrawal_payout_enters_paying_only_after_provider_accepts(self, _mock_config, mock_client):
         user = baker.make(User)
         admin = baker.make(User)
         baker.make(SocialAccount, user=user, provider="weixin", uid="wx-user-4", extra_data={"openid": "openid-4"})
@@ -249,21 +255,16 @@ class WalletWithdrawalServiceTests(TestCase):
         )
         approve_withdrawal(withdrawal=withdrawal, operator=admin, approved=True, reason="ok", idempotency_key="review-2")
 
-        provider = mock_get_provider.return_value
-        provider.create_transfer.return_value = ProviderTransferResult(
-            provider="wechat",
-            out_trade_no="wx-out-1",
-            accepted=True,
-            status="processing",
-            request_payload={"out_bill_no": "wx-out-1"},
-            response_payload={"mocked": True},
-        )
+        mock_client.return_value.create_payout.return_value = {
+            "accepted": True,
+            "provider_trade_no": "",
+            "request_snapshot": {"out_bill_no": "wx-out-1"},
+            "response_snapshot": {"mocked": True},
+        }
 
         payout = create_withdrawal_payout(
             withdrawal=withdrawal,
-            provider="wechat",
             out_trade_no="wx-out-1",
-            request_payload={},
             idempotency_key="payout-wechat-1",
         )
 
@@ -271,8 +272,9 @@ class WalletWithdrawalServiceTests(TestCase):
         self.assertEqual(payout.provider, "wechat")
         self.assertEqual(withdrawal.status, WithdrawalStatus.PAYING)
 
-    @patch("apps.wallet.services.get_payout_provider")
-    def test_create_withdrawal_payout_marks_failed_and_refunds_when_provider_rejects(self, mock_get_provider):
+    @patch("apps.payments.services.WechatPayClient")
+    @patch("apps.payments.services.build_wechat_config")
+    def test_create_withdrawal_payout_marks_failed_and_refunds_when_provider_rejects(self, _mock_config, mock_client):
         user = baker.make(User)
         admin = baker.make(User)
         baker.make(SocialAccount, user=user, provider="weixin", uid="wx-user-5", extra_data={"openid": "openid-5"})
@@ -294,38 +296,34 @@ class WalletWithdrawalServiceTests(TestCase):
         )
         approve_withdrawal(withdrawal=withdrawal, operator=admin, approved=True, reason="ok", idempotency_key="review-3")
 
-        provider = mock_get_provider.return_value
-        provider.create_transfer.return_value = ProviderTransferResult(
-            provider="wechat",
-            out_trade_no="wx-out-2",
-            accepted=False,
-            status="failed",
-            request_payload={"out_bill_no": "wx-out-2"},
-            response_payload={"mocked": True},
-            error_code="LOCAL_REJECT",
-            error_message="config invalid",
-        )
+        mock_client.return_value.create_payout.return_value = {
+            "accepted": False,
+            "provider_trade_no": "",
+            "request_snapshot": {"out_bill_no": "wx-out-2"},
+            "response_snapshot": {"mocked": True},
+            "error_code": "LOCAL_REJECT",
+            "error_message": "config invalid",
+        }
 
         with self.assertRaises(WalletPayoutProviderRejectedException):
             create_withdrawal_payout(
                 withdrawal=withdrawal,
-                provider="wechat",
                 out_trade_no="wx-out-2",
-                request_payload={},
                 idempotency_key="payout-wechat-2",
             )
 
         wallet = ensure_wallet_account(user)
         withdrawal.refresh_from_db()
-        failed_payout = WithdrawalPayout.objects.get(idempotency_key="payout-wechat-2")
+        failed_payout = PayoutTransaction.objects.get(idempotency_key="payout-wechat-2")
         self.assertEqual(withdrawal.status, WithdrawalStatus.FAILED)
         self.assertEqual(wallet.available_balance, 3000)
         self.assertEqual(wallet.frozen_balance, 0)
         self.assertEqual(failed_payout.status, PayoutStatus.FAILED)
         self.assertEqual(failed_payout.error_code, "LOCAL_REJECT")
 
-    @patch("apps.wallet.services.get_payout_provider")
-    def test_sync_processing_withdrawals_marks_paid_when_query_confirms_success(self, mock_get_provider):
+    @patch("apps.payments.services.WechatPayClient")
+    @patch("apps.payments.services.build_wechat_config")
+    def test_sync_processing_withdrawals_marks_paid_when_query_confirms_success(self, _mock_config, mock_client):
         user = baker.make(User)
         admin = baker.make(User)
         baker.make(SocialAccount, user=user, provider="weixin", uid="wx-sync-user", extra_data={"openid": "openid-sync"})
@@ -347,28 +345,24 @@ class WalletWithdrawalServiceTests(TestCase):
         )
         approve_withdrawal(withdrawal=withdrawal, operator=admin, approved=True, reason="ok", idempotency_key="review-sync-1")
 
-        provider = mock_get_provider.return_value
-        provider.create_transfer.return_value = ProviderTransferResult(
-            provider="wechat",
-            out_trade_no="out-sync-1",
-            accepted=True,
-            status="processing",
-            request_payload={},
-            response_payload={},
-        )
-        create_withdrawal_payout(
+        mock_client.return_value.create_payout.return_value = {
+            "accepted": True,
+            "provider_trade_no": "",
+            "request_snapshot": {},
+            "response_snapshot": {},
+        }
+        payout = create_withdrawal_payout(
             withdrawal=withdrawal,
-            provider="wechat",
             out_trade_no="out-sync-1",
-            request_payload={},
             idempotency_key="payout-sync-1",
         )
-        provider.query_transfer.return_value = ProviderQueryResult(
-            out_trade_no="out-sync-1",
-            provider_trade_no="wx-sync-1",
-            payout_status="succeeded",
-            response_payload={"state": "SUCCESS"},
-        )
+        payout.status = PayoutStatus.PENDING
+        payout.save(update_fields=["status", "updated_at"])
+        mock_client.return_value.query_payout.return_value = {
+            "status": "succeeded",
+            "provider_trade_no": "wx-sync-1",
+            "response_snapshot": {"state": "SUCCESS"},
+        }
 
         sync_processing_withdrawals()
 
@@ -378,8 +372,9 @@ class WalletWithdrawalServiceTests(TestCase):
         self.assertEqual(wallet.available_balance, 2000)
         self.assertEqual(wallet.frozen_balance, 0)
 
-    @patch("apps.wallet.services.get_payout_provider")
-    def test_create_withdrawal_payout_keeps_approved_when_transport_error_occurs(self, mock_get_provider):
+    @patch("apps.payments.services.WechatPayClient")
+    @patch("apps.payments.services.build_wechat_config")
+    def test_create_withdrawal_payout_keeps_approved_when_transport_error_occurs(self, _mock_config, mock_client):
         user = baker.make(User)
         admin = baker.make(User)
         baker.make(SocialAccount, user=user, provider="weixin", uid="wx-network-user", extra_data={"openid": "openid-network"})
@@ -400,14 +395,12 @@ class WalletWithdrawalServiceTests(TestCase):
             client_request_id="withdraw-network-1",
         )
         approve_withdrawal(withdrawal=withdrawal, operator=admin, approved=True, reason="ok", idempotency_key="review-network-1")
-        mock_get_provider.return_value.create_transfer.side_effect = TimeoutError("wechat timeout")
+        mock_client.return_value.create_payout.side_effect = TimeoutError("wechat timeout")
 
         with self.assertRaises(TimeoutError):
             create_withdrawal_payout(
                 withdrawal=withdrawal,
-                provider="wechat",
                 out_trade_no="out-network-1",
-                request_payload={},
                 idempotency_key="payout-network-1",
             )
 

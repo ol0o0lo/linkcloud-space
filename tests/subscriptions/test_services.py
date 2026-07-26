@@ -6,10 +6,12 @@ from django.utils import timezone
 import pytest
 from model_bakery import baker
 
-from apps.subscriptions.constants import BillingCycle, OrderCloseReason, OrderStatus, OrderType, PaymentMode, SubscriptionStatus
+from apps.payments.constants import PaymentMode, PaymentStatus
+from apps.payments.services import mark_payment_succeeded
+from apps.subscriptions.constants import BillingCycle, OrderCloseReason, OrderStatus, OrderType, SubscriptionStatus
 from apps.subscriptions.entitlements import EntitlementService
 from apps.subscriptions.models import Plan, PlanEntitlement, PlanPrice, Subscription
-from apps.subscriptions.services import create_purchase_order, grant_trial, handle_wechat_payment_success, initiate_wechat_payment
+from apps.subscriptions.services import create_purchase_order, grant_trial, initiate_wechat_payment
 
 
 @pytest.fixture
@@ -57,14 +59,14 @@ def test_same_plan_renewal_extends_from_current_end_and_refreshes_current_entitl
     PlanEntitlement.objects.filter(plan=plans["professional"], is_current=True).update(is_current=False)
     PlanEntitlement.objects.create(plan=plans["professional"], version=2, is_current=True, member_limit=35, team_limit=12, house_limit=3500)
 
-    order, _payment = create_purchase_order(
+    order, payment = create_purchase_order(
         organization=organization,
         created_by=baker.make("accounts.User"),
         target_plan_code="professional",
         billing_cycle=BillingCycle.MONTH,
         payment_mode=PaymentMode.NATIVE,
     )
-    handle_wechat_payment_success(order_no=order.order_no, provider_trade_no="wechat-renew-1", callback_event_id="event-renew-1")
+    mark_payment_succeeded(transaction_no=payment.transaction_no, provider_trade_no="wechat-renew-1", callback_event_id="event-renew-1")
 
     subscription.refresh_from_db()
     assert order.order_type == OrderType.RENEWAL
@@ -87,14 +89,14 @@ def test_upgrade_uses_remaining_period_credit_and_immediately_replaces_plan(plan
         entitlement_snapshot={"member_limit": 30, "team_limit": 10, "house_limit": 3000, "version": 1},
     )
 
-    order, _payment = create_purchase_order(
+    order, payment = create_purchase_order(
         organization=organization,
         created_by=baker.make("accounts.User"),
         target_plan_code="enterprise",
         billing_cycle=BillingCycle.MONTH,
         payment_mode=PaymentMode.NATIVE,
     )
-    handle_wechat_payment_success(order_no=order.order_no, provider_trade_no="wechat-upgrade-1", callback_event_id="event-upgrade-1")
+    mark_payment_succeeded(transaction_no=payment.transaction_no, provider_trade_no="wechat-upgrade-1", callback_event_id="event-upgrade-1")
 
     subscription = Subscription.objects.get(organization=organization)
     assert order.order_type == OrderType.UPGRADE
@@ -107,7 +109,7 @@ def test_upgrade_uses_remaining_period_credit_and_immediately_replaces_plan(plan
 
 def test_superseded_order_late_payment_is_recorded_without_changing_subscription(plans):
     organization = baker.make("organizations.Organization")
-    order, _payment = create_purchase_order(
+    order, payment = create_purchase_order(
         organization=organization,
         created_by=baker.make("accounts.User"),
         target_plan_code="professional",
@@ -119,13 +121,14 @@ def test_superseded_order_late_payment_is_recorded_without_changing_subscription
     order.closed_at = timezone.now()
     order.save(update_fields=["status", "close_reason", "closed_at", "updated_at"])
 
-    result = handle_wechat_payment_success(order_no=order.order_no, provider_trade_no="wechat-late-1", callback_event_id="event-late-1")
+    mark_payment_succeeded(transaction_no=payment.transaction_no, provider_trade_no="wechat-late-1", callback_event_id="event-late-1")
 
     order.refresh_from_db()
-    assert result.subscription_activated is False
     assert order.status == OrderStatus.CLOSED
     assert Subscription.objects.filter(organization=organization).exists() is False
-    assert order.payments.get().provider_trade_no == "wechat-late-1"
+    payment.refresh_from_db()
+    assert payment.status == PaymentStatus.EXCEPTION
+    assert payment.provider_trade_no == "wechat-late-1"
 
 
 def test_native_payment_initialization_persists_wechat_code_url(plans):
@@ -138,12 +141,12 @@ def test_native_payment_initialization_persists_wechat_code_url(plans):
         payment_mode=PaymentMode.NATIVE,
     )
     client = Mock()
-    client.create_native_order.return_value = {"code_url": "weixin://wxpay/bizpayurl?pr=test", "response_snapshot": {"code_url": "weixin://wxpay/bizpayurl?pr=test"}}
+    client.create_native_payment.return_value = {"code_url": "weixin://wxpay/bizpayurl?pr=test", "response_snapshot": {"code_url": "weixin://wxpay/bizpayurl?pr=test"}}
 
-    with patch("apps.subscriptions.services.get_wechat_checkout_client", return_value=client):
+    with patch("apps.payments.services.build_wechat_config"), patch("apps.payments.services.WechatPayClient", return_value=client):
         checkout = initiate_wechat_payment(order=order, payment=payment, user=baker.make("accounts.User"))
 
     payment.refresh_from_db()
     assert checkout["code_url"].startswith("weixin://")
-    assert payment.request_snapshot["out_trade_no"] == order.order_no
+    assert payment.request_snapshot["out_trade_no"] == payment.transaction_no
     assert payment.response_snapshot["code_url"].startswith("weixin://")

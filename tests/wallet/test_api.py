@@ -7,10 +7,11 @@ from allauth.socialaccount.models import SocialAccount
 from model_bakery import baker
 
 from apps.accounts.models import User
+from apps.payments.services import mark_payout_result
 from apps.wallet.constants import PayoutStatus, WalletEntryType, WithdrawalPayChannel, WithdrawalStatus
 from apps.wallet.exceptions import UnsupportedWithdrawalChannelException, WechatBindingRequiredException
-from apps.wallet.providers.base import ProviderTransferResult
 from apps.wallet.services import apply_wallet_credit, submit_withdrawal
+from config.api import api
 from tests.api_helpers import api_data, api_error
 
 
@@ -227,8 +228,9 @@ class WalletAdminAPITests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(api_data(resp)["available_balance_after"], 500)
 
-    @patch("apps.wallet.services.get_payout_provider")
-    def test_admin_can_review_and_start_payout(self, mock_get_provider):
+    @patch("apps.payments.services.WechatPayClient")
+    @patch("apps.payments.services.build_wechat_config")
+    def test_admin_can_review_and_start_payout(self, _mock_config, mock_client):
         apply_wallet_credit(user=self.user, amount=2000, entry_type="promotion_reward", biz_type="promotion.reward", biz_id="reward-20", idempotency_key="reward-20")
         baker.make(SocialAccount, user=self.user, provider="weixin", uid="wx-admin-api-user", extra_data={"openid": "openid-admin-api-user"})
         withdrawal = submit_withdrawal(
@@ -239,15 +241,12 @@ class WalletAdminAPITests(TestCase):
             payee_account={"name": "张三", "account": "13800138000"},
             client_request_id="withdraw-api-20",
         )
-        provider = mock_get_provider.return_value
-        provider.create_transfer.return_value = ProviderTransferResult(
-            provider="wechat",
-            out_trade_no="out-api-1",
-            accepted=True,
-            status="processing",
-            request_payload={"amount": 900},
-            response_payload={"mocked": True},
-        )
+        mock_client.return_value.create_payout.return_value = {
+            "accepted": True,
+            "provider_trade_no": "",
+            "request_snapshot": {"amount": 900},
+            "response_snapshot": {"mocked": True},
+        }
 
         review_resp = self.client.post(
             f"/api/admin/wallet/withdrawals/{withdrawal.pk}/review/",
@@ -256,7 +255,7 @@ class WalletAdminAPITests(TestCase):
         )
         payout_resp = self.client.post(
             f"/api/admin/wallet/withdrawals/{withdrawal.pk}/payout/",
-            data=json.dumps({"provider": "wechat", "out_trade_no": "out-api-1", "request_payload": {"amount": 900}, "idempotency_key": "payout-api-1"}),
+            data=json.dumps({"out_trade_no": "out-api-1", "idempotency_key": "payout-api-1"}),
             content_type="application/json",
         )
 
@@ -280,9 +279,14 @@ class WalletInternalAPITests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("diff_count", api_data(resp))
 
-    @patch("apps.wallet.api.get_payout_provider")
-    @patch("apps.wallet.services.get_payout_provider")
-    def test_internal_retry_refreezes_failed_withdrawal_and_restarts_payout(self, mock_get_provider, mock_api_get_provider):
+    def test_retry_reuses_payout_request_schema(self):
+        schema = api.get_openapi_schema()
+
+        self.assertNotIn("WithdrawalRetryIn", schema["components"]["schemas"])
+
+    @patch("apps.payments.services.WechatPayClient")
+    @patch("apps.payments.services.build_wechat_config")
+    def test_internal_retry_refreezes_failed_withdrawal_and_restarts_payout(self, _mock_config, mock_client):
         user = baker.make(User)
         baker.make(SocialAccount, user=user, provider="weixin", uid="wx-internal-api-user", extra_data={"openid": "openid-internal-api-user"})
         apply_wallet_credit(user=user, amount=2000, entry_type="promotion_reward", biz_type="promotion.reward", biz_id="reward-30", idempotency_key="reward-30")
@@ -294,25 +298,19 @@ class WalletInternalAPITests(TestCase):
             payee_account={"name": "张三", "account": "13800138000"},
             client_request_id="withdraw-api-30",
         )
-        provider = mock_get_provider.return_value
-        mock_api_get_provider.return_value = provider
-        provider.create_transfer.side_effect = [
-            ProviderTransferResult(
-                provider="wechat",
-                out_trade_no="out-api-30",
-                accepted=True,
-                status="processing",
-                request_payload={"amount": 900},
-                response_payload={"mocked": True},
-            ),
-            ProviderTransferResult(
-                provider="wechat",
-                out_trade_no="out-api-31",
-                accepted=True,
-                status="processing",
-                request_payload={"amount": 900},
-                response_payload={"mocked": True, "retry": True},
-            ),
+        mock_client.return_value.create_payout.side_effect = [
+            {
+                "accepted": True,
+                "provider_trade_no": "",
+                "request_snapshot": {"amount": 900},
+                "response_snapshot": {"mocked": True},
+            },
+            {
+                "accepted": True,
+                "provider_trade_no": "",
+                "request_snapshot": {"amount": 900},
+                "response_snapshot": {"mocked": True, "retry": True},
+            },
         ]
         admin = self.admin
         self.client.force_login(admin)
@@ -323,29 +321,20 @@ class WalletInternalAPITests(TestCase):
         )
         self.client.post(
             f"/api/admin/wallet/withdrawals/{withdrawal.pk}/payout/",
-            data=json.dumps({"provider": "wechat", "out_trade_no": "out-api-30", "request_payload": {"amount": 900}, "idempotency_key": "payout-api-30"}),
+            data=json.dumps({"out_trade_no": "out-api-30", "idempotency_key": "payout-api-30"}),
             content_type="application/json",
         )
-        provider.verify_callback.return_value = True
-        provider.parse_callback.return_value = {
-            "out_trade_no": "out-api-30",
-            "provider_trade_no": "trade-30",
-            "callback_status": "failed",
-            "response_payload": {"trade_status": "FAILED"},
-        }
-        self.client.post(
-            "/api/wallet/payout/callback/wechat/",
-            data=json.dumps({"id": "notify-30"}),
-            content_type="application/json",
-            HTTP_WECHATPAY_SIGNATURE="sig",
-            HTTP_WECHATPAY_TIMESTAMP="1710000000",
-            HTTP_WECHATPAY_NONCE="nonce-30",
-            HTTP_WECHATPAY_SERIAL="serial-30",
+        mark_payout_result(
+            provider="wechat",
+            out_trade_no="out-api-30",
+            provider_trade_no="trade-30",
+            succeeded=False,
+            response_snapshot={"trade_status": "FAILED"},
         )
 
         retry_resp = self.client.post(
             f"/api/internal/wallet/withdrawals/{withdrawal.pk}/retry/",
-            data=json.dumps({"provider": "wechat", "out_trade_no": "out-api-31", "request_payload": {"amount": 900}, "idempotency_key": "payout-api-31"}),
+            data=json.dumps({"out_trade_no": "out-api-31", "idempotency_key": "payout-api-31"}),
             content_type="application/json",
         )
 
@@ -354,21 +343,22 @@ class WalletInternalAPITests(TestCase):
 
 
 class WalletCallbackAPITests(TestCase):
-    @patch("apps.wallet.api.get_payout_provider")
-    @patch("apps.wallet.api.handle_payout_callback")
-    def test_payout_callback_uses_provider_verification_and_parse(self, mock_handle_callback, mock_get_provider):
-        provider = mock_get_provider.return_value
-        provider.verify_callback.return_value = True
-        provider.parse_callback.return_value = {
+    @patch("apps.payments.api.mark_payout_result")
+    @patch("apps.payments.api.WechatPayClient")
+    @patch("apps.payments.api.build_wechat_config")
+    def test_payout_callback_uses_payments_channel_verification_and_parse(self, _mock_config, mock_client, mock_mark_result):
+        client = mock_client.return_value
+        client.verify_callback.return_value = True
+        client.parse_payout_callback.return_value = {
             "out_trade_no": "out-cb-1",
             "provider_trade_no": "wx-cb-1",
-            "callback_status": "success",
-            "response_payload": {"state": "SUCCESS"},
+            "succeeded": True,
+            "response_snapshot": {"state": "SUCCESS"},
         }
-        mock_handle_callback.return_value = baker.make("wallet.WithdrawalPayout", provider="wechat", out_trade_no="out-cb-1")
+        mock_mark_result.return_value = baker.make("payments.PayoutTransaction", provider="wechat", out_trade_no="out-cb-1", idempotency_key="payout-cb-1", amount=1)
 
         resp = self.client.post(
-            "/api/wallet/payout/callback/wechat/",
+            "/api/payments/wechat/payout/notify/",
             data=json.dumps({"id": "notify-1"}),
             content_type="application/json",
             HTTP_WECHATPAY_SIGNATURE="sig",
@@ -378,12 +368,12 @@ class WalletCallbackAPITests(TestCase):
         )
 
         self.assertEqual(resp.status_code, 200)
-        provider.verify_callback.assert_called_once()
-        provider.parse_callback.assert_called_once()
-        mock_handle_callback.assert_called_once_with(
+        client.verify_callback.assert_called_once()
+        client.parse_payout_callback.assert_called_once()
+        mock_mark_result.assert_called_once_with(
             provider="wechat",
             out_trade_no="out-cb-1",
             provider_trade_no="wx-cb-1",
-            callback_status="success",
-            response_payload={"state": "SUCCESS"},
+            succeeded=True,
+            response_snapshot={"state": "SUCCESS"},
         )

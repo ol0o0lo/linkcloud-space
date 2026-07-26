@@ -3,12 +3,12 @@ from django.utils import timezone
 
 from allauth.socialaccount.models import SocialAccount
 
-from apps.wallet.constants import PayoutStatus
-from apps.wallet.constants import WithdrawalPayChannel, WithdrawalStatus
-from apps.wallet.constants import WalletEntryType
+from apps.payments.constants import PayoutStatus
+from apps.payments.models import PayoutTransaction
+from apps.payments.services import create_payout, query_payout
+from apps.wallet.constants import WalletEntryType, WithdrawalPayChannel, WithdrawalStatus
 from apps.wallet.exceptions import UnsupportedWithdrawalChannelException, WalletPayoutProviderRejectedException, WechatBindingRequiredException
-from apps.wallet.models import WalletAccount, WalletLedger, WithdrawalPayout, WithdrawalRequest
-from apps.wallet.providers.registry import get_payout_provider
+from apps.wallet.models import WalletAccount, WalletLedger, WithdrawalRequest
 from apps.wallet.security import build_wechat_payee_snapshot
 
 
@@ -205,73 +205,35 @@ def approve_withdrawal(*, withdrawal, operator, approved, reason, idempotency_ke
     return withdrawal
 
 
-def create_withdrawal_payout(*, withdrawal, provider, out_trade_no, request_payload, idempotency_key):
-    existing = WithdrawalPayout.objects.filter(idempotency_key=idempotency_key).first()
+def create_withdrawal_payout(*, withdrawal, out_trade_no, idempotency_key):
+    existing = PayoutTransaction.objects.filter(idempotency_key=idempotency_key).first()
     if existing is not None:
         return existing
 
-    withdrawal = WithdrawalRequest.objects.select_related("wallet").get(pk=withdrawal.pk)
+    withdrawal = WithdrawalRequest.objects.get(pk=withdrawal.pk)
     if withdrawal.status == WithdrawalStatus.PAYING:
-        return withdrawal.payouts.order_by("-created_at", "-pk").first()
+        return PayoutTransaction.objects.filter(biz_type="wallet.withdrawal", biz_id=str(withdrawal.pk)).order_by("-created_at", "-pk").first()
     if withdrawal.status != WithdrawalStatus.APPROVED:
         raise ValueError("Only approved withdrawals can start payout.")
 
-    provider_client = get_payout_provider(provider)
-    result = provider_client.create_transfer(withdrawal, idempotency_key=idempotency_key)
+    withdrawal.status = WithdrawalStatus.PAYING
+    withdrawal.save(update_fields=["status", "updated_at"])
 
-    rejected_message = ""
-    with transaction.atomic():
-        existing = WithdrawalPayout.objects.filter(idempotency_key=idempotency_key).first()
-        if existing is not None:
-            return existing
-
-        withdrawal = WithdrawalRequest.objects.select_for_update().get(pk=withdrawal.pk)
-        if withdrawal.status == WithdrawalStatus.PAYING:
-            return withdrawal.payouts.order_by("-created_at", "-pk").first()
-        if withdrawal.status != WithdrawalStatus.APPROVED:
-            raise ValueError("Only approved withdrawals can start payout.")
-
-        payout = WithdrawalPayout.objects.create(
-            withdrawal_request=withdrawal,
-            provider=result.provider,
-            out_trade_no=result.out_trade_no,
-            provider_trade_no=result.provider_trade_no,
+    try:
+        payout = create_payout(
+            biz_type="wallet.withdrawal",
+            biz_id=str(withdrawal.pk),
+            amount=withdrawal.net_amount,
+            payee_snapshot=withdrawal.payee_account_snapshot,
             idempotency_key=idempotency_key,
-            request_payload=result.request_payload,
-            response_payload=result.response_payload,
-            status=PayoutStatus.PROCESSING if result.accepted else PayoutStatus.FAILED,
-            error_code=result.error_code,
-            error_message=result.error_message,
-            executed_at=timezone.now(),
+            out_trade_no=out_trade_no,
         )
-
-        if not result.accepted:
-            wallet = WalletAccount.objects.select_for_update().get(pk=withdrawal.wallet_id)
-            wallet.available_balance += withdrawal.amount
-            wallet.frozen_balance -= withdrawal.amount
-            wallet.save(update_fields=["available_balance", "frozen_balance", "updated_at"])
-
-            withdrawal.status = WithdrawalStatus.FAILED
-            withdrawal.save(update_fields=["status", "updated_at"])
-
-            WalletLedger.objects.create(
-                wallet=wallet,
-                entry_type=WalletEntryType.WITHDRAW_REFUND,
-                amount_delta=withdrawal.amount,
-                available_balance_after=wallet.available_balance,
-                frozen_balance_after=wallet.frozen_balance,
-                biz_type="wallet.withdrawal",
-                biz_id=str(withdrawal.pk),
-                idempotency_key=f"withdraw-refund:{withdrawal.pk}:{idempotency_key}",
-                remark=result.error_message,
-            )
-            rejected_message = result.error_message or ""
-        else:
-            withdrawal.status = WithdrawalStatus.PAYING
-            withdrawal.save(update_fields=["status", "updated_at"])
-
-    if rejected_message:
-        raise WalletPayoutProviderRejectedException(rejected_message)
+    except Exception:
+        withdrawal.status = WithdrawalStatus.APPROVED
+        withdrawal.save(update_fields=["status", "updated_at"])
+        raise
+    if payout.status == PayoutStatus.FAILED:
+        raise WalletPayoutProviderRejectedException(payout.error_message)
     return payout
 
 
@@ -281,32 +243,22 @@ def sync_processing_withdrawals(*, withdrawal_ids=None):
         queryset = queryset.filter(pk__in=withdrawal_ids)
 
     for withdrawal in queryset:
-        payout = withdrawal.payouts.filter(status=PayoutStatus.PROCESSING).order_by("-created_at", "-pk").first()
+        payout = (
+            PayoutTransaction.objects.filter(
+                biz_type="wallet.withdrawal",
+                biz_id=str(withdrawal.pk),
+                status__in=[PayoutStatus.PENDING, PayoutStatus.PROCESSING],
+            )
+            .order_by("-created_at", "-pk")
+            .first()
+        )
         if payout is None:
             continue
-
-        provider_client = get_payout_provider(payout.provider)
-        result = provider_client.query_transfer(payout)
-        if result.payout_status == "succeeded":
-            handle_payout_callback(
-                provider=payout.provider,
-                out_trade_no=payout.out_trade_no,
-                provider_trade_no=result.provider_trade_no,
-                callback_status="success",
-                response_payload=result.response_payload,
-            )
-        elif result.payout_status == "failed":
-            handle_payout_callback(
-                provider=payout.provider,
-                out_trade_no=payout.out_trade_no,
-                provider_trade_no=result.provider_trade_no,
-                callback_status="failed",
-                response_payload=result.response_payload,
-            )
+        query_payout(payout)
 
 
 @transaction.atomic
-def retry_withdrawal_payout(*, withdrawal, provider, out_trade_no, request_payload, idempotency_key):
+def retry_withdrawal_payout(*, withdrawal, out_trade_no, idempotency_key):
     withdrawal = WithdrawalRequest.objects.select_for_update().get(pk=withdrawal.pk)
     if withdrawal.status != WithdrawalStatus.FAILED:
         raise ValueError("Only failed withdrawals can be retried.")
@@ -332,33 +284,26 @@ def retry_withdrawal_payout(*, withdrawal, provider, out_trade_no, request_paylo
     )
     return create_withdrawal_payout(
         withdrawal=withdrawal,
-        provider=provider,
         out_trade_no=out_trade_no,
-        request_payload=request_payload,
         idempotency_key=idempotency_key,
     )
 
 
 @transaction.atomic
-def handle_payout_callback(*, provider, out_trade_no, provider_trade_no, callback_status, response_payload):
-    payout = WithdrawalPayout.objects.select_for_update().select_related("withdrawal_request__wallet").get(provider=provider, out_trade_no=out_trade_no)
-    withdrawal = WithdrawalRequest.objects.select_for_update().get(pk=payout.withdrawal_request_id)
+def handle_payout_result(*, payout: PayoutTransaction):
+    if payout.biz_type != "wallet.withdrawal":
+        return
+    withdrawal = WithdrawalRequest.objects.select_for_update().get(pk=payout.biz_id)
     wallet = WalletAccount.objects.select_for_update().get(pk=withdrawal.wallet_id)
 
-    if callback_status == "success" and withdrawal.status == WithdrawalStatus.PAID:
+    if payout.status == PayoutStatus.SUCCEEDED and withdrawal.status == WithdrawalStatus.PAID:
         return payout
-    if callback_status != "success" and withdrawal.status == WithdrawalStatus.FAILED:
+    if payout.status == PayoutStatus.FAILED and withdrawal.status == WithdrawalStatus.FAILED:
         return payout
     if withdrawal.status != WithdrawalStatus.PAYING:
-        raise ValueError("Only paying withdrawals can accept callbacks.")
+        raise ValueError("Only paying withdrawals can accept payout results.")
 
-    payout.provider_trade_no = provider_trade_no
-    payout.response_payload = response_payload
-
-    if callback_status == "success":
-        payout.status = PayoutStatus.SUCCEEDED
-        payout.save(update_fields=["provider_trade_no", "response_payload", "status", "updated_at"])
-
+    if payout.status == PayoutStatus.SUCCEEDED:
         wallet.frozen_balance -= withdrawal.amount
         wallet.total_withdrawn += withdrawal.amount
         wallet.save(update_fields=["frozen_balance", "total_withdrawn", "updated_at"])
@@ -376,9 +321,6 @@ def handle_payout_callback(*, provider, out_trade_no, provider_trade_no, callbac
             idempotency_key=f"withdraw-settle:{withdrawal.pk}",
         )
         return payout
-
-    payout.status = PayoutStatus.FAILED
-    payout.save(update_fields=["provider_trade_no", "response_payload", "status", "updated_at"])
 
     wallet.available_balance += withdrawal.amount
     wallet.frozen_balance -= withdrawal.amount

@@ -11,9 +11,6 @@ from apps.subscriptions.constants import (
     OrderCloseReason,
     OrderStatus,
     OrderType,
-    PaymentMode,
-    PaymentProvider,
-    PaymentStatus,
     RefundStatus,
     RefundSubscriptionAction,
     SubscriptionKind,
@@ -165,27 +162,6 @@ class SaaSOrder(CreateUpdateTimeModelMixin):
     def __str__(self):
         """返回平台订单号。"""
         return self.order_no
-
-
-class PaymentTransaction(CreateUpdateTimeModelMixin):
-    order = models.ForeignKey(SaaSOrder, on_delete=models.PROTECT, related_name="payments")
-    provider = models.CharField(max_length=16, choices=PaymentProvider.choices, default=PaymentProvider.WECHAT)
-    payment_mode = models.CharField(max_length=16, choices=PaymentMode.choices)
-    transaction_no = models.CharField(max_length=40, unique=True)
-    provider_trade_no = models.CharField(max_length=128, blank=True, default=None, unique=True, null=True)
-    status = models.CharField(max_length=16, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
-    callback_event_id = models.CharField(max_length=128, blank=True, default=None, unique=True, null=True)
-    paid_at = models.DateTimeField(null=True, blank=True)
-    request_snapshot = models.JSONField(default=dict, blank=True)
-    response_snapshot = models.JSONField(default=dict, blank=True)
-
-    class Meta:
-        db_table = "subscriptions_payment_transaction"
-        indexes = [models.Index(fields=("order", "status"), name="sub_payment_order_status_idx")]
-
-    def __str__(self):
-        """返回本地支付流水号。"""
-        return self.transaction_no
 
 
 class OrganizationInvoiceProfile(CreateUpdateTimeModelMixin):

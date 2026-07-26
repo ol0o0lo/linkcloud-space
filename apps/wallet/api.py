@@ -1,5 +1,3 @@
-import json
-
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 
@@ -9,17 +7,25 @@ from ninja.pagination import paginate
 
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_superuser
-from apps.wallet.models import WalletLedger, WithdrawalRequest
-from apps.wallet.models import WalletAccount
-from apps.wallet.providers.registry import get_payout_provider
-from apps.wallet.schemas import PayoutCreateIn, ReconcileOut, WalletAccountAdminOut, WalletAdjustmentIn, WalletLedgerOut, WalletSummaryOut, WithdrawalIn, WithdrawalOut, WithdrawalPayoutOut, WithdrawalRetryIn, WithdrawalReviewIn
+from apps.wallet.models import WalletAccount, WalletLedger, WithdrawalRequest
+from apps.wallet.schemas import (
+    PayoutCreateIn,
+    ReconcileOut,
+    WalletAccountAdminOut,
+    WalletAdjustmentIn,
+    WalletLedgerOut,
+    WalletSummaryOut,
+    WithdrawalIn,
+    WithdrawalOut,
+    WithdrawalPayoutOut,
+    WithdrawalReviewIn,
+)
 from apps.wallet.services import (
     apply_wallet_adjustment,
     approve_withdrawal,
     cancel_withdrawal,
     create_withdrawal_payout,
     ensure_wallet_account,
-    handle_payout_callback,
     reconcile_wallet_state,
     retry_withdrawal_payout,
     submit_withdrawal,
@@ -132,40 +138,21 @@ def payout_withdrawal(request, withdrawal_id: int, payload: PayoutCreateIn):
     try:
         return create_withdrawal_payout(
             withdrawal=withdrawal,
-            provider=payload.provider,
             out_trade_no=payload.out_trade_no,
-            request_payload=payload.request_payload,
             idempotency_key=payload.idempotency_key,
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
 
-@router.post("/payout/callback/{provider}/", auth=None, response=WithdrawalPayoutOut, summary="处理代付回调")
-def payout_callback(request, provider: str):
-    raw_body = request.body.decode("utf-8")
-    payload = json.loads(raw_body or "{}")
-    provider_client = get_payout_provider(provider)
-    headers = {key: value for key, value in request.headers.items()}
-    if not provider_client.verify_callback(payload=payload, headers=headers, raw_body=raw_body):
-        raise HttpError(403, "Invalid callback signature.")
-    try:
-        parsed = provider_client.parse_callback(payload=payload, headers=headers, raw_body=raw_body)
-        return handle_payout_callback(provider=provider, **parsed)
-    except ValueError as exc:
-        raise HttpError(400, str(exc)) from exc
-
-
 @internal_router.post("/withdrawals/{withdrawal_id}/retry/", response=WithdrawalPayoutOut, summary="重试失败提现代付")
-def retry_withdrawal(request, withdrawal_id: int, payload: WithdrawalRetryIn):
+def retry_withdrawal(request, withdrawal_id: int, payload: PayoutCreateIn):
     require_superuser(request)
     withdrawal = get_object_or_404(WithdrawalRequest, pk=withdrawal_id)
     try:
         return retry_withdrawal_payout(
             withdrawal=withdrawal,
-            provider=payload.provider,
             out_trade_no=payload.out_trade_no,
-            request_payload=payload.request_payload,
             idempotency_key=payload.idempotency_key,
         )
     except ValueError as exc:

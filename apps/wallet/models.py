@@ -2,7 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.base.mixins import CreateUpdateTimeModelMixin
-from apps.wallet.constants import PayoutStatus, WithdrawalPayChannel, WithdrawalStatus
+from apps.wallet.constants import WithdrawalPayChannel, WithdrawalStatus
 
 
 class WalletAccount(CreateUpdateTimeModelMixin):
@@ -13,6 +13,7 @@ class WalletAccount(CreateUpdateTimeModelMixin):
     total_withdrawn = models.BigIntegerField(default=0)
 
     def __str__(self):
+        """返回钱包账户标识。"""
         return f"WalletAccount<{self.user_id}>"
 
 
@@ -50,21 +51,4 @@ class WithdrawalRequest(CreateUpdateTimeModelMixin):
         constraints = [
             models.UniqueConstraint(fields=["user", "client_request_id"], name="wallet_withdraw_user_client_req_uniq"),
         ]
-        ordering = ("-created_at", "-pk")
-
-
-class WithdrawalPayout(CreateUpdateTimeModelMixin):
-    withdrawal_request = models.ForeignKey(WithdrawalRequest, on_delete=models.CASCADE, related_name="payouts")
-    provider = models.CharField(max_length=50)
-    out_trade_no = models.CharField(max_length=64, unique=True)
-    provider_trade_no = models.CharField(max_length=64, blank=True, default="")
-    idempotency_key = models.CharField(max_length=120, unique=True)
-    request_payload = models.JSONField(default=dict, blank=True)
-    response_payload = models.JSONField(default=dict, blank=True)
-    status = models.CharField(max_length=32, choices=PayoutStatus.choices, default=PayoutStatus.PENDING)
-    error_code = models.CharField(max_length=64, blank=True, default="")
-    error_message = models.CharField(max_length=255, blank=True, default="")
-    executed_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
         ordering = ("-created_at", "-pk")

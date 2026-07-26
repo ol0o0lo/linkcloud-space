@@ -9,7 +9,10 @@ from apps.access.constants import SubscriptionPermission
 from apps.access.services import has_permission
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_selected, require_superuser
-from apps.subscriptions.constants import InvoiceStatus, OrderStatus, PaymentMode
+from apps.payments.constants import PaymentMode
+from apps.payments.services import get_payment
+from apps.payments.wechat import is_wechat_checkout_enabled
+from apps.subscriptions.constants import InvoiceStatus, OrderStatus
 from apps.subscriptions.entitlements import EntitlementService
 from apps.subscriptions.exceptions import SubscriptionRuleException
 from apps.subscriptions.models import InvoiceRequest, OrganizationInvoiceProfile, Plan, SaaSOrder, Subscription
@@ -25,8 +28,7 @@ from apps.subscriptions.schemas import (
     RefundIn,
     SaaSOrderOut,
 )
-from apps.subscriptions.services import create_purchase_order, handle_wechat_payment_success, initiate_wechat_payment, refund_order
-from apps.subscriptions.wechat_client import WechatCheckoutClient, is_wechat_checkout_enabled
+from apps.subscriptions.services import create_purchase_order, initiate_wechat_payment, refund_order
 
 router = Router(tags=["SaaS 订阅/组织"])
 admin_router = Router(tags=["SaaS 订阅/平台管理"])
@@ -40,7 +42,7 @@ def _require_subscription_permission(request, permission: str):
 
 
 def _serialize_order(order: SaaSOrder) -> dict:
-    payment = order.payments.order_by("-pk").first()
+    payment = get_payment(biz_type="subscriptions.saas_order", biz_id=str(order.pk))
     return {
         "id": order.pk,
         "order_no": order.order_no,
@@ -146,24 +148,13 @@ def create_order(request, payload: PurchaseOrderIn):
 @paginate(LegacyPagination)
 def list_orders(request):
     org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
-    return [_serialize_order(order) for order in SaaSOrder.objects.filter(organization=org).prefetch_related("payments").order_by("-created_at", "-pk")]
+    return [_serialize_order(order) for order in SaaSOrder.objects.filter(organization=org).order_by("-created_at", "-pk")]
 
 
 @router.get("/orders/{order_no}/", response=SaaSOrderOut, summary="轮询支付订单状态")
 def get_order(request, order_no: str):
     org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
-    return _serialize_order(get_object_or_404(SaaSOrder.objects.prefetch_related("payments"), organization=org, order_no=order_no))
-
-
-@router.post("/payments/wechat/notify/", auth=None, response=dict, summary="微信支付回调")
-def wechat_notify(request):
-    raw_body = request.body.decode("utf-8")
-    client = WechatCheckoutClient()
-    if not client.verify_callback(headers=dict(request.headers), raw_body=raw_body):
-        raise SubscriptionRuleException("微信支付回调验签失败。")
-    result = client.parse_callback(raw_body=raw_body)
-    payment_result = handle_wechat_payment_success(**result)
-    return {"code": "SUCCESS", "message": "成功", "subscription_activated": payment_result.subscription_activated}
+    return _serialize_order(get_object_or_404(SaaSOrder, organization=org, order_no=order_no))
 
 
 @router.get("/invoice-profile/", response=InvoiceProfileOut | None, summary="获取开票资料")
@@ -229,7 +220,7 @@ def list_invoice_requests(request):
 @paginate(LegacyPagination)
 def admin_list_orders(request, organization_id: int | None = Query(None)):
     require_superuser(request)
-    qs = SaaSOrder.objects.prefetch_related("payments").all()
+    qs = SaaSOrder.objects.all()
     if organization_id:
         qs = qs.filter(organization_id=organization_id)
     return [_serialize_order(order) for order in qs.order_by("-created_at", "-pk")]

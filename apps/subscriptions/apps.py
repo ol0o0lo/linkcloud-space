@@ -5,3 +5,6 @@ class SubscriptionsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.subscriptions"
     verbose_name = "SaaS 订阅"
+
+    def ready(self):
+        import apps.subscriptions.signals  # noqa: F401

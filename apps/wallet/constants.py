@@ -1,4 +1,7 @@
 from apps.base.enums import StrChoices
+from apps.payments.constants import PayoutStatus
+
+__all__ = ["PayoutStatus"]
 
 
 class WalletEntryType(StrChoices):
@@ -24,10 +27,3 @@ class WithdrawalStatus(StrChoices):
     PAYING = "paying", "打款中"
     PAID = "paid", "已打款"
     FAILED = "failed", "打款失败"
-
-
-class PayoutStatus(StrChoices):
-    PENDING = "pending", "待发起"
-    PROCESSING = "processing", "处理中"
-    SUCCEEDED = "succeeded", "成功"
-    FAILED = "failed", "失败"

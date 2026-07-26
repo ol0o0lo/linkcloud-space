@@ -3,7 +3,6 @@ from django.contrib import admin
 from apps.subscriptions.models import (
     InvoiceRequest,
     OrganizationInvoiceProfile,
-    PaymentTransaction,
     Plan,
     PlanEntitlement,
     PlanPrice,
@@ -53,6 +52,7 @@ class SubscriptionSettingsAdmin(NoPhysicalDeleteAdmin):
     def has_add_permission(self, request):
         return not SubscriptionSettings.objects.exists()
 
+
 @admin.register(Subscription)
 class SubscriptionAdmin(NoPhysicalDeleteAdmin):
     list_display = ("organization", "kind", "status", "billing_cycle", "ends_at")
@@ -67,14 +67,6 @@ class SaaSOrderAdmin(NoPhysicalDeleteAdmin):
     list_filter = ("order_type", "status", "refund_status", "billing_cycle")
     search_fields = ("order_no", "organization__name", "organization__slug")
     readonly_fields = tuple(field.name for field in SaaSOrder._meta.fields)
-
-
-@admin.register(PaymentTransaction)
-class PaymentTransactionAdmin(NoPhysicalDeleteAdmin):
-    list_display = ("transaction_no", "order", "payment_mode", "status", "provider_trade_no", "paid_at")
-    list_filter = ("payment_mode", "status")
-    search_fields = ("transaction_no", "provider_trade_no", "order__order_no")
-    readonly_fields = tuple(field.name for field in PaymentTransaction._meta.fields)
 
 
 @admin.register(OrganizationInvoiceProfile)

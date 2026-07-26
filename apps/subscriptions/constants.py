@@ -1,4 +1,7 @@
 from apps.base.enums import StrChoices
+from apps.payments.constants import PaymentMode, PaymentProvider, PaymentStatus
+
+__all__ = ["PaymentMode", "PaymentProvider", "PaymentStatus"]
 
 
 class BillingCycle(StrChoices):
@@ -45,22 +48,6 @@ class RefundStatus(StrChoices):
 class RefundSubscriptionAction(StrChoices):
     KEEP = "keep", "保留订阅"
     END = "end", "立即结束订阅"
-
-
-class PaymentProvider(StrChoices):
-    WECHAT = "wechat", "微信支付"
-
-
-class PaymentMode(StrChoices):
-    NATIVE = "native", "微信扫码支付"
-    MINIPROGRAM = "miniprogram", "微信小程序支付"
-
-
-class PaymentStatus(StrChoices):
-    PENDING = "pending", "待支付"
-    SUCCEEDED = "succeeded", "支付成功"
-    FAILED = "failed", "支付失败"
-    EXCEPTION = "exception", "异常待处理"
 
 
 class InvoiceStatus(StrChoices):

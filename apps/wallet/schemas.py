@@ -122,21 +122,8 @@ class WithdrawalReviewIn(Schema):
 
 
 class PayoutCreateIn(Schema):
-    provider: str
     out_trade_no: str
-    request_payload: dict = {}
     idempotency_key: str
-
-
-class WithdrawalRetryIn(PayoutCreateIn):
-    pass
-
-
-class PayoutCallbackIn(Schema):
-    out_trade_no: str
-    provider_trade_no: str = ""
-    callback_status: str
-    response_payload: dict = {}
 
 
 class WithdrawalPayoutOut(Schema):
@@ -157,7 +144,7 @@ class WithdrawalPayoutOut(Schema):
 
     @staticmethod
     def resolve_withdrawal_request_id(obj) -> int:
-        return obj.withdrawal_request_id
+        return int(obj.biz_id)
 
     @staticmethod
     def resolve_status__mapping(obj):
