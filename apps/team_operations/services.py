@@ -78,7 +78,7 @@ def publish_announcement(announcement: TeamAnnouncement, *, actor) -> TeamAnnoun
         actor=actor,
         target=announcement,
         category=ANNOUNCEMENT_CATEGORY,
-        url=f"/dashboard/tenant-operations/announcements?announcement_id={announcement.pk}",
+        url=f"/dashboard/rental/workbench/announcements?announcement_id={announcement.pk}",
         data={
             "kind": "announcement",
             "announcement_id": announcement.pk,
@@ -191,7 +191,7 @@ def create_work_task(
             actor=actor,
             target=assignment,
             category=TASK_ASSIGNED_CATEGORY,
-            url=task.url or f"/dashboard/tenant-operations/tasks?assignment_id={assignment.pk}",
+            url=task.url or f"/dashboard/rental/workbench/tasks?assignment_id={assignment.pk}",
             data={
                 "kind": "task",
                 "task_id": task.pk,
@@ -226,7 +226,7 @@ def _notify_task_creator(assignment: TaskAssignment, *, actor, category: str, ti
         actor=actor,
         target=assignment,
         category=category,
-        url=f"/dashboard/tenant-operations/tasks?task_id={assignment.task_id}",
+        url=f"/dashboard/rental/workbench/tasks?task_id={assignment.task_id}",
         data={"kind": "task", "task_id": assignment.task_id, "assignment_id": assignment.pk},
     )
 
@@ -301,7 +301,7 @@ def cancel_work_task(task: WorkTask, *, actor) -> WorkTask:
             actor=actor,
             target=assignment,
             category=TASK_CANCELLED_CATEGORY,
-            url=f"/dashboard/tenant-operations/tasks?assignment_id={assignment.pk}",
+            url=f"/dashboard/rental/workbench/tasks?assignment_id={assignment.pk}",
             data={"kind": "task", "task_id": task.pk, "assignment_id": assignment.pk},
         )
     return task

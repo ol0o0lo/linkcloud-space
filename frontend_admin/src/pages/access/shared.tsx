@@ -3,7 +3,7 @@ import type { FormInstance } from 'antd';
 import React from 'react';
 import { appsTeamsApiListTeams } from '@/services/openapi/teams';
 import { useQuery } from '@tanstack/react-query';
-import { useTenantWorkspace } from '@/pages/tenant/shared';
+import { useTenantWorkspace } from '@/pages/space/shared';
 
 export const accessQueryKeys = {
   permissions: ['access', 'permissions'],

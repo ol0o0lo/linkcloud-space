@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Descriptions, Image, Space, Tag, Typography } from 'antd';
-import { mediaCoverUrl } from '@/pages/property-rental/constants';
-import { useTenantWorkspace } from '@/pages/tenant/shared';
+import { mediaCoverUrl } from '@/pages/rental/constants';
+import { useTenantWorkspace } from '@/pages/space/shared';
 import { enumMapping } from '@/services/manual/enums';
 import { houseApi } from '@/services/manual/house';
 import {

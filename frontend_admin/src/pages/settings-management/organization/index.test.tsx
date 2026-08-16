@@ -65,7 +65,7 @@ const {
   };
 });
 
-vi.mock('@/pages/tenant/shared', () => ({
+vi.mock('@/pages/space/shared', () => ({
   TenantSelectionGuard: ({ title, children }: { title: string; children: React.ReactNode }) => (
     <section>
       <h1>{title}</h1>

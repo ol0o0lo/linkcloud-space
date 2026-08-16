@@ -101,7 +101,7 @@ const MessageSection = ({ editor }: MessageSectionProps) => {
             allowClear
             maxLength={500}
             prefix={<LinkOutlined />}
-            placeholder="/dashboard/tenant-operations/tasks"
+            placeholder="/dashboard/rental/workbench/tasks"
           />
         </Form.Item>
       ) : null}

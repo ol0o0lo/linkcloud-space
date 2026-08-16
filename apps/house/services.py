@@ -154,7 +154,7 @@ def get_estate_delete_check(estate):
                 "count": count,
                 "items": [{"id": building.pk, "label": f"{building.name} · {building.address}" if building.address else building.name} for building in preview],
                 "truncated": count > RESOURCE_PREVIEW_LIMIT,
-                "target": {"path": "/property-rental/estates", "query": {"view": "buildings", "estate_id": estate.pk}},
+                "target": {"path": "/rental/properties/estates", "query": {"view": "buildings", "estate_id": estate.pk}},
             }
         ],
     }
@@ -176,7 +176,7 @@ def get_building_delete_check(building):
                 "count": count,
                 "items": [{"id": house.pk, "label": f"{building.name} / {house.room_number}"} for house in preview],
                 "truncated": count > RESOURCE_PREVIEW_LIMIT,
-                "target": {"path": "/property-rental/houses", "query": {"building_id": building.pk}},
+                "target": {"path": "/rental/properties/list", "query": {"building_id": building.pk}},
             }
         ],
     }

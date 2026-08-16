@@ -36,7 +36,7 @@ vi.mock('@umijs/max', () => ({
   useModel: mockUseModel,
 }));
 
-vi.mock('@/pages/tenant/shared', () => ({
+vi.mock('@/pages/space/shared', () => ({
   useTenantWorkspace: mockUseTenantWorkspace,
 }));
 
@@ -151,7 +151,7 @@ describe('NotificationDispatchesPage', () => {
       },
     });
     mockUseLocation.mockReturnValue({
-      pathname: '/tenant-operations/notification-dispatches',
+      pathname: '/space/notification-dispatches',
     });
     mockUseTenantWorkspace.mockReturnValue({
       selectedOrgSlug: 'lan',
@@ -440,7 +440,7 @@ describe('NotificationDispatchesPage', () => {
       },
     });
     mockUseLocation.mockReturnValue({
-      pathname: '/tenant-operations/notification-dispatches',
+      pathname: '/space/notification-dispatches',
     });
     mockListTargets.mockResolvedValue({
       items: [

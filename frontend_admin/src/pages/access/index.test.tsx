@@ -4,8 +4,10 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import AccessOverviewPage from './index';
 
-vi.mock('@/pages/tenant/shared', () => ({
-  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+vi.mock('@/pages/space/shared', () => ({
+  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 describe('AccessOverviewPage', () => {
@@ -26,9 +28,21 @@ describe('AccessOverviewPage', () => {
     expect(screen.queryByText('权限概览')).not.toBeInTheDocument();
     expect(screen.queryByText('空间级治理')).not.toBeInTheDocument();
     expect(screen.queryByText('团队级治理')).not.toBeInTheDocument();
-    expect(screen.getAllByText('空间角色').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('空间授权').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('团队角色').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('团队授权').length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: '空间角色' })).toHaveAttribute(
+      'href',
+      '/dashboard/space/access/organization-roles',
+    );
+    expect(screen.getByRole('link', { name: '空间授权' })).toHaveAttribute(
+      'href',
+      '/dashboard/space/access/organization-bindings',
+    );
+    expect(screen.getByRole('link', { name: '团队角色' })).toHaveAttribute(
+      'href',
+      '/dashboard/space/access/team-roles',
+    );
+    expect(screen.getByRole('link', { name: '团队授权' })).toHaveAttribute(
+      'href',
+      '/dashboard/space/access/team-bindings',
+    );
   });
 });

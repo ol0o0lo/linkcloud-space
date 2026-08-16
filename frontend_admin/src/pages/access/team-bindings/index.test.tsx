@@ -20,7 +20,7 @@ const {
   mockDeleteBinding: vi.fn(),
 }));
 
-vi.mock('@/pages/tenant/shared', () => ({
+vi.mock('@/pages/space/shared', () => ({
   TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   formatPersonLabel: (user: { username?: string; first_name?: string; last_name?: string }) => [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || '未知用户',
   useTenantWorkspace: () => ({ selectedOrgSlug: 'acme', queryClient: { invalidateQueries: vi.fn() } }),

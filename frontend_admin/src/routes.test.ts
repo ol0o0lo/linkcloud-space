@@ -1,13 +1,18 @@
+import { getMenuData } from '@ant-design/pro-layout/es/utils/getMenuData.js';
+import { getMatchMenu } from '@umijs/route-utils';
 import { describe, expect, it } from 'vitest';
 import routes from '../config/routes';
 import zhCN from './locales/zh-CN';
+import { RENTAL_PATHS, SPACE_PATHS } from './utils/adminRouting';
 
 type AppRoute = {
   access?: string;
+  component?: string;
   hideInMenu?: boolean;
   layout?: boolean;
   name?: string;
   path?: string;
+  redirect?: string;
   routes?: AppRoute[];
 };
 
@@ -33,49 +38,120 @@ const collectMenuKeys = (routeList: AppRoute[], parents: string[] = []) => {
   return keys;
 };
 
+const appRoutes = routes as AppRoute[];
+
 describe('backend capability routes', () => {
-  it('registers the first-stage tenant management pages', () => {
-    const tenantGroup = routes.find((route) => route.path === '/tenant');
+  it('按用户租赁流程组织一级导航', () => {
+    const visibleTopLevelNames = appRoutes
+      .filter(
+        (route) =>
+          route.name && route.layout !== false && route.hideInMenu !== true,
+      )
+      .map((route) => route.name);
 
-    expect(tenantGroup).toBeDefined();
-    expect(tenantGroup?.routes?.map((route) => route.path)).toEqual([
-      '/tenant',
-      '/tenant/overview',
-      '/tenant/settings',
-      '/tenant/members',
-      '/tenant/invites',
-      '/tenant/teams',
+    expect(visibleTopLevelNames).toEqual([
+      'workbench',
+      'property-assets',
+      'customers',
+      'viewings',
+      'leases',
+      'data-insights',
+      'space-management',
+      'super-admin',
     ]);
   });
 
-  it('registers the second-stage access management pages', () => {
-    const accessGroup = routes.find((route) => route.path === '/access');
-
-    expect(accessGroup).toBeDefined();
-    expect(accessGroup?.routes?.map((route) => route.path)).toEqual([
-      '/access',
-      '/access/organization-roles',
-      '/access/organization-bindings',
-      '/access/team-roles',
-      '/access/team-bindings',
-    ]);
-  });
-
-  it('registers the settings management pages without touching account settings tabs', () => {
-    const settingsGroup = routes.find(
-      (route) => route.path === '/settings-management',
+  it.each([
+    ['客户', RENTAL_PATHS.customers, 'customers'],
+    ['带看', RENTAL_PATHS.viewings, 'viewings'],
+    ['租约', RENTAL_PATHS.leases, 'leases'],
+    ['数据', RENTAL_PATHS.analytics, 'data-insights'],
+  ])('访问%s页面时不会匹配并展开房源菜单', (_, pathname, menuName) => {
+    const { menuData } = getMenuData(
+      appRoutes as unknown as Parameters<typeof getMenuData>[0],
+      { locale: false },
+      undefined,
+    );
+    const matchedMenuNames = getMatchMenu(pathname, menuData, true).map(
+      (item) => item.name,
     );
 
-    expect(settingsGroup).toBeDefined();
-    expect(settingsGroup?.routes?.map((route) => route.path)).toEqual([
-      '/settings-management',
-      '/settings-management/organization',
-      '/settings-management/team',
+    expect(menuData.find((item) => item.name === 'property-assets')?.path).toBe(
+      RENTAL_PATHS.properties,
+    );
+    expect(matchedMenuNames).toContain(menuName);
+    expect(matchedMenuNames).not.toContain('property-assets');
+  });
+
+  it('租赁命名空间根地址进入工作台', () => {
+    const rentalRoot = appRoutes.find(
+      (route) => route.path === RENTAL_PATHS.root,
+    );
+
+    expect(rentalRoot?.hideInMenu).toBe(true);
+    expect(rentalRoot?.redirect).toBe(RENTAL_PATHS.workbenchOverview);
+  });
+
+  it('把房源资产相关页面收敛到房源导航', () => {
+    const propertyGroup = appRoutes.find(
+      (route) => route.path === RENTAL_PATHS.properties,
+    );
+
+    expect(propertyGroup?.name).toBe('property-assets');
+    expect(propertyGroup?.path).toBe(RENTAL_PATHS.properties);
+    expect(propertyGroup?.routes?.map((route) => route.path)).toEqual([
+      RENTAL_PATHS.properties,
+      RENTAL_PATHS.propertyList,
+      RENTAL_PATHS.estates,
+      RENTAL_PATHS.map,
+      RENTAL_PATHS.vacancySync,
+      `${RENTAL_PATHS.buildings}/:id`,
+      `${RENTAL_PATHS.estates}/:id`,
+      RENTAL_PATHS.propertyNew,
+      `${RENTAL_PATHS.properties}/:id`,
+    ]);
+  });
+
+  it('把成员、权限和设置收敛到空间管理', () => {
+    const tenantGroup = appRoutes.find(
+      (route) => route.path === SPACE_PATHS.root,
+    );
+    const accessGroup = tenantGroup?.routes?.find(
+      (route) => route.path === SPACE_PATHS.access,
+    );
+    const businessSettingsGroup = tenantGroup?.routes?.find(
+      (route) => route.path === SPACE_PATHS.settings,
+    );
+
+    expect(tenantGroup?.name).toBe('space-management');
+    expect(tenantGroup?.routes?.map((route) => route.path)).toEqual([
+      SPACE_PATHS.root,
+      SPACE_PATHS.members,
+      SPACE_PATHS.invitations,
+      SPACE_PATHS.teams,
+      SPACE_PATHS.responsibilities,
+      SPACE_PATHS.access,
+      SPACE_PATHS.profile,
+      SPACE_PATHS.subscription,
+      SPACE_PATHS.settings,
+      SPACE_PATHS.notificationDispatches,
+    ]);
+    expect(accessGroup?.routes?.map((route) => route.path)).toEqual([
+      SPACE_PATHS.access,
+      `${SPACE_PATHS.access}/organization-roles`,
+      `${SPACE_PATHS.access}/organization-bindings`,
+      `${SPACE_PATHS.access}/team-roles`,
+      `${SPACE_PATHS.access}/team-bindings`,
+    ]);
+    expect(businessSettingsGroup?.routes?.map((route) => route.path)).toEqual([
+      SPACE_PATHS.settings,
+      SPACE_PATHS.organizationSettings,
+      SPACE_PATHS.teamSettings,
     ]);
   });
 
   it('registers wallet management pages', () => {
-    const superAdminGroup = routes.find(
+    const superAdminGroup = appRoutes.find(
       (route) => route.path === '/super-admin',
     );
 
@@ -88,7 +164,7 @@ describe('backend capability routes', () => {
   });
 
   it('registers super admin pages behind the superuser access gate', () => {
-    const superAdminGroup = routes.find(
+    const superAdminGroup = appRoutes.find(
       (route) => route.path === '/super-admin',
     );
     const paths = superAdminGroup?.routes?.map((route) => route.path) ?? [];
@@ -108,19 +184,18 @@ describe('backend capability routes', () => {
   });
 
   it('registers system tools and personal pages', () => {
-    const tenantOperationsGroup = routes.find(
-      (route) => route.path === '/tenant-operations',
+    const rentalWorkbenchGroup = appRoutes.find(
+      (route) => route.path === RENTAL_PATHS.workbench,
     );
-    const personalGroup = routes.find(
+    const personalGroup = appRoutes.find(
       (route) => route.path === '/personal-business',
     );
 
-    expect(tenantOperationsGroup?.routes?.map((route) => route.path)).toEqual([
-      '/tenant-operations',
-      '/tenant-operations/workbench',
-      '/tenant-operations/announcements',
-      '/tenant-operations/tasks',
-      '/tenant-operations/notification-dispatches',
+    expect(rentalWorkbenchGroup?.routes?.map((route) => route.path)).toEqual([
+      RENTAL_PATHS.workbench,
+      RENTAL_PATHS.workbenchOverview,
+      RENTAL_PATHS.tasks,
+      RENTAL_PATHS.announcements,
     ]);
     expect(personalGroup?.routes?.map((route) => route.path)).toEqual([
       '/personal-business',
@@ -131,10 +206,11 @@ describe('backend capability routes', () => {
     expect(zhCN['menu.personal-business']).toBe('个人');
     expect(zhCN['menu.personal-business.overview']).toBe('个人概览');
     expect(zhCN['menu.personal-business.favorites']).toBe('我的收藏');
+    expect(personalGroup?.hideInMenu).toBe(true);
   });
 
   it('provides zh-CN menu translations for every named route', () => {
-    const missingKeys = collectMenuKeys(routes as AppRoute[]).filter(
+    const missingKeys = collectMenuKeys(appRoutes).filter(
       (key) => !(key in zhCN),
     );
 
@@ -144,7 +220,7 @@ describe('backend capability routes', () => {
 
 describe('个人中心路由', () => {
   it('个人中心是主入口，个人设置不再作为菜单项显示', () => {
-    const accountGroup = routes.find((route) => route.path === '/account');
+    const accountGroup = appRoutes.find((route) => route.path === '/account');
     const namedChildren =
       accountGroup?.routes?.filter((route) => route.name) ?? [];
 

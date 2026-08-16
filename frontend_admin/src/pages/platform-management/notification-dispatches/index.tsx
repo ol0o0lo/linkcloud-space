@@ -25,13 +25,14 @@ import {
   ResponsiveActions,
   wrapTextStyle,
 } from '@/pages/_shared/adminLayout';
-import { useTenantWorkspace } from '@/pages/tenant/shared';
+import { useTenantWorkspace } from '@/pages/space/shared';
 import type { NotificationDispatchManagementContext } from '@/services/manual/notificationDispatches';
 import { appsBaseApiAppContext } from '@/services/openapi/appSystem';
 import {
   appsNotificationsApiGetDispatch,
   appsNotificationsApiListDispatches,
 } from '@/services/openapi/notificationDispatches';
+import { normalizeAdminPath, SPACE_PATHS } from '@/utils/adminRouting';
 import { platformQueryKeys } from '../shared';
 import NotificationDispatchCreateModal, {
   type DispatchScope,
@@ -136,7 +137,9 @@ const NotificationDispatchesPage: React.FC = () => {
   const { initialState } = useModel('@@initialState');
   const workspace = useTenantWorkspace();
   const isSuperuser = Boolean(initialState?.currentUser?.is_superuser);
-  const isTenantMode = location.pathname.includes('/tenant-operations/');
+  const isTenantMode =
+    normalizeAdminPath(location.pathname) ===
+    SPACE_PATHS.notificationDispatches;
   const managementContext: NotificationDispatchManagementContext = isTenantMode
     ? 'tenant'
     : 'platform';

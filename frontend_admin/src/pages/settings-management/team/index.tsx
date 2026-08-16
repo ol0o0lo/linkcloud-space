@@ -8,7 +8,7 @@ import {
   appsSettingsApiPutTeamSetting,
 } from '@/services/openapi/teamSettings';
 import { appsTeamsApiListTeams } from '@/services/openapi/teams';
-import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   PublishRulesControl,
   SettingSchemaControl,

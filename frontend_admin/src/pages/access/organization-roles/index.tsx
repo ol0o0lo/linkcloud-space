@@ -11,7 +11,7 @@ import {
   appsAccessApiListOrgRoles,
   appsAccessApiPatchOrgRole,
 } from '@/services/openapi/accessOrganizationRoles';
-import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import { RoleModal, RoleSummary, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
 import { Form } from 'antd';
 

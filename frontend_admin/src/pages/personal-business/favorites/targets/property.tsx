@@ -7,7 +7,7 @@ import {
   housePrimaryLayoutText,
   mediaCoverUrl,
   moneyText,
-} from '@/pages/property-rental/constants';
+} from '@/pages/rental/constants';
 import type {
   FavoriteBuildingTarget,
   FavoriteEstateTarget,

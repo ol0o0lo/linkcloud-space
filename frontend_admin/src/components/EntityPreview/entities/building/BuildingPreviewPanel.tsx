@@ -3,8 +3,8 @@ import { Descriptions, Image, Space, Tag, Typography } from 'antd';
 import {
   buildingLabel,
   mediaCoverUrl,
-} from '@/pages/property-rental/constants';
-import { useTenantWorkspace } from '@/pages/tenant/shared';
+} from '@/pages/rental/constants';
+import { useTenantWorkspace } from '@/pages/space/shared';
 import { houseApi } from '@/services/manual/house';
 import {
   EntityPreviewCard,

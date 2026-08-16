@@ -6,7 +6,7 @@ import { setSelectedOrgSlug } from './utils/orgSelection';
 const { mockHistory, mockHistoryPush, mockRequest } = vi.hoisted(() => ({
   mockHistory: {
     location: {
-      pathname: '/property-rental/workbench',
+      pathname: '/rental/workbench/overview',
       search: '',
       hash: '',
     },
@@ -49,7 +49,7 @@ describe('requestErrorConfig', () => {
     vi.clearAllMocks();
     setSelectedOrgSlug(undefined);
     mockHistory.location = {
-      pathname: '/property-rental/workbench',
+      pathname: '/rental/workbench/overview',
       search: '',
       hash: '',
     };
@@ -148,7 +148,7 @@ describe('requestErrorConfig', () => {
 
       errorHandler(error, {});
 
-      expect(mockHistoryPush).toHaveBeenCalledWith('/user/login?redirect=%2Fproperty-rental%2Fworkbench');
+      expect(mockHistoryPush).toHaveBeenCalledWith('/user/login?redirect=%2Frental%2Fworkbench%2Foverview');
       expect(message.error).not.toHaveBeenCalled();
     });
 

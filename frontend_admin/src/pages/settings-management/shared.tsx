@@ -8,7 +8,7 @@ import {
   buildHousePublishRulesPreset,
   normalizeHousePublishRules,
   resolveHousePublishRulesPreset,
-} from '@/pages/property-rental/publish-rules';
+} from '@/pages/rental/publish-rules';
 
 export type SettingOption = { label: string; value: string | number | boolean };
 

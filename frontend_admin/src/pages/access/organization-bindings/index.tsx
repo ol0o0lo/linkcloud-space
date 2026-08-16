@@ -11,7 +11,7 @@ import {
 } from '@/services/openapi/accessOrganizationBindings';
 import { appsAccessApiListOrgRoles } from '@/services/openapi/accessOrganizationRoles';
 import { appsOrganizationsApiListMembers } from '@/services/openapi/organizationMembers';
-import { TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/space/shared';
 import { RoleSummary, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
 
 const OrganizationBindingsPage: React.FC = () => {

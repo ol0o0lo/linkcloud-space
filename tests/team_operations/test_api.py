@@ -320,7 +320,7 @@ class TestTeamOperationsAPI:
         assert task.status == WorkTaskStatus.COMPLETED
         assert notification.read_at is not None
         creator_notification = Notification.objects.get(recipient=self.owner, category="team.task.completed")
-        assert creator_notification.url == f"/dashboard/tenant-operations/tasks?task_id={task.pk}"
+        assert creator_notification.url == f"/dashboard/rental/workbench/tasks?task_id={task.pk}"
         assert creator_notification.data == {"kind": "task", "task_id": task.pk, "assignment_id": assignment.pk}
 
     def test_assignee_can_open_assignment_from_notification_target(self):

@@ -126,7 +126,7 @@ class HouseApiTestCase(TestCase):
                         ],
                         "truncated": True,
                         "target": {
-                            "path": "/property-rental/estates",
+                            "path": "/rental/properties/estates",
                             "query": {"view": "buildings", "estate_id": self.estate.pk},
                         },
                     }
@@ -156,7 +156,7 @@ class HouseApiTestCase(TestCase):
                         "count": 6,
                         "items": [{"id": house.pk, "label": f"1栋 / {house.room_number}"} for house in houses[:5]],
                         "truncated": True,
-                        "target": {"path": "/property-rental/houses", "query": {"building_id": self.building.pk}},
+                        "target": {"path": "/rental/properties/list", "query": {"building_id": self.building.pk}},
                     }
                 ],
             },

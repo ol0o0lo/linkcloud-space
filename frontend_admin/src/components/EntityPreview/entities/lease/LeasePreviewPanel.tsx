@@ -5,8 +5,8 @@ import {
   houseLabel,
   moneyText,
   STATUS_COLOR,
-} from '@/pages/property-rental/constants';
-import { useTenantWorkspace } from '@/pages/tenant/shared';
+} from '@/pages/rental/constants';
+import { useTenantWorkspace } from '@/pages/space/shared';
 import { enumMapping } from '@/services/manual/enums';
 import { houseApi } from '@/services/manual/house';
 import {

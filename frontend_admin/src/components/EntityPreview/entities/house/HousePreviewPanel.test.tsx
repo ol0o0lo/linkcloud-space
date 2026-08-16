@@ -11,7 +11,7 @@ vi.mock('@/services/manual/house', () => ({
   houseApi: { getHouse },
 }));
 
-vi.mock('@/pages/tenant/shared', () => ({ useTenantWorkspace }));
+vi.mock('@/pages/space/shared', () => ({ useTenantWorkspace }));
 
 vi.mock('../building/BuildingPreview', () => ({
   BuildingPreview: ({

@@ -35,7 +35,7 @@ import {
 import {
   TenantSelectionGuard,
   useTenantWorkspace,
-} from '@/pages/tenant/shared';
+} from '@/pages/space/shared';
 import {
   type AnnouncementInput,
   type AnnouncementStatus,

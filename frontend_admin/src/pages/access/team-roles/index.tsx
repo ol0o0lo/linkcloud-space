@@ -11,7 +11,7 @@ import {
   appsAccessApiListTeamRoles,
   appsAccessApiPatchTeamRole,
 } from '@/services/openapi/accessTeamRoles';
-import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import { EmptyTeamHint, RoleModal, RoleSummary, TeamContextCard, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
 
 const TeamRolesPage: React.FC = () => {

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Avatar, Descriptions, Space, Tag, Typography, theme } from 'antd';
-import { useTenantWorkspace } from '@/pages/tenant/shared';
+import { useTenantWorkspace } from '@/pages/space/shared';
 import { houseApi } from '@/services/manual/house';
 import {
   EntityPreviewCard,

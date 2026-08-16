@@ -183,7 +183,7 @@ describe('admin 登录 MFA 流程', () => {
     window.history.replaceState(
       {},
       '',
-      '/user/login?redirect=%2Fsettings-management%2Forganization',
+      '/user/login?redirect=%2Fspace%2Fsettings%2Forganization',
     );
 
     const { default: Login } = await import('./index');
@@ -195,7 +195,7 @@ describe('admin 登录 MFA 流程', () => {
     expect(mockLogin).not.toHaveBeenCalled();
     expect(mockSwitchList).toHaveBeenCalledWith({ skipErrorHandler: true });
     expect(mockHistoryReplace).toHaveBeenCalledWith(
-      '/settings-management/organization',
+      '/space/settings/organization',
     );
   });
 
@@ -222,7 +222,7 @@ describe('admin 登录 MFA 流程', () => {
 
     await waitFor(() => {
       expect(mockHistoryReplace).toHaveBeenCalledWith(
-        '/property-rental/houses',
+        '/rental/workbench/overview',
       );
     });
     expect(mockSuccess).not.toHaveBeenCalled();
@@ -294,7 +294,9 @@ describe('admin 登录 MFA 流程', () => {
     });
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockFetchUserInfo).toHaveBeenCalled();
-    expect(mockHistoryReplace).toHaveBeenCalledWith('/property-rental/houses');
+    expect(mockHistoryReplace).toHaveBeenCalledWith(
+      '/rental/workbench/overview',
+    );
   });
 
   it('遇到未知 allauth flow 时应提示具体 flow id', async () => {
@@ -352,7 +354,9 @@ describe('admin 登录 MFA 流程', () => {
         { skipErrorHandler: true },
       );
     });
-    expect(mockHistoryReplace).toHaveBeenCalledWith('/property-rental/houses');
+    expect(mockHistoryReplace).toHaveBeenCalledWith(
+      '/rental/workbench/overview',
+    );
   });
 
   it('登录成功后应同步当前空间到 initialState', async () => {
@@ -460,6 +464,8 @@ describe('admin 登录 MFA 流程', () => {
     });
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockFetchUserInfo).toHaveBeenCalled();
-    expect(mockHistoryReplace).toHaveBeenCalledWith('/property-rental/houses');
+    expect(mockHistoryReplace).toHaveBeenCalledWith(
+      '/rental/workbench/overview',
+    );
   });
 });

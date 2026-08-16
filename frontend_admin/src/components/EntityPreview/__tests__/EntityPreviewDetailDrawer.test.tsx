@@ -32,9 +32,9 @@ const Panel = ({
 
 describe('EntityPreviewDetailDrawer', () => {
   beforeEach(() => {
-    window.history.replaceState({}, '', '/property-rental/contacts?preview=7');
+    window.history.replaceState({}, '', '/rental/customers?preview=7');
     entityPreviewRegistry.contact = {
-      getHref: (id) => `/property-rental/contacts?preview=${id}`,
+      getHref: (id) => `/rental/customers?preview=${id}`,
       Panel: lazy(async () => ({ default: Panel })),
       popoverMedia: false,
       popoverWidth: 390,
@@ -69,7 +69,7 @@ describe('EntityPreviewDetailDrawer', () => {
 
   it('Drawer 面板延迟加载时保留原有普通骨架', () => {
     entityPreviewRegistry.contact = {
-      getHref: (id) => `/property-rental/contacts?preview=${id}`,
+      getHref: (id) => `/rental/customers?preview=${id}`,
       Panel: lazy(
         () =>
           new Promise<{ default: typeof Panel }>(() => {

@@ -55,7 +55,7 @@ describe('NotificationsAdminPage', () => {
           is_read: false,
           created_at: '2026-06-16T10:00:00+08:00',
           actor: { id: 1, username: 'alice', full_name: 'Alice Zhang' },
-          url: '/dashboard/property-rental/workbench',
+          url: '/dashboard/rental/workbench/overview',
         },
       ],
       total: 1,
@@ -69,7 +69,7 @@ describe('NotificationsAdminPage', () => {
       is_read: false,
       created_at: '2026-06-16T10:00:00+08:00',
       actor: { id: 1, username: 'alice', full_name: 'Alice Zhang' },
-      url: '/dashboard/property-rental/workbench',
+      url: '/dashboard/rental/workbench/overview',
     });
     mockUnreadCount.mockResolvedValue({ count: 1 });
     mockPatchNotification.mockResolvedValue({});
@@ -104,7 +104,7 @@ describe('NotificationsAdminPage', () => {
     await waitFor(() => expect(mockPatchNotification).toHaveBeenCalledWith({ notification_id: 8 }, { is_read: true }));
     expect(await screen.findByText('通知详情')).toBeInTheDocument();
     expect(screen.queryByText('通知详情需要一起查看正文、确认状态和后续入口。')).not.toBeInTheDocument();
-    expect(screen.getByText('打开通知链接')).toHaveAttribute('href', '/dashboard/property-rental/workbench');
+    expect(screen.getByText('打开通知链接')).toHaveAttribute('href', '/dashboard/rental/workbench/overview');
 
     fireEvent.click(within(row!).getByText('标记已读'));
     await waitFor(() => expect(mockPatchNotification).toHaveBeenCalledWith({ notification_id: 8 }, { is_read: true }));

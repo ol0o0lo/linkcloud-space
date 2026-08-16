@@ -300,7 +300,7 @@ const NotificationsAdminPage: React.FC = () => {
                 setReadFilter(value as ReadFilter);
               }}
             />
-            <Button href="/dashboard/tenant-operations/notification-dispatches">
+            <Button href="/dashboard/space/notification-dispatches">
               查看通知分发
             </Button>
             <Button

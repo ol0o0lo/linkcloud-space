@@ -11,7 +11,7 @@ import {
   appsAccessApiListTeamBindingsView,
 } from '@/services/openapi/accessTeamBindings';
 import { appsOrganizationsApiListMembers } from '@/services/openapi/organizationMembers';
-import { TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/tenant/shared';
+import { TenantSelectionGuard, formatPersonLabel, useTenantWorkspace } from '@/pages/space/shared';
 import { EmptyTeamHint, RoleSummary, TeamContextCard, accessQueryKeys, rolePermissionText, roleStatusTag } from '../shared';
 
 const TeamBindingsPage: React.FC = () => {

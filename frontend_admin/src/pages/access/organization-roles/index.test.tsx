@@ -20,7 +20,7 @@ const {
   mockDeleteOrgRole: vi.fn(),
 }));
 
-vi.mock('@/pages/tenant/shared', () => ({
+vi.mock('@/pages/space/shared', () => ({
   TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useTenantWorkspace: () => ({ selectedOrgSlug: 'acme', queryClient: { invalidateQueries: vi.fn() } }),
 }));

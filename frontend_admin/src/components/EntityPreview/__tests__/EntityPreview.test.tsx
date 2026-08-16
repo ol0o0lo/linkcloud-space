@@ -121,7 +121,7 @@ describe('EntityPreview', () => {
     vi.useFakeTimers();
     entityPreviewRegistry.house = {
       Panel: lazy(async () => ({ default: Panel })),
-      getHref: (id) => `/property-rental/houses/${id}`,
+      getHref: (id) => `/rental/properties/${id}`,
       popoverMedia: true,
       popoverWidth: 460,
     };
@@ -155,7 +155,7 @@ describe('EntityPreview', () => {
 
     expect(screen.getByRole('link', { name: '春风里 2 号' })).toHaveAttribute(
       'href',
-      '/property-rental/houses/42',
+      '/rental/properties/42',
     );
   });
 
@@ -298,7 +298,7 @@ describe('EntityPreview', () => {
             // 保持 Suspense 加载态
           }),
       ),
-      getHref: (id) => `/property-rental/houses/${id}`,
+      getHref: (id) => `/rental/properties/${id}`,
       popoverMedia: true,
       popoverWidth: 460,
     };
@@ -324,7 +324,7 @@ describe('EntityPreview', () => {
             // 保持 Suspense 加载态
           }),
       ),
-      getHref: (id) => `/property-rental/contacts?preview=${id}`,
+      getHref: (id) => `/rental/customers?preview=${id}`,
       popoverMedia: false,
       popoverWidth: 390,
     };
@@ -351,7 +351,7 @@ describe('EntityPreview', () => {
     };
     entityPreviewRegistry.house = {
       Panel: lazy(async () => ({ default: BrokenPanel })),
-      getHref: (id) => `/property-rental/houses/${id}`,
+      getHref: (id) => `/rental/properties/${id}`,
       popoverMedia: true,
       popoverWidth: 460,
     };

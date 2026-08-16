@@ -16,7 +16,7 @@ const {
   mockDeleteSetting: vi.fn(),
 }));
 
-vi.mock('@/pages/tenant/shared', () => ({
+vi.mock('@/pages/space/shared', () => ({
   TenantSelectionGuard: ({ title, extra, children }: { title: string; extra?: React.ReactNode; children: React.ReactNode }) => (
     <section>
       <div>

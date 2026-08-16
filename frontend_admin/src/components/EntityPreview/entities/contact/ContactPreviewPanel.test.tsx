@@ -11,7 +11,7 @@ vi.mock('@/services/manual/house', () => ({
   houseApi: { getContact },
 }));
 
-vi.mock('@/pages/tenant/shared', () => ({ useTenantWorkspace }));
+vi.mock('@/pages/space/shared', () => ({ useTenantWorkspace }));
 
 import { ContactPreviewPanel } from './ContactPreviewPanel';
 

@@ -3,9 +3,9 @@ import { Button, Card, Divider, Form, Input, InputNumber, Modal, message, Select
 import React, { useEffect, useMemo, useState } from 'react';
 import { LocationPicker, type LocationValue } from '@/components/LocationPicker';
 import { wrapTextStyle } from '@/pages/_shared/adminLayout';
-import { PropertyTagSelect } from '@/pages/property-rental/components/PropertyTagSelect';
-import { buildingLabel } from '@/pages/property-rental/constants';
-import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/tenant/shared';
+import { PropertyTagSelect } from '@/pages/rental/components/PropertyTagSelect';
+import { buildingLabel } from '@/pages/rental/constants';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import { type BuildingOut, houseApi } from '@/services/manual/house';
 import {
   appsSettingsApiDeleteOrgSettingView,

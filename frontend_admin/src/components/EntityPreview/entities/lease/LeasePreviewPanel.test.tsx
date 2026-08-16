@@ -11,7 +11,7 @@ vi.mock('@/services/manual/house', () => ({
   houseApi: { getLease },
 }));
 
-vi.mock('@/pages/tenant/shared', () => ({ useTenantWorkspace }));
+vi.mock('@/pages/space/shared', () => ({ useTenantWorkspace }));
 
 import { LeasePreviewPanel } from './LeasePreviewPanel';
 

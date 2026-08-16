@@ -23,7 +23,7 @@ import {
 import {
   TenantSelectionGuard,
   useTenantWorkspace,
-} from '@/pages/tenant/shared';
+} from '@/pages/space/shared';
 import {
   acceptTaskAssignment,
   completeTaskAssignment,
@@ -172,12 +172,12 @@ const TeamOperationsWorkbenchPage: React.FC = () => {
           ) : null}
           <a
             href={dashboardHref(
-              `/tenant-operations/tasks?assignment_id=${record.id}`,
+              `/rental/workbench/tasks?assignment_id=${record.id}`,
             )}
             onClick={(event) => {
               event.preventDefault();
               history.push(
-                `/tenant-operations/tasks?assignment_id=${record.id}`,
+                `/rental/workbench/tasks?assignment_id=${record.id}`,
               );
             }}
           >
@@ -205,10 +205,10 @@ const TeamOperationsWorkbenchPage: React.FC = () => {
         style={{ marginTop: 16 }}
         extra={
           <Button
-            href={dashboardHref('/tenant-operations/tasks')}
+            href={dashboardHref('/rental/workbench/tasks')}
             onClick={(event) => {
               event.preventDefault();
-              history.push('/tenant-operations/tasks');
+              history.push('/rental/workbench/tasks');
             }}
           >
             查看全部任务
