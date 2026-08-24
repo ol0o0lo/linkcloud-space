@@ -3838,6 +3838,17 @@ declare namespace API {
     updated_at: string;
   };
 
+  type TaskAssignmentSummaryOut = {
+    /** Pending */
+    pending: number;
+    /** In Progress */
+    in_progress: number;
+    /** Due Soon */
+    due_soon: number;
+    /** Overdue */
+    overdue: number;
+  };
+
   type TeamBindingOut = {
     /** Id */
     id: number;

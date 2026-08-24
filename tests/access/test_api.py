@@ -31,9 +31,7 @@ class AccessAPITestBase(TestCase):
         self.team.members.add(self.owner, self.member)
         self.client.force_login(self.owner)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": True}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": True})
         session.save()
 
 
@@ -148,6 +146,56 @@ class TestAccessOrgAPI(AccessAPITestBase):
         self.assertEqual(delete_resp.status_code, 200)
         self.assertEqual(api_data(delete_resp), {})
         self.assertFalse(AccessRole.objects.filter(pk=role_id).exists())
+
+    def test_role_list_exposes_description_modules_and_assignment_count(self):
+        make_permission("organizations", "member_view")
+        create_resp = self.client.post(
+            "/api/access/organization-roles/",
+            data=json.dumps(
+                {
+                    "name": "Member auditor",
+                    "description": "查看成员资料",
+                    "permission_keys": ["organizations.member_view"],
+                }
+            ),
+            content_type="application/json",
+        )
+        role = AccessRole.objects.get(pk=api_data(create_resp)["id"])
+        OrganizationGroupBinding.objects.create(organization=self.org, user=self.member, group=role.group)
+
+        response = self.client.get("/api/access/organization-roles/")
+
+        payload = next(item for item in api_data(response) if item["id"] == role.pk)
+        self.assertEqual(payload["description"], "查看成员资料")
+        self.assertEqual(payload["assigned_member_count"], 1)
+        self.assertEqual(payload["permission_count"], 1)
+        self.assertEqual(payload["permission_modules"], [{"key": "organization", "name": "成员与组织", "count": 1}])
+
+    def test_owner_can_page_and_batch_update_org_role_members(self):
+        role = make_access_group("org_batch_member_role", AccessScope.ORG, []).access_role
+
+        initial_response = self.client.get(
+            f"/api/access/role-management/roles/{role.pk}/members/",
+            {"page": 1, "page_size": 20},
+        )
+        self.assertEqual(initial_response.status_code, 200)
+        initial_members = api_data(initial_response)
+        self.assertEqual(initial_members["total"], 2)
+        self.assertFalse(next(item for item in initial_members["items"] if item["user"]["id"] == self.member.pk)["assigned"])
+
+        update_response = self.client.patch(
+            f"/api/access/role-management/roles/{role.pk}/members/",
+            data=json.dumps({"add_user_ids": [self.member.pk], "remove_user_ids": []}),
+            content_type="application/json",
+        )
+        assigned_response = self.client.get(
+            f"/api/access/role-management/roles/{role.pk}/members/",
+            {"page": 1, "page_size": 20, "assignment": "assigned"},
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(api_data(update_response)["assigned_member_count"], 1)
+        self.assertEqual([item["user"]["id"] for item in api_data(assigned_response)["items"]], [self.member.pk])
 
     def test_owner_can_recreate_deleted_custom_org_role_with_same_name(self):
         create_initial_resp = self.client.post(
@@ -343,7 +391,49 @@ class TestAccessTeamAPI(AccessAPITestBase):
         self.assertEqual(resp.status_code, 201)
         role = api_data(resp)
         self.assertEqual(role["scope"], AccessScope.TEAM)
+        self.assertEqual(role["team_id"], self.team.pk)
         self.assertEqual(role["permission_keys"], [FinancePermission.BILL_VIEW])
+
+    def test_custom_team_role_is_only_visible_and_assignable_in_own_team(self):
+        other_team = baker.make("teams.Team", organization=self.org)
+        other_team.members.add(self.owner, self.member)
+        create_resp = self.client.post(
+            f"/api/access/teams/{self.team.pk}/roles/",
+            data=json.dumps({"name": "Team only", "permission_keys": []}),
+            content_type="application/json",
+        )
+        role_id = api_data(create_resp)["id"]
+
+        own_roles = api_data(self.client.get(f"/api/access/teams/{self.team.pk}/roles/"))
+        other_roles = api_data(self.client.get(f"/api/access/teams/{other_team.pk}/roles/"))
+        assign_resp = self.client.post(
+            f"/api/access/teams/{other_team.pk}/bindings/",
+            data=json.dumps({"user": self.member.pk, "role": role_id}),
+            content_type="application/json",
+        )
+
+        self.assertIn(role_id, {item["id"] for item in own_roles})
+        self.assertNotIn(role_id, {item["id"] for item in other_roles})
+        self.assertEqual(assign_resp.status_code, 404)
+
+    def test_role_management_navigation_returns_scope_counts_and_unique_members(self):
+        create_resp = self.client.post(
+            f"/api/access/teams/{self.team.pk}/roles/",
+            data=json.dumps({"name": "Navigation team role", "permission_keys": []}),
+            content_type="application/json",
+        )
+        role = AccessRole.objects.get(pk=api_data(create_resp)["id"])
+        TeamGroupBinding.objects.create(team=self.team, user=self.member, group=role.group)
+
+        response = self.client.get("/api/access/role-management/navigation/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        team_payload = next(item for item in payload["teams"] if item["id"] == self.team.pk)
+        system_team_roles = AccessRole.objects.filter(scope=AccessScope.TEAM, is_system=True, is_active=True).count()
+        self.assertEqual(team_payload["role_count"], system_team_roles + 1)
+        self.assertEqual(team_payload["assigned_member_count"], 1)
+        self.assertTrue(payload["capabilities"]["role_view"])
 
     def test_owner_cannot_create_team_role_with_duplicate_name(self):
         first_resp = self.client.post(
@@ -433,9 +523,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
 
         self.client.force_login(manager)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
         session.save()
 
         roles_resp = self.client.get(f"/api/access/teams/{self.team.pk}/roles/")
@@ -483,9 +571,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
 
         self.client.force_login(manager)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
         session.save()
 
         resp = self.client.post(
@@ -519,9 +605,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
 
         self.client.force_login(manager)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
         session.save()
 
         resp = self.client.post(
@@ -552,9 +636,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
 
         self.client.force_login(member_manager)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
         session.save()
 
         resp = self.client.post(
@@ -584,9 +666,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
 
         self.client.force_login(role_manager)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
         session.save()
 
         resp = self.client.post(
@@ -620,9 +700,7 @@ class TestAccessTeamAPI(AccessAPITestBase):
 
         self.client.force_login(manager)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
         session.save()
 
         resp = self.client.post(

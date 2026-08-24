@@ -16,9 +16,17 @@ class AccessRole(BaseModelMixin):
         on_delete=models.CASCADE,
         related_name="access_roles",
     )
+    team = models.ForeignKey(
+        "teams.Team",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="access_roles",
+    )
     scope = models.CharField(max_length=20, choices=AccessScope.choices)
     code = models.SlugField(max_length=80)
     name = models.CharField(max_length=80)
+    description = models.TextField(blank=True, default="")
     is_system = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
@@ -31,8 +39,13 @@ class AccessRole(BaseModelMixin):
             ),
             models.UniqueConstraint(
                 fields=["organization", "scope", "code"],
-                condition=models.Q(organization__isnull=False),
+                condition=models.Q(organization__isnull=False, team__isnull=True),
                 name="unique_org_access_role_code",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "team", "scope", "code"],
+                condition=models.Q(team__isnull=False),
+                name="unique_team_access_role_code",
             ),
         ]
 
@@ -40,8 +53,16 @@ class AccessRole(BaseModelMixin):
         super().clean()
         if self.is_system and self.organization_id is not None:
             raise ValidationError({"organization": "System roles cannot belong to an organization."})
+        if self.is_system and self.team_id is not None:
+            raise ValidationError({"team": "System roles cannot belong to a team."})
         if not self.is_system and self.organization_id is None:
             raise ValidationError({"organization": "Custom roles must belong to an organization."})
+        if self.scope == AccessScope.ORG and self.team_id is not None:
+            raise ValidationError({"team": "Organization roles cannot belong to a team."})
+        if not self.is_system and self.scope == AccessScope.TEAM and self.team_id is None:
+            raise ValidationError({"team": "Custom team roles must belong to a team."})
+        if self.team_id is not None and self.organization_id is not None and self.team.organization_id != self.organization_id:
+            raise ValidationError({"team": "Role team must belong to the same organization."})
 
     def __str__(self):
         """Return the role display name."""
@@ -66,11 +87,7 @@ class OrganizationGroupBinding(BaseModelMixin):
             errors["group"] = "Organization bindings only accept org-scoped roles."
         if role.organization_id is not None and role.organization_id != self.organization_id:
             errors["group"] = "Custom roles can only be bound inside their organization."
-        if (
-            self.organization_id
-            and self.user_id
-            and not OrganizationMember.objects.filter(organization_id=self.organization_id, user_id=self.user_id).exists()
-        ):
+        if self.organization_id and self.user_id and not OrganizationMember.objects.filter(organization_id=self.organization_id, user_id=self.user_id).exists():
             errors["user"] = "User must be a member of the organization."
         if errors:
             raise ValidationError(errors)
@@ -100,6 +117,8 @@ class TeamGroupBinding(BaseModelMixin):
             errors["group"] = "Team bindings only accept team-scoped roles."
         if self.team_id and role.organization_id is not None and role.organization_id != self.team.organization_id:
             errors["group"] = "Custom roles can only be bound inside their organization."
+        if self.team_id and role.team_id is not None and role.team_id != self.team_id:
+            errors["group"] = "Custom team roles can only be bound inside their owning team."
         if self.team_id and self.user_id and not self.team.members.filter(pk=self.user_id).exists():
             errors["user"] = "User must be a member of the team."
         if errors:

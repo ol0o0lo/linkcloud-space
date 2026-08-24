@@ -78,6 +78,7 @@ def sync_system_role_registry(role_registry: RoleRegistry, permissions_by_key: d
                 "scope": role_data["scope"],
                 "code": str(code),
                 "name": role_data["name"],
+                "description": role_data.get("description", ""),
                 "is_system": True,
                 "is_active": True,
             },

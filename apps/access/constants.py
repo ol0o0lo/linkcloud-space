@@ -2,6 +2,17 @@ from apps.base.enums import StrChoices
 
 ACCESS_PERMISSION_MODEL = "accesspermission"
 
+PERMISSION_MODULES = {
+    "access": ("access", "角色与权限"),
+    "organizations": ("organization", "成员与组织"),
+    "teams": ("team", "团队管理"),
+    "settings": ("settings", "系统设置"),
+    "finance": ("finance", "财务管理"),
+    "subscriptions": ("subscription", "套餐与订阅"),
+    "analytics": ("analytics", "数据与报表"),
+    "team_operations": ("team_operations", "团队协作"),
+}
+
 
 class AccessScope(StrChoices):
     ORG = "org", "Org"
@@ -85,11 +96,13 @@ SYSTEM_ROLE_DEFINITIONS = {
     AccessRoleCode.ORG_ADMIN: {
         "scope": AccessScope.ORG,
         "name": AccessRoleCode.ORG_ADMIN.label,
+        "description": "拥有空间内组织、成员、团队、角色及业务设置的完整管理权限。",
         "permissions": list(ALL_PERMISSION_KEYS),
     },
     AccessRoleCode.ORG_FINANCE: {
         "scope": AccessScope.ORG,
         "name": AccessRoleCode.ORG_FINANCE.label,
+        "description": "负责空间财务、订阅、退款和报表相关操作。",
         "permissions": [
             FinancePermission.BILL_VIEW,
             FinancePermission.BILL_REFUND,
@@ -101,6 +114,7 @@ SYSTEM_ROLE_DEFINITIONS = {
     AccessRoleCode.TEAM_MANAGER: {
         "scope": AccessScope.TEAM,
         "name": AccessRoleCode.TEAM_MANAGER.label,
+        "description": "负责当前团队的成员、设置、公告和任务管理。",
         "permissions": [
             TeamPermission.VIEW,
             TeamPermission.UPDATE,
@@ -114,6 +128,7 @@ SYSTEM_ROLE_DEFINITIONS = {
     AccessRoleCode.TEAM_FINANCE: {
         "scope": AccessScope.TEAM,
         "name": AccessRoleCode.TEAM_FINANCE.label,
+        "description": "负责当前团队范围内的财务查看与退款操作。",
         "permissions": [
             FinancePermission.BILL_VIEW,
             FinancePermission.BILL_REFUND,
@@ -122,11 +137,13 @@ SYSTEM_ROLE_DEFINITIONS = {
     AccessRoleCode.TEAM_STAFF: {
         "scope": AccessScope.TEAM,
         "name": AccessRoleCode.TEAM_STAFF.label,
+        "description": "可查看当前团队及团队设置，适用于普通团队成员。",
         "permissions": [TeamPermission.VIEW, SettingsPermission.TEAM_SETTING_VIEW],
     },
     AccessRoleCode.TEAM_VIEWER: {
         "scope": AccessScope.TEAM,
         "name": AccessRoleCode.TEAM_VIEWER.label,
+        "description": "仅查看当前团队与团队设置，不参与管理操作。",
         "permissions": [TeamPermission.VIEW, SettingsPermission.TEAM_SETTING_VIEW],
     },
 }

@@ -95,11 +95,18 @@ const OrganizationBindingsPage: React.FC = () => {
         );
       },
     },
-    { title: '授权时间', dataIndex: 'created_at', width: 170, render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm') },
+    {
+      title: '授权时间',
+      dataIndex: 'created_at',
+      width: 170,
+      align: 'center',
+      render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm'),
+    },
     {
       title: '操作',
       dataIndex: 'actions',
       width: 100,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <Popconfirm title="确认移除该授权？" onConfirm={() => void deleteMutation.mutateAsync(record.id)}>

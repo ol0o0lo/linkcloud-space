@@ -1,21 +1,56 @@
-import { Card, Empty, Form, Input, Modal, Select, Space, Tag, Typography } from 'antd';
-import type { FormInstance } from 'antd';
-import React from 'react';
-import { appsTeamsApiListTeams } from '@/services/openapi/teams';
 import { useQuery } from '@tanstack/react-query';
-import { useTenantWorkspace } from '@/pages/space/shared';
+import type { FormInstance } from 'antd';
+import {
+  Button,
+  Card,
+  Drawer,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Tag,
+  Typography,
+} from 'antd';
+import React from 'react';
+import { organizationQueryKeys } from '@/pages/space/organization/queryKeys';
+import { formatPersonLabel, useTenantWorkspace } from '@/pages/space/shared';
+import { appsOrganizationsWorkspaceApiGetNavigation } from '@/services/openapi/organizationWorkspace';
+import { appsTeamsApiListTeams } from '@/services/openapi/teams';
 
 export const accessQueryKeys = {
   permissions: ['access', 'permissions'],
   orgRoles: (slug?: string) => ['access', 'organization-roles', slug],
   orgBindings: (slug?: string) => ['access', 'organization-bindings', slug],
   teams: (slug?: string) => ['access', 'teams', slug],
-  teamRoles: (slug?: string, teamId?: number) => ['access', 'team-roles', slug, teamId],
-  teamBindings: (slug?: string, teamId?: number) => ['access', 'team-bindings', slug, teamId],
+  teamRoles: (slug?: string, teamId?: number) => [
+    'access',
+    'team-roles',
+    slug,
+    teamId,
+  ],
+  teamBindings: (slug?: string, teamId?: number) => [
+    'access',
+    'team-bindings',
+    slug,
+    teamId,
+  ],
 };
 
+export function useRoleManagementNavigation() {
+  const workspace = useTenantWorkspace();
+  return useQuery({
+    queryKey: organizationQueryKeys.navigation(workspace.selectedOrgSlug),
+    queryFn: () => appsOrganizationsWorkspaceApiGetNavigation(),
+    enabled: Boolean(workspace.selectedOrgSlug),
+  });
+}
+
 export function rolePermissionText(role: API.AccessRoleOut) {
-  return role.permission_keys.length ? `${role.permission_keys.length} 个权限` : '未配置权限';
+  return role.permission_keys.length
+    ? `${role.permission_keys.length} 个权限`
+    : '未配置权限';
 }
 
 export function roleStatusTag(role: API.AccessRoleOut) {
@@ -32,7 +67,7 @@ export const PermissionSelect: React.FC<{
     <Select
       mode="multiple"
       allowClear
-      optionFilterProp="label"
+      showSearch={{ optionFilterProp: 'label' }}
       options={permissions.map((item) => ({
         label: `${item.name} (${item.key})`,
         value: item.key,
@@ -42,9 +77,15 @@ export const PermissionSelect: React.FC<{
   </Form.Item>
 );
 
-export const RoleFormItems: React.FC<{ permissions?: API.PermissionOut[] }> = ({ permissions }) => (
+export const RoleFormItems: React.FC<{ permissions?: API.PermissionOut[] }> = ({
+  permissions,
+}) => (
   <>
-    <Form.Item label="角色名称" name="name" rules={[{ required: true, message: '请输入角色名称' }]}>
+    <Form.Item
+      label="角色名称"
+      name="name"
+      rules={[{ required: true, message: '请输入角色名称' }]}
+    >
       <Input />
     </Form.Item>
     <PermissionSelect permissions={permissions} />
@@ -52,9 +93,10 @@ export const RoleFormItems: React.FC<{ permissions?: API.PermissionOut[] }> = ({
 );
 
 export const TeamContextCard: React.FC<{
+  allowedTeamIds?: number[];
   selectedTeamId?: number;
   onChange: (teamId?: number) => void;
-}> = ({ selectedTeamId, onChange }) => {
+}> = ({ allowedTeamIds, selectedTeamId, onChange }) => {
   const workspace = useTenantWorkspace();
   const teamsQuery = useQuery({
     queryKey: accessQueryKeys.teams(workspace.selectedOrgSlug),
@@ -62,12 +104,20 @@ export const TeamContextCard: React.FC<{
     enabled: Boolean(workspace.selectedOrgSlug),
   });
 
+  const teamItems = React.useMemo(
+    () =>
+      (teamsQuery.data?.items || []).filter(
+        (item) => !allowedTeamIds || allowedTeamIds.includes(item.id),
+      ),
+    [allowedTeamIds, teamsQuery.data?.items],
+  );
+
   React.useEffect(() => {
-    const firstTeamId = teamsQuery.data?.items?.[0]?.id;
+    const firstTeamId = teamItems[0]?.id;
     if (!selectedTeamId && firstTeamId) {
       onChange(firstTeamId);
     }
-  }, [onChange, selectedTeamId, teamsQuery.data]);
+  }, [onChange, selectedTeamId, teamItems]);
 
   return (
     <Card title="团队上下文" style={{ marginBottom: 16 }}>
@@ -75,7 +125,10 @@ export const TeamContextCard: React.FC<{
         <Select
           aria-label="团队"
           loading={teamsQuery.isLoading}
-          options={(teamsQuery.data?.items || []).map((item) => ({ label: item.name, value: item.id }))}
+          options={teamItems.map((item) => ({
+            label: item.name,
+            value: item.id,
+          }))}
           placeholder="选择团队"
           value={selectedTeamId}
           onChange={onChange}
@@ -96,18 +149,86 @@ export const RoleModal: React.FC<{
   loading?: boolean;
   permissions?: API.PermissionOut[];
   form: FormInstance<API.CustomRoleCreateIn & API.CustomRolePatchIn>;
+  okText?: string;
   onCancel: () => void;
   onOk: () => void;
-}> = ({ open, title, loading, permissions, form, onCancel, onOk }) => (
-  <Modal title={title} open={open} confirmLoading={loading} onCancel={onCancel} onOk={onOk}>
+}> = ({ open, title, loading, permissions, form, okText, onCancel, onOk }) => (
+  <Modal
+    title={title}
+    open={open}
+    okText={okText}
+    confirmLoading={loading}
+    onCancel={onCancel}
+    onOk={onOk}
+  >
     <Form form={form} layout="vertical">
       <RoleFormItems permissions={permissions} />
     </Form>
   </Modal>
 );
 
-export const RoleSummary: React.FC<{ role: API.AccessRoleOut | API.AccessRoleSummaryOut }> = ({ role }) => (
+export const RoleSummary: React.FC<{
+  role: API.AccessRoleOut | API.AccessRoleSummaryOut;
+}> = ({ role }) => (
   <Space orientation="vertical" size={0}>
     <Typography.Text>{role.name}</Typography.Text>
   </Space>
 );
+
+type RoleUsageBinding = API.OrganizationBindingOut | API.TeamBindingOut;
+
+export const RoleUsageDrawer: React.FC<{
+  open: boolean;
+  role?: API.AccessRoleOut | null;
+  bindings: RoleUsageBinding[];
+  teamName?: string;
+  onClose: () => void;
+  onOpenOrganization: () => void;
+}> = ({ open, role, bindings, teamName, onClose, onOpenOrganization }) => {
+  const roleBindings = role
+    ? bindings.filter((item) => item.role.id === role.id)
+    : [];
+
+  return (
+    <Drawer
+      title={role ? `${role.name} · 已授权成员` : '已授权成员'}
+      open={open}
+      size="large"
+      destroyOnHidden
+      onClose={onClose}
+      footer={
+        <Button type="primary" block onClick={onOpenOrganization}>
+          前往组织架构调整
+        </Button>
+      }
+    >
+      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+        {teamName ? (
+          <Typography.Text type="secondary">
+            当前团队：{teamName}
+          </Typography.Text>
+        ) : null}
+        {roleBindings.length ? (
+          <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+            {roleBindings.map((item) => (
+              <div key={item.id}>
+                <Typography.Text strong>
+                  {formatPersonLabel(item.user)}
+                </Typography.Text>
+                <br />
+                <Typography.Text type="secondary">
+                  {item.user.username}
+                </Typography.Text>
+              </div>
+            ))}
+          </Space>
+        ) : (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="暂无授权成员"
+          />
+        )}
+      </Space>
+    </Drawer>
+  );
+};
