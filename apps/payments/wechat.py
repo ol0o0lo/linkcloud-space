@@ -1,4 +1,5 @@
 import base64
+import binascii
 import json
 import time
 import uuid
@@ -37,6 +38,16 @@ def _value(name: str, default=""):
     return getattr(settings, name, default)
 
 
+def _pem_from_base64(name: str) -> str:
+    value = _value(name)
+    if not value:
+        return ""
+    try:
+        return base64.b64decode(value, validate=True).decode()
+    except (binascii.Error, UnicodeDecodeError):
+        raise PaymentConfigurationException(f"{name} 必须是 Base64 编码的 PEM 内容。") from None
+
+
 def is_wechat_checkout_enabled() -> bool:
     return bool(_value("PAYMENTS_WECHAT_PAY_ENABLED"))
 
@@ -49,8 +60,8 @@ def build_wechat_config(*, purpose: str, payment_mode: str = "") -> WechatConfig
     common = {
         "mch_id": _value("PAYMENTS_WECHAT_MCH_ID"),
         "serial_no": _value("PAYMENTS_WECHAT_SERIAL_NO"),
-        "private_key": _value("PAYMENTS_WECHAT_PRIVATE_KEY"),
-        "platform_cert": _value("PAYMENTS_WECHAT_PLATFORM_CERT"),
+        "private_key": _pem_from_base64("PAYMENTS_WECHAT_PRIVATE_KEY"),
+        "platform_cert": _pem_from_base64("PAYMENTS_WECHAT_PLATFORM_CERT"),
         "api_v3_key": _value("PAYMENTS_WECHAT_API_V3_KEY"),
         "api_base_url": _value("PAYMENTS_WECHAT_API_BASE_URL", "https://api.mch.weixin.qq.com"),
         "timeout_seconds": _value("PAYMENTS_WECHAT_TIMEOUT_SECONDS", 8),

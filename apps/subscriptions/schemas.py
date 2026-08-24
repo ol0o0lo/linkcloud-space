@@ -14,11 +14,27 @@ class PlanOut(Schema):
     entitlement: dict | None
 
 
+class UpgradeRecommendationResourceOut(Schema):
+    resource: str
+    current: int
+    limit: int
+    usage_percent: int
+
+
+class UpgradeRecommendationOut(Schema):
+    reason: str
+    threshold_percent: int
+    target_plan_code: str
+    target_plan_name: str
+    triggered_resources: list[UpgradeRecommendationResourceOut]
+
+
 class CurrentSubscriptionOut(Schema):
     plan: dict
     entitlement: dict
     usage: dict
     subscription: dict | None
+    recommendation: UpgradeRecommendationOut | None
 
 
 class PurchaseOrderIn(Schema):

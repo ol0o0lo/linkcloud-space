@@ -1198,10 +1198,6 @@ declare namespace API {
     page_size?: number | null;
   };
 
-  type appsWalletApiPayoutCallbackParams = {
-    provider: string;
-  };
-
   type appsWalletApiPayoutWithdrawalParams = {
     withdrawal_id: number;
   };
@@ -1519,6 +1515,7 @@ declare namespace API {
     usage: Record<string, any>;
     /** Subscription */
     subscription: Record<string, any> | null;
+    recommendation: UpgradeRecommendationOut | null;
   };
 
   type CustomRoleCreateIn = {
@@ -2946,12 +2943,8 @@ declare namespace API {
   };
 
   type PayoutCreateIn = {
-    /** Provider */
-    provider: string;
     /** Out Trade No */
     out_trade_no: string;
-    /** Request Payload */
-    request_payload?: Record<string, any>;
     /** Idempotency Key */
     idempotency_key: string;
   };
@@ -3815,6 +3808,30 @@ declare namespace API {
     count: number;
   };
 
+  type UpgradeRecommendationOut = {
+    /** Reason */
+    reason: string;
+    /** Threshold Percent */
+    threshold_percent: number;
+    /** Target Plan Code */
+    target_plan_code: string;
+    /** Target Plan Name */
+    target_plan_name: string;
+    /** Triggered Resources */
+    triggered_resources: UpgradeRecommendationResourceOut[];
+  };
+
+  type UpgradeRecommendationResourceOut = {
+    /** Resource */
+    resource: string;
+    /** Current */
+    current: number;
+    /** Limit */
+    limit: number;
+    /** Usage Percent */
+    usage_percent: number;
+  };
+
   type UserOut = {
     /** Id */
     id: number;
@@ -4259,17 +4276,6 @@ declare namespace API {
     error_message: string;
     /** Executed At */
     executed_at?: string | null;
-  };
-
-  type WithdrawalRetryIn = {
-    /** Provider */
-    provider: string;
-    /** Out Trade No */
-    out_trade_no: string;
-    /** Request Payload */
-    request_payload?: Record<string, any>;
-    /** Idempotency Key */
-    idempotency_key: string;
   };
 
   type WithdrawalReviewIn = {

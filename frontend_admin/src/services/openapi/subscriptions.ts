@@ -124,19 +124,6 @@ export async function appsSubscriptionsApiGetOrder(
   });
 }
 
-/** 微信支付回调 POST /api/subscriptions/payments/wechat/notify/ */
-export async function appsSubscriptionsApiWechatNotify(options?: {
-  [key: string]: any;
-}) {
-  return request<Record<string, any>>(
-    "/api/subscriptions/payments/wechat/notify/",
-    {
-      method: "POST",
-      ...(options || {}),
-    }
-  );
-}
-
 /** 获取可展示的套餐目录 GET /api/subscriptions/plans/ */
 export async function appsSubscriptionsApiListPlans(options?: {
   [key: string]: any;

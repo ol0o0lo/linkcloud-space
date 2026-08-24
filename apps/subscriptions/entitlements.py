@@ -1,11 +1,20 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from django.conf import settings
+from django.db.models import Prefetch
 from django.utils import timezone
 
 from apps.subscriptions.constants import SubscriptionStatus
 from apps.subscriptions.exceptions import QuotaExceededException
 from apps.subscriptions.models import Plan, PlanEntitlement, Subscription
+
+RESOURCE_LIMIT_FIELDS = {
+    "member": "member_limit",
+    "team": "team_limit",
+    "house": "house_limit",
+}
+DEFAULT_UPGRADE_RECOMMENDATION_PERCENT = 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +90,74 @@ class EntitlementService:
             "team": Team.objects.filter(organization=organization).count(),
             "house": House.objects.filter(building__organization=organization).count(),
         }
+
+    @classmethod
+    def upgrade_recommendation_for(
+        cls,
+        organization,
+        *,
+        entitlement: Entitlement | None = None,
+        usage: dict[str, int] | None = None,
+    ) -> dict | None:
+        entitlement = entitlement or cls.for_organization(organization)
+        usage = usage or cls.usage_for(organization)
+        threshold_percent = getattr(
+            settings,
+            "SUBSCRIPTIONS_UPGRADE_RECOMMENDATION_PERCENT",
+            DEFAULT_UPGRADE_RECOMMENDATION_PERCENT,
+        )
+        triggered_resources = []
+        for resource, limit_field in RESOURCE_LIMIT_FIELDS.items():
+            limit = getattr(entitlement, limit_field)
+            current = usage.get(resource, 0)
+            if limit is None or limit <= 0 or current * 100 <= limit * threshold_percent:
+                continue
+            triggered_resources.append(
+                {
+                    "resource": resource,
+                    "current": current,
+                    "limit": limit,
+                    "usage_percent": round(current / limit * 100),
+                }
+            )
+        if not triggered_resources:
+            return None
+
+        current_plan = Plan.objects.filter(code=entitlement.plan_code).only("display_order").first()
+        if current_plan is None:
+            return None
+        candidates = (
+            Plan.objects.filter(is_active=True, display_order__gt=current_plan.display_order)
+            .prefetch_related(
+                Prefetch(
+                    "entitlements",
+                    queryset=PlanEntitlement.objects.filter(is_current=True),
+                    to_attr="current_entitlement_versions",
+                )
+            )
+            .order_by("display_order", "pk")
+        )
+        triggered_keys = {item["resource"] for item in triggered_resources}
+        for plan in candidates:
+            candidate_entitlement = next(iter(plan.current_entitlement_versions), None)
+            if candidate_entitlement is None:
+                continue
+            has_capacity = True
+            for resource, limit_field in RESOURCE_LIMIT_FIELDS.items():
+                target_limit = getattr(candidate_entitlement, limit_field)
+                current = usage.get(resource, 0)
+                if target_limit is not None and (target_limit < current or (resource in triggered_keys and target_limit <= current)):
+                    has_capacity = False
+                    break
+            if has_capacity:
+                return {
+                    "reason": "usage_threshold_exceeded",
+                    "threshold_percent": threshold_percent,
+                    "target_plan_code": plan.code,
+                    "target_plan_name": plan.name,
+                    "triggered_resources": triggered_resources,
+                }
+        return None
 
     @classmethod
     def check_can_add(cls, organization, resource: Literal["member", "team", "house"], amount: int = 1) -> None:

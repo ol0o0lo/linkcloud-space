@@ -1,3 +1,4 @@
+import base64
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
@@ -11,6 +12,10 @@ from apps.payments.constants import PaymentMode, PayoutStatus
 from apps.payments.exceptions import PaymentConfigurationException
 from apps.payments.services import create_payment, create_payout, mark_payment_succeeded, start_checkout
 from apps.payments.wechat import build_wechat_config
+
+
+def _base64_pem(value: str) -> str:
+    return base64.b64encode(value.encode()).decode()
 
 
 @pytest.mark.django_db
@@ -31,13 +36,28 @@ def test_create_payment_records_a_generic_business_reference():
 
 
 @pytest.mark.django_db
+@override_settings(PAYMENTS_TEST_AMOUNT_CENTS=1)
+def test_create_payment_uses_configured_test_amount():
+    payment = create_payment(
+        biz_type="subscriptions.saas_order",
+        biz_id="test-one-cent",
+        amount=29900,
+        description="专业版月付",
+        payment_mode=PaymentMode.NATIVE,
+        expires_at=timezone.now() + timedelta(minutes=30),
+    )
+
+    assert payment.amount == 1
+
+
+@pytest.mark.django_db
 @override_settings(
     PAYMENTS_WECHAT_PAY_ENABLED=True,
     PAYMENTS_WECHAT_MCH_ID="1900000109",
     PAYMENTS_WECHAT_NATIVE_APP_ID="wx-native",
     PAYMENTS_WECHAT_SERIAL_NO="serial-1",
-    PAYMENTS_WECHAT_PRIVATE_KEY="private-key",
-    PAYMENTS_WECHAT_PLATFORM_CERT="platform-cert",
+    PAYMENTS_WECHAT_PRIVATE_KEY=_base64_pem("private-key"),
+    PAYMENTS_WECHAT_PLATFORM_CERT=_base64_pem("platform-cert"),
     PAYMENTS_WECHAT_API_V3_KEY="v3-key",
     PAYMENTS_WECHAT_PAYMENT_NOTIFY_URL="https://example.com/api/payments/wechat/notify/",
 )
@@ -63,6 +83,23 @@ def test_start_checkout_persists_native_checkout_response():
     payment.refresh_from_db()
     assert checkout["code_url"].startswith("weixin://")
     assert payment.response_snapshot["code_url"].startswith("weixin://")
+
+
+@override_settings(
+    PAYMENTS_WECHAT_PAY_ENABLED=True,
+    PAYMENTS_WECHAT_MCH_ID="1900000109",
+    PAYMENTS_WECHAT_NATIVE_APP_ID="wx-native",
+    PAYMENTS_WECHAT_SERIAL_NO="serial-1",
+    PAYMENTS_WECHAT_PRIVATE_KEY=_base64_pem("private-key"),
+    PAYMENTS_WECHAT_PLATFORM_CERT=_base64_pem("platform-cert"),
+    PAYMENTS_WECHAT_API_V3_KEY="v3-key",
+    PAYMENTS_WECHAT_PAYMENT_NOTIFY_URL="https://example.com/api/payments/wechat/notify/",
+)
+def test_wechat_config_decodes_base64_certificates():
+    config = build_wechat_config(purpose="payment", payment_mode=PaymentMode.NATIVE)
+
+    assert config.private_key == "private-key"
+    assert config.platform_cert == "platform-cert"
 
 
 @pytest.mark.django_db
@@ -125,8 +162,8 @@ def test_payment_config_does_not_fallback_to_subscription_settings():
     PAYMENTS_WECHAT_PAYOUT_ENABLED=True,
     PAYMENTS_WECHAT_MCH_ID="1900000109",
     PAYMENTS_WECHAT_SERIAL_NO="serial-1",
-    PAYMENTS_WECHAT_PRIVATE_KEY="private-key",
-    PAYMENTS_WECHAT_PLATFORM_CERT="platform-cert",
+    PAYMENTS_WECHAT_PRIVATE_KEY=_base64_pem("private-key"),
+    PAYMENTS_WECHAT_PLATFORM_CERT=_base64_pem("platform-cert"),
     PAYMENTS_WECHAT_PAYOUT_APP_ID="wx-payout",
     PAYMENTS_WECHAT_PAYOUT_NOTIFY_URL="https://example.com/api/payments/wechat/payout/notify/",
 )

@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.payments.constants import PaymentMode, PaymentStatus
 from apps.payments.models import PaymentTransaction
-from apps.payments.services import create_payment, start_checkout
+from apps.payments.services import checkout_amount, create_payment, start_checkout
 from apps.subscriptions.constants import (
     MAX_SUBSCRIPTION_DAYS,
     MONTH_DAYS,
@@ -174,7 +174,7 @@ def create_purchase_order(*, organization, created_by, target_plan_code: str, bi
     plan, price, entitlement = _current_sale_versions(plan_code=target_plan_code, billing_cycle=billing_cycle)
     order_type, credit_amount = _order_type_and_credit(organization=organization, target_plan=plan, billing_cycle=billing_cycle)
     _assert_subscription_length(organization=organization, order_type=order_type, billing_cycle=billing_cycle)
-    payable_amount = price.amount - min(credit_amount, price.amount)
+    payable_amount = checkout_amount(price.amount - min(credit_amount, price.amount))
     if payable_amount <= 0:
         raise SubscriptionRuleException("升级后的应付金额必须大于零。")
 

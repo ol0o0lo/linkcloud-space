@@ -238,8 +238,8 @@ PAYMENTS_WECHAT_PAY_ENABLED = { type = "bool", default = false, help_text = "启
 PAYMENTS_WECHAT_PAYOUT_ENABLED = { type = "bool", default = false, help_text = "启用微信商家转账出款" }
 PAYMENTS_WECHAT_MCH_ID = { type = "str", default = "", help_text = "微信支付商户号" }
 PAYMENTS_WECHAT_SERIAL_NO = { type = "str", default = "", help_text = "商户证书序列号" }
-PAYMENTS_WECHAT_PRIVATE_KEY = { type = "str", default = "", help_text = "商户私钥 PEM 内容" }
-PAYMENTS_WECHAT_PLATFORM_CERT = { type = "str", default = "", help_text = "微信支付平台证书 PEM 内容" }
+PAYMENTS_WECHAT_PRIVATE_KEY = { type = "str", default = "", help_text = "Base64 编码的商户私钥 PEM 内容" }
+PAYMENTS_WECHAT_PLATFORM_CERT = { type = "str", default = "", help_text = "Base64 编码的微信支付平台证书 PEM 内容" }
 PAYMENTS_WECHAT_API_V3_KEY = { type = "str", default = "", help_text = "微信支付 API v3 密钥" }
 PAYMENTS_WECHAT_API_BASE_URL = { type = "str", default = "https://api.mch.weixin.qq.com", help_text = "微信支付 API 地址" }
 PAYMENTS_WECHAT_TIMEOUT_SECONDS = { type = "int", default = 8, help_text = "微信支付请求超时秒数" }
@@ -249,6 +249,7 @@ PAYMENTS_WECHAT_PAYMENT_NOTIFY_URL = { type = "str", default = "", help_text = "
 PAYMENTS_WECHAT_PAYOUT_APP_ID = { type = "str", default = "", help_text = "微信商家转账 AppID" }
 PAYMENTS_WECHAT_PAYOUT_NOTIFY_URL = { type = "str", default = "", help_text = "微信出款回调 HTTPS 地址" }
 PAYMENTS_WECHAT_TRANSFER_SCENE = { type = "str", default = "ORDINARY_TRANSFER", help_text = "微信商家转账场景" }
+PAYMENTS_TEST_AMOUNT_CENTS = { type = "int", default = 0, help_text = "测试收款强制金额（分；0 表示使用真实金额）" }
 
 # Email Settings
 DEFAULT_FROM_EMAIL = { type = "str", default = "", help_text = "发件人邮箱地址，如 your@163.com，需与 EMAIL_URL 中的用户名一致。" }

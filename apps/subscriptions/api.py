@@ -100,6 +100,7 @@ def list_plans(request):
 def current_subscription(request):
     org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
     entitlement = EntitlementService.for_organization(org)
+    usage = EntitlementService.usage_for(org)
     subscription = Subscription.objects.filter(organization=org).first()
     return {
         "plan": {"code": entitlement.plan_code, "name": entitlement.plan_name, "source": entitlement.source},
@@ -110,7 +111,7 @@ def current_subscription(request):
             "feature_flags": entitlement.feature_flags,
             "ends_at": entitlement.ends_at,
         },
-        "usage": EntitlementService.usage_for(org),
+        "usage": usage,
         "subscription": {
             "kind": subscription.kind,
             "status": subscription.status,
@@ -120,6 +121,7 @@ def current_subscription(request):
         }
         if subscription
         else None,
+        "recommendation": EntitlementService.upgrade_recommendation_for(org, entitlement=entitlement, usage=usage),
     }
 
 
@@ -148,7 +150,10 @@ def create_order(request, payload: PurchaseOrderIn):
 @paginate(LegacyPagination)
 def list_orders(request):
     org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
-    return [_serialize_order(order) for order in SaaSOrder.objects.filter(organization=org).order_by("-created_at", "-pk")]
+    return [
+        _serialize_order(order)
+        for order in SaaSOrder.objects.filter(organization=org, status=OrderStatus.PAID).order_by("-created_at", "-pk")
+    ]
 
 
 @router.get("/orders/{order_no}/", response=SaaSOrderOut, summary="轮询支付订单状态")

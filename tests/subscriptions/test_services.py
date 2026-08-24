@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
+from django.test import override_settings
 from django.utils import timezone
 
 import pytest
@@ -9,7 +10,7 @@ from model_bakery import baker
 from apps.payments.constants import PaymentMode, PaymentStatus
 from apps.payments.services import mark_payment_succeeded
 from apps.subscriptions.constants import BillingCycle, OrderCloseReason, OrderStatus, OrderType, SubscriptionStatus
-from apps.subscriptions.entitlements import EntitlementService
+from apps.subscriptions.entitlements import Entitlement, EntitlementService
 from apps.subscriptions.models import Plan, PlanEntitlement, PlanPrice, Subscription
 from apps.subscriptions.services import create_purchase_order, grant_trial, initiate_wechat_payment
 
@@ -39,6 +40,55 @@ def test_grant_trial_keeps_trial_fact_and_applies_professional_entitlement(plans
     assert subscription.trial_granted_to == user
     assert subscription.ends_at - subscription.starts_at == timedelta(days=14)
     assert EntitlementService.for_organization(organization).member_limit == 30
+
+
+def test_upgrade_recommendation_requires_usage_above_default_threshold(plans):
+    organization = baker.make("organizations.Organization")
+    entitlement = Entitlement(
+        plan_code="free",
+        plan_name="免费版",
+        member_limit=10,
+        team_limit=None,
+        house_limit=None,
+        feature_flags={},
+        starts_at=None,
+        ends_at=None,
+        source="free",
+    )
+
+    assert (
+        EntitlementService.upgrade_recommendation_for(
+            organization,
+            entitlement=entitlement,
+            usage={"member": 6, "team": 0, "house": 0},
+        )
+        is None
+    )
+
+    recommendation = EntitlementService.upgrade_recommendation_for(
+        organization,
+        entitlement=entitlement,
+        usage={"member": 7, "team": 0, "house": 0},
+    )
+
+    assert recommendation["reason"] == "usage_threshold_exceeded"
+    assert recommendation["threshold_percent"] == 60
+    assert recommendation["target_plan_code"] == "professional"
+    assert recommendation["triggered_resources"] == [{"resource": "member", "current": 7, "limit": 10, "usage_percent": 70}]
+
+
+@override_settings(PAYMENTS_TEST_AMOUNT_CENTS=1)
+def test_purchase_order_uses_test_amount_for_order_and_payment(plans):
+    order, payment = create_purchase_order(
+        organization=baker.make("organizations.Organization"),
+        created_by=baker.make("accounts.User"),
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+    )
+
+    assert order.payable_amount == 1
+    assert payment.amount == 1
 
 
 def test_same_plan_renewal_extends_from_current_end_and_refreshes_current_entitlement(plans):

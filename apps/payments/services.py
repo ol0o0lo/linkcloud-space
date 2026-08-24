@@ -1,5 +1,6 @@
 import secrets
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
@@ -13,7 +14,13 @@ def _next_payment_no() -> str:
     return f"P{timezone.now():%Y%m%d%H%M%S}{secrets.token_hex(5).upper()}"
 
 
+def checkout_amount(amount: int) -> int:
+    test_amount = settings.PAYMENTS_TEST_AMOUNT_CENTS
+    return test_amount if test_amount > 0 else amount
+
+
 def create_payment(*, biz_type: str, biz_id: str, amount: int, description: str, payment_mode: str, expires_at) -> PaymentTransaction:
+    amount = checkout_amount(amount)
     if amount <= 0:
         raise ValueError("支付金额必须大于零。")
     payment, _ = PaymentTransaction.objects.get_or_create(

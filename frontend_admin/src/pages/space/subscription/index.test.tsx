@@ -4,23 +4,37 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriptionPage from './index';
 
-const { mockCurrent, mockPlans, mockOrders, mockGetOrder, mockCreateOrder } = vi.hoisted(() => ({
-  mockCurrent: vi.fn(),
-  mockPlans: vi.fn(),
-  mockOrders: vi.fn(),
-  mockGetOrder: vi.fn(),
-  mockCreateOrder: vi.fn(),
-}));
+const { mockCurrent, mockPlans, mockGetOrder, mockCreateOrder } = vi.hoisted(
+  () => ({
+    mockCurrent: vi.fn(),
+    mockPlans: vi.fn(),
+    mockGetOrder: vi.fn(),
+    mockCreateOrder: vi.fn(),
+  }),
+);
 
 vi.mock('../shared', () => ({
-  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useTenantWorkspace: () => ({ selectedOrgSlug: 'acme', queryClient: { invalidateQueries: vi.fn() } }),
+  TenantSelectionGuard: ({
+    extra,
+    children,
+  }: {
+    extra?: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
+    <>
+      {extra}
+      {children}
+    </>
+  ),
+  useTenantWorkspace: () => ({
+    selectedOrgSlug: 'acme',
+    queryClient: { invalidateQueries: vi.fn() },
+  }),
 }));
 
 vi.mock('@/services/openapi/subscriptions', () => ({
   appsSubscriptionsApiCurrentSubscription: mockCurrent,
   appsSubscriptionsApiListPlans: mockPlans,
-  appsSubscriptionsApiListOrders: mockOrders,
   appsSubscriptionsApiGetOrder: mockGetOrder,
   appsSubscriptionsApiCreateOrder: mockCreateOrder,
 }));
@@ -30,34 +44,144 @@ describe('SubscriptionPage', () => {
     vi.clearAllMocks();
     mockCurrent.mockResolvedValue({
       plan: { code: 'free', name: '免费版' },
-      entitlement: { member_limit: 3, team_limit: 1, house_limit: 50, ends_at: null },
+      entitlement: {
+        member_limit: 3,
+        team_limit: 1,
+        house_limit: 50,
+        ends_at: null,
+      },
       usage: { member: 2, team: 1, house: 4 },
       subscription: null,
+      recommendation: {
+        reason: 'usage_threshold_exceeded',
+        threshold_percent: 60,
+        target_plan_code: 'professional',
+        target_plan_name: '专业版',
+        triggered_resources: [
+          { resource: 'team', current: 1, limit: 1, usage_percent: 100 },
+        ],
+      },
     });
     mockPlans.mockResolvedValue([
-      { code: 'free', name: '免费版', description: '免费使用', display_order: 10, is_active: true, prices: [], entitlement: { member_limit: 3, team_limit: 1, house_limit: 50 } },
-      { code: 'professional', name: '专业版', description: '适合团队', display_order: 30, is_active: true, prices: [{ billing_cycle: 'month', amount: 29900 }], entitlement: { member_limit: 30, team_limit: 10, house_limit: 3000 } },
+      {
+        code: 'free',
+        name: '免费版',
+        description: '免费使用',
+        display_order: 10,
+        is_active: true,
+        prices: [],
+        entitlement: { member_limit: 3, team_limit: 1, house_limit: 50 },
+      },
+      {
+        code: 'professional',
+        name: '专业版',
+        description: '适合团队',
+        display_order: 30,
+        is_active: true,
+        prices: [{ billing_cycle: 'month', amount: 29900 }],
+        entitlement: { member_limit: 30, team_limit: 10, house_limit: 3000 },
+      },
     ]);
-    mockOrders.mockResolvedValue({ items: [] });
-    mockGetOrder.mockResolvedValue({ order_no: 'S001', status: 'pending_payment' });
-    mockCreateOrder.mockResolvedValue({ order_no: 'S001', status: 'pending_payment', payable_amount: 29900, payment: { checkout: { code_url: 'weixin://wxpay/bizpayurl?pr=test' } } });
+    mockGetOrder.mockResolvedValue({
+      order_no: 'S001',
+      status: 'pending_payment',
+    });
+    mockCreateOrder.mockResolvedValue({
+      order_no: 'S001',
+      status: 'pending_payment',
+      payable_amount: 29900,
+      payment: { checkout: { code_url: 'weixin://wxpay/bizpayurl?pr=test' } },
+    });
   });
 
   it('shows entitlement usage and opens a native payment QR code after purchase', async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
     render(
       <QueryClientProvider client={queryClient}>
         <SubscriptionPage />
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('2 / 3')).toBeInTheDocument();
-    expect(screen.getByText('当前套餐：免费版')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /开通 专业版（月付）/ }));
+    expect(
+      await screen.findByText(
+        (_content, element) =>
+          element?.tagName === 'DIV' &&
+          element.textContent?.replace(/\s/g, '') === '2/3',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: '免费版' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /购买记录/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        level: 4,
+        name: '推荐升级到专业版',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('table', { name: '套餐版本权益对比' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('规模扩容')).toBeInTheDocument();
+    expect(screen.getByText('批量提效')).toBeInTheDocument();
+    expect(screen.getByText('权益自动生效')).toBeInTheDocument();
+    expect(screen.queryByText('订单记录')).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: /开通 专业版（月付）/ }),
+    );
 
     await waitFor(() => {
-      expect(mockCreateOrder).toHaveBeenCalledWith({ target_plan_code: 'professional', billing_cycle: 'month', payment_mode: 'native' });
+      expect(mockCreateOrder).toHaveBeenCalledWith({
+        target_plan_code: 'professional',
+        billing_cycle: 'month',
+        payment_mode: 'native',
+      });
     });
     expect(await screen.findByAltText('微信支付二维码')).toBeInTheDocument();
+    expect(screen.getByText('专业版 · 月付')).toBeInTheDocument();
+    expect(screen.getByText('¥299.00')).toBeInTheDocument();
+    expect(screen.getByText('打开微信扫一扫')).toBeInTheDocument();
+    expect(
+      screen.getByText('支付完成后页面会自动同步，请勿重复创建订单。'),
+    ).toBeInTheDocument();
+  });
+
+  it('hides upgrade recommendation when the current API does not recommend a plan', async () => {
+    mockCurrent.mockResolvedValueOnce({
+      plan: { code: 'free', name: '免费版' },
+      entitlement: {
+        member_limit: 3,
+        team_limit: 1,
+        house_limit: 50,
+        ends_at: null,
+      },
+      usage: { member: 1, team: 0, house: 4 },
+      subscription: null,
+      recommendation: null,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionPage />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: '免费版' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('升级建议')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /推荐升级到/ }),
+    ).not.toBeInTheDocument();
   });
 });
