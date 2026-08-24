@@ -1,8 +1,17 @@
-import { EnvironmentOutlined, HomeOutlined } from '@ant-design/icons';
-import { Alert, Card, Empty, Input, Segmented, Spin, Tag, Typography } from 'antd';
+import {
+  Alert,
+  Card,
+  Empty,
+  Input,
+  Segmented,
+  Spin,
+  Tag,
+  Typography,
+} from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { createRoot } from 'react-dom/client';
+import { AppIcon } from '@/components/AppIcon';
 import { useAmap } from '@/services/manual/amap';
 import { fetchMockMarkers } from './_mock';
 import type { GeoMarker, GeoMarkerFilter, GeoMarkerType } from './data.d';
@@ -14,8 +23,16 @@ const MARKER_STYLES: Record<
   GeoMarkerType,
   { color: string; label: string; icon: React.ReactNode }
 > = {
-  building: { color: '#1677ff', label: '楼栋', icon: <EnvironmentOutlined /> },
-  house: { color: '#52c41a', label: '房屋', icon: <HomeOutlined /> },
+  building: {
+    color: '#1677ff',
+    label: '楼栋',
+    icon: <AppIcon name="building" />,
+  },
+  house: {
+    color: '#52c41a',
+    label: '房屋',
+    icon: <AppIcon name="house" />,
+  },
 };
 
 /** InfoWindow 内部渲染组件 */
@@ -23,7 +40,14 @@ const InfoWindowContent: React.FC<{ marker: GeoMarker }> = ({ marker }) => {
   const style = MARKER_STYLES[marker.type];
   return (
     <div style={{ minWidth: 200, padding: '4px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          marginBottom: 8,
+        }}
+      >
         <span style={{ color: style.color, fontSize: 16 }}>{style.icon}</span>
         <Text strong style={{ fontSize: 14 }}>
           {marker.name}
@@ -59,11 +83,16 @@ const MapPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
-  const markersMapRef = useRef<Map<string, { marker: GeoMarker; instance: any }>>(new Map());
+  const markersMapRef = useRef<
+    Map<string, { marker: GeoMarker; instance: any }>
+  >(new Map());
   const infoWindowRef = useRef<any>(null);
 
   const [markers, setMarkers] = useState<GeoMarker[]>([]);
-  const [filter, setFilter] = useState<GeoMarkerFilter>({ type: undefined, keyword: '' });
+  const [filter, setFilter] = useState<GeoMarkerFilter>({
+    type: undefined,
+    keyword: '',
+  });
   const [markersLoading, setMarkersLoading] = useState(true);
 
   // 加载 mock 标点数据
@@ -134,7 +163,9 @@ const MapPage: React.FC = () => {
     if (!AMap || !mapRef.current) return;
 
     // 清除旧标点
-    markersRef.current.forEach((m) => { mapRef.current.remove(m); });
+    markersRef.current.forEach((m) => {
+      mapRef.current.remove(m);
+    });
     markersRef.current = [];
     markersMapRef.current.clear();
 
@@ -251,7 +282,10 @@ const MapPage: React.FC = () => {
           styles={{ body: { padding: 12 } }}
         >
           <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
-            <EnvironmentOutlined style={{ marginRight: 6, color: '#1677ff' }} />
+            <AppIcon
+              name="location"
+              style={{ marginRight: 6, color: '#1677ff' }}
+            />
             地图标点
           </Title>
 
@@ -287,7 +321,9 @@ const MapPage: React.FC = () => {
             }}
           >
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {markersLoading ? '加载中...' : `共 ${filteredMarkers.length} 个标点`}
+              {markersLoading
+                ? '加载中...'
+                : `共 ${filteredMarkers.length} 个标点`}
             </Text>
             <div style={{ display: 'flex', gap: 4 }}>
               {(['building', 'house'] as GeoMarkerType[]).map((t) => (
@@ -335,7 +371,13 @@ const MapPage: React.FC = () => {
                       e.currentTarget.style.background = 'transparent';
                     }}
                   >
-                    <span style={{ color: style.color, fontSize: 14, flexShrink: 0 }}>
+                    <span
+                      style={{
+                        color: style.color,
+                        fontSize: 14,
+                        flexShrink: 0,
+                      }}
+                    >
                       {style.icon}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>

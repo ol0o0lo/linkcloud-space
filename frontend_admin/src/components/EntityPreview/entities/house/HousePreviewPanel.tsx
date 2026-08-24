@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Descriptions, Image, Space, Tag, Typography } from 'antd';
+import { Descriptions, Image, Space, Typography } from 'antd';
+import { AppStatusTag } from '@/components/AppStatus';
 import {
   buildingLabel,
   contactLabel,
@@ -8,7 +9,6 @@ import {
   housePrimaryLayoutText,
   mediaCoverUrl,
   moneyText,
-  STATUS_COLOR,
 } from '@/pages/rental/constants';
 import { useTenantWorkspace } from '@/pages/space/shared';
 import { enumMapping } from '@/services/manual/enums';
@@ -65,7 +65,7 @@ function floorOrientationText(house: HouseOut) {
 function amenitiesText(house: HouseOut) {
   return [
     house.decoration__mapping || house.decoration,
-    house.has_elevator_access ? '电梯可达' : null,
+    house.building?.elevator ? '有电梯' : null,
     house.kitchens == null ? null : `${house.kitchens} 厨`,
     house.balconies == null ? null : `${house.balconies} 阳台`,
   ]
@@ -115,9 +115,9 @@ export function HousePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
         <EntityPreviewMedia alt={title} entityLabel="房源" src={coverUrl} />
         <EntityPreviewHeader
           aside={
-            <Tag color={STATUS_COLOR[house.data.status] || 'default'}>
+            <AppStatusTag name="house" state={house.data.status}>
               {enumMapping(house.data.status, house.data.status__mapping)}
-            </Tag>
+            </AppStatusTag>
           }
           highlight={
             <Space size={8} wrap>
@@ -205,9 +205,9 @@ export function HousePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
           {moneyText(house.data.asking_rent)}
         </Typography.Text>
         <Space size={4} wrap>
-          <Tag color={STATUS_COLOR[house.data.status] || 'default'}>
+          <AppStatusTag name="house" state={house.data.status}>
             {enumMapping(house.data.status, house.data.status__mapping)}
-          </Tag>
+          </AppStatusTag>
         </Space>
       </Space>
       <Descriptions

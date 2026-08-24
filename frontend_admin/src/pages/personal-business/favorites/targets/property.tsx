@@ -1,8 +1,4 @@
-import {
-  ApartmentOutlined,
-  BankOutlined,
-  HomeOutlined,
-} from '@ant-design/icons';
+import { AppIcon } from '@/components/AppIcon';
 import {
   housePrimaryLayoutText,
   mediaCoverUrl,
@@ -50,7 +46,7 @@ function uniqueTags(tags: string[]) {
 registerFavoriteTargetDefinition({
   targetType: 'house',
   defaultDisplayName: '房源',
-  icon: <HomeOutlined aria-hidden />,
+  icon: <AppIcon aria-hidden name="house" />,
   description: '把心仪的房间留在这里，随时回来比较租金、户型与位置。',
   emptyTitle: '还没有收藏房源',
   emptyDescription: '看到心仪房源时，点亮红心就能在这里快速找到。',
@@ -96,7 +92,7 @@ registerFavoriteTargetDefinition({
 registerFavoriteTargetDefinition({
   targetType: 'building',
   defaultDisplayName: '楼栋',
-  icon: <ApartmentOutlined aria-hidden />,
+  icon: <AppIcon aria-hidden name="building" />,
   description: '按楼栋整理你的居住偏好，集中查看位置、楼层与配套。',
   emptyTitle: '还没有收藏楼栋',
   emptyDescription: '收藏感兴趣的楼栋，之后比较房源时会更省心。',
@@ -132,7 +128,7 @@ registerFavoriteTargetDefinition({
 registerFavoriteTargetDefinition({
   targetType: 'estate',
   defaultDisplayName: '小区',
-  icon: <BankOutlined aria-hidden />,
+  icon: <AppIcon aria-hidden name="estate" />,
   description: '保留喜欢的小区，慢慢比较区域环境与社区氛围。',
   emptyTitle: '还没有收藏小区',
   emptyDescription: '遇到喜欢的小区时，点亮红心把它保存到这里。',

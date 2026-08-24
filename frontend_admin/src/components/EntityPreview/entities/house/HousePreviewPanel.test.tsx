@@ -35,6 +35,7 @@ const house = {
   building: {
     id: 3,
     name: '2 号楼',
+    elevator: true,
     estate: { id: 1, name: '春风里', display_name: '春风里公寓' },
   },
   landlord_id: 5,
@@ -55,7 +56,7 @@ const house = {
   decoration__mapping: '精装',
   has_elevator_access: true,
   status: 'listed',
-  status__mapping: '招租中',
+  status__mapping: '招租',
   images: [{ image_role: 'cover', thumbnail: 'https://example.com/house.jpg' }],
   tags: ['自有标签'],
   effective_tags: ['近地铁', '随时看房'],
@@ -85,7 +86,7 @@ describe('HousePreviewPanel', () => {
     ).toEqual(house);
     expect(within(preview).getByText('¥5200.00')).toBeInTheDocument();
     expect(within(preview).getByText('押金 ¥10400.00')).toBeInTheDocument();
-    expect(within(preview).getByText('招租中')).toBeInTheDocument();
+    expect(within(preview).getByText('招租')).toBeInTheDocument();
     const cover = within(preview).getByAltText('春风里公寓 / 2 号楼 / 901');
     expect(cover).toHaveAttribute('src', 'https://example.com/house.jpg');
     expect(cover).toHaveAttribute('height', '124');
@@ -103,7 +104,7 @@ describe('HousePreviewPanel', () => {
       within(details).getByText('张房东 / 13800000000'),
     ).toBeInTheDocument();
     expect(
-      within(details).getByText('精装、电梯可达、1 厨、1 阳台'),
+      within(details).getByText('精装、有电梯、1 厨、1 阳台'),
     ).toBeInTheDocument();
     expect(
       within(details).getByText('工作日晚间可安排看房'),
@@ -196,7 +197,7 @@ describe('HousePreviewPanel', () => {
     getHouse.mockResolvedValue({
       ...house,
       balconies: null,
-      building: { ...house.building, address: null },
+      building: { ...house.building, address: null, elevator: false },
       decoration: null,
       decoration__mapping: null,
       effective_tags: [],
