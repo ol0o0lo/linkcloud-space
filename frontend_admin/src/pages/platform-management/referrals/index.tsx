@@ -136,6 +136,7 @@ const ReferralsAdminPage: React.FC = () => {
       title: '当前阶段',
       dataIndex: 'status',
       width: 140,
+      align: 'center',
       render: (_value, record) => (
         <Tag color={record.stage_color}>{record.stage_label}</Tag>
       ),
@@ -144,6 +145,7 @@ const ReferralsAdminPage: React.FC = () => {
       title: '创建时间',
       dataIndex: 'created_at',
       width: 200,
+      align: 'center',
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
           <Typography.Text>
@@ -157,6 +159,7 @@ const ReferralsAdminPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       width: 160,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           {record.status === 'pending_review' || record.status === 'pending' ? (

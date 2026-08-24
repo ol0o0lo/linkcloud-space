@@ -210,6 +210,7 @@ const NotificationsAdminPage: React.FC = () => {
       title: '触达状态',
       dataIndex: 'status_label',
       width: 260,
+      align: 'center',
       render: (_value, record) => (
         <Space direction="vertical" size={6}>
           <Tag color={record.status_color}>{record.status_label}</Tag>
@@ -239,6 +240,7 @@ const NotificationsAdminPage: React.FC = () => {
       title: '到达时间',
       dataIndex: 'created_at',
       width: 220,
+      align: 'center',
       render: (_value, record) => (
         <Space direction="vertical" size={6}>
           <Typography.Text>{record.time_summary}</Typography.Text>
@@ -252,6 +254,7 @@ const NotificationsAdminPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       width: 220,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <a

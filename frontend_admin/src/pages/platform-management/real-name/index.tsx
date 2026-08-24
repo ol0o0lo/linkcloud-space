@@ -249,6 +249,7 @@ const RealNameAdminPage: React.FC = () => {
       title: '审核阶段',
       dataIndex: 'status__mapping',
       width: 140,
+      align: 'center',
       render: (_value, record) => (
         <Tag color={record.stage_color}>
           {enumMapping(record.status, record.status__mapping)}
@@ -279,6 +280,7 @@ const RealNameAdminPage: React.FC = () => {
       title: '最近处理',
       dataIndex: 'reviewed_at',
       width: 240,
+      align: 'center',
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
           <Typography.Text>
@@ -294,6 +296,7 @@ const RealNameAdminPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       width: 280,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <a onClick={() => setDetailId(record.id)}>详情</a>
@@ -483,6 +486,7 @@ const RealNameAdminPage: React.FC = () => {
                 title: '动作',
                 dataIndex: 'action__mapping',
                 width: 160,
+                align: 'center',
                 render: (_value, record) =>
                   enumMapping(record.action, record.action__mapping),
               },
@@ -498,6 +502,7 @@ const RealNameAdminPage: React.FC = () => {
                 title: '时间',
                 dataIndex: 'created_at',
                 width: 170,
+                align: 'center',
                 render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm'),
               },
             ]}

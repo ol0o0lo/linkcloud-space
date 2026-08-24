@@ -268,6 +268,7 @@ const NotificationDispatchesPage: React.FC = () => {
       title: '发送范围',
       dataIndex: 'scope',
       width: 130,
+      align: 'center',
       render: (_value, record) => (
         <Tag
           color={
@@ -288,6 +289,7 @@ const NotificationDispatchesPage: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       width: 90,
+      align: 'center',
       render: (_value, record) => (
         <Tag color={record.status_color}>{record.status_label}</Tag>
       ),
@@ -296,6 +298,7 @@ const NotificationDispatchesPage: React.FC = () => {
       title: '投递结果',
       dataIndex: 'target_count',
       width: 120,
+      align: 'center',
       render: (_value, record) => {
         if (record.status === 'pending' && !record.target_count) {
           return <Typography.Text type="secondary">等待统计</Typography.Text>;
@@ -324,6 +327,7 @@ const NotificationDispatchesPage: React.FC = () => {
       title: '创建时间',
       dataIndex: 'created_at',
       width: 150,
+      align: 'center',
       render: (_value, record) => (
         <Typography.Text>
           {dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}
@@ -335,6 +339,7 @@ const NotificationDispatchesPage: React.FC = () => {
       dataIndex: 'actions',
       fixed: 'right',
       width: 64,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <Button
