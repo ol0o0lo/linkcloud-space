@@ -127,7 +127,10 @@ describe('PersonalBusinessPage', () => {
       updated_at: '2026-06-16T10:00:00+08:00',
     });
     mockRealNameLogs.mockResolvedValue([]);
-    mockUserSettings.mockResolvedValue([{ key: 'theme', value: 'light' }]);
+    mockUserSettings.mockResolvedValue([
+      { key: 'theme', value: 'light' },
+      { key: 'internal.workbench.mine.layout.v1', value: [] },
+    ]);
     mockGetUserSetting.mockResolvedValue({ key: 'theme', value: 'light' });
     mockCreateWithdrawal.mockResolvedValue({});
     mockCancelWithdrawal.mockResolvedValue({});
@@ -153,6 +156,9 @@ describe('PersonalBusinessPage', () => {
       expect(screen.getByText('资金记录')).toBeInTheDocument();
       expect(screen.queryByText('资金执行台账')).not.toBeInTheDocument();
       expect(screen.queryByText('我的裂变')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('internal.workbench.mine.layout.v1'),
+      ).not.toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText('提现金额'), { target: { value: '500' } });
@@ -173,8 +179,8 @@ describe('PersonalBusinessPage', () => {
 
     const rows = screen.getAllByRole('row');
     const pendingWithdrawalRow = rows.find((row) => within(row).queryByText('待审核') && within(row).queryByText('详情'));
-    expect(pendingWithdrawalRow).toBeDefined();
-    fireEvent.click(within(pendingWithdrawalRow!).getByText('详情'));
+    if (!pendingWithdrawalRow) throw new Error('待审核提现行未渲染');
+    fireEvent.click(within(pendingWithdrawalRow).getByText('详情'));
 
     await waitFor(() => {
       expect(mockWithdrawalDetail).toHaveBeenCalledWith({ withdrawal_id: 2 });
@@ -182,8 +188,8 @@ describe('PersonalBusinessPage', () => {
     });
 
     const failedWithdrawalRow = rows.find((row) => within(row).queryByText('失败待处理') && within(row).queryByText('撤销提现'));
-    expect(failedWithdrawalRow).toBeDefined();
-    fireEvent.click(within(failedWithdrawalRow!).getByText('撤销提现'));
+    if (!failedWithdrawalRow) throw new Error('失败提现行未渲染');
+    fireEvent.click(within(failedWithdrawalRow).getByText('撤销提现'));
 
     await waitFor(() => {
       expect(mockCancelWithdrawal).toHaveBeenCalledWith({ withdrawal_id: 3 });
@@ -196,5 +202,16 @@ describe('PersonalBusinessPage', () => {
     await waitFor(() => {
       expect(mockPutUserSetting).toHaveBeenCalledWith({ key: 'theme' }, { value: 'dark' });
     });
+
+    mockPutUserSetting.mockClear();
+    fireEvent.change(screen.getByLabelText('设置 Key'), {
+      target: { value: 'internal.workbench.space.layout.v1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存个人设置' }));
+
+    expect(
+      await screen.findByText('该设置由对应功能页面内部维护'),
+    ).toBeInTheDocument();
+    expect(mockPutUserSetting).not.toHaveBeenCalled();
   });
 });

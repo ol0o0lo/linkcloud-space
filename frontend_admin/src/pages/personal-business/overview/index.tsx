@@ -56,6 +56,10 @@ import {
 } from '@/services/openapi/userSettings';
 import { enumMapping } from '@/services/manual/enums';
 import { formatWalletAmount } from '@/pages/wallet-management/shared';
+import {
+  isEditableUserSettingKey,
+  visibleUserSettings,
+} from '@/utils/userSettings';
 
 type WithdrawalWithMapping = API.WithdrawalOut & {
   status__mapping?: string;
@@ -191,8 +195,10 @@ const PersonalBusinessPage: React.FC = () => {
   });
   const withdrawalDetailQuery = useQuery({
     queryKey: ['personal-business', 'withdrawal-detail', withdrawalDetailId],
-    queryFn: () =>
-      appsWalletApiGetWithdrawal({ withdrawal_id: withdrawalDetailId! }),
+    queryFn: () => {
+      if (!withdrawalDetailId) throw new Error('Withdrawal id is required');
+      return appsWalletApiGetWithdrawal({ withdrawal_id: withdrawalDetailId });
+    },
     enabled: Boolean(withdrawalDetailId),
   });
   const referralSummaryQuery = useQuery({
@@ -218,8 +224,10 @@ const PersonalBusinessPage: React.FC = () => {
   });
   const settingDetailQuery = useQuery({
     queryKey: ['personal-business', 'user-setting-detail', settingDetailKey],
-    queryFn: () =>
-      appsSettingsApiGetUserSettingView({ key: settingDetailKey! }),
+    queryFn: () => {
+      if (!settingDetailKey) throw new Error('Setting key is required');
+      return appsSettingsApiGetUserSettingView({ key: settingDetailKey });
+    },
     enabled: Boolean(settingDetailKey),
   });
 
@@ -268,7 +276,9 @@ const PersonalBusinessPage: React.FC = () => {
   const activeWithdrawals = withdrawals.filter((item) =>
     ['pending_review', 'approved', 'paying', 'failed'].includes(item.status),
   );
-  const userSettings = (userSettingsQuery.data || []) as API.UserSettingOut[];
+  const userSettings = visibleUserSettings(
+    (userSettingsQuery.data || []) as API.UserSettingOut[],
+  );
   const referralSummary = referralSummaryQuery.data;
   const realName = realNameQuery.data as RealNameWithMapping | undefined;
   const withdrawalDetail = withdrawalDetailQuery.data as WithdrawalWithMapping | undefined;
@@ -278,12 +288,14 @@ const PersonalBusinessPage: React.FC = () => {
       title: '类型',
       dataIndex: 'entry_type__mapping',
       width: 140,
+      align: 'center',
       render: (_value, record) => enumMapping(record.entry_type, record.entry_type__mapping),
     },
     {
       title: '变动',
       dataIndex: 'amount_delta',
       width: 120,
+      align: 'right',
       render: formatWalletAmount,
     },
     {
@@ -296,6 +308,7 @@ const PersonalBusinessPage: React.FC = () => {
       title: '时间',
       dataIndex: 'created_at',
       width: 170,
+      align: 'center',
       render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm'),
     },
   ];
@@ -306,6 +319,7 @@ const PersonalBusinessPage: React.FC = () => {
       title: '当前状态',
       dataIndex: 'status_label',
       width: 180,
+      align: 'center',
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
           <Tag color={record.status_color}>{record.status_label}</Tag>
@@ -319,6 +333,7 @@ const PersonalBusinessPage: React.FC = () => {
       title: '金额结果',
       dataIndex: 'amount',
       width: 190,
+      align: 'right',
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
           <Typography.Text>{`申请 ${formatWalletAmount(record.amount)}`}</Typography.Text>
@@ -330,18 +345,21 @@ const PersonalBusinessPage: React.FC = () => {
       title: '渠道',
       dataIndex: 'pay_channel__mapping',
       width: 120,
+      align: 'center',
       render: (_value, record) => enumMapping(record.pay_channel, record.pay_channel__mapping),
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       width: 170,
+      align: 'center',
       render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm'),
     },
     {
       title: '操作',
       dataIndex: 'actions',
       width: 160,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <a onClick={() => setWithdrawalDetailId(record.id)}>详情</a>
@@ -585,6 +603,7 @@ const PersonalBusinessPage: React.FC = () => {
                           title: '状态',
                           dataIndex: 'status__mapping',
                           width: 120,
+                          align: 'center',
                           render: (_value, record) => enumMapping(record.status, record.status__mapping),
                         },
                       ]}
@@ -637,6 +656,7 @@ const PersonalBusinessPage: React.FC = () => {
                           title: '动作',
                           dataIndex: 'action__mapping',
                           width: 160,
+                          align: 'center',
                           render: (_value, record) => enumMapping(record.action, record.action__mapping || record.action_label),
                         },
                         {
@@ -678,6 +698,18 @@ const PersonalBusinessPage: React.FC = () => {
                             name="key"
                             rules={[
                               { required: true, message: '请输入设置 Key' },
+                              {
+                                validator: async (_, value?: string) => {
+                                  if (
+                                    value &&
+                                    !isEditableUserSettingKey(value)
+                                  ) {
+                                    throw new Error(
+                                      '该设置由对应功能页面内部维护',
+                                    );
+                                  }
+                                },
+                              },
                             ]}
                           >
                             <Input />
@@ -737,6 +769,7 @@ const PersonalBusinessPage: React.FC = () => {
                           title: '操作',
                           dataIndex: 'actions',
                           width: 120,
+                          align: 'center',
                           render: (_value, record) => (
                             <ResponsiveActions>
                               <a
@@ -815,7 +848,7 @@ const PersonalBusinessPage: React.FC = () => {
           title="提现详情"
           open={Boolean(withdrawalDetailId)}
           onClose={() => setWithdrawalDetailId(undefined)}
-          width={drawerWidthMd}
+          size={drawerWidthMd}
         >
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="提现 ID">
@@ -867,7 +900,7 @@ const PersonalBusinessPage: React.FC = () => {
           title="个人设置详情"
           open={Boolean(settingDetailKey)}
           onClose={() => setSettingDetailKey(undefined)}
-          width={drawerWidthSm}
+          size={drawerWidthSm}
         >
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="Key">

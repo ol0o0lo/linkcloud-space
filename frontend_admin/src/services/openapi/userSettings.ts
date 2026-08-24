@@ -58,3 +58,42 @@ export async function appsSettingsApiDeleteUserSettingView(
     ...(options || {}),
   });
 }
+
+/** 更新列表表头个人设置 原子替换当前用户指定列表的表头配置。 PUT /api/settings/user/table-columns/${param0}/ */
+export async function appsSettingsApiPutUserTableColumns(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsSettingsApiPutUserTableColumnsParams,
+  body: Record<string, any>,
+  options?: { [key: string]: any }
+) {
+  const { table_key: param0, ...queryParams } = params;
+  return request<Record<string, any>>(
+    `/api/settings/user/table-columns/${param0}/`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 重置列表表头个人设置 删除当前用户指定列表的表头配置。 DELETE /api/settings/user/table-columns/${param0}/ */
+export async function appsSettingsApiDeleteUserTableColumnsView(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsSettingsApiDeleteUserTableColumnsViewParams,
+  options?: { [key: string]: any }
+) {
+  const { table_key: param0, ...queryParams } = params;
+  return request<Record<string, any>>(
+    `/api/settings/user/table-columns/${param0}/`,
+    {
+      method: "DELETE",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}

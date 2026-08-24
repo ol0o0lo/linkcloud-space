@@ -1,8 +1,8 @@
 """Settings API — ninja Routers for org, team, and user settings."""
 
-from typing import Any
+from typing import Any, Literal
 
-from ninja import Path, Router, Schema, Status
+from ninja import Body, Path, Router, Schema, Status
 from ninja.errors import HttpError
 from pydantic import Field
 
@@ -23,6 +23,12 @@ from apps.settings.service import (
     set_org_setting,
     set_team_setting,
     set_user_setting,
+)
+from apps.settings.table_columns import (
+    USER_TABLE_COLUMNS_SETTING_KEY,
+    TableColumnsValidationError,
+    delete_user_table_columns,
+    set_user_table_columns,
 )
 
 # ---------------------------------------------------------------------------
@@ -49,6 +55,12 @@ class UserSettingOut(Schema):
 
 class SetSettingIn(Schema):
     value: Any = Field(..., description="设置项的新值。")
+
+
+class TableColumnStateOut(Schema):
+    show: bool | None = None
+    fixed: Literal["left", "right"] | None = None
+    order: int | float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -153,11 +165,50 @@ def delete_team_setting_view(request, team_id: int, key: str = Path(..., descrip
 # ---------------------------------------------------------------------------
 
 
+def _reject_reserved_user_setting_write(key: str) -> None:
+    if key == USER_TABLE_COLUMNS_SETTING_KEY:
+        raise HttpError(422, "该设置项必须通过列表表头个人设置接口更新")
+
+
 @user_router.get("/", response=list[UserSettingOut], summary="获取个人设置列表")
 def list_user_settings(request):
     """返回当前用户的个人偏好设置列表。"""
     require_authenticated(request)
     return get_all_user_settings(request.user)
+
+
+@user_router.put(
+    "/table-columns/{table_key}/",
+    response=dict[str, TableColumnStateOut],
+    exclude_unset=True,
+    summary="更新列表表头个人设置",
+)
+def put_user_table_columns(
+    request,
+    table_key: str = Path(..., description="稳定的列表标识。"),
+    payload: dict[str, dict[str, Any]] = Body(...),
+):
+    """原子替换当前用户指定列表的表头配置。"""
+    require_authenticated(request)
+    try:
+        return set_user_table_columns(request.user, table_key, payload)
+    except TableColumnsValidationError as exc:
+        raise HttpError(422, str(exc)) from exc
+
+
+@user_router.delete(
+    "/table-columns/{table_key}/",
+    response={200: dict},
+    summary="重置列表表头个人设置",
+)
+def delete_user_table_columns_view(request, table_key: str = Path(..., description="稳定的列表标识。")):
+    """删除当前用户指定列表的表头配置。"""
+    require_authenticated(request)
+    try:
+        delete_user_table_columns(request.user, table_key)
+    except TableColumnsValidationError as exc:
+        raise HttpError(422, str(exc)) from exc
+    return Status(200, {})
 
 
 @user_router.get("/{key}/", response=UserSettingOut, summary="获取单个个人设置")
@@ -174,6 +225,7 @@ def get_user_setting_view(request, key: str = Path(..., description="个人设�
 def put_user_setting(request, key: str = Path(..., description="个人设置 key。"), payload: SetSettingIn = ...):
     """更新当前用户某个偏好设置的值。"""
     require_authenticated(request)
+    _reject_reserved_user_setting_write(key)
     set_user_setting(request.user, key, payload.value)
     value = get_user_setting(request.user, key)
     return {"key": key, "value": value}
@@ -183,5 +235,6 @@ def put_user_setting(request, key: str = Path(..., description="个人设置 key
 def delete_user_setting_view(request, key: str = Path(..., description="个人设置 key。")):
     """删除当前用户某个偏好设置。"""
     require_authenticated(request)
+    _reject_reserved_user_setting_write(key)
     delete_user_setting(request.user, key)
     return Status(200, {})

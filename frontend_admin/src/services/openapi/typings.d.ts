@@ -1009,6 +1009,11 @@ declare namespace API {
     key: string;
   };
 
+  type appsSettingsApiDeleteUserTableColumnsViewParams = {
+    /** 稳定的列表标识。 */
+    table_key: string;
+  };
+
   type appsSettingsApiGetOrgSettingViewParams = {
     /** 设置项 key。 */
     key: string;
@@ -1043,6 +1048,11 @@ declare namespace API {
   type appsSettingsApiPutUserSettingParams = {
     /** 个人设置 key。 */
     key: string;
+  };
+
+  type appsSettingsApiPutUserTableColumnsParams = {
+    /** 稳定的列表标识。 */
+    table_key: string;
   };
 
   type appsSubscriptionsApiAdminListInvoiceRequestsParams = {
@@ -3647,6 +3657,15 @@ declare namespace API {
     is_primary: boolean;
     /** Is Current */
     is_current: boolean;
+  };
+
+  type TableColumnStateOut = {
+    /** Show */
+    show?: boolean | null;
+    /** Fixed */
+    fixed?: "left" | "right" | null;
+    /** Order */
+    order?: number | number | null;
   };
 
   type TagSuggestionsOut = {

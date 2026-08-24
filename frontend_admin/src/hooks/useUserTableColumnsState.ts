@@ -1,211 +1,382 @@
-import type { ColumnsState } from '@ant-design/pro-components';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ProColumns } from '@ant-design/pro-components';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  appsSettingsApiListUserSettings,
-  appsSettingsApiPutUserSetting,
+  appsSettingsApiDeleteUserTableColumnsView,
+  appsSettingsApiGetUserSettingView,
+  appsSettingsApiPutUserTableColumns,
 } from '@/services/openapi/userSettings';
+import type {
+  PersistedTableColumnsState,
+  TableColumnsState,
+} from './userTableColumnsState';
+import {
+  buildDefaultColumnsState,
+  mergePersistedColumnsState,
+  mergeRuntimeColumnsState,
+  persistedColumnsStateSignature,
+  runtimeColumnsStateDelta,
+  runtimeColumnsStateSignature,
+  sanitizePersistedColumnsState,
+  sortColumnsStateKeys,
+  toPersistedColumnsState,
+} from './userTableColumnsState';
 
-export type TableColumnsState = Record<string, ColumnsState>;
+export type { TableColumnsState } from './userTableColumnsState';
+export {
+  buildDefaultColumnsState,
+  mergeRuntimeColumnsState,
+  sanitizePersistedColumnsState,
+} from './userTableColumnsState';
 
-type UseUserTableColumnsStateOptions = {
-  preferenceKey: string;
-  columnKeys: readonly string[];
+type UseUserTableColumnsStateOptions<T> = {
+  tableKey: string;
+  columns: readonly ProColumns<T>[];
+  defaultValue?: TableColumnsState;
   debounceMs?: number;
 };
 
-const USER_SETTINGS_QUERY_KEY = ['user-settings'] as const;
+const USER_TABLE_COLUMNS_SETTING_KEY = 'internal.ui.table_columns';
+const USER_TABLE_COLUMNS_QUERY_KEY = [
+  'user-setting',
+  USER_TABLE_COLUMNS_SETTING_KEY,
+] as const;
+
+type TableColumnsSettingQueryData = {
+  exists: boolean;
+  value: Record<string, unknown>;
+};
+
+type PendingWrite =
+  | { kind: 'put'; value: PersistedTableColumnsState }
+  | { kind: 'delete' };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function normalizeTableColumnsState(
-  value: unknown,
-  allowedColumnKeys: ReadonlySet<string>,
-): TableColumnsState {
-  if (!isRecord(value)) return {};
-
-  const result: TableColumnsState = {};
-  Object.entries(value).forEach(([columnKey, rawState]) => {
-    if (!allowedColumnKeys.has(columnKey) || !isRecord(rawState)) return;
-
-    const state: ColumnsState = {};
-    let hasSupportedValue = false;
-    if (typeof rawState.show === 'boolean') {
-      state.show = rawState.show;
-      hasSupportedValue = true;
-    }
-    if (rawState.fixed === 'left' || rawState.fixed === 'right') {
-      state.fixed = rawState.fixed;
-      hasSupportedValue = true;
-    } else if (
-      (Object.hasOwn(rawState, 'fixed') && rawState.fixed == null) ||
-      Object.keys(rawState).length === 0
-    ) {
-      state.fixed = undefined;
-      hasSupportedValue = true;
-    }
-    if (typeof rawState.order === 'number' && Number.isFinite(rawState.order)) {
-      state.order = rawState.order;
-      hasSupportedValue = true;
-    }
-    if (hasSupportedValue) result[columnKey] = state;
-  });
-  return result;
-}
-
-export function sanitizeUserTableColumnsState(
-  value: unknown,
-  columnKeys: readonly string[],
-): TableColumnsState {
-  return normalizeTableColumnsState(value, new Set(columnKeys));
-}
-
-function isSameTableColumnsState(
-  current: TableColumnsState,
-  next: TableColumnsState,
-) {
-  const currentKeys = Object.keys(current);
-  const nextKeys = Object.keys(next);
-  if (currentKeys.length !== nextKeys.length) return false;
-
-  return currentKeys.every((key) => {
-    const currentColumn = current[key];
-    const nextColumn = next[key];
-    return (
-      nextColumn !== undefined &&
-      currentColumn.show === nextColumn.show &&
-      currentColumn.fixed === nextColumn.fixed &&
-      currentColumn.order === nextColumn.order
+async function loadTableColumnsSetting(): Promise<TableColumnsSettingQueryData> {
+  try {
+    const setting = await appsSettingsApiGetUserSettingView(
+      { key: USER_TABLE_COLUMNS_SETTING_KEY },
+      { skipErrorHandler: true },
     );
-  });
+    return {
+      exists: true,
+      value: isRecord(setting.value) ? setting.value : {},
+    };
+  } catch (error) {
+    if ((error as any)?.response?.status === 404) {
+      return { exists: false, value: {} };
+    }
+    throw error;
+  }
 }
 
-export function useUserTableColumnsState({
-  preferenceKey,
-  columnKeys,
+export function useUserTableColumnsState<T>({
+  tableKey,
+  columns,
+  defaultValue = {},
   debounceMs = 500,
-}: UseUserTableColumnsStateOptions) {
+}: UseUserTableColumnsStateOptions<T>) {
   const queryClient = useQueryClient();
-  const allowedColumnKeys = useMemo(() => new Set(columnKeys), [columnKeys]);
-  const [value, setValue] = useState<TableColumnsState>({});
+  const builtDefaults = buildDefaultColumnsState(columns, defaultValue);
+  const builtDefaultsSignature = runtimeColumnsStateSignature(builtDefaults);
+  const stableDefaultsRef = useRef({
+    signature: builtDefaultsSignature,
+    value: builtDefaults,
+  });
+  if (stableDefaultsRef.current.signature !== builtDefaultsSignature) {
+    stableDefaultsRef.current = {
+      signature: builtDefaultsSignature,
+      value: builtDefaults,
+    };
+  }
+  const defaults = stableDefaultsRef.current.value;
+  const defaultKeys = useMemo(() => sortColumnsStateKeys(defaults), [defaults]);
+  const allowedColumnKeys = useMemo(() => new Set(defaultKeys), [defaultKeys]);
+  const defaultPersistedSignature = useMemo(
+    () =>
+      persistedColumnsStateSignature(
+        toPersistedColumnsState(defaults, defaultKeys),
+      ),
+    [defaultKeys, defaults],
+  );
+  const identity = `${tableKey}:${builtDefaultsSignature}`;
+
+  const [value, setValue] = useState<TableColumnsState>(defaults);
+  const [isSaving, setIsSaving] = useState(false);
   const valueRef = useRef(value);
-  const hydratedPreferenceKeyRef = useRef<string | undefined>(undefined);
+  const mountedRef = useRef(true);
+  const hydratedIdentityRef = useRef<string | undefined>(undefined);
   const locallyChangedRef = useRef(false);
+  const resetBeforeHydrationRef = useRef(false);
+  const writeBlockedRef = useRef(false);
+  const queryReadyRef = useRef(false);
+  const pendingWriteRef = useRef<PendingWrite | undefined>(undefined);
+  const pendingWriteReadyRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
-  const pendingValueRef = useRef<TableColumnsState | undefined>(undefined);
+  const writeInFlightRef = useRef<Promise<void> | undefined>(undefined);
+  const flushPendingWriteRef = useRef<() => void>(() => undefined);
 
-  const userSettingsQuery = useQuery({
-    queryKey: USER_SETTINGS_QUERY_KEY,
-    queryFn: () => appsSettingsApiListUserSettings(),
+  const columnsQuery = useQuery({
+    queryKey: USER_TABLE_COLUMNS_QUERY_KEY,
+    queryFn: loadTableColumnsSetting,
+    retry: false,
     staleTime: 60_000,
   });
-  const cacheUserSetting = useCallback(
-    (setting: API.UserSettingOut) => {
-      queryClient.setQueryData<API.UserSettingOut[]>(
-        USER_SETTINGS_QUERY_KEY,
-        (current = []) => [
-          ...current.filter((item) => item.key !== setting.key),
-          setting,
-        ],
+  queryReadyRef.current = columnsQuery.isSuccess;
+
+  const updateQueryCache = useCallback(
+    (write: PendingWrite) => {
+      queryClient.setQueryData<TableColumnsSettingQueryData>(
+        USER_TABLE_COLUMNS_QUERY_KEY,
+        (current) => {
+          const nextValue = { ...(current?.value || {}) };
+          if (write.kind === 'put') nextValue[tableKey] = write.value;
+          else delete nextValue[tableKey];
+          return {
+            exists: Object.keys(nextValue).length > 0,
+            value: nextValue,
+          };
+        },
       );
     },
-    [queryClient],
+    [queryClient, tableKey],
   );
-  const saveMutation = useMutation({
-    mutationFn: (nextValue: TableColumnsState) =>
-      appsSettingsApiPutUserSetting(
-        { key: preferenceKey },
-        { value: nextValue },
-      ),
-    onSuccess: cacheUserSetting,
-  });
 
-  useEffect(() => {
-    hydratedPreferenceKeyRef.current = undefined;
-    locallyChangedRef.current = false;
-    valueRef.current = {};
-    setValue({});
-  }, [preferenceKey]);
+  const sendWrite = useCallback(
+    async (write: PendingWrite, notifyError: boolean) => {
+      try {
+        if (write.kind === 'put') {
+          await appsSettingsApiPutUserTableColumns(
+            { table_key: tableKey },
+            write.value,
+            { skipErrorHandler: true },
+          );
+        } else {
+          await appsSettingsApiDeleteUserTableColumnsView(
+            { table_key: tableKey },
+            { skipErrorHandler: true },
+          );
+        }
+        updateQueryCache(write);
+      } catch (error) {
+        if (notifyError && mountedRef.current) {
+          message.error('表头设置保存失败');
+        }
+        throw error;
+      }
+    },
+    [tableKey, updateQueryCache],
+  );
 
-  useEffect(() => {
+  const flushPendingWrite = useCallback(() => {
     if (
-      !userSettingsQuery.isSuccess ||
-      hydratedPreferenceKeyRef.current === preferenceKey
+      !pendingWriteReadyRef.current ||
+      writeInFlightRef.current ||
+      writeBlockedRef.current ||
+      !queryReadyRef.current
     ) {
       return;
     }
-    hydratedPreferenceKeyRef.current = preferenceKey;
-    if (locallyChangedRef.current) return;
+    const write = pendingWriteRef.current;
+    if (!write) return;
 
-    const savedValue = userSettingsQuery.data.find(
-      (setting) => setting.key === preferenceKey,
-    )?.value;
-    const normalizedValue = normalizeTableColumnsState(
-      savedValue,
+    pendingWriteRef.current = undefined;
+    pendingWriteReadyRef.current = false;
+    if (mountedRef.current) setIsSaving(true);
+    const request = sendWrite(write, true)
+      .catch(() => undefined)
+      .finally(() => {
+        writeInFlightRef.current = undefined;
+        if (mountedRef.current) setIsSaving(false);
+        flushPendingWriteRef.current();
+      });
+    writeInFlightRef.current = request;
+  }, [sendWrite]);
+  flushPendingWriteRef.current = flushPendingWrite;
+
+  const scheduleWrite = useCallback(
+    (write: PendingWrite) => {
+      if (writeBlockedRef.current) return;
+      pendingWriteRef.current = write;
+      pendingWriteReadyRef.current = false;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        saveTimerRef.current = undefined;
+        pendingWriteReadyRef.current = true;
+        flushPendingWriteRef.current();
+      }, debounceMs);
+    },
+    [debounceMs],
+  );
+
+  const writeForRuntimeValue = useCallback(
+    (runtimeValue: TableColumnsState) => {
+      const persisted = toPersistedColumnsState(runtimeValue, defaultKeys);
+      const write: PendingWrite =
+        persistedColumnsStateSignature(persisted) === defaultPersistedSignature
+          ? { kind: 'delete' }
+          : { kind: 'put', value: persisted };
+      scheduleWrite(write);
+    },
+    [defaultKeys, defaultPersistedSignature, scheduleWrite],
+  );
+
+  useEffect(() => {
+    if (!columnsQuery.isError || writeBlockedRef.current) return;
+    writeBlockedRef.current = true;
+    pendingWriteRef.current = undefined;
+    pendingWriteReadyRef.current = false;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = undefined;
+    message.error('表头设置加载失败，当前调整不会保存');
+  }, [columnsQuery.isError]);
+
+  useEffect(() => {
+    hydratedIdentityRef.current = undefined;
+    locallyChangedRef.current = false;
+    resetBeforeHydrationRef.current = false;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = undefined;
+    pendingWriteRef.current = undefined;
+    pendingWriteReadyRef.current = false;
+    valueRef.current = defaults;
+    setValue(defaults);
+  }, [defaults, identity]);
+
+  useEffect(() => {
+    if (!columnsQuery.isSuccess || hydratedIdentityRef.current === identity) {
+      return;
+    }
+    hydratedIdentityRef.current = identity;
+    const persisted = sanitizePersistedColumnsState(
+      columnsQuery.data.value[tableKey],
       allowedColumnKeys,
     );
-    valueRef.current = normalizedValue;
-    setValue(normalizedValue);
+
+    if (resetBeforeHydrationRef.current) {
+      valueRef.current = defaults;
+      setValue(defaults);
+      locallyChangedRef.current = false;
+      resetBeforeHydrationRef.current = false;
+      scheduleWrite({ kind: 'delete' });
+      return;
+    }
+
+    if (locallyChangedRef.current) {
+      const rebasedPersisted = mergePersistedColumnsState(
+        persisted,
+        runtimeColumnsStateDelta(defaults, valueRef.current),
+      );
+      const rebasedRuntime = mergeRuntimeColumnsState(
+        defaults,
+        rebasedPersisted,
+      );
+      valueRef.current = rebasedRuntime;
+      setValue(rebasedRuntime);
+      locallyChangedRef.current = false;
+      writeForRuntimeValue(rebasedRuntime);
+      return;
+    }
+
+    const remoteRuntime = mergeRuntimeColumnsState(defaults, persisted);
+    valueRef.current = remoteRuntime;
+    setValue(remoteRuntime);
   }, [
     allowedColumnKeys,
-    preferenceKey,
-    userSettingsQuery.data,
-    userSettingsQuery.isSuccess,
+    columnsQuery.data,
+    columnsQuery.isSuccess,
+    defaults,
+    identity,
+    scheduleWrite,
+    tableKey,
+    writeForRuntimeValue,
   ]);
 
   const onChange = useCallback(
     (nextValue: TableColumnsState) => {
-      const normalizedValue = normalizeTableColumnsState(
-        nextValue,
-        allowedColumnKeys,
+      const completeNextValue = Object.fromEntries(
+        defaultKeys.map((key) => [
+          key,
+          { ...(defaults[key] || {}), ...(nextValue[key] || {}) },
+        ]),
       );
-      if (isSameTableColumnsState(valueRef.current, normalizedValue)) {
+      const runtimeValue = mergeRuntimeColumnsState(
+        defaults,
+        toPersistedColumnsState(completeNextValue, defaultKeys),
+      );
+      if (
+        runtimeColumnsStateSignature(valueRef.current) ===
+        runtimeColumnsStateSignature(runtimeValue)
+      ) {
         return;
       }
+
+      valueRef.current = runtimeValue;
+      setValue(runtimeValue);
       locallyChangedRef.current = true;
-      hydratedPreferenceKeyRef.current = preferenceKey;
-      pendingValueRef.current = normalizedValue;
-      valueRef.current = normalizedValue;
-      setValue(normalizedValue);
-
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        const pendingValue = pendingValueRef.current;
-        pendingValueRef.current = undefined;
-        saveTimerRef.current = undefined;
-        if (pendingValue) saveMutation.mutate(pendingValue);
-      }, debounceMs);
-    },
-    [allowedColumnKeys, debounceMs, preferenceKey, saveMutation],
-  );
-
-  useEffect(
-    () => () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      const pendingValue = pendingValueRef.current;
-      pendingValueRef.current = undefined;
-      saveTimerRef.current = undefined;
-      if (pendingValue) {
-        void appsSettingsApiPutUserSetting(
-          { key: preferenceKey },
-          { value: pendingValue },
-          { skipErrorHandler: true },
-        )
-          .then(cacheUserSetting)
-          .catch(() => undefined);
+      if (!columnsQuery.isSuccess) {
+        resetBeforeHydrationRef.current =
+          persistedColumnsStateSignature(
+            toPersistedColumnsState(runtimeValue, defaultKeys),
+          ) === defaultPersistedSignature;
+        return;
       }
+      writeForRuntimeValue(runtimeValue);
     },
-    [cacheUserSetting, preferenceKey],
+    [
+      columnsQuery.isSuccess,
+      defaultKeys,
+      defaultPersistedSignature,
+      defaults,
+      writeForRuntimeValue,
+    ],
   );
+
+  const reset = useCallback(() => {
+    valueRef.current = defaults;
+    setValue(defaults);
+    locallyChangedRef.current = true;
+    if (!columnsQuery.isSuccess) {
+      resetBeforeHydrationRef.current = true;
+      return;
+    }
+    scheduleWrite({ kind: 'delete' });
+  }, [columnsQuery.isSuccess, defaults, scheduleWrite]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = undefined;
+      const pendingWrite = pendingWriteRef.current;
+      pendingWriteRef.current = undefined;
+      pendingWriteReadyRef.current = false;
+      if (!pendingWrite || writeBlockedRef.current || !queryReadyRef.current) {
+        return;
+      }
+
+      const submitPendingWrite = () =>
+        sendWrite(pendingWrite, false).catch(() => undefined);
+      if (writeInFlightRef.current) {
+        void writeInFlightRef.current.finally(submitPendingWrite);
+      } else {
+        void submitPendingWrite();
+      }
+    };
+  }, [sendWrite]);
 
   return {
     value,
     onChange,
-    isLoading: userSettingsQuery.isPending,
-    isSaving: saveMutation.isPending,
+    reset,
+    isLoading: columnsQuery.isPending,
+    isSaving,
   };
 }

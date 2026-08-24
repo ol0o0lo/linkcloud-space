@@ -174,7 +174,8 @@ def get_user_setting(user, key: str, default=None):
 
 
 def get_all_user_settings(user) -> list[dict]:
-    return [{"key": s.key, "value": s.value} for s in UserSetting.objects.filter(user=user)]
+    settings = UserSetting.objects.filter(user=user).exclude(key__startswith="internal.")
+    return [{"key": setting.key, "value": setting.value} for setting in settings]
 
 
 def set_user_setting(user, key: str, value) -> UserSetting:
