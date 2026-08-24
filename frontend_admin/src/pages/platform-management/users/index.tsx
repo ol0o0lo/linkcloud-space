@@ -39,6 +39,10 @@ import {
   appsAccountsApiUnbindUserWechat,
 } from '@/services/openapi/userAdmin';
 import { normalizeEmailLikeInput } from '@/utils/email';
+import {
+  getAccountPhoneValidationError,
+  normalizeOptionalAccountPhoneParts,
+} from '@/utils/phone';
 import { IdentityText } from '../shared';
 
 type AdminUserWithMapping = API.AdminUserOut & {
@@ -136,14 +140,23 @@ const PlatformUsersPage: React.FC = () => {
 
   const saveUserMutation = useMutation({
     mutationFn: (values: API.AdminUserCreateIn & API.AdminUserPatchIn) => {
+      const phoneParts = normalizeOptionalAccountPhoneParts(
+        values.phone_country_code,
+        values.phone_national_number,
+      );
+      const normalizedValues = {
+        ...values,
+        phone_country_code: phoneParts.countryCode,
+        phone_national_number: phoneParts.nationalNumber,
+      };
       if (editingUser) {
-        const {password: _password, ...payload} = values;
+        const {password: _password, ...payload} = normalizedValues;
         return appsAccountsApiPatchAdminUser(
           {user_id: editingUser.id},
           payload,
         );
       }
-      return appsAccountsApiCreateAdminUser(values);
+      return appsAccountsApiCreateAdminUser(normalizedValues);
     },
     onSuccess: async () => {
       setUserModalOpen(false);
@@ -334,6 +347,7 @@ const PlatformUsersPage: React.FC = () => {
       title: '权限',
       dataIndex: 'is_staff',
       width: 140,
+      align: 'center',
       search: false,
       render: (_value, record) => (
         <Tag color={record.role_color}>{record.role_label}</Tag>
@@ -343,6 +357,7 @@ const PlatformUsersPage: React.FC = () => {
       title: '启用',
       dataIndex: 'is_active',
       width: 110,
+      align: 'center',
       search: false,
       render: (_value, record) => (
         <Switch
@@ -361,6 +376,7 @@ const PlatformUsersPage: React.FC = () => {
       dataIndex: 'actions',
       width: 180,
       fixed: 'right',
+      align: 'center',
       valueType: 'option',
       search: false,
       render: (_value, record) => (
@@ -511,8 +527,26 @@ const PlatformUsersPage: React.FC = () => {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="手机号" name="phone_national_number">
-                <Input/>
+              <Form.Item
+                label="手机号"
+                name="phone_national_number"
+                dependencies={['phone_country_code']}
+                rules={[
+                  ({getFieldValue}) => ({
+                    validator(_, value) {
+                      const error = getAccountPhoneValidationError(
+                        getFieldValue('phone_country_code'),
+                        value,
+                        {optional: true},
+                      );
+                      return error
+                        ? Promise.reject(new Error(error))
+                        : Promise.resolve();
+                    },
+                  }),
+                ]}
+              >
+                <Input inputMode="tel" autoComplete="tel-national"/>
               </Form.Item>
             </Col>
           </Row>

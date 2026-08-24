@@ -285,8 +285,13 @@ describe('PlatformUsersPage', () => {
     fireEvent.change(within(createDialog).getByLabelText('用户名'), { target: { value: 'new-user' } });
     fireEvent.change(within(createDialog).getByLabelText('邮箱'), { target: { value: 'new@example.com' } });
     fireEvent.change(within(createDialog).getByLabelText('初始密码'), { target: { value: 'InitPass123' } });
+    fireEvent.change(within(createDialog).getByLabelText('手机号区号'), { target: { value: '+86' } });
+    fireEvent.change(within(createDialog).getByLabelText('手机号'), { target: { value: '138-0013-8000' } });
     fireEvent.click(within(createDialog).getByRole('button', { name: 'OK' }));
-    await waitFor(() => expect(mockCreateUser).toHaveBeenCalled());
+    await waitFor(() => expect(mockCreateUser).toHaveBeenCalledWith(expect.objectContaining({
+      phone_country_code: '+86',
+      phone_national_number: '13800138000',
+    })));
 
     const searchBox = screen.getByPlaceholderText('按用户名、邮箱搜索');
     fireEvent.change(searchBox, { target: { value: 'alice' } });
