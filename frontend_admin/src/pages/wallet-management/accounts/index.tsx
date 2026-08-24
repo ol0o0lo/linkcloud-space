@@ -179,12 +179,14 @@ const WalletAccountsPage: React.FC = () => {
       title: '账户状态',
       dataIndex: 'governance_label',
       width: 140,
+      align: 'center',
       render: (_value, record) => <Tag color={record.governance_color}>{record.governance_label}</Tag>,
     },
     {
       title: '资金结构',
       dataIndex: 'funding',
       width: 220,
+      align: 'right',
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
           <Typography.Text>{`可用 ${formatWalletAmount(record.available_balance)}`}</Typography.Text>
@@ -196,6 +198,7 @@ const WalletAccountsPage: React.FC = () => {
       title: '经营结果',
       dataIndex: 'settlement',
       width: 220,
+      align: 'right',
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
           <Typography.Text>{`累计收入 ${formatWalletAmount(record.total_income)}`}</Typography.Text>
@@ -207,6 +210,7 @@ const WalletAccountsPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       width: 160,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <a
@@ -236,23 +240,26 @@ const WalletAccountsPage: React.FC = () => {
   ];
 
   const ledgerColumns: ColumnsType<API.WalletLedgerOut> = [
-    { title: '类型', dataIndex: 'entry_type', width: 120 },
+    { title: '类型', dataIndex: 'entry_type', width: 120, align: 'center' },
     {
       title: '变动金额',
       dataIndex: 'amount_delta',
       width: 140,
+      align: 'right',
       render: formatWalletAmount,
     },
     {
       title: '可用余额',
       dataIndex: 'available_balance_after',
       width: 140,
+      align: 'right',
       render: formatWalletAmount,
     },
     {
       title: '冻结余额',
       dataIndex: 'frozen_balance_after',
       width: 140,
+      align: 'right',
       render: formatWalletAmount,
     },
     {
@@ -271,6 +278,7 @@ const WalletAccountsPage: React.FC = () => {
       title: '时间',
       dataIndex: 'created_at',
       width: 170,
+      align: 'center',
       render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm'),
     },
   ];

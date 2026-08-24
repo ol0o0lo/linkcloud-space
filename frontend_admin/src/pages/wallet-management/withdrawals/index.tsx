@@ -204,7 +204,7 @@ const WalletWithdrawalsPage: React.FC = () => {
       payload,
     }: {
       withdrawal: API.WithdrawalOut;
-      payload: API.WithdrawalRetryIn;
+      payload: API.PayoutCreateIn;
     }) =>
       appsWalletApiRetryWithdrawal({ withdrawal_id: withdrawal.id }, payload),
     onSuccess: async () => {
@@ -226,12 +226,14 @@ const WalletWithdrawalsPage: React.FC = () => {
       title: '当前状态',
       dataIndex: 'status_label',
       width: 140,
+      align: 'center',
       render: (_value, record) => <Tag color={record.status_color}>{record.status_label}</Tag>,
     },
     {
       title: '资金结果',
       dataIndex: 'amount',
       width: 220,
+      align: 'right',
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
           <Typography.Text>{`申请金额 ${formatWalletAmount(record.amount)}`}</Typography.Text>
@@ -249,6 +251,7 @@ const WalletWithdrawalsPage: React.FC = () => {
       title: '生命周期',
       dataIndex: 'created_at',
       width: 240,
+      align: 'center',
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
           <Typography.Text>{`申请 ${dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}`}</Typography.Text>
@@ -264,6 +267,7 @@ const WalletWithdrawalsPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       width: 220,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           {record.is_review_pending ? (
