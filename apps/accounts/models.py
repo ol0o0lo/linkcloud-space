@@ -6,6 +6,9 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
 
+import phonenumbers
+from phonenumbers.phonenumberutil import NumberParseException
+
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.base.mixins import CreateUpdateTimeModelMixin
 from apps.media.constants import MediaType, ResourceType
@@ -111,27 +114,42 @@ class User(AbstractUser):
 
 def normalize_phone(phone: str | None) -> str | None:
     country_code, national_number = split_phone(phone)
-    return compose_phone(country_code, national_number)
+    composed = compose_phone(country_code, national_number)
+    if not composed or not country_code:
+        return composed
+    try:
+        parsed = phonenumbers.parse(composed, None)
+    except NumberParseException:
+        return composed
+    return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 
 
 def split_phone(phone: str | None) -> tuple[str, str]:
+    """按国际号码规则拆分区号；无区号时仅自动识别有效的中国大陆手机号。"""
     if not phone:
         return "", ""
-    value = str(phone).strip().replace(" ", "")
-    if not value:
+    compact = str(phone).strip().replace(" ", "").replace("-", "")
+    if not compact:
         return "", ""
-    if value.startswith("+") and "-" in value:
-        country_code, national_number = value.split("-", 1)
-        return country_code, national_number.replace("-", "")
 
-    compact = value.replace("-", "")
-    if compact.startswith("+86") and len(compact) > 3:
-        return "+86", compact[3:]
-    if compact.startswith("86") and len(compact) > 2:
-        return "+86", compact[2:]
-    if compact.startswith("1") and len(compact) == 11:
-        return "+86", compact
+    if compact.startswith("+"):
+        try:
+            parsed = phonenumbers.parse(compact, None)
+        except NumberParseException:
+            return "", compact
+        return _split_parsed_phone(parsed)
+
+    try:
+        parsed = phonenumbers.parse(compact, "CN", keep_raw_input=True)
+    except NumberParseException:
+        return "", compact
+    if parsed.country_code_source == phonenumbers.CountryCodeSource.FROM_DEFAULT_COUNTRY and phonenumbers.is_valid_number_for_region(parsed, "CN"):
+        return _split_parsed_phone(parsed)
     return "", compact
+
+
+def _split_parsed_phone(phone_number) -> tuple[str, str]:
+    return f"+{phone_number.country_code}", phonenumbers.national_significant_number(phone_number)
 
 
 def compose_phone(country_code: str, national_number: str) -> str | None:

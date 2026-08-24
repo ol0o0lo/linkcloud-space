@@ -33,7 +33,7 @@ describe('SecurityModals MFA flow', () => {
     serviceMocks.getRecoveryCodes.mockResolvedValue(['rc-001', 'rc-002']);
   });
 
-  function renderModal() {
+  function renderModal(activeModal: 'mfa' | 'phone' = 'mfa') {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -42,10 +42,24 @@ describe('SecurityModals MFA flow', () => {
 
     return render(
       <QueryClientProvider client={queryClient}>
-        <SecurityModals activeModal="mfa" onClose={() => {}} />
+        <SecurityModals activeModal={activeModal} onClose={() => {}} />
       </QueryClientProvider>,
     );
   }
+
+  it('blocks requesting a code when the phone does not match the selected country', async () => {
+    renderModal('phone');
+
+    fireEvent.change(screen.getByPlaceholderText('请输入手机号'), {
+      target: { value: '12025550123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发送验证码' }));
+
+    expect(
+      await screen.findByText('手机号格式不正确，请检查国家区号和号码'),
+    ).toBeInTheDocument();
+    expect(serviceMocks.requestPhoneChangeCode).not.toHaveBeenCalled();
+  });
 
   it('uses a real two-step flow for totp binding', async () => {
     renderModal();

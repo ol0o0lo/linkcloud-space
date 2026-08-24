@@ -1987,6 +1987,8 @@ declare namespace API {
   type InviteIn = {
     /** Invitee Email 被邀请人邮箱，可用于未注册用户邀请。 */
     invitee_email?: string;
+    /** Invitee Phone 被邀请人手机号，可用于未注册用户邀请。 */
+    invitee_phone?: string;
     /** Invitee 被邀请用户 ID，可用于站内已存在用户邀请。 */
     invitee?: number | null;
     /** Is Owner 接受邀请后是否授予租户 owner 权限。 */
@@ -2006,12 +2008,16 @@ declare namespace API {
     invitee?: number | null;
     /** Invitee Email */
     invitee_email?: string;
+    /** Invitee Phone */
+    invitee_phone?: string;
     /** Is Owner */
     is_owner: boolean;
     /** Access Role */
     access_role?: number | null;
     /** Key */
     key: string;
+    /** Is Expired */
+    is_expired: boolean;
     /** Created At */
     created_at: string;
     /** Updated At */
@@ -3161,6 +3167,8 @@ declare namespace API {
     sender_name: string;
     /** Invitee Email */
     invitee_email?: string;
+    /** Invitee Phone */
+    invitee_phone?: string;
     /** Is Expired */
     is_expired: boolean;
     /** Is Already Member */

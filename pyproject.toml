@@ -26,6 +26,7 @@ dependencies = [
     "alibabacloud-dysmsapi20170525>=2.0.0",
     "alibabacloud-sts20150401>=1.0.0",
     "tencentcloud-sdk-python-sms>=3.0.0",
+    "phonenumbers>=9.0.37",
 ]
 
 [dependency-groups]
@@ -259,6 +260,8 @@ ALIYUN_SMS_ACCESS_KEY_ID = { type = "str", default = "", help_text = "阿里云 
 ALIYUN_SMS_ACCESS_KEY_SECRET = { type = "str", default = "", help_text = "阿里云 AccessKey Secret" }
 ALIYUN_SMS_SIGN_NAME = { type = "str", default = "", help_text = "阿里云短信签名" }
 ALIYUN_SMS_TEMPLATE_CODE = { type = "str", default = "", help_text = "阿里云短信模板 CODE，模板变量为 ${code}" }
+ALIYUN_SMS_INVITATION_TEMPLATE_CODE = { type = "str", default = "", help_text = "阿里云租户邀请短信模板 CODE，模板变量为 ${action_url}、${num_days}" }
+ALIYUN_SMS_INVITATION_CANCELLATION_TEMPLATE_CODE = { type = "str", default = "", help_text = "阿里云租户邀请取消短信模板 CODE，模板变量为 ${organization_name}" }
 ALIYUN_STS_ACCESS_KEY_ID = { type = "str", default = "", help_text = "阿里云 STS RAM 用户 AccessKey ID（需要 AliyunSTSAssumeRoleAccess 权限）" }
 ALIYUN_STS_ACCESS_KEY_SECRET = { type = "str", default = "", help_text = "阿里云 STS RAM 用户 AccessKey Secret" }
 ALIYUN_STS_ROLE_ARN = { type = "str", default = "", help_text = "STS 角色 ARN，格式：acs:ram::{account_id}:role/{role_name}" }
@@ -268,6 +271,8 @@ TENCENT_SMS_SECRET_KEY = { type = "str", default = "", help_text = "腾讯云 Se
 TENCENT_SMS_APP_ID = { type = "str", default = "", help_text = "腾讯云 SMS SdkAppId（备用）" }
 TENCENT_SMS_SIGN_NAME = { type = "str", default = "", help_text = "腾讯云短信签名（备用）" }
 TENCENT_SMS_TEMPLATE_ID = { type = "str", default = "", help_text = "腾讯云短信模板 ID（备用）" }
+TENCENT_SMS_INVITATION_TEMPLATE_ID = { type = "str", default = "", help_text = "腾讯云租户邀请短信模板 ID，参数顺序为邀请链接、有效天数" }
+TENCENT_SMS_INVITATION_CANCELLATION_TEMPLATE_ID = { type = "str", default = "", help_text = "腾讯云租户邀请取消短信模板 ID，参数为租户名称" }
 
 # Instance Settings
 INSTANCE = { type = "str", default = "dev", help_text = "Instance name (e.g., dev, staging, prod)" }

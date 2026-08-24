@@ -38,6 +38,7 @@ import type {
 } from './security.types';
 import { getAuthenticatorLabel } from './security.utils';
 import { normalizeEmailLikeInput } from '@/utils/email';
+import { getAccountPhoneValidationError } from '@/utils/phone';
 
 const COUNTRY_CODES = [
   { value: '+86', label: '+86 (中国)' },
@@ -312,9 +313,28 @@ const PhoneChangeModal: React.FC<PhoneChangeModalProps> = ({
             <Form.Item
               noStyle
               name="nationalNumber"
-              rules={[{ required: true, message: '请输入手机号' }]}
+              dependencies={['countryCode']}
+              rules={[
+                { required: true, message: '请输入手机号' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    const error = getAccountPhoneValidationError(
+                      getFieldValue('countryCode'),
+                      value,
+                    );
+                    return error
+                      ? Promise.reject(new Error(error))
+                      : Promise.resolve();
+                  },
+                }),
+              ]}
             >
-              <Input style={{ flex: 1 }} placeholder="请输入手机号" />
+              <Input
+                style={{ flex: 1 }}
+                placeholder="请输入手机号"
+                inputMode="tel"
+                autoComplete="tel-national"
+              />
             </Form.Item>
           </Space.Compact>
         </Form.Item>

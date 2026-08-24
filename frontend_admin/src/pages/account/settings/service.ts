@@ -27,6 +27,7 @@ import {
 } from '@/services/openapi/userAccount';
 import { appsMediaApiUploadFiles } from '@/services/openapi/mediaFiles';
 import { normalizeEmailLikeInput } from '@/utils/email';
+import { normalizeAccountPhoneParts } from '@/utils/phone';
 import type {
   CurrentUser,
   SocialBindingItem,
@@ -183,10 +184,11 @@ export async function requestPhoneChangeCode(
   countryCode: string,
   nationalNumber: string,
 ) {
+  const phoneParts = normalizeAccountPhoneParts(countryCode, nationalNumber);
   const csrfToken = await ensureCsrfToken();
   return postBrowserPhoneChangeWithSplit({
-    phone_country_code: countryCode,
-    phone_national_number: nationalNumber,
+    phone_country_code: phoneParts.countryCode,
+    phone_national_number: phoneParts.nationalNumber,
   }, {
     credentials: 'include',
     headers: {

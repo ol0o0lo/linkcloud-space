@@ -1,6 +1,8 @@
 import json
 from datetime import timedelta
+from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import user_logged_in
 from django.core import mail
 from django.test import TestCase
@@ -312,6 +314,22 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         items = api_data(resp)["items"]
         ids = {r["pk"] for r in items}
         self.assertIn(invite.pk, ids)
+        self.assertFalse(next(item for item in items if item["pk"] == invite.pk)["is_expired"])
+
+    def test_list_marks_expired_invites(self):
+        invite = OrganizationInvite.objects.create(
+            organization=self.org,
+            sender=self.user,
+            invitee_email="expired@example.com",
+        )
+        OrganizationInvite.objects.filter(pk=invite.pk).update(created_at=timezone.now() - timedelta(days=invite.expired_in_days + 1))
+        self._login()
+
+        resp = self.client.get("/api/organization-invites/")
+
+        self.assertEqual(resp.status_code, 200)
+        items = api_data(resp)["items"]
+        self.assertTrue(next(item for item in items if item["pk"] == invite.pk)["is_expired"])
 
     def test_create_invite(self):
         self._login()
@@ -326,6 +344,79 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         self.assertEqual(OrganizationInvite.objects.filter(organization=self.org).count(), 1)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("guest@example.com", mail.outbox[0].to)
+
+    def test_create_phone_invite(self):
+        self._login()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.post(
+                "/api/organization-invites/",
+                data=json.dumps({"invitee_phone": "+8613800138000"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(resp.status_code, 201)
+        invite = OrganizationInvite.objects.get(organization=self.org)
+        self.assertEqual(invite.invitee_phone, "+8613800138000")
+
+    @patch("apps.organizations.models.send_invitation_sms")
+    def test_phone_invite_sends_dashboard_accept_link(self, send_invitation_sms):
+        self._login()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.post(
+                "/api/organization-invites/",
+                data=json.dumps({"invitee_phone": "+8613800138000"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(resp.status_code, 201)
+        invite = OrganizationInvite.objects.get(organization=self.org)
+        send_invitation_sms.assert_called_once_with(
+            "+8613800138000",
+            f"{settings.SITE_URL}/dashboard/invitations/{invite.key}",
+            invite.expired_in_days,
+        )
+
+    def test_phone_invite_accepts_matching_verified_phone(self):
+        invitee = User.objects.create_user(
+            username="phone-guest",
+            password="secret",  # noqa: S106
+            phone_country_code="+86",
+            phone_national_number="13800138000",
+            phone_verified=True,
+        )
+        invite = OrganizationInvite.objects.create(
+            organization=self.org,
+            sender=self.user,
+            invitee_phone="+8613800138000",
+        )
+
+        self.client.force_login(invitee)
+        resp = self.client.post(f"/api/invite-by-key/{invite.key}/accept/")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(OrganizationMember.objects.filter(organization=self.org, user=invitee).exists())
+
+    def test_phone_invite_rejects_a_different_phone(self):
+        invitee = User.objects.create_user(
+            username="different-phone-guest",
+            password="secret",  # noqa: S106
+            phone_country_code="+86",
+            phone_national_number="13900139000",
+            phone_verified=True,
+        )
+        invite = OrganizationInvite.objects.create(
+            organization=self.org,
+            sender=self.user,
+            invitee_phone="+8613800138000",
+        )
+
+        self.client.force_login(invitee)
+        resp = self.client.post(f"/api/invite-by-key/{invite.key}/accept/")
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(OrganizationMember.objects.filter(organization=self.org, user=invitee).exists())
 
     def test_create_invite_with_access_role(self):
         group = make_access_group("invite_org_role", AccessScope.ORG, [])

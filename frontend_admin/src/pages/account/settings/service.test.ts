@@ -185,6 +185,25 @@ describe('account settings service', () => {
     );
   });
 
+  it('normalizes an international phone before requesting a change code', async () => {
+    mockRequest.mockResolvedValueOnce({
+      data: [{ phone: '+819012345678', verified: false }],
+    });
+
+    await requestPhoneChangeCode('+81', '090-1234-5678');
+
+    expect(mockRequest).toHaveBeenCalledWith(
+      '/api/users/auth/browser/account/phone/',
+      expect.objectContaining({
+        method: 'POST',
+        data: {
+          phone_country_code: '+81',
+          phone_national_number: '9012345678',
+        },
+      }),
+    );
+  });
+
   it('uses post and patch to manage account email', async () => {
     mockRequest.mockResolvedValue({ data: [] });
 

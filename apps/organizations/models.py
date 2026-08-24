@@ -9,7 +9,12 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+import phonenumbers
+from phonenumbers.phonenumberutil import NumberParseException
+
 from apps.access.constants import AccessScope
+from apps.accounts.models import normalize_phone
+from apps.base.sms import send_invitation_cancellation_sms, send_invitation_sms
 from apps.media.constants import MediaType, ResourceType
 from apps.media.fields import MediaRefsField
 
@@ -129,6 +134,7 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE)
     invitee = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="invitees", null=True, blank=True, on_delete=models.CASCADE)
     invitee_email = models.EmailField(null=True, blank=True)
+    invitee_phone = models.CharField(max_length=32, null=True, blank=True)
     access_role = models.ForeignKey("access.AccessRole", null=True, blank=True, on_delete=models.SET_NULL)
     key = models.CharField(max_length=32, editable=False)
     objects = OrganizationInviteQuerySet.as_manager()
@@ -143,15 +149,16 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
     def invitee_first_name(self):
         if self.invitee is not None:
             return self.invitee.first_name
-        else:
+        if self.invitee_email:
             return self.invitee_email
+        return self.invitee_phone
 
     @property
     def accept_invite_url(self):
-        return f"/organizations/invite/{self.key}/accept/"
+        return f"/dashboard/invitations/{self.key}"
 
     def clean(self):
-        if self.invitee and not self.invitee_email:
+        if self.invitee and not self.invitee_email and not self.invitee_phone:
             if not self.invitee.email:
                 raise ValidationError(_("The invitee user is missing their email address."))
             else:
@@ -159,8 +166,14 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
                 # in case they change their email address.
                 self.invitee_email = self.invitee.email
 
-        if not self.invitee and not self.invitee_email:
-            raise ValidationError(_("Provide either an invitee or an email address."))
+        if self.invitee_phone:
+            self.invitee_phone = self._normalize_invitee_phone(self.invitee_phone)
+
+        if self.invitee_email and self.invitee_phone:
+            raise ValidationError(_("Provide either an email address or a phone number, not both."))
+
+        if not self.invitee and not self.invitee_email and not self.invitee_phone:
+            raise ValidationError(_("Provide either an invitee, an email address, or a phone number."))
 
         if self.invitee and self.organization.is_member(self.invitee) is True:
             raise ValidationError(_(f'User "{self.invitee}" is already a member of this organization.'))
@@ -181,13 +194,28 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
                 sender=self.sender,
                 invitee=self.invitee,
                 invitee_email=self.invitee_email,
+                invitee_phone=self.invitee_phone,
             ).exists()
             is True
         ):
             if self.invitee is not None:
                 raise ValidationError(_(f"There is already a pending invitation for the user, {self.invitee.get_full_name()} ({self.invitee.username})."))
             else:
-                raise ValidationError(_(f'There is already a pending invitation for the email address, "{self.invitee_email}".'))
+                target = self.invitee_email or self.invitee_phone
+                raise ValidationError(_(f'There is already a pending invitation for "{target}".'))
+
+    @staticmethod
+    def _normalize_invitee_phone(phone: str) -> str:
+        normalized_phone = normalize_phone(phone)
+        if not normalized_phone:
+            raise ValidationError({"invitee_phone": _("Enter a valid phone number.")})
+        try:
+            parsed_phone = phonenumbers.parse(normalized_phone, None)
+        except NumberParseException as err:
+            raise ValidationError({"invitee_phone": _("Enter a valid phone number.")}) from err
+        if not phonenumbers.is_valid_number(parsed_phone):
+            raise ValidationError({"invitee_phone": _("Enter a valid phone number.")})
+        return phonenumbers.format_number(parsed_phone, phonenumbers.PhoneNumberFormat.E164)
 
     def save(self, **kwargs):
         self.full_clean()
@@ -220,7 +248,17 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
             context=context,
         )
 
+    def _send_sms_invitation(self):
+        send_invitation_sms(
+            self.invitee_phone,
+            f"{settings.SITE_URL}{self.accept_invite_url}",
+            self.expired_in_days,
+        )
+
     def send_invite(self):
+        if self.invitee_phone:
+            self._send_sms_invitation()
+            return
         self._send_email(
             subject=f"Invite from {self.sender.get_full_name()}",
             template_name="invitation",
@@ -232,6 +270,9 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
         )
 
     def send_cancellation(self):
+        if self.invitee_phone:
+            send_invitation_cancellation_sms(self.invitee_phone, self.organization.name)
+            return
         self._send_email(
             subject=f"Your invitation to {self.organization} has been canceled",
             template_name="cancel_invitation",

@@ -319,6 +319,7 @@ def create_invite(request, payload: InviteIn):
             organization=org,
             sender=request.user,
             invitee_email=payload.invitee_email,
+            invitee_phone=payload.invitee_phone,
             invitee_id=payload.invitee,
             is_owner=payload.is_owner and request.user.is_superuser,
             access_role_id=payload.access_role,
@@ -393,6 +394,7 @@ def get_invite_by_key(request, key: str = Path(..., description="邀请 key。")
         "organization_name": invite.organization.name,
         "sender_name": invite.sender.get_full_name() or invite.sender.email,
         "invitee_email": invite.invitee_email or "",
+        "invitee_phone": invite.invitee_phone or "",
         "is_expired": invite.is_expired,
         "is_already_member": is_already_member,
     }
@@ -407,6 +409,8 @@ def accept_invite_by_key(request, key: str = Path(..., description="邀请 key�
         raise HttpError(410, "This invite has expired.")
     if invite.invitee_email and invite.invitee_email.lower() != request.user.email.lower():
         raise HttpError(403, "This invitation was sent to a different email address.")
+    if invite.invitee_phone and (not request.user.phone_verified or invite.invitee_phone != request.user.phone):
+        raise HttpError(403, "This invitation was sent to a different phone number.")
     if invite.organization.is_member(request.user):
         raise HttpError(409, "You're already a member of this organization.")
     is_owner = invite.is_owner and invite.organization.is_owner(invite.sender)
@@ -430,5 +434,7 @@ def decline_invite_by_key(request, key: str = Path(..., description="邀请 key�
     invite = get_object_or_404(OrganizationInvite.objects, key=key)
     if invite.invitee_email and invite.invitee_email.lower() != request.user.email.lower():
         raise HttpError(403, "This invitation was sent to a different email address.")
+    if invite.invitee_phone and (not request.user.phone_verified or invite.invitee_phone != request.user.phone):
+        raise HttpError(403, "This invitation was sent to a different phone number.")
     invite.delete()
     return {"success": True}

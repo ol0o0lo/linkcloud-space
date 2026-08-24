@@ -23,6 +23,10 @@ export default {
       target: 'http://127.0.0.1:18000',
       changeOrigin: false,
     },
+    '/qr/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
   },
   /**
    * @name 详细的代理配置
@@ -41,6 +45,10 @@ export default {
       target: 'http://127.0.0.1:18000',
       changeOrigin: false,
     },
+    '/qr/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
   },
   pre: {
     '/api/': {
@@ -52,6 +60,10 @@ export default {
       changeOrigin: false,
     },
     '/media/': {
+      target: 'http://127.0.0.1:18000',
+      changeOrigin: false,
+    },
+    '/qr/': {
       target: 'http://127.0.0.1:18000',
       changeOrigin: false,
     },

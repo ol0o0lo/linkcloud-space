@@ -1,3 +1,4 @@
+import { ReloadOutlined } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Button,
@@ -36,7 +37,7 @@ import { appsOrganizationsApiSearchMembers } from '@/services/openapi/organizati
 import { normalizeEmailLikeInput } from '@/utils/email';
 import { TenantSelectionGuard, useTenantWorkspace } from '../shared';
 
-type InviteMode = 'email' | 'internal';
+type InviteMode = 'email' | 'phone' | 'internal';
 
 const pageSize = 10;
 const staleInviteDays = 3;
@@ -47,6 +48,9 @@ function inviteTargetLabel(invite?: API.InviteOut | null) {
   }
   if (invite.invitee_email) {
     return invite.invitee_email;
+  }
+  if (invite.invitee_phone) {
+    return invite.invitee_phone;
   }
   if (invite.invitee) {
     return `站内用户 #${invite.invitee}`;
@@ -60,6 +64,9 @@ function inviteSourceLabel(invite?: API.InviteOut | null) {
   }
   if (invite.invitee_email) {
     return '邮箱邀请';
+  }
+  if (invite.invitee_phone) {
+    return '手机号邀请';
   }
   if (invite.invitee) {
     return '站内用户邀请';
@@ -115,9 +122,13 @@ export function buildInvitePayload(
   values: API.InviteIn,
 ) {
   const payload = values.access_role ? { access_role: values.access_role } : {};
-  return inviteMode === 'email'
-    ? { ...payload, invitee_email: values.invitee_email }
-    : { ...payload, invitee: values.invitee };
+  if (inviteMode === 'email') {
+    return { ...payload, invitee_email: values.invitee_email };
+  }
+  if (inviteMode === 'phone') {
+    return { ...payload, invitee_phone: values.invitee_phone };
+  }
+  return { ...payload, invitee: values.invitee };
 }
 
 const TenantInvitesPage: React.FC = () => {
@@ -142,7 +153,8 @@ const TenantInvitesPage: React.FC = () => {
       workspace.selectedOrgSlug,
       searchKeyword,
     ],
-    queryFn: () => appsOrganizationsApiSearchMembers({ keyword: searchKeyword }),
+    queryFn: () =>
+      appsOrganizationsApiSearchMembers({ keyword: searchKeyword }),
     enabled: createOpen && inviteMode === 'internal' && candidateSearchActive,
   });
   const accessRolesQuery = useQuery({
@@ -252,6 +264,7 @@ const TenantInvitesPage: React.FC = () => {
         title: '权限',
         dataIndex: 'access_role',
         width: 120,
+        align: 'center',
         render: (_value, record) => (
           <Tag
             color={
@@ -270,18 +283,29 @@ const TenantInvitesPage: React.FC = () => {
         title: '发送时间',
         dataIndex: 'created_at',
         width: 180,
+        align: 'center',
         render: (value) => dayjs(value).format('YYYY-MM-DD HH:mm'),
       },
       {
         title: '操作',
         dataIndex: 'actions',
         width: 180,
+        align: 'center',
         render: (_value, record) => (
           <ResponsiveActions>
             <a onClick={() => setDetailInviteId(record.pk)}>详情</a>
-            <a onClick={() => void resendMutation.mutateAsync(record.pk)}>
+            <Button
+              type="link"
+              size="small"
+              icon={<ReloadOutlined />}
+              loading={
+                resendMutation.isPending &&
+                resendMutation.variables === record.pk
+              }
+              onClick={() => void resendMutation.mutateAsync(record.pk)}
+            >
               重发
-            </a>
+            </Button>
             <Popconfirm
               title="确认取消该邀请？"
               onConfirm={() => void deleteMutation.mutateAsync(record.pk)}
@@ -364,11 +388,13 @@ const TenantInvitesPage: React.FC = () => {
                 setCandidateSearchActive(false);
                 form.setFieldsValue({
                   invitee_email: undefined,
+                  invitee_phone: undefined,
                   invitee: undefined,
                 });
               }}
             >
               <Radio.Button value="email">邮箱邀请</Radio.Button>
+              <Radio.Button value="phone">手机号邀请</Radio.Button>
               <Radio.Button value="internal">站内用户邀请</Radio.Button>
             </Radio.Group>
           </Form.Item>
@@ -384,6 +410,14 @@ const TenantInvitesPage: React.FC = () => {
               ]}
             >
               <Input placeholder="member@example.com" />
+            </Form.Item>
+          ) : inviteMode === 'phone' ? (
+            <Form.Item
+              label="邀请手机号"
+              name="invitee_phone"
+              rules={[{ required: true, message: '请输入邀请手机号' }]}
+            >
+              <Input placeholder="13800138000 或 +8613800138000" />
             </Form.Item>
           ) : (
             <Form.Item

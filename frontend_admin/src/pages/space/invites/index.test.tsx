@@ -157,6 +157,13 @@ describe('TenantInvitesPage', () => {
     ).toEqual({
       invitee_email: 'member@example.com',
     });
+    expect(
+      buildInvitePayload('phone' as never, {
+        invitee_phone: '+8613800138000',
+      }),
+    ).toEqual({
+      invitee_phone: '+8613800138000',
+    });
   });
 
   it('renders invite tools and triggers create / resend / delete actions', async () => {
@@ -236,6 +243,37 @@ describe('TenantInvitesPage', () => {
       expect(mockWorkspace.queryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: ['tenant', 'invites'],
       });
+    });
+  });
+
+  it('只显示当前重发邀请的加载状态', async () => {
+    let resolveResend: (() => void) | undefined;
+    mockResendInvite.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveResend = resolve;
+        }),
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TenantInvitesPage />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('member@example.com');
+    const resendButtons = screen.getAllByRole('button', { name: /重发/ });
+    fireEvent.click(resendButtons[0]);
+
+    await waitFor(() => {
+      expect(mockResendInvite).toHaveBeenCalledWith({ invite_id: 2 });
+      expect(resendButtons[0]).toHaveClass('ant-btn-loading');
+      expect(resendButtons[1]).not.toHaveClass('ant-btn-loading');
+    });
+
+    resolveResend?.();
+    await waitFor(() => {
+      expect(resendButtons[0]).not.toHaveClass('ant-btn-loading');
     });
   });
 
