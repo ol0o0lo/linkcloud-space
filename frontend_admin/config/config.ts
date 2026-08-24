@@ -33,9 +33,9 @@ const commitHash =
  */
 const PUBLIC_PATH: string =
   process.env.NODE_ENV === 'production'
-    // Django 固定从 /public/static/dist/admin/ 提供后台静态资源；
-    // 这里不能继续用 `auto`，否则根路径资源和运行时拆包地址容易漂回主站根目录。
-    ? (process.env.PUBLIC_PATH ?? '/public/static/dist/admin/')
+    ? // Django 固定从 /public/static/dist/admin/ 提供后台静态资源；
+      // 这里不能继续用 `auto`，否则根路径资源和运行时拆包地址容易漂回主站根目录。
+      (process.env.PUBLIC_PATH ?? '/public/static/dist/admin/')
     : '/';
 
 export default defineConfig({
@@ -154,7 +154,7 @@ export default defineConfig({
   antd: {
     appConfig: {},
     configProvider: {
-      variant: 'filled',
+      variant: 'outlined',
       theme: {
         token: {
           fontFamily: 'AlibabaSans, sans-serif',
@@ -200,7 +200,9 @@ export default defineConfig({
   //================ pro 插件配置 =================
   plugins: [
     '@umijs/request-record',
-    ...(process.env.OPENAPI_CODEGEN === 'true' ? ['@umijs/max-plugin-openapi'] : []),
+    ...(process.env.OPENAPI_CODEGEN === 'true'
+      ? ['@umijs/max-plugin-openapi']
+      : []),
   ],
 
   ...(process.env.OPENAPI_CODEGEN === 'true'
@@ -214,13 +216,17 @@ export default defineConfig({
           {
             projectName: 'openapi',
             requestLibPath: "import { request } from '@umijs/max'",
-            schemaPath: process.env.OPENAPI_SCHEMA_PATH || 'http://localhost:18000/api/openapi.json',
+            schemaPath:
+              process.env.OPENAPI_SCHEMA_PATH ||
+              'http://localhost:18000/api/openapi.json',
             mock: false,
           },
           {
             projectName: 'allauth',
             requestLibPath: "import { request } from '@umijs/max'",
-            schemaPath: process.env.ALLAUTH_OPENAPI_SCHEMA_PATH || 'http://127.0.0.1:4523/export/openapi/2?version=3.0',
+            schemaPath:
+              process.env.ALLAUTH_OPENAPI_SCHEMA_PATH ||
+              'http://127.0.0.1:4523/export/openapi/2?version=3.0',
             namespace: 'AllauthAPI',
             mock: false,
           },
