@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.core.exceptions import PermissionDenied
-from django.db.models import BooleanField, Case, Count, Exists, OuterRef, Q, Value, When
+from django.db.models import BooleanField, Case, Count, Exists, F, IntegerField, OuterRef, Q, Value, When
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from ninja import Query, Router, Status
 from ninja.errors import HttpError
@@ -14,7 +17,7 @@ from apps.accounts.models import User
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_org_selected
 from apps.organizations.models import OrganizationMember
-from apps.team_operations.constants import AnnouncementStatus, TaskAssignmentStatus
+from apps.team_operations.constants import AnnouncementStatus, TaskAssignmentStatus, TaskPriority, WorkTaskStatus
 from apps.team_operations.models import AnnouncementReceipt, TaskAssignment, TeamAnnouncement, WorkTask
 from apps.team_operations.schemas import (
     AnnouncementIn,
@@ -23,10 +26,12 @@ from apps.team_operations.schemas import (
     DailyDashboardOut,
     TaskActionIn,
     TaskAssignmentOut,
+    TaskAssignmentSummaryOut,
     TeamOperationsCapabilitiesOut,
     UserSummaryOut,
     WorkTaskIn,
     WorkTaskOut,
+    WorkTaskSummaryOut,
 )
 from apps.team_operations.services import (
     TeamOperationsError,
@@ -202,6 +207,27 @@ def _task_qs(request):
     return qs.filter(Q(team_id__in=managed_team_ids) | Q(assignments__assignee=request.user) | Q(creator=request.user)).distinct()
 
 
+def _filter_task_dimensions(qs, *, team_id: int | None = None, priority: str | None = None, keyword: str | None = None):
+    if team_id is not None:
+        qs = qs.filter(team_id=team_id)
+    if priority:
+        qs = qs.filter(priority=priority)
+    if keyword:
+        qs = qs.filter(Q(title__icontains=keyword) | Q(description__icontains=keyword))
+    return qs
+
+
+def _filter_task_due_state(qs, due_state: str | None):
+    if not due_state:
+        return qs
+    now = timezone.now()
+    if due_state == "due_soon":
+        return qs.filter(status=WorkTaskStatus.ACTIVE, due_at__gt=now, due_at__lte=now + timedelta(hours=24))
+    if due_state == "overdue":
+        return qs.filter(status=WorkTaskStatus.ACTIVE, due_at__lt=now)
+    raise HttpError(422, "不支持的截止状态。")
+
+
 @router.get("/tasks/", response=list[WorkTaskOut], summary="获取团队任务列表")
 @paginate(LegacyPagination)
 def list_tasks(
@@ -210,20 +236,38 @@ def list_tasks(
     status: str | None = Query(None),
     priority: str | None = Query(None),
     keyword: str | None = Query(None),
+    due_state: str | None = Query(None),
     mine: bool | None = Query(None),
 ):
-    qs = _task_qs(request)
-    if team_id is not None:
-        qs = qs.filter(team_id=team_id)
+    qs = _filter_task_dimensions(_task_qs(request), team_id=team_id, priority=priority, keyword=keyword)
     if status:
         qs = qs.filter(status=status)
-    if priority:
-        qs = qs.filter(priority=priority)
-    if keyword:
-        qs = qs.filter(Q(title__icontains=keyword) | Q(description__icontains=keyword))
+    qs = _filter_task_due_state(qs, due_state)
     if mine:
         qs = qs.filter(assignments__assignee=request.user)
     return qs.order_by("-created_at").distinct()
+
+
+@router.get("/tasks/summary/", response=WorkTaskSummaryOut, summary="获取团队任务统计")
+def get_task_summary(
+    request,
+    team_id: int | None = Query(None),
+    priority: str | None = Query(None),
+    keyword: str | None = Query(None),
+):
+    now = timezone.now()
+    due_soon_at = now + timedelta(hours=24)
+    qs = _filter_task_dimensions(_task_qs(request), team_id=team_id, priority=priority, keyword=keyword)
+    return qs.aggregate(
+        total=Count("pk", distinct=True),
+        active=Count("pk", filter=Q(status=WorkTaskStatus.ACTIVE), distinct=True),
+        due_soon=Count(
+            "pk",
+            filter=Q(status=WorkTaskStatus.ACTIVE, due_at__gt=now, due_at__lte=due_soon_at),
+            distinct=True,
+        ),
+        overdue=Count("pk", filter=Q(status=WorkTaskStatus.ACTIVE, due_at__lt=now), distinct=True),
+    )
 
 
 @router.get("/capabilities/", response=TeamOperationsCapabilitiesOut, summary="获取团队运营权限范围")
@@ -329,17 +373,83 @@ def cancel_task(request, task_id: int):
 def list_task_assignments(
     request,
     status: str | None = Query(None),
+    team_id: int | None = Query(None),
+    priority: str | None = Query(None),
+    keyword: str | None = Query(None),
+    due_state: str | None = Query(None),
     overdue: bool | None = Query(None),
 ):
-    org = _current_org(request)
-    qs = TaskAssignment.objects.filter(task__organization=org, assignee=request.user).select_related("task", "task__team", "assignee")
+    qs = _filter_assignment_dimensions(
+        _assignment_qs(request),
+        team_id=team_id,
+        priority=priority,
+        keyword=keyword,
+    )
     if status:
         qs = qs.filter(status=status)
     if overdue:
-        from django.utils import timezone
-
         qs = qs.filter(status__in=(TaskAssignmentStatus.PENDING, TaskAssignmentStatus.IN_PROGRESS), task__due_at__lt=timezone.now())
-    return qs.order_by("task__due_at", "-created_at")
+    qs = _filter_assignment_due_state(qs, due_state)
+    now = timezone.now()
+    return qs.annotate(
+        overdue_order=Case(
+            When(status__in=(TaskAssignmentStatus.PENDING, TaskAssignmentStatus.IN_PROGRESS), task__due_at__lt=now, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        ),
+        priority_order=Case(
+            When(task__priority=TaskPriority.URGENT, then=Value(0)),
+            When(task__priority=TaskPriority.HIGH, then=Value(1)),
+            default=Value(2),
+            output_field=IntegerField(),
+        ),
+    ).order_by("overdue_order", F("task__due_at").asc(nulls_last=True), "priority_order", "-created_at")
+
+
+def _assignment_qs(request):
+    org = _current_org(request)
+    return TaskAssignment.objects.filter(task__organization=org, assignee=request.user).select_related("task", "task__team", "task__creator", "assignee")
+
+
+def _filter_assignment_dimensions(qs, *, team_id: int | None = None, priority: str | None = None, keyword: str | None = None):
+    if team_id is not None:
+        qs = qs.filter(task__team_id=team_id)
+    if priority:
+        qs = qs.filter(task__priority=priority)
+    if keyword:
+        qs = qs.filter(Q(task__title__icontains=keyword) | Q(task__description__icontains=keyword))
+    return qs
+
+
+def _filter_assignment_due_state(qs, due_state: str | None):
+    if not due_state:
+        return qs
+    open_statuses = (TaskAssignmentStatus.PENDING, TaskAssignmentStatus.IN_PROGRESS)
+    now = timezone.now()
+    if due_state == "due_soon":
+        return qs.filter(status__in=open_statuses, task__due_at__gt=now, task__due_at__lte=now + timedelta(hours=24))
+    if due_state == "overdue":
+        return qs.filter(status__in=open_statuses, task__due_at__lt=now)
+    raise HttpError(422, "不支持的截止状态。")
+
+
+@router.get("/task-assignments/summary/", response=TaskAssignmentSummaryOut, summary="获取我的任务统计")
+def get_task_assignment_summary(
+    request,
+    team_id: int | None = Query(None),
+    priority: str | None = Query(None),
+    keyword: str | None = Query(None),
+):
+    now = timezone.now()
+    due_soon_at = now + timedelta(hours=24)
+    open_statuses = (TaskAssignmentStatus.PENDING, TaskAssignmentStatus.IN_PROGRESS)
+    qs = _filter_assignment_dimensions(_assignment_qs(request), team_id=team_id, priority=priority, keyword=keyword)
+    return qs.aggregate(
+        pending=Count("pk", filter=Q(status=TaskAssignmentStatus.PENDING)),
+        in_progress=Count("pk", filter=Q(status=TaskAssignmentStatus.IN_PROGRESS)),
+        due_soon=Count("pk", filter=Q(status__in=open_statuses, task__due_at__gt=now, task__due_at__lte=due_soon_at)),
+        overdue=Count("pk", filter=Q(status__in=open_statuses, task__due_at__lt=now)),
+    )
 
 
 def _assignment_for_user(request, assignment_id: int) -> TaskAssignment:

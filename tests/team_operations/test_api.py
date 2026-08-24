@@ -257,6 +257,128 @@ class TestTeamOperationsAPI:
         assert "团队" in api_error(response)["message"]
         assert WorkTask.objects.count() == 0
 
+    def test_task_summary_and_due_state_filters_use_full_visible_queryset(self):
+        now = timezone.now()
+        due_soon = baker.make(
+            WorkTask,
+            organization=self.org,
+            team=self.team,
+            creator=self.owner,
+            title="重点巡检任务",
+            description="需要重点关注",
+            priority="urgent",
+            due_at=now + timedelta(hours=1),
+        )
+        overdue = baker.make(
+            WorkTask,
+            organization=self.org,
+            team=self.team,
+            creator=self.owner,
+            title="重点逾期任务",
+            priority="urgent",
+            due_at=now - timedelta(hours=1),
+        )
+        baker.make(
+            WorkTask,
+            organization=self.org,
+            team=self.team,
+            creator=self.owner,
+            title="重点已完成任务",
+            priority="urgent",
+            status=WorkTaskStatus.COMPLETED,
+            due_at=now + timedelta(hours=1),
+        )
+        baker.make(WorkTask, organization=self.org, team=self.team, creator=self.owner, title="普通未来任务", due_at=now + timedelta(days=2))
+
+        summary_response = self.client.get(f"{BASE_URL}tasks/summary/?priority=urgent&keyword=重点")
+        due_soon_response = self.client.get(f"{BASE_URL}tasks/?due_state=due_soon&page=1&page_size=100")
+        overdue_response = self.client.get(f"{BASE_URL}tasks/?due_state=overdue&page=1&page_size=100")
+
+        assert summary_response.status_code == 200
+        assert api_data(summary_response) == {"total": 3, "active": 2, "due_soon": 1, "overdue": 1}
+        assert [item["id"] for item in api_data(due_soon_response)["items"]] == [due_soon.pk]
+        assert [item["id"] for item in api_data(overdue_response)["items"]] == [overdue.pk]
+
+    def test_assignment_summary_filters_list_and_exposes_creator(self):
+        now = timezone.now()
+        due_soon_task = baker.make(
+            WorkTask,
+            organization=self.org,
+            team=self.team,
+            creator=self.owner,
+            title="目标待接受任务",
+            priority="high",
+            due_at=now + timedelta(hours=1),
+        )
+        due_soon_assignment = TaskAssignment.objects.create(task=due_soon_task, assignee=self.member)
+        overdue_task = baker.make(
+            WorkTask,
+            organization=self.org,
+            team=self.team,
+            creator=self.owner,
+            title="目标进行中任务",
+            priority="high",
+            due_at=now - timedelta(hours=1),
+        )
+        TaskAssignment.objects.create(task=overdue_task, assignee=self.member, status=TaskAssignmentStatus.IN_PROGRESS)
+        completed_task = baker.make(
+            WorkTask,
+            organization=self.org,
+            team=self.team,
+            creator=self.owner,
+            title="目标已完成任务",
+            priority="high",
+            status=WorkTaskStatus.COMPLETED,
+            due_at=now + timedelta(hours=1),
+        )
+        TaskAssignment.objects.create(task=completed_task, assignee=self.member, status=TaskAssignmentStatus.COMPLETED)
+        self._login(self.member)
+
+        summary_response = self.client.get(f"{BASE_URL}task-assignments/summary/?team_id={self.team.pk}&priority=high&keyword=目标")
+        list_response = self.client.get(f"{BASE_URL}task-assignments/?due_state=due_soon&keyword=目标&page=1&page_size=100")
+
+        assert summary_response.status_code == 200
+        assert api_data(summary_response) == {"pending": 1, "in_progress": 1, "due_soon": 1, "overdue": 1}
+        items = api_data(list_response)["items"]
+        assert [item["id"] for item in items] == [due_soon_assignment.pk]
+        assert items[0]["creator"]["id"] == self.owner.pk
+
+    def test_assignment_list_orders_overdue_then_deadline_and_priority(self):
+        now = timezone.now()
+        overdue_task = baker.make(WorkTask, organization=self.org, creator=self.owner, priority="normal", due_at=now - timedelta(hours=1))
+        overdue_assignment = TaskAssignment.objects.create(task=overdue_task, assignee=self.member)
+        due_at = now + timedelta(hours=1)
+        normal_task = baker.make(WorkTask, organization=self.org, creator=self.owner, priority="normal", due_at=due_at)
+        normal_assignment = TaskAssignment.objects.create(task=normal_task, assignee=self.member)
+        urgent_task = baker.make(WorkTask, organization=self.org, creator=self.owner, priority="urgent", due_at=due_at)
+        urgent_assignment = TaskAssignment.objects.create(task=urgent_task, assignee=self.member)
+        no_due_task = baker.make(WorkTask, organization=self.org, creator=self.owner, priority="urgent", due_at=None)
+        no_due_assignment = TaskAssignment.objects.create(task=no_due_task, assignee=self.member)
+        self._login(self.member)
+
+        response = self.client.get(f"{BASE_URL}task-assignments/?page=1&page_size=100")
+
+        assert response.status_code == 200
+        assert [item["id"] for item in api_data(response)["items"]] == [
+            overdue_assignment.pk,
+            urgent_assignment.pk,
+            normal_assignment.pk,
+            no_due_assignment.pk,
+        ]
+
+    def test_task_summary_respects_team_manager_scope(self):
+        group = make_access_group("team_operations_summary_manager", AccessScope.TEAM, [("team_operations", "task_manage")])
+        TeamGroupBinding.objects.create(team=self.team, user=self.member, group=group)
+        baker.make(WorkTask, organization=self.org, team=self.team, creator=self.owner)
+        other_team = baker.make("teams.Team", organization=self.org, name="其他团队")
+        baker.make(WorkTask, organization=self.org, team=other_team, creator=self.owner)
+        self._login(self.member)
+
+        response = self.client.get(f"{BASE_URL}tasks/summary/")
+
+        assert response.status_code == 200
+        assert api_data(response)["total"] == 1
+
     def test_team_manager_capabilities_and_assignees_are_team_scoped(self):
         group = make_access_group(
             "team_operations_team_manager",

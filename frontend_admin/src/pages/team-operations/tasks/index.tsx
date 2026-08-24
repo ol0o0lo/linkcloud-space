@@ -1,25 +1,37 @@
 import {
   CheckSquareOutlined,
-  InfoCircleOutlined,
+  ClockCircleOutlined,
+  ExclamationCircleOutlined,
+  PlayCircleOutlined,
+  PlusOutlined,
+  ReloadOutlined,
   SendOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Alert,
+  Avatar,
   Button,
   Card,
   DatePicker,
   Descriptions,
   Drawer,
+  Empty,
+  Flex,
   Form,
   Input,
   Modal,
   message,
   Popconfirm,
+  Radio,
   Segmented,
   Select,
   Space,
+  Statistic,
+  Switch,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -27,7 +39,6 @@ import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  AdminToolbar,
   adminTableScroll,
   drawerWidthMd,
   fixedPagePagination,
@@ -35,26 +46,28 @@ import {
   ResponsiveActions,
   wrapTextStyle,
 } from '@/pages/_shared/adminLayout';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   acceptTaskAssignment,
   cancelWorkTask,
   completeTaskAssignment,
   createWorkTask,
   getTaskAssignment,
+  getTaskAssignmentSummary,
   getTeamOperationsCapabilities,
   getWorkTask,
+  getWorkTaskSummary,
   listTaskAssignees,
   listTaskAssignments,
   listWorkTasks,
   rejectTaskAssignment,
   type TaskAssignment,
+  type TaskAssignmentStatus,
+  type TaskDueState,
   type TaskPriority,
   type WorkTask,
   type WorkTaskInput,
+  type WorkTaskStatus,
 } from '@/services/manual/teamOperations';
 import { appsTeamsApiListTeams } from '@/services/openapi/teams';
 import {
@@ -70,8 +83,17 @@ const PAGE_SIZE = 10;
 
 type TaskView = 'managed' | 'mine';
 type TaskOwnership = number | 'organization';
+type TaskMetricKey = 'all' | 'active' | 'pending' | 'due_soon' | 'overdue';
+type TaskFilterState<TStatus extends string> = {
+  status?: TStatus;
+  priority?: TaskPriority;
+  team_id?: number;
+  due_state?: TaskDueState;
+  keyword?: string;
+};
 type TaskFormValues = {
-  team_id?: TaskOwnership;
+  team_id?: number;
+  is_organization_task?: boolean;
   title: string;
   description?: string;
   priority: TaskPriority;
@@ -83,23 +105,94 @@ type AssignmentAction = {
   assignment: TaskAssignment;
 };
 
+const EMPTY_MANAGED_FILTERS: TaskFilterState<WorkTaskStatus> = {};
+const EMPTY_ASSIGNMENT_FILTERS: TaskFilterState<TaskAssignmentStatus> = {};
+
+function personLabel(
+  person?: { full_name?: string; username?: string } | null,
+) {
+  return person?.full_name || person?.username || '-';
+}
+
+function personInitial(
+  person?: { full_name?: string; username?: string } | null,
+) {
+  const label = personLabel(person);
+  return label === '-' ? '?' : label.trim().slice(0, 1).toUpperCase();
+}
+
+function deadlineMeta(value?: string | null, isOverdue = false) {
+  if (!value) return { absolute: '-', relative: undefined };
+  const deadline = dayjs(value);
+  const minutes = deadline.diff(dayjs(), 'minute');
+  if (isOverdue) {
+    const overdueMinutes = Math.abs(minutes);
+    return {
+      absolute: deadline.format('YYYY-MM-DD HH:mm'),
+      relative:
+        overdueMinutes >= 1440
+          ? `已逾期 ${Math.ceil(overdueMinutes / 1440)} 天`
+          : `已逾期 ${Math.max(1, Math.ceil(overdueMinutes / 60))} 小时`,
+    };
+  }
+  if (minutes < 0) {
+    return {
+      absolute: deadline.format('YYYY-MM-DD HH:mm'),
+      relative: undefined,
+    };
+  }
+  if (minutes <= 1440) {
+    return {
+      absolute: deadline.format('YYYY-MM-DD HH:mm'),
+      relative:
+        minutes >= 60
+          ? `剩余 ${Math.max(1, Math.ceil(minutes / 60))} 小时`
+          : `剩余 ${Math.max(1, minutes)} 分钟`,
+    };
+  }
+  return { absolute: deadline.format('YYYY-MM-DD HH:mm'), relative: undefined };
+}
+
 function requestedId(name: string) {
   if (typeof window === 'undefined') return undefined;
   const value = Number(new URLSearchParams(window.location.search).get(name));
   return Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
+function removeRequestedIdFromSearch(name: string) {
+  if (typeof window === 'undefined') return;
+  const search = new URLSearchParams(window.location.search);
+  if (!search.has(name)) return;
+
+  search.delete(name);
+  const nextSearch = search.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+  window.history.replaceState(window.history.state, '', nextUrl);
+}
+
 const TeamTasksPage: React.FC = () => {
   const { styles } = useStyles();
   const workspace = useTenantWorkspace();
   const queryClient = useQueryClient();
-  const initialAssignmentId = useMemo(() => requestedId('assignment_id'), []);
-  const initialTaskId = useMemo(() => requestedId('task_id'), []);
+  const [requestedAssignmentId, setRequestedAssignmentId] = useState(() =>
+    requestedId('assignment_id'),
+  );
+  const [requestedTaskId, setRequestedTaskId] = useState(() =>
+    requestedId('task_id'),
+  );
   const [view, setView] = useState<TaskView>(
-    initialAssignmentId ? 'mine' : 'managed',
+    requestedAssignmentId ? 'mine' : 'managed',
   );
   const [taskPage, setTaskPage] = useState(1);
   const [assignmentPage, setAssignmentPage] = useState(1);
+  const [taskFilters, setTaskFilters] = useState<
+    TaskFilterState<WorkTaskStatus>
+  >(EMPTY_MANAGED_FILTERS);
+  const [assignmentFilters, setAssignmentFilters] = useState<
+    TaskFilterState<TaskAssignmentStatus>
+  >(EMPTY_ASSIGNMENT_FILTERS);
+  const [taskKeywordInput, setTaskKeywordInput] = useState('');
+  const [assignmentKeywordInput, setAssignmentKeywordInput] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<WorkTask>();
   const [selectedAssignment, setSelectedAssignment] =
@@ -108,23 +201,79 @@ const TeamTasksPage: React.FC = () => {
   const [taskForm] = Form.useForm<TaskFormValues>();
   const [actionForm] = Form.useForm<{ result?: string }>();
   const enabled = Boolean(workspace.selectedOrgSlug);
-  const selectedOwnership = Form.useWatch('team_id', taskForm);
+  const selectedTeamId = Form.useWatch('team_id', taskForm);
+  const isOrganizationTask = Boolean(
+    Form.useWatch('is_organization_task', taskForm),
+  );
+  const selectedOwnership: TaskOwnership | undefined = isOrganizationTask
+    ? 'organization'
+    : selectedTeamId;
+
+  const taskSummaryFilters = useMemo(
+    () => ({
+      team_id: taskFilters.team_id,
+      priority: taskFilters.priority,
+      keyword: taskFilters.keyword,
+    }),
+    [taskFilters.keyword, taskFilters.priority, taskFilters.team_id],
+  );
+  const assignmentSummaryFilters = useMemo(
+    () => ({
+      team_id: assignmentFilters.team_id,
+      priority: assignmentFilters.priority,
+      keyword: assignmentFilters.keyword,
+    }),
+    [
+      assignmentFilters.keyword,
+      assignmentFilters.priority,
+      assignmentFilters.team_id,
+    ],
+  );
 
   const tasksQuery = useQuery({
     queryKey: teamOperationsQueryKeys.tasks(
       workspace.selectedOrgSlug,
       taskPage,
+      taskFilters,
     ),
-    queryFn: () => listWorkTasks({ page: taskPage, page_size: PAGE_SIZE }),
+    queryFn: () =>
+      listWorkTasks({
+        page: taskPage,
+        page_size: PAGE_SIZE,
+        ...taskFilters,
+      }),
+    enabled: enabled && view === 'managed',
+    placeholderData: (previousData) => previousData,
+  });
+  const taskSummaryQuery = useQuery({
+    queryKey: teamOperationsQueryKeys.taskSummary(
+      workspace.selectedOrgSlug,
+      taskSummaryFilters,
+    ),
+    queryFn: () => getWorkTaskSummary(taskSummaryFilters),
     enabled: enabled && view === 'managed',
   });
   const assignmentsQuery = useQuery({
     queryKey: teamOperationsQueryKeys.assignments(
       workspace.selectedOrgSlug,
       assignmentPage,
+      assignmentFilters,
     ),
     queryFn: () =>
-      listTaskAssignments({ page: assignmentPage, page_size: PAGE_SIZE }),
+      listTaskAssignments({
+        page: assignmentPage,
+        page_size: PAGE_SIZE,
+        ...assignmentFilters,
+      }),
+    enabled: enabled && view === 'mine',
+    placeholderData: (previousData) => previousData,
+  });
+  const assignmentSummaryQuery = useQuery({
+    queryKey: teamOperationsQueryKeys.assignmentSummary(
+      workspace.selectedOrgSlug,
+      assignmentSummaryFilters,
+    ),
+    queryFn: () => getTaskAssignmentSummary(assignmentSummaryFilters),
     enabled: enabled && view === 'mine',
   });
   const requestedAssignmentQuery = useQuery({
@@ -132,26 +281,26 @@ const TeamTasksPage: React.FC = () => {
       'team-operations',
       'requested-assignment',
       workspace.selectedOrgSlug,
-      initialAssignmentId,
+      requestedAssignmentId,
     ],
     queryFn: () => {
-      if (!initialAssignmentId) throw new Error('缺少任务分配 ID');
-      return getTaskAssignment(initialAssignmentId);
+      if (!requestedAssignmentId) throw new Error('缺少任务分配 ID');
+      return getTaskAssignment(requestedAssignmentId);
     },
-    enabled: enabled && Boolean(initialAssignmentId),
+    enabled: enabled && Boolean(requestedAssignmentId),
   });
   const requestedTaskQuery = useQuery({
     queryKey: [
       'team-operations',
       'requested-task',
       workspace.selectedOrgSlug,
-      initialTaskId,
+      requestedTaskId,
     ],
     queryFn: () => {
-      if (!initialTaskId) throw new Error('缺少任务 ID');
-      return getWorkTask(initialTaskId);
+      if (!requestedTaskId) throw new Error('缺少任务 ID');
+      return getWorkTask(requestedTaskId);
     },
-    enabled: enabled && Boolean(initialTaskId),
+    enabled: enabled && Boolean(requestedTaskId),
   });
   const teamsQuery = useQuery({
     queryKey: ['tenant', 'teams', workspace.selectedOrgSlug, 'tasks'],
@@ -181,18 +330,34 @@ const TeamTasksPage: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!initialAssignmentId || selectedAssignment) return;
+    if (!requestedAssignmentId || selectedAssignment) return;
     if (requestedAssignmentQuery.data) {
       setSelectedAssignment(requestedAssignmentQuery.data);
     }
-  }, [initialAssignmentId, requestedAssignmentQuery.data, selectedAssignment]);
+  }, [
+    requestedAssignmentId,
+    requestedAssignmentQuery.data,
+    selectedAssignment,
+  ]);
 
   useEffect(() => {
-    if (!initialTaskId || selectedTask) return;
+    if (!requestedTaskId || selectedTask) return;
     if (requestedTaskQuery.data) {
       setSelectedTask(requestedTaskQuery.data);
     }
-  }, [initialTaskId, requestedTaskQuery.data, selectedTask]);
+  }, [requestedTaskId, requestedTaskQuery.data, selectedTask]);
+
+  const closeTaskDetail = () => {
+    setSelectedTask(undefined);
+    setRequestedTaskId(undefined);
+    removeRequestedIdFromSearch('task_id');
+  };
+
+  const closeAssignmentDetail = () => {
+    setSelectedAssignment(undefined);
+    setRequestedAssignmentId(undefined);
+    removeRequestedIdFromSearch('assignment_id');
+  };
 
   const capabilities = capabilitiesQuery.data;
   const canManageTasks = Boolean(
@@ -268,30 +433,22 @@ const TeamTasksPage: React.FC = () => {
       (team) => organizationManage || manageableTeamIds.has(team.id),
     );
   }, [capabilities?.task_team_ids, organizationManage, teams]);
-  const ownershipOptions = useMemo(() => {
-    const options = [];
-    if (organizationManage) {
-      options.push({
-        label: '组织级',
-        options: [
-          {
-            label: '不指定团队（组织级）',
-            value: 'organization' as TaskOwnership,
-          },
-        ],
-      });
-    }
-    if (manageableTeams.length) {
-      options.push({
-        label: '团队',
-        options: manageableTeams.map((team) => ({
-          label: team.name,
-          value: team.id,
-        })),
-      });
-    }
-    return options;
-  }, [manageableTeams, organizationManage]);
+  const manageableTeamOptions = useMemo(
+    () =>
+      manageableTeams.map((team) => ({
+        label: team.name,
+        value: team.id,
+      })),
+    [manageableTeams],
+  );
+  const teamFilterOptions = useMemo(
+    () =>
+      teams.map((team) => ({
+        label: team.name,
+        value: team.id,
+      })),
+    [teams],
+  );
   const availableOwnerships = useMemo(
     () => [
       ...(organizationManage ? (['organization'] as TaskOwnership[]) : []),
@@ -301,16 +458,6 @@ const TeamTasksPage: React.FC = () => {
   );
   const defaultOwnership =
     availableOwnerships.length === 1 ? availableOwnerships[0] : undefined;
-  const selectedTeam =
-    typeof selectedOwnership === 'number'
-      ? manageableTeams.find((team) => team.id === selectedOwnership)
-      : undefined;
-  const ownershipHelpText =
-    selectedOwnership === 'organization'
-      ? '未指定团队，下发成员可从当前组织中选择。'
-      : selectedTeam
-        ? `下发成员仅从「${selectedTeam.name}」团队成员中选择。`
-        : '先选择所属团队，再选择下发成员。';
   const assigneePlaceholder =
     selectedOwnership === undefined
       ? '请先选择所属团队'
@@ -326,72 +473,208 @@ const TeamTasksPage: React.FC = () => {
     [assigneesQuery.data],
   );
 
+  const applyTaskFilters = (
+    patch: Partial<TaskFilterState<WorkTaskStatus>>,
+  ) => {
+    setTaskPage(1);
+    setTaskFilters((current) => ({ ...current, ...patch }));
+  };
+  const applyAssignmentFilters = (
+    patch: Partial<TaskFilterState<TaskAssignmentStatus>>,
+  ) => {
+    setAssignmentPage(1);
+    setAssignmentFilters((current) => ({ ...current, ...patch }));
+  };
+  const resetTaskFilters = () => {
+    setTaskPage(1);
+    setTaskKeywordInput('');
+    setTaskFilters(EMPTY_MANAGED_FILTERS);
+  };
+  const resetAssignmentFilters = () => {
+    setAssignmentPage(1);
+    setAssignmentKeywordInput('');
+    setAssignmentFilters(EMPTY_ASSIGNMENT_FILTERS);
+  };
+  const selectManagedMetric = (metric: TaskMetricKey) => {
+    if (metric === 'all') {
+      applyTaskFilters({ status: undefined, due_state: undefined });
+      return;
+    }
+    if (metric === 'active') {
+      applyTaskFilters({ status: 'active', due_state: undefined });
+      return;
+    }
+    applyTaskFilters({ status: 'active', due_state: metric as TaskDueState });
+  };
+  const selectAssignmentMetric = (metric: TaskMetricKey) => {
+    if (metric === 'pending' || metric === 'active') {
+      applyAssignmentFilters({
+        status: metric === 'pending' ? 'pending' : 'in_progress',
+        due_state: undefined,
+      });
+      return;
+    }
+    applyAssignmentFilters({
+      status: undefined,
+      due_state: metric as TaskDueState,
+    });
+  };
+  const activeManagedMetric: TaskMetricKey | undefined = taskFilters.due_state
+    ? taskFilters.due_state
+    : taskFilters.status === 'active'
+      ? 'active'
+      : taskFilters.status
+        ? undefined
+        : 'all';
+  const activeAssignmentMetric: TaskMetricKey | undefined =
+    assignmentFilters.due_state ||
+    (assignmentFilters.status === 'pending'
+      ? 'pending'
+      : assignmentFilters.status === 'in_progress'
+        ? 'active'
+        : undefined);
+
+  const taskStatusOptions = [
+    { label: '进行中', value: 'active' },
+    { label: '已完成', value: 'completed' },
+    { label: '已取消', value: 'cancelled' },
+  ];
+  const assignmentStatusOptions = [
+    { label: '待接受', value: 'pending' },
+    { label: '进行中', value: 'in_progress' },
+    { label: '已完成', value: 'completed' },
+    { label: '已拒绝', value: 'rejected' },
+    { label: '已取消', value: 'cancelled' },
+  ];
+  const priorityOptions = [
+    { label: '普通', value: 'normal' },
+    { label: '重要', value: 'high' },
+    { label: '紧急', value: 'urgent' },
+  ];
+  const dueStateOptions = [
+    { label: '24 小时内到期', value: 'due_soon' },
+    { label: '已逾期', value: 'overdue' },
+  ];
+
   const taskColumns: ColumnsType<WorkTask> = [
     {
-      title: '任务',
+      title: '任务标题',
       dataIndex: 'title',
-      width: 280,
+      width: 170,
       render: (_value, record) => (
-        <Space orientation="vertical" size={2}>
-          <Typography.Text strong style={wrapTextStyle}>
+        <div className={styles.taskTitleCell}>
+          <Typography.Text strong className={styles.taskTitleText}>
             {record.title}
           </Typography.Text>
-          <Typography.Text type="secondary">
-            {record.team_name || '组织级任务'}
+          <Typography.Text
+            type="secondary"
+            className={styles.taskDescription}
+            title={record.description || '暂无任务说明'}
+          >
+            {record.description || '暂无任务说明'}
           </Typography.Text>
-        </Space>
+        </div>
       ),
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      width: 110,
+      title: '所属团队',
+      dataIndex: 'team_name',
+      width: 90,
       render: (_value, record) => (
-        <Tag color={taskStatusColor(record.status)}>
-          {record.status__mapping}
-        </Tag>
+        <Typography.Text>{record.team_name || '组织级任务'}</Typography.Text>
       ),
+    },
+    {
+      title: '执行成员',
+      dataIndex: 'assignments',
+      width: 90,
+      render: (_value, record) => {
+        if (!record.assignments.length) return '-';
+        return (
+          <div className={styles.assigneeCell}>
+            <Avatar.Group size="small" max={{ count: 3 }}>
+              {record.assignments.map((assignment) => (
+                <Tooltip
+                  key={assignment.id}
+                  title={`${personLabel(assignment.assignee)} · ${assignment.status__mapping}`}
+                >
+                  <Avatar>{personInitial(assignment.assignee)}</Avatar>
+                </Tooltip>
+              ))}
+            </Avatar.Group>
+          </div>
+        );
+      },
     },
     {
       title: '优先级',
       dataIndex: 'priority',
-      width: 110,
+      width: 76,
+      align: 'center',
       render: (_value, record) => (
-        <Tag color={priorityColor(record.priority)}>
+        <Tag className={styles.listTag} color={priorityColor(record.priority)}>
           {record.priority__mapping}
         </Tag>
       ),
     },
     {
-      title: '执行人',
-      dataIndex: 'assignments',
-      width: 260,
-      render: (_value, record) => (
-        <Space wrap size={[4, 4]}>
-          {record.assignments.map((assignment) => (
-            <Tag
-              key={assignment.id}
-              color={assignmentStatusColor(assignment.status)}
-            >
-              {assignment.assignee.full_name || assignment.assignee.username} ·{' '}
-              {assignment.status__mapping}
-            </Tag>
-          ))}
-        </Space>
-      ),
-    },
-    {
       title: '截止时间',
       dataIndex: 'due_at',
-      width: 180,
-      render: (value) =>
-        value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '未设置',
+      width: 136,
+      align: 'center',
+      render: (value, record) => {
+        const isOverdue = Boolean(
+          value && record.status === 'active' && dayjs(value).isBefore(dayjs()),
+        );
+        const meta = deadlineMeta(value, isOverdue);
+        return (
+          <div className={styles.deadlineCell}>
+            <Typography.Text>{meta.absolute}</Typography.Text>
+            {meta.relative ? (
+              <Typography.Text type={isOverdue ? 'danger' : 'warning'}>
+                {meta.relative}
+              </Typography.Text>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 76,
+      align: 'center',
+      render: (_value, record) => {
+        const isOverdue = Boolean(
+          record.due_at &&
+            record.status === 'active' &&
+            dayjs(record.due_at).isBefore(dayjs()),
+        );
+        return isOverdue ? (
+          <Tag className={styles.listTag} color="red">
+            已逾期
+          </Tag>
+        ) : (
+          <Tag
+            className={styles.listTag}
+            color={taskStatusColor(record.status)}
+          >
+            {record.status__mapping}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: '创建人',
+      dataIndex: 'creator',
+      width: 70,
+      render: (_value, record) => personLabel(record.creator),
     },
     {
       title: '操作',
       dataIndex: 'actions',
-      fixed: 'right',
-      width: 150,
+      width: 92,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <a onClick={() => setSelectedTask(record)}>详情</a>
@@ -410,39 +693,39 @@ const TeamTasksPage: React.FC = () => {
 
   const assignmentColumns: ColumnsType<TaskAssignment> = [
     {
-      title: '我的任务',
+      title: '任务标题',
       dataIndex: 'task_title',
-      width: 280,
+      width: 200,
       render: (_value, record) => (
-        <Space orientation="vertical" size={2}>
-          <Typography.Text strong style={wrapTextStyle}>
+        <div className={styles.taskTitleCell}>
+          <Typography.Text strong className={styles.taskTitleText}>
             {record.task_title}
           </Typography.Text>
-          <Typography.Text type="secondary">
-            {record.team_name || '组织级任务'}
+          <Typography.Text
+            type="secondary"
+            className={styles.taskDescription}
+            title={record.task_description || '暂无任务说明'}
+          >
+            {record.task_description || '暂无任务说明'}
           </Typography.Text>
-        </Space>
+        </div>
       ),
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      width: 160,
+      title: '所属团队',
+      dataIndex: 'team_name',
+      width: 90,
       render: (_value, record) => (
-        <Space size={4}>
-          <Tag color={assignmentStatusColor(record.status)}>
-            {record.status__mapping}
-          </Tag>
-          {record.is_overdue ? <Tag color="red">已逾期</Tag> : null}
-        </Space>
+        <Typography.Text>{record.team_name || '组织级任务'}</Typography.Text>
       ),
     },
     {
       title: '优先级',
       dataIndex: 'priority',
-      width: 110,
+      width: 76,
+      align: 'center',
       render: (_value, record) => (
-        <Tag color={priorityColor(record.priority)}>
+        <Tag className={styles.listTag} color={priorityColor(record.priority)}>
           {record.priority__mapping}
         </Tag>
       ),
@@ -450,15 +733,52 @@ const TeamTasksPage: React.FC = () => {
     {
       title: '截止时间',
       dataIndex: 'due_at',
-      width: 180,
-      render: (value) =>
-        value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '未设置',
+      width: 136,
+      align: 'center',
+      render: (value, record) => {
+        const meta = deadlineMeta(value, record.is_overdue);
+        return (
+          <div className={styles.deadlineCell}>
+            <Typography.Text>{meta.absolute}</Typography.Text>
+            {meta.relative ? (
+              <Typography.Text type={record.is_overdue ? 'danger' : 'warning'}>
+                {meta.relative}
+              </Typography.Text>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 76,
+      align: 'center',
+      render: (_value, record) =>
+        record.is_overdue ? (
+          <Tag className={styles.listTag} color="red">
+            已逾期
+          </Tag>
+        ) : (
+          <Tag
+            className={styles.listTag}
+            color={assignmentStatusColor(record.status)}
+          >
+            {record.status__mapping}
+          </Tag>
+        ),
+    },
+    {
+      title: '创建人',
+      dataIndex: 'creator',
+      width: 70,
+      render: (_value, record) => personLabel(record.creator),
     },
     {
       title: '操作',
       dataIndex: 'actions',
-      fixed: 'right',
-      width: 240,
+      width: 150,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <a onClick={() => setSelectedAssignment(record)}>详情</a>
@@ -492,9 +812,138 @@ const TeamTasksPage: React.FC = () => {
     },
   ];
 
+  const summaryMetrics =
+    view === 'managed'
+      ? [
+          {
+            key: 'all' as const,
+            label: '全部任务',
+            value: taskSummaryQuery.data?.total,
+            description: '当前筛选范围内',
+            icon: <CheckSquareOutlined />,
+            tone: styles.metricBlue,
+          },
+          {
+            key: 'active' as const,
+            label: '进行中',
+            value: taskSummaryQuery.data?.active,
+            description: '当前仍在执行',
+            icon: <PlayCircleOutlined />,
+            tone: styles.metricGreen,
+          },
+          {
+            key: 'due_soon' as const,
+            label: '24 小时内到期',
+            value: taskSummaryQuery.data?.due_soon,
+            description: '不包含已逾期',
+            icon: <ClockCircleOutlined />,
+            tone: styles.metricOrange,
+          },
+          {
+            key: 'overdue' as const,
+            label: '已逾期',
+            value: taskSummaryQuery.data?.overdue,
+            description: '需要尽快处理',
+            icon: <ExclamationCircleOutlined />,
+            tone: styles.metricRed,
+          },
+        ]
+      : [
+          {
+            key: 'pending' as const,
+            label: '待接受',
+            value: assignmentSummaryQuery.data?.pending,
+            description: '等待你确认',
+            icon: <CheckSquareOutlined />,
+            tone: styles.metricBlue,
+          },
+          {
+            key: 'active' as const,
+            label: '进行中',
+            value: assignmentSummaryQuery.data?.in_progress,
+            description: '当前正在处理',
+            icon: <PlayCircleOutlined />,
+            tone: styles.metricGreen,
+          },
+          {
+            key: 'due_soon' as const,
+            label: '24 小时内到期',
+            value: assignmentSummaryQuery.data?.due_soon,
+            description: '不包含已逾期',
+            icon: <ClockCircleOutlined />,
+            tone: styles.metricOrange,
+          },
+          {
+            key: 'overdue' as const,
+            label: '已逾期',
+            value: assignmentSummaryQuery.data?.overdue,
+            description: '需要尽快处理',
+            icon: <ExclamationCircleOutlined />,
+            tone: styles.metricRed,
+          },
+        ];
+  const currentSummaryQuery =
+    view === 'managed' ? taskSummaryQuery : assignmentSummaryQuery;
+  const currentListQuery = view === 'managed' ? tasksQuery : assignmentsQuery;
+  const activeMetric =
+    view === 'managed' ? activeManagedMetric : activeAssignmentMetric;
+  const currentFilters = view === 'managed' ? taskFilters : assignmentFilters;
+  const hasActiveFilters = Object.values(currentFilters).some(
+    (value) => value !== undefined && value !== '',
+  );
+
+  const openCreateModal = () => {
+    taskForm.resetFields();
+    taskForm.setFieldsValue({
+      is_organization_task: defaultOwnership === 'organization',
+      team_id:
+        typeof defaultOwnership === 'number' ? defaultOwnership : undefined,
+      priority: 'normal',
+      assignee_ids: [],
+    });
+    setCreateOpen(true);
+  };
+
+  const resetCurrentFilters = () => {
+    if (view === 'managed') {
+      resetTaskFilters();
+      return;
+    }
+    resetAssignmentFilters();
+  };
+
+  const emptyText = (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      className={styles.emptyState}
+      description={
+        <Space orientation="vertical" size={2}>
+          <Typography.Text strong>
+            {hasActiveFilters ? '未找到符合条件的任务' : '暂时没有任务'}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            {hasActiveFilters
+              ? '调整筛选条件，或清除筛选后再试。'
+              : view === 'managed'
+                ? '新建任务并分配给团队成员后，将在这里统一跟进。'
+                : '分配给你的任务会显示在这里。'}
+          </Typography.Text>
+        </Space>
+      }
+    >
+      {hasActiveFilters ? (
+        <Button onClick={resetCurrentFilters}>清除筛选</Button>
+      ) : view === 'managed' && canManageTasks ? (
+        <Button type="primary" onClick={openCreateModal}>
+          新建任务
+        </Button>
+      ) : null}
+    </Empty>
+  );
+
   const submitTask = async (values: TaskFormValues) => {
     await createMutation.mutateAsync({
-      team_id: values.team_id === 'organization' ? null : values.team_id,
+      team_id: values.is_organization_task ? null : values.team_id,
       title: values.title.trim(),
       description: values.description?.trim() || '',
       task_type: 'general',
@@ -507,70 +956,282 @@ const TeamTasksPage: React.FC = () => {
 
   return (
     <TenantSelectionGuard title="团队任务">
-      <Card
-        extra={
-          <AdminToolbar>
-            <Segmented
-              options={
-                canShowManagedTasks
-                  ? [
-                      { label: '任务管理', value: 'managed' },
-                      { label: '我的任务', value: 'mine' },
-                    ]
-                  : [{ label: '我的任务', value: 'mine' }]
-              }
-              value={view}
-              onChange={(value) => setView(value as TaskView)}
-            />
-            {canManageTasks ? (
-              <Button
-                type="primary"
+      <div className={styles.pageLayout}>
+        <Flex
+          align="center"
+          className={styles.toolbar}
+          gap="middle"
+          justify="space-between"
+          role="toolbar"
+          aria-label="团队任务工具栏"
+          wrap
+        >
+          <Segmented
+            options={
+              canShowManagedTasks
+                ? [
+                    { label: '任务管理', value: 'managed' },
+                    { label: '我的任务', value: 'mine' },
+                  ]
+                : [{ label: '我的任务', value: 'mine' }]
+            }
+            value={view}
+            onChange={(value) => setView(value as TaskView)}
+          />
+        </Flex>
+
+        {currentSummaryQuery.isError ? (
+          <Alert
+            showIcon
+            type="warning"
+            title="任务统计暂时无法加载"
+            description="任务列表仍可继续使用，请稍后刷新统计数据。"
+          />
+        ) : null}
+
+        <section className={styles.metricGrid} aria-label="任务统计">
+          {summaryMetrics.map((metric) => {
+            const isActive = activeMetric === metric.key;
+
+            return (
+              <button
+                key={metric.key}
+                type="button"
+                className={`${styles.metricCard} ${metric.tone}`}
+                aria-label={`${metric.label} ${metric.value ?? 0}`}
+                aria-pressed={isActive}
                 onClick={() => {
-                  taskForm.resetFields();
-                  taskForm.setFieldsValue({
-                    team_id: defaultOwnership,
-                    priority: 'normal',
-                    assignee_ids: [],
-                  });
-                  setCreateOpen(true);
+                  if (view === 'managed') {
+                    selectManagedMetric(metric.key);
+                    return;
+                  }
+                  selectAssignmentMetric(metric.key);
                 }}
               >
-                新建任务
+                <div className={styles.metricHeader}>
+                  <span className={styles.metricIcon} aria-hidden>
+                    {metric.icon}
+                  </span>
+                </div>
+                <Statistic
+                  loading={currentSummaryQuery.isLoading}
+                  title={metric.label}
+                  value={metric.value ?? 0}
+                  suffix={<span className={styles.metricUnit}>项</span>}
+                />
+                <Typography.Text
+                  className={styles.metricDescription}
+                  title={metric.description}
+                  type="secondary"
+                >
+                  {metric.description}
+                </Typography.Text>
+                <span className={styles.metricOrnament} aria-hidden />
+              </button>
+            );
+          })}
+        </section>
+
+        <Card className={styles.tableCard}>
+          <section className={styles.filters} aria-label="任务筛选">
+            <div className={styles.filterOptions}>
+              <div className={styles.filterField}>
+                <Select
+                  allowClear
+                  className={styles.filterSelect}
+                  aria-label="状态筛选"
+                  options={
+                    view === 'managed'
+                      ? taskStatusOptions
+                      : assignmentStatusOptions
+                  }
+                  placeholder="全部状态"
+                  value={
+                    view === 'managed'
+                      ? taskFilters.status
+                      : assignmentFilters.status
+                  }
+                  onChange={(value) => {
+                    if (view === 'managed') {
+                      applyTaskFilters({ status: value as WorkTaskStatus });
+                      return;
+                    }
+                    applyAssignmentFilters({
+                      status: value as TaskAssignmentStatus,
+                    });
+                  }}
+                />
+              </div>
+              <div className={styles.filterField}>
+                <Select
+                  allowClear
+                  className={styles.filterSelect}
+                  aria-label="优先级筛选"
+                  options={priorityOptions}
+                  placeholder="全部优先级"
+                  value={
+                    view === 'managed'
+                      ? taskFilters.priority
+                      : assignmentFilters.priority
+                  }
+                  onChange={(value) => {
+                    if (view === 'managed') {
+                      applyTaskFilters({ priority: value as TaskPriority });
+                      return;
+                    }
+                    applyAssignmentFilters({
+                      priority: value as TaskPriority,
+                    });
+                  }}
+                />
+              </div>
+              <div className={styles.filterField}>
+                <Select
+                  allowClear
+                  className={styles.filterSelect}
+                  aria-label="团队筛选"
+                  loading={teamsQuery.isLoading}
+                  options={teamFilterOptions}
+                  placeholder="全部团队"
+                  showSearch={{ optionFilterProp: 'label' }}
+                  value={
+                    view === 'managed'
+                      ? taskFilters.team_id
+                      : assignmentFilters.team_id
+                  }
+                  onChange={(value) => {
+                    if (view === 'managed') {
+                      applyTaskFilters({ team_id: value });
+                      return;
+                    }
+                    applyAssignmentFilters({ team_id: value });
+                  }}
+                />
+              </div>
+              <div className={styles.filterField}>
+                <Select
+                  allowClear
+                  className={styles.filterSelect}
+                  aria-label="截止状态筛选"
+                  options={dueStateOptions}
+                  placeholder="全部截止"
+                  value={
+                    view === 'managed'
+                      ? taskFilters.due_state
+                      : assignmentFilters.due_state
+                  }
+                  onChange={(value) => {
+                    if (view === 'managed') {
+                      applyTaskFilters({ due_state: value as TaskDueState });
+                      return;
+                    }
+                    applyAssignmentFilters({
+                      due_state: value as TaskDueState,
+                    });
+                  }}
+                />
+              </div>
+            </div>
+            <section className={styles.filterActions} aria-label="任务操作">
+              <Input.Search
+                allowClear
+                className={styles.keywordSearch}
+                aria-label="搜索任务"
+                placeholder="搜索任务"
+                value={
+                  view === 'managed' ? taskKeywordInput : assignmentKeywordInput
+                }
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (view === 'managed') {
+                    setTaskKeywordInput(value);
+                    if (!value) applyTaskFilters({ keyword: undefined });
+                    return;
+                  }
+                  setAssignmentKeywordInput(value);
+                  if (!value) applyAssignmentFilters({ keyword: undefined });
+                }}
+                onSearch={(value) => {
+                  const keyword = value.trim() || undefined;
+                  if (view === 'managed') {
+                    applyTaskFilters({ keyword });
+                    return;
+                  }
+                  applyAssignmentFilters({ keyword });
+                }}
+              />
+              <Button icon={<ReloadOutlined />} onClick={resetCurrentFilters}>
+                重置
               </Button>
-            ) : null}
-          </AdminToolbar>
-        }
-      >
-        {view === 'managed' ? (
-          <Table<WorkTask>
-            rowKey="id"
-            loading={tasksQuery.isLoading}
-            columns={taskColumns}
-            dataSource={tasksQuery.data?.items || []}
-            pagination={fixedPagePagination(
-              tasksQuery.data?.page || taskPage,
-              tasksQuery.data?.page_size || PAGE_SIZE,
-              tasksQuery.data?.total || 0,
-              setTaskPage,
-            )}
-            scroll={adminTableScroll}
-          />
-        ) : (
-          <Table<TaskAssignment>
-            rowKey="id"
-            loading={assignmentsQuery.isLoading}
-            columns={assignmentColumns}
-            dataSource={assignmentsQuery.data?.items || []}
-            pagination={fixedPagePagination(
-              assignmentsQuery.data?.page || assignmentPage,
-              assignmentsQuery.data?.page_size || PAGE_SIZE,
-              assignmentsQuery.data?.total || 0,
-              setAssignmentPage,
-            )}
-            scroll={adminTableScroll}
-          />
-        )}
-      </Card>
+              {canManageTasks ? (
+                <Button
+                  className={styles.primaryAction}
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  aria-label="新建任务"
+                  onClick={openCreateModal}
+                >
+                  新建
+                </Button>
+              ) : null}
+            </section>
+          </section>
+
+          {currentListQuery.isError ? (
+            <Alert
+              showIcon
+              type="error"
+              title="任务列表加载失败"
+              description="请检查网络连接后重试。"
+              className={styles.listAlert}
+              action={
+                <Button
+                  size="small"
+                  onClick={() => void currentListQuery.refetch()}
+                >
+                  重试
+                </Button>
+              }
+            />
+          ) : null}
+
+          {view === 'managed' ? (
+            <Table<WorkTask>
+              className={styles.table}
+              rowKey="id"
+              size="middle"
+              loading={tasksQuery.isLoading}
+              columns={taskColumns}
+              dataSource={tasksQuery.data?.items || []}
+              locale={{ emptyText }}
+              pagination={fixedPagePagination(
+                tasksQuery.data?.page || taskPage,
+                tasksQuery.data?.page_size || PAGE_SIZE,
+                tasksQuery.data?.total || 0,
+                setTaskPage,
+              )}
+              scroll={adminTableScroll}
+            />
+          ) : (
+            <Table<TaskAssignment>
+              className={styles.table}
+              rowKey="id"
+              size="middle"
+              loading={assignmentsQuery.isLoading}
+              columns={assignmentColumns}
+              dataSource={assignmentsQuery.data?.items || []}
+              locale={{ emptyText }}
+              pagination={fixedPagePagination(
+                assignmentsQuery.data?.page || assignmentPage,
+                assignmentsQuery.data?.page_size || PAGE_SIZE,
+                assignmentsQuery.data?.total || 0,
+                setAssignmentPage,
+              )}
+              scroll={adminTableScroll}
+            />
+          )}
+        </Card>
+      </div>
 
       <Modal
         className={styles.createTaskModal}
@@ -578,12 +1239,9 @@ const TeamTasksPage: React.FC = () => {
         centered
         title={
           <div className={styles.createTaskTitle}>
-            <span className={styles.createTaskTitleIcon}>
-              <CheckSquareOutlined aria-hidden />
-            </span>
             <div className={styles.createTaskTitleCopy}>
               <Typography.Text strong className={styles.createTaskTitleText}>
-                下发团队任务
+                新建任务
               </Typography.Text>
               <Typography.Text
                 type="secondary"
@@ -600,7 +1258,6 @@ const TeamTasksPage: React.FC = () => {
         confirmLoading={createMutation.isPending}
         okButtonProps={{
           icon: <SendOutlined aria-hidden />,
-          className: styles.createTaskButton,
         }}
         cancelButtonProps={{ disabled: createMutation.isPending }}
         closable={!createMutation.isPending}
@@ -623,17 +1280,7 @@ const TeamTasksPage: React.FC = () => {
           className={styles.createTaskForm}
           onFinish={(values) => void submitTask(values)}
         >
-          <section
-            className={styles.taskSection}
-            aria-labelledby="task-content-heading"
-          >
-            <Typography.Title
-              level={5}
-              id="task-content-heading"
-              className={styles.taskSectionTitle}
-            >
-              填写任务内容
-            </Typography.Title>
+          <div className={styles.taskSection}>
             <Form.Item
               label="任务标题"
               name="title"
@@ -657,7 +1304,7 @@ const TeamTasksPage: React.FC = () => {
                 allowClear
                 maxLength={2000}
                 showCount
-                rows={2}
+                rows={4}
                 placeholder="补充任务背景、完成标准或注意事项"
               />
             </Form.Item>
@@ -667,12 +1314,11 @@ const TeamTasksPage: React.FC = () => {
                 name="priority"
                 rules={[{ required: true, message: '请选择优先级' }]}
               >
-                <Select
-                  options={[
-                    { label: '普通', value: 'normal' },
-                    { label: '重要', value: 'high' },
-                    { label: '紧急', value: 'urgent' },
-                  ]}
+                <Radio.Group
+                  className={styles.priorityRadio}
+                  options={priorityOptions}
+                  optionType="button"
+                  buttonStyle="solid"
                 />
               </Form.Item>
               <Form.Item label="截止时间（可选）" name="due_at">
@@ -683,40 +1329,56 @@ const TeamTasksPage: React.FC = () => {
                 />
               </Form.Item>
             </div>
-          </section>
+          </div>
 
-          <section
-            className={styles.taskSection}
-            aria-labelledby="task-assignees-heading"
-          >
-            <Typography.Title
-              level={5}
-              id="task-assignees-heading"
-              className={styles.taskSectionTitle}
-            >
-              选择下发范围
-            </Typography.Title>
+          <div className={styles.taskSection}>
+            {organizationManage ? (
+              <Form.Item
+                label="组织级任务"
+                name="is_organization_task"
+                valuePropName="checked"
+                extra="开启后任务面向整个组织，可从组织成员中选择执行人。"
+                className={styles.organizationSwitch}
+              >
+                <Switch
+                  onChange={(checked) => {
+                    taskForm.setFieldsValue({
+                      team_id: checked
+                        ? undefined
+                        : taskForm.getFieldValue('team_id'),
+                      assignee_ids: [],
+                    });
+                  }}
+                />
+              </Form.Item>
+            ) : null}
             <Form.Item
               label="所属团队"
               name="team_id"
-              rules={[{ required: true, message: '请选择所属团队' }]}
+              dependencies={['is_organization_task']}
+              rules={[
+                ({ getFieldValue }) => ({
+                  validator: async (_rule, value) => {
+                    if (getFieldValue('is_organization_task') || value) return;
+                    throw new Error('请选择所属团队');
+                  },
+                }),
+              ]}
             >
               <Select
+                allowClear
+                disabled={isOrganizationTask}
                 loading={teamsQuery.isLoading || capabilitiesQuery.isLoading}
-                options={ownershipOptions}
-                placeholder="选择团队或设为组织级任务"
+                options={manageableTeamOptions}
+                placeholder="选择所属团队"
                 onChange={() => taskForm.setFieldValue('assignee_ids', [])}
               />
             </Form.Item>
-            <div className={styles.ownershipHint}>
-              <InfoCircleOutlined aria-hidden />
-              <Typography.Text>{ownershipHelpText}</Typography.Text>
-            </div>
             <Form.Item
               label="下发成员"
               name="assignee_ids"
               rules={[{ required: true, message: '请选择至少一名下发成员' }]}
-              extra="每位成员都会收到独立任务，可分别接受和完成。"
+              extra="每位成员都会收到独立任务，可分别接受、拒绝和完成。"
             >
               <Select
                 mode="multiple"
@@ -727,7 +1389,7 @@ const TeamTasksPage: React.FC = () => {
                 showSearch={{ optionFilterProp: 'label' }}
               />
             </Form.Item>
-          </section>
+          </div>
         </Form>
       </Modal>
 
@@ -769,7 +1431,7 @@ const TeamTasksPage: React.FC = () => {
         title="任务详情"
         open={Boolean(selectedTask)}
         size={drawerWidthMd}
-        onClose={() => setSelectedTask(undefined)}
+        onClose={closeTaskDetail}
       >
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="标题">
@@ -827,7 +1489,7 @@ const TeamTasksPage: React.FC = () => {
         title="我的任务详情"
         open={Boolean(selectedAssignment)}
         size={drawerWidthMd}
-        onClose={() => setSelectedAssignment(undefined)}
+        onClose={closeAssignmentDetail}
       >
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="标题">
@@ -835,6 +1497,9 @@ const TeamTasksPage: React.FC = () => {
           </Descriptions.Item>
           <Descriptions.Item label="团队">
             {selectedAssignment?.team_name || '组织级任务'}
+          </Descriptions.Item>
+          <Descriptions.Item label="创建人">
+            {personLabel(selectedAssignment?.creator)}
           </Descriptions.Item>
           <Descriptions.Item label="状态">
             {selectedAssignment ? (

@@ -254,6 +254,24 @@ export async function appsTeamOperationsApiRejectTaskAssignment(
   );
 }
 
+/** 获取我的任务统计 GET /api/team-operations/task-assignments/summary/ */
+export async function appsTeamOperationsApiGetTaskAssignmentSummary(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsTeamOperationsApiGetTaskAssignmentSummaryParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.TaskAssignmentSummaryOut>(
+    "/api/team-operations/task-assignments/summary/",
+    {
+      method: "GET",
+      params: {
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取团队任务列表 GET /api/team-operations/tasks/ */
 export async function appsTeamOperationsApiListTasks(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -312,6 +330,24 @@ export async function appsTeamOperationsApiCancelTask(
     {
       method: "POST",
       params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取团队任务统计 GET /api/team-operations/tasks/summary/ */
+export async function appsTeamOperationsApiGetTaskSummary(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsTeamOperationsApiGetTaskSummaryParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.WorkTaskSummaryOut>(
+    "/api/team-operations/tasks/summary/",
+    {
+      method: "GET",
+      params: {
+        ...params,
+      },
       ...(options || {}),
     }
   );

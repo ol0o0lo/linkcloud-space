@@ -1141,8 +1141,20 @@ declare namespace API {
     assignment_id: number;
   };
 
+  type appsTeamOperationsApiGetTaskAssignmentSummaryParams = {
+    team_id?: number | null;
+    priority?: string | null;
+    keyword?: string | null;
+  };
+
   type appsTeamOperationsApiGetTaskParams = {
     task_id: number;
+  };
+
+  type appsTeamOperationsApiGetTaskSummaryParams = {
+    team_id?: number | null;
+    priority?: string | null;
+    keyword?: string | null;
   };
 
   type appsTeamOperationsApiListAnnouncementsParams = {
@@ -1162,6 +1174,10 @@ declare namespace API {
 
   type appsTeamOperationsApiListTaskAssignmentsParams = {
     status?: string | null;
+    team_id?: number | null;
+    priority?: string | null;
+    keyword?: string | null;
+    due_state?: string | null;
     overdue?: boolean | null;
     page?: number;
     page_size?: number | null;
@@ -1172,6 +1188,7 @@ declare namespace API {
     status?: string | null;
     priority?: string | null;
     keyword?: string | null;
+    due_state?: string | null;
     mine?: boolean | null;
     page?: number;
     page_size?: number | null;
@@ -3815,6 +3832,7 @@ declare namespace API {
     team_id?: number | null;
     /** Team Name */
     team_name?: string | null;
+    creator?: UserSummaryOut | null;
     assignee: UserSummaryOut;
     /** Status */
     status: string;
@@ -4537,5 +4555,16 @@ declare namespace API {
     created_at: string;
     /** Updated At */
     updated_at: string;
+  };
+
+  type WorkTaskSummaryOut = {
+    /** Total */
+    total: number;
+    /** Active */
+    active: number;
+    /** Due Soon */
+    due_soon: number;
+    /** Overdue */
+    overdue: number;
   };
 }

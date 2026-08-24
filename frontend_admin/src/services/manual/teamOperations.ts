@@ -74,6 +74,7 @@ export type TaskAssignment = {
   task_status__mapping: string;
   team_id?: number | null;
   team_name?: string | null;
+  creator?: UserSummary | null;
   assignee: UserSummary;
   status: TaskAssignmentStatus;
   status__mapping: string;
@@ -133,6 +134,22 @@ export type DailyDashboard = {
   urgent_items: TaskAssignment[];
 };
 
+export type WorkTaskSummary = {
+  total: number;
+  active: number;
+  due_soon: number;
+  overdue: number;
+};
+
+export type TaskAssignmentSummary = {
+  pending: number;
+  in_progress: number;
+  due_soon: number;
+  overdue: number;
+};
+
+export type TaskDueState = 'due_soon' | 'overdue';
+
 export type TeamOperationsCapabilities = {
   announcement_organization_manage: boolean;
   announcement_team_ids: number[];
@@ -155,6 +172,7 @@ export type TaskListParams = {
   status?: WorkTaskStatus;
   priority?: TaskPriority;
   keyword?: string;
+  due_state?: TaskDueState;
   mine?: boolean;
 };
 
@@ -162,7 +180,17 @@ export type AssignmentListParams = {
   page?: number;
   page_size?: number;
   status?: TaskAssignmentStatus;
+  team_id?: number;
+  priority?: TaskPriority;
+  keyword?: string;
+  due_state?: TaskDueState;
   overdue?: boolean;
+};
+
+export type TaskSummaryParams = {
+  team_id?: number;
+  priority?: TaskPriority;
+  keyword?: string;
 };
 
 export type TaskAssigneeListParams = {
@@ -227,6 +255,13 @@ export function listWorkTasks(params: TaskListParams = {}) {
   });
 }
 
+export function getWorkTaskSummary(params: TaskSummaryParams = {}) {
+  return request<WorkTaskSummary>(`${BASE_PATH}/tasks/summary/`, {
+    method: 'GET',
+    params,
+  });
+}
+
 export function createWorkTask(payload: WorkTaskInput) {
   return request<WorkTask>(`${BASE_PATH}/tasks/`, {
     method: 'POST',
@@ -249,6 +284,13 @@ export function cancelWorkTask(taskId: number) {
 export function listTaskAssignments(params: AssignmentListParams = {}) {
   return request<PageResult<TaskAssignment>>(
     `${BASE_PATH}/task-assignments/`,
+    { method: 'GET', params },
+  );
+}
+
+export function getTaskAssignmentSummary(params: TaskSummaryParams = {}) {
+  return request<TaskAssignmentSummary>(
+    `${BASE_PATH}/task-assignments/summary/`,
     { method: 'GET', params },
   );
 }

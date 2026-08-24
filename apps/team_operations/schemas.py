@@ -92,6 +92,7 @@ class TaskAssignmentOut(Schema):
     task_status__mapping: str
     team_id: int | None = None
     team_name: str | None = None
+    creator: UserSummaryOut | None = None
     assignee: UserSummaryOut
     status: str
     status__mapping: str
@@ -139,6 +140,17 @@ class TaskAssignmentOut(Schema):
     @staticmethod
     def resolve_team_name(obj) -> str | None:
         return obj.task.team.name if obj.task.team_id else None
+
+    @staticmethod
+    def resolve_creator(obj) -> UserSummaryOut | None:
+        creator = obj.task.creator
+        if creator is None:
+            return None
+        return UserSummaryOut(
+            id=obj.task.creator_id,
+            username=creator.username,
+            full_name=(creator.get_full_name() or "").strip() or creator.username,
+        )
 
     @staticmethod
     def resolve_assignee(obj) -> UserSummaryOut:
@@ -231,6 +243,20 @@ class DailyDashboardOut(Schema):
     completed_today: int
     unacknowledged_announcements: int
     urgent_items: list[TaskAssignmentOut] = Field(default_factory=list)
+
+
+class WorkTaskSummaryOut(Schema):
+    total: int
+    active: int
+    due_soon: int
+    overdue: int
+
+
+class TaskAssignmentSummaryOut(Schema):
+    pending: int
+    in_progress: int
+    due_soon: int
+    overdue: int
 
 
 class TeamOperationsCapabilitiesOut(Schema):
