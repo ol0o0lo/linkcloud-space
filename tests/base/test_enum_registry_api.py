@@ -1,10 +1,14 @@
 from django.test import TestCase
+
 from tests.api_helpers import api_data
 
 
 class TestEnumRegistryAPI(TestCase):
     def test_list_selected_enums(self):
-        response = self.client.get("/api/enums/", {"keys": "accounts.admin_user_role,accounts.phone_country_code,accounts.real_name_status,wallet.withdrawal_status"})
+        response = self.client.get(
+            "/api/enums/",
+            {"keys": "accounts.admin_user_role,accounts.phone_country_code,accounts.real_name_status,house.house_status,wallet.withdrawal_status"},
+        )
 
         data = api_data(response)
 
@@ -16,6 +20,13 @@ class TestEnumRegistryAPI(TestCase):
         assert {"label": "+86 (中国)", "value": "+86"} in data["accounts.phone_country_code"]
         assert data["accounts.real_name_status"][0] == {"label": "未实名", "value": "unverified"}
         assert {"label": "已实名", "value": "verified"} in data["accounts.real_name_status"]
+        assert data["house.house_status"] == [
+            {"label": "空置", "value": "vacant"},
+            {"label": "招租", "value": "listed"},
+            {"label": "已租", "value": "rented"},
+            {"label": "装修", "value": "renovating"},
+            {"label": "已停用", "value": "inactive"},
+        ]
         assert {"label": "待审核", "value": "pending_review"} in data["wallet.withdrawal_status"]
 
     def test_list_all_enums_when_keys_missing(self):

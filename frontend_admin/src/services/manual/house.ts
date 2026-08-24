@@ -18,6 +18,7 @@ import {
   appsHouseApiGetHouse,
   appsHouseApiGetLease,
   appsHouseApiGetPropertyRentalTagSuggestions,
+  appsHouseApiGetStaffResponsibility,
   appsHouseApiGetViewingRecord,
   appsHouseApiListBuildings,
   appsHouseApiListBuildingMap,
@@ -73,6 +74,7 @@ export type ContactOut = API.ContactOut & {
   roles__mapping?: string[];
 };
 export type HouseOut = API.HouseOut & {
+  building: API.HouseOut['building'] & { elevator: boolean };
   orientation__mapping?: string;
   decoration__mapping?: string;
   status__mapping?: string;
@@ -134,6 +136,8 @@ export const houseApi = {
 
   listStaffResponsibilities: (params?: QueryParams) =>
     appsHouseApiListStaffResponsibilities((params ?? {}) as API.appsHouseApiListStaffResponsibilitiesParams) as Promise<PageResult<PropertyResponsibilityOut>>,
+  getStaffResponsibility: (memberId: number) =>
+    appsHouseApiGetStaffResponsibility({ member_id: memberId }) as Promise<PropertyResponsibilityOut>,
   replaceStaffResponsibilities: (
     memberId: number,
     data: PropertyResponsibilityUpdateIn,

@@ -278,7 +278,7 @@ export async function appsHouseApiListEstates(
   params: API.appsHouseApiListEstatesParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.PagedEstateOut>("/api/house/estates/", {
+  return request<API.PagedEstateDetailOut>("/api/house/estates/", {
     method: "GET",
     params: {
       // page has a default value: 1
@@ -377,6 +377,8 @@ export async function appsHouseApiListHouses(
   return request<API.PagedHouseOut>("/api/house/houses/", {
     method: "GET",
     params: {
+      // ordering has a default value: building
+      ordering: "building",
       // page has a default value: 1
       page: "1",
       ...params,
@@ -518,6 +520,23 @@ export async function appsHouseApiListStaffResponsibilities(
   );
 }
 
+/** 获取员工房源职责 GET /api/house/staff-responsibilities/${param0}/ */
+export async function appsHouseApiGetStaffResponsibility(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiGetStaffResponsibilityParams,
+  options?: { [key: string]: any }
+) {
+  const { member_id: param0, ...queryParams } = params;
+  return request<API.PropertyResponsibilityMemberOut>(
+    `/api/house/staff-responsibilities/${param0}/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 替换员工房源职责 PUT /api/house/staff-responsibilities/${param0}/ */
 export async function appsHouseApiReplaceStaffResponsibilities(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -535,6 +554,24 @@ export async function appsHouseApiReplaceStaffResponsibilities(
       },
       params: { ...queryParams },
       data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取团队员工房源职责汇总 GET /api/house/staff-responsibilities/summary/ */
+export async function appsHouseApiGetStaffResponsibilitySummary(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiGetStaffResponsibilitySummaryParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.PropertyResponsibilitySummaryOut>(
+    "/api/house/staff-responsibilities/summary/",
+    {
+      method: "GET",
+      params: {
+        ...params,
+      },
       ...(options || {}),
     }
   );

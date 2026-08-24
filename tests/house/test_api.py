@@ -300,6 +300,24 @@ class HouseApiTestCase(TestCase):
         self.assertNotIn(house.pk, {item["id"] for item in api_data(self.client.get("/api/house/houses/"))["items"]})
         self.assertEqual(self.client.get(f"/api/house/houses/{house.pk}/").status_code, 404)
 
+    def test_house_list_exposes_kitchen_and_balcony_counts(self):
+        house = House.objects.create(
+            building=self.building,
+            room_number="1802",
+            bedrooms=2,
+            living_rooms=1,
+            bathrooms=1,
+            kitchens=1,
+            balconies=2,
+        )
+
+        response = self.client.get("/api/house/houses/?page=1&page_size=100")
+
+        self.assertEqual(response.status_code, 200)
+        item = next(item for item in api_data(response)["items"] if item["id"] == house.pk)
+        self.assertEqual(item["kitchens"], 1)
+        self.assertEqual(item["balconies"], 2)
+
     def test_house_summary_labels_support_estate_and_standalone_buildings(self):
         estate_house = House.objects.create(building=self.building, room_number="1801")
         standalone_house = self.make_standalone_house()
@@ -579,7 +597,122 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["total"], 1)
         self.assertEqual([item["id"] for item in payload["items"]], [other_house.pk])
 
+    def test_list_houses_ordering_supports_multiple_fields_and_nulls_last(self):
+        high_rent_later_room = House.objects.create(building=self.building, room_number="0202", asking_rent=Decimal("5000"))
+        high_rent_earlier_room = House.objects.create(building=self.building, room_number="0101", asking_rent=Decimal("5000"))
+        low_rent = House.objects.create(building=self.building, room_number="0303", asking_rent=Decimal("3000"))
+        missing_rent = House.objects.create(building=self.building, room_number="0001", asking_rent=None)
+
+        response = self.client.get("/api/house/houses/?ordering=-asking_rent,room_number&page=1&page_size=100")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in api_data(response)["items"]],
+            [high_rent_earlier_room.pk, high_rent_later_room.pk, low_rent.pk, missing_rent.pk],
+        )
+
+    def test_list_houses_ordering_supports_composite_layout_and_business_status(self):
+        compact = House.objects.create(
+            building=self.building,
+            room_number="0101",
+            bedrooms=1,
+            living_rooms=1,
+            bathrooms=1,
+            area=Decimal("55"),
+            status=HouseStatus.RENTED,
+        )
+        family = House.objects.create(
+            building=self.building,
+            room_number="0202",
+            bedrooms=2,
+            living_rooms=1,
+            bathrooms=1,
+            area=Decimal("88"),
+            status=HouseStatus.VACANT,
+        )
+        missing_layout = House.objects.create(building=self.building, room_number="0303", status=HouseStatus.RENOVATING)
+        listed = House.objects.create(
+            building=self.building,
+            room_number="0404",
+            bedrooms=3,
+            living_rooms=2,
+            bathrooms=2,
+            area=Decimal("120"),
+            status=HouseStatus.LISTED,
+        )
+
+        layout_response = self.client.get("/api/house/houses/?ordering=layout&page=1&page_size=100")
+        status_response = self.client.get("/api/house/houses/?ordering=status&page=1&page_size=100")
+
+        self.assertEqual(layout_response.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in api_data(layout_response)["items"]],
+            [compact.pk, family.pk, listed.pk, missing_layout.pk],
+        )
+        self.assertEqual(status_response.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in api_data(status_response)["items"]],
+            [listed.pk, family.pk, missing_layout.pk, compact.pk],
+        )
+
+    def test_list_houses_ordering_keeps_nullable_fields_last_in_both_directions(self):
+        first_landlord = Contact.objects.create(organization=self.org, name="Alpha", phone="13800138001", roles=[ContactRole.LANDLORD])
+        second_landlord = Contact.objects.create(organization=self.org, name="Zulu", phone="13800138002", roles=[ContactRole.LANDLORD])
+        lower = House.objects.create(
+            building=self.building,
+            landlord=first_landlord,
+            room_number="0101",
+            deposit_amount=Decimal("1000"),
+            area=Decimal("50"),
+            floor=2,
+        )
+        higher = House.objects.create(
+            building=self.building,
+            landlord=second_landlord,
+            room_number="0202",
+            deposit_amount=Decimal("2000"),
+            area=Decimal("100"),
+            floor=10,
+        )
+        missing = House.objects.create(building=self.building, room_number="0303")
+
+        expectations = {
+            "deposit_amount": [lower.pk, higher.pk, missing.pk],
+            "-area": [higher.pk, lower.pk, missing.pk],
+            "floor": [lower.pk, higher.pk, missing.pk],
+            "-landlord": [higher.pk, lower.pk, missing.pk],
+        }
+        for ordering, expected_ids in expectations.items():
+            with self.subTest(ordering=ordering):
+                response = self.client.get(f"/api/house/houses/?ordering={ordering}&page=1&page_size=100")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual([item["id"] for item in api_data(response)["items"]], expected_ids)
+
+    def test_list_houses_ordering_rejects_invalid_values(self):
+        invalid_values = ["unknown", "", "room_number,,status", "room_number,status,area,floor"]
+
+        for ordering in invalid_values:
+            with self.subTest(ordering=ordering):
+                response = self.client.get("/api/house/houses/", {"ordering": ordering})
+                self.assertEqual(response.status_code, 400)
+
+    def test_list_houses_openapi_describes_ordering_contract(self):
+        from config.api import api
+
+        schema = api.get_openapi_schema(path_prefix="/api")
+        parameters = schema["paths"]["/api/house/houses/"]["get"]["parameters"]
+        ordering = next(parameter for parameter in parameters if parameter["name"] == "ordering")
+
+        self.assertFalse(ordering["required"])
+        self.assertEqual(ordering["schema"]["type"], "string")
+        self.assertEqual(ordering["schema"]["default"], "building")
+        self.assertEqual(ordering["schema"]["pattern"], r"^-?[a-z_]+(?:,-?[a-z_]+){0,2}$")
+        self.assertEqual(ordering["example"], "-asking_rent,room_number")
+        self.assertIn("允许字段", ordering["description"])
+
     def test_admin_list_responses_include_display_labels(self):
+        self.building.elevator = True
+        self.building.save(update_fields=["elevator"])
         landlord = Contact.objects.create(organization=self.org, name="展示房东", phone="13800138001", roles=[ContactRole.LANDLORD])
         tenant = Contact.objects.create(organization=self.org, name="展示租客", phone="13900139001", roles=[ContactRole.TENANT])
         house = House.objects.create(
@@ -627,12 +760,13 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(house_payload["building_id"], self.building.pk)
         self.assertEqual(house_payload["building"]["id"], self.building.pk)
         self.assertEqual(house_payload["building"]["name"], "1栋")
+        self.assertIs(house_payload["building"]["elevator"], True)
         self.assertEqual(house_payload["building"]["estate"]["id"], self.estate.pk)
         self.assertEqual(house_payload["building"]["estate"]["display_name"], "云岸")
         self.assertEqual(house_payload["landlord_id"], landlord.pk)
         self.assertEqual(house_payload["landlord"]["id"], landlord.pk)
         self.assertEqual(house_payload["landlord"]["name"], "展示房东")
-        self.assertEqual(house_payload["landlord"]["phone"], "+8613800138001")
+        self.assertEqual(house_payload["landlord"]["phone"], "13800138001")
         self.assertNotIn("building_name", house_payload)
         self.assertNotIn("estate_name", house_payload)
         self.assertNotIn("landlord_name", house_payload)
@@ -656,7 +790,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(viewing_payload["contact_id"], tenant.pk)
         self.assertEqual(viewing_payload["contact"]["id"], tenant.pk)
         self.assertEqual(viewing_payload["contact"]["name"], "展示租客")
-        self.assertEqual(viewing_payload["contact"]["phone"], "+8613900139001")
+        self.assertEqual(viewing_payload["contact"]["phone"], "13900139001")
         self.assertNotIn("house_label", viewing_payload)
         self.assertNotIn("contact_name", viewing_payload)
         self.assertNotIn("contact_phone", viewing_payload)
@@ -668,7 +802,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(lease_payload["tenant_id"], tenant.pk)
         self.assertEqual(lease_payload["tenant"]["id"], tenant.pk)
         self.assertEqual(lease_payload["tenant"]["name"], "展示租客")
-        self.assertEqual(lease_payload["tenant"]["phone"], "+8613900139001")
+        self.assertEqual(lease_payload["tenant"]["phone"], "13900139001")
         self.assertEqual(lease_payload["source_viewing_record_id"], viewing.pk)
         self.assertEqual(lease_payload["source_viewing_record"]["id"], viewing.pk)
         self.assertEqual(lease_payload["source_viewing_record"]["label"], "展示客户 / 13900139001")
@@ -753,6 +887,11 @@ class HouseApiTestCase(TestCase):
         building_counts = {item["id"]: item["counts"] for item in api_data(buildings_response)["items"]}
         self.assertEqual(building_counts[self.building.pk], {"total": 3, "vacant": 1, "listed": 1, "rented": 1, "renovating": 0})
         self.assertEqual(building_counts[second_building.pk], {"total": 1, "vacant": 0, "listed": 0, "rented": 0, "renovating": 1})
+
+        estates_response = self.client.get("/api/house/estates/")
+        estate_item = next(item for item in api_data(estates_response)["items"] if item["id"] == self.estate.pk)
+        self.assertEqual(estate_item["building_count"], 2)
+        self.assertEqual(estate_item["counts"], expected_counts)
 
     def test_building_map_detail_orders_active_houses_by_floor_and_natural_room_number(self):
         self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")

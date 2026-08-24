@@ -31,9 +31,9 @@ class HouseDecoration(StrChoices):
 
 class HouseStatus(StrChoices):
     VACANT = "vacant", "空置"
-    LISTED = "listed", "招租中"
+    LISTED = "listed", "招租"
     RENTED = "rented", "已租"
-    RENOVATING = "renovating", "装修中"
+    RENOVATING = "renovating", "装修"
     INACTIVE = "inactive", "已停用"
 
 

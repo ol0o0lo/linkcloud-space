@@ -114,6 +114,49 @@ class PropertyResponsibilityApiTestCase(TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertTrue(PropertyResponsibility.objects.filter(member=self.member, estate=self.estate).exists())
 
+    def test_get_single_member_responsibility(self):
+        PropertyResponsibility.objects.create(organization=self.org, member=self.member, estate=self.estate)
+
+        response = self.client.get(f"/api/house/staff-responsibilities/{self.member.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        self.assertEqual(payload["member_id"], self.member.pk)
+        self.assertEqual([item["id"] for item in payload["estates"]], [self.estate.pk])
+
+    def test_list_responsibilities_filters_by_team(self):
+        team = baker.make("teams.Team", organization=self.org)
+        team.members.add(self.employee)
+
+        response = self.client.get(
+            "/api/house/staff-responsibilities/",
+            {"page": 1, "page_size": 20, "team_id": team.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["member_id"] for item in api_data(response)["items"]], [self.member.pk])
+
+    def test_team_responsibility_summary_aggregates_all_members(self):
+        team = baker.make("teams.Team", organization=self.org)
+        team.members.add(self.employee, self.building_employee)
+        PropertyResponsibility.objects.create(organization=self.org, member=self.member, estate=self.estate)
+
+        response = self.client.get(
+            "/api/house/staff-responsibilities/summary/",
+            {"team_id": team.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            api_data(response),
+            {
+                "member_count": 2,
+                "configured_member_count": 1,
+                "unconfigured_member_count": 1,
+                "responsible_house_count_sum": 3,
+            },
+        )
+
     def test_model_rejects_non_landlord_contact_as_target(self):
         tenant = Contact.objects.create(organization=self.org, name="租客", phone="13800138003", roles=[ContactRole.TENANT])
 

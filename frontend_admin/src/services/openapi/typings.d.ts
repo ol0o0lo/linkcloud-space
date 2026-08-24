@@ -672,6 +672,14 @@ declare namespace API {
     house_id: number;
   };
 
+  type appsHouseApiGetStaffResponsibilityParams = {
+    member_id: number;
+  };
+
+  type appsHouseApiGetStaffResponsibilitySummaryParams = {
+    team_id: number;
+  };
+
   type appsHouseApiGetViewingRecordParams = {
     record_id: number;
   };
@@ -781,6 +789,7 @@ declare namespace API {
 
   type appsHouseApiListStaffResponsibilitiesParams = {
     keyword?: string | null;
+    team_id?: number | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1432,6 +1441,8 @@ declare namespace API {
     /** Estate Id */
     estate_id: number | null;
     estate: EstateSummaryOut | null;
+    /** Elevator */
+    elevator: boolean;
     /** Address */
     address: string;
     /** Lat */
@@ -2688,9 +2699,9 @@ declare namespace API {
     page_size: number;
   };
 
-  type PagedEstateMapMarkerOut = {
+  type PagedEstateDetailOut = {
     /** Items */
-    items: EstateMapMarkerOut[];
+    items: EstateDetailOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2699,9 +2710,9 @@ declare namespace API {
     page_size: number;
   };
 
-  type PagedEstateOut = {
+  type PagedEstateMapMarkerOut = {
     /** Items */
-    items: EstateOut[];
+    items: EstateMapMarkerOut[];
     /** Total */
     total: number;
     /** Page */
@@ -3006,6 +3017,17 @@ declare namespace API {
     estates: EstateSummaryOut[];
     /** Responsible House Count */
     responsible_house_count: number;
+  };
+
+  type PropertyResponsibilitySummaryOut = {
+    /** Member Count */
+    member_count: number;
+    /** Configured Member Count */
+    configured_member_count: number;
+    /** Unconfigured Member Count */
+    unconfigured_member_count: number;
+    /** Responsible House Count Sum */
+    responsible_house_count_sum: number;
   };
 
   type PropertyResponsibilityUpdateIn = {

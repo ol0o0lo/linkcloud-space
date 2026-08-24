@@ -174,12 +174,8 @@ class Contact(CreateUpdateTimeModelMixin):
 
     def clean(self):
         super().clean()
-        from apps.accounts.models import normalize_phone
-
-        normalized_phone = normalize_phone(self.phone)
-        if not normalized_phone:
+        if not self.phone or not self.phone.strip():
             raise ValidationError({"phone": "联系人手机号不能为空。"})
-        self.phone = normalized_phone
         if not isinstance(self.roles, list):
             raise ValidationError({"roles": "联系人角色必须是列表。"})
         invalid = sorted(set(self.roles) - set(ContactRole.values))

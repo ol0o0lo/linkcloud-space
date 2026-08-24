@@ -153,6 +153,7 @@ class BuildingSummaryOut(Schema):
     name: str
     estate_id: int | None
     estate: EstateSummaryOut | None
+    elevator: bool
     address: str
     lat: Decimal | None
     lng: Decimal | None
@@ -392,6 +393,13 @@ class PropertyResponsibilityMemberOut(Schema):
         if responsibilities is None:
             responsibilities = obj.property_responsibilities.select_related("estate").all()
         return [item.estate for item in responsibilities if item.estate_id]
+
+
+class PropertyResponsibilitySummaryOut(Schema):
+    member_count: int
+    configured_member_count: int
+    unconfigured_member_count: int
+    responsible_house_count_sum: int
 
 
 class VacancySyncBuildingOverrideIn(Schema):

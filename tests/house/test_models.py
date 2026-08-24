@@ -230,16 +230,18 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         estate.refresh_from_db()
         self.assertEqual(estate.address, "")
 
-    def test_contact_phone_unique_inside_org_but_reusable_across_orgs(self):
+    def test_contact_phone_preserves_input_and_is_unique_by_exact_value_inside_org(self):
         contact = self.make_contact(phone="13800138001")
         Contact.objects.create(organization=self.other_org, name="异租户", phone="13800138001", roles=[ContactRole.LANDLORD])
 
         contact.refresh_from_db()
-        self.assertEqual(contact.phone, "+8613800138001")
+        self.assertEqual(contact.phone, "13800138001")
         with self.assertRaises(ValidationError):
             Contact.objects.create(organization=self.org, name="重复", phone="13800138001", roles=[ContactRole.TENANT])
-        with self.assertRaises(ValidationError):
-            Contact.objects.create(organization=self.org, name="格式重复", phone="+8613800138001", roles=[ContactRole.TENANT])
+        formatted = Contact.objects.create(organization=self.org, name="国际格式", phone="+8613800138001", roles=[ContactRole.TENANT])
+        foreign = Contact.objects.create(organization=self.org, name="国外联系人", phone="12025550123", roles=[ContactRole.TENANT])
+        self.assertEqual(formatted.phone, "+8613800138001")
+        self.assertEqual(foreign.phone, "12025550123")
 
     def test_claim_landlord_contact_is_idempotent_org_scoped_and_does_not_steal_bound_contact(self):
         landlord = self.make_contact(phone="13800138002")

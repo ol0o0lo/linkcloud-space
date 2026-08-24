@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import Literal
 
 from django.db import transaction
-from django.db.models import Avg, Case, CharField, Count, DecimalField, Exists, F, IntegerField, Max, Min, OuterRef, Prefetch, Q, Subquery, Value, When
+from django.db.models import Avg, Case, CharField, Count, DecimalField, Exists, F, IntegerField, Max, Min, OuterRef, Prefetch, Q, Subquery, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 
@@ -10,12 +10,13 @@ from ninja import Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
-from apps.access.constants import OrganizationPermission
-from apps.access.permissions import require_org_permission
+from apps.access.constants import OrganizationPermission, TeamPermission
+from apps.access.permissions import require_org_permission, require_team_permission
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_org_selected
 from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, PropertyResponsibility, ViewingRecord
+from apps.house.ordering import HOUSE_DEFAULT_ORDERING, HOUSE_ORDERING_DESCRIPTION, HOUSE_ORDERING_PATTERN, apply_house_ordering
 from apps.house.schemas import (
     BuildingIn,
     BuildingInventoryOut,
@@ -43,6 +44,7 @@ from apps.house.schemas import (
     LeaseOut,
     LeasePatchIn,
     PropertyResponsibilityMemberOut,
+    PropertyResponsibilitySummaryOut,
     PropertyResponsibilityUpdateIn,
     PublicHouseDetailOut,
     PublicHouseFiltersOut,
@@ -298,12 +300,41 @@ def _property_responsibility_members_qs(org):
 
 @router.get("/staff-responsibilities/", response=list[PropertyResponsibilityMemberOut], summary="获取员工房源职责列表")
 @paginate(LegacyPagination)
-def list_staff_responsibilities(request, keyword: str | None = Query(None)):
+def list_staff_responsibilities(
+    request,
+    keyword: str | None = Query(None),
+    team_id: int | None = Query(None),
+):
     org = require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     qs = _property_responsibility_members_qs(org)
     if keyword:
         qs = qs.filter(Q(user__first_name__icontains=keyword) | Q(user__last_name__icontains=keyword) | Q(user__username__icontains=keyword) | Q(user__email__icontains=keyword))
+    if team_id is not None:
+        team = require_team_permission(request, team_id, TeamPermission.VIEW)
+        qs = qs.filter(user__teams=team)
     return qs
+
+
+@router.get("/staff-responsibilities/summary/", response=PropertyResponsibilitySummaryOut, summary="获取团队员工房源职责汇总")
+def get_staff_responsibility_summary(request, team_id: int = Query(...)):
+    org = require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
+    team = require_team_permission(request, team_id, TeamPermission.VIEW)
+    qs = _property_responsibility_members_qs(org).filter(user__teams=team).distinct()
+    member_count = qs.count()
+    configured_member_count = qs.filter(property_responsibilities__isnull=False).distinct().count()
+    responsible_house_count_sum = qs.aggregate(total=Coalesce(Sum("responsible_house_count"), Value(0), output_field=IntegerField()))["total"]
+    return {
+        "member_count": member_count,
+        "configured_member_count": configured_member_count,
+        "unconfigured_member_count": member_count - configured_member_count,
+        "responsible_house_count_sum": responsible_house_count_sum,
+    }
+
+
+@router.get("/staff-responsibilities/{member_id}/", response=PropertyResponsibilityMemberOut, summary="获取员工房源职责")
+def get_staff_responsibility(request, member_id: int):
+    org = require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
+    return get_object_or_404(_property_responsibility_members_qs(org), pk=member_id)
 
 
 @router.put("/staff-responsibilities/{member_id}/", response=PropertyResponsibilityMemberOut, summary="替换员工房源职责")
@@ -335,13 +366,20 @@ def replace_staff_responsibilities(request, member_id: int, payload: PropertyRes
     return _property_responsibility_members_qs(org).get(pk=member.pk)
 
 
-@router.get("/estates/", response=list[EstateOut], summary="获取项目片区列表")
+@router.get("/estates/", response=list[EstateDetailOut], summary="获取项目片区列表")
 @paginate(LegacyPagination)
 def list_estates(request, keyword: str | None = Query(None)):
     org = require_org_selected(request)
-    qs = Estate.objects.filter(organization=org).order_by("name", "id")
+    qs = (
+        Estate.objects.filter(organization=org)
+        .annotate(
+            building_count=Count("buildings", distinct=True),
+            **_inventory_annotations("buildings__houses"),
+        )
+        .order_by("name", "id")
+    )
     if keyword:
-        qs = qs.filter(name__icontains=keyword) | qs.filter(display_name__icontains=keyword)
+        qs = qs.filter(Q(name__icontains=keyword) | Q(display_name__icontains=keyword))
     return qs
 
 
@@ -713,9 +751,15 @@ def list_houses(
     responsible_member_id: int | None = Query(None),
     status: str | None = Query(None),
     keyword: str | None = Query(None),
+    ordering: str = Query(
+        HOUSE_DEFAULT_ORDERING,
+        description=HOUSE_ORDERING_DESCRIPTION,
+        pattern=HOUSE_ORDERING_PATTERN,
+        example="-asking_rent,room_number",
+    ),
 ):
     org = require_org_selected(request)
-    qs = House.objects.filter(building__organization=org).select_related("building__estate", "landlord").order_by("building__estate__name", "building__name", "room_number")
+    qs = House.objects.filter(building__organization=org).select_related("building__estate", "landlord")
     if estate_id:
         qs = qs.filter(building__estate_id=estate_id)
     if building_id:
@@ -733,7 +777,7 @@ def list_houses(
             | Q(landlord__name__icontains=keyword)
             | Q(landlord__phone__icontains=keyword)
         )
-    return qs
+    return apply_house_ordering(qs, ordering)
 
 
 @router.post("/houses/", response={201: HouseOut}, summary="创建房源")
