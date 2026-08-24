@@ -364,21 +364,24 @@ const AnalyticsPage: React.FC = () => {
                 width: 220,
                 render: (_, record) => <HouseRankingTarget record={record} />,
               },
-              { title: '总行为', dataIndex: 'total', width: 100 },
+              { title: '总行为', dataIndex: 'total', width: 100, align: 'right' },
               {
                 title: '访客',
                 dataIndex: 'unique_visitors',
                 width: 100,
+                align: 'right',
                 render: visitorValue,
               },
               {
                 title: '浏览',
                 width: 100,
+                align: 'right',
                 render: (_, record) => record.metrics['house.view'] || 0,
               },
               {
                 title: '咨询',
                 width: 100,
+                align: 'right',
                 render: (_, record) =>
                   (record.metrics['house.phone_click'] || 0) +
                   (record.metrics['house.online_consult_click'] || 0),
@@ -386,11 +389,13 @@ const AnalyticsPage: React.FC = () => {
               {
                 title: '带看',
                 width: 100,
+                align: 'right',
                 render: (_, record) => record.metrics['viewing.requested'] || 0,
               },
               {
                 title: '租约',
                 width: 100,
+                align: 'right',
                 render: (_, record) => record.metrics['lease.created'] || 0,
               },
             ]}

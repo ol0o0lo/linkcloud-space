@@ -261,7 +261,7 @@ declare namespace API {
     /** Count */
     count: number;
     /** Unique Visitors */
-    unique_visitors: number;
+    unique_visitors: number | null;
   };
 
   type AnalyticsOverviewOut = {
@@ -272,7 +272,7 @@ declare namespace API {
     /** Total Events */
     total_events: number;
     /** Unique Visitors */
-    unique_visitors: number;
+    unique_visitors: number | null;
     /** Metrics */
     metrics: AnalyticsMetricOut[];
   };
@@ -296,7 +296,7 @@ declare namespace API {
     /** Total */
     total: number;
     /** Unique Visitors */
-    unique_visitors: number;
+    unique_visitors: number | null;
     /** Metrics */
     metrics: Record<string, any>;
   };
