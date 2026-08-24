@@ -1,28 +1,37 @@
-# 签约业绩、佣金审核与员工收益设计
+# 签约业绩、应计佣金认定与员工收益设计
 
 日期：2026-07-19
+最近修订：2026-08-24
 状态：设计评审中（未实施）
 
 本文是实施前设计稿，不描述当前系统已经具备的能力。当前事实仍以业务代码、迁移和事实型文档为准。
 
 ## 1. 结论
 
-新增独立的 `performance` 业务域，负责签约业绩认定、多人业绩分配、佣金审核、员工排行和人工收益调整。实施前必须先补齐租户内稳定员工身份、稳定团队键和组织时区，否则历史排行、审核快照和期间统计都没有可靠基础。
+新增独立的 `performance` 业务域，负责签约业绩认定、多人业绩分配、应计佣金审核、员工排行和人工收益调整。实施前必须先补齐租户内稳定员工身份、稳定团队键和组织时区，否则历史排行、审核快照和期间统计都没有可靠基础。
 
-四个业务域分别保存不同事实：
+五个业务域分别保存不同事实：
 
 | 业务域 | 唯一事实 |
 |---|---|
 | `house.Lease` | 合同事实：房源、租客、租期、合同租金、签约时间、合同状态 |
-| `performance` | 认定事实：谁贡献了多少业绩、应计多少佣金、是否审核生效 |
+| `performance` | 认定事实：谁贡献了多少业绩、佣金池口径、应计多少佣金、是否审核生效 |
+| `staff_settlements`（后续） | 结算事实：哪些应计收益在哪个周期被结算、应付多少、是否已经支付 |
 | `finance`（后续） | 经营事实：公司收入、成本、收款、付款和净收益 |
-| `wallet` | 资金事实：个人可用余额、冻结余额、提现和实际出款 |
+| `wallet` / `payments` | 资金事实：个人可用余额、冻结余额、提现、付款交易和实际出款 |
 
-业绩审核通过只形成“已认定应计收益”，不自动写入钱包，也不代表已经发工资或完成付款。
+数据方向固定为：
+
+```text
+Lease → Performance RecognitionEntry → Staff Settlements → Wallet / Payments
+                                      ↘ Finance 成本投影
+```
+
+业绩审核通过只形成“已认定应计收益”，不自动写入钱包，也不代表已经结算、发工资或完成付款。必须始终区分“已认定”“已结算”“已发放”三个状态事实。
 
 不使用 `Bill`、`BillEntry` 或钱包流水作为业绩排行的权威来源。未来财务模块可以读取已认定佣金作为公司成本，但不能反向决定业绩审核和员工排行。
 
-一期所有金额固定使用 `CNY`。排行榜和台账始终按租户内稳定的 `subject_key`、`team_key` 聚合，`user_id`、员工姓名、团队名称和可空外键只用于当前展示或跳转。
+一期所有金额固定使用 `CNY`。`performance` 与未来 `staff_settlements` 使用精确十进制金额并统一保留到分；只有在钱包入账或支付接缝才通过统一转换器换算为整数分。排行榜和台账始终按租户内稳定的 `subject_key`、`team_key` 聚合，`user_id`、员工姓名、团队名称和可空外键只用于当前展示或跳转。
 
 ## 2. 要解决的问题
 
@@ -30,7 +39,8 @@
 
 - 从租约登记签约业绩。
 - 一笔签约支持一个或多个协作员工。
-- 明确每名员工的业绩权重、折算业绩额和佣金。
+- 明确区分本单业绩额、可分佣佣金池、员工佣金基数和最终应计佣金。
+- 明确每名员工的业绩权重、折算业绩额和佣金计算过程。
 - 员工提交，财务或有权限人员审核通过或驳回。
 - 驳回、修改、重新提交和已生效后的变更均保留历史。
 - 员工排行只统计当前已生效口径。
@@ -39,6 +49,8 @@
 - 用户或组织成员记录被删除后，不会把多名历史员工合并到同一个空身份。
 - 团队归档、改名后仍能按原团队稳定统计历史业绩。
 - 业绩额明确记录来源口径、计算输入、公式版本、组织时区和币种快照。
+- 佣金池和员工佣金基数明确记录来源口径、计算输入、公式版本、人工原因和币种快照。
+- 为未来员工收益结算模块提供稳定的认定流水只读接口；是否已结算由结算模块自行保存，`performance` 不维护结算状态。
 - 并发提交、重复点击和重复审核不能产生重复业绩或佣金。
 
 ## 3. 非目标
@@ -46,12 +58,14 @@
 一期不包含：
 
 - 基本工资、考勤、社保、公积金、个税和工资单。
-- 发薪周期、工资结算批次和银行代发。
+- 员工收益结算批次、发薪周期、线下付款登记、银行代发和微信直接出款。
 - 佣金自动进入钱包或自动提现。
 - 通用公式 DSL 或可视化规则引擎。
 - 分员工逐条审核；一份业绩单必须整体通过或整体驳回。
 - 月度封账。审核通过的历史业绩可以回算原业绩归属期间。
 - 通用业务来源。第一期签约业绩只直接关联 `Lease`。
+
+一期只定义 `performance` 与未来 `staff_settlements` 的模块接缝，不在本设计中实现结算批次、付款状态或资金账户。
 
 “加/扣薪”在一期统一称为“收益调整”，只表示奖金、罚款、佣金补发或扣回，不表示完整工资核算。
 
@@ -77,7 +91,7 @@
 
 ### 4.5 业绩协作人
 
-`PerformanceContributor`，某个业绩版本中参与签约的租户员工，保存其业绩权重、折算业绩额、佣金计算快照和最终佣金。
+`PerformanceContributor`，某个业绩版本中参与签约的租户员工，保存其业绩权重、折算业绩额、佣金基数、佣金计算快照和最终应计佣金。
 
 ### 4.6 有效版本
 
@@ -93,11 +107,23 @@
 
 ### 4.9 幂等命令
 
-`PerformanceCommand`，模块内部的写命令幂等记录。它保存请求指纹和第一次可重放结果，包括成功结果或确定性业务错误；`PerformanceAction` 只记录审计时间线，不兼任幂等存储。
+`PerformanceCommand`，模块内部高风险写命令的幂等记录。它保存请求指纹和第一次可重放结果，包括成功结果或确定性业务错误；普通草稿保存不使用它，`PerformanceAction` 也只记录审计时间线，不兼任幂等存储。
 
 ### 4.10 员工收益台账
 
-指定期间内员工已生效佣金、佣金调整和其他收益调整的汇总。它不是钱包余额，也不是已发工资。
+指定期间内员工已生效佣金、佣金调整和其他收益调整的汇总。它不是已结算金额、钱包余额或已发工资。
+
+### 4.11 业绩额、佣金池与应计佣金
+
+- **业绩额**：用于成交贡献和排行的业务指标，默认来源于租约月租，不等于公司收入。
+- **佣金池**：本单可参与员工提成计算的金额基数，可以来源于月租、人工确认的服务费，未来也可以来源于财务收款事实。
+- **应计佣金**：业绩版本审核通过后，按佣金池、员工权重、比例或固定金额认定给员工的收益；它尚未进入结算或付款流程。
+
+三者必须分别保存和展示，禁止继续使用含义不清的单个 `profit`、`commission` 或“业绩金额”字段同时表达多个事实。
+
+### 4.12 员工收益结算
+
+未来 `staff_settlements` 模块负责把一批已认定收益按周期冻结、复核并确认应付金额。结算模块显式引用 `RecognitionEntry`，保存认定流水占用、正负结转、付款目标快照和付款状态；`performance` 不读取结算模型，也不根据结算或付款结果修改认定事实。
 
 ## 5. 模块形态
 
@@ -136,7 +162,7 @@ review_adjustment(*, organization_id, adjustment_id, actor_id, command: ReviewAd
 void_adjustment(*, organization_id, adjustment_id, actor_id, command: VoidAdjustmentCommand) -> CompensationAdjustmentView
 ```
 
-每个命令 DTO 都包含 `command_id`。修改既有资源的命令还必须包含 `expected_version`；审核命令只提交 `revision_id + expected_version`，不由客户端提交 `content_hash`。
+会创建新聚合、创建新版本、提交、审核、作废或生成认定流水的高风险命令 DTO 必须包含 `command_id`。`save_case_draft` 只保存当前草稿，不创建 `PerformanceCommand`，使用 `expected_version` 乐观锁即可；修改既有聚合的其他命令同时包含 `expected_version`。审核命令只提交 `revision_id + expected_version`，不由客户端提交 `content_hash`。
 
 正式查询接口：
 
@@ -151,7 +177,12 @@ get_adjustment(*, organization_id, adjustment_id, actor_id) -> CompensationAdjus
 list_adjustments(*, organization_id, actor_id, query: AdjustmentListQuery) -> Page[CompensationAdjustmentRow]
 get_ranking(*, organization_id, actor_id, query: RankingQuery) -> Page[RankingRow]
 get_statement(*, organization_id, actor_id, query: StatementQuery) -> Page[StatementRow]
+
+list_recognition_entries(*, organization_id, actor_id, query: RecognitionEntryQuery) -> Page[RecognitionEntryRow]
+get_recognition_entries_by_ids(*, organization_id, actor_id, entry_ids: list[int]) -> list[RecognitionEntryRow]
 ```
+
+认定流水查询支持按 `metric`、`unit`、`effective_on`、`posted_at`、`subject_key` 筛选，并统一使用 `page`、`page_size` 分页。它只返回权威流水及其稳定快照，不提供“未结算”筛选，因为认定流水是否已经被占用属于 `staff_settlements` 的唯一事实；结算模块应在自身的 `SettlementAllocation` 中保存引用并排除已占用流水。
 
 HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相信请求体自报租户。模块内部重新查询对象、校验租户作用域和权限，并在写命令中加锁。`api.py` 不得直接拼 ORM 查询或修改模型状态。
 
@@ -199,7 +230,9 @@ HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相
 
 `Organization` 增加非空 `timezone` 字段，使用 IANA 时区名称并校验 `zoneinfo.ZoneInfo`。一期默认和现有租户迁移值均为 `Asia/Shanghai`，后续允许租户设置中修改。
 
-一期金额币种固定为 `CNY`，但版本、收益调整和货币类认定流水仍显式保存币种快照。组织时区或系统默认时区以后变化，不得重算既有 `performance_date`、`effective_on` 或币种事实。
+一期金额币种固定为 `CNY`，但版本、收益调整和货币类认定流水仍显式保存币种快照。业务金额使用 `Decimal` 和固定两位小数，禁止使用二进制浮点数；组织时区或系统默认时区以后变化，不得重算既有 `performance_date`、`effective_on` 或币种事实。
+
+未来写入当前以整数分存储的 `wallet` 或 `payments` 时，只能在付款接缝调用一个统一的 `money_to_minor()` 转换器，并校验金额已经量化到分；不得由路由、页面或各业务模块分别实现金额换算。
 
 本设计中的当前用户外键和当前团队外键统一使用 `SET_NULL`，只负责页面跳转，不得级联删除业绩事实。员工权威引用使用 `OrganizationStaff` 的 `PROTECT` 外键和 `subject_key`；审计状态约束依赖稳定身份快照与时间戳，不能依赖以后可能置空的用户外键。
 
@@ -250,6 +283,10 @@ HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相
 | `performance_amount` | 本单总业绩额，非负 |
 | `performance_calculation_snapshot` | 口径、输入、公式版本、计算结果和来源指纹 |
 | `performance_manual_reason` | `manual` 时必填 |
+| `commission_pool_basis` | `monthly_rent`、`manual`、`finance_receipt` |
+| `commission_pool_amount` | 本单可参与员工提成计算的佣金池，非负 |
+| `commission_pool_calculation_snapshot` | 佣金池来源、公式版本、输入、计算结果和来源指纹 |
+| `commission_pool_manual_reason` | `commission_pool_basis=manual` 时必填 |
 | `terminated_registration_reason` | 提交时租约已终止则必填 |
 | `source_snapshot` | 房源、租客、签约时间、合同状态、租期、月租等提交快照 |
 | `content_hash` | 服务端基于规范化不可变内容生成的内部指纹 |
@@ -273,6 +310,8 @@ HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相
 - 新版本通过时，在同一事务中冲销旧有效版本、生成新认定流水并切换 `effective_revision`。
 - `content_hash` 只用于内部审计、幂等结果和服务端一致性校验，不由客户端回传。
 - 首次版本按当时组织时区确定 `performance_date`；变更版本默认复制原归属日期和时区快照，只有明确修正归属日期并填写变更原因时才改变。
+- `performance_amount` 与 `commission_pool_amount` 是两个独立事实；相等也必须分别保存各自口径和计算快照，不能互相复用字段。
+- `commission_pool_basis=finance_receipt` 在财务收款事实和服务端计算器正式实现前必须返回不支持错误，不能由客户端伪造财务收款金额。
 
 ### 6.6 PerformanceContributor
 
@@ -294,8 +333,11 @@ HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相
 | `performance_share_bp` | 业绩权重，万分比，范围 `1..10000` |
 | `credited_performance_amount` | 按权重折算的业绩额 |
 | `commission_method` | `percent` 或 `fixed` |
+| `commission_base_basis` | 比例佣金基数口径：`credited_pool`、`total_pool`、`manual` |
 | `commission_base_amount` | 提成基数快照 |
+| `commission_base_manual_reason` | `commission_base_basis=manual` 时必填 |
 | `commission_rate_bp` | 比例提成万分比，`10000` 表示 100% |
+| `fixed_commission_amount` | 固定佣金的申报输入；仅 `commission_method=fixed` 时非空 |
 | `commission_calculation_snapshot` | 基数来源、公式版本、计算输入和结果 |
 | `calculated_commission_amount` | 系统计算金额 |
 | `commission_adjustment_amount` | 对计算金额的人工加减，可正可负 |
@@ -311,9 +353,10 @@ HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相
 - 修改既有历史 `subject_key` 或 `team_key` 归属必须使用组织级 `case_submit` 作用域、填写变更原因，并在审核页显示“历史身份/团队重分配”风险提示；团队级提交人只能原样保留历史归属。
 - 所有协作人的 `performance_share_bp` 总和必须等于 `10000`。
 - `credited_performance_amount` 由模块计算，调用者不能直接指定。
-- 百分比佣金按 `commission_base_amount × commission_rate_bp / 10000` 计算并保留到分；`commission_rate_bp` 范围为 `0..10000`。
-- 固定佣金不允许填写 `commission_rate_bp`；比例佣金必须填写。
-- 最终佣金可高于本单业绩额，但必须返回风险提示，不阻断提交。
+- `commission_base_basis=credited_pool` 时，基数由 `commission_pool_amount × performance_share_bp / 10000` 计算；`total_pool` 使用完整佣金池；`manual` 允许人工基数但必须填写专项原因。除 `manual` 外，调用者不能直接指定 `commission_base_amount`。
+- 百分比佣金按 `commission_base_amount × commission_rate_bp / 10000` 计算并保留到分；`commission_rate_bp` 范围为 `0..10000`，`fixed_commission_amount` 必须为空。
+- 固定佣金从 `fixed_commission_amount` 计算，不能让调用者直接填写 `calculated_commission_amount`；固定佣金不允许填写佣金基数或 `commission_rate_bp`。
+- 最终佣金合计可高于佣金池或本单业绩额，但必须返回风险提示并在审核页突出展示，不静默阻断提交。
 
 金额舍入使用 `Decimal` 和 `ROUND_HALF_UP`。业绩额分配产生的尾差确定性归入权重最大的协作人；权重相同时归入 `subject_key` 字典序最小者，保证账号删除后重复计算结果仍一致。
 
@@ -337,7 +380,7 @@ HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相
 
 ### 6.8 PerformanceCommand
 
-模块内部写命令幂等记录。
+模块内部高风险写命令的幂等记录。草稿保存不使用该模型，只通过 `expected_version` 防止并发覆盖。
 
 建议字段：
 
@@ -345,7 +388,7 @@ HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相
 |---|---|
 | `organization` | 所属租户 |
 | `command_id` | 客户端命令键，租户内唯一 |
-| `operation` | `prepare_case`、`save_draft`、`review_case` 等固定操作名 |
+| `operation` | `prepare_case`、`submit_case`、`review_case`、`void_case` 等固定操作名 |
 | `actor_id` | 第一次执行命令的认证账号 ID |
 | `request_hash` | 对租户、操作者、操作名、资源 ID 和规范化 DTO 计算的请求指纹 |
 | `resource_type/resource_id` | 第一次成功结果关联的聚合 |
@@ -355,7 +398,7 @@ HTTP 适配器从认证会话取得 `organization_id` 和 `actor_id`，不能相
 | `completed_at` | 结果已可重放的完成时间；未完成时为空 |
 | `created_at` | 首次接收时间 |
 
-数据库唯一约束为 `(organization, command_id)`。处理规则：
+数据库唯一约束为 `(organization, command_id)`。以下规则只适用于带 `command_id` 的高风险命令：
 
 1. 每次请求，包括重放请求，都先校验当前认证、当前 `OrganizationMember`、操作权限和目标资源作用域。校验失败返回当前 401/403，不读取 `result_snapshot`，也不改变已有命令记录。认证授权是安全门，不受业务幂等结果覆盖。
 2. 安全门和 HTTP DTO 解析通过后，在外层事务中建立命令记录。使用嵌套 `atomic()` 保存点尝试插入；遇到唯一冲突时回滚保存点，再 `select_for_update` 读取竞争请求提交的记录，不能假定 `get_or_create` 自动解决并发插入。
@@ -525,7 +568,21 @@ revision 1 已生效
 
 ### 7.7 佣金口径与两类修改
 
-- 比例佣金只接受整数 `commission_rate_bp`。例如 `6000` 表示 60%，计算公式为 `commission_base_amount × 6000 / 10000`；接口不接受 `0.6` 等小数比例。
+- 佣金池不默认等于业绩额。`performance_amount` 回答“这单认定了多少业绩”，`commission_pool_amount` 回答“这单有多少金额可参与员工佣金计算”，即使数值相等也必须分别保存来源和快照。
+- `commission_pool_basis` 支持：
+
+| 口径 | 规则 |
+|---|---|
+| `monthly_rent` | 服务端读取租约月租；客户端不能覆盖金额 |
+| `manual` | 客户端填写佣金池，`commission_pool_manual_reason` 必填，并在提交和审核页面显示风险提示 |
+| `finance_receipt` | 由财务收款事实和有版本号的服务端计算器生成；财务模块和计算器未实现前返回 `performance.commission_pool_basis_unsupported` |
+
+- 不设置静默的佣金池默认值。组织级佣金规则以后可以预填 `commission_pool_basis`、基数口径或比例，但提交时必须把实际选用的规则版本、输入和结果写入版本及协作人的计算快照，组织规则以后修改不得回算历史版本。
+- `credited_pool` 的计算公式为 `commission_pool_amount × performance_share_bp / 10000`；比例佣金的计算公式为 `commission_base_amount × commission_rate_bp / 10000`。两步分别按统一金额舍入器计算并写入快照，不能直接用业绩额替代佣金池。`credited_pool` 分配到分后产生的尾差沿用第 6.6 节的稳定归属规则，保证所有协作人的折算佣金池合计严格等于版本佣金池。
+- `commission_base_basis=credited_pool` 时，每位协作人的基数等于其折算佣金池；`total_pool` 时使用完整佣金池；`manual` 时由人工填写基数并要求 `commission_base_manual_reason`。
+- 比例佣金只接受整数 `commission_rate_bp`。例如 `6000` 表示 60%；接口不接受 `0.6` 等含义不清的小数比例。
+- 固定佣金只读取 `fixed_commission_amount`，`commission_base_basis`、`commission_base_amount` 和 `commission_rate_bp` 必须为空；计算快照仍需记录 `method=fixed`、金额、币种和规则来源。比例佣金的 `fixed_commission_amount` 必须为空，并且必须具有合法的基数口径、基数快照和万分比。
+- 最终佣金合计超过佣金池或业绩额不自动阻断提交，因为渠道奖励、保底提成等业务可能合法超额；系统必须返回结构化风险提示并在审核页突出展示，由审核人确认。
 - 已生效版本的员工分配、团队、业绩权重、业绩额口径、佣金基数、比例或计算结果错误，必须发起 `PerformanceRevision` 变更。新版本通过后冲销旧流水并生成新流水。
 - 原认定事实正确，后续因独立业务决定产生的一次性佣金补发、扣回、奖金或罚款，使用 `CompensationAdjustment`。
 - `CompensationAdjustment` 不得用于静默修正原始分配或计算错误；`commission_adjustment_amount` 只允许在版本提交前表达该版本内有理由的人工覆盖。
@@ -581,6 +638,14 @@ approved → 作废：voided，并为原调整流水生成唯一反向流水
 
 “应计合计”不等于钱包可用余额，也不等于已支付金额。
 
+应计、已结算和已发放是三个独立事实：
+
+- `performance` 的员工台账只汇总认定流水，回答“截至当前认定应增减多少收益”。
+- 未来 `staff_settlements` 回答“哪些认定流水已进入哪个结算周期，以及周期最终应付多少”。
+- 钱包或付款记录回答“哪些结算义务已经实际发放”。
+
+`RecognitionEntry` 不保存“未结算、已结算、已发放”等权威状态，也不通过反向查询结算表推导并固化状态。将来管理端如需同时展示结算进度，应由组合查询层读取认定台账和结算摘要后组装，不能把结算状态反写进认定流水。
+
 普通员工通过当前账号关联的 `OrganizationStaff.subject_key` 查询本人台账；离开组织后不再具备查询权限，但历史数据仍可由有报表权限的租户人员按 `subject_key` 查询。
 
 ## 9. 权限
@@ -635,7 +700,7 @@ POST /api/performance/cases/{case_id}/void/
 
 草稿接口一次提交完整业绩额和协作人列表，不提供逐条协作人 CRUD，避免页面绕过整体校验。
 
-所有写接口都要求 `command_id`。保存草稿、提交、发起变更、驳回重试、审核和作废还要求 `expected_version`；创建业绩单和首次提交收益调整因为尚无既有聚合版本，不要求 `expected_version`。
+`PUT .../draft/` 只要求 `expected_version`，不要求 `command_id`，并且不创建 `PerformanceCommand`。创建聚合、提交、审核、发起变更、驳回重试、作废和收益调整等高风险命令要求 `command_id`；其中修改既有聚合的命令还要求 `expected_version`。创建业绩单和首次提交收益调整因为尚无既有聚合版本，不要求 `expected_version`。
 
 审核请求：
 
@@ -670,6 +735,17 @@ GET /api/performance/review-queue/?team_key=...&date_from=...&date_to=...
 ```
 
 查询响应可以附带当前 `user_id`、`team_id` 供页面跳转，但筛选、聚合和稳定分页使用 `subject_key`、`team_key`。
+
+### 10.4 认定流水查询
+
+```text
+GET  /api/performance/recognition-entries/?metric=...&subject_key=...&date_from=...&date_to=...&page=1&page_size=20
+POST /api/performance/recognition-entries/resolve/
+```
+
+以上接口只用于有权限的管理查询、审计、调试和跨进程适配，不提供创建、修改、删除或“标记已结算”能力。未来同一 Django 部署内的 `staff_settlements` 应优先调用第 5 节的 Python 模块接口消费认定流水，避免 HTTP 自调用；只有部署边界确实分离时才通过受控 HTTP 适配器访问。
+
+`resolve` 接受认定流水 ID 列表，返回调用方当前租户和权限范围内的权威流水及快照。列表接口可以按认定事实字段筛选，但不得提供由 `performance` 判断的“未结算”筛选。
 
 ## 11. 管理端设计
 
@@ -707,10 +783,11 @@ GET /api/performance/review-queue/?team_key=...&date_from=...&date_to=...
 
 - 租约与房源快照
 - 总业绩额、`performance_basis`、公式版本、时区和 `CNY` 币种快照
+- 佣金池金额、`commission_pool_basis`、规则版本、计算输入和来源快照
 - 各员工权重与折算业绩
-- 佣金基数、`commission_rate_bp`/固定金额、系统计算值、人工调整和最终值
+- 每位员工的 `commission_base_basis`、佣金基数、`commission_rate_bp`/固定金额、系统计算值、人工调整和最终值
 - 与当前有效版本的差异
-- 风险提示，例如手工业绩额、终止租约补录、佣金合计高于业绩额
+- 风险提示，例如手工业绩额、手工佣金池、手工佣金基数、终止租约补录、佣金合计高于佣金池或业绩额
 
 ### 11.4 员工排行
 
@@ -763,20 +840,32 @@ Performance RecognitionEntry 净认定流水 → Finance 佣金成本投影
 
 财务投影必须同时消费原流水与冲销流水并以认定流水 ID 幂等；财务条目不能反向改变业绩、审核状态或排行榜。
 
-### 12.4 Wallet 与未来结算
+未来财务收款事实可以作为 `commission_pool_basis=finance_receipt` 的计算输入，也可以由结算模块用于判断某条应计佣金是否达到结算资格；它只能影响佣金池计算或后续结算资格，不能反向改变已经发生的业绩和收益认定事实。财务事实修正后若需改变已认定金额，仍必须走业绩版本变更或收益调整并生成新的认定/冲销流水。
 
-一期没有 wallet 依赖。`RecognitionEntry` 永远只表示业绩或应计收益认定，不保存“待发放”“已发放”状态，钱包也不能扫描它寻找所谓“未发放流水”。
+### 12.4 Staff Settlements、Wallet 与 Payments
 
-未来出现真实发放需求时，先独立设计 `SettlementBatch + SettlementItem`（名称可在该阶段再定）结算聚合：
+一期没有 `staff_settlements`、wallet 或 payments 依赖。`RecognitionEntry` 永远只表示业绩或应计收益认定，不保存“待结算”“已结算”“待发放”“已发放”状态，钱包和付款模块也不能扫描它寻找所谓“未发放流水”。
+
+未来出现真实结算需求时，独立设计 `staff_settlements` 模块，建议至少包含 `SettlementBatch + SettlementItem + SettlementAllocation`（名称可在该阶段再定）：
 
 ```text
 RecognitionEntry
-  → 租户级结算项按 organization + subject_key 幂等引用
-  → 结算聚合记录结算金额、币种、状态和付款目标快照
-  → 明确的入账/付款命令交给钱包或外部支付适配器
+  → SettlementAllocation 按 organization + recognition_entry_id 唯一占用
+  → SettlementItem 按 organization + subject_key 汇总结算应付
+  → SettlementBatch 冻结周期、规则、金额、币种和付款目标快照
+  → 明确的付款命令交给钱包或外部支付适配器
 ```
 
-当前 `WalletAccount` 是用户全局账户，不是租户账户，而且历史员工可能已经没有 `user`。在租户级钱包子账户或外部收款人模型被正式设计前，performance 不直接写钱包。
+边界规则：
+
+- `staff_settlements` 单向引用认定流水，由自己的 `SettlementAllocation` 判断哪些流水已占用；`performance` 不读取 `SettlementBatch/SettlementItem/SettlementAllocation`，也不提供“未结算”权威状态。
+- 结算只消费货币指标 `commission_amount` 和 `compensation_amount`；`deal_credit`、`performance_amount` 只用于业绩统计，不进入员工应付结算。
+- 结算批次关闭后金额和分配关系永久冻结，不因后续业绩变更而重算或改写历史批次。
+- 已结算认定以后发生版本变更或作废时，`performance` 正常生成原流水的冲销和新版本流水；这些正负流水进入后续开放结算周期，不回写已关闭批次。
+- 员工周期净额为负时优先结转抵扣后续收益，不生成负数付款，也不由 `performance`、wallet 或 payments 直接从员工账户扣款；人工追偿若有真实需求应另建受审核流程。
+- 付款金额从 `Decimal` 转为整数分只能在统一付款接缝执行一次，结算与支付双方通过幂等付款引用避免重复转换或重复发放。
+
+当前 `WalletAccount` 是用户全局账户，不是组织资金账户，而且历史员工可能已经没有 `user`，因此不能承载租户对员工的结算义务。第一版结算更适合先支持线下付款登记和凭证留痕；待租户级资金账户、收款人身份、支付失败重试和对账模型明确后，再接钱包或微信代付。无论采用哪种付款方式，`performance` 都不直接写钱包或创建付款。
 
 ### 12.5 Notifications
 
@@ -800,7 +889,17 @@ RecognitionEntry
 
 ### 13.1 事务与锁
 
-所有写命令遵循统一顺序：
+草稿保存与高风险命令分开处理。
+
+草稿保存只承担可覆盖的编辑态持久化：
+
+1. 校验当前认证、组织成员资格、`case_submit` 权限和目标资源作用域。
+2. 在事务中按基础类型 ID 重新查询并 `select_for_update` 锁定 `PerformanceCase` 和当前草稿版本。
+3. 锁内校验草稿仍可编辑、当前只有一个工作版本且 `expected_version` 与聚合版本一致。
+4. 规范化整份草稿，重新计算业绩额、佣金池、协作人基数、佣金及快照，原子替换草稿内容并递增聚合版本。
+5. 追加 `case_draft_saved` 审计动作；不创建 `PerformanceCommand`，网络超时后的客户端通过重新读取最新版本判断保存结果。
+
+创建聚合、创建新版本、提交、审核、作废、收益调整等带 `command_id` 的高风险命令遵循：
 
 1. 校验当前认证、组织成员资格、操作权限和目标资源作用域；重放请求也不能跳过。
 2. 规范化 DTO 并计算 `request_hash`。
@@ -810,7 +909,7 @@ RecognitionEntry
 6. 成功时执行状态迁移、认定流水生成/冲销、有效版本切换和审计动作；授权通过后的确定性业务错误则回滚领域保存点但保留可重放错误结果。
 7. 保存第一次 `result_status + result_snapshot` 后提交外层事务，再安排通知或分析事件。
 
-除创建新聚合外，所有写命令使用 `expected_version` 防止覆盖他人修改。认定流水同时使用确定性 `idempotency_key` 和数据库唯一约束；幂等命令在当前授权仍成立时返回第一次成功或确定性业务错误，不返回“重复命令”错误。HTTP/DTO 解析错误、当前 401/403 安全门失败不进入或覆盖命令结果，未预期 5xx 不固化。
+除创建新聚合外，草稿保存和高风险写命令都使用 `expected_version` 防止覆盖他人修改。只有高风险命令使用 `PerformanceCommand`；认定流水同时使用确定性 `idempotency_key` 和数据库唯一约束。幂等命令在当前授权仍成立时返回第一次成功或确定性业务错误，不返回“重复命令”错误。HTTP/DTO 解析错误、当前 401/403 安全门失败不进入或覆盖命令结果，未预期 5xx 不固化。
 
 ### 13.2 数据库可执行约束
 
@@ -827,9 +926,13 @@ RecognitionEntry
   - `approved/rejected` 同时有稳定提交/审核身份快照和时间，且 `review_decision` 与 `state` 一致；
   - `rejected` 的 `review_note` 非空；
   - `cancelled` 有稳定取消人身份、时间和原因，没有审核决定，且 `cancelled_from_state` 只能是 `draft` 或 `pending_review`。
-- `PerformanceRevision.currency = CNY`，`performance_amount >= 0`；`manual` 口径必须有 `performance_manual_reason`。
+- `PerformanceRevision.currency = CNY`，`performance_amount >= 0`，`commission_pool_amount >= 0`。
+- `performance_basis=manual` 必须有 `performance_manual_reason`；`commission_pool_basis=manual` 必须有 `commission_pool_manual_reason`。
+- `commission_pool_basis=finance_receipt` 在财务收款计算器未启用前不能提交。该能力开关和计算器版本由领域服务校验，不能依赖客户端隐藏选项。
 - `PerformanceContributor(revision, subject_key)` 唯一；`performance_share_bp` 在 `1..10000`。
-- `commission_method=percent` 时 `commission_rate_bp` 非空且在 `0..10000`；`commission_method=fixed` 时必须为空。
+- `commission_method=percent` 时 `commission_base_basis`、`commission_base_amount` 和 `commission_rate_bp` 非空，`fixed_commission_amount` 为空，且 `commission_rate_bp` 在 `0..10000`；`commission_base_basis=manual` 时必须有 `commission_base_manual_reason`。
+- `commission_method=fixed` 时 `fixed_commission_amount` 非空且非负，`commission_base_basis`、`commission_base_amount`、`commission_base_manual_reason` 和 `commission_rate_bp` 必须为空。
+- `commission_adjustment_amount != 0` 时 `commission_adjustment_reason` 必填；`calculated_commission_amount >= 0`、`final_commission_amount >= 0`。
 - `PerformanceAction.case` 与 `adjustment` 恰好一个非空；调整动作不能关联 `revision`。
 - `PerformanceCommand(organization, command_id)` 唯一。
 - `CompensationAdjustment.amount > 0`、`currency=CNY`，状态与稳定提交/审核/作废身份快照及时间一致；佣金补发/扣回、奖金/罚款的 `bucket + direction + reason_code` 组合必须匹配。
@@ -845,7 +948,7 @@ performance_amount/commission_amount/
 compensation_amount                              → unit=currency, currency=CNY
 ```
 
-以下跨行或跨表关系由锁内领域服务校验，不能误称普通 `CheckConstraint` 可以完成：`effective_revision` 必须属于当前 case 且为已批准版本；Contributor、Adjustment、Entry 的 `staff/subject_key`、团队外键/`team_key`、来源记录及组织必须互相匹配；收益调整关联的原认定流水必须同组织、同员工和同币种；冲销流水必须与原流水同组织、同 `subject_key`、同 `team_key`、同指标和单位，且 `delta` 正好相反；全部协作人权重总和必须等于 `10000`。
+以下跨行、跨表或依赖计算器的关系由锁内领域服务校验，不能误称普通 `CheckConstraint` 可以完成：`effective_revision` 必须属于当前 case 且为已批准版本；Contributor、Adjustment、Entry 的 `staff/subject_key`、团队外键/`team_key`、来源记录及组织必须互相匹配；收益调整关联的原认定流水必须同组织、同员工和同币种；冲销流水必须与原流水同组织、同 `subject_key`、同 `team_key`、同指标和单位，且 `delta` 正好相反；全部协作人权重总和必须等于 `10000`；`credited_pool` 与 `total_pool` 的 `commission_base_amount` 必须由模块根据版本佣金池计算，不能信任调用者传值；各金额和最终佣金必须与保存的计算快照一致。
 
 ### 13.3 建议错误
 
@@ -855,6 +958,9 @@ compensation_amount                              → unit=currency, currency=CNY
 | `performance.terminated_reason_required` | 422 | 终止租约补录未填写专项原因 |
 | `performance.source_stale` | 409 | 租约事实在提交后变化，当前版本只能驳回、不能通过 |
 | `performance.performance_basis_unsupported` | 422 | 所选业绩额口径尚无已批准的服务端计算器 |
+| `performance.commission_pool_basis_unsupported` | 422 | 所选佣金池口径尚无已批准的服务端计算器或财务事实来源 |
+| `performance.invalid_commission_pool` | 422 | 佣金池金额、来源、原因或计算快照不合法 |
+| `performance.commission_base_reason_required` | 422 | 人工佣金基数未填写专项原因 |
 | `performance.scope_mismatch` | 422 | 租约、团队或员工跨租户 |
 | `performance.subject_not_eligible` | 422 | 员工稳定身份不存在、已离职或没有当前成员资格 |
 | `performance.team_not_eligible` | 422 | 团队不存在、已归档或员工不属于该团队 |
@@ -872,8 +978,11 @@ compensation_amount                              → unit=currency, currency=CNY
 | 旧数据 | 新数据 |
 |---|---|
 | `Bill.bill_type=1` | `PerformanceCase + PerformanceRevision + PerformanceContributor` |
+| `Bill.bill_number` | `PerformanceCase.case_no` 候选；迁移前规范化并校验租户内唯一，冲突时保留旧号快照并生成新编号 |
 | `Bill.staff` | 先映射或创建独立 `OrganizationStaff.subject_key`，再创建单个 `PerformanceContributor`，权重 100% |
-| `Bill.profit` | 初始 `performance_amount` 或最终佣金，迁移前需按旧业务口径确认 |
+| `Bill.real_rent` | `performance_amount` 的优先候选，但仍需核对它是签约月租、实收租金还是其他旧口径并保存迁移来源快照 |
+| `Bill.profit` | 字段标签虽为“佣金”，但可能表示佣金池、员工最终佣金或被旧统计当作业绩额；必须按数据来源和旧流程人工判定，不能一律映射 |
+| `Bill.pay_type` | 不迁入 `performance`；未来有可靠付款事实时映射为结算付款记录的渠道快照 |
 | `Bill.checked=False` | 待审核版本 |
 | `Bill.checked=True, approved=True` | 已生效版本并生成认定流水 |
 | `Bill.checked=True, approved=False` | 已驳回版本，不生成认定流水 |
@@ -881,7 +990,7 @@ compensation_amount                              → unit=currency, currency=CNY
 | `Salary.salary > 0` | 收益增加调整 |
 | `Salary.salary < 0` | 收益扣减调整 |
 
-迁移必须先生成预览报告，列出无法判断 `profit` 是“业绩额”还是“佣金”的记录，禁止静默猜测。
+迁移必须先生成预览报告，分别列出 `performance_amount`、`commission_pool_amount`、`final_commission_amount` 三个金额口径的候选来源、推断依据和歧义记录。任何无法确定 `real_rent/profit` 实际含义、是否一条 Bill 就是员工最终收益、或多人数据是否已被拆单的记录都禁止静默猜测。
 
 迁移还必须：
 
@@ -898,6 +1007,9 @@ compensation_amount                              → unit=currency, currency=CNY
 后端：
 
 - 单人及多人业绩分配计算正确，权重总和严格等于 100%。
+- 业绩额、佣金池、佣金基数和最终佣金使用独立字段与快照，任何计算路径都不会把其中一个静默当成另一个。
+- `monthly_rent`、`manual` 和暂不支持的 `finance_receipt` 三种佣金池口径符合规则；手工口径必须有原因，未启用财务计算器时稳定返回不支持错误。
+- `credited_pool`、`total_pool`、`manual` 三种比例佣金基数计算正确；固定佣金不残留比例基数字段。
 - 金额舍入和尾差按 `subject_key` 确定归属且可重复。
 - 跨租户、跨团队员工不能被错误分配。
 - 两个不同历史员工的账号和成员记录均被删除后，排行仍按两个不同 `subject_key` 分开。
@@ -909,7 +1021,8 @@ compensation_amount                              → unit=currency, currency=CNY
 - 新版本通过时旧流水被冲销且新流水只生成一次。
 - 零业绩额或零佣金不生成零值流水，查询聚合仍正确显示为零。
 - 第一版审核通过立即生成认定流水，不存在“已批准但无权威流水”的状态。
-- 相同命令键和相同请求在当前授权仍成立时返回第一次 2xx 或确定性业务 4xx 结果；相同键不同请求返回 409，后续业务状态变化不改变快照；撤销成员资格或权限后重放返回当前 403，瞬态 5xx 可以重试。
+- 草稿保存只使用 `expected_version` 并追加审计动作，不创建 `PerformanceCommand`；并发保存返回稳定的版本冲突。
+- 对创建、提交、审核、变更、重试、作废和收益调整等高风险命令，相同命令键和相同请求在当前授权仍成立时返回第一次 2xx 或确定性业务 4xx 结果；相同键不同请求返回 409，后续业务状态变化不改变快照；撤销成员资格或权限后重放返回当前 403，瞬态 5xx 可以重试。
 - 业绩和收益调整都按稳定 `subject_key` 执行提交人与审核人分离；换绑账号不能绕过，`review_self` 只与对应审核权限组合生效。
 - 收益调整只影响指定指标。
 - 普通员工只能查看自己的收益台账。
@@ -919,6 +1032,9 @@ compensation_amount                              → unit=currency, currency=CNY
 - `pending`、`active`、`expired`、`terminated` 的登记资格和专项原因规则正确。
 - 数据库拒绝第二个工作版本、重复冲销、混合流水来源、状态字段矛盾以及指标/单位/币种不匹配。
 - 查询接口按 `subject_key/team_key` 稳定分页；`api.py` 不直接查询或修改 performance ORM。
+- 认定流水查询和按 ID 解析接口同时返回原流水与冲销流水，并保持稳定来源快照；没有修改、占用或标记结算状态的接口。
+- `performance` 不判断认定流水是否“未结算”，即使未来存在结算表也不反向读取或缓存其状态。
+- `Decimal` 金额到整数分的转换只在模拟付款接缝发生一次，重复付款命令不会重复转换或发放。
 - 租约摘要没有引入 `house -> performance` 领域依赖；钱包没有扫描 `RecognitionEntry`。
 
 前端：
@@ -926,6 +1042,7 @@ compensation_amount                              → unit=currency, currency=CNY
 - 租约页能正确展示业绩状态和入口。
 - 草稿一次保存完整协作人分配。
 - 审核页完整展示计算快照和版本差异。
+- 审核页明确展示佣金池金额与来源、每位员工的佣金基数口径，并突出手工佣金池、手工基数和佣金超池风险。
 - 已生效版本没有直接编辑入口。
 - 终止租约补录、手工业绩额和佣金超额都有显著风险提示。
 - 离职员工、归档团队和同名新团队在排行中展示正确。
@@ -941,6 +1058,7 @@ compensation_amount                              → unit=currency, currency=CNY
 - `PerformanceCase`
 - `PerformanceRevision`
 - `PerformanceContributor`
+- 佣金池字段、佣金池计算器和 `credited_pool/total_pool/manual` 佣金基数计算。
 - `PerformanceAction`（第一阶段只包含业绩单目标和业绩动作）
 - `PerformanceCommand`
 - `RecognitionEntry`
@@ -971,7 +1089,15 @@ compensation_amount                              → unit=currency, currency=CNY
 - 调整审核通过后的认定流水和作废冲销。
 - 收益调整页面与员工完整应计收益台账。
 
-三个阶段均不接钱包。未来财务模块和结算/发放模块分别独立设计；结算模块只能显式引用认定流水，钱包不能自行寻找“未发放业绩”。
+### 第四阶段：员工收益结算接缝
+
+- 稳定认定流水查询与按 ID 解析接口。
+- 明确结算可消费指标、金额、币种和来源快照。
+- 明确认定流水占用事实属于未来 `staff_settlements.SettlementAllocation`。
+- 固化已关闭批次不重算、后续冲销进入下一期、负数收益结转抵扣的规则。
+- 不在 `performance` 中实现结算批次、流水占用或付款状态。
+
+四个阶段均不让 `performance` 直接接钱包或支付。未来财务模块和结算/发放模块分别独立设计；结算模块只能显式引用认定流水，钱包不能自行寻找“未发放业绩”。
 
 ## 17. 验收口径
 
@@ -980,11 +1106,14 @@ compensation_amount                              → unit=currency, currency=CNY
 - 一份租约只能对应一个稳定业绩单，但可以保留多个审核版本。
 - 员工和团队分别以租户内稳定 `subject_key`、`team_key` 保存历史；账号删除、离职、团队归档和同名重建不会合并历史主体。
 - 一笔签约可以按权重分配给多个员工，整单业绩不会重复膨胀。
-- 业绩额明确记录 `performance_basis`、计算快照、组织时区和 `CNY` 币种；比例佣金只使用 `commission_rate_bp`。
+- 业绩额、佣金池和最终应计佣金是独立事实，任何金额相等都不能合并字段或复用口径。
+- 业绩额明确记录 `performance_basis`、计算快照、组织时区和 `CNY` 币种；佣金池及每位员工的佣金基数都有来源、规则版本和计算快照；比例佣金只使用 `commission_rate_bp`。
 - 审核通过与认定流水生成在同一事务完成；没有认定流水就不能形成已批准结果。
 - 审核驳回、变更、作废和冲销均可追溯。
-- 同一命令键的相同请求在当前授权仍成立时返回第一次业务结果，不同请求返回幂等冲突；权限撤销后不泄露历史响应快照，审计动作不兼任幂等存储。
+- 草稿保存只使用乐观锁，不创建幂等命令记录；高风险命令的相同命令键和相同请求在当前授权仍成立时返回第一次业务结果，不同请求返回幂等冲突；权限撤销后不泄露历史响应快照，审计动作不兼任幂等存储。
 - 业绩审核、业绩作废、调整提交、调整审核和调整作废分别授权，两类审核都默认禁止自审。
 - 员工排行、佣金和收益调整有明确且互不混淆的统计口径。
 - `house` 不反向依赖 performance；租约状态通过 performance 摘要接口或组合查询层展示。
-- 钱包、经营账单、业绩认定和未来结算/发放互不替代。
+- 未来 `staff_settlements` 单向消费认定流水并独占流水占用事实；`performance` 不保存或推导已结算、已发放状态。
+- 已关闭的历史结算批次不会因后续业绩变更、作废或认定冲销被回写；新增正负流水进入后续周期。
+- 钱包、支付、经营账单、业绩认定和员工收益结算互不替代。

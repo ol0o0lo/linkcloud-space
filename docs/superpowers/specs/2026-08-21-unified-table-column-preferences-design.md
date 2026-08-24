@@ -34,6 +34,7 @@
 - 第二层直接保存 Ant Design 的 `Record<string, ColumnsState>`。
 - 持久化字段仅包含 `show`、`fixed`、`order`。
 - `disable` 始终由前端列定义提供，不作为用户偏好保存。
+- 用户保存后，当前所有既有列的 `show`、`fixed`、`order` 作为完整快照持久化；后续前端新增且尚未出现在快照中的列才使用当前前端默认状态。
 - 读取复用现有个人设置列表和单项详情接口，写入与重置使用按 `tableKey` 的专用接口。
 - 默认个人设置列表过滤所有 `internal.` 设置，内部偏好仍可通过通用单项详情接口按 key 读取。
 - 前端页面通过统一钩子接入，不直接处理存储结构或请求细节。
@@ -71,12 +72,14 @@
     },
     "asking_rent": {
       "show": false,
+      "fixed": null,
       "order": 5
     }
   },
   "rental.contacts": {
     "name": {
       "show": true,
+      "fixed": null,
       "order": 0
     }
   }
@@ -94,7 +97,7 @@ type UserTableColumnsSetting = Record<
 >;
 ```
 
-第一层 key 是 `tableKey`，第二层 key 是稳定的 `column.key`。字段未出现表示沿用前端默认值。
+第一层 key 是 `tableKey`，第二层 key 是稳定的 `column.key`。一次正常保存会包含当时所有既有列的完整可持久化状态；某个列 key 未出现时，表示该列是在保存后新增或尚未进入快照，应沿用当前前端默认值。
 
 ## 列标识约定
 
@@ -111,6 +114,8 @@ type UserTableColumnsSetting = Record<
 - 所有可配置列必须显式提供唯一且稳定的 `column.key`。
 - 不依赖标题文本作为 key，避免文案调整导致配置失效。
 - 不依赖数组位置，避免插入新列后配置错位。
+- 允许使用 Ant Design 支持的普通字符串 key，包括 camelCase、snake_case、点、下划线和连字符等形式；不强制使用小写命名。
+- key 必须是非空字符串，不允许包含 Unicode 控制字符。
 - 最大长度 100 个字符。
 - 列删除或改名后，前端清洗逻辑自动忽略旧 key。
 
@@ -157,7 +162,7 @@ GET /api/settings/user/internal.ui.table_columns/
 }
 ```
 
-所有列表共享同一个 React Query 查询缓存。通用钩子只需读取 `setting.value[tableKey] ?? {}`，不需要专用 GET 接口。
+同一用户下的所有列表共享同一个 React Query 查询缓存。查询 key 必须包含当前用户 ID，例如 `['user-setting', userId, 'internal.ui.table_columns']`，避免退出后在同一个 SPA 中登录其他账号时复用前一个账号的缓存。通用钩子只需读取 `setting.value[tableKey] ?? {}`，不需要专用 GET 接口。
 
 ### 保存指定列表配置
 
@@ -182,6 +187,20 @@ Content-Type: application/json
 }
 ```
 
+OpenAPI 请求契约必须使用明确的列状态类型，而不是 `Record<string, any>`：
+
+```ts
+type TableColumnState = {
+  show?: boolean;
+  fixed?: 'left' | 'right' | null;
+  order?: number;
+};
+
+type TableColumnsPayload = Record<string, TableColumnState>;
+```
+
+后端输入 Schema 与输出 Schema 使用同一组字段语义，并拒绝未知字段，使生成的前端客户端能够得到 `Record<string, TableColumnState>` 类型。
+
 响应直接返回保存后的当前列表 `ColumnsState`，便于钩子局部更新统一个人设置查询缓存。
 
 后端必须在事务中读取并锁定 `internal.ui.table_columns` 对应记录，只替换当前 `tableKey` 的值，再写回整个 JSON。不同列表的配置不得被当前请求覆盖。首次创建记录时需要遵守 `(user, key)` 唯一约束并处理并发创建竞争。
@@ -202,9 +221,10 @@ DELETE /api/settings/user/table-columns/{table_key}/
 
 - `show` 必须为布尔值。
 - `fixed` 只允许 `left`、`right` 或 `null`。
-- `fixed: null` 在保存时规范化为不包含 `fixed` 字段。
+- `fixed: null` 作为“明确取消固定”的序列化值保留；字段缺失才表示沿用前端默认固定状态。
 - `order` 必须为有限数字；布尔值不视为数字。
 - 每个列状态只接受 `show`、`fixed`、`order`，拒绝 `disable` 和未知字段。
+- `tableKey` 继续使用小写命名空间规则；列 key 只要求非空、长度不超过 100 且不包含 Unicode 控制字符，不套用 `tableKey` 的小写字符集限制。
 - 单个列表最多保存 200 个列 key。
 - 合并后的 `internal.ui.table_columns` JSON 最大为 256 KiB。
 - 后端不校验列 key 是否真实存在，因为列目录由前端负责。
@@ -263,6 +283,8 @@ const tableColumnsState = useUserTableColumnsState({
 
 这一步不是业务格式转换，而是保证新列、删除列和 `disable` 约束始终以当前前端代码为准。
 
+用户发生任意表头调整后，钩子保存当前所有既有列的完整 `show`、`fixed`、`order` 快照。快照中的既有列继续使用个人配置；以后新增、快照中不存在的列才根据上述规则使用当前前端默认状态。
+
 ### 顺序合并规则
 
 用户已经保存列顺序后，后续前端新增列采用“按当前前端默认位置插入”的策略：
@@ -299,7 +321,7 @@ Ant Design 列设置中的“重置”会触发默认列状态。通用钩子应
 ## 数据流
 
 1. 列表页面定义 `columns`、默认顺序和 `tableKey`。
-2. 表格数据请求与 `internal.ui.table_columns` 通用单项详情请求并行执行；所有列表共享同一查询缓存。
+2. 表格数据请求与 `internal.ui.table_columns` 通用单项详情请求并行执行；同一用户的所有列表共享带用户 ID 的同一查询缓存。
 3. 未完成配置请求时，表格可先使用前端默认状态；钩子暴露 `isLoading`，高字段量页面可选择将其合并到表格加载状态以避免列跳动。
 4. GET 成功后，钩子读取 `setting.value[tableKey]`，清洗并合并用户配置，更新 `columnsState.value`。
 5. 用户调整列状态后，`onChange` 立即更新本地状态。
@@ -344,12 +366,15 @@ Ant Design 列设置中的“重置”会触发默认列状态。通用钩子应
 - `fixed: null` 正确规范化。
 - 两个不同列表的并发更新不会丢失其中一个列表。
 - 通用个人设置 PUT/DELETE 无法直接修改 `internal.ui.table_columns`。
+- `tableKey` 的小写命名空间校验和列 key 的通用字符串校验互不混用；camelCase 列 key 可正常保存，空字符串、超长 key 和控制字符会被拒绝。
+- OpenAPI 中 PUT 请求体生成明确的 `TableColumnState` 字段类型，不退化为 `Record<string, any>`。
 
 ### 前端通用钩子
 
 - 通用详情 GET 的 `value[tableKey]` 可以生成可直接绑定的 `columnsState.value`。
 - 当前不存在的旧列 key 被过滤。
 - 新列使用前端默认显示、固定和禁用状态。
+- 保存请求包含当前所有既有列的完整可持久化状态；保存后新增且快照中不存在的列继续使用前端默认状态。
 - 用户已有顺序时，新列按当前前端默认槽位插入，旧列保持用户相对顺序，最终 `order` 连续且无冲突。
 - `disable` 不会发送到后端。
 - 连续变化会立即更新界面，并只防抖保存最终状态。
@@ -359,6 +384,7 @@ Ant Design 列设置中的“重置”会触发默认列状态。通用钩子应
 - GET 非 404 失败后，本次页面调整不发送 PUT、DELETE 或卸载补交请求。
 - PUT 和 DELETE 失败时状态与提示符合设计。
 - 配置读取成功或返回 404 时，组件卸载会提交尚未发送的最终状态。
+- 查询缓存包含当前用户 ID；同一个 SPA 中切换登录账号时不会复用或写回前一个账号的表头设置。
 
 ### 房源页面
 
@@ -379,3 +405,5 @@ Ant Design 列设置中的“重置”会触发默认列状态。通用钩子应
 7. 新列表可以在不修改后端的前提下通过稳定 `tableKey` 和通用钩子接入。
 8. 用户已有自定义顺序时，前端新增列按当前前端默认位置插入，且不会重置旧列之间的用户相对顺序。
 9. 表头设置读取发生非 404 错误时，页面调整不会覆盖服务端未知配置。
+10. 同一个 SPA 中退出并登录其他账号后，只读取新账号的表头设置，不展示或写回前一个账号的缓存。
+11. 现有列按用户保存的完整快照恢复；保存后前端新增的列按当前前端默认状态和默认位置出现。

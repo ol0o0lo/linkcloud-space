@@ -9,6 +9,7 @@
 - 管理端使用 npm 和 `package-lock.json`；不要改用 pnpm / yarn。
 - 不要手改生成代码。`src/services/openapi` 和 `src/services/allauth` 只能通过 `npm run openapi` 重新生成。
 - `npm run simple` 是模板清理脚本，有破坏性；除非用户明确要求，否则不要运行。
+- 新增页面、明显改造布局或视觉样式前，必须先阅读 `docs/design-system.md`；其中 `【强制】` 必须遵守，`【当前实现】` 仅作为事实依据，`【建议】` 是没有更具体规则时的默认做法。
 
 ## 项目事实
 
