@@ -1,9 +1,6 @@
-import { BankOutlined, ClusterOutlined, PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
-import { Icon } from '@iconify/react';
-import elevatorIcon from '@iconify-icons/tabler/elevator';
-import stairsIcon from '@iconify-icons/tabler/stairs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history, Link } from '@umijs/max';
 import {
@@ -14,6 +11,7 @@ import {
   Empty,
   Form,
   Input,
+  Modal,
   message,
   Segmented,
   Select,
@@ -23,6 +21,7 @@ import {
   Typography,
 } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppIcon } from '@/components/AppIcon';
 import {
   EntityPreviewDetailDrawer,
   EstatePreview,
@@ -32,10 +31,7 @@ import {
   adminTableScroll,
   ResponsiveActions,
 } from '@/pages/_shared/adminLayout';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   enumMapping,
   enumSelectOptions,
@@ -69,14 +65,16 @@ const BUILDING_ACCESS_ICON_STYLE: React.CSSProperties = {
   marginInlineEnd: 4,
   verticalAlign: '-0.125em',
 };
-type EstateViewMode = 'all' | 'estates' | 'buildings';
+type EstateViewMode = 'estates' | 'buildings';
 type EstateTask =
   | 'estate_address'
   | 'building_address'
   | 'building_location'
   | 'no_building';
 type EstateDrawerState = {
+  estateCreate?: boolean;
   estateEditId?: number;
+  buildingCreateStandalone?: boolean;
   buildingEditId?: number;
   buildingCreateEstateId?: number;
 };
@@ -98,6 +96,9 @@ function getEstateBuildings(buildings: BuildingOut[], estateId: number) {
 }
 
 function getEstateCoverageText(estate: EstateOut, buildings: BuildingOut[]) {
+  if (typeof estate.building_count === 'number') {
+    return `${estate.building_count}栋`;
+  }
   const estateBuildings = getEstateBuildings(buildings, estate.id);
   return `${estateBuildings.length}栋`;
 }
@@ -124,23 +125,30 @@ async function fetchAllBuildings(): Promise<PageResult<BuildingOut>> {
 
 function getEstateDrawerStateFromSearch(search: string): EstateDrawerState {
   const params = new URLSearchParams(search);
+  const buildingCreate = params.get('building_create');
   return {
+    estateCreate: params.get('estate_create') === '1',
     estateEditId: Number(params.get('estate_edit')) || undefined,
     buildingEditId: Number(params.get('building_edit')) || undefined,
-    buildingCreateEstateId: Number(params.get('building_create')) || undefined,
+    buildingCreateStandalone: buildingCreate === 'standalone',
+    buildingCreateEstateId: getPositiveId(buildingCreate),
   };
 }
 
 function syncEstateDrawerSearch(drawerState: EstateDrawerState) {
   const params = new URLSearchParams(window.location.search);
+  params.delete('estate_create');
   params.delete('estate_edit');
   params.delete('building_edit');
   params.delete('building_create');
+  if (drawerState.estateCreate) params.set('estate_create', '1');
   if (drawerState.estateEditId)
     params.set('estate_edit', String(drawerState.estateEditId));
   if (drawerState.buildingEditId)
     params.set('building_edit', String(drawerState.buildingEditId));
-  if (drawerState.buildingCreateEstateId)
+  if (drawerState.buildingCreateStandalone)
+    params.set('building_create', 'standalone');
+  else if (drawerState.buildingCreateEstateId)
     params.set('building_create', String(drawerState.buildingCreateEstateId));
   const nextSearch = params.toString();
   const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
@@ -195,7 +203,7 @@ function getEstateListStateFromSearch(search: string) {
         : 1,
     q: params.get('keyword') || undefined,
     estateId: getPositiveId(params.get('estate_id')),
-    view: view === 'estates' || view === 'buildings' ? view : 'all',
+    view: view === 'buildings' ? view : 'estates',
     task:
       task === 'estate_address' ||
       task === 'building_address' ||
@@ -231,8 +239,8 @@ function syncEstateListSearch(filters: {
   if (filters.q) params.set('keyword', filters.q);
   if (filters.task) params.set('task', filters.task);
   if (filters.estateId) params.set('estate_id', String(filters.estateId));
-  const taskView = getTaskViewMode(filters.task, 'all');
-  if (filters.view !== 'all' && filters.view !== taskView)
+  const taskView = getTaskViewMode(filters.task, 'estates');
+  if (!filters.task && filters.view !== taskView)
     params.set('view', filters.view);
   if (filters.estatePage > 1)
     params.set('estate_page', String(filters.estatePage));
@@ -302,6 +310,8 @@ const EstatesPage: React.FC = () => {
   const [editingBuilding, setEditingBuilding] = useState<BuildingOut | null>(
     null,
   );
+  const [pendingBuildingValues, setPendingBuildingValues] =
+    useState<BuildingFormValues | null>(null);
   const [draftBuildingEstateId, setDraftBuildingEstateId] = useState<number>();
   const [estateOpen, setEstateOpen] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
@@ -390,6 +400,24 @@ const EstatesPage: React.FC = () => {
     },
     enabled: enabled && Boolean(editingEstate),
   });
+  const buildingImpact = useQuery({
+    queryKey: [
+      'house',
+      'buildings',
+      'impact',
+      workspace.selectedOrgSlug,
+      editingBuilding?.id,
+    ],
+    queryFn: () => {
+      if (!editingBuilding) throw new Error('缺少楼栋 ID');
+      return houseApi.listHouses({
+        building_id: editingBuilding.id,
+        page: 1,
+        page_size: 1,
+      });
+    },
+    enabled: enabled && Boolean(editingBuilding && pendingBuildingValues),
+  });
   const saveEstate = useMutation({
     mutationFn: (values: EstateFormValues) =>
       editingEstate
@@ -399,8 +427,16 @@ const EstatesPage: React.FC = () => {
       message.success(editingEstate ? '项目已更新' : '项目已创建');
       setEstateOpen(false);
       setEditingEstate(null);
-      setDrawerState((current) => ({ ...current, estateEditId: undefined }));
-      syncEstateDrawerSearch({ ...drawerState, estateEditId: undefined });
+      setDrawerState((current) => ({
+        ...current,
+        estateCreate: undefined,
+        estateEditId: undefined,
+      }));
+      syncEstateDrawerSearch({
+        ...drawerState,
+        estateCreate: undefined,
+        estateEditId: undefined,
+      });
       await queryClient.invalidateQueries({ queryKey: ['house', 'estates'] });
     },
   });
@@ -431,16 +467,19 @@ const EstatesPage: React.FC = () => {
     },
     onSuccess: async (building) => {
       message.success(editingBuilding ? '楼栋已更新' : '楼栋已创建');
+      setPendingBuildingValues(null);
       setBuildingOpen(false);
       setEditingBuilding(null);
       setDraftBuildingEstateId(undefined);
       setDrawerState((current) => ({
         ...current,
+        buildingCreateStandalone: undefined,
         buildingEditId: undefined,
         buildingCreateEstateId: undefined,
       }));
       syncEstateDrawerSearch({
         ...drawerState,
+        buildingCreateStandalone: undefined,
         buildingEditId: undefined,
         buildingCreateEstateId: undefined,
       });
@@ -499,6 +538,7 @@ const EstatesPage: React.FC = () => {
   };
 
   const closeBuildingDrawer = () => {
+    setPendingBuildingValues(null);
     setBuildingOpen(false);
     setEditingBuilding(null);
     setDraftBuildingEstateId(undefined);
@@ -590,7 +630,9 @@ const EstatesPage: React.FC = () => {
           >
             <Avatar
               alt="项目图"
-              icon={<ClusterOutlined data-testid="estate-image-placeholder" />}
+              icon={
+                <AppIcon data-testid="estate-image-placeholder" name="estate" />
+              }
               shape="square"
               size={40}
               src={coverUrl}
@@ -614,12 +656,14 @@ const EstatesPage: React.FC = () => {
     {
       title: '物业类型',
       dataIndex: 'property_type__mapping',
+      align: 'center',
       render: (_value, record) =>
         enumMapping(record.property_type, record.property_type__mapping),
     },
     {
       title: '楼栋数',
       dataIndex: 'coverage',
+      align: 'right',
       render: (_value, record) => (
         <Typography.Text strong>
           {getEstateCoverageText(record, buildingOverviewRows)}
@@ -631,6 +675,7 @@ const EstatesPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       fixed: 'right',
+      align: 'center',
       valueType: 'option',
       render: (_value, record) => (
         <ResponsiveActions>
@@ -678,7 +723,12 @@ const EstatesPage: React.FC = () => {
       render: (value, record) => (
         <Space size={8}>
           <Avatar
-            icon={<BankOutlined data-testid="building-avatar-placeholder" />}
+            icon={
+              <AppIcon
+                data-testid="building-avatar-placeholder"
+                name="building"
+              />
+            }
             shape="square"
             size={40}
             src={mediaCoverUrl(record.images)}
@@ -697,15 +747,16 @@ const EstatesPage: React.FC = () => {
         </EstatePreview>
       ),
     },
-    { title: '楼层', dataIndex: 'floors' },
+    { title: '楼层', dataIndex: 'floors', align: 'right' },
     {
       title: '电梯',
       dataIndex: 'elevator',
+      align: 'center',
       render: (value) =>
         value ? (
           <Tag
             color="success"
-            icon={<Icon icon={elevatorIcon} width={14} height={14} />}
+            icon={<AppIcon name="elevator" width={14} height={14} />}
             styles={{ icon: BUILDING_ACCESS_ICON_STYLE }}
           >
             电梯
@@ -713,7 +764,7 @@ const EstatesPage: React.FC = () => {
         ) : (
           <Tag
             color="gold"
-            icon={<Icon icon={stairsIcon} width={14} height={14} />}
+            icon={<AppIcon name="stairs" width={14} height={14} />}
             styles={{ icon: BUILDING_ACCESS_ICON_STYLE }}
           >
             步梯
@@ -739,12 +790,11 @@ const EstatesPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       fixed: 'right',
+      align: 'center',
       valueType: 'option',
       render: (_value, record) => (
         <ResponsiveActions>
-          <a
-            href={`/dashboard/rental/properties/new?building_id=${record.id}`}
-          >
+          <a href={`/dashboard/rental/properties/new?building_id=${record.id}`}>
             登记房源
           </a>
           <Button
@@ -787,6 +837,11 @@ const EstatesPage: React.FC = () => {
   }, [estateId, estatePage, buildingPage, q, task, viewMode]);
 
   useEffect(() => {
+    if (drawerState.estateCreate && !estateOpen && !editingEstate) {
+      setEditingEstate(null);
+      setEstateOpen(true);
+      return;
+    }
     if (
       !drawerState.estateEditId ||
       editingEstate ||
@@ -802,6 +857,7 @@ const EstatesPage: React.FC = () => {
     setEstateOpen(true);
   }, [
     allEstates.isSuccess,
+    drawerState.estateCreate,
     drawerState.estateEditId,
     editingEstate,
     estateOpen,
@@ -822,11 +878,17 @@ const EstatesPage: React.FC = () => {
     if (drawerState.buildingCreateEstateId) {
       setDraftBuildingEstateId(drawerState.buildingCreateEstateId);
       setBuildingOpen(true);
+      return;
+    }
+    if (drawerState.buildingCreateStandalone) {
+      setDraftBuildingEstateId(undefined);
+      setBuildingOpen(true);
     }
   }, [
     allBuildings.isSuccess,
     buildingOpen,
     buildingOverviewRows,
+    drawerState.buildingCreateStandalone,
     drawerState.buildingCreateEstateId,
     drawerState.buildingEditId,
     editingBuilding,
@@ -888,7 +950,6 @@ const EstatesPage: React.FC = () => {
         <Segmented
           aria-label="项目楼栋视图筛选"
           options={[
-            { label: '全部', value: 'all' },
             { label: '项目列表', value: 'estates' },
             { label: '楼栋列表', value: 'buildings' },
           ]}
@@ -918,7 +979,7 @@ const EstatesPage: React.FC = () => {
 
   return (
     <TenantSelectionGuard title="项目楼栋">
-      {effectiveViewMode !== 'buildings' ? (
+      {effectiveViewMode === 'estates' ? (
         <Card>
           {listFilters}
           <ProTable<EstateOut>
@@ -976,9 +1037,9 @@ const EstatesPage: React.FC = () => {
           />
         </Card>
       ) : null}
-      {effectiveViewMode !== 'estates' ? (
-        <Card style={{ marginTop: effectiveViewMode === 'all' ? 16 : 0 }}>
-          {effectiveViewMode === 'buildings' ? listFilters : null}
+      {effectiveViewMode === 'buildings' ? (
+        <Card>
+          {listFilters}
           <ProTable<BuildingOut>
             rowKey="id"
             loading={buildings.isLoading}
@@ -989,20 +1050,16 @@ const EstatesPage: React.FC = () => {
             options={{
               density: true,
               reload: false,
-              ...(effectiveViewMode === 'buildings'
-                ? {
-                    search: {
-                      name: 'keyword',
-                      placeholder: '搜索项目 / 楼栋',
-                      value: q,
-                      onSearch: (value: string) => {
-                        setEstatePage(1);
-                        setBuildingPage(1);
-                        setQ(value.trim() || undefined);
-                      },
-                    },
-                  }
-                : {}),
+              search: {
+                name: 'keyword',
+                placeholder: '搜索项目 / 楼栋',
+                value: q,
+                onSearch: (value: string) => {
+                  setEstatePage(1);
+                  setBuildingPage(1);
+                  setQ(value.trim() || undefined);
+                },
+              },
               setting: true,
             }}
             toolBarRender={() => [
@@ -1188,7 +1245,13 @@ const EstatesPage: React.FC = () => {
           id="building-form"
           layout="vertical"
           initialValues={buildingInitialValues}
-          onFinish={(values) => saveBuilding.mutate(values)}
+          onFinish={(values) => {
+            if (editingBuilding) {
+              setPendingBuildingValues(values);
+              return;
+            }
+            saveBuilding.mutate(values);
+          }}
         >
           <Form.Item label="所属项目" name="estate_id">
             <Select
@@ -1283,6 +1346,38 @@ const EstatesPage: React.FC = () => {
           </Card>
         ) : null}
       </Drawer>
+      <Modal
+        open={Boolean(editingBuilding && pendingBuildingValues)}
+        title="确认修改楼栋信息"
+        okText="确认保存"
+        cancelText="返回检查"
+        confirmLoading={saveBuilding.isPending}
+        okButtonProps={{
+          disabled: buildingImpact.isPending || buildingImpact.isError,
+        }}
+        onCancel={() => setPendingBuildingValues(null)}
+        onOk={() => {
+          if (!pendingBuildingValues) return;
+          saveBuilding.mutate(pendingBuildingValues);
+        }}
+      >
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+          {buildingImpact.isError ? (
+            <Space orientation="vertical" size={8}>
+              <Typography.Text type="danger">
+                影响房源数量统计失败，请重试后再确认保存。
+              </Typography.Text>
+              <Button onClick={() => buildingImpact.refetch()}>重新统计</Button>
+            </Space>
+          ) : (
+            <Typography.Text>
+              {buildingImpact.isPending
+                ? '正在统计受影响房源…'
+                : `保存后，将同步更新“${editingBuilding?.name || '当前楼栋'}”下 ${buildingImpact.data?.total || 0} 套房源的楼栋信息。`}
+            </Typography.Text>
+          )}
+        </Space>
+      </Modal>
     </TenantSelectionGuard>
   );
 };

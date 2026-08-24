@@ -1,7 +1,6 @@
 import {
   ArrowLeftOutlined,
   EditOutlined,
-  EnvironmentOutlined,
   FileAddOutlined,
   HeartFilled,
   HeartOutlined,
@@ -20,6 +19,7 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Modal,
   message,
   Result,
@@ -29,11 +29,14 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   theme,
 } from 'antd';
 import { createStyles } from 'antd-style';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AppIcon } from '@/components/AppIcon';
+import { AppStatusTag } from '@/components/AppStatus';
 import {
   BuildingPreview,
   ContactPreview,
@@ -42,10 +45,7 @@ import {
   LeasePreview,
   ViewingPreview,
 } from '@/components/EntityPreview';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   enumMapping,
   enumSelectOptions,
@@ -57,6 +57,8 @@ import {
   useToggleFavorite,
 } from '@/services/manual/favoriteHooks';
 import {
+  type BuildingOut,
+  type ContactOut,
   type HouseOut,
   houseApi,
   type LeaseOut,
@@ -76,20 +78,85 @@ import {
   HOUSE_MEDIA_RESOURCE_TYPE,
   HOUSE_MEDIA_TYPE,
   HOUSE_STATUS,
+  houseBalconyText,
   houseDisplayTags,
+  houseKitchenText,
   housePrimaryLayoutText,
   type MediaRefValue,
-  STATUS_COLOR,
+  stripDerivedMediaFields,
 } from '../constants';
 import { useHousePublishRules } from '../useHousePublishRules';
+import { usePagedSelectOptions } from '../usePagedSelectOptions';
 import HouseLocationPoiCard from './HouseLocationPoiCard';
 import HouseMediaHero from './HouseMediaHero';
+import {
+  InlineEditableField,
+  type InlineEditCloseReason,
+  useInlineEditingSupported,
+} from './InlineEditableField';
 
 type DetailFocusState = {
   action?: string;
   scopeKey?: string;
   task?: string;
 };
+
+type InlineFieldKey =
+  | 'area'
+  | 'asking_rent'
+  | 'balconies'
+  | 'bathrooms'
+  | 'decoration'
+  | 'deposit_amount'
+  | 'floor'
+  | 'internal_notes'
+  | 'kitchens'
+  | 'landlord_id'
+  | 'layout'
+  | 'orientation'
+  | 'public_description'
+  | 'room_number'
+  | 'tags'
+  | `extra:${string}`;
+
+type InlineLayoutValue = {
+  bedrooms?: number | null;
+  living_rooms?: number | null;
+};
+
+type InlineLayoutDraft = {
+  bedrooms: number | null;
+  living_rooms: number | null;
+};
+
+type InlineExtraDraft =
+  | { kind: 'array'; value: string[] }
+  | { kind: 'boolean'; value: boolean }
+  | { kind: 'number'; value: number | null }
+  | { kind: 'object'; value: string }
+  | { kind: 'text'; value: string };
+
+type PendingInlineAction =
+  | { field: InlineFieldKey; type: 'field' }
+  | { task?: string; type: 'drawer' };
+
+const HOUSE_EDIT_NUMERIC_FIELDS = [
+  'floor',
+  'area',
+  'interior_area',
+  'asking_rent',
+  'deposit_amount',
+  'bedrooms',
+  'living_rooms',
+  'bathrooms',
+  'kitchens',
+  'balconies',
+] as const;
+const HOUSE_EDIT_NULLABLE_FIELDS = [
+  'landlord_id',
+  'orientation',
+  'decoration',
+] as const;
 
 const useStyles = createStyles(({ css, token }) => ({
   heroCard: css`
@@ -300,18 +367,6 @@ const useStyles = createStyles(({ css, token }) => ({
       background: ${token.colorBgContainer};
     }
   `,
-  customFieldsGrid: css`
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 16px;
-
-    @media (max-width: 767px) {
-      grid-template-columns: 1fr;
-    }
-  `,
-  customFieldWide: css`
-    grid-column: 1 / -1;
-  `,
   recordTable: css`
     .ant-table-thead > tr > th {
       white-space: nowrap;
@@ -378,15 +433,10 @@ function syncDetailFocusSearch(focus: DetailFocusState) {
   }
 }
 
-function leaseEditHref(
-  houseId: number,
-  leaseId: number,
-  options?: { task?: string },
-) {
+function leaseEditHref(houseId: number, leaseId: number) {
   const params = new URLSearchParams({
     house_id: String(houseId),
   });
-  if (options?.task) params.set('task', options.task);
   params.set('edit', String(leaseId));
   return dashboardHref(`/rental/leases?${params.toString()}`);
 }
@@ -403,30 +453,6 @@ function viewingContactFixHref(viewingId: number) {
   return dashboardHref(
     `/rental/viewings?pending_lease=true&contact_missing=true&edit=${viewingId}`,
   );
-}
-
-function chineseCount(value: number) {
-  const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
-  if (!Number.isInteger(value) || value < 0 || value > 99) return String(value);
-  if (value < 10) return digits[value];
-  const tens = Math.floor(value / 10);
-  const ones = value % 10;
-  return `${tens === 1 ? '' : digits[tens]}十${ones ? digits[ones] : ''}`;
-}
-
-function layoutText(house: HouseOut) {
-  return housePrimaryLayoutText(house, { formatCount: chineseCount });
-}
-
-function secondaryLayoutText(house: HouseOut) {
-  const values = [
-    { value: house.bathrooms, label: '卫' },
-    { value: house.kitchens, label: '厨' },
-    { value: house.balconies, label: '阳台' },
-  ].filter((item) => item.value != null);
-  return values.length
-    ? values.map((item) => `${item.value}${item.label}`).join(' / ')
-    : '-';
 }
 
 function houseTitle(house: HouseOut) {
@@ -450,6 +476,36 @@ function compactMoneyText(value?: string | number | null) {
   return `¥${amount.toLocaleString('zh-CN', {
     maximumFractionDigits: 2,
   })}`;
+}
+
+function nullableNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function nullableNumberUnchanged(draft: number | null, value: unknown) {
+  return draft === nullableNumber(value);
+}
+
+function validateNonNegativeDecimal(value: number | null, label: string) {
+  if (value === null) return undefined;
+  if (!Number.isFinite(value) || value < 0) return `${label}必须大于等于 0`;
+  const fraction = String(value).split('.')[1];
+  return fraction && fraction.length > 2
+    ? `${label}最多保留两位小数`
+    : undefined;
+}
+
+function validateInteger(
+  value: number | null,
+  label: string,
+  options?: { nonNegative?: boolean },
+) {
+  if (value === null) return undefined;
+  if (!Number.isInteger(value)) return `${label}必须为整数`;
+  if (options?.nonNegative && value < 0) return `${label}必须大于等于 0`;
+  return undefined;
 }
 
 function dateTimeParts(value?: string | null) {
@@ -500,58 +556,75 @@ function isWideCustomField(value: unknown) {
   return typeof value === 'string' && value.length > 18;
 }
 
-function prepareExtraFormValues(extra?: Record<string, unknown> | null) {
-  return Object.fromEntries(
-    Object.entries(extra || {}).map(([key, value]) => [
-      key,
-      isPlainObject(value) ? JSON.stringify(value, null, 2) : value,
-    ]),
-  );
-}
-
-function normalizeExtraFormValues(
-  values: Record<string, unknown> | undefined,
-  original: Record<string, unknown> | undefined,
-) {
-  return Object.fromEntries(
-    Object.entries(values || {}).map(([key, value]) => {
-      const originalValue = original?.[key];
-      if (typeof originalValue === 'number') {
-        const parsed = value === '' || value == null ? null : Number(value);
-        return [key, Number.isNaN(parsed) ? originalValue : parsed];
-      }
-      if (isPlainObject(originalValue) && typeof value === 'string') {
-        return [key, value.trim() ? JSON.parse(value) : {}];
-      }
-      return [key, value];
-    }),
-  );
-}
-
-function customExtraInput(value: unknown) {
-  if (typeof value === 'boolean') {
-    return (
-      <Select
-        options={[
-          { label: '是', value: true },
-          { label: '否', value: false },
-        ]}
-      />
-    );
-  }
-  if (typeof value === 'number') {
-    return <Input type="number" />;
-  }
+function prepareInlineExtraDraft(value: unknown): InlineExtraDraft {
   if (Array.isArray(value)) {
-    return <Select mode="tags" tokenSeparators={[',']} />;
+    return { kind: 'array', value: value.map((item) => String(item)) };
   }
   if (isPlainObject(value)) {
-    return <Input.TextArea autoSize={{ minRows: 4, maxRows: 10 }} />;
+    return { kind: 'object', value: JSON.stringify(value, null, 2) };
   }
-  if (typeof value === 'string' && value.length > 80) {
-    return <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />;
+  if (typeof value === 'boolean') return { kind: 'boolean', value };
+  if (typeof value === 'number') return { kind: 'number', value };
+  return { kind: 'text', value: value == null ? '' : String(value) };
+}
+
+function parseInlineExtraDraft(
+  draft: InlineExtraDraft,
+  originalValue: unknown,
+): unknown {
+  if (draft.kind === 'object') return JSON.parse(draft.value);
+  if (draft.kind === 'array') {
+    const originalItems = Array.isArray(originalValue) ? originalValue : [];
+    const originalsByText = new Map(
+      originalItems.map((item) => [String(item), item]),
+    );
+    return draft.value.map((item) =>
+      originalsByText.has(item) ? originalsByText.get(item) : item,
+    );
   }
-  return <Input />;
+  if (draft.kind === 'text' && draft.value === '' && originalValue == null) {
+    return originalValue;
+  }
+  return draft.value;
+}
+
+function validateInlineExtraDraft(draft: InlineExtraDraft) {
+  if (draft.kind !== 'object') return undefined;
+  try {
+    const parsed = JSON.parse(draft.value);
+    return isPlainObject(parsed) ? undefined : '请输入 JSON 对象';
+  } catch {
+    return 'JSON 格式不正确';
+  }
+}
+
+function inlineExtraDraftUnchanged(
+  draft: InlineExtraDraft,
+  originalValue: unknown,
+) {
+  return (
+    JSON.stringify(parseInlineExtraDraft(draft, originalValue)) ===
+    JSON.stringify(originalValue)
+  );
+}
+
+function normalizeHouseEditNumericValues(values: Record<string, unknown>) {
+  const normalized = { ...values };
+  HOUSE_EDIT_NUMERIC_FIELDS.forEach((field) => {
+    if (
+      normalized[field] === '' ||
+      normalized[field] === null ||
+      normalized[field] === undefined
+    ) {
+      normalized[field] = 0;
+    }
+  });
+  HOUSE_EDIT_NULLABLE_FIELDS.forEach((field) => {
+    if (normalized[field] === '' || normalized[field] === undefined) {
+      normalized[field] = null;
+    }
+  });
+  return normalized;
 }
 
 function getRequestErrorCode(error: unknown) {
@@ -567,6 +640,25 @@ function getRequestErrorCode(error: unknown) {
   );
 }
 
+function getRequestErrorMessage(error: unknown) {
+  if (!error || typeof error !== 'object') return '保存失败，请稍后重试';
+  const candidate = error as {
+    error?: string;
+    info?: { error?: string; message?: string };
+    message?: string;
+    response?: { data?: { error?: string; message?: string } };
+  };
+  return (
+    candidate.info?.message ||
+    candidate.info?.error ||
+    candidate.response?.data?.message ||
+    candidate.response?.data?.error ||
+    candidate.message ||
+    candidate.error ||
+    '保存失败，请稍后重试'
+  );
+}
+
 const HouseDetailPage: React.FC = () => {
   const params = useParams();
   const houseId = Number(params.id);
@@ -577,7 +669,15 @@ const HouseDetailPage: React.FC = () => {
   const [publishConfirmStatus, setPublishConfirmStatus] = useState<
     'listed' | 'vacant' | null
   >(null);
+  const [editForm] = Form.useForm();
   const [editTab, setEditTab] = useState('basic');
+  const [draftImages, setDraftImages] = useState<MediaRefValue[]>([]);
+  const [draftVideos, setDraftVideos] = useState<MediaRefValue[]>([]);
+  const [activeInlineField, setActiveInlineField] =
+    useState<InlineFieldKey | null>(null);
+  const [inlineSaving, setInlineSaving] = useState(false);
+  const pendingInlineActionRef = useRef<PendingInlineAction | null>(null);
+  const inlineEditingSupported = useInlineEditingSupported();
   const workspace = useTenantWorkspace();
   const publishRules = useHousePublishRules();
   const detailScopeKey = `${workspace.selectedOrgSlug || 'no-org'}:${validHouseId ? houseId : 'invalid'}`;
@@ -624,9 +724,21 @@ const HouseDetailPage: React.FC = () => {
   });
   const editOpen =
     relatedEnabled && (focusAction === 'edit' || focusAction === 'media');
-  const buildings = useQuery({
+  const pinnedBuildings = useMemo(
+    () => [house.data?.building as BuildingOut | undefined],
+    [house.data?.building],
+  );
+  const pinnedLandlords = useMemo(
+    () => [house.data?.landlord as ContactOut | undefined],
+    [house.data?.landlord],
+  );
+  const buildings = usePagedSelectOptions<BuildingOut>({
+    getOptionLabel: buildingLabel,
+    getSelectedFallbackLabel: (id) => `楼栋 #${id}`,
     queryKey: ['house', 'detail', 'buildings', workspace.selectedOrgSlug],
-    queryFn: () => houseApi.listBuildings({ page: 1, page_size: 100 }),
+    queryFn: (query) => houseApi.listBuildings(query),
+    pinnedItems: pinnedBuildings,
+    selectedIds: [house.data?.building_id],
     enabled: relatedEnabled && editOpen,
   });
   const tagSuggestions = useQuery({
@@ -634,16 +746,22 @@ const HouseDetailPage: React.FC = () => {
     queryFn: () => houseApi.getTagSuggestions(),
     enabled: relatedEnabled && editOpen,
   });
-  const landlords = useQuery({
+  const landlords = usePagedSelectOptions<ContactOut>({
+    getOptionLabel: contactLabel,
+    getSelectedFallbackLabel: (id) => `联系人 #${id}`,
     queryKey: ['house', 'detail', 'landlords', workspace.selectedOrgSlug],
-    queryFn: () =>
+    queryFn: (query) =>
       houseApi.listContacts({
-        page: 1,
-        page_size: 100,
+        ...query,
         role: 'landlord',
         task: 'active',
       }),
-    enabled: relatedEnabled && editOpen,
+    pinnedItems: pinnedLandlords,
+    selectedIds: [house.data?.landlord_id],
+    enabled:
+      relatedEnabled &&
+      (editOpen ||
+        (inlineEditingSupported && activeInlineField === 'landlord_id')),
   });
   const viewings = useQuery({
     queryKey: [
@@ -673,20 +791,31 @@ const HouseDetailPage: React.FC = () => {
     },
     onError: () => message.error('收藏操作失败，请稍后重试'),
   });
+  const syncHouseResult = (next: HouseOut) => {
+    queryClient.setQueryData(queryKey, next);
+    void Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: favoriteKeys.target('house', houseId),
+      }),
+      queryClient.invalidateQueries({ queryKey: favoriteKeys.lists() }),
+    ]);
+  };
   const patchHouse = useMutation({
     mutationFn: (values: Record<string, unknown>) =>
       houseApi.patchHouse(houseId, values),
     onSuccess: (next) => {
-      queryClient.setQueryData(queryKey, next);
-      void Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: favoriteKeys.target('house', houseId),
-        }),
-        queryClient.invalidateQueries({ queryKey: favoriteKeys.lists() }),
-      ]);
+      syncHouseResult(next);
       message.success('房源已更新');
     },
   });
+  const saveInlinePatch = async (values: Record<string, unknown>) => {
+    try {
+      const next = await houseApi.patchHouse(houseId, values);
+      syncHouseResult(next);
+    } catch (error) {
+      throw new Error(getRequestErrorMessage(error));
+    }
+  };
   const canPublish = Boolean(
     house.data &&
       !publishRules.isPending &&
@@ -720,11 +849,51 @@ const HouseDetailPage: React.FC = () => {
     padding: 16,
     background: token.colorBgContainer,
   } as const;
-  const openEdit = (task?: string) => {
+  const inlineEditingEnabled =
+    inlineEditingSupported && relatedEnabled && !editOpen;
+  const performOpenEdit = (task?: string) => {
     setEditTab(
       task === 'media' ? 'media' : task === 'extra' ? 'display' : 'basic',
     );
     updateDetailFocus({ action: 'edit', task });
+  };
+  const openEdit = (task?: string) => {
+    if (activeInlineField) {
+      pendingInlineActionRef.current = { type: 'drawer', task };
+      return;
+    }
+    performOpenEdit(task);
+  };
+  const requestInlineField = (field: InlineFieldKey) => {
+    if (!inlineEditingEnabled || patchHouse.isPending) return;
+    if (activeInlineField && activeInlineField !== field) {
+      pendingInlineActionRef.current = { type: 'field', field };
+      return;
+    }
+    if (!activeInlineField) setActiveInlineField(field);
+  };
+  const finishInlineField = (reason: InlineEditCloseReason) => {
+    setInlineSaving(false);
+    if (reason === 'cancelled') {
+      pendingInlineActionRef.current = null;
+      setActiveInlineField(null);
+      return;
+    }
+
+    const pendingAction = pendingInlineActionRef.current;
+    pendingInlineActionRef.current = null;
+    setActiveInlineField(null);
+    if (pendingAction?.type === 'field') {
+      setActiveInlineField(pendingAction.field);
+      return;
+    }
+    if (pendingAction?.type === 'drawer') {
+      performOpenEdit(pendingAction.task);
+    }
+  };
+  const failInlineField = () => {
+    pendingInlineActionRef.current = null;
+    setInlineSaving(false);
   };
   const closeEdit = () => {
     setEditTab('basic');
@@ -736,6 +905,9 @@ const HouseDetailPage: React.FC = () => {
 
   useEffect(() => {
     setPublishConfirmStatus(null);
+    setActiveInlineField(null);
+    setInlineSaving(false);
+    pendingInlineActionRef.current = null;
   }, [detailScopeKey]);
 
   useEffect(() => {
@@ -766,37 +938,29 @@ const HouseDetailPage: React.FC = () => {
   const detailErrorStatus: '403' | '404' | 'error' =
     detailErrorCode === 403 ? '403' : detailErrorCode === 404 ? '404' : 'error';
   const currentHouse = house.data;
-  const landlordItems = Array.from(
-    new Map(
-      [
-        ...(landlords.data?.items || []),
-        ...(currentHouse?.landlord ? [currentHouse.landlord] : []),
-      ].map((item) => [item.id, item]),
-    ).values(),
-  );
+  const buildingItems = buildings.items;
   const displayTags = houseDisplayTags(currentHouse);
   const ownTags = normalizePropertyTags(currentHouse?.tags);
   const inheritedTags = getInheritedPropertyTags(ownTags, displayTags);
   const houseImages = (currentHouse?.images || []) as MediaRefValue[];
   const houseVideos = (currentHouse?.videos || []) as MediaRefValue[];
   const customFieldEntries = Object.entries(currentHouse?.extra || {});
-  const editInitialValues = currentHouse
-    ? {
-        ...currentHouse,
-        extra: prepareExtraFormValues(currentHouse.extra),
-      }
-    : undefined;
+  const editInitialValues = currentHouse ? { ...currentHouse } : undefined;
+
+  useEffect(() => {
+    if (!editOpen || !currentHouse) return;
+    editForm.resetFields();
+    editForm.setFieldsValue(currentHouse);
+    setDraftImages((currentHouse.images || []) as MediaRefValue[]);
+    setDraftVideos((currentHouse.videos || []) as MediaRefValue[]);
+  }, [currentHouse, editForm, editOpen]);
   const quickActionItems = currentHouse
     ? [
         {
           key: 'viewing',
           icon: <ScheduleOutlined />,
           label: (
-            <a
-              href={dashboardHref(
-                `/rental/viewings?house_id=${houseId}`,
-              )}
-            >
+            <a href={dashboardHref(`/rental/viewings?house_id=${houseId}`)}>
               登记带看
             </a>
           ),
@@ -805,11 +969,7 @@ const HouseDetailPage: React.FC = () => {
           key: 'lease',
           icon: <FileAddOutlined />,
           label: (
-            <a
-              href={dashboardHref(
-                `/rental/leases?house_id=${houseId}`,
-              )}
-            >
+            <a href={dashboardHref(`/rental/leases?house_id=${houseId}`)}>
               新建租约
             </a>
           ),
@@ -893,6 +1053,11 @@ const HouseDetailPage: React.FC = () => {
                 aria-label="编辑资料"
                 icon={<EditOutlined />}
                 type="primary"
+                onPointerDown={() => {
+                  if (activeInlineField) {
+                    pendingInlineActionRef.current = { type: 'drawer' };
+                  }
+                }}
                 onClick={() => openEdit()}
               >
                 编辑资料
@@ -969,75 +1134,343 @@ const HouseDetailPage: React.FC = () => {
                       />
                     </div>
                     <div className={styles.statusLine}>
-                      <Tag
-                        color={STATUS_COLOR[currentHouse.status] || 'default'}
-                      >
+                      <AppStatusTag name="house" state={currentHouse.status}>
                         {enumMapping(
                           currentHouse.status,
                           currentHouse.status__mapping,
                         )}
-                      </Tag>
+                      </AppStatusTag>
                     </div>
                     <div className={styles.locationLine}>
-                      <EnvironmentOutlined style={{ marginTop: 3 }} />
+                      <AppIcon name="location" style={{ marginTop: 3 }} />
                       <span>
                         {currentHouse.building?.address || '楼栋地址待补充'}
                       </span>
                     </div>
                   </div>
                   <div className={styles.rentBlock}>
-                    <div className={styles.rentLine}>
-                      <Typography.Title
-                        className={styles.rentAmount}
-                        level={2}
-                        style={{ margin: 0 }}
-                      >
-                        {currentHouse.asking_rent
-                          ? compactMoneyText(currentHouse.asking_rent)
-                          : '租金待补'}
-                      </Typography.Title>
-                      {currentHouse.asking_rent ? (
-                        <Typography.Text type="secondary">/ 月</Typography.Text>
-                      ) : null}
-                    </div>
-                    <div className={styles.depositLine}>
-                      <Typography.Text type="secondary">押金</Typography.Text>
-                      <Typography.Text className={styles.depositAmount}>
-                        {compactMoneyText(currentHouse.deposit_amount)}
-                      </Typography.Text>
-                    </div>
+                    <InlineEditableField<
+                      string | number | null | undefined,
+                      number | null
+                    >
+                      active={activeInlineField === 'asking_rent'}
+                      ariaLabel="编辑挂牌租金"
+                      disabled={inlineSaving || patchHouse.isPending}
+                      enabled={inlineEditingEnabled}
+                      fieldKey="asking_rent"
+                      isUnchanged={nullableNumberUnchanged}
+                      prepareDraft={nullableNumber}
+                      renderDisplay={() => (
+                        <div className={styles.rentLine}>
+                          <Typography.Title
+                            className={styles.rentAmount}
+                            level={2}
+                            style={{ margin: 0 }}
+                          >
+                            {currentHouse.asking_rent
+                              ? compactMoneyText(currentHouse.asking_rent)
+                              : '租金待补'}
+                          </Typography.Title>
+                          {currentHouse.asking_rent ? (
+                            <Typography.Text type="secondary">
+                              / 月
+                            </Typography.Text>
+                          ) : null}
+                        </div>
+                      )}
+                      renderEditor={({ draft, saving, setDraft }) => (
+                        <InputNumber
+                          autoFocus
+                          aria-label="挂牌租金"
+                          changeOnBlur={false}
+                          controls={false}
+                          disabled={saving}
+                          min={0}
+                          precision={2}
+                          prefix="¥"
+                          size="small"
+                          suffix="/ 月"
+                          value={draft}
+                          style={{ width: '100%' }}
+                          onChange={setDraft}
+                        />
+                      )}
+                      validate={(draft) =>
+                        validateNonNegativeDecimal(draft, '挂牌租金')
+                      }
+                      value={currentHouse.asking_rent}
+                      onClose={finishInlineField}
+                      onRequestActivate={(field) =>
+                        requestInlineField(field as InlineFieldKey)
+                      }
+                      onSave={(draft) =>
+                        saveInlinePatch({ asking_rent: draft })
+                      }
+                      onSaveFailure={failInlineField}
+                      onSavingChange={setInlineSaving}
+                    />
+                    <InlineEditableField<
+                      string | number | null | undefined,
+                      number | null
+                    >
+                      active={activeInlineField === 'deposit_amount'}
+                      ariaLabel="编辑押金"
+                      disabled={inlineSaving || patchHouse.isPending}
+                      enabled={inlineEditingEnabled}
+                      fieldKey="deposit_amount"
+                      isUnchanged={nullableNumberUnchanged}
+                      prepareDraft={nullableNumber}
+                      renderDisplay={() => (
+                        <div className={styles.depositLine}>
+                          <Typography.Text type="secondary">
+                            押金
+                          </Typography.Text>
+                          <Typography.Text className={styles.depositAmount}>
+                            {compactMoneyText(currentHouse.deposit_amount)}
+                          </Typography.Text>
+                        </div>
+                      )}
+                      renderEditor={({ draft, saving, setDraft }) => (
+                        <InputNumber
+                          autoFocus
+                          aria-label="押金"
+                          changeOnBlur={false}
+                          controls={false}
+                          disabled={saving}
+                          min={0}
+                          precision={2}
+                          prefix="¥"
+                          size="small"
+                          value={draft}
+                          style={{ width: '100%' }}
+                          onChange={setDraft}
+                        />
+                      )}
+                      validate={(draft) =>
+                        validateNonNegativeDecimal(draft, '押金')
+                      }
+                      value={currentHouse.deposit_amount}
+                      onClose={finishInlineField}
+                      onRequestActivate={(field) =>
+                        requestInlineField(field as InlineFieldKey)
+                      }
+                      onSave={(draft) =>
+                        saveInlinePatch({ deposit_amount: draft })
+                      }
+                      onSaveFailure={failInlineField}
+                      onSavingChange={setInlineSaving}
+                    />
                   </div>
                   <div className={styles.factsGrid}>
-                    <div className={styles.factItem}>
-                      <Typography.Text type="secondary">户型</Typography.Text>
-                      <span className={styles.factValue}>
-                        {layoutText(currentHouse)}
-                      </span>
-                    </div>
-                    <div className={styles.factItem}>
-                      <Typography.Text type="secondary">面积</Typography.Text>
-                      <span className={styles.factValue}>
-                        {currentHouse.area ? `${currentHouse.area} ㎡` : '-'}
-                      </span>
-                    </div>
-                    <div className={styles.factItem}>
-                      <Typography.Text type="secondary">楼层</Typography.Text>
-                      <span className={styles.factValue}>
-                        {currentHouse.floor == null
-                          ? '-'
-                          : `${currentHouse.floor} 层`}
-                      </span>
-                    </div>
+                    <InlineEditableField<InlineLayoutValue, InlineLayoutDraft>
+                      active={activeInlineField === 'layout'}
+                      ariaLabel="编辑户型"
+                      className={styles.factItem}
+                      disabled={inlineSaving || patchHouse.isPending}
+                      enabled={inlineEditingEnabled}
+                      fieldKey="layout"
+                      isUnchanged={(draft, value) =>
+                        draft.bedrooms === nullableNumber(value.bedrooms) &&
+                        draft.living_rooms ===
+                          nullableNumber(value.living_rooms)
+                      }
+                      prepareDraft={(value) => ({
+                        bedrooms: nullableNumber(value.bedrooms),
+                        living_rooms: nullableNumber(value.living_rooms),
+                      })}
+                      renderDisplay={() => (
+                        <>
+                          <Typography.Text type="secondary">
+                            户型
+                          </Typography.Text>
+                          <span className={styles.factValue}>
+                            {housePrimaryLayoutText(currentHouse, {
+                              bedroomLabel: '房',
+                              livingRoomLabel: '厅',
+                            })}
+                          </span>
+                        </>
+                      )}
+                      renderEditor={({ draft, saving, setDraft }) => (
+                        <div>
+                          <Typography.Text type="secondary">
+                            户型
+                          </Typography.Text>
+                          <Space.Compact block style={{ marginTop: 4 }}>
+                            <InputNumber
+                              autoFocus
+                              aria-label="室"
+                              changeOnBlur={false}
+                              controls={false}
+                              disabled={saving}
+                              min={0}
+                              precision={0}
+                              size="small"
+                              suffix="室"
+                              value={draft.bedrooms}
+                              onChange={(bedrooms) =>
+                                setDraft({ ...draft, bedrooms })
+                              }
+                            />
+                            <InputNumber
+                              aria-label="厅"
+                              changeOnBlur={false}
+                              controls={false}
+                              disabled={saving}
+                              min={0}
+                              precision={0}
+                              size="small"
+                              suffix="厅"
+                              value={draft.living_rooms}
+                              onChange={(living_rooms) =>
+                                setDraft({ ...draft, living_rooms })
+                              }
+                            />
+                          </Space.Compact>
+                        </div>
+                      )}
+                      validate={(draft) =>
+                        validateInteger(draft.bedrooms, '室', {
+                          nonNegative: true,
+                        }) ||
+                        validateInteger(draft.living_rooms, '厅', {
+                          nonNegative: true,
+                        })
+                      }
+                      value={{
+                        bedrooms: currentHouse.bedrooms,
+                        living_rooms: currentHouse.living_rooms,
+                      }}
+                      onClose={finishInlineField}
+                      onRequestActivate={(field) =>
+                        requestInlineField(field as InlineFieldKey)
+                      }
+                      onSave={(draft) =>
+                        saveInlinePatch({
+                          bedrooms: draft.bedrooms,
+                          living_rooms: draft.living_rooms,
+                        })
+                      }
+                      onSaveFailure={failInlineField}
+                      onSavingChange={setInlineSaving}
+                    />
+                    <InlineEditableField<
+                      string | number | null | undefined,
+                      number | null
+                    >
+                      active={activeInlineField === 'area'}
+                      ariaLabel="编辑建筑面积"
+                      className={styles.factItem}
+                      disabled={inlineSaving || patchHouse.isPending}
+                      enabled={inlineEditingEnabled}
+                      fieldKey="area"
+                      isUnchanged={nullableNumberUnchanged}
+                      prepareDraft={nullableNumber}
+                      renderDisplay={() => (
+                        <>
+                          <Typography.Text type="secondary">
+                            面积
+                          </Typography.Text>
+                          <span className={styles.factValue}>
+                            {currentHouse.area
+                              ? `${currentHouse.area} ㎡`
+                              : '-'}
+                          </span>
+                        </>
+                      )}
+                      renderEditor={({ draft, saving, setDraft }) => (
+                        <div>
+                          <Typography.Text type="secondary">
+                            面积
+                          </Typography.Text>
+                          <InputNumber
+                            autoFocus
+                            aria-label="建筑面积"
+                            changeOnBlur={false}
+                            controls={false}
+                            disabled={saving}
+                            min={0}
+                            precision={2}
+                            size="small"
+                            suffix="㎡"
+                            value={draft}
+                            style={{ width: '100%', marginTop: 4 }}
+                            onChange={setDraft}
+                          />
+                        </div>
+                      )}
+                      validate={(draft) =>
+                        validateNonNegativeDecimal(draft, '建筑面积')
+                      }
+                      value={currentHouse.area}
+                      onClose={finishInlineField}
+                      onRequestActivate={(field) =>
+                        requestInlineField(field as InlineFieldKey)
+                      }
+                      onSave={(draft) => saveInlinePatch({ area: draft })}
+                      onSaveFailure={failInlineField}
+                      onSavingChange={setInlineSaving}
+                    />
+                    <InlineEditableField<
+                      number | null | undefined,
+                      number | null
+                    >
+                      active={activeInlineField === 'floor'}
+                      ariaLabel="编辑楼层"
+                      className={styles.factItem}
+                      disabled={inlineSaving || patchHouse.isPending}
+                      enabled={inlineEditingEnabled}
+                      fieldKey="floor"
+                      isUnchanged={nullableNumberUnchanged}
+                      prepareDraft={nullableNumber}
+                      renderDisplay={() => (
+                        <>
+                          <Typography.Text type="secondary">
+                            楼层
+                          </Typography.Text>
+                          <span className={styles.factValue}>
+                            {currentHouse.floor == null
+                              ? '-'
+                              : `${currentHouse.floor} 层`}
+                          </span>
+                        </>
+                      )}
+                      renderEditor={({ draft, saving, setDraft }) => (
+                        <div>
+                          <Typography.Text type="secondary">
+                            楼层
+                          </Typography.Text>
+                          <InputNumber
+                            autoFocus
+                            aria-label="楼层"
+                            changeOnBlur={false}
+                            controls={false}
+                            disabled={saving}
+                            precision={0}
+                            size="small"
+                            suffix="层"
+                            value={draft}
+                            style={{ width: '100%', marginTop: 4 }}
+                            onChange={setDraft}
+                          />
+                        </div>
+                      )}
+                      validate={(draft) => validateInteger(draft, '楼层')}
+                      value={currentHouse.floor}
+                      onClose={finishInlineField}
+                      onRequestActivate={(field) =>
+                        requestInlineField(field as InlineFieldKey)
+                      }
+                      onSave={(draft) => saveInlinePatch({ floor: draft })}
+                      onSaveFailure={failInlineField}
+                      onSavingChange={setInlineSaving}
+                    />
                     <div className={styles.factItem}>
                       <Typography.Text type="secondary">
-                        电梯可达
+                        楼栋电梯
                       </Typography.Text>
                       <span className={styles.factValue}>
-                        {currentHouse.has_elevator_access == null
-                          ? '-'
-                          : currentHouse.has_elevator_access
-                            ? '是'
-                            : '否'}
+                        {currentHouse.building.elevator ? '有' : '无'}
                       </span>
                     </div>
                   </div>
@@ -1050,33 +1483,158 @@ const HouseDetailPage: React.FC = () => {
             <Col xs={24} xl={16}>
               <Space orientation="vertical" size={16} style={{ width: '100%' }}>
                 <Card title="房源资料">
-                  <p className={styles.descriptionText}>
-                    {currentHouse.public_description || '暂无对外房源描述'}
-                  </p>
-                  <div className={styles.noteLine}>
-                    <Typography.Text strong>内部备注：</Typography.Text>
-                    <Typography.Text type="secondary">
-                      {currentHouse.internal_notes || '暂无内部备注'}
-                    </Typography.Text>
-                  </div>
-                  <section aria-label="房源标签" className={styles.tagsSection}>
-                    {displayTags.length ? (
-                      <Space size={[4, 8]} wrap>
-                        {ownTags.map((tag) => (
-                          <Tag color="purple" key={`own-${tag}`}>
-                            {tag}
-                          </Tag>
-                        ))}
-                        {inheritedTags.map((tag) => (
-                          <Tag key={`inherited-${tag}`}>{tag}</Tag>
-                        ))}
-                      </Space>
-                    ) : (
-                      <Typography.Text type="secondary">
-                        暂无标签
-                      </Typography.Text>
+                  <InlineEditableField<string, string>
+                    active={activeInlineField === 'public_description'}
+                    ariaLabel="编辑对外描述"
+                    className={styles.descriptionText}
+                    disabled={inlineSaving || patchHouse.isPending}
+                    enabled={inlineEditingEnabled}
+                    fieldKey="public_description"
+                    isUnchanged={(draft, value) => draft === value}
+                    prepareDraft={(value) => value}
+                    renderDisplay={() => (
+                      <span>
+                        {currentHouse.public_description || '暂无对外房源描述'}
+                      </span>
                     )}
-                  </section>
+                    renderEditor={({ draft, saving, setDraft }) => (
+                      <Input.TextArea
+                        autoFocus
+                        aria-label="对外描述"
+                        autoSize={{ minRows: 2, maxRows: 6 }}
+                        disabled={saving}
+                        size="small"
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                      />
+                    )}
+                    value={currentHouse.public_description || ''}
+                    onClose={finishInlineField}
+                    onRequestActivate={(field) =>
+                      requestInlineField(field as InlineFieldKey)
+                    }
+                    onSave={(draft) =>
+                      saveInlinePatch({ public_description: draft })
+                    }
+                    onSaveFailure={failInlineField}
+                    onSavingChange={setInlineSaving}
+                  />
+                  <InlineEditableField<string, string>
+                    active={activeInlineField === 'internal_notes'}
+                    ariaLabel="编辑内部备注"
+                    className={styles.noteLine}
+                    disabled={inlineSaving || patchHouse.isPending}
+                    enabled={inlineEditingEnabled}
+                    fieldKey="internal_notes"
+                    isUnchanged={(draft, value) => draft === value}
+                    prepareDraft={(value) => value}
+                    renderDisplay={() => (
+                      <>
+                        <Typography.Text strong>内部备注：</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {currentHouse.internal_notes || '暂无内部备注'}
+                        </Typography.Text>
+                      </>
+                    )}
+                    renderEditor={({ draft, saving, setDraft }) => (
+                      <div style={{ width: '100%' }}>
+                        <Typography.Text strong>内部备注</Typography.Text>
+                        <Input.TextArea
+                          autoFocus
+                          aria-label="内部备注"
+                          autoSize={{ minRows: 2, maxRows: 6 }}
+                          disabled={saving}
+                          size="small"
+                          style={{ marginTop: 4 }}
+                          value={draft}
+                          onChange={(event) => setDraft(event.target.value)}
+                        />
+                      </div>
+                    )}
+                    value={currentHouse.internal_notes || ''}
+                    onClose={finishInlineField}
+                    onRequestActivate={(field) =>
+                      requestInlineField(field as InlineFieldKey)
+                    }
+                    onSave={(draft) =>
+                      saveInlinePatch({ internal_notes: draft })
+                    }
+                    onSaveFailure={failInlineField}
+                    onSavingChange={setInlineSaving}
+                  />
+                  <InlineEditableField<string[], string[]>
+                    active={activeInlineField === 'tags'}
+                    ariaLabel="编辑房源标签"
+                    className={styles.tagsSection}
+                    disabled={inlineSaving || patchHouse.isPending}
+                    enabled={inlineEditingEnabled}
+                    fieldKey="tags"
+                    isUnchanged={(draft, value) =>
+                      draft.length === value.length &&
+                      draft.every((tag, index) => tag === value[index])
+                    }
+                    prepareDraft={normalizePropertyTags}
+                    renderDisplay={() => (
+                      <section aria-label="房源标签">
+                        {displayTags.length ? (
+                          <Space size={[4, 8]} wrap>
+                            {ownTags.map((tag) => (
+                              <Tag color="purple" key={`own-${tag}`}>
+                                {tag}
+                              </Tag>
+                            ))}
+                            {inheritedTags.map((tag) => (
+                              <Tooltip
+                                key={`inherited-${tag}`}
+                                title="该标签来自楼栋，暂不可修改"
+                              >
+                                <Tag
+                                  color="blue"
+                                  icon={<AppIcon name="building" />}
+                                >
+                                  {tag}
+                                </Tag>
+                              </Tooltip>
+                            ))}
+                          </Space>
+                        ) : (
+                          <Typography.Text type="secondary">
+                            暂无标签
+                          </Typography.Text>
+                        )}
+                      </section>
+                    )}
+                    renderEditor={({
+                      draft,
+                      getPopupContainer,
+                      saving,
+                      setDraft,
+                    }) => (
+                      <section aria-label="房源标签">
+                        <PropertyTagSelect
+                          autoFocus
+                          aria-label="房源标签"
+                          disabled={saving}
+                          getPopupContainer={getPopupContainer}
+                          inheritedTags={inheritedTags}
+                          size="small"
+                          suggestions={tagSuggestions.data?.tags ?? []}
+                          suggestionsError={tagSuggestions.isError}
+                          suggestionsLoading={tagSuggestions.isLoading}
+                          value={draft}
+                          onChange={setDraft}
+                        />
+                      </section>
+                    )}
+                    value={ownTags}
+                    onClose={finishInlineField}
+                    onRequestActivate={(field) =>
+                      requestInlineField(field as InlineFieldKey)
+                    }
+                    onSave={(draft) => saveInlinePatch({ tags: draft })}
+                    onSaveFailure={failInlineField}
+                    onSavingChange={setInlineSaving}
+                  />
                   <section
                     aria-label="房源字段"
                     className={styles.fieldsSection}
@@ -1115,42 +1673,167 @@ const HouseDetailPage: React.FC = () => {
                               )}
                             </div>
                           </div>
-                          <div className={styles.materialField}>
-                            <Typography.Text
-                              className={styles.materialFieldLabel}
-                            >
-                              楼栋 / 房号
-                            </Typography.Text>
-                            <div className={styles.materialFieldValue}>
-                              <Space separator="/" size={6}>
-                                <BuildingPreview id={currentHouse.building_id}>
-                                  {currentHouse.building?.name ||
-                                    `楼栋 #${currentHouse.building_id}`}
-                                </BuildingPreview>
-                                <HousePreview id={currentHouse.id}>
-                                  {currentHouse.room_number}
-                                </HousePreview>
-                              </Space>
-                            </div>
-                          </div>
-                          <div className={styles.materialField}>
-                            <Typography.Text
-                              className={styles.materialFieldLabel}
-                            >
-                              房东信息
-                            </Typography.Text>
-                            <div className={styles.materialFieldValue}>
-                              {currentHouse.landlord_id ? (
-                                <ContactPreview id={currentHouse.landlord_id}>
-                                  {contactLabel(currentHouse)}
-                                </ContactPreview>
-                              ) : (
-                                <Typography.Text type="warning">
-                                  待补房东
+                          <InlineEditableField<string, string>
+                            active={activeInlineField === 'room_number'}
+                            activateOnContainerClick={false}
+                            ariaLabel="编辑房号"
+                            className={styles.materialField}
+                            disabled={inlineSaving || patchHouse.isPending}
+                            enabled={inlineEditingEnabled}
+                            fieldKey="room_number"
+                            isUnchanged={(draft, value) =>
+                              draft.trim() === value
+                            }
+                            prepareDraft={(value) => value}
+                            renderDisplay={() => (
+                              <>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  楼栋 / 房号
                                 </Typography.Text>
-                              )}
-                            </div>
-                          </div>
+                                <div className={styles.materialFieldValue}>
+                                  <Space separator="/" size={6}>
+                                    <BuildingPreview
+                                      id={currentHouse.building_id}
+                                    >
+                                      {currentHouse.building?.name ||
+                                        `楼栋 #${currentHouse.building_id}`}
+                                    </BuildingPreview>
+                                    <HousePreview id={currentHouse.id}>
+                                      {currentHouse.room_number}
+                                    </HousePreview>
+                                  </Space>
+                                </div>
+                              </>
+                            )}
+                            renderEditor={({ draft, saving, setDraft }) => (
+                              <div>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  房号
+                                </Typography.Text>
+                                <Input
+                                  autoFocus
+                                  aria-label="房号"
+                                  disabled={saving}
+                                  maxLength={64}
+                                  size="small"
+                                  value={draft}
+                                  onChange={(event) =>
+                                    setDraft(event.target.value)
+                                  }
+                                />
+                              </div>
+                            )}
+                            validate={(draft) => {
+                              const roomNumber = draft.trim();
+                              if (!roomNumber) return '请输入房号';
+                              return roomNumber.length > 64
+                                ? '房号最多 64 个字符'
+                                : undefined;
+                            }}
+                            value={currentHouse.room_number}
+                            onClose={finishInlineField}
+                            onRequestActivate={(field) =>
+                              requestInlineField(field as InlineFieldKey)
+                            }
+                            onSave={(draft) =>
+                              saveInlinePatch({ room_number: draft.trim() })
+                            }
+                            onSaveFailure={failInlineField}
+                            onSavingChange={setInlineSaving}
+                          />
+                          <InlineEditableField<number | null, number | null>
+                            active={activeInlineField === 'landlord_id'}
+                            activateOnContainerClick={false}
+                            ariaLabel="编辑房东"
+                            className={styles.materialField}
+                            disabled={inlineSaving || patchHouse.isPending}
+                            enabled={inlineEditingEnabled}
+                            fieldKey="landlord_id"
+                            isUnchanged={(draft, value) => draft === value}
+                            prepareDraft={(value) => value}
+                            renderDisplay={() => (
+                              <>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  房东信息
+                                </Typography.Text>
+                                <div className={styles.materialFieldValue}>
+                                  {currentHouse.landlord_id ? (
+                                    <ContactPreview
+                                      id={currentHouse.landlord_id}
+                                    >
+                                      {contactLabel(currentHouse)}
+                                    </ContactPreview>
+                                  ) : (
+                                    <Typography.Text type="warning">
+                                      待补房东
+                                    </Typography.Text>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                            renderEditor={({
+                              draft,
+                              getPopupContainer,
+                              save,
+                              saving,
+                              setDraft,
+                            }) => (
+                              <div>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  房东信息
+                                </Typography.Text>
+                                <Select
+                                  allowClear
+                                  autoFocus
+                                  aria-label="房东"
+                                  disabled={saving}
+                                  getPopupContainer={getPopupContainer}
+                                  loading={landlords.loading}
+                                  notFoundContent={landlords.notFoundContent}
+                                  options={landlords.options}
+                                  placeholder="搜索或选择房东"
+                                  showSearch={landlords.showSearch}
+                                  size="small"
+                                  value={draft ?? undefined}
+                                  style={{ width: '100%' }}
+                                  onChange={(next) => {
+                                    setDraft(next ?? null);
+                                    save();
+                                  }}
+                                  onOpenChange={landlords.onOpenChange}
+                                  onPopupScroll={landlords.onPopupScroll}
+                                />
+                                {landlords.isError ? (
+                                  <Button
+                                    danger
+                                    size="small"
+                                    type="link"
+                                    onClick={() => void landlords.refetch()}
+                                  >
+                                    房东加载失败，重新加载
+                                  </Button>
+                                ) : null}
+                              </div>
+                            )}
+                            value={currentHouse.landlord_id ?? null}
+                            onClose={finishInlineField}
+                            onRequestActivate={(field) =>
+                              requestInlineField(field as InlineFieldKey)
+                            }
+                            onSave={(draft) =>
+                              saveInlinePatch({ landlord_id: draft })
+                            }
+                            onSaveFailure={failInlineField}
+                            onSavingChange={setInlineSaving}
+                          />
                           <div className={styles.materialField}>
                             <Typography.Text
                               className={styles.materialFieldLabel}
@@ -1178,16 +1861,197 @@ const HouseDetailPage: React.FC = () => {
                           房源属性
                         </Typography.Text>
                         <div className={styles.materialFieldGrid}>
-                          <div className={styles.materialField}>
-                            <Typography.Text
-                              className={styles.materialFieldLabel}
-                            >
-                              卫 / 厨 / 阳台
-                            </Typography.Text>
-                            <div className={styles.materialFieldValue}>
-                              {secondaryLayoutText(currentHouse)}
-                            </div>
-                          </div>
+                          <InlineEditableField<
+                            number | null | undefined,
+                            number | null
+                          >
+                            active={activeInlineField === 'bathrooms'}
+                            ariaLabel="编辑卫生间"
+                            className={styles.materialField}
+                            disabled={inlineSaving || patchHouse.isPending}
+                            enabled={inlineEditingEnabled}
+                            fieldKey="bathrooms"
+                            isUnchanged={nullableNumberUnchanged}
+                            prepareDraft={nullableNumber}
+                            renderDisplay={() => (
+                              <>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  卫生间
+                                </Typography.Text>
+                                <div className={styles.materialFieldValue}>
+                                  {currentHouse.bathrooms == null
+                                    ? '-'
+                                    : `${currentHouse.bathrooms}卫`}
+                                </div>
+                              </>
+                            )}
+                            renderEditor={({ draft, saving, setDraft }) => (
+                              <div>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  卫生间
+                                </Typography.Text>
+                                <InputNumber
+                                  autoFocus
+                                  aria-label="卫生间"
+                                  changeOnBlur={false}
+                                  controls={false}
+                                  disabled={saving}
+                                  min={0}
+                                  precision={0}
+                                  size="small"
+                                  suffix="卫"
+                                  value={draft}
+                                  style={{ width: '100%' }}
+                                  onChange={setDraft}
+                                />
+                              </div>
+                            )}
+                            validate={(draft) =>
+                              validateInteger(draft, '卫生间', {
+                                nonNegative: true,
+                              })
+                            }
+                            value={currentHouse.bathrooms}
+                            onClose={finishInlineField}
+                            onRequestActivate={(field) =>
+                              requestInlineField(field as InlineFieldKey)
+                            }
+                            onSave={(draft) =>
+                              saveInlinePatch({ bathrooms: draft })
+                            }
+                            onSaveFailure={failInlineField}
+                            onSavingChange={setInlineSaving}
+                          />
+                          <InlineEditableField<
+                            number | null | undefined,
+                            number | null
+                          >
+                            active={activeInlineField === 'kitchens'}
+                            ariaLabel="编辑厨房"
+                            className={styles.materialField}
+                            disabled={inlineSaving || patchHouse.isPending}
+                            enabled={inlineEditingEnabled}
+                            fieldKey="kitchens"
+                            isUnchanged={nullableNumberUnchanged}
+                            prepareDraft={nullableNumber}
+                            renderDisplay={() => (
+                              <>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  厨房
+                                </Typography.Text>
+                                <div className={styles.materialFieldValue}>
+                                  {houseKitchenText(currentHouse)}
+                                </div>
+                              </>
+                            )}
+                            renderEditor={({ draft, saving, setDraft }) => (
+                              <div>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  厨房
+                                </Typography.Text>
+                                <InputNumber
+                                  autoFocus
+                                  aria-label="厨房"
+                                  changeOnBlur={false}
+                                  controls={false}
+                                  disabled={saving}
+                                  min={0}
+                                  precision={0}
+                                  size="small"
+                                  suffix="厨"
+                                  value={draft}
+                                  style={{ width: '100%' }}
+                                  onChange={setDraft}
+                                />
+                              </div>
+                            )}
+                            validate={(draft) =>
+                              validateInteger(draft, '厨房', {
+                                nonNegative: true,
+                              })
+                            }
+                            value={currentHouse.kitchens}
+                            onClose={finishInlineField}
+                            onRequestActivate={(field) =>
+                              requestInlineField(field as InlineFieldKey)
+                            }
+                            onSave={(draft) =>
+                              saveInlinePatch({ kitchens: draft })
+                            }
+                            onSaveFailure={failInlineField}
+                            onSavingChange={setInlineSaving}
+                          />
+                          <InlineEditableField<
+                            number | null | undefined,
+                            number | null
+                          >
+                            active={activeInlineField === 'balconies'}
+                            ariaLabel="编辑阳台"
+                            className={styles.materialField}
+                            disabled={inlineSaving || patchHouse.isPending}
+                            enabled={inlineEditingEnabled}
+                            fieldKey="balconies"
+                            isUnchanged={nullableNumberUnchanged}
+                            prepareDraft={nullableNumber}
+                            renderDisplay={() => (
+                              <>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  阳台
+                                </Typography.Text>
+                                <div className={styles.materialFieldValue}>
+                                  {houseBalconyText(currentHouse)}
+                                </div>
+                              </>
+                            )}
+                            renderEditor={({ draft, saving, setDraft }) => (
+                              <div>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  阳台
+                                </Typography.Text>
+                                <InputNumber
+                                  autoFocus
+                                  aria-label="阳台"
+                                  changeOnBlur={false}
+                                  controls={false}
+                                  disabled={saving}
+                                  min={0}
+                                  precision={0}
+                                  size="small"
+                                  suffix="阳台"
+                                  value={draft}
+                                  style={{ width: '100%' }}
+                                  onChange={setDraft}
+                                />
+                              </div>
+                            )}
+                            validate={(draft) =>
+                              validateInteger(draft, '阳台', {
+                                nonNegative: true,
+                              })
+                            }
+                            value={currentHouse.balconies}
+                            onClose={finishInlineField}
+                            onRequestActivate={(field) =>
+                              requestInlineField(field as InlineFieldKey)
+                            }
+                            onSave={(draft) =>
+                              saveInlinePatch({ balconies: draft })
+                            }
+                            onSaveFailure={failInlineField}
+                            onSavingChange={setInlineSaving}
+                          />
                           <div className={styles.materialField}>
                             <Typography.Text
                               className={styles.materialFieldLabel}
@@ -1200,51 +2064,297 @@ const HouseDetailPage: React.FC = () => {
                                 : '-'}
                             </div>
                           </div>
-                          <div className={styles.materialField}>
-                            <Typography.Text
-                              className={styles.materialFieldLabel}
-                            >
-                              朝向
-                            </Typography.Text>
-                            <div className={styles.materialFieldValue}>
-                              {mappedText(
-                                currentHouse.orientation,
-                                currentHouse.orientation__mapping,
-                              )}
-                            </div>
-                          </div>
-                          <div className={styles.materialField}>
-                            <Typography.Text
-                              className={styles.materialFieldLabel}
-                            >
-                              装修
-                            </Typography.Text>
-                            <div className={styles.materialFieldValue}>
-                              {mappedText(
-                                currentHouse.decoration,
-                                currentHouse.decoration__mapping,
-                              )}
-                            </div>
-                          </div>
-                          {customFieldEntries.map(([key, value]) => (
-                            <div
-                              className={cx(
-                                styles.materialField,
-                                isWideCustomField(value) &&
-                                  styles.materialFieldWide,
-                              )}
-                              key={key}
-                            >
-                              <Typography.Text
-                                className={styles.materialFieldLabel}
-                              >
-                                {customFieldLabel(key)}
-                              </Typography.Text>
-                              <div className={styles.materialFieldValue}>
-                                {customFieldValue(value)}
+                          <InlineEditableField<string | null, string | null>
+                            active={activeInlineField === 'orientation'}
+                            ariaLabel="编辑朝向"
+                            className={styles.materialField}
+                            disabled={inlineSaving || patchHouse.isPending}
+                            enabled={
+                              inlineEditingEnabled && !houseEnums.isError
+                            }
+                            fieldKey="orientation"
+                            isUnchanged={(draft, value) => draft === value}
+                            prepareDraft={(value) => value}
+                            renderDisplay={() => (
+                              <>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  朝向
+                                </Typography.Text>
+                                <div className={styles.materialFieldValue}>
+                                  {mappedText(
+                                    currentHouse.orientation,
+                                    currentHouse.orientation__mapping,
+                                  )}
+                                </div>
+                              </>
+                            )}
+                            renderEditor={({
+                              draft,
+                              getPopupContainer,
+                              save,
+                              saving,
+                              setDraft,
+                            }) => (
+                              <div>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  朝向
+                                </Typography.Text>
+                                <Select
+                                  allowClear
+                                  autoFocus
+                                  aria-label="朝向"
+                                  disabled={saving}
+                                  getPopupContainer={getPopupContainer}
+                                  options={orientationOptions}
+                                  size="small"
+                                  value={draft ?? undefined}
+                                  style={{ width: '100%' }}
+                                  onChange={(next) => {
+                                    setDraft(next ?? null);
+                                    save();
+                                  }}
+                                />
                               </div>
-                            </div>
-                          ))}
+                            )}
+                            value={currentHouse.orientation ?? null}
+                            onClose={finishInlineField}
+                            onRequestActivate={(field) =>
+                              requestInlineField(field as InlineFieldKey)
+                            }
+                            onSave={(draft) =>
+                              saveInlinePatch({ orientation: draft })
+                            }
+                            onSaveFailure={failInlineField}
+                            onSavingChange={setInlineSaving}
+                          />
+                          <InlineEditableField<string | null, string | null>
+                            active={activeInlineField === 'decoration'}
+                            ariaLabel="编辑装修"
+                            className={styles.materialField}
+                            disabled={inlineSaving || patchHouse.isPending}
+                            enabled={
+                              inlineEditingEnabled && !houseEnums.isError
+                            }
+                            fieldKey="decoration"
+                            isUnchanged={(draft, value) => draft === value}
+                            prepareDraft={(value) => value}
+                            renderDisplay={() => (
+                              <>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  装修
+                                </Typography.Text>
+                                <div className={styles.materialFieldValue}>
+                                  {mappedText(
+                                    currentHouse.decoration,
+                                    currentHouse.decoration__mapping,
+                                  )}
+                                </div>
+                              </>
+                            )}
+                            renderEditor={({
+                              draft,
+                              getPopupContainer,
+                              save,
+                              saving,
+                              setDraft,
+                            }) => (
+                              <div>
+                                <Typography.Text
+                                  className={styles.materialFieldLabel}
+                                >
+                                  装修
+                                </Typography.Text>
+                                <Select
+                                  allowClear
+                                  autoFocus
+                                  aria-label="装修"
+                                  disabled={saving}
+                                  getPopupContainer={getPopupContainer}
+                                  options={decorationOptions}
+                                  size="small"
+                                  value={draft ?? undefined}
+                                  style={{ width: '100%' }}
+                                  onChange={(next) => {
+                                    setDraft(next ?? null);
+                                    save();
+                                  }}
+                                />
+                              </div>
+                            )}
+                            value={currentHouse.decoration ?? null}
+                            onClose={finishInlineField}
+                            onRequestActivate={(field) =>
+                              requestInlineField(field as InlineFieldKey)
+                            }
+                            onSave={(draft) =>
+                              saveInlinePatch({ decoration: draft })
+                            }
+                            onSaveFailure={failInlineField}
+                            onSavingChange={setInlineSaving}
+                          />
+                          {customFieldEntries.map(([key, value]) => {
+                            const fieldKey = `extra:${key}` as const;
+                            const editorLabel = `扩展字段${customFieldLabel(key)}`;
+                            return (
+                              <InlineEditableField<unknown, InlineExtraDraft>
+                                active={activeInlineField === fieldKey}
+                                ariaLabel={`编辑${editorLabel}`}
+                                className={cx(
+                                  styles.materialField,
+                                  isWideCustomField(value) &&
+                                    styles.materialFieldWide,
+                                )}
+                                disabled={inlineSaving || patchHouse.isPending}
+                                enabled={inlineEditingEnabled}
+                                fieldKey={fieldKey}
+                                isUnchanged={inlineExtraDraftUnchanged}
+                                key={key}
+                                prepareDraft={prepareInlineExtraDraft}
+                                renderDisplay={() => (
+                                  <>
+                                    <Typography.Text
+                                      className={styles.materialFieldLabel}
+                                    >
+                                      {customFieldLabel(key)}
+                                    </Typography.Text>
+                                    <div className={styles.materialFieldValue}>
+                                      {customFieldValue(value)}
+                                    </div>
+                                  </>
+                                )}
+                                renderEditor={({
+                                  draft,
+                                  getPopupContainer,
+                                  save,
+                                  saving,
+                                  setDraft,
+                                }) => (
+                                  <div>
+                                    <Typography.Text
+                                      className={styles.materialFieldLabel}
+                                    >
+                                      {customFieldLabel(key)}
+                                    </Typography.Text>
+                                    {draft.kind === 'boolean' ? (
+                                      <Select
+                                        autoFocus
+                                        aria-label={editorLabel}
+                                        disabled={saving}
+                                        getPopupContainer={getPopupContainer}
+                                        options={[
+                                          { label: '是', value: true },
+                                          { label: '否', value: false },
+                                        ]}
+                                        size="small"
+                                        value={draft.value}
+                                        style={{ width: '100%' }}
+                                        onChange={(next) => {
+                                          setDraft({
+                                            kind: 'boolean',
+                                            value: next,
+                                          });
+                                          save();
+                                        }}
+                                      />
+                                    ) : draft.kind === 'number' ? (
+                                      <InputNumber
+                                        autoFocus
+                                        aria-label={editorLabel}
+                                        controls={false}
+                                        disabled={saving}
+                                        size="small"
+                                        value={draft.value}
+                                        style={{ width: '100%' }}
+                                        onChange={(next) =>
+                                          setDraft({
+                                            kind: 'number',
+                                            value: next,
+                                          })
+                                        }
+                                      />
+                                    ) : draft.kind === 'array' ? (
+                                      <Select<string[]>
+                                        autoFocus
+                                        aria-label={editorLabel}
+                                        disabled={saving}
+                                        getPopupContainer={getPopupContainer}
+                                        mode="tags"
+                                        options={draft.value.map((item) => ({
+                                          label: item,
+                                          value: item,
+                                        }))}
+                                        size="small"
+                                        tokenSeparators={[',', '，']}
+                                        value={draft.value}
+                                        style={{ width: '100%' }}
+                                        onChange={(next) =>
+                                          setDraft({
+                                            kind: 'array',
+                                            value: next,
+                                          })
+                                        }
+                                      />
+                                    ) : draft.kind === 'object' ||
+                                      isWideCustomField(value) ? (
+                                      <Input.TextArea
+                                        autoFocus
+                                        aria-label={editorLabel}
+                                        autoSize={{ minRows: 3, maxRows: 8 }}
+                                        disabled={saving}
+                                        size="small"
+                                        value={draft.value}
+                                        onChange={(event) =>
+                                          setDraft({
+                                            kind: draft.kind,
+                                            value: event.target.value,
+                                          })
+                                        }
+                                      />
+                                    ) : (
+                                      <Input
+                                        autoFocus
+                                        aria-label={editorLabel}
+                                        disabled={saving}
+                                        size="small"
+                                        value={draft.value}
+                                        onChange={(event) =>
+                                          setDraft({
+                                            kind: 'text',
+                                            value: event.target.value,
+                                          })
+                                        }
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                                validate={validateInlineExtraDraft}
+                                value={value}
+                                onClose={finishInlineField}
+                                onRequestActivate={(field) =>
+                                  requestInlineField(field as InlineFieldKey)
+                                }
+                                onSave={(draft) =>
+                                  saveInlinePatch({
+                                    extra: {
+                                      ...(currentHouse.extra || {}),
+                                      [key]: parseInlineExtraDraft(
+                                        draft,
+                                        value,
+                                      ),
+                                    },
+                                  })
+                                }
+                                onSaveFailure={failInlineField}
+                                onSavingChange={setInlineSaving}
+                              />
+                            );
+                          })}
                         </div>
                       </section>
                     </div>
@@ -1290,28 +2400,16 @@ const HouseDetailPage: React.FC = () => {
                       }
                       columns={[
                         {
-                          title: '客户 / 状态',
+                          title: '客户',
                           dataIndex: 'customer_name',
-                          width: 260,
+                          width: 190,
                           render: (value, record) => (
                             <div>
-                              <Space size={6} wrap>
-                                <ViewingPreview id={record.id}>
-                                  <span className={styles.recordPrimary}>
-                                    {value}
-                                  </span>
-                                </ViewingPreview>
-                                <Tag
-                                  color={
-                                    STATUS_COLOR[record.status] || 'default'
-                                  }
-                                >
-                                  {enumMapping(
-                                    record.status,
-                                    record.status__mapping,
-                                  )}
-                                </Tag>
-                              </Space>
+                              <ViewingPreview id={record.id}>
+                                <span className={styles.recordPrimary}>
+                                  {value}
+                                </span>
+                              </ViewingPreview>
                               <span className={styles.recordSecondary}>
                                 {record.customer_phone || '-'}
                               </span>
@@ -1319,9 +2417,21 @@ const HouseDetailPage: React.FC = () => {
                           ),
                         },
                         {
+                          title: '状态',
+                          dataIndex: 'status',
+                          width: 100,
+                          align: 'center',
+                          render: (value, record) => (
+                            <AppStatusTag name="viewing" state={value}>
+                              {enumMapping(value, record.status__mapping)}
+                            </AppStatusTag>
+                          ),
+                        },
+                        {
                           title: '预约时间',
                           dataIndex: 'scheduled_at',
                           width: 170,
+                          align: 'center',
                           render: (value) => {
                             const parts = dateTimeParts(value);
                             return (
@@ -1342,6 +2452,7 @@ const HouseDetailPage: React.FC = () => {
                           title: '操作',
                           dataIndex: 'actions',
                           width: 110,
+                          align: 'center',
                           render: (_value, record) => {
                             if (
                               record.status === 'converted' &&
@@ -1433,29 +2544,17 @@ const HouseDetailPage: React.FC = () => {
                       scroll={{ x: 'max-content' }}
                       columns={[
                         {
-                          title: '租客 / 状态',
+                          title: '租客',
                           dataIndex: 'tenant_id',
-                          width: 200,
+                          width: 180,
                           render: (_value, record) => (
                             <div>
-                              <Space size={6} wrap>
-                                <ContactPreview id={record.tenant_id}>
-                                  <span className={styles.recordPrimary}>
-                                    {record.tenant?.name ||
-                                      `联系人 #${record.tenant_id}`}
-                                  </span>
-                                </ContactPreview>
-                                <Tag
-                                  color={
-                                    STATUS_COLOR[record.status] || 'default'
-                                  }
-                                >
-                                  {enumMapping(
-                                    record.status,
-                                    record.status__mapping,
-                                  )}
-                                </Tag>
-                              </Space>
+                              <ContactPreview id={record.tenant_id}>
+                                <span className={styles.recordPrimary}>
+                                  {record.tenant?.name ||
+                                    `联系人 #${record.tenant_id}`}
+                                </span>
+                              </ContactPreview>
                               <span className={styles.recordSecondary}>
                                 {record.tenant?.phone || '-'}
                               </span>
@@ -1463,9 +2562,21 @@ const HouseDetailPage: React.FC = () => {
                           ),
                         },
                         {
+                          title: '状态',
+                          dataIndex: 'status',
+                          width: 100,
+                          align: 'center',
+                          render: (value, record) => (
+                            <AppStatusTag name="lease" state={value}>
+                              {enumMapping(value, record.status__mapping)}
+                            </AppStatusTag>
+                          ),
+                        },
+                        {
                           title: '租金',
                           dataIndex: 'monthly_rent',
                           width: 130,
+                          align: 'right',
                           render: (value, record) => (
                             <div>
                               <span className={styles.recordMoney}>
@@ -1483,6 +2594,7 @@ const HouseDetailPage: React.FC = () => {
                           title: '租期',
                           dataIndex: 'start_date',
                           width: 170,
+                          align: 'center',
                           render: (_value, record) => (
                             <div>
                               <span className={styles.recordPrimary}>
@@ -1498,29 +2610,23 @@ const HouseDetailPage: React.FC = () => {
                           title: '合同 / 操作',
                           dataIndex: 'contract_files',
                           width: 170,
+                          align: 'center',
                           render: (value, record) => (
                             <div>
                               <Space size={6} wrap>
                                 <LeasePreview id={record.id}>
-                                  <span>{`租约 #${record.id} · ${value?.length || 0} 份`}</span>
+                                  <span>
+                                    {value?.length
+                                      ? `租约 #${record.id} · ${value.length} 份合同`
+                                      : `租约 #${record.id}`}
+                                  </span>
                                 </LeasePreview>
-                                {!value?.length ? (
-                                  <Tag color="orange">待补合同</Tag>
-                                ) : null}
                               </Space>
                               <a
-                                href={
-                                  record.contract_files?.length
-                                    ? leaseEditHref(houseId, record.id)
-                                    : leaseEditHref(houseId, record.id, {
-                                        task: 'contract',
-                                      })
-                                }
+                                href={leaseEditHref(houseId, record.id)}
                                 style={{ display: 'block', marginTop: 4 }}
                               >
-                                {record.contract_files?.length
-                                  ? '编辑租约'
-                                  : '补合同'}
+                                编辑租约
                               </a>
                             </div>
                           ),
@@ -1592,7 +2698,7 @@ const HouseDetailPage: React.FC = () => {
       >
         <Typography.Text>
           {publishConfirmStatus === HOUSE_STATUS.LISTED
-            ? '确认后房源状态将切换为招租中，继续承接带看。'
+            ? '确认后房源状态将切换为招租，继续承接带看。'
             : '确认后房源状态将切换为空置，不再对外展示。'}
         </Typography.Text>
       </Modal>
@@ -1605,9 +2711,8 @@ const HouseDetailPage: React.FC = () => {
         extra={
           <Button
             type="primary"
-            htmlType="submit"
-            form="house-edit-form"
             loading={patchHouse.isPending}
+            onClick={() => editForm.submit()}
           >
             保存
           </Button>
@@ -1615,17 +2720,16 @@ const HouseDetailPage: React.FC = () => {
       >
         <Form
           key={detailScopeKey}
+          form={editForm}
           id="house-edit-form"
           layout="vertical"
           initialValues={editInitialValues}
           preserve={false}
           onFinish={(values) => {
             const payload = {
-              ...values,
-              extra: normalizeExtraFormValues(
-                values.extra,
-                currentHouse?.extra,
-              ),
+              ...normalizeHouseEditNumericValues(values),
+              images: stripDerivedMediaFields(draftImages),
+              videos: stripDerivedMediaFields(draftVideos),
             };
             patchHouse.mutate(payload, { onSuccess: closeEdit });
           }}
@@ -1654,12 +2758,13 @@ const HouseDetailPage: React.FC = () => {
                             rules={[{ required: true, message: '请选择楼栋' }]}
                           >
                             <Select
-                              options={(buildings.data?.items || []).map(
-                                (item) => ({
-                                  value: item.id,
-                                  label: buildingLabel(item),
-                                }),
-                              )}
+                              showSearch={buildings.showSearch}
+                              loading={buildings.loading}
+                              notFoundContent={buildings.notFoundContent}
+                              onOpenChange={buildings.onOpenChange}
+                              onPopupScroll={buildings.onPopupScroll}
+                              placeholder="搜索小区或楼栋"
+                              options={buildings.options}
                             />
                           </Form.Item>
                         </Col>
@@ -1667,10 +2772,13 @@ const HouseDetailPage: React.FC = () => {
                           <Form.Item label="房东" name="landlord_id">
                             <Select
                               allowClear
-                              options={landlordItems.map((item) => ({
-                                value: item.id,
-                                label: contactLabel(item),
-                              }))}
+                              showSearch={landlords.showSearch}
+                              loading={landlords.loading}
+                              notFoundContent={landlords.notFoundContent}
+                              onOpenChange={landlords.onOpenChange}
+                              onPopupScroll={landlords.onPopupScroll}
+                              placeholder="搜索房东姓名或手机号"
+                              options={landlords.options}
                             />
                           </Form.Item>
                         </Col>
@@ -1685,22 +2793,22 @@ const HouseDetailPage: React.FC = () => {
                         </Col>
                         <Col xs={24} md={8}>
                           <Form.Item label="挂牌租金" name="asking_rent">
-                            <Input />
+                            <Input min={0} step="0.01" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={8}>
                           <Form.Item label="押金" name="deposit_amount">
-                            <Input />
+                            <Input min={0} step="0.01" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
                           <Form.Item label="所在楼层" name="floor">
-                            <Input type="number" />
+                            <Input step="1" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
                           <Form.Item label="房态" name="status">
-                            <Select options={statusOptions} />
+                            <Select showSearch options={statusOptions} />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -1711,47 +2819,55 @@ const HouseDetailPage: React.FC = () => {
                       <Row gutter={[16, 0]} style={{ marginTop: 12 }}>
                         <Col xs={24} md={12}>
                           <Form.Item label="建筑面积" name="area">
-                            <Input />
+                            <Input min={0} step="0.01" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
                           <Form.Item label="套内面积" name="interior_area">
-                            <Input />
+                            <Input min={0} step="0.01" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={12} md={6}>
-                          <Form.Item label="室" name="bedrooms">
-                            <Input type="number" min={0} />
+                          <Form.Item label="卧室" name="bedrooms">
+                            <Input min={0} step="1" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={12} md={6}>
-                          <Form.Item label="厅" name="living_rooms">
-                            <Input type="number" min={0} />
+                          <Form.Item label="客厅" name="living_rooms">
+                            <Input min={0} step="1" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={12} md={6}>
-                          <Form.Item label="卫" name="bathrooms">
-                            <Input type="number" min={0} />
+                          <Form.Item label="卫生间" name="bathrooms">
+                            <Input min={0} step="1" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={12} md={6}>
-                          <Form.Item label="厨" name="kitchens">
-                            <Input type="number" min={0} />
+                          <Form.Item label="厨房" name="kitchens">
+                            <Input min={0} step="1" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={12} md={6}>
                           <Form.Item label="阳台" name="balconies">
-                            <Input type="number" min={0} />
+                            <Input min={0} step="1" type="number" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={9}>
                           <Form.Item label="朝向" name="orientation">
-                            <Select allowClear options={orientationOptions} />
+                            <Select
+                              showSearch
+                              allowClear
+                              options={orientationOptions}
+                            />
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={9}>
                           <Form.Item label="装修" name="decoration">
-                            <Select allowClear options={decorationOptions} />
+                            <Select
+                              showSearch
+                              allowClear
+                              options={decorationOptions}
+                            />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -1783,9 +2899,7 @@ const HouseDetailPage: React.FC = () => {
                           }
                         >
                           {({ getFieldValue }) => {
-                            const selectedBuilding = (
-                              buildings.data?.items || []
-                            ).find(
+                            const selectedBuilding = buildingItems.find(
                               (item) =>
                                 item.id === getFieldValue('building_id'),
                             );
@@ -1810,62 +2924,6 @@ const HouseDetailPage: React.FC = () => {
                         </Form.Item>
                       </div>
                     </div>
-
-                    <div style={editSectionStyle}>
-                      <Typography.Text strong>自定义字段</Typography.Text>
-                      {Object.entries(currentHouse?.extra || {}).length ? (
-                        <div
-                          className={styles.customFieldsGrid}
-                          style={{ marginTop: 12 }}
-                        >
-                          {Object.entries(currentHouse?.extra || {}).map(
-                            ([key, value]) => (
-                              <div
-                                className={
-                                  isWideCustomField(value)
-                                    ? styles.customFieldWide
-                                    : undefined
-                                }
-                                key={key}
-                              >
-                                <Form.Item
-                                  label={customFieldLabel(key)}
-                                  name={['extra', key]}
-                                  rules={
-                                    isPlainObject(value)
-                                      ? [
-                                          {
-                                            validator: async (_rule, input) => {
-                                              if (!input?.trim()) return;
-                                              try {
-                                                const parsed =
-                                                  JSON.parse(input);
-                                                if (!isPlainObject(parsed)) {
-                                                  throw new Error();
-                                                }
-                                              } catch {
-                                                throw new Error(
-                                                  '请输入有效的 JSON 对象',
-                                                );
-                                              }
-                                            },
-                                          },
-                                        ]
-                                      : undefined
-                                  }
-                                >
-                                  {customExtraInput(value)}
-                                </Form.Item>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      ) : (
-                        <Typography.Text type="secondary">
-                          当前房源暂无自定义字段。
-                        </Typography.Text>
-                      )}
-                    </div>
                   </Space>
                 ),
               },
@@ -1880,36 +2938,32 @@ const HouseDetailPage: React.FC = () => {
                       size={16}
                       style={{ width: '100%' }}
                     >
-                      <Space align="center" size={8} wrap>
-                        <Typography.Text strong>图片与视频</Typography.Text>
-                        <Tag color="blue" variant="filled">
-                          即时保存
-                        </Tag>
-                      </Space>
+                      <Typography.Text strong>图片与视频</Typography.Text>
                       <Typography.Text type="secondary">
-                        图片角色、封面和排序调整会立即保存，不受右上角保存按钮影响。
+                        上传、删除、封面和排序调整将在点击右上角“保存”后统一生效。
                       </Typography.Text>
                       <MediaRefsUpload
                         title="图片资料"
-                        value={houseImages}
+                        value={draftImages}
                         resourceType={HOUSE_MEDIA_RESOURCE_TYPE.HOUSE_IMAGE}
                         mediaType={HOUSE_MEDIA_TYPE.IMAGE}
                         maxCount={9}
-                        onChange={(images) => patchHouse.mutate({ images })}
+                        preserveDerivedFieldsOnChange
+                        onChange={(images) =>
+                          setDraftImages(images as MediaRefValue[])
+                        }
                       />
                       <MediaRefsUpload
                         title="视频资料"
-                        value={houseVideos}
+                        value={draftVideos}
                         resourceType={HOUSE_MEDIA_RESOURCE_TYPE.HOUSE_VIDEO}
                         mediaType={HOUSE_MEDIA_TYPE.VIDEO}
                         maxCount={3}
-                        onChange={(videos) => patchHouse.mutate({ videos })}
+                        preserveDerivedFieldsOnChange
+                        onChange={(videos) =>
+                          setDraftVideos(videos as MediaRefValue[])
+                        }
                       />
-                      {patchHouse.isPending ? (
-                        <Typography.Text type="secondary">
-                          正在保存调整…
-                        </Typography.Text>
-                      ) : null}
                     </Space>
                   </div>
                 ),

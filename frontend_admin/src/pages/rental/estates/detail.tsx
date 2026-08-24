@@ -1,9 +1,4 @@
-import {
-  BankOutlined,
-  EditOutlined,
-  EnvironmentOutlined,
-  PlusOutlined,
-} from '@ant-design/icons';
+import { EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@umijs/max';
 import {
@@ -21,10 +16,8 @@ import {
 } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { useState } from 'react';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { AppIcon } from '@/components/AppIcon';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import { houseApi } from '@/services/manual/house';
 
 const PAGE_SIZE = 20;
@@ -270,7 +263,9 @@ const EstateDetailPage: React.FC = () => {
     mapParams.set('center_lng', String(estate.lng));
     mapParams.set('zoom', '15');
   }
-  const mapHref = dashboardHref(`/rental/properties/map?${mapParams.toString()}`);
+  const mapHref = dashboardHref(
+    `/rental/properties/map?${mapParams.toString()}`,
+  );
   const estateImages = (estate.images || []).flatMap((item, index) => {
     const source = item.thumbnail || item.url;
     if (typeof source !== 'string' || !source) return [];
@@ -292,8 +287,8 @@ const EstateDetailPage: React.FC = () => {
     ['总房源', total],
     ['已租', rented],
     ['空置', counts?.vacant || 0],
-    ['招租中', counts?.listed || 0],
-    ['装修中', counts?.renovating || 0],
+    ['招租', counts?.listed || 0],
+    ['装修', counts?.renovating || 0],
   ];
 
   return (
@@ -314,7 +309,7 @@ const EstateDetailPage: React.FC = () => {
                 className={styles.bannerFallback}
                 data-testid="estate-no-image-state"
               >
-                <BankOutlined className={styles.bannerIcon} />
+                <AppIcon className={styles.bannerIcon} name="estate" />
               </div>
             )}
             <div className={styles.bannerBackdrop} />
@@ -341,7 +336,7 @@ const EstateDetailPage: React.FC = () => {
                   ) : null}
                 </div>
                 <div className={styles.bannerLocation}>
-                  <EnvironmentOutlined style={{ marginTop: 3 }} />
+                  <AppIcon name="location" style={{ marginTop: 3 }} />
                   <span>{fullAddress || '小区地址待补充'}</span>
                 </div>
               </div>
@@ -464,6 +459,7 @@ const EstateDetailPage: React.FC = () => {
                   {
                     title: '房源概况',
                     key: 'inventory',
+                    align: 'right',
                     render: (_value, row) => (
                       <Space size={12}>
                         <Typography.Text>
@@ -478,6 +474,7 @@ const EstateDetailPage: React.FC = () => {
                   {
                     title: '出租率',
                     key: 'rented-rate',
+                    align: 'right',
                     render: (_value, row) => {
                       const rentedHouses = row.counts?.rented || 0;
                       const rentableHouses =

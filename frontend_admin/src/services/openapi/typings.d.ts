@@ -744,6 +744,8 @@ declare namespace API {
     responsible_member_id?: number | null;
     status?: string | null;
     keyword?: string | null;
+    /** 排序字段，多个字段使用英文逗号分隔，字段前的 - 表示降序，最多 3 项。允许字段：room_number、layout、building、asking_rent、deposit_amount、landlord、has_elevator_access、status、area、floor、created_at、updated_at。 */
+    ordering?: string;
     page?: number;
     page_size?: number | null;
   };

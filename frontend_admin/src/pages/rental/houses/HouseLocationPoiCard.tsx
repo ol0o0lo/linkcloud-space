@@ -1,4 +1,4 @@
-import { EnvironmentOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ReloadOutlined } from '@ant-design/icons';
 import {
   Alert,
   Button,
@@ -11,6 +11,7 @@ import {
 } from 'antd';
 import { createStyles } from 'antd-style';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppIcon } from '@/components/AppIcon';
 import { useAmap } from '@/services/manual/amap';
 
 const POI_RADIUS = 2000;
@@ -424,7 +425,7 @@ export default function HouseLocationPoiCard({
           <Button
             aria-label="去维护定位"
             href={editHref}
-            icon={<EnvironmentOutlined />}
+            icon={<AppIcon name="location" />}
           >
             去维护定位
           </Button>

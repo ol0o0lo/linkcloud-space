@@ -1,10 +1,4 @@
-import {
-  ApartmentOutlined,
-  EditOutlined,
-  EnvironmentOutlined,
-  PictureOutlined,
-  PlusOutlined,
-} from '@ant-design/icons';
+import { EditOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@umijs/max';
 import {
@@ -22,12 +16,11 @@ import {
 } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { useState } from 'react';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { AppIcon } from '@/components/AppIcon';
+import { AppStatusTag } from '@/components/AppStatus';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import { houseApi } from '@/services/manual/house';
-import { houseDisplayTags, moneyText, STATUS_COLOR } from '../constants';
+import { houseDisplayTags, moneyText } from '../constants';
 import { safeMapReturnTo } from './detail-utils';
 
 const PAGE_SIZE = 20;
@@ -315,8 +308,8 @@ const BuildingDetailPage: React.FC = () => {
     ['总房源', total],
     ['已租', rented],
     ['空置', counts?.vacant || 0],
-    ['招租中', counts?.listed || 0],
-    ['装修中', counts?.renovating || 0],
+    ['招租', counts?.listed || 0],
+    ['装修', counts?.renovating || 0],
   ];
 
   return (
@@ -325,7 +318,7 @@ const BuildingDetailPage: React.FC = () => {
         <Card className={styles.headerCard}>
           <div className={styles.headerIdentity}>
             <div className={styles.headerIcon}>
-              <ApartmentOutlined />
+              <AppIcon name="building" />
             </div>
             <div className={styles.headerMain}>
               <div className={styles.hierarchyLine}>
@@ -347,7 +340,7 @@ const BuildingDetailPage: React.FC = () => {
                 <Tag>{building.elevator ? '有电梯' : '无电梯'}</Tag>
               </div>
               <div className={styles.locationLine}>
-                <EnvironmentOutlined style={{ marginTop: 3 }} />
+                <AppIcon name="location" style={{ marginTop: 3 }} />
                 <span>{building.address || '楼栋地址待补充'}</span>
               </div>
             </div>
@@ -427,7 +420,7 @@ const BuildingDetailPage: React.FC = () => {
                     )}
                   </div>
                   <div className={styles.profileAddress}>
-                    <EnvironmentOutlined style={{ marginTop: 3 }} />
+                    <AppIcon name="location" style={{ marginTop: 3 }} />
                     <span>{building.address || '楼栋地址待补充'}</span>
                   </div>
                 </div>
@@ -572,20 +565,23 @@ const BuildingDetailPage: React.FC = () => {
               {
                 title: '楼层',
                 dataIndex: 'floor',
+                align: 'right',
                 render: (value) => value ?? '-',
               },
               {
                 title: '房态',
                 dataIndex: 'status__mapping',
+                align: 'center',
                 render: (value, row) => (
-                  <Tag color={STATUS_COLOR[row.status]}>
+                  <AppStatusTag name="house" state={row.status}>
                     {value || row.status || '-'}
-                  </Tag>
+                  </AppStatusTag>
                 ),
               },
               {
                 title: '租金',
                 dataIndex: 'asking_rent',
+                align: 'right',
                 render: (value) => moneyText(value),
               },
               {
@@ -608,6 +604,7 @@ const BuildingDetailPage: React.FC = () => {
                 title: '操作',
                 key: 'actions',
                 fixed: 'right',
+                align: 'center',
                 render: (_value, row) => (
                   <a
                     href={dashboardHref(`/rental/properties/${row.id}`)}

@@ -8,6 +8,7 @@ import {
   within,
 } from '@testing-library/react';
 import { message } from 'antd';
+import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ContactsPage from '../contacts';
 import EstatesPage from '../estates';
@@ -22,7 +23,9 @@ const {
   mockCreateLease,
   mockCreateViewingRecord,
   mockGetBuilding,
+  mockGetEstate,
   mockGetContact,
+  mockGetTagSuggestions,
   mockGetLease,
   mockHistoryPush,
   mockListBuildings,
@@ -37,8 +40,9 @@ const {
   mockPatchHouse,
   mockPatchLease,
   mockPatchViewingRecord,
-  mockListUserSettings,
-  mockPutUserSetting,
+  mockDeleteTableColumns,
+  mockGetUserSetting,
+  mockPutTableColumns,
   mockUseHousePublishRules,
   mockUseTenantWorkspace,
 } = vi.hoisted(() => ({
@@ -48,7 +52,9 @@ const {
   mockCreateLease: vi.fn(),
   mockCreateViewingRecord: vi.fn(),
   mockGetBuilding: vi.fn(),
+  mockGetEstate: vi.fn(),
   mockGetContact: vi.fn(),
+  mockGetTagSuggestions: vi.fn(),
   mockGetLease: vi.fn(),
   mockHistoryPush: vi.fn(),
   mockListEstates: vi.fn(),
@@ -63,8 +69,9 @@ const {
   mockPatchHouse: vi.fn(),
   mockPatchLease: vi.fn(),
   mockPatchViewingRecord: vi.fn(),
-  mockListUserSettings: vi.fn(),
-  mockPutUserSetting: vi.fn(),
+  mockDeleteTableColumns: vi.fn(),
+  mockGetUserSetting: vi.fn(),
+  mockPutTableColumns: vi.fn(),
   mockUseHousePublishRules: vi.fn(),
   mockUseTenantWorkspace: vi.fn(),
 }));
@@ -82,22 +89,40 @@ vi.mock('@/pages/rental/useHousePublishRules', () => ({
   useHousePublishRules: mockUseHousePublishRules,
 }));
 
-vi.mock('@ant-design/pro-components', () => ({
-  ProTable: ({
+vi.mock('@ant-design/pro-components', () => {
+  const MockProTable = ({
     columns,
     dataSource = [],
+    editable,
     form,
     headerTitle,
     loading,
     locale,
+    onChange: onValueChange,
+    onTableChange,
     onReset,
     onSubmit,
     options,
     pagination,
     search,
+    scroll,
     toolBarRender,
+    value,
   }: any) => {
+    const resolvedDataSource = value ?? dataSource;
     const tableColumns = columns.filter((column: any) => !column.hideInTable);
+    const [sortState, setSortState] = React.useState<
+      Record<string, 'ascend' | 'descend'>
+    >(() =>
+      Object.fromEntries(
+        tableColumns
+          .filter((column: any) => column.defaultSortOrder)
+          .map((column: any) => [
+            String(column.key || column.dataIndex),
+            column.defaultSortOrder,
+          ]),
+      ),
+    );
     const searchColumns =
       search === false
         ? []
@@ -110,7 +135,7 @@ vi.mock('@ant-design/pro-components', () => ({
     };
     const toolbarSearch = options?.search;
     return (
-      <div>
+      <div data-scroll-y={scroll?.y} data-testid="mock-pro-table">
         {searchColumns.length ? (
           <form
             onReset={() => onReset?.()}
@@ -195,34 +220,243 @@ vi.mock('@ant-design/pro-components', () => ({
         <table>
           <thead>
             <tr>
-              {tableColumns.map((column: any) => (
-                <th key={column.dataIndex}>{column.title}</th>
-              ))}
+              {tableColumns.map((column: any) => {
+                const columnKey = String(column.key || column.dataIndex);
+                const sortOrder = sortState[columnKey];
+                return (
+                  <th data-sort-order={sortOrder} key={columnKey}>
+                    {column.sorter ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextOrder =
+                            sortOrder === 'ascend'
+                              ? 'descend'
+                              : sortOrder === 'descend'
+                                ? undefined
+                                : 'ascend';
+                          setSortState(
+                            nextOrder ? { [columnKey]: nextOrder } : {},
+                          );
+                          (onTableChange || onValueChange)?.(
+                            pagination || {},
+                            {},
+                            {
+                              column,
+                              columnKey,
+                              field: column.dataIndex,
+                              order: nextOrder,
+                            },
+                            {
+                              action: 'sort',
+                              currentDataSource: resolvedDataSource,
+                            },
+                          );
+                        }}
+                      >
+                        {column.title}
+                      </button>
+                    ) : (
+                      column.title
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {dataSource.map((record: any, rowIndex: number) => (
-              <tr key={record.id}>
-                {tableColumns.map((column: any) => (
-                  <td key={column.dataIndex}>
-                    {column.render
-                      ? column.render(
-                          record[column.dataIndex],
-                          record,
-                          rowIndex,
-                        )
-                      : record[column.dataIndex]}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {resolvedDataSource.map((record: any, rowIndex: number) => {
+              const isEditing = editable?.editableKeys?.some(
+                (key: React.Key) => String(key) === String(record.id),
+              );
+              const action = {
+                startEditable: (key: React.Key) => {
+                  const currentKeys = editable?.editableKeys || [];
+                  const nextKeys =
+                    editable?.type === 'multiple'
+                      ? [
+                          ...currentKeys.filter(
+                            (currentKey: React.Key) =>
+                              String(currentKey) !== String(key),
+                          ),
+                          key,
+                        ]
+                      : [key];
+                  editable?.onChange?.(nextKeys, record);
+                },
+              };
+              const updateEditableField = (
+                editableDataIndex: string,
+                nextValue: unknown,
+              ) => {
+                onValueChange?.(
+                  resolvedDataSource.map((item: any) =>
+                    item.id === record.id
+                      ? {
+                          ...item,
+                          [editableDataIndex]: nextValue,
+                          __editableFieldValues: {
+                            ...item.__editableFieldValues,
+                            [editableDataIndex]: nextValue,
+                          },
+                        }
+                      : item,
+                  ),
+                );
+              };
+              return (
+                <tr key={record.id}>
+                  {tableColumns.map((column: any) => {
+                    const dataIndex = String(column.dataIndex);
+                    const editableDataIndex = String(
+                      column.key ?? column.dataIndex,
+                    );
+                    const editableValue = Object.hasOwn(
+                      record.__editableFieldValues || {},
+                      editableDataIndex,
+                    )
+                      ? record.__editableFieldValues[editableDataIndex]
+                      : record[dataIndex];
+                    let content: React.ReactNode;
+                    if (isEditing && column.valueType === 'option') {
+                      const save = (
+                        <button
+                          key="save"
+                          type="button"
+                          onClick={async () => {
+                            await editable.onSave?.(record.id, record, record);
+                            editable.onChange?.(
+                              (editable.editableKeys || []).filter(
+                                (key: React.Key) =>
+                                  String(key) !== String(record.id),
+                              ),
+                              record,
+                            );
+                          }}
+                        >
+                          保存
+                        </button>
+                      );
+                      const cancel = (
+                        <button
+                          key="cancel"
+                          type="button"
+                          onClick={async () => {
+                            await editable.onCancel?.(
+                              record.id,
+                              record,
+                              record,
+                            );
+                            editable.onChange?.(
+                              (editable.editableKeys || []).filter(
+                                (key: React.Key) =>
+                                  String(key) !== String(record.id),
+                              ),
+                              record,
+                            );
+                          }}
+                        >
+                          取消
+                        </button>
+                      );
+                      content = editable.actionRender
+                        ? editable.actionRender(record, {}, { save, cancel })
+                        : [save, cancel];
+                    } else if (
+                      isEditing &&
+                      column.editable !== false &&
+                      column.formItemRender
+                    ) {
+                      const formNode = column.formItemRender(
+                        {},
+                        {
+                          value: editableValue,
+                          onChange: (nextValue: unknown) =>
+                            updateEditableField(editableDataIndex, nextValue),
+                        },
+                        {},
+                      );
+                      content = React.isValidElement(formNode)
+                        ? React.cloneElement(
+                            formNode as React.ReactElement<any>,
+                            {
+                              value: editableValue,
+                              onChange: (nextValue: unknown) =>
+                                updateEditableField(
+                                  editableDataIndex,
+                                  (
+                                    nextValue as {
+                                      target?: { value?: unknown };
+                                    }
+                                  )?.target?.value ?? nextValue,
+                                ),
+                            },
+                          )
+                        : formNode;
+                    } else if (
+                      isEditing &&
+                      column.editable !== false &&
+                      column.valueType === 'select' &&
+                      column.fieldProps?.mode === 'tags'
+                    ) {
+                      content = (
+                        <input
+                          aria-label={column.fieldProps['aria-label']}
+                          value={(editableValue || []).join(',')}
+                          onChange={(event) =>
+                            updateEditableField(
+                              editableDataIndex,
+                              event.target.value
+                                .split(',')
+                                .map((tag) => tag.trim())
+                                .filter(Boolean),
+                            )
+                          }
+                        />
+                      );
+                    } else {
+                      content = column.render
+                        ? editable
+                          ? column.render(
+                              record[dataIndex],
+                              record,
+                              rowIndex,
+                              action,
+                            )
+                          : column.render(record[dataIndex], record, rowIndex)
+                        : record[dataIndex];
+                    }
+                    return <td key={dataIndex}>{content}</td>;
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-        {!loading && !dataSource.length ? (
+        {!loading && !resolvedDataSource.length ? (
           <div>{locale?.emptyText || '暂无数据'}</div>
         ) : null}
         {pagination ? (
           <nav>
+            {pagination.showSizeChanger ? (
+              <label>
+                每页条数
+                <select
+                  aria-label="每页条数"
+                  disabled={pagination.disabled}
+                  value={pagination.pageSize}
+                  onChange={(event) =>
+                    pagination.onChange?.(1, Number(event.target.value))
+                  }
+                >
+                  {pagination.pageSizeOptions.map((pageSize: number) => (
+                    <option key={pageSize} value={pageSize}>
+                      {pageSize}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <button
               type="button"
               disabled={(pagination.current || 1) <= 1}
@@ -255,8 +489,13 @@ vi.mock('@ant-design/pro-components', () => ({
         ) : null}
       </div>
     );
-  },
-}));
+  };
+
+  return {
+    EditableProTable: MockProTable,
+    ProTable: MockProTable,
+  };
+});
 
 vi.mock('@/pages/space/shared', () => ({
   TenantSelectionGuard: ({
@@ -334,7 +573,9 @@ vi.mock('@/services/manual/house', () => ({
     createLease: mockCreateLease,
     createViewingRecord: mockCreateViewingRecord,
     getBuilding: mockGetBuilding,
+    getEstate: mockGetEstate,
     getContact: mockGetContact,
+    getTagSuggestions: mockGetTagSuggestions,
     getLease: mockGetLease,
     listEstates: mockListEstates,
     listBuildings: mockListBuildings,
@@ -352,8 +593,9 @@ vi.mock('@/services/manual/house', () => ({
 }));
 
 vi.mock('@/services/openapi/userSettings', () => ({
-  appsSettingsApiListUserSettings: mockListUserSettings,
-  appsSettingsApiPutUserSetting: mockPutUserSetting,
+  appsSettingsApiDeleteUserTableColumnsView: mockDeleteTableColumns,
+  appsSettingsApiGetUserSettingView: mockGetUserSetting,
+  appsSettingsApiPutUserTableColumns: mockPutTableColumns,
 }));
 
 const enumData = {
@@ -364,9 +606,9 @@ const enumData = {
   'house.estate_property_type': [{ label: '住宅', value: 'residential' }],
   'house.house_status': [
     { label: '空置', value: 'vacant' },
-    { label: '招租中', value: 'listed' },
+    { label: '招租', value: 'listed' },
     { label: '已租', value: 'rented' },
-    { label: '装修中', value: 'renovating' },
+    { label: '装修', value: 'renovating' },
     { label: '已停用', value: 'inactive' },
   ],
   'house.viewing_record_status': [
@@ -408,6 +650,9 @@ const renderPage = (node: React.ReactNode) =>
       {node}
     </QueryClientProvider>,
   );
+
+const switchToBuildingList = () =>
+  fireEvent.click(screen.getByRole('radio', { name: '楼栋列表' }));
 
 const defaultEstate = { id: 1, name: 'xinghewan', display_name: '星河湾花园' };
 const defaultBuilding = {
@@ -504,6 +749,7 @@ function leaseItem(overrides: Record<string, any> = {}) {
 describe('Property rental domain list pages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mockUseTenantWorkspace.mockReturnValue({
       selectedOrgSlug: 'org',
       queryClient: new QueryClient(),
@@ -512,8 +758,9 @@ describe('Property rental domain list pages', () => {
       rules: {},
       isPending: false,
     });
-    mockListUserSettings.mockResolvedValue([]);
-    mockPutUserSetting.mockResolvedValue({});
+    mockGetUserSetting.mockRejectedValue({ response: { status: 404 } });
+    mockPutTableColumns.mockResolvedValue({});
+    mockDeleteTableColumns.mockResolvedValue({});
     window.history.pushState({}, '', '/');
     mockListEstates.mockResolvedValue({
       items: [
@@ -523,6 +770,7 @@ describe('Property rental domain list pages', () => {
           city: '深圳',
           district: '南山',
           address: '科技路',
+          building_count: 0,
         },
       ],
       total: 1,
@@ -530,8 +778,8 @@ describe('Property rental domain list pages', () => {
       page_size: 100,
     });
     mockListBuildings.mockResolvedValue({
-      items: [defaultBuilding],
-      total: 1,
+      items: [],
+      total: 0,
       page: 1,
       page_size: 100,
     });
@@ -595,6 +843,7 @@ describe('Property rental domain list pages', () => {
       status: 'scheduled',
     });
     mockGetBuilding.mockResolvedValue(defaultBuilding);
+    mockGetEstate.mockResolvedValue(defaultEstate);
     mockGetContact.mockResolvedValue({
       id: 3,
       name: '张房东',
@@ -603,6 +852,7 @@ describe('Property rental domain list pages', () => {
       roles: ['landlord'],
       is_active: true,
     });
+    mockGetTagSuggestions.mockResolvedValue({ tags: ['近地铁', '拎包入住'] });
     mockGetLease.mockResolvedValue(leaseItem());
     mockPatchContact.mockResolvedValue({
       id: 3,
@@ -629,7 +879,7 @@ describe('Property rental domain list pages', () => {
     window.history.pushState({}, '', '/');
   });
 
-  it('shows estate and building rows', async () => {
+  it('switches between estate and building rows without stacking both tables', async () => {
     mockListEstates.mockResolvedValue({
       items: [
         {
@@ -639,8 +889,15 @@ describe('Property rental domain list pages', () => {
           city: '深圳',
           district: '南山',
           address: '科技路',
+          building_count: 1,
         },
       ],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+    mockListBuildings.mockResolvedValue({
+      items: [defaultBuilding],
       total: 1,
       page: 1,
       page_size: 100,
@@ -653,24 +910,38 @@ describe('Property rental domain list pages', () => {
     );
     expect((await screen.findAllByText('1栋')).length).toBeGreaterThan(0);
     expect(
-      document.querySelector('[data-preview="estate"][data-id="1"]'),
-    ).toBeInTheDocument();
+      screen.queryByRole('radio', { name: '全部' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '1 栋' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(1);
+
+    switchToBuildingList();
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-preview="estate"][data-id="1"]'),
+      ).toBeInTheDocument(),
+    );
     expect(screen.getByRole('link', { name: '1 栋' })).toHaveAttribute(
       'href',
       '/rental/properties/buildings/2',
     );
     expect(
-      document.querySelector('svg[viewBox="0 0 24 24"]')?.getAttribute('style'),
-    ).toBe(
-      'display: inline-block; margin-inline-end: 4px; vertical-align: -0.125em;',
-    );
-    expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(2);
+      document.querySelector('[data-app-icon-name="elevator"]'),
+    ).toHaveStyle({
+      display: 'inline-block',
+      marginInlineEnd: '4px',
+      verticalAlign: '-0.125em',
+    });
+    expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(1);
   });
 
   it('shows an estate building count without supplementary wording', async () => {
     mockListBuildings.mockResolvedValue({
-      items: [],
-      total: 0,
+      items: [defaultBuilding],
+      total: 1,
       page: 1,
       page_size: 100,
     });
@@ -700,6 +971,7 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<EstatesPage />);
 
+    switchToBuildingList();
     fireEvent.click(
       await screen.findByRole('button', { name: 'plus 新建楼栋' }),
     );
@@ -829,6 +1101,9 @@ describe('Property rental domain list pages', () => {
     ).not.toBeInTheDocument();
     expect((await screen.findAllByText('1栋')).length).toBeGreaterThan(0);
     expect(screen.queryByText('停用中，暂停新增房源')).not.toBeInTheDocument();
+
+    switchToBuildingList();
+
     expect((await screen.findAllByText('电梯')).length).toBeGreaterThan(1);
     expect(await screen.findByText('步梯')).toBeInTheDocument();
     expect(screen.queryByText('缺地址，先补楼栋资料')).not.toBeInTheDocument();
@@ -888,11 +1163,20 @@ describe('Property rental domain list pages', () => {
   });
 
   it('uses a dedicated building avatar in building rows', async () => {
+    mockListBuildings.mockResolvedValue({
+      items: [defaultBuilding],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+
     renderPage(<EstatesPage />);
+
+    switchToBuildingList();
 
     expect(
       await screen.findByTestId('building-avatar-placeholder'),
-    ).toHaveAttribute('aria-label', 'bank');
+    ).toHaveAttribute('data-app-icon-name', 'building');
   });
 
   it('creates an estate with the confirmed map coordinates', async () => {
@@ -1018,6 +1302,12 @@ describe('Property rental domain list pages', () => {
   });
 
   it('updates a building with the confirmed map coordinates', async () => {
+    mockListHouses.mockResolvedValue({
+      items: [houseItem()],
+      total: 37,
+      page: 1,
+      page_size: 1,
+    });
     mockListBuildings.mockResolvedValue({
       items: [
         buildingItem({
@@ -1032,11 +1322,26 @@ describe('Property rental domain list pages', () => {
       page_size: 100,
     });
     renderPage(<EstatesPage />);
+    switchToBuildingList();
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: '编辑' }))[1],
+      (await screen.findAllByRole('button', { name: '编辑' }))[0],
     );
     fireEvent.click(screen.getByRole('button', { name: '楼栋位置' }));
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+
+    expect(mockPatchBuilding).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(
+        '保存后，将同步更新“1 栋”下 37 套房源的楼栋信息。',
+      ),
+    ).toBeInTheDocument();
+    expect(mockListHouses).toHaveBeenCalledWith({
+      building_id: 2,
+      page: 1,
+      page_size: 1,
+    });
+    fireEvent.click(screen.getByRole('button', { name: '确认保存' }));
+
     await waitFor(() =>
       expect(mockPatchBuilding).toHaveBeenCalledWith(
         2,
@@ -1064,11 +1369,21 @@ describe('Property rental domain list pages', () => {
       page_size: 100,
     });
     renderPage(<EstatesPage />);
+    switchToBuildingList();
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: '编辑' }))[1],
+      (await screen.findAllByRole('button', { name: '编辑' }))[0],
     );
     fireEvent.click(screen.getByRole('button', { name: '清除楼栋位置' }));
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+
+    expect(mockPatchBuilding).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(
+        '保存后，将同步更新“1 栋”下 1 套房源的楼栋信息。',
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认保存' }));
+
     await waitFor(() =>
       expect(mockPatchBuilding).toHaveBeenCalledWith(
         2,
@@ -1078,6 +1393,44 @@ describe('Property rental domain list pages', () => {
           lng: null,
         }),
       ),
+    );
+  });
+
+  it('requires secondary confirmation before saving building changes', async () => {
+    mockListBuildings.mockResolvedValue({
+      items: [
+        buildingItem({
+          address: '原楼栋地址',
+          is_active: true,
+        }),
+      ],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+    renderPage(<EstatesPage />);
+    switchToBuildingList();
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: '编辑' }))[0],
+    );
+    fireEvent.change(screen.getByLabelText('楼栋名'), {
+      target: { value: '修改后楼栋名' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+
+    expect(
+      await screen.findByText(
+        '保存后，将同步更新“1 栋”下 1 套房源的楼栋信息。',
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '返回检查' }));
+
+    expect(mockPatchBuilding).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('楼栋名')).toHaveValue('修改后楼栋名');
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: '确认修改楼栋信息' }),
+      ).not.toBeInTheDocument(),
     );
   });
 
@@ -1181,7 +1534,13 @@ describe('Property rental domain list pages', () => {
     renderPage(<EstatesPage />);
 
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: '编辑' }))[0],
+      (
+        await screen.findAllByRole(
+          'button',
+          { name: '编辑' },
+          { timeout: 5_000 },
+        )
+      )[0],
     );
     expect(await screen.findByText('关联楼栋')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '查看全部楼栋' })).toHaveAttribute(
@@ -1226,7 +1585,13 @@ describe('Property rental domain list pages', () => {
     renderPage(<EstatesPage />);
 
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: '编辑' }))[0],
+      (
+        await screen.findAllByRole(
+          'button',
+          { name: '编辑' },
+          { timeout: 5_000 },
+        )
+      )[0],
     );
 
     expect(await screen.findByText('关联楼栋')).toBeInTheDocument();
@@ -1266,7 +1631,13 @@ describe('Property rental domain list pages', () => {
     renderPage(<EstatesPage />);
 
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: '编辑' }))[0],
+      (
+        await screen.findAllByRole(
+          'button',
+          { name: '编辑' },
+          { timeout: 5_000 },
+        )
+      )[0],
     );
 
     await waitFor(() =>
@@ -1297,8 +1668,15 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<EstatesPage />);
 
+    switchToBuildingList();
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: '编辑' }))[1],
+      (
+        await screen.findAllByRole(
+          'button',
+          { name: '编辑' },
+          { timeout: 5_000 },
+        )
+      )[0],
     );
     await screen.findByLabelText('楼栋名');
     expect(screen.queryByText('所属小区')).not.toBeInTheDocument();
@@ -1339,12 +1717,11 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<EstatesPage />);
 
+    switchToBuildingList();
+
     expect(
       await screen.findByRole('link', { name: '登记房源' }),
-    ).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/new?building_id=2',
-    );
+    ).toHaveAttribute('href', '/dashboard/rental/properties/new?building_id=2');
   });
 
   it('avoids inactive cleanup advice when estate data is incomplete but still active', async () => {
@@ -1696,10 +2073,13 @@ describe('Property rental domain list pages', () => {
       await screen.findByRole('button', { name: 'plus 新建项目' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'plus 新建楼栋' }),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: 'plus 新建楼栋' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('radio', { name: '全部' }),
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: '楼栋列表' }));
+    switchToBuildingList();
 
     await waitFor(() =>
       expect(
@@ -2394,11 +2774,7 @@ describe('Property rental domain list pages', () => {
   });
 
   it('从 URL 打开联系人编辑抽屉并在关闭时清除 edit 参数', async () => {
-    window.history.pushState(
-      {},
-      '',
-      '/rental/customers?edit=3&role=landlord',
-    );
+    window.history.pushState({}, '', '/rental/customers?edit=3&role=landlord');
     mockListContacts.mockResolvedValue({
       items: [],
       total: 0,
@@ -2519,9 +2895,10 @@ describe('Property rental domain list pages', () => {
     ) as HTMLElement;
     fireEvent.click(within(row).getByRole('button', { name: '更多操作' }));
     fireEvent.click(await screen.findByText('停用联系人'));
-    const confirmDialog = await screen.findByRole('dialog', {
-      name: '确认停用联系人',
-    });
+    const confirmDialog = (await screen.findByText('确认停用联系人')).closest(
+      '[role="dialog"]',
+    ) as HTMLElement;
+    expect(confirmDialog).toBeInTheDocument();
     fireEvent.click(
       within(confirmDialog).getByRole('button', { name: '确认停用' }),
     );
@@ -3138,6 +3515,17 @@ describe('Property rental domain list pages', () => {
     ).toBeInTheDocument();
   });
 
+  it('loads house table columns from the unified internal setting', async () => {
+    renderPage(<HousesPage />);
+
+    await waitFor(() =>
+      expect(mockGetUserSetting).toHaveBeenCalledWith(
+        { key: 'internal.ui.table_columns' },
+        { skipErrorHandler: true },
+      ),
+    );
+  });
+
   it('ignores legacy house task params', async () => {
     window.history.pushState({}, '', '/rental/properties/list?task=landlord');
 
@@ -3145,10 +3533,7 @@ describe('Property rental domain list pages', () => {
 
     expect(
       await screen.findByRole('link', { name: '编辑资料' }),
-    ).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/99?action=edit',
-    );
+    ).toHaveAttribute('href', '/dashboard/rental/properties/99?action=edit');
     expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
     expect(mockListHouses).not.toHaveBeenCalledWith(
       expect.objectContaining({ publish_issue: 'landlord' }),
@@ -3158,7 +3543,7 @@ describe('Property rental domain list pages', () => {
     );
   });
 
-  it('filters houses by building_id from the URL and preserves unrelated query params when clearing the building filter', async () => {
+  it('filters houses by building_id from the URL and preserves unrelated query params when clearing the scope from the asset navigator', async () => {
     window.history.pushState(
       {},
       '',
@@ -3177,9 +3562,10 @@ describe('Property rental domain list pages', () => {
         status: undefined,
       }),
     );
-    expect(await screen.findByText('当前楼栋筛选：1 栋')).toBeInTheDocument();
+    expect(screen.queryByLabelText('房源列表上下文')).not.toBeInTheDocument();
+    expect(await screen.findByText('房源范围')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '清除楼栋筛选' }));
+    fireEvent.click(screen.getByRole('button', { name: '全部房源' }));
 
     await waitFor(() =>
       expect(window.location.search).not.toContain('building_id'),
@@ -3195,6 +3581,74 @@ describe('Property rental domain list pages', () => {
     );
   });
 
+  it('filters houses by an estate selected from the integrated asset navigator', async () => {
+    renderPage(<HousesPage />);
+
+    fireEvent.click(
+      await screen.findByRole(
+        'button',
+        {
+          name: '选择项目 星河湾',
+        },
+        { timeout: 5_000 },
+      ),
+    );
+
+    await waitFor(() =>
+      expect(mockListHouses).toHaveBeenCalledWith(
+        expect.objectContaining({
+          estate_id: defaultEstate.id,
+          page: 1,
+          page_size: 20,
+        }),
+      ),
+    );
+    expect(new URLSearchParams(window.location.search).get('estate_id')).toBe(
+      String(defaultEstate.id),
+    );
+  });
+
+  it('opens contextual project and building management from the asset navigator', async () => {
+    renderPage(<HousesPage />);
+
+    await waitFor(() =>
+      expect(mockListEstates).toHaveBeenCalledWith({ page: 1, page_size: 30 }),
+    );
+
+    const estateButton = await screen.findByRole('button', {
+      name: '选择项目 星河湾',
+    });
+    const createBuildingButton = estateButton.parentElement?.querySelector(
+      'button[aria-label="新建星河湾楼栋"]',
+    );
+    expect(createBuildingButton).not.toBeNull();
+    fireEvent.click(createBuildingButton as HTMLButtonElement);
+
+    await waitFor(() =>
+      expect(
+        new URLSearchParams(window.location.search).get('building_create'),
+      ).toBe('1'),
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('opens top-level project and standalone-building creation from the asset navigator', async () => {
+    renderPage(<HousesPage />);
+
+    await waitFor(() =>
+      expect(mockListEstates).toHaveBeenCalledWith({ page: 1, page_size: 30 }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '新建项目' }));
+    expect(
+      new URLSearchParams(window.location.search).get('estate_create'),
+    ).toBe('1');
+
+    fireEvent.click(screen.getByRole('button', { name: '新建独立楼栋' }));
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('estate_create')).toBeNull();
+    expect(params.get('building_create')).toBe('standalone');
+  });
+
   it('preserves unrelated URL params when changing the house status filter', async () => {
     window.history.pushState(
       {},
@@ -3204,7 +3658,9 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
-    fireEvent.mouseDown(await screen.findByRole('combobox'));
+    fireEvent.mouseDown(
+      await screen.findByRole('combobox', { name: '房态筛选' }),
+    );
     fireEvent.click((await screen.findAllByText('空置')).at(-1) as HTMLElement);
 
     await waitFor(() => {
@@ -3268,7 +3724,9 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
-    expect(await screen.findByText('房源列表')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('columnheader', { name: '房源' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('columnheader', { name: '所属楼栋' }),
     ).toBeInTheDocument();
@@ -3304,6 +3762,8 @@ describe('Property rental domain list pages', () => {
           bedrooms: 1,
           living_rooms: 0,
           bathrooms: 1,
+          kitchens: 1,
+          balconies: 2,
           area: '38.50',
           floor: 12,
           orientation: 'south',
@@ -3315,6 +3775,7 @@ describe('Property rental domain list pages', () => {
           images: [{ media_id: 1, media_type: 'image' }],
           videos: [{ media_id: 2, media_type: 'video' }],
           effective_tags: ['近地铁'],
+          public_description: '南向采光，拎包入住',
           internal_notes: '房东要求提前一天预约',
         }),
       ],
@@ -3328,22 +3789,40 @@ describe('Property rental domain list pages', () => {
     expect(
       await screen.findByRole('columnheader', { name: '户型' }),
     ).toBeInTheDocument();
-    expect(await screen.findByText('单间 · 1卫')).toBeInTheDocument();
     expect(
-      screen.getByText('38.50㎡ · 12层 · 朝南 · 精装'),
+      screen.getByRole('columnheader', { name: '卫生间' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('单间')).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: '厨房' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('1厨')).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: '阳台' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('2阳台')).toBeInTheDocument();
+    expect(screen.getByText('38.50㎡')).toBeInTheDocument();
+    expect(screen.getByText('12层')).toBeInTheDocument();
+    expect(screen.getByText('朝南')).toBeInTheDocument();
+    expect(screen.getByText('精装')).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: '挂牌租金' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('columnheader', { name: '押金' }),
     ).toBeInTheDocument();
     expect(screen.getByText('¥5000.00')).toBeInTheDocument();
     expect(
-      screen.getByRole('columnheader', { name: '电梯' }),
+      screen.getByRole('columnheader', { name: '楼栋电梯' }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText('电梯').length).toBeGreaterThan(1);
+    expect(screen.getByText('有电梯')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('columnheader', { name: '电梯可达' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('张房东')).toBeInTheDocument();
     expect(screen.queryByText('张房东 / 13800000000')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('columnheader', { name: '媒体' }),
+      screen.getByRole('columnheader', { name: '图片视频' }),
     ).toBeInTheDocument();
     expect(screen.getByText('1 图 / 1 视频')).toBeInTheDocument();
     expect(
@@ -3353,19 +3832,36 @@ describe('Property rental domain list pages', () => {
     expect(
       screen.getByRole('columnheader', { name: '内部备注' }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: '所属项目' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: '对外描述' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('南向采光，拎包入住')).toBeInTheDocument();
     expect(screen.getByText('房东要求提前一天预约')).toBeInTheDocument();
     expect(
       screen.getAllByRole('columnheader').map((header) => header.textContent),
     ).toEqual([
       '房源',
+      '所属项目',
       '户型',
+      '卫生间',
+      '厨房',
+      '阳台',
+      '建筑面积',
+      '套内面积',
+      '楼层',
+      '朝向',
+      '装修',
       '所属楼栋',
+      '楼栋电梯',
       '挂牌租金',
       '押金',
       '房东',
-      '电梯',
-      '媒体',
+      '图片视频',
       '标签',
+      '对外描述',
       '内部备注',
       '房态',
       '操作',
@@ -3375,7 +3871,9 @@ describe('Property rental domain list pages', () => {
   it('does not render closure signal shortcuts on the house board', async () => {
     renderPage(<HousesPage />);
 
-    expect(await screen.findByText('房源列表')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('columnheader', { name: '房源' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: '进入待补资料队列' }),
@@ -3425,7 +3923,9 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
-    expect(await screen.findByText('房源列表')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('columnheader', { name: '房源' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('经营队列')).not.toBeInTheDocument();
     expect(screen.queryByText('发布缺口')).not.toBeInTheDocument();
     expect(
@@ -3485,7 +3985,9 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
-    expect(await screen.findByText('房源列表')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('columnheader', { name: '房源' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('发布缺口')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '待补房东 12' }),
@@ -3555,17 +4057,246 @@ describe('Property rental domain list pages', () => {
     expect(screen.getByText('3 图 / 1 视频')).toBeInTheDocument();
     expect(
       await screen.findByRole('link', { name: '编辑资料' }),
-    ).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/99?action=edit',
-    );
+    ).toHaveAttribute('href', '/dashboard/rental/properties/99?action=edit');
     expect(
       screen.queryByRole('link', { name: '查看' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'more' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '更多操作' }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole('columnheader', { name: '资料问题' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('edits and saves a house directly in the list row', async () => {
+    const nextBuilding = buildingItem({ id: 7, name: '2 栋' });
+    const nextLandlord = {
+      id: 8,
+      name: '李房东',
+      phone: '13900000000',
+      roles: ['landlord'],
+    };
+    mockListBuildings.mockResolvedValue({
+      items: [defaultBuilding, nextBuilding],
+      total: 2,
+      page: 1,
+      page_size: 20,
+    });
+    mockListContacts.mockResolvedValue({
+      items: [defaultLandlord, nextLandlord],
+      total: 2,
+      page: 1,
+      page_size: 20,
+    });
+    mockListHouses.mockResolvedValue({
+      items: [
+        houseItem({
+          floor: 12,
+          area: '38.50',
+          interior_area: '31.20',
+          asking_rent: '4200.00',
+          deposit_amount: '5000.00',
+          bedrooms: 1,
+          living_rooms: 0,
+          bathrooms: 1,
+          kitchens: 1,
+          balconies: 1,
+          orientation: 'south',
+          decoration: 'fine',
+          status: 'vacant',
+          images: [
+            {
+              media_id: 8,
+              media_type: 'image',
+              image_role: 'cover',
+              url: '/house-cover.jpg',
+            },
+          ],
+          videos: [],
+          tags: ['近地铁'],
+          effective_tags: ['近地铁'],
+          internal_notes: '原备注',
+        }),
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    });
+    mockPatchHouse.mockResolvedValue(houseItem({ room_number: 'A-102' }));
+
+    renderPage(<HousesPage />);
+
+    const row = (await screen.findByText('A-101')).closest('tr') as HTMLElement;
+    fireEvent.click(within(row).getByRole('button', { name: '图片视频' }));
+
+    expect(await screen.findByLabelText('卧室')).toBeInTheDocument();
+    expect(screen.getByLabelText('客厅')).toBeInTheDocument();
+    expect(screen.getByLabelText('卫生间')).toBeInTheDocument();
+    expect(screen.getByLabelText('所属楼栋')).toBeInTheDocument();
+    expect(screen.queryByLabelText('电梯可达')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('房东')).toBeInTheDocument();
+    expect(screen.getByLabelText('房源标签')).toBeInTheDocument();
+    expect(screen.getByLabelText('房态')).toBeInTheDocument();
+
+    expect(await screen.findByText('编辑图片视频')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '移除#8' }));
+    fireEvent.click(screen.getByRole('button', { name: /完\s*成/ }));
+    expect(mockPatchHouse).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('房号'), {
+      target: { value: 'A-102' },
+    });
+    fireEvent.change(screen.getByLabelText('卧室'), {
+      target: { value: '2' },
+    });
+    fireEvent.change(screen.getByLabelText('客厅'), {
+      target: { value: '1' },
+    });
+    fireEvent.change(screen.getByLabelText('卫生间'), {
+      target: { value: '2' },
+    });
+    fireEvent.change(screen.getByLabelText('厨房'), {
+      target: { value: '' },
+    });
+    fireEvent.change(screen.getByLabelText('阳台'), {
+      target: { value: '2' },
+    });
+    fireEvent.mouseDown(screen.getByLabelText('所属楼栋'));
+    const buildingOption = (await screen.findAllByText('星河湾花园 / 2 栋')).at(
+      -1,
+    );
+    expect(buildingOption).toBeDefined();
+    fireEvent.click(buildingOption as HTMLElement);
+    fireEvent.mouseDown(screen.getByLabelText('房东'));
+    const landlordOption = (
+      await screen.findAllByText('李房东 / 13900000000')
+    ).at(-1);
+    expect(landlordOption).toBeDefined();
+    fireEvent.click(landlordOption as HTMLElement);
+    fireEvent.change(screen.getByLabelText('房源标签'), {
+      target: { value: '近地铁,采光好' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(mockPatchHouse).toHaveBeenCalledWith(
+        99,
+        expect.objectContaining({
+          room_number: 'A-102',
+          building_id: 7,
+          landlord_id: 8,
+          bedrooms: 2,
+          living_rooms: 1,
+          bathrooms: 2,
+          kitchens: 0,
+          balconies: 2,
+          floor: 12,
+          area: '38.50',
+          orientation: 'south',
+          decoration: 'fine',
+          status: 'vacant',
+          images: [],
+          videos: [],
+          tags: ['近地铁', '采光好'],
+        }),
+      ),
+    );
+    expect(mockPatchHouse.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      'has_elevator_access',
+    );
+  }, 30_000);
+
+  it('allows multiple house rows to stay in edit mode', async () => {
+    const nextBuilding = buildingItem({ id: 7, name: '2 栋' });
+    const nextLandlord = {
+      id: 8,
+      name: '李房东',
+      phone: '13900000000',
+    };
+    mockListHouses.mockResolvedValue({
+      items: [
+        houseItem({ id: 99, room_number: 'A-101' }),
+        houseItem({ id: 100, room_number: 'A-102' }),
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+    });
+    mockPatchHouse.mockResolvedValue(
+      houseItem({
+        id: 99,
+        room_number: 'A-101',
+        building_id: nextBuilding.id,
+        building: nextBuilding,
+        landlord_id: nextLandlord.id,
+        landlord: nextLandlord,
+      }),
+    );
+
+    renderPage(<HousesPage />);
+
+    const firstRow = (await screen.findByText('A-101')).closest(
+      'tr',
+    ) as HTMLElement;
+    fireEvent.click(
+      within(firstRow).getByRole('button', { name: '编辑房源 A-101' }),
+    );
+    expect(await screen.findAllByLabelText('卧室')).toHaveLength(1);
+
+    const secondRow = screen.getByText('A-102').closest('tr') as HTMLElement;
+    fireEvent.click(
+      within(secondRow).getByRole('button', { name: '编辑房源 A-102' }),
+    );
+
+    expect(await screen.findAllByLabelText('卧室')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: '保存' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: '取消' })).toHaveLength(2);
+
+    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
+
+    expect(await screen.findByText('2 栋')).toBeInTheDocument();
+    expect(screen.getByText('李房东')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '保存' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: '取消' })).toHaveLength(1);
+  });
+
+  it('keeps selected remote values first when their full objects are missing', async () => {
+    mockListBuildings.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+    });
+    mockListContacts.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+    });
+    mockListHouses.mockResolvedValue({
+      items: [
+        houseItem({
+          building_id: 42,
+          building: undefined,
+          landlord_id: 77,
+          landlord: undefined,
+        }),
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    });
+
+    renderPage(<HousesPage />);
+
+    const row = (await screen.findByText('A-101')).closest('tr') as HTMLElement;
+    fireEvent.click(
+      within(row).getByRole('button', { name: '编辑房源 A-101' }),
+    );
+
+    expect(await screen.findByText('楼栋 #42')).toBeInTheDocument();
+    expect(screen.getByText('联系人 #77')).toBeInTheDocument();
   });
 
   it('keeps house tags on one line and shows all tags on hover', async () => {
@@ -3666,14 +4397,14 @@ describe('Property rental domain list pages', () => {
     const publishRow = (await screen.findByText(/张房东/)).closest('tr');
     expect(publishRow).not.toBeNull();
     fireEvent.click(
-      within(publishRow as HTMLElement).getByRole('button', { name: 'more' }),
+      within(publishRow as HTMLElement).getByRole('button', {
+        name: '更多操作',
+      }),
     );
     fireEvent.click(await screen.findByRole('menuitem', { name: '发布' }));
 
     expect(
-      await screen.findByText(
-        '确认后房源状态将切换为招租中，继续承接带看。',
-      ),
+      await screen.findByText('确认后房源状态将切换为招租，继续承接带看。'),
     ).toBeInTheDocument();
     expect(mockPatchHouse).not.toHaveBeenCalled();
 
@@ -3724,12 +4455,14 @@ describe('Property rental domain list pages', () => {
 
     const publishRow = (await screen.findByText(/张房东/)).closest('tr');
     fireEvent.click(
-      within(publishRow as HTMLElement).getByRole('button', { name: 'more' }),
+      within(publishRow as HTMLElement).getByRole('button', {
+        name: '更多操作',
+      }),
     );
     fireEvent.click(await screen.findByRole('menuitem', { name: '发布' }));
 
     expect(
-      screen.queryByText('确认后房源状态将切换为招租中，继续承接带看。'),
+      screen.queryByText('确认后房源状态将切换为招租，继续承接带看。'),
     ).not.toBeInTheDocument();
     expect(await screen.findByText('请先补齐：视频不足')).toBeInTheDocument();
     expect(mockPatchHouse).not.toHaveBeenCalled();
@@ -3761,11 +4494,10 @@ describe('Property rental domain list pages', () => {
 
     expect(
       await screen.findByRole('link', { name: '编辑资料' }),
-    ).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/99?action=edit',
-    );
-    expect(screen.getByRole('button', { name: 'more' })).toBeInTheDocument();
+    ).toHaveAttribute('href', '/dashboard/rental/properties/99?action=edit');
+    expect(
+      screen.getByRole('button', { name: '更多操作' }),
+    ).toBeInTheDocument();
   });
 
   it('labels blocked house publish actions as pending completion', async () => {
@@ -3790,7 +4522,9 @@ describe('Property rental domain list pages', () => {
     expect(
       await screen.findByRole('link', { name: '编辑资料' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'more' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '更多操作' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('待补齐')).not.toBeInTheDocument();
   });
 
@@ -3867,7 +4601,7 @@ describe('Property rental domain list pages', () => {
       screen.getByRole('columnheader', { name: '挂牌租金' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('columnheader', { name: '媒体' }),
+      screen.getByRole('columnheader', { name: '图片视频' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('columnheader', { name: '房态' }),
@@ -3897,7 +4631,7 @@ describe('Property rental domain list pages', () => {
 
   it('uses a house avatar placeholder when a house has no cover image', async () => {
     mockListHouses.mockResolvedValue({
-      items: [houseItem({ images: [], videos: [] })],
+      items: [houseItem({ room_number: 'A-1202', images: [], videos: [] })],
       total: 1,
       page: 1,
       page_size: 20,
@@ -3905,9 +4639,12 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
+    const placeholder = await screen.findByTestId('house-image-placeholder');
+    expect(placeholder).not.toHaveAttribute('data-room-number');
     expect(
-      await screen.findByTestId('house-image-placeholder'),
+      placeholder.querySelector('[data-app-icon-name="house.placeholder"]'),
     ).toBeInTheDocument();
+    expect(screen.getAllByText('A-1202')).toHaveLength(1);
   });
 
   it('falls back to the house avatar when the cover image cannot load', async () => {
@@ -3934,22 +4671,108 @@ describe('Property rental domain list pages', () => {
 
     fireEvent.error(await screen.findByAltText('房源图'));
 
+    const placeholder = await screen.findByTestId('house-image-placeholder');
+    expect(placeholder).not.toHaveAttribute('data-room-number');
     expect(
-      await screen.findByTestId('house-image-placeholder'),
+      placeholder.querySelector('[data-app-icon-name="house.placeholder"]'),
     ).toBeInTheDocument();
+    expect(screen.getAllByText('A-101')).toHaveLength(1);
   });
 
   it('renders keyword and status filters in the house table toolbar', async () => {
     renderPage(<HousesPage />);
 
     expect(
-      await screen.findByPlaceholderText('搜索房号 / 项目 / 楼栋 / 房东'),
+      await screen.findByPlaceholderText('搜索房号 / 小区 / 楼栋 / 房东'),
     ).toBeInTheDocument();
     expect(screen.getAllByText('房态').length).toBeGreaterThan(0);
     expect(screen.queryByLabelText('项目')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('楼栋')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('发布状态')).not.toBeInTheDocument();
     expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the house header and pagination outside the scrollable rows and allows changing page size', async () => {
+    window.history.pushState({}, '', '/rental/properties/list?page=3&foo=x');
+    mockListHouses.mockResolvedValue({
+      items: [houseItem()],
+      total: 120,
+      page: 3,
+      page_size: 20,
+    });
+
+    renderPage(<HousesPage />);
+
+    expect(await screen.findByTestId('mock-pro-table')).toHaveAttribute(
+      'data-scroll-y',
+      'max(240px, calc(100dvh - 320px))',
+    );
+
+    fireEvent.change(screen.getByRole('combobox', { name: '每页条数' }), {
+      target: { value: '50' },
+    });
+
+    await waitFor(() =>
+      expect(mockListHouses).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1, page_size: 50 }),
+      ),
+    );
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get('page')).toBeNull();
+      expect(params.get('page_size')).toBe('50');
+      expect(params.get('foo')).toBe('x');
+    });
+  });
+
+  it('keeps the house scope in the asset navigator without a duplicated summary', async () => {
+    renderPage(<HousesPage />);
+
+    expect(await screen.findByText('房源范围')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '全部房源' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.queryByLabelText('房源列表上下文')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('选择项目或楼栋，右侧列表会同步筛选'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps active house filters in the table controls without a summary bar', async () => {
+    window.history.pushState(
+      {},
+      '',
+      '/rental/properties/list?keyword=A-101&status=vacant',
+    );
+
+    renderPage(<HousesPage />);
+
+    expect(await screen.findByDisplayValue('A-101')).toBeInTheDocument();
+    const statusFilter = screen.getByRole('combobox', { name: '房态筛选' });
+    expect(
+      within(statusFilter.closest('.ant-select') as HTMLElement).getByText(
+        '空置',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('关键词：A-101')).not.toBeInTheDocument();
+    expect(screen.queryByText('房态：空置')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('房源列表上下文')).not.toBeInTheDocument();
+  });
+
+  it('locks scope and filter controls while editing without an extra notice bar', async () => {
+    renderPage(<HousesPage />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '编辑房源 A-101' }),
+    );
+
+    expect(
+      screen.getByPlaceholderText('搜索房号 / 小区 / 楼栋 / 房东'),
+    ).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: '房态筛选' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '全部房源' })).toBeDisabled();
+    expect(screen.queryByLabelText('房源列表上下文')).not.toBeInTheDocument();
   });
 
   it('restores house keyword from URL search params', async () => {
@@ -3976,18 +4799,159 @@ describe('Property rental domain list pages', () => {
     );
   });
 
+  it('sorts the house list through server ordering and resets pagination', async () => {
+    window.history.pushState({}, '', '/rental/properties/list?page=2&foo=x');
+
+    renderPage(<HousesPage />);
+
+    await waitFor(() =>
+      expect(mockListHouses).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      ),
+    );
+
+    let rentHeader = await screen.findByRole('columnheader', {
+      name: '挂牌租金',
+    });
+    fireEvent.click(
+      within(rentHeader).getByRole('button', { name: '挂牌租金' }),
+    );
+
+    await waitFor(() =>
+      expect(mockListHouses).toHaveBeenCalledWith(
+        expect.objectContaining({ ordering: 'asking_rent', page: 1 }),
+      ),
+    );
+    expect(new URLSearchParams(window.location.search).get('ordering')).toBe(
+      'asking_rent',
+    );
+    expect(new URLSearchParams(window.location.search).get('page')).toBeNull();
+    expect(new URLSearchParams(window.location.search).get('foo')).toBe('x');
+
+    rentHeader = await screen.findByRole('columnheader', {
+      name: '挂牌租金',
+    });
+    fireEvent.click(
+      within(rentHeader).getByRole('button', { name: '挂牌租金' }),
+    );
+
+    await waitFor(() =>
+      expect(mockListHouses).toHaveBeenCalledWith(
+        expect.objectContaining({ ordering: '-asking_rent', page: 1 }),
+      ),
+    );
+    expect(new URLSearchParams(window.location.search).get('ordering')).toBe(
+      '-asking_rent',
+    );
+
+    rentHeader = await screen.findByRole('columnheader', {
+      name: '挂牌租金',
+    });
+    fireEvent.click(
+      within(rentHeader).getByRole('button', { name: '挂牌租金' }),
+    );
+
+    await waitFor(() => {
+      const lastParams = mockListHouses.mock.calls.at(-1)?.[0];
+      expect(lastParams).not.toHaveProperty('ordering');
+      expect(lastParams).toEqual(expect.objectContaining({ page: 1 }));
+    });
+    expect(
+      new URLSearchParams(window.location.search).get('ordering'),
+    ).toBeNull();
+  });
+
+  it('only exposes sorting controls on supported house columns', async () => {
+    renderPage(<HousesPage />);
+
+    for (const title of [
+      '房源',
+      '户型',
+      '所属楼栋',
+      '挂牌租金',
+      '押金',
+      '房东',
+      '房态',
+    ]) {
+      const header = await screen.findByRole('columnheader', { name: title });
+      expect(
+        within(header).getByRole('button', { name: title }),
+      ).toBeInTheDocument();
+    }
+
+    for (const title of [
+      '卫生间',
+      '厨房',
+      '阳台',
+      '建筑面积',
+      '套内面积',
+      '楼层',
+      '朝向',
+      '装修',
+      '楼栋电梯',
+      '图片视频',
+      '标签',
+      '内部备注',
+      '操作',
+    ]) {
+      const header = screen.getByRole('columnheader', { name: title });
+      expect(within(header).queryByRole('button')).not.toBeInTheDocument();
+    }
+  });
+
+  it('restores a valid house ordering from the URL and table header', async () => {
+    window.history.pushState(
+      {},
+      '',
+      '/rental/properties/list?ordering=-asking_rent',
+    );
+
+    renderPage(<HousesPage />);
+
+    await waitFor(() =>
+      expect(mockListHouses).toHaveBeenCalledWith(
+        expect.objectContaining({ ordering: '-asking_rent' }),
+      ),
+    );
+    expect(
+      await screen.findByRole('columnheader', { name: '挂牌租金' }),
+    ).toHaveAttribute('data-sort-order', 'descend');
+  });
+
+  it.each([
+    'unknown_field',
+    '-asking_rent,room_number',
+  ])('removes unsupported house ordering "%s" from the URL', async (invalidOrdering) => {
+    window.history.pushState(
+      {},
+      '',
+      `/rental/properties/list?ordering=${invalidOrdering}&foo=x`,
+    );
+
+    renderPage(<HousesPage />);
+
+    await waitFor(() => {
+      const lastParams = mockListHouses.mock.calls.at(-1)?.[0];
+      expect(lastParams).not.toHaveProperty('ordering');
+    });
+    await waitFor(() =>
+      expect(
+        new URLSearchParams(window.location.search).get('ordering'),
+      ).toBeNull(),
+    );
+    expect(new URLSearchParams(window.location.search).get('foo')).toBe('x');
+  });
+
   it('syncs house search state back to URL', async () => {
     renderPage(<HousesPage />);
 
-    fireEvent.change(
-      screen.getByPlaceholderText('搜索房号 / 项目 / 楼栋 / 房东'),
-      { target: { value: 'A-101' } },
+    const searchInput = screen.getByPlaceholderText(
+      '搜索房号 / 小区 / 楼栋 / 房东',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'search' }));
+    fireEvent.change(searchInput, { target: { value: 'A-101' } });
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
 
-    await waitFor(() =>
-      expect(window.location.search).toBe('?keyword=A-101'),
-    );
+    await waitFor(() => expect(window.location.search).toBe('?keyword=A-101'));
   });
 
   it('restores house search state on browser popstate', async () => {
@@ -4015,8 +4979,8 @@ describe('Property rental domain list pages', () => {
       return Promise.resolve({
         items: [
           houseItem({
-          asking_rent: '4200.00',
-          status: 'vacant',
+            asking_rent: '4200.00',
+            status: 'vacant',
             images: [],
             videos: [],
           }),
@@ -4029,22 +4993,40 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<HousesPage />);
 
-    fireEvent.change(
-      screen.getByPlaceholderText('搜索房号 / 项目 / 楼栋 / 房东'),
-      { target: { value: '不存在' } },
+    const searchInput = screen.getByPlaceholderText(
+      '搜索房号 / 小区 / 楼栋 / 房东',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'search' }));
+    fireEvent.change(searchInput, { target: { value: '不存在' } });
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
 
     expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
-    expect(await screen.findByText('暂无数据')).toBeInTheDocument();
+    expect(await screen.findByText('未找到符合条件的房源')).toBeInTheDocument();
+    expect(
+      screen.getByText('可以清除关键词或房态筛选后重试'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: '清除筛选' }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('offers house creation when the current scope is empty', async () => {
+    mockListHouses.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+    });
+
+    renderPage(<HousesPage />);
+
+    expect(await screen.findByText('当前范围暂无房源')).toBeInTheDocument();
+    const createButtons = screen.getAllByRole('button', { name: '新建房源' });
+    fireEvent.click(createButtons.at(-1) as HTMLElement);
+    expect(mockHistoryPush).toHaveBeenCalledWith('/rental/properties/new');
   });
 
   it('filters converted viewings from URL and links to lease creation', async () => {
-    window.history.pushState(
-      {},
-      '',
-      '/rental/viewings?status=converted',
-    );
+    window.history.pushState({}, '', '/rental/viewings?status=converted');
     mockListViewings.mockResolvedValue({
       items: [
         viewingItem({
@@ -4199,11 +5181,7 @@ describe('Property rental domain list pages', () => {
   });
 
   it('filters pending lease viewings from URL', async () => {
-    window.history.pushState(
-      {},
-      '',
-      '/rental/viewings?pending_lease=true',
-    );
+    window.history.pushState({}, '', '/rental/viewings?pending_lease=true');
     const readyViewing = viewingItem({
       contact_id: 6,
       contact: defaultTenant,
@@ -4247,11 +5225,7 @@ describe('Property rental domain list pages', () => {
   });
 
   it('restores viewing status and page filters from URL search params', async () => {
-    window.history.pushState(
-      {},
-      '',
-      '/rental/viewings?status=viewed&page=2',
-    );
+    window.history.pushState({}, '', '/rental/viewings?status=viewed&page=2');
     mockListViewings.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.status === 'scheduled') {
         return Promise.resolve({ items: [], total: 0, page: 1, page_size: 1 });
@@ -4844,10 +5818,7 @@ describe('Property rental domain list pages', () => {
 
     expect(
       await screen.findByRole('link', { name: '登记房源' }),
-    ).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/new?landlord_id=3',
-    );
+    ).toHaveAttribute('href', '/dashboard/rental/properties/new?landlord_id=3');
     expect(screen.getByRole('link', { name: '登记带看' })).toHaveAttribute(
       'href',
       '/dashboard/rental/viewings?contact_id=6',
@@ -4938,7 +5909,7 @@ describe('Property rental domain list pages', () => {
     expect(
       screen.queryByRole('button', { name: /已终止 0/ }),
     ).not.toBeInTheDocument();
-    expect((await screen.findAllByText('未归档')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('未归档')).not.toBeInTheDocument();
     expect(screen.queryByText('履约跟进')).not.toBeInTheDocument();
     expect(screen.queryByText('待退租归档')).not.toBeInTheDocument();
     expect(
@@ -4984,11 +5955,7 @@ describe('Property rental domain list pages', () => {
   });
 
   it('restores lease status and page filters from URL search params', async () => {
-    window.history.pushState(
-      {},
-      '',
-      '/rental/leases?status=active&page=2',
-    );
+    window.history.pushState({}, '', '/rental/leases?status=active&page=2');
     mockListLeases.mockImplementation((params?: Record<string, unknown>) => {
       if (params?.status === 'pending') {
         return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
@@ -5060,11 +6027,7 @@ describe('Property rental domain list pages', () => {
   it('restores lease filters on browser popstate', async () => {
     renderPage(<LeasesPage />);
 
-    window.history.pushState(
-      {},
-      '',
-      '/rental/leases?status=active&page=2',
-    );
+    window.history.pushState({}, '', '/rental/leases?status=active&page=2');
     window.dispatchEvent(new PopStateEvent('popstate'));
 
     await waitFor(() =>
@@ -5090,43 +6053,24 @@ describe('Property rental domain list pages', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows a task-aware empty state when the contract queue is cleared', async () => {
+  it('ignores the legacy missing-contract task because contracts are optional', async () => {
     window.history.pushState({}, '', '/rental/leases?task=contract');
-    mockListLeases.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.contract_missing) {
-        return Promise.resolve({
-          items: [],
-          total: 0,
-          page: Number(params?.page || 1),
-          page_size: Number(params?.page_size || 20),
-        });
-      }
-      if (params?.status === 'pending') {
-        return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
-      }
-      if (params?.status === 'active') {
-        return Promise.resolve({ items: [], total: 2, page: 1, page_size: 1 });
-      }
-      if (params?.status === 'expired') {
-        return Promise.resolve({ items: [], total: 0, page: 1, page_size: 1 });
-      }
-      return Promise.resolve({ items: [], total: 3, page: 1, page_size: 1 });
+    mockListLeases.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
     });
 
     renderPage(<LeasesPage />);
 
-    expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
-    expect(
-      await screen.findByText('合同缺失队列已处理完成'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        '当前筛选下已没有待补合同租约，可返回全部租约继续检查待生效或履约中的记录。',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByRole('link', { name: '查看全部租约' }),
-    ).toHaveAttribute('href', '/dashboard/rental/leases');
+    expect(await screen.findByText('暂无租约')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockListLeases).toHaveBeenCalled();
+      expect(mockListLeases.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+        'contract_missing',
+      );
+    });
     expect(
       screen.getByRole('button', { name: '新建租约' }),
     ).toBeInTheDocument();
@@ -5254,7 +6198,7 @@ describe('Property rental domain list pages', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('filters leases by missing contract task and exposes contract upload field', async () => {
+  it('shows contract upload as optional and does not filter missing contracts', async () => {
     window.history.pushState({}, '', '/rental/leases?task=contract');
     mockListLeases.mockResolvedValue({
       items: [leaseItem()],
@@ -5268,18 +6212,14 @@ describe('Property rental domain list pages', () => {
     expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
     expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
     expect(await screen.findByText(/A-101/)).toBeInTheDocument();
-    await waitFor(() =>
-      expect(mockListLeases).toHaveBeenCalledWith(
-        expect.objectContaining({ contract_missing: true }),
-      ),
-    );
-    expect(
-      screen.queryByRole('button', { name: /待补合同/ }),
-    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockListLeases).toHaveBeenCalled();
+      expect(mockListLeases.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+        'contract_missing',
+      );
+    });
+    expect(screen.queryByText('未归档')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: '补合同' }),
-    ).not.toBeInTheDocument();
 
     const leaseRow = (await screen.findByText(/A-101/)).closest('tr');
     expect(leaseRow).not.toBeNull();
@@ -5291,17 +6231,20 @@ describe('Property rental domain list pages', () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'plus 新建租约' }));
-    expect((await screen.findAllByText('合同文件')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('合同（可选）')).toBeInTheDocument();
+    expect(
+      screen.getByText('如有合同可在此上传；没有合同也可以直接保存租约。'),
+    ).toBeInTheDocument();
   });
 
-  it('surfaces combined contract and status scope when leases are filtered by both', async () => {
+  it('keeps the status filter while ignoring the legacy contract task', async () => {
     window.history.pushState(
       {},
       '',
       '/rental/leases?task=contract&status=pending',
     );
     mockListLeases.mockImplementation((params?: Record<string, unknown>) => {
-      if (params?.contract_missing && params?.status === 'pending') {
+      if (params?.status === 'pending') {
         return Promise.resolve({
           items: [leaseItem({ status: 'pending' })],
           total: 1,
@@ -5309,16 +6252,16 @@ describe('Property rental domain list pages', () => {
           page_size: 100,
         });
       }
-      if (params?.contract_missing || params?.status === 'pending') {
-        return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
-      }
       return Promise.resolve({ items: [], total: 0, page: 1, page_size: 1 });
     });
 
     renderPage(<LeasesPage />);
 
-    expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
-    expect(screen.queryByText('当前建议')).not.toBeInTheDocument();
+    await waitFor(() => {
+      const params = mockListLeases.mock.calls.at(-1)?.[0];
+      expect(params).toEqual(expect.objectContaining({ status: 'pending' }));
+      expect(params).not.toHaveProperty('contract_missing');
+    });
   });
 
   it('opens lease creation drawer from converted viewing source', async () => {
@@ -5381,11 +6324,7 @@ describe('Property rental domain list pages', () => {
   });
 
   it('opens lease edit drawer from edit query param', async () => {
-    window.history.pushState(
-      {},
-      '',
-      '/rental/leases?house_id=99&edit=5',
-    );
+    window.history.pushState({}, '', '/rental/leases?house_id=99&edit=5');
 
     renderPage(<LeasesPage />);
 
@@ -5411,7 +6350,7 @@ describe('Property rental domain list pages', () => {
     );
   });
 
-  it('keeps contract queue context when opening a lease edit drawer from the contract task', async () => {
+  it('opens a lease edit drawer without treating a legacy contract task as required work', async () => {
     window.history.pushState(
       {},
       '',
@@ -5426,20 +6365,16 @@ describe('Property rental domain list pages', () => {
 
     renderPage(<LeasesPage />);
 
-    expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('当前只看：房源：A-101 / 合同缺失'),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText('当前操作：补归档合同')).not.toBeInTheDocument();
     expect(await screen.findByText('编辑租约')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockListLeases.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+        'contract_missing',
+      );
+    });
   });
 
   it('opens lease edit drawer from edit query param even when the filtered list does not include the lease', async () => {
-    window.history.pushState(
-      {},
-      '',
-      '/rental/leases?house_id=99&edit=5',
-    );
+    window.history.pushState({}, '', '/rental/leases?house_id=99&edit=5');
     mockListLeases.mockImplementation((params?: Record<string, unknown>) => {
       if (
         params?.house_id === 99 &&
@@ -5629,25 +6564,17 @@ describe('Property rental domain list pages', () => {
     );
   });
 
-  it('shows the next lease step inside the drawer summary', async () => {
+  it('explains in the lease drawer that the contract is optional', async () => {
     renderPage(<LeasesPage />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'plus 新建租约' }),
     );
 
-    expect(await screen.findByText('下一步')).toBeInTheDocument();
+    expect(await screen.findByText('合同（可选）')).toBeInTheDocument();
     expect(
-      screen.getByText('合同可稍后在编辑租约中补充。'),
+      screen.getByText('如有合同可在此上传；没有合同也可以直接保存租约。'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '去待签约带看' })).toHaveAttribute(
-      'href',
-      '/dashboard/rental/viewings?pending_lease=true&contact_missing=false',
-    );
-    expect(screen.getByRole('link', { name: '去待补租客' })).toHaveAttribute(
-      'href',
-      '/dashboard/rental/viewings?pending_lease=true&contact_missing=true',
-    );
   });
 
   it('does not expose source viewings without contacts in the lease source selector', async () => {

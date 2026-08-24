@@ -1,6 +1,7 @@
 import type { SelectProps } from 'antd';
-import { Select, Space, Tag, Typography } from 'antd';
+import { Select, Space, Tag, Tooltip, Typography } from 'antd';
 import { useMemo } from 'react';
+import { AppIcon } from '@/components/AppIcon';
 
 export const PROPERTY_TAG_TOKEN_SEPARATORS = [',', '，', ';', '；', '、'];
 
@@ -77,21 +78,9 @@ export function PropertyTagSelect({
     () => getInheritedPropertyTags(normalizedValue, inheritedTags),
     [inheritedTags, normalizedValue],
   );
-  const selectedTags = useMemo(
-    () => new Set(normalizedValue),
-    [normalizedValue],
-  );
 
   const emitChange = (nextValue: readonly unknown[]) => {
     onChange?.(normalizePropertyTags(nextValue));
-  };
-
-  const toggleSuggestion = (tag: string, checked: boolean) => {
-    emitChange(
-      checked
-        ? [...normalizedValue, tag]
-        : normalizedValue.filter((item) => item !== tag),
-    );
   };
 
   return (
@@ -113,10 +102,6 @@ export function PropertyTagSelect({
         onChange={emitChange}
       />
 
-      <Typography.Text type="secondary">
-        选择常用标签，或输入后按回车；逗号可批量添加。
-      </Typography.Text>
-
       {suggestionsLoading ? (
         <Typography.Text type="secondary">常用标签加载中…</Typography.Text>
       ) : null}
@@ -126,31 +111,15 @@ export function PropertyTagSelect({
         </Typography.Text>
       ) : null}
 
-      {normalizedSuggestions.length ? (
-        <fieldset
-          aria-label="常用标签"
-          style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}
-        >
-          <Typography.Text type="secondary">常用标签：</Typography.Text>
-          {normalizedSuggestions.map((tag) => (
-            <Tag.CheckableTag
-              key={tag}
-              checked={selectedTags.has(tag)}
-              disabled={disabled}
-              onChange={(checked) => toggleSuggestion(tag, checked)}
-            >
-              {tag}
-            </Tag.CheckableTag>
-          ))}
-        </fieldset>
-      ) : null}
-
       {visibleInheritedTags.length ? (
         <section aria-label="继承标签">
-          <Typography.Text type="secondary">将从当前楼栋继承：</Typography.Text>
           <Space size={[4, 4]} wrap>
             {visibleInheritedTags.map((tag) => (
-              <Tag key={tag}>{tag}</Tag>
+              <Tooltip key={tag} title="该标签来自楼栋，暂不可修改">
+                <Tag color="blue" icon={<AppIcon name="building" />}>
+                  {tag}
+                </Tag>
+              </Tooltip>
             ))}
           </Space>
         </section>

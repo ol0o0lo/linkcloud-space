@@ -1,4 +1,8 @@
-export type { HousePublishRuleKey, HousePublishRuleMode, HousePublishRuleSnapshot } from './publish-rules';
+export type {
+  HousePublishRuleKey,
+  HousePublishRuleMode,
+  HousePublishRuleSnapshot,
+} from './publish-rules';
 export {
   canHousePublish,
   DEFAULT_HOUSE_PUBLISH_RULES,
@@ -53,10 +57,7 @@ export const VIEWING_STATUS_FLOW_OPTIONS: Record<string, string[]> = {
     VIEWING_STATUS.CANCELED,
     VIEWING_STATUS.NO_SHOW,
   ],
-  [VIEWING_STATUS.VIEWED]: [
-    VIEWING_STATUS.CONVERTED,
-    VIEWING_STATUS.CANCELED,
-  ],
+  [VIEWING_STATUS.VIEWED]: [VIEWING_STATUS.CONVERTED, VIEWING_STATUS.CANCELED],
   [VIEWING_STATUS.CANCELED]: [],
   [VIEWING_STATUS.NO_SHOW]: [],
   [VIEWING_STATUS.CONVERTED]: [],
@@ -69,25 +70,9 @@ export const LEASE_STATUS = {
   TERMINATED: 'terminated',
 } as const;
 
-export const STATUS_COLOR: Record<string, string> = {
-  [HOUSE_STATUS.VACANT]: 'default',
-  [HOUSE_STATUS.LISTED]: 'blue',
-  [HOUSE_STATUS.RENTED]: 'default',
-  [HOUSE_STATUS.RENOVATING]: 'default',
-  [HOUSE_STATUS.INACTIVE]: 'default',
-  [LEASE_STATUS.ACTIVE]: 'blue',
-  [VIEWING_STATUS.CONVERTED]: 'purple',
-};
-
 export const LEASE_STATUS_FLOW_OPTIONS: Record<string, string[]> = {
-  [LEASE_STATUS.PENDING]: [
-    LEASE_STATUS.ACTIVE,
-    LEASE_STATUS.TERMINATED,
-  ],
-  [LEASE_STATUS.ACTIVE]: [
-    LEASE_STATUS.EXPIRED,
-    LEASE_STATUS.TERMINATED,
-  ],
+  [LEASE_STATUS.PENDING]: [LEASE_STATUS.ACTIVE, LEASE_STATUS.TERMINATED],
+  [LEASE_STATUS.ACTIVE]: [LEASE_STATUS.EXPIRED, LEASE_STATUS.TERMINATED],
   [LEASE_STATUS.EXPIRED]: [LEASE_STATUS.EXPIRED],
   [LEASE_STATUS.TERMINATED]: [LEASE_STATUS.TERMINATED],
 };
@@ -127,7 +112,11 @@ export function stripDerivedMediaFields(items: MediaRefValue[]) {
   }));
 }
 
-export function getHouseMediaCompleteness(house: { images?: Record<string, unknown>[]; videos?: Record<string, unknown>[]; landlord_id?: number | null }) {
+export function getHouseMediaCompleteness(house: {
+  images?: Record<string, unknown>[];
+  videos?: Record<string, unknown>[];
+  landlord_id?: number | null;
+}) {
   const images = house.images || [];
   const hasCover = images.some((item) => item.image_role === 'cover');
   const hasFloorPlan = images.some((item) => item.image_role === 'floor_plan');
@@ -141,7 +130,8 @@ export function getHouseMediaCompleteness(house: { images?: Record<string, unkno
 }
 
 export function mediaCoverUrl(items?: Record<string, unknown>[]) {
-  const image = items?.find((item) => item.image_role === 'cover') || items?.[0];
+  const image =
+    items?.find((item) => item.image_role === 'cover') || items?.[0];
   const url = image?.thumbnail || image?.url;
   return typeof url === 'string' && url ? url : undefined;
 }
@@ -153,6 +143,12 @@ export function moneyText(value?: string | number | null) {
 type HousePrimaryLayoutSource = {
   bedrooms?: unknown;
   living_rooms?: unknown;
+};
+
+type HouseLayoutSource = HousePrimaryLayoutSource & {
+  bathrooms?: unknown;
+  kitchens?: unknown;
+  balconies?: unknown;
 };
 
 type HousePrimaryLayoutOptions = {
@@ -209,23 +205,66 @@ export function housePrimaryLayoutText(
     : '-';
 }
 
+export function houseLayoutText(source: HouseLayoutSource) {
+  const primaryLayout = housePrimaryLayoutText(source, {
+    bedroomLabel: '房',
+    livingRoomLabel: '厅',
+  });
+  const bathroomText = hasLayoutCount(source.bathrooms)
+    ? `${normalizeLayoutCount(source.bathrooms)}卫`
+    : '';
+
+  if (primaryLayout === '-') return bathroomText || '-';
+  if (primaryLayout === '单间') return primaryLayout;
+  if (!bathroomText) return primaryLayout;
+  return `${primaryLayout}${bathroomText}`;
+}
+
+export function houseKitchenText(source: HouseLayoutSource) {
+  return hasLayoutCount(source.kitchens)
+    ? `${normalizeLayoutCount(source.kitchens)}厨`
+    : '-';
+}
+
+export function houseBalconyText(source: HouseLayoutSource) {
+  return hasLayoutCount(source.balconies)
+    ? `${normalizeLayoutCount(source.balconies)}阳台`
+    : '-';
+}
+
 export function dateTimeText(value?: string | null) {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('zh-CN', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '-');
+  return date
+    .toLocaleString('zh-CN', {
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(/\//g, '-');
 }
 
 export function dateTimeInputValue(value?: string | null) {
   if (!value) return undefined;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(0, 16);
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  const offsetDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000,
+  );
   return offsetDate.toISOString().slice(0, 16);
 }
 
 type EstateLabelSource = { name?: string | null; display_name?: string | null };
-type BuildingLabelSource = { id?: number; name?: string | null; address?: string | null; estate?: EstateLabelSource | null };
+type BuildingLabelSource = {
+  id?: number;
+  name?: string | null;
+  address?: string | null;
+  estate?: EstateLabelSource | null;
+};
 type HouseLabelSource = {
   id?: number;
   room_number?: string | null;
@@ -246,7 +285,9 @@ export function houseLabel(source?: HouseLabelSource) {
   const house = source?.house || source;
   if (!house) return '-';
   if (house.label) return house.label;
-  const scopedLabel = [buildingLabel(house.building), house.room_number].filter((value) => value && value !== '-').join(' / ');
+  const scopedLabel = [buildingLabel(house.building), house.room_number]
+    .filter((value) => value && value !== '-')
+    .join(' / ');
   if (scopedLabel) return scopedLabel;
   return house.id ? `房源 #${house.id}` : '-';
 }
@@ -260,7 +301,8 @@ export function buildingLabel(building?: BuildingLabelSource | null) {
 }
 
 export function contactLabel(source?: ContactLabelSource) {
-  const contact = source?.landlord || source?.contact || source?.tenant || source;
+  const contact =
+    source?.landlord || source?.contact || source?.tenant || source;
   if (!contact) return '-';
   const name = contact.name || (contact.id ? `联系人 #${contact.id}` : '');
   return [name, contact.phone].filter(Boolean).join(' / ') || '-';

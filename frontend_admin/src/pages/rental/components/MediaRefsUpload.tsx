@@ -34,12 +34,13 @@ type CleanMediaRefValue = ReturnType<typeof stripDerivedMediaFields>;
 
 type Props = {
   value?: MediaRefValue[];
-  onChange?: (value: CleanMediaRefValue) => void;
+  onChange?: (value: MediaRefValue[] | CleanMediaRefValue) => void;
   resourceType: string;
   mediaType: 'image' | 'video' | 'file';
   maxCount?: number;
   title?: string;
   enableImageRoles?: boolean;
+  preserveDerivedFieldsOnChange?: boolean;
 };
 
 function clean(items: MediaRefValue[]) {
@@ -74,6 +75,7 @@ const MediaRefsUpload: React.FC<Props> = ({
   maxCount,
   title,
   enableImageRoles = true,
+  preserveDerivedFieldsOnChange = false,
 }) => {
   const [uploading, setUploading] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<{
@@ -87,7 +89,8 @@ const MediaRefsUpload: React.FC<Props> = ({
   const copy = MEDIA_COPY[mediaType];
   const isMaxed = Boolean(maxCount && value.length >= maxCount);
 
-  const emit = (items: MediaRefValue[]) => onChange?.(clean(items));
+  const emit = (items: MediaRefValue[]) =>
+    onChange?.(preserveDerivedFieldsOnChange ? items : clean(items));
 
   const setRole = (mediaId: number, role?: string) => {
     const next = value.map((item) => {
@@ -169,14 +172,18 @@ const MediaRefsUpload: React.FC<Props> = ({
       style={{ justifyContent: 'center' }}
     >
       {canSetImageRole ? (
-        <Tooltip title={item.image_role === 'cover' ? '已设为首图' : '设为首图'}>
+        <Tooltip
+          title={item.image_role === 'cover' ? '已设为首图' : '设为首图'}
+        >
           <Button
             aria-label={
               item.image_role === 'cover'
                 ? `${itemTitle}已是首图`
                 : `将${itemTitle}设为首图`
             }
-            icon={item.image_role === 'cover' ? <StarFilled /> : <StarOutlined />}
+            icon={
+              item.image_role === 'cover' ? <StarFilled /> : <StarOutlined />
+            }
             size="small"
             type={item.image_role === 'cover' ? 'primary' : 'default'}
             onClick={() => setRole(item.media_id, 'cover')}
@@ -272,7 +279,8 @@ const MediaRefsUpload: React.FC<Props> = ({
   };
 
   const renderMediaCard = (item: MediaRefValue, index: number) => {
-    const itemTitle = item.label || item.original_filename || `#${item.media_id}`;
+    const itemTitle =
+      item.label || item.original_filename || `#${item.media_id}`;
 
     return (
       <Space
@@ -372,7 +380,12 @@ const MediaRefsUpload: React.FC<Props> = ({
           <video
             controls
             src={previewVideo.url}
-            style={{ display: 'block', width: '100%', maxHeight: '64vh', objectFit: 'contain' }}
+            style={{
+              display: 'block',
+              width: '100%',
+              maxHeight: '64vh',
+              objectFit: 'contain',
+            }}
           >
             <track kind="captions" />
           </video>
