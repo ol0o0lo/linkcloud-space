@@ -319,6 +319,7 @@ const StaffResponsibilitiesPage: React.FC = () => {
       dataIndex: 'actions',
       fixed: 'right',
       width: 180,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <Button
@@ -358,6 +359,7 @@ const StaffResponsibilitiesPage: React.FC = () => {
       title: '房态',
       dataIndex: 'status__mapping',
       width: 100,
+      align: 'center',
       render: (_value, record) => record.status__mapping || record.status,
     },
   ];

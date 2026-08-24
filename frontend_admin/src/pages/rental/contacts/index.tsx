@@ -516,6 +516,7 @@ const ContactsPage: React.FC = () => {
       dataIndex: 'actions',
       fixed: 'right',
       width: 150,
+      align: 'center',
       render: (_value, record) => {
         const primaryAction = getContactPrimaryAction(record);
 

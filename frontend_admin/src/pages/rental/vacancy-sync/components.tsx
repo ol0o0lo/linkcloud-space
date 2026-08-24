@@ -631,7 +631,7 @@ export function VacancySyncBuildingCard({
   const buildingAddress = block.building_match.address;
 
   const columns: TableColumnsType<VacancySyncLine> = [
-    { title: '行', dataIndex: 'line_number', width: 42 },
+    { title: '行', dataIndex: 'line_number', width: 42, align: 'right' },
     {
       title: '原始内容',
       dataIndex: 'raw',
@@ -689,6 +689,7 @@ export function VacancySyncBuildingCard({
       dataIndex: 'status',
       width: 120,
       fixed: 'right',
+      align: 'center',
       render: (_value, record) => {
         if (record.status === 'valid') {
           return (

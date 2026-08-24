@@ -351,6 +351,7 @@ const TenantMembersPage: React.FC = () => {
         title: '操作',
         dataIndex: 'actions',
         width: 160,
+        align: 'center',
         render: (_value, record) => (
           <ResponsiveActions>
             <a onClick={() => setSelectedMemberId(record.pk)}>设为当前</a>

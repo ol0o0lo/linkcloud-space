@@ -202,6 +202,7 @@ const TenantTeamsPage: React.FC = () => {
         title: '操作',
         dataIndex: 'actions',
         width: 180,
+        align: 'center',
         render: (_value, record) => (
           <ResponsiveActions>
             <a onClick={() => setSelectedTeamId(record.id)}>设为当前</a>
