@@ -36,6 +36,7 @@ from apps.organizations.api import (
 from apps.organizations.api import (
     settings_router as org_settings_router,
 )
+from apps.organizations.workspace_api import router as organization_workspace_router
 from apps.payments.api import router as payments_router
 from apps.referrals.api import admin_router as referrals_admin_router
 from apps.referrals.api import router as referrals_router
@@ -74,6 +75,7 @@ api.add_router("/notifications/", notifications_router)
 api.add_router("/team-operations/", team_operations_router)
 api.add_router("/analytics/", analytics_router)
 api.add_router("/organization-members/", org_members_router)
+api.add_router("/organization-workspace/", organization_workspace_router)
 api.add_router("/organization-settings/", org_settings_router)
 api.add_router("/organizations/", orgs_router)
 api.add_router("/teams/", teams_router)

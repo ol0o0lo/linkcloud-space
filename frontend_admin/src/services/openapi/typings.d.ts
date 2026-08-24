@@ -988,6 +988,26 @@ declare namespace API {
     slug: string;
   };
 
+  type appsOrganizationsWorkspaceApiGetWorkspaceMemberParams = {
+    member_id: number;
+  };
+
+  type appsOrganizationsWorkspaceApiListWorkspaceMembersParams = {
+    /** 按姓名、用户名或邮箱搜索成员。 */
+    keyword?: string | null;
+    /** 按可见团队筛选成员。 */
+    team_id?: number | null;
+    /** 仅返回未加入任何当前组织团队的成员。 */
+    ungrouped?: boolean;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsOrganizationsWorkspaceApiSearchWorkspaceParams = {
+    /** 团队名称、成员姓名、用户名或邮箱。 */
+    keyword?: string;
+  };
+
   type appsReferralsApiAdminReferralRecordsParams = {
     page?: number;
     page_size?: number | null;
@@ -1169,6 +1189,11 @@ declare namespace API {
     announcement_id: number;
   };
 
+  type appsTeamsApiAddTeamMemberParams = {
+    team_id: number;
+    user_id: number;
+  };
+
   type appsTeamsApiDeleteTeamParams = {
     team_id: number;
   };
@@ -1186,6 +1211,11 @@ declare namespace API {
 
   type appsTeamsApiPatchTeamParams = {
     team_id: number;
+  };
+
+  type appsTeamsApiRemoveTeamMemberParams = {
+    team_id: number;
+    user_id: number;
   };
 
   type appsWalletApiAdminWalletLedgerParams = {
@@ -2517,6 +2547,25 @@ declare namespace API {
     slug: string;
   };
 
+  type OrganizationNavigationOut = {
+    organization: WorkspaceOrganizationOut;
+    /** Member Count */
+    member_count: number;
+    /** Owner Count */
+    owner_count: number;
+    /** Team Count */
+    team_count: number;
+    /** Ungrouped Member Count */
+    ungrouped_member_count: number;
+    /** Pending Invite Count */
+    pending_invite_count: number | null;
+    /** Unassigned Responsibility Count */
+    unassigned_responsibility_count: number;
+    /** Teams */
+    teams: WorkspaceTeamSummaryOut[];
+    capabilities: OrganizationWorkspaceCapabilitiesOut;
+  };
+
   type OrganizationOut = {
     /** Id */
     id: number;
@@ -2547,6 +2596,13 @@ declare namespace API {
     description?: string | null;
   };
 
+  type OrganizationSearchOut = {
+    /** Teams */
+    teams: WorkspaceTeamSummaryOut[];
+    /** Members */
+    members: WorkspaceMemberOut[];
+  };
+
   type OrganizationStatusPatchIn = {
     /** Is Active 是否启用租户。 */
     is_active: boolean;
@@ -2557,6 +2613,31 @@ declare namespace API {
     member_count: number;
     /** Team Count */
     team_count: number;
+  };
+
+  type OrganizationWorkspaceCapabilitiesOut = {
+    /** Member Manage */
+    member_manage: boolean;
+    /** Invite Manage */
+    invite_manage: boolean;
+    /** Role View */
+    role_view: boolean;
+    /** Role Manage */
+    role_manage: boolean;
+    /** Team Create */
+    team_create: boolean;
+    /** Responsibility Manage */
+    responsibility_manage: boolean;
+    /** Team Update Ids */
+    team_update_ids: number[];
+    /** Team Delete Ids */
+    team_delete_ids: number[];
+    /** Team Member Manage Ids */
+    team_member_manage_ids: number[];
+    /** Team Role View Ids */
+    team_role_view_ids: number[];
+    /** Team Role Manage Ids */
+    team_role_manage_ids: number[];
   };
 
   type OrgSelectOut = {
@@ -2944,6 +3025,17 @@ declare namespace API {
   type PagedWithdrawalOut = {
     /** Items */
     items: WithdrawalOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedWorkspaceMemberOut = {
+    /** Items */
+    items: WorkspaceMemberOut[];
     /** Total */
     total: number;
     /** Page */
@@ -3774,6 +3866,15 @@ declare namespace API {
     members?: number[];
   };
 
+  type TeamMemberMutationOut = {
+    /** Team Id */
+    team_id: number;
+    /** User Id */
+    user_id: number;
+    /** Changed */
+    changed: boolean;
+  };
+
   type TeamOperationsCapabilitiesOut = {
     /** Announcement Organization Manage */
     announcement_organization_manage: boolean;
@@ -4326,6 +4427,40 @@ declare namespace API {
     reason?: string;
     /** Idempotency Key */
     idempotency_key: string;
+  };
+
+  type WorkspaceMemberOut = {
+    /** Member Id */
+    member_id: number;
+    user: OrgUserOut;
+    /** Is Owner */
+    is_owner: boolean;
+    /** Teams */
+    teams: WorkspaceTeamSummaryOut[];
+    /** Has Responsibility */
+    has_responsibility: boolean;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type WorkspaceOrganizationOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Slug */
+    slug: string;
+  };
+
+  type WorkspaceTeamSummaryOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Member Count */
+    member_count: number;
   };
 
   type WorkTaskIn = {

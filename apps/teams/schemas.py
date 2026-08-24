@@ -58,3 +58,9 @@ class TeamPatchIn(Schema):
     address: str | None = Field(None, description="团队地址。")
     business_hours: str | None = Field(None, description="团队营业时间。")
     members: list[int] | None = Field(None, description="新的团队成员用户 ID 列表。")
+
+
+class TeamMemberMutationOut(Schema):
+    team_id: int
+    user_id: int
+    changed: bool

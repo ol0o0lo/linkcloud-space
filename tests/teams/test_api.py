@@ -211,6 +211,70 @@ class TestTeamAPI(TestCase):
         self.assertEqual(resp.status_code, 403)
         self.assertNotIn(other_user, team.members.all())
 
+    def test_add_team_member_is_idempotent(self):
+        employee = User.objects.create_user(username="employee", password="secret")  # noqa: S106
+        baker.make("organizations.OrganizationMember", organization=self.org, user=employee)
+        team = baker.make("teams.Team", organization=self.org)
+        self._login()
+
+        first = self.client.post(f"/api/teams/{team.pk}/members/{employee.pk}/")
+        second = self.client.post(f"/api/teams/{team.pk}/members/{employee.pk}/")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(api_data(first)["changed"])
+        self.assertFalse(api_data(second)["changed"])
+        self.assertEqual(team.members.filter(pk=employee.pk).count(), 1)
+
+    def test_remove_team_member_is_idempotent_and_cleans_team_role_bindings(self):
+        employee = User.objects.create_user(username="removable-employee", password="secret")  # noqa: S106
+        baker.make("organizations.OrganizationMember", organization=self.org, user=employee)
+        team = baker.make("teams.Team", organization=self.org)
+        team.members.add(employee)
+        group = make_access_group("employee_team_role", AccessScope.TEAM, [("teams", "team_view")])
+        binding = bind_team_role(team, employee, group)
+        self._login()
+
+        first = self.client.delete(f"/api/teams/{team.pk}/members/{employee.pk}/")
+        second = self.client.delete(f"/api/teams/{team.pk}/members/{employee.pk}/")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(api_data(first)["changed"])
+        self.assertFalse(api_data(second)["changed"])
+        self.assertFalse(team.members.filter(pk=employee.pk).exists())
+        self.assertFalse(type(binding).objects.filter(pk=binding.pk).exists())
+
+    def test_add_team_member_rejects_user_from_other_organization(self):
+        outsider = User.objects.create_user(username="outsider", password="secret")  # noqa: S106
+        baker.make("organizations.OrganizationMember", user=outsider)
+        team = baker.make("teams.Team", organization=self.org)
+        self._login()
+
+        response = self.client.post(f"/api/teams/{team.pk}/members/{outsider.pk}/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(team.members.filter(pk=outsider.pk).exists())
+
+    def test_replacing_team_members_cleans_removed_member_role_bindings(self):
+        employee = User.objects.create_user(username="replaced-employee", password="secret")  # noqa: S106
+        baker.make("organizations.OrganizationMember", organization=self.org, user=employee)
+        team = baker.make("teams.Team", organization=self.org)
+        team.members.add(employee)
+        group = make_access_group("replaced_employee_team_role", AccessScope.TEAM, [("teams", "team_view")])
+        binding = bind_team_role(team, employee, group)
+        self._login()
+
+        response = self.client.patch(
+            _detail_url(team.pk),
+            data=json.dumps({"members": []}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(team.members.filter(pk=employee.pk).exists())
+        self.assertFalse(type(binding).objects.filter(pk=binding.pk).exists())
+
     def test_destroy(self):
         team = baker.make("teams.Team", name="Engineering", organization=self.org)
         self._login()

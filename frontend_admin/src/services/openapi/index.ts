@@ -18,6 +18,8 @@ import * as organizationMembers from "./organizationMembers";
 import * as organizationProfile from "./organizationProfile";
 import * as organizations from "./organizations";
 import * as organizationSettings from "./organizationSettings";
+import * as organizationWorkspace from "./organizationWorkspace";
+import * as payments from "./payments";
 import * as propertyRentalLandlord from "./propertyRentalLandlord";
 import * as propertyRentalManagement from "./propertyRentalManagement";
 import * as publicHouses from "./publicHouses";
@@ -52,6 +54,7 @@ export default {
   teamOperations,
   analytics,
   organizationMembers,
+  organizationWorkspace,
   organizationProfile,
   organizations,
   teams,
@@ -62,6 +65,7 @@ export default {
   userWallet,
   walletAdmin,
   walletInternal,
+  payments,
   subscriptions,
   subscriptionsAdmin,
   referrals,
