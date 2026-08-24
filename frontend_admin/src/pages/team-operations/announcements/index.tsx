@@ -5,6 +5,8 @@ import {
   DatePicker,
   Descriptions,
   Drawer,
+  Empty,
+  Flex,
   Form,
   Input,
   Modal,
@@ -23,19 +25,13 @@ import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  AdminToolbar,
-  adminTableScroll,
   drawerWidthMd,
   fixedPagePagination,
   fullWidthStyle,
   ResponsiveActions,
-  toolbarControlStyle,
   wrapTextStyle,
 } from '@/pages/_shared/adminLayout';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   type AnnouncementInput,
   type AnnouncementStatus,
@@ -54,8 +50,10 @@ import {
   invalidateTeamOperations,
   teamOperationsQueryKeys,
 } from '../shared';
+import { useStyles } from './styles';
 
 const PAGE_SIZE = 10;
+const announcementTableScroll = { x: 1040 };
 
 type AnnouncementFilter = 'all' | AnnouncementStatus;
 type AnnouncementScope = number | 'organization';
@@ -76,6 +74,7 @@ function requestedAnnouncementId() {
 }
 
 const TeamAnnouncementsPage: React.FC = () => {
+  const { styles } = useStyles();
   const workspace = useTenantWorkspace();
   const queryClient = useQueryClient();
   const initialAnnouncementId = useMemo(requestedAnnouncementId, []);
@@ -212,7 +211,7 @@ const TeamAnnouncementsPage: React.FC = () => {
     {
       title: '公告',
       dataIndex: 'title',
-      width: 300,
+      width: 340,
       render: (_value, record) => (
         <Space orientation="vertical" size={2}>
           <Typography.Text strong style={wrapTextStyle}>
@@ -228,6 +227,7 @@ const TeamAnnouncementsPage: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       width: 120,
+      align: 'center',
       render: (_value, record) => (
         <Tag color={announcementStatusColor(record.status)}>
           {record.status__mapping}
@@ -238,6 +238,7 @@ const TeamAnnouncementsPage: React.FC = () => {
       title: '确认情况',
       dataIndex: 'acknowledged_count',
       width: 160,
+      align: 'right',
       render: (_value, record) => {
         if (!record.require_acknowledgement) return '无需确认';
         if (record.status !== 'published') return '发布后统计';
@@ -248,6 +249,7 @@ const TeamAnnouncementsPage: React.FC = () => {
       title: '发布时间',
       dataIndex: 'published_at',
       width: 180,
+      align: 'center',
       render: (value) =>
         value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '尚未发布',
     },
@@ -255,7 +257,8 @@ const TeamAnnouncementsPage: React.FC = () => {
       title: '操作',
       dataIndex: 'actions',
       fixed: 'right',
-      width: 260,
+      width: 240,
+      align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
           <a onClick={() => setDetailAnnouncement(record)}>详情</a>
@@ -299,28 +302,85 @@ const TeamAnnouncementsPage: React.FC = () => {
     });
   };
 
+  const openCreateModal = () => {
+    form.resetFields();
+    form.setFieldsValue({ require_acknowledgement: false });
+    setCreateOpen(true);
+  };
+
+  const resetFilters = () => {
+    setPage(1);
+    setStatusFilter('all');
+    setKeywordInput('');
+    setKeyword('');
+  };
+
+  const isFiltered = statusFilter !== 'all' || Boolean(keyword);
+  const announcementEmptyText = (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        <Space direction="vertical" size={2}>
+          <Typography.Text strong>
+            {isFiltered ? '未找到符合条件的公告' : '还没有公告'}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            {isFiltered
+              ? '调整筛选条件，或清除筛选后再试。'
+              : '创建一则公告，向空间成员同步重要信息。'}
+          </Typography.Text>
+        </Space>
+      }
+      className={styles.emptyState}
+    >
+      <Space>
+        {isFiltered ? <Button onClick={resetFilters}>清除筛选</Button> : null}
+        {canManageAnnouncements ? (
+          <Button
+            className={styles.primaryAction}
+            type="primary"
+            onClick={openCreateModal}
+          >
+            新建公告
+          </Button>
+        ) : null}
+      </Space>
+    </Empty>
+  );
+
   return (
     <TenantSelectionGuard title="团队公告">
-      <Card
-        extra={
-          <AdminToolbar>
-            <Segmented
-              options={[
-                { label: '全部', value: 'all' },
-                { label: '草稿', value: 'draft' },
-                { label: '已发布', value: 'published' },
-                { label: '已撤回', value: 'withdrawn' },
-              ]}
-              value={statusFilter}
-              onChange={(value) => {
-                setPage(1);
-                setStatusFilter(value as AnnouncementFilter);
-              }}
-            />
+      <Card className={styles.announcementsCard}>
+        <Flex
+          align="center"
+          className={styles.toolbar}
+          gap="middle"
+          justify="space-between"
+          wrap
+        >
+          <Segmented
+            options={[
+              { label: '全部', value: 'all' },
+              { label: '草稿', value: 'draft' },
+              { label: '已发布', value: 'published' },
+              { label: '已撤回', value: 'withdrawn' },
+            ]}
+            value={statusFilter}
+            onChange={(value) => {
+              setPage(1);
+              setStatusFilter(value as AnnouncementFilter);
+            }}
+          />
+          <Flex
+            align="center"
+            className={styles.toolbarActions}
+            gap="small"
+            justify="flex-end"
+            wrap={false}
+          >
             <Input.Search
               allowClear
               value={keywordInput}
-              style={toolbarControlStyle}
               placeholder="搜索公告"
               onChange={(event) => setKeywordInput(event.target.value)}
               onSearch={(value) => {
@@ -330,31 +390,31 @@ const TeamAnnouncementsPage: React.FC = () => {
             />
             {canManageAnnouncements ? (
               <Button
+                className={styles.primaryAction}
                 type="primary"
-                onClick={() => {
-                  form.resetFields();
-                  form.setFieldsValue({ require_acknowledgement: false });
-                  setCreateOpen(true);
-                }}
+                onClick={openCreateModal}
               >
                 新建公告
               </Button>
             ) : null}
-          </AdminToolbar>
-        }
-      >
+          </Flex>
+        </Flex>
         <Table<TeamAnnouncement>
           rowKey="id"
+          size="middle"
           loading={announcementsQuery.isLoading}
           columns={columns}
           dataSource={announcementsQuery.data?.items || []}
+          locale={{ emptyText: announcementEmptyText }}
           pagination={fixedPagePagination(
             announcementsQuery.data?.page || page,
             announcementsQuery.data?.page_size || PAGE_SIZE,
             announcementsQuery.data?.total || 0,
             setPage,
           )}
-          scroll={adminTableScroll}
+          scroll={announcementTableScroll}
+          className={styles.table}
+          style={{ marginTop: 20 }}
         />
       </Card>
 
@@ -402,15 +462,15 @@ const TeamAnnouncementsPage: React.FC = () => {
               placeholder="选择团队或全组织"
             />
           </Form.Item>
+          <Form.Item label="过期时间" name="expires_at">
+            <DatePicker showTime style={fullWidthStyle} />
+          </Form.Item>
           <Form.Item
             label="要求成员确认"
             name="require_acknowledgement"
             valuePropName="checked"
           >
             <Switch />
-          </Form.Item>
-          <Form.Item label="过期时间" name="expires_at">
-            <DatePicker showTime style={fullWidthStyle} />
           </Form.Item>
         </Form>
       </Modal>

@@ -66,6 +66,11 @@ export default [
         component: './team-operations/workbench',
       },
       {
+        path: RENTAL_PATHS.workbenchSpace,
+        redirect: `${RENTAL_PATHS.workbenchOverview}?view=space`,
+        hideInMenu: true,
+      },
+      {
         name: 'tasks',
         icon: 'checkSquare',
         path: RENTAL_PATHS.tasks,

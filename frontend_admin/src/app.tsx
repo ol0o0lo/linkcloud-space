@@ -1,11 +1,14 @@
 import { BgColorsOutlined } from '@ant-design/icons';
-import type { Settings as LayoutSettings } from '@ant-design/pro-components';
+import type {
+  MenuDataItem,
+  Settings as LayoutSettings,
+} from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { history, Link } from '@umijs/max';
+import { Button, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { Button, Tooltip } from 'antd';
 import React from 'react';
 
 // Initialize dayjs plugins globally
@@ -14,18 +17,48 @@ dayjs.extend(relativeTime);
 import {
   AvatarDropdown,
   ErrorBoundary,
-  Footer,
   LangDropdown,
   OfflineBanner,
   OrgSwitcher,
 } from '@/components';
-import { appsAccountsApiGetMe } from '@/services/openapi/userAccount';
+import {
+  getTeamOperationsCapabilities,
+  type TeamOperationsCapabilities,
+} from '@/services/manual/teamOperations';
 import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations';
-import { buildAdminPath, isAuthPagePath, LOGIN_PATH } from '@/utils/adminRouting';
+import { appsAccountsApiGetMe } from '@/services/openapi/userAccount';
+import {
+  buildAdminPath,
+  isAuthPagePath,
+  LOGIN_PATH,
+} from '@/utils/adminRouting';
 import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import defaultSettings from '../config/defaultSettings';
 import logoUrl from '../public/logo.svg';
 import { errorConfig } from './requestErrorConfig';
+
+const SIDER_WIDTH = 216;
+const COLLAPSED_SIDER_WIDTH = 74;
+const NESTED_MENU_ICON_CLASS_NAME = 'ant-pro-sider-item-icon';
+
+function withNestedMenuIcon(item: MenuDataItem, dom: React.ReactNode) {
+  if (
+    !item.pro_layout_parentKeys?.length ||
+    !item.icon ||
+    !React.isValidElement<{ children?: React.ReactNode }>(dom)
+  ) {
+    return dom;
+  }
+
+  return React.cloneElement(
+    dom,
+    undefined,
+    <span aria-hidden className={NESTED_MENU_ICON_CLASS_NAME}>
+      {item.icon}
+    </span>,
+    dom.props.children,
+  );
+}
 
 type InitialState = {
   settings?: Partial<LayoutSettings>;
@@ -35,6 +68,7 @@ type InitialState = {
   settingDrawerOpen?: boolean;
   organizations?: API.SwitchListItemOut[];
   selectedOrgSlug?: string;
+  teamOperationsCapabilities?: TeamOperationsCapabilities;
 };
 
 function getUserDisplayName(user?: API.MeOut) {
@@ -78,18 +112,29 @@ export async function getInitialState(): Promise<InitialState> {
       return [];
     }
   };
+  const fetchTeamOperationsCapabilities = async () => {
+    try {
+      return await getTeamOperationsCapabilities();
+    } catch (_error) {
+      return undefined;
+    }
+  };
   // 如果不是登录页面，执行
   const { location } = history;
   if (!isAuthPagePath(location.pathname)) {
     const currentUser = await fetchUserInfo();
     const organizations = currentUser ? await fetchOrganizations() : [];
     const selectedOrgSlug = resolveSelectedOrgSlug(organizations);
+    const teamOperationsCapabilities = selectedOrgSlug
+      ? await fetchTeamOperationsCapabilities()
+      : undefined;
 
     return {
       fetchUserInfo,
       currentUser,
       organizations,
       selectedOrgSlug,
+      teamOperationsCapabilities,
       settings: defaultSettings as Partial<LayoutSettings>,
       settingDrawerOpen: false,
     };
@@ -106,22 +151,26 @@ export const layout: RunTimeLayoutConfig = ({
   initialState,
   setInitialState,
 }) => {
+  const layoutSettings = initialState?.settings;
+  const localeEnabled =
+    (layoutSettings as { locale?: boolean } | undefined)?.locale !== false;
+
   return {
+    subMenuItemRender: (item, dom) => withNestedMenuIcon(item, dom),
     menuItemRender: (item, dom) => {
+      const menuItem = withNestedMenuIcon(item, dom);
       if (item.path) {
         return (
           <Link to={item.path} prefetch>
-            {dom}
+            {menuItem}
           </Link>
         );
       }
-      return dom;
+      return menuItem;
     },
     actionsRender: () => {
       // `locale: false` opts out of the language switcher. ProLayout's own
       // `locale` prop is a locale string, so narrow to the boolean toggle here.
-      const localeEnabled =
-        (initialState?.settings as { locale?: boolean })?.locale !== false;
       return [
         <OrgSwitcher key="org-switcher" />,
         <Tooltip key="theme-settings" title="界面设置">
@@ -141,7 +190,10 @@ export const layout: RunTimeLayoutConfig = ({
       ].filter(Boolean);
     },
     avatarProps: {
-      src: initialState?.currentUser?.avatar?.[0]?.thumbnail || initialState?.currentUser?.avatar?.[0]?.url || undefined,
+      src:
+        initialState?.currentUser?.avatar?.[0]?.thumbnail ||
+        initialState?.currentUser?.avatar?.[0]?.url ||
+        undefined,
       title: getUserDisplayName(initialState?.currentUser),
       render: (_, avatarChildren) => (
         <AvatarDropdown>{avatarChildren}</AvatarDropdown>
@@ -151,7 +203,7 @@ export const layout: RunTimeLayoutConfig = ({
     // waterMarkProps: {
     //   content: initialState?.currentUser?.name,
     // },
-    footerRender: () => <Footer />,
+    footerRender: false,
     onPageChange: () => {
       const { location } = history;
       // 如果没有登录，重定向到 login
@@ -196,7 +248,12 @@ export const layout: RunTimeLayoutConfig = ({
         </>
       );
     },
-    ...initialState?.settings,
+    ...layoutSettings,
+    siderWidth: SIDER_WIDTH,
+    menu: {
+      locale: localeEnabled,
+      collapsedWidth: COLLAPSED_SIDER_WIDTH,
+    },
   };
 };
 

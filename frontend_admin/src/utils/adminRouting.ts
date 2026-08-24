@@ -7,6 +7,7 @@ export const RENTAL_PATHS = {
   root: '/rental',
   workbench: '/rental/workbench',
   workbenchOverview: '/rental/workbench/overview',
+  workbenchSpace: '/rental/workbench/space',
   tasks: '/rental/workbench/tasks',
   announcements: '/rental/workbench/announcements',
   properties: '/rental/properties',

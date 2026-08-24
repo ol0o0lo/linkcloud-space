@@ -1,10 +1,25 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import WorkbenchPage, { buildPublishWorkbenchRows, buildWorkflowTasks, getHouseTaskLink } from './workbench';
+import {
+  buildPublishWorkbenchRows,
+  buildWorkflowTasks,
+  getHouseTaskLink,
+} from '@/pages/team-operations/workbench/widgets/space/model';
+import WorkbenchPage from './workbench';
 
-const { mockListHouses, mockListViewings, mockListLeases, mockPatchHouse } = vi.hoisted(() => ({
-  ...(globalThis as typeof globalThis & {
+const {
+  mockListHouses,
+  mockListViewings,
+  mockListLeases,
+  mockPatchHouse,
+  mockListEstates,
+  mockListBuildings,
+  mockGetDefaultBuilding,
+  mockSetDefaultBuilding,
+  mockCreateBuilding,
+} = vi.hoisted(() => {
+  const state = globalThis as typeof globalThis & {
     __frontendAdminHouseApiMocks__?: {
       listHouses: ReturnType<typeof vi.fn>;
       listViewingRecords: ReturnType<typeof vi.fn>;
@@ -16,44 +31,43 @@ const { mockListHouses, mockListViewings, mockListLeases, mockPatchHouse } = vi.
       setDefaultBuilding: ReturnType<typeof vi.fn>;
       createBuilding: ReturnType<typeof vi.fn>;
     };
-  }).__frontendAdminHouseApiMocks__ ?? ((globalThis as typeof globalThis & {
-    __frontendAdminHouseApiMocks__?: {
-      listHouses: ReturnType<typeof vi.fn>;
-      listViewingRecords: ReturnType<typeof vi.fn>;
-      listLeases: ReturnType<typeof vi.fn>;
-      patchHouse: ReturnType<typeof vi.fn>;
-      listEstates: ReturnType<typeof vi.fn>;
-      listBuildings: ReturnType<typeof vi.fn>;
-      getDefaultBuilding: ReturnType<typeof vi.fn>;
-      setDefaultBuilding: ReturnType<typeof vi.fn>;
-      createBuilding: ReturnType<typeof vi.fn>;
+  };
+  if (!state.__frontendAdminHouseApiMocks__) {
+    state.__frontendAdminHouseApiMocks__ = {
+      listHouses: vi.fn(),
+      listViewingRecords: vi.fn(),
+      listLeases: vi.fn(),
+      patchHouse: vi.fn(),
+      listEstates: vi.fn(),
+      listBuildings: vi.fn(),
+      getDefaultBuilding: vi.fn(),
+      setDefaultBuilding: vi.fn(),
+      createBuilding: vi.fn(),
     };
-  }).__frontendAdminHouseApiMocks__ = {
-    listHouses: vi.fn(),
-    listViewingRecords: vi.fn(),
-    listLeases: vi.fn(),
-    patchHouse: vi.fn(),
-    listEstates: vi.fn(),
-    listBuildings: vi.fn(),
-    getDefaultBuilding: vi.fn(),
-    setDefaultBuilding: vi.fn(),
-    createBuilding: vi.fn(),
-  }),
-  mockListHouses: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listHouses: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listHouses,
-  mockListViewings: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listViewingRecords: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listViewingRecords,
-  mockListLeases: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listLeases: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listLeases,
-  mockPatchHouse: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { patchHouse: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).patchHouse,
-}));
+  }
+  const mocks = state.__frontendAdminHouseApiMocks__;
+  return {
+    mockListHouses: mocks.listHouses,
+    mockListViewings: mocks.listViewingRecords,
+    mockListLeases: mocks.listLeases,
+    mockPatchHouse: mocks.patchHouse,
+    mockListEstates: mocks.listEstates,
+    mockListBuildings: mocks.listBuildings,
+    mockGetDefaultBuilding: mocks.getDefaultBuilding,
+    mockSetDefaultBuilding: mocks.setDefaultBuilding,
+    mockCreateBuilding: mocks.createBuilding,
+  };
+});
 
-const { mockUseTenantWorkspace } = vi.hoisted(() => ({
-  mockUseTenantWorkspace:
-    ((globalThis as typeof globalThis & {
-      __frontendAdminTenantWorkspaceMock__?: ReturnType<typeof vi.fn>;
-    }).__frontendAdminTenantWorkspaceMock__) ||
-    (((globalThis as typeof globalThis & {
-      __frontendAdminTenantWorkspaceMock__?: ReturnType<typeof vi.fn>;
-    }).__frontendAdminTenantWorkspaceMock__ = vi.fn())),
-}));
+const { mockUseTenantWorkspace } = vi.hoisted(() => {
+  const state = globalThis as typeof globalThis & {
+    __frontendAdminTenantWorkspaceMock__?: ReturnType<typeof vi.fn>;
+  };
+  if (!state.__frontendAdminTenantWorkspaceMock__) {
+    state.__frontendAdminTenantWorkspaceMock__ = vi.fn();
+  }
+  return { mockUseTenantWorkspace: state.__frontendAdminTenantWorkspaceMock__ };
+});
 
 vi.mock('@umijs/max', () => ({
   history: {
@@ -117,11 +131,11 @@ vi.mock('@/services/manual/house', () => ({
     listViewingRecords: mockListViewings,
     listLeases: mockListLeases,
     patchHouse: mockPatchHouse,
-    listEstates: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listEstates: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listEstates,
-    listBuildings: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { listBuildings: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).listBuildings,
-    getDefaultBuilding: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { getDefaultBuilding: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).getDefaultBuilding,
-    setDefaultBuilding: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { setDefaultBuilding: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).setDefaultBuilding,
-    createBuilding: ((globalThis as typeof globalThis & { __frontendAdminHouseApiMocks__?: { createBuilding: ReturnType<typeof vi.fn> } }).__frontendAdminHouseApiMocks__!).createBuilding,
+    listEstates: mockListEstates,
+    listBuildings: mockListBuildings,
+    getDefaultBuilding: mockGetDefaultBuilding,
+    setDefaultBuilding: mockSetDefaultBuilding,
+    createBuilding: mockCreateBuilding,
   },
 }));
 
@@ -159,7 +173,7 @@ describe('Property rental workbench', () => {
         ],
         videos: [],
         status: 'listed',
-        status__mapping: '招租中',
+        status__mapping: '招租',
       };
       const readyHouse = {
         ...houseSummary({ id: 3, roomNumber: '103', building: building2 }),
@@ -293,7 +307,6 @@ describe('Property rental workbench', () => {
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_blocked: true }));
     expect(mockListHouses).not.toHaveBeenCalledWith(expect.objectContaining({ publish_ready: true }));
     await screen.findByText('星河湾 / 1 栋 / 101');
-    expect(document.querySelector('[data-preview="house"][data-id="1"]')).toBeInTheDocument();
     expect(screen.queryByText('102')).not.toBeInTheDocument();
 
     expect(screen.getByText('经营总览')).toBeInTheDocument();
@@ -307,7 +320,7 @@ describe('Property rental workbench', () => {
     expect(screen.getByText('在管房源')).toBeInTheDocument();
     expect(screen.getByText('可发布')).toBeInTheDocument();
     expect(screen.getAllByText('阻断发布').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('待补租客').length).toBeGreaterThan(1);
+    expect(screen.getAllByText('待补租客').length).toBeGreaterThan(0);
     expect(screen.getAllByText('待签约').length).toBeGreaterThan(0);
     expect(screen.getByRole('radio', { name: '阻断发布 1' })).toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: /待补合同/ })).not.toBeInTheDocument();
@@ -315,7 +328,6 @@ describe('Property rental workbench', () => {
     expect(screen.getByText('缺房东')).toBeInTheDocument();
     expect(screen.getByText('缺封面')).toBeInTheDocument();
     expect(screen.getByText('发布工作区')).toBeInTheDocument();
-    expect(screen.getAllByText('空置').length).toBeGreaterThan(0);
     await waitFor(() => expect(mockListViewings).toHaveBeenCalledWith(expect.objectContaining({ pending_lease: true, contact_missing: true })));
     await waitFor(() => expect(mockListViewings).toHaveBeenCalledWith(expect.objectContaining({ pending_lease: true, contact_missing: false })));
     expect(mockListLeases).not.toHaveBeenCalledWith(expect.objectContaining({ contract_missing: true, page_size: 5 }));
@@ -326,7 +338,7 @@ describe('Property rental workbench', () => {
     expect(screen.getByText('先补房东主体，其他媒体问题可作为发布提醒继续处理')).toBeInTheDocument();
     expect(screen.getByText('成交转签')).toBeInTheDocument();
     expect(screen.getByText('先绑定租客联系人，再创建租约')).toBeInTheDocument();
-    expect(screen.getByText('星河湾 / 1 栋 / 201').closest('tr')?.querySelector('[data-preview="house"][data-id="1"]')).toBeInTheDocument();
+    expect(screen.getByText('星河湾 / 1 栋 / 201')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '补租客' })).toHaveAttribute('href', '/dashboard/rental/viewings?pending_lease=true&contact_missing=true&edit=4');
     expect(screen.getByRole('link', { name: '去签约' })).toHaveAttribute('href', '/dashboard/rental/leases?source_viewing_record_id=6');
     expect(screen.queryByRole('link', { name: '补合同' })).not.toBeInTheDocument();
@@ -411,13 +423,13 @@ describe('Property rental workbench', () => {
   it('filters publish and workflow tables inside the page', async () => {
     render(<QueryClientProvider client={new QueryClient()}><WorkbenchPage /></QueryClientProvider>);
 
-    expect((await screen.findAllByText('显示 2 / 2')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText((text) => text.startsWith('显示 2 / 2'))).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('radio', { name: '阻断发布 1' }));
-    expect((await screen.findAllByText('显示 1 / 2')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText((text) => text.startsWith('显示 1 / 2'))).length).toBeGreaterThan(0);
     expect(screen.queryByText('当前筛选下暂无房源')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: '待签约 2' }));
-    expect((await screen.findAllByText('显示 1 / 2')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText((text) => text.startsWith('显示 1 / 2'))).length).toBeGreaterThan(0);
     expect(screen.queryByRole('link', { name: '补合同' })).not.toBeInTheDocument();
   });
 

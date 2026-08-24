@@ -4,6 +4,7 @@ import {
   ForkOutlined,
   GlobalOutlined,
 } from '@ant-design/icons';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   getAllLocales,
   getLocale,
@@ -11,15 +12,20 @@ import {
   setLocale,
   useModel,
 } from '@umijs/max';
-import { useQueryClient } from '@tanstack/react-query';
 import type { MenuProps } from 'antd';
 import { Button, Select, Tooltip } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { useMemo } from 'react';
+import { canAccessSpaceWorkbench } from '@/pages/team-operations/workbench/view';
+import {
+  getTeamOperationsCapabilities,
+  type TeamOperationsCapabilities,
+} from '@/services/manual/teamOperations';
 import {
   appsOrganizationsApiSelectOrg,
   appsOrganizationsApiSwitchList,
 } from '@/services/openapi/organizations';
+import { RENTAL_PATHS } from '@/utils/adminRouting';
 import { setSelectedOrgSlug } from '@/utils/orgSelection';
 import HeaderDropdown from '../HeaderDropdown';
 
@@ -49,6 +55,16 @@ const useStyles = createStyles(({ token, css }) => ({
   orgSwitcher: css`
     min-width: 250px;
 
+    @media (max-width: ${token.screenSM - 1}px) {
+      width: 112px;
+      min-width: 112px;
+      max-width: 112px;
+
+      .ant-select-prefix {
+        display: none;
+      }
+    }
+
     .ant-select-prefix {
       display: inline-flex;
       align-items: center;
@@ -73,11 +89,7 @@ const useStyles = createStyles(({ token, css }) => ({
   `,
 }));
 
-const orgSwitcherPrefix = (
-  <span>
-    当前空间
-  </span>
-);
+const orgSwitcherPrefix = <span>当前空间</span>;
 
 export const OrgSwitcher: React.FC = () => {
   const { styles } = useStyles();
@@ -91,22 +103,49 @@ export const OrgSwitcher: React.FC = () => {
       queryFn: () => appsOrganizationsApiSwitchList({ skipErrorHandler: true }),
     });
     const storedSlug = setSelectedOrgSlug(slug);
+    let teamOperationsCapabilities: TeamOperationsCapabilities | undefined;
+    try {
+      teamOperationsCapabilities = storedSlug
+        ? await getTeamOperationsCapabilities()
+        : undefined;
+    } catch (_error) {
+      teamOperationsCapabilities = undefined;
+    }
     setInitialState((state) => ({
       ...state,
       selectedOrgSlug: storedSlug,
+      teamOperationsCapabilities,
       organizations: nextOrganizations.map((item) => ({
         ...item,
         is_current: Boolean(storedSlug) && item.slug === storedSlug,
       })),
     }));
-    await queryClient.invalidateQueries({ queryKey: ['tenant', 'app-context', storedSlug] });
-    await queryClient.invalidateQueries({ queryKey: ['tenant', 'organization-detail', storedSlug] });
-    await queryClient.invalidateQueries({ queryKey: ['tenant', 'organization-profile', storedSlug] });
-    await queryClient.invalidateQueries({ queryKey: ['tenant', 'usage', storedSlug] });
+    const hasSpaceWorkbenchAccess = canAccessSpaceWorkbench(
+      teamOperationsCapabilities,
+    );
+    if (
+      !hasSpaceWorkbenchAccess &&
+      history.location.pathname === RENTAL_PATHS.workbenchSpace
+    ) {
+      history.replace(RENTAL_PATHS.workbenchOverview);
+    }
+    await queryClient.invalidateQueries({
+      queryKey: ['tenant', 'app-context', storedSlug],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ['tenant', 'organization-detail', storedSlug],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ['tenant', 'organization-profile', storedSlug],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ['tenant', 'usage', storedSlug],
+    });
     await queryClient.invalidateQueries({ queryKey: ['tenant', 'members'] });
     await queryClient.invalidateQueries({ queryKey: ['tenant', 'invites'] });
     await queryClient.invalidateQueries({ queryKey: ['tenant', 'teams'] });
     await queryClient.invalidateQueries({ queryKey: ['access'] });
+    await queryClient.invalidateQueries({ queryKey: ['team-operations'] });
     await queryClient.invalidateQueries({ queryKey: ['settings-management'] });
   };
 

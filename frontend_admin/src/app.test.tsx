@@ -16,6 +16,7 @@ const mockHistory = {
 
 const mockQueryCurrentUser = vi.fn();
 const mockGetOrganizationSwitchList = vi.fn();
+const mockGetTeamOperationsCapabilities = vi.fn();
 
 vi.mock('@umijs/max', () => ({
   history: mockHistory,
@@ -30,11 +31,14 @@ vi.mock('@/services/openapi/organizations', () => ({
   appsOrganizationsApiSwitchList: mockGetOrganizationSwitchList,
 }));
 
+vi.mock('@/services/manual/teamOperations', () => ({
+  getTeamOperationsCapabilities: mockGetTeamOperationsCapabilities,
+}));
+
 vi.mock('@/components', () => ({
   AvatarDropdown: () => null,
   DocLink: () => null,
   ErrorBoundary: ({ children }: any) => children,
-  Footer: () => null,
   LangDropdown: () => null,
   OfflineBanner: () => null,
   OrgSwitcher: () => null,
@@ -46,7 +50,9 @@ vi.mock('@ant-design/pro-components', () => ({
 }));
 
 vi.mock('antd', () => ({
-  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: any) => (
+    <button {...props}>{children}</button>
+  ),
   Tooltip: ({ children }: any) => <>{children}</>,
 }));
 
@@ -69,6 +75,12 @@ describe('app getInitialState', () => {
     localStorage.clear();
     setSelectedOrgSlug(undefined);
     mockGetOrganizationSwitchList.mockResolvedValue([]);
+    mockGetTeamOperationsCapabilities.mockResolvedValue({
+      announcement_organization_manage: false,
+      announcement_team_ids: [],
+      task_organization_manage: false,
+      task_team_ids: [],
+    });
     mockHistory.location = {
       pathname: '/welcome',
       search: '',
@@ -139,6 +151,7 @@ describe('app getInitialState', () => {
       expect.objectContaining({ slug: 'acme' }),
     ]);
     expect(state.selectedOrgSlug).toBe('acme');
+    expect(mockGetTeamOperationsCapabilities).toHaveBeenCalled();
   });
 
   it('should prefer the backend current organization when multiple orgs are available', async () => {
@@ -288,12 +301,57 @@ describe('app getInitialState', () => {
       setInitialState,
     } as any);
 
-    const actionsRender = config.actionsRender as (() => React.ReactNode[]) | undefined;
+    const actionsRender = config.actionsRender as
+      | (() => React.ReactNode[])
+      | undefined;
 
     render(<>{actionsRender?.().filter(Boolean)}</>);
 
     fireEvent.click(screen.getByRole('button', { name: '界面设置' }));
 
     expect(setInitialState).toHaveBeenCalled();
+  });
+
+  it('should hide the footer in the authenticated layout', async () => {
+    const { layout } = await import('./app');
+
+    const config = layout({
+      initialState: {
+        settings: { navTheme: 'light' },
+      },
+      setInitialState: vi.fn(),
+    } as any);
+
+    expect(config.footerRender).toBe(false);
+  });
+
+  it('should render icons for nested menu items', async () => {
+    const { layout } = await import('./app');
+    const config = layout({
+      initialState: { settings: { navTheme: 'light' } },
+      setInitialState: vi.fn(),
+    } as any);
+    const menuItem = {
+      path: '/space/organization',
+      pro_layout_parentKeys: ['/space'],
+      icon: <span data-testid="nested-menu-icon" />,
+    };
+    const defaultDom = (
+      <div>
+        <span style={{ display: 'none' }} />
+        <span>组织架构</span>
+      </div>
+    );
+    const menuItemRender = config.menuItemRender as (item: any, dom: React.ReactNode) => React.ReactNode;
+    const subMenuItemRender = config.subMenuItemRender as (item: any, dom: React.ReactNode) => React.ReactNode;
+
+    render(
+      <>
+        {menuItemRender(menuItem, defaultDom)}
+        {subMenuItemRender(menuItem, defaultDom)}
+      </>,
+    );
+
+    expect(screen.getAllByTestId('nested-menu-icon')).toHaveLength(2);
   });
 });

@@ -20,10 +20,14 @@ export const teamOperationsQueryKeys = {
       status,
       keyword,
     ] as const,
-  tasks: (orgSlug?: string, page?: number) =>
-    ['team-operations', 'tasks', orgSlug, page] as const,
-  assignments: (orgSlug?: string, page?: number) =>
-    ['team-operations', 'assignments', orgSlug, page] as const,
+  tasks: (orgSlug?: string, page?: number, filters?: object) =>
+    ['team-operations', 'tasks', orgSlug, page, filters] as const,
+  taskSummary: (orgSlug?: string, filters?: object) =>
+    ['team-operations', 'tasks', 'summary', orgSlug, filters] as const,
+  assignments: (orgSlug?: string, page?: number, filters?: object) =>
+    ['team-operations', 'assignments', orgSlug, page, filters] as const,
+  assignmentSummary: (orgSlug?: string, filters?: object) =>
+    ['team-operations', 'assignments', 'summary', orgSlug, filters] as const,
 };
 
 export function priorityColor(priority?: string) {

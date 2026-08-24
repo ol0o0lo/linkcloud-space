@@ -24,6 +24,7 @@ describe('access', () => {
 
     expect(result.canAdmin).toBe(true);
     expect(result.canSuperAdmin).toBe(false);
+    expect(result.canViewSpaceWorkbench).toBe(false);
   });
 
   it('should return canAdmin false when user has non-admin access', () => {
@@ -111,5 +112,28 @@ describe('access', () => {
 
     expect(result.canAdmin).toBeFalsy();
     expect(result.canSuperAdmin).toBeFalsy();
+  });
+
+  it('only exposes the space workbench for organization-level managers', () => {
+    expect(
+      access({
+        teamOperationsCapabilities: {
+          announcement_organization_manage: false,
+          announcement_team_ids: [],
+          task_organization_manage: true,
+          task_team_ids: [],
+        },
+      }).canViewSpaceWorkbench,
+    ).toBe(true);
+    expect(
+      access({
+        teamOperationsCapabilities: {
+          announcement_organization_manage: false,
+          announcement_team_ids: [],
+          task_organization_manage: false,
+          task_team_ids: [],
+        },
+      }).canViewSpaceWorkbench,
+    ).toBe(false);
   });
 });

@@ -8,6 +8,8 @@ const mockSwitchList = vi.fn();
 const mockSetSelectedOrgSlug = vi.fn((value) => value);
 const mockFetchQuery = vi.fn();
 const mockInvalidateQueries = vi.fn();
+const mockGetTeamOperationsCapabilities = vi.fn();
+const mockHistoryReplace = vi.fn();
 
 vi.mock('@umijs/max', () => ({
   useModel: () => ({
@@ -22,7 +24,11 @@ vi.mock('@umijs/max', () => ({
   }),
   getAllLocales: () => [],
   getLocale: () => 'zh-CN',
-  history: { push: vi.fn() },
+  history: {
+    location: { pathname: '/rental/workbench/overview' },
+    push: vi.fn(),
+    replace: mockHistoryReplace,
+  },
   setLocale: vi.fn(),
 }));
 
@@ -34,7 +40,16 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('antd', () => ({
-  Select: ({ allowClear, 'aria-label': ariaLabel, options, placeholder, prefix, suffixIcon, value, onChange }: any) => (
+  Select: ({
+    allowClear,
+    'aria-label': ariaLabel,
+    options,
+    placeholder,
+    prefix,
+    suffixIcon,
+    value,
+    onChange,
+  }: any) => (
     <div
       aria-expanded={false}
       aria-label={ariaLabel}
@@ -46,7 +61,11 @@ vi.mock('antd', () => ({
       <span>{placeholder}</span>
       <div data-testid="org-value">{value ?? ''}</div>
       {options.map((option: any) => (
-        <button key={option.value} type="button" onClick={() => onChange(option.value)}>
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+        >
           {option.label}
         </button>
       ))}
@@ -57,13 +76,19 @@ vi.mock('antd', () => ({
       ) : null}
     </div>
   ),
-  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: any) => (
+    <button {...props}>{children}</button>
+  ),
   Tooltip: ({ children }: any) => <>{children}</>,
 }));
 
 vi.mock('@/services/openapi/organizations', () => ({
   appsOrganizationsApiSelectOrg: mockSelectOrg,
   appsOrganizationsApiSwitchList: mockSwitchList,
+}));
+
+vi.mock('@/services/manual/teamOperations', () => ({
+  getTeamOperationsCapabilities: mockGetTeamOperationsCapabilities,
 }));
 
 vi.mock('@/utils/orgSelection', () => ({
@@ -79,11 +104,29 @@ describe('OrgSwitcher', () => {
     vi.clearAllMocks();
     mockSelectOrg.mockResolvedValue({ success: true });
     mockSwitchList.mockResolvedValue([
-      { id: 1, name: 'Acme', slug: 'acme', is_current: false, is_primary: false },
-      { id: 2, name: 'Beta', slug: 'beta', is_current: true, is_primary: false },
+      {
+        id: 1,
+        name: 'Acme',
+        slug: 'acme',
+        is_current: false,
+        is_primary: false,
+      },
+      {
+        id: 2,
+        name: 'Beta',
+        slug: 'beta',
+        is_current: true,
+        is_primary: false,
+      },
     ]);
     mockFetchQuery.mockImplementation(async ({ queryFn }: any) => queryFn());
     mockInvalidateQueries.mockResolvedValue(undefined);
+    mockGetTeamOperationsCapabilities.mockResolvedValue({
+      announcement_organization_manage: true,
+      announcement_team_ids: [],
+      task_organization_manage: true,
+      task_team_ids: [],
+    });
   });
 
   it('selects an organization through the backend and refreshes tenant caches', async () => {
@@ -94,13 +137,17 @@ describe('OrgSwitcher', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Beta' }));
 
     await waitFor(() => {
-      expect(mockSelectOrg).toHaveBeenCalledWith({ slug: 'beta' }, { skipErrorHandler: true });
+      expect(mockSelectOrg).toHaveBeenCalledWith(
+        { slug: 'beta' },
+        { skipErrorHandler: true },
+      );
     });
     await waitFor(() => {
       expect(mockSwitchList).toHaveBeenCalledWith({ skipErrorHandler: true });
       expect(mockFetchQuery).toHaveBeenCalled();
       expect(mockSetSelectedOrgSlug).toHaveBeenCalledWith('beta');
       expect(mockSetInitialState).toHaveBeenCalled();
+      expect(mockGetTeamOperationsCapabilities).toHaveBeenCalled();
       expect(mockInvalidateQueries).toHaveBeenCalled();
     });
   });
@@ -110,10 +157,15 @@ describe('OrgSwitcher', () => {
 
     render(<OrgSwitcher />);
 
-    expect(screen.getByRole('combobox', { name: '当前空间' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: '当前空间' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('当前空间')).toBeInTheDocument();
     expect(screen.getByText('选择空间')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: '当前空间' })).toHaveAttribute('data-suffix-icon', 'none');
+    expect(screen.getByRole('combobox', { name: '当前空间' })).toHaveAttribute(
+      'data-suffix-icon',
+      'none',
+    );
   });
 
   it('does not expose a clear action for the current space selector', async () => {
@@ -121,6 +173,8 @@ describe('OrgSwitcher', () => {
 
     render(<OrgSwitcher />);
 
-    expect(screen.queryByRole('button', { name: '清空' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '清空' }),
+    ).not.toBeInTheDocument();
   });
 });
