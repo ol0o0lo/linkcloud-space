@@ -14,6 +14,12 @@ import { RENTAL_PATHS, SPACE_PATHS } from '../src/utils/adminRouting';
  */
 export default [
   {
+    path: '/invitations/:key',
+    component: './space/invitation-accept',
+    layout: false,
+    hideInMenu: true,
+  },
+  {
     path: '/user',
     layout: false,
     routes: [
@@ -104,6 +110,7 @@ export default [
         icon: 'apartment',
         path: RENTAL_PATHS.estates,
         component: './rental/estates',
+        hideInMenu: true,
       },
       {
         name: 'map',
@@ -176,72 +183,51 @@ export default [
     routes: [
       {
         path: SPACE_PATHS.root,
-        redirect: SPACE_PATHS.members,
+        redirect: SPACE_PATHS.organization,
       },
       {
-        name: 'members',
-        icon: 'team',
-        path: SPACE_PATHS.members,
-        component: './space/members',
-      },
-      {
-        name: 'invites',
-        icon: 'mail',
-        path: SPACE_PATHS.invitations,
-        component: './space/invites',
-      },
-      {
-        name: 'teams',
+        name: '组织架构',
+        locale: false,
         icon: 'cluster',
-        path: SPACE_PATHS.teams,
-        component: './space/teams',
+        path: SPACE_PATHS.organization,
+        component: './space/organization',
       },
       {
-        name: 'responsibilities',
-        icon: 'partition',
+        path: SPACE_PATHS.members,
+        hideInMenu: true,
+        redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=members`,
+      },
+      {
+        path: SPACE_PATHS.invitations,
+        hideInMenu: true,
+        redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=invites`,
+      },
+      {
+        path: SPACE_PATHS.teams,
+        hideInMenu: true,
+        redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=overview`,
+      },
+      {
         path: SPACE_PATHS.responsibilities,
-        component: './rental/responsibilities',
+        hideInMenu: true,
+        redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=members`,
       },
       {
         path: SPACE_PATHS.access,
-        name: 'access',
-        icon: 'safetyCertificate',
-        routes: [
-          {
-            path: SPACE_PATHS.access,
-            component: './access',
-          },
-          {
-            name: 'organization-roles',
-            icon: 'solution',
-            path: `${SPACE_PATHS.access}/organization-roles`,
-            component: './access/organization-roles',
-          },
-          {
-            name: 'organization-bindings',
-            icon: 'audit',
-            path: `${SPACE_PATHS.access}/organization-bindings`,
-            component: './access/organization-bindings',
-          },
-          {
-            name: 'team-roles',
-            icon: 'deploymentUnit',
-            path: `${SPACE_PATHS.access}/team-roles`,
-            component: './access/team-roles',
-          },
-          {
-            name: 'team-bindings',
-            icon: 'partition',
-            path: `${SPACE_PATHS.access}/team-bindings`,
-            component: './access/team-bindings',
-          },
-        ],
+        name: '角色管理',
+        locale: false,
+        icon: 'key',
+        component: './access',
       },
       {
-        name: 'profile',
-        icon: 'profile',
         path: SPACE_PATHS.profile,
-        component: './space/settings',
+        hideInMenu: true,
+        redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=overview`,
+      },
+      {
+        path: SPACE_PATHS.subscriptionOrders,
+        component: './space/subscription/orders',
+        hideInMenu: true,
       },
       {
         name: 'subscription',

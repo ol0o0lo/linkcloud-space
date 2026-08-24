@@ -9,7 +9,9 @@ type AppRoute = {
   access?: string;
   component?: string;
   hideInMenu?: boolean;
+  icon?: string;
   layout?: boolean;
+  locale?: boolean;
   name?: string;
   path?: string;
   redirect?: string;
@@ -26,7 +28,7 @@ const collectMenuKeys = (routeList: AppRoute[], parents: string[] = []) => {
 
     const nextParents = route.name ? [...parents, route.name] : parents;
 
-    if (route.name) {
+    if (route.name && route.locale !== false) {
       keys.push(`menu.${nextParents.join('.')}`);
     }
 
@@ -126,23 +128,83 @@ describe('backend capability routes', () => {
     expect(tenantGroup?.name).toBe('space-management');
     expect(tenantGroup?.routes?.map((route) => route.path)).toEqual([
       SPACE_PATHS.root,
+      SPACE_PATHS.organization,
       SPACE_PATHS.members,
       SPACE_PATHS.invitations,
       SPACE_PATHS.teams,
       SPACE_PATHS.responsibilities,
       SPACE_PATHS.access,
       SPACE_PATHS.profile,
+      SPACE_PATHS.subscriptionOrders,
       SPACE_PATHS.subscription,
       SPACE_PATHS.settings,
       SPACE_PATHS.notificationDispatches,
     ]);
-    expect(accessGroup?.routes?.map((route) => route.path)).toEqual([
-      SPACE_PATHS.access,
-      `${SPACE_PATHS.access}/organization-roles`,
-      `${SPACE_PATHS.access}/organization-bindings`,
-      `${SPACE_PATHS.access}/team-roles`,
-      `${SPACE_PATHS.access}/team-bindings`,
-    ]);
+    expect(
+      tenantGroup?.routes?.find(
+        (route) => route.path === SPACE_PATHS.subscriptionOrders,
+      )?.hideInMenu,
+    ).toBe(true);
+    expect(
+      tenantGroup?.routes?.find(
+        (route) => route.path === SPACE_PATHS.organization,
+      ),
+    ).toMatchObject({
+      name: '组织架构',
+      locale: false,
+      component: './space/organization',
+    });
+    expect(
+      tenantGroup?.routes?.find((route) => route.path === SPACE_PATHS.members),
+    ).toMatchObject({
+      hideInMenu: true,
+      redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=members`,
+    });
+    expect(
+      tenantGroup?.routes?.find(
+        (route) => route.path === SPACE_PATHS.invitations,
+      ),
+    ).toMatchObject({
+      hideInMenu: true,
+      redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=invites`,
+    });
+    expect(
+      tenantGroup?.routes?.find((route) => route.path === SPACE_PATHS.teams),
+    ).toMatchObject({
+      hideInMenu: true,
+      redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=overview`,
+    });
+    expect(
+      tenantGroup?.routes?.find(
+        (route) => route.path === SPACE_PATHS.responsibilities,
+      ),
+    ).toMatchObject({
+      hideInMenu: true,
+      redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=members`,
+    });
+    expect(accessGroup).toMatchObject({
+      name: '角色管理',
+      locale: false,
+      icon: 'key',
+      component: './access',
+    });
+    expect(accessGroup?.routes).toBeUndefined();
+    expect(
+      tenantGroup?.routes?.some((route) =>
+        new Set<string>([
+          SPACE_PATHS.organizationRoles,
+          `${SPACE_PATHS.access}/organization-bindings`,
+          SPACE_PATHS.teamRoles,
+          `${SPACE_PATHS.access}/team-bindings`,
+        ]).has(route.path || ''),
+      ),
+    ).toBe(false);
+    expect(
+      tenantGroup?.routes?.find((route) => route.path === SPACE_PATHS.profile),
+    ).toMatchObject({
+      hideInMenu: true,
+      redirect: `${SPACE_PATHS.organization}?section=members&node=organization&tab=overview`,
+    });
     expect(businessSettingsGroup?.routes?.map((route) => route.path)).toEqual([
       SPACE_PATHS.settings,
       SPACE_PATHS.organizationSettings,
@@ -194,9 +256,15 @@ describe('backend capability routes', () => {
     expect(rentalWorkbenchGroup?.routes?.map((route) => route.path)).toEqual([
       RENTAL_PATHS.workbench,
       RENTAL_PATHS.workbenchOverview,
+      RENTAL_PATHS.workbenchSpace,
       RENTAL_PATHS.tasks,
       RENTAL_PATHS.announcements,
     ]);
+    expect(
+      rentalWorkbenchGroup?.routes?.find(
+        (route) => route.path === RENTAL_PATHS.workbenchSpace,
+      )?.hideInMenu,
+    ).toBe(true);
     expect(personalGroup?.routes?.map((route) => route.path)).toEqual([
       '/personal-business',
       '/personal-business/overview',

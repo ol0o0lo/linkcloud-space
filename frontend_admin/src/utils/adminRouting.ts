@@ -25,13 +25,17 @@ export const RENTAL_PATHS = {
 
 export const SPACE_PATHS = {
   root: '/space',
+  organization: '/space/organization',
   members: '/space/members',
   invitations: '/space/invitations',
   teams: '/space/teams',
   responsibilities: '/space/responsibilities',
   access: '/space/access',
+  organizationRoles: '/space/access/organization-roles',
+  teamRoles: '/space/access/team-roles',
   profile: '/space/profile',
   subscription: '/space/subscription',
+  subscriptionOrders: '/space/subscription/orders',
   settings: '/space/settings',
   organizationSettings: '/space/settings/organization',
   teamSettings: '/space/settings/team',
@@ -39,6 +43,20 @@ export const SPACE_PATHS = {
 } as const;
 
 export const DEFAULT_POST_LOGIN_PATH = RENTAL_PATHS.workbenchOverview;
+
+export type RoleManagementScope = 'space' | 'team';
+
+export function buildRoleManagementPath(
+  scope: RoleManagementScope,
+  teamId?: number,
+) {
+  const params = new URLSearchParams();
+  params.set('scope', scope);
+  if (scope === 'team' && teamId && teamId > 0) {
+    params.set('team', String(teamId));
+  }
+  return `${SPACE_PATHS.access}?${params.toString()}`;
+}
 
 const AUTH_PATHS = new Set([LOGIN_PATH, REGISTER_PATH, REGISTER_RESULT_PATH]);
 

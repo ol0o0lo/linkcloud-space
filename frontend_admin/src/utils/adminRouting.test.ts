@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAdminPath,
+  buildRoleManagementPath,
   DEFAULT_POST_LOGIN_PATH,
   isAuthPagePath,
   normalizeAdminPath,
@@ -53,5 +54,12 @@ describe('管理端规范路由', () => {
 
   it('房源详情与房源列表拥有稳定且不同的地址', () => {
     expect(`${RENTAL_PATHS.properties}/12`).not.toBe(RENTAL_PATHS.propertyList);
+  });
+
+  it('构建统一角色管理的空间和团队上下文地址', () => {
+    expect(buildRoleManagementPath('space')).toBe('/space/access?scope=space');
+    expect(buildRoleManagementPath('team', 7)).toBe(
+      '/space/access?scope=team&team=7',
+    );
   });
 });
