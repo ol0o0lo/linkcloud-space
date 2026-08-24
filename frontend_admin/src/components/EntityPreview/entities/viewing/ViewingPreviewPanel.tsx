@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { Descriptions, Space, Tag, Typography } from 'antd';
+import { Descriptions, Space, Typography } from 'antd';
+import { AppStatusTag } from '@/components/AppStatus';
 import {
   contactLabel,
   dateTimeText,
   houseLabel,
-  STATUS_COLOR,
 } from '@/pages/rental/constants';
 import { useTenantWorkspace } from '@/pages/space/shared';
 import { enumMapping } from '@/services/manual/enums';
@@ -67,12 +67,15 @@ export function ViewingPreviewPanel({ id, variant }: EntityPreviewPanelProps) {
           subtitle={viewing.data.customer_phone || '-'}
           tags={
             <Space size={[4, 4]} wrap>
-              <Tag color={STATUS_COLOR[viewing.data.status] || 'default'}>
+              <AppStatusTag name="viewing" state={viewing.data.status}>
                 {enumMapping(viewing.data.status, viewing.data.status__mapping)}
-              </Tag>
-              <Tag color={viewing.data.signed_lease_id ? 'success' : 'default'}>
+              </AppStatusTag>
+              <AppStatusTag
+                name="viewing"
+                state={viewing.data.signed_lease_id ? 'signed' : 'unsigned'}
+              >
                 {viewing.data.signed_lease_id ? '已签约' : '未签约'}
-              </Tag>
+              </AppStatusTag>
             </Space>
           }
           title={customerName}
@@ -119,11 +122,13 @@ export function ViewingPreviewPanel({ id, variant }: EntityPreviewPanelProps) {
           {houseLabel(viewing.data)}
         </Typography.Text>
         <Space size={8} wrap>
-          <Tag color={STATUS_COLOR[viewing.data.status] || 'default'}>
+          <AppStatusTag name="viewing" state={viewing.data.status}>
             {enumMapping(viewing.data.status, viewing.data.status__mapping)}
-          </Tag>
+          </AppStatusTag>
           {viewing.data.signed_lease_id ? (
-            <Tag color="success">已签约</Tag>
+            <AppStatusTag name="viewing" state="signed">
+              已签约
+            </AppStatusTag>
           ) : null}
         </Space>
       </Space>

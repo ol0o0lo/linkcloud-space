@@ -12,8 +12,8 @@ import {
   Button,
   Card,
   Col,
-  Dropdown,
   Drawer,
+  Dropdown,
   Empty,
   Form,
   Input,
@@ -22,11 +22,11 @@ import {
   Row,
   Select,
   Space,
-  Tag,
   Typography,
   theme,
 } from 'antd';
 import React, { useEffect, useState } from 'react';
+import { AppStatusTag } from '@/components/AppStatus';
 import {
   EntityPreviewDetailDrawer,
   HousePreview,
@@ -39,10 +39,7 @@ import {
   toolbarSelectPopupWidth,
   toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   enumMapping,
   enumSelectOptions,
@@ -58,13 +55,9 @@ import {
   dateTimeInputValue,
   dateTimeText,
   houseLabel,
-  STATUS_COLOR,
   VIEWING_STATUS,
 } from '../constants';
-import {
-  getLoadingAwareEmptyState,
-  isInitialQueryPending,
-} from '../loading';
+import { getLoadingAwareEmptyState, isInitialQueryPending } from '../loading';
 
 const PAGE_SIZE = 20;
 const VIEWING_STATUS_ACTION_TEXT: Record<string, string> = {
@@ -75,10 +68,22 @@ const VIEWING_STATUS_ACTION_TEXT: Record<string, string> = {
 };
 const VIEWING_MORE_ACTIONS = [
   { key: 'contact', label: '补租客' },
-  { key: VIEWING_STATUS.VIEWED, label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.VIEWED] },
-  { key: VIEWING_STATUS.CONVERTED, label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.CONVERTED] },
-  { key: VIEWING_STATUS.CANCELED, label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.CANCELED] },
-  { key: VIEWING_STATUS.NO_SHOW, label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.NO_SHOW] },
+  {
+    key: VIEWING_STATUS.VIEWED,
+    label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.VIEWED],
+  },
+  {
+    key: VIEWING_STATUS.CONVERTED,
+    label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.CONVERTED],
+  },
+  {
+    key: VIEWING_STATUS.CANCELED,
+    label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.CANCELED],
+  },
+  {
+    key: VIEWING_STATUS.NO_SHOW,
+    label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.NO_SHOW],
+  },
 ];
 
 function needsContactCompletion(record: ViewingRecordOut) {
@@ -442,9 +447,7 @@ const ViewingsPage: React.FC = () => {
   const currentTotal = viewings.data?.total || 0;
   const listLoading = isInitialQueryPending(viewings);
   const missingContactQueueCount =
-    contactMissing === true
-      ? currentTotal
-      : missingContactQueueTotal;
+    contactMissing === true ? currentTotal : missingContactQueueTotal;
   const readyLeaseCount =
     contactMissing === false && pendingLease
       ? currentTotal
@@ -454,7 +457,13 @@ const ViewingsPage: React.FC = () => {
       ? currentTotal
       : readyLeaseCount + missingContactQueueCount;
   useEffect(() => {
-    syncViewingListSearch({ page, status, pendingLease, contactMissing, keyword });
+    syncViewingListSearch({
+      page,
+      status,
+      pendingLease,
+      contactMissing,
+      keyword,
+    });
   }, [contactMissing, keyword, page, pendingLease, status]);
   useEffect(() => {
     if (!editViewingId || editing || drawerOpen || !viewings.isSuccess) return;
@@ -629,10 +638,11 @@ const ViewingsPage: React.FC = () => {
       title: '状态',
       dataIndex: 'status__mapping',
       width: 120,
+      align: 'center',
       render: (_value, record) => (
-        <Tag color={STATUS_COLOR[record.status] || 'default'}>
+        <AppStatusTag name="viewing" state={record.status}>
           {enumMapping(record.status, record.status__mapping)}
-        </Tag>
+        </AppStatusTag>
       ),
     },
     {
@@ -640,6 +650,7 @@ const ViewingsPage: React.FC = () => {
       dataIndex: 'actions',
       fixed: 'right',
       width: 220,
+      align: 'center',
       render: (_value, record) => {
         return (
           <ResponsiveActions>
@@ -679,7 +690,12 @@ const ViewingsPage: React.FC = () => {
               }}
               trigger={['click']}
             >
-              <Button aria-label="更多操作" type="text" size="small" icon={<MoreOutlined />} />
+              <Button
+                aria-label="更多操作"
+                type="text"
+                size="small"
+                icon={<MoreOutlined />}
+              />
             </Dropdown>
           </ResponsiveActions>
         );
@@ -733,7 +749,12 @@ const ViewingsPage: React.FC = () => {
                 setContactMissing(undefined);
               }}
             />,
-            <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            <Button
+              key="create"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={openCreate}
+            >
               新建带看
             </Button>,
           ]}
@@ -965,7 +986,6 @@ const ViewingsPage: React.FC = () => {
                   </div>
                 </Space>
               </Col>
-
             </Row>
           </Space>
         </Form>

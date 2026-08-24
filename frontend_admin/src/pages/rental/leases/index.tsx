@@ -1,19 +1,14 @@
 import { MoreOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { history } from '@umijs/max';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Button,
   Card,
   Col,
-  Dropdown,
   Drawer,
+  Dropdown,
   Empty,
   Form,
   Input,
@@ -22,12 +17,12 @@ import {
   Row,
   Select,
   Space,
-  Tag,
   Tooltip,
   Typography,
   theme,
 } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
+import { AppStatusTag } from '@/components/AppStatus';
 import {
   ContactPreview,
   EntityPreviewDetailDrawer,
@@ -37,10 +32,7 @@ import {
   adminTableScroll,
   ResponsiveActions,
 } from '@/pages/_shared/adminLayout';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   enumMapping,
   enumOptionMapping,
@@ -60,16 +52,11 @@ import {
   HOUSE_MEDIA_TYPE,
   houseLabel,
   moneyText,
-  STATUS_COLOR,
 } from '../constants';
-import {
-  getLoadingAwareEmptyState,
-  isInitialQueryPending,
-} from '../loading';
+import { getLoadingAwareEmptyState, isInitialQueryPending } from '../loading';
 
 const PAGE_SIZE = 20;
 const SELECT_SEARCH_DEBOUNCE_MS = 300;
-type LeaseTask = 'contract';
 
 const LEASE_STATUS_ACTION_TEXT: Record<string, string> = {
   active: '生效',
@@ -77,22 +64,6 @@ const LEASE_STATUS_ACTION_TEXT: Record<string, string> = {
   terminated: '终止',
 };
 const LEASE_STATUS_ACTIONS = ['active', 'expired', 'terminated'];
-
-function dashboardHref(path: string) {
-  return `/dashboard${path}`;
-}
-
-function leaseEditPath(
-  record: LeaseOut,
-  filters?: { task?: string; status?: string },
-) {
-  const params = new URLSearchParams();
-  params.set('house_id', String(record.house_id));
-  if (filters?.task) params.set('task', filters.task);
-  if (filters?.status) params.set('status', filters.status);
-  params.set('edit', String(record.id));
-  return `${dashboardHref('/rental/leases')}?${params.toString()}`;
-}
 
 function getLeaseHouseInfo(record: LeaseOut) {
   const houseText = houseLabel(record);
@@ -109,7 +80,10 @@ function getLeaseHouseInfo(record: LeaseOut) {
 function useDebouncedText(value: string, delay = SELECT_SEARCH_DEBOUNCE_MS) {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedValue(value.trim()), delay);
+    const timer = window.setTimeout(
+      () => setDebouncedValue(value.trim()),
+      delay,
+    );
     return () => window.clearTimeout(timer);
   }, [delay, value]);
   return debouncedValue;
@@ -154,7 +128,11 @@ function getLeaseListStateFromSearch(search: string) {
   };
 }
 
-function syncLeaseListSearch(filters: { page: number; status?: string; keyword?: string }) {
+function syncLeaseListSearch(filters: {
+  page: number;
+  status?: string;
+  keyword?: string;
+}) {
   const params = new URLSearchParams(window.location.search);
   if (filters.status) {
     params.set('status', filters.status);
@@ -215,37 +193,8 @@ function syncLeaseDrawerSearch(drawerState: LeaseDrawerSearchState) {
   }
 }
 
-function getLeaseEmptyState(options: {
-  task?: string;
-  openCreate: () => void;
-}) {
-  const { task, openCreate } = options;
-
-  if (task === 'contract') {
-    return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description={
-          <Space orientation="vertical" size={4}>
-            <Typography.Text strong>合同缺失队列已处理完成</Typography.Text>
-            <Typography.Text type="secondary">
-              当前筛选下已没有待补合同租约，可返回全部租约继续检查待生效或履约中的记录。
-            </Typography.Text>
-          </Space>
-        }
-      >
-        <Space wrap>
-          <Button href={dashboardHref('/rental/leases')}>
-            查看全部租约
-          </Button>
-          <Button type="primary" onClick={openCreate}>
-            新建租约
-          </Button>
-        </Space>
-      </Empty>
-    );
-  }
-
+function getLeaseEmptyState(options: { openCreate: () => void }) {
+  const { openCreate } = options;
   return (
     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无租约">
       <Button type="primary" onClick={openCreate}>
@@ -289,13 +238,11 @@ const LeasesPage: React.FC = () => {
     initialListState.keyword,
   );
   const queryParams = new URLSearchParams(locationSearch);
-  const task = (queryParams.get('task') as LeaseTask | null) || undefined;
   const [drawerState, setDrawerState] =
     useState<LeaseDrawerSearchState>(initialDrawerState);
   const sourceViewingRecordId = drawerState.sourceViewingRecordId;
   const sourceHouseId = Number(queryParams.get('house_id')) || undefined;
   const editLeaseId = drawerState.editLeaseId;
-  const contractMissing = task === 'contract' || undefined;
   const [editing, setEditing] = useState<LeaseOut | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tenantOpen, setTenantOpen] = useState(false);
@@ -316,12 +263,29 @@ const LeasesPage: React.FC = () => {
     'house.lease_status',
   );
   const houses = useQuery({
-    queryKey: ['house', 'leases', 'houses', workspace.selectedOrgSlug, houseSearchKeyword],
-    queryFn: () => houseApi.listHouses({ page: 1, page_size: 20, keyword: houseSearchKeyword || undefined }),
+    queryKey: [
+      'house',
+      'leases',
+      'houses',
+      workspace.selectedOrgSlug,
+      houseSearchKeyword,
+    ],
+    queryFn: () =>
+      houseApi.listHouses({
+        page: 1,
+        page_size: 20,
+        keyword: houseSearchKeyword || undefined,
+      }),
     enabled,
   });
   const tenants = useQuery({
-    queryKey: ['house', 'leases', 'tenants', workspace.selectedOrgSlug, tenantSearchKeyword],
+    queryKey: [
+      'house',
+      'leases',
+      'tenants',
+      workspace.selectedOrgSlug,
+      tenantSearchKeyword,
+    ],
     queryFn: () =>
       houseApi.listContacts({
         page: 1,
@@ -384,7 +348,6 @@ const LeasesPage: React.FC = () => {
       status,
       keyword,
       sourceHouseId,
-      contractMissing,
     ],
     queryFn: () =>
       houseApi.listLeases({
@@ -393,7 +356,6 @@ const LeasesPage: React.FC = () => {
         status,
         keyword,
         house_id: sourceHouseId,
-        contract_missing: contractMissing,
       }),
     enabled,
   });
@@ -683,6 +645,7 @@ const LeasesPage: React.FC = () => {
       title: '租期',
       dataIndex: 'start_date',
       width: 190,
+      align: 'center',
       render: (_value, record) => (
         <Space orientation="vertical" size={2}>
           <Typography.Text>{record.start_date || '-'}</Typography.Text>
@@ -696,34 +659,43 @@ const LeasesPage: React.FC = () => {
       title: '月租',
       dataIndex: 'monthly_rent',
       width: 120,
+      align: 'right',
       render: (_value, record) => moneyText(record.monthly_rent),
     },
     {
       title: '状态',
       dataIndex: 'status__mapping',
       width: 120,
+      align: 'center',
       render: (_value, record) => (
-        <Tag color={STATUS_COLOR[record.status] || 'default'}>
+        <AppStatusTag name="lease" state={record.status}>
           {enumMapping(record.status, record.status__mapping)}
-        </Tag>
+        </AppStatusTag>
       ),
     },
     {
       title: '合同',
       dataIndex: 'contract_files',
       width: 120,
+      align: 'center',
       render: (_value, record) =>
-        record.contract_files?.length ? <span>{`${record.contract_files.length} 份`}</span> : <Tag color="orange">未归档</Tag>,
+        record.contract_files?.length ? (
+          <span>{`${record.contract_files.length} 份`}</span>
+        ) : (
+          <Typography.Text type="secondary">-</Typography.Text>
+        ),
     },
     {
       title: '操作',
       dataIndex: 'actions',
       fixed: 'right',
       width: 220,
+      align: 'center',
       render: (_value, record) => {
         const statusItems = LEASE_STATUS_ACTIONS.map((nextStatus) => ({
           key: nextStatus,
-          label: LEASE_STATUS_ACTION_TEXT[nextStatus] || statusLabel(nextStatus),
+          label:
+            LEASE_STATUS_ACTION_TEXT[nextStatus] || statusLabel(nextStatus),
         }));
         return (
           <ResponsiveActions>
@@ -741,7 +713,12 @@ const LeasesPage: React.FC = () => {
               }}
               trigger={['click']}
             >
-              <Button aria-label="更多操作" type="text" size="small" icon={<MoreOutlined />} />
+              <Button
+                aria-label="更多操作"
+                type="text"
+                size="small"
+                icon={<MoreOutlined />}
+              />
             </Dropdown>
           </ResponsiveActions>
         );
@@ -821,7 +798,12 @@ const LeasesPage: React.FC = () => {
                 setPage(1);
               }}
             />,
-            <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            <Button
+              key="create"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={openCreate}
+            >
               新建租约
             </Button>,
           ]}
@@ -830,9 +812,8 @@ const LeasesPage: React.FC = () => {
             emptyText: getLoadingAwareEmptyState({
               loading: listLoading,
               loadingTitle: '租约数据加载中',
-              loadingDescription: '正在同步签约、合同归档和履约状态。',
+              loadingDescription: '正在同步签约和履约状态。',
               emptyState: getLeaseEmptyState({
-                task,
                 openCreate,
               }),
             }),
@@ -900,186 +881,181 @@ const LeasesPage: React.FC = () => {
             ) : null}
 
             <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-                  <div style={sectionStyle}>
-                    <Space
-                      orientation="vertical"
-                      size={12}
-                      style={{ width: '100%' }}
-                    >
-                      <div>
-                        <Typography.Text strong>签约主体</Typography.Text>
-                      </div>
-                      <Row gutter={[16, 0]}>
-                        <Col xs={24}>
+              <div style={sectionStyle}>
+                <Space
+                  orientation="vertical"
+                  size={12}
+                  style={{ width: '100%' }}
+                >
+                  <div>
+                    <Typography.Text strong>签约主体</Typography.Text>
+                  </div>
+                  <Row gutter={[16, 0]}>
+                    <Col xs={24}>
+                      <Form.Item
+                        label="房源"
+                        name="house_id"
+                        rules={[{ required: true, message: '请选择房源' }]}
+                      >
+                        <Select
+                          showSearch={{
+                            filterOption: false,
+                            onSearch: setHouseSearchText,
+                          }}
+                          loading={houses.isFetching}
+                          notFoundContent={
+                            houses.isFetching ? '搜索中…' : '未找到房源'
+                          }
+                          placeholder="按房号、小区或楼栋搜索"
+                          options={houseItems.map((item) => ({
+                            value: item.id,
+                            label: houseLabel(item),
+                          }))}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24}>
+                      <Form.Item label="租客" required htmlFor="tenant_id">
+                        <Space.Compact style={{ width: '100%' }}>
                           <Form.Item
-                            label="房源"
-                            name="house_id"
-                            rules={[{ required: true, message: '请选择房源' }]}
+                            name="tenant_id"
+                            rules={[{ required: true, message: '请选择租客' }]}
+                            noStyle
                           >
                             <Select
                               showSearch={{
                                 filterOption: false,
-                                onSearch: setHouseSearchText,
+                                onSearch: setTenantSearchText,
                               }}
-                              loading={houses.isFetching}
-                              notFoundContent={houses.isFetching ? '搜索中…' : '未找到房源'}
-                              placeholder="按房号、小区或楼栋搜索"
-                              options={houseItems.map(
-                                (item) => ({
-                                  value: item.id,
-                                  label: houseLabel(item),
-                                }),
-                              )}
+                              loading={tenants.isFetching}
+                              notFoundContent={
+                                tenants.isFetching ? '搜索中…' : '未找到租客'
+                              }
+                              placeholder="按姓名或手机号搜索"
+                              options={tenantItems.map((item) => ({
+                                value: item.id,
+                                label: contactLabel(item),
+                              }))}
                             />
                           </Form.Item>
-                        </Col>
-                        <Col xs={24}>
-                          <Form.Item label="租客" required htmlFor="tenant_id">
-                            <Space.Compact style={{ width: '100%' }}>
-                              <Form.Item
-                                name="tenant_id"
-                                rules={[
-                                  { required: true, message: '请选择租客' },
-                                ]}
-                                noStyle
-                              >
-                                <Select
-                                  showSearch={{
-                                    filterOption: false,
-                                    onSearch: setTenantSearchText,
-                                  }}
-                                  loading={tenants.isFetching}
-                                  notFoundContent={tenants.isFetching ? '搜索中…' : '未找到租客'}
-                                  placeholder="按姓名或手机号搜索"
-                                  options={tenantItems.map((item) => ({
-                                    value: item.id,
-                                    label: contactLabel(item),
-                                  }))}
-                                />
-                              </Form.Item>
-                              <Button onClick={() => setTenantOpen(true)}>
-                                新建租客
-                              </Button>
-                            </Space.Compact>
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24}>
-                          <Form.Item
-                            label="成交带看"
-                            name="source_viewing_record_id"
-                          >
-                            <Select
-                              allowClear
-                              options={sourceViewingOptions}
-                              onChange={fillLeaseFromViewing}
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </Space>
-                  </div>
-
-                  <div style={sectionStyle}>
-                    <Space
-                      orientation="vertical"
-                      size={12}
-                      style={{ width: '100%' }}
-                    >
-                      <div>
-                        <Typography.Text strong>租期与金额</Typography.Text>
-                      </div>
-                      <Row gutter={[16, 0]}>
-                        <Col xs={24} md={12}>
-                          <Form.Item
-                            label="起租日期"
-                            name="start_date"
-                            rules={[
-                              { required: true, message: '请选择起租日期' },
-                            ]}
-                          >
-                            <Input type="date" />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item
-                            label="到期日期"
-                            name="end_date"
-                            rules={[
-                              { required: true, message: '请选择到期日期' },
-                            ]}
-                          >
-                            <Input type="date" />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item
-                            label="月租"
-                            name="monthly_rent"
-                            rules={[{ required: true, message: '请输入月租' }]}
-                          >
-                            <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="押金" name="deposit">
-                            <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="付款日" name="payment_day">
-                            <Input type="number" min={1} max={31} />
-                          </Form.Item>
-                        </Col>
-                        {editing ? (
-                          <Col xs={24} md={12}>
-                            <Form.Item label="状态" name="status">
-                              <Select options={leaseStatusOptions} />
-                            </Form.Item>
-                          </Col>
-                        ) : null}
-                      </Row>
-                    </Space>
-                  </div>
-
-                  <div style={sectionStyle}>
-                    <Space
-                      orientation="vertical"
-                      size={12}
-                      style={{ width: '100%' }}
-                    >
-                      <div>
-                        <Typography.Text strong>合同归档</Typography.Text>
-                      </div>
+                          <Button onClick={() => setTenantOpen(true)}>
+                            新建租客
+                          </Button>
+                        </Space.Compact>
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24}>
                       <Form.Item
-                        name="contract_files"
-                        style={{ marginBottom: 0 }}
+                        label="成交带看"
+                        name="source_viewing_record_id"
                       >
-                        <MediaRefsUpload
-                          resourceType={
-                            HOUSE_MEDIA_RESOURCE_TYPE.LEASE_CONTRACT
-                          }
-                          mediaType={HOUSE_MEDIA_TYPE.FILE}
-                          maxCount={1}
+                        <Select
+                          allowClear
+                          options={sourceViewingOptions}
+                          onChange={fillLeaseFromViewing}
                         />
                       </Form.Item>
-                    </Space>
-                  </div>
+                    </Col>
+                  </Row>
+                </Space>
+              </div>
 
-                  <div style={sectionStyle}>
-                    <Space
-                      orientation="vertical"
-                      size={12}
-                      style={{ width: '100%' }}
-                    >
-                      <Form.Item
-                        label="备注"
-                        name="notes"
-                        style={{ marginBottom: 0 }}
-                      >
-                        <Input.TextArea rows={4} />
-                      </Form.Item>
-                    </Space>
+              <div style={sectionStyle}>
+                <Space
+                  orientation="vertical"
+                  size={12}
+                  style={{ width: '100%' }}
+                >
+                  <div>
+                    <Typography.Text strong>租期与金额</Typography.Text>
                   </div>
+                  <Row gutter={[16, 0]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label="起租日期"
+                        name="start_date"
+                        rules={[{ required: true, message: '请选择起租日期' }]}
+                      >
+                        <Input type="date" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label="到期日期"
+                        name="end_date"
+                        rules={[{ required: true, message: '请选择到期日期' }]}
+                      >
+                        <Input type="date" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label="月租"
+                        name="monthly_rent"
+                        rules={[{ required: true, message: '请输入月租' }]}
+                      >
+                        <Input />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item label="押金" name="deposit">
+                        <Input />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item label="付款日" name="payment_day">
+                        <Input type="number" min={1} max={31} />
+                      </Form.Item>
+                    </Col>
+                    {editing ? (
+                      <Col xs={24} md={12}>
+                        <Form.Item label="状态" name="status">
+                          <Select options={leaseStatusOptions} />
+                        </Form.Item>
+                      </Col>
+                    ) : null}
+                  </Row>
+                </Space>
+              </div>
+
+              <div style={sectionStyle}>
+                <Space
+                  orientation="vertical"
+                  size={12}
+                  style={{ width: '100%' }}
+                >
+                  <div>
+                    <Typography.Text strong>合同（可选）</Typography.Text>
+                    <br />
+                    <Typography.Text type="secondary">
+                      如有合同可在此上传；没有合同也可以直接保存租约。
+                    </Typography.Text>
+                  </div>
+                  <Form.Item name="contract_files" style={{ marginBottom: 0 }}>
+                    <MediaRefsUpload
+                      resourceType={HOUSE_MEDIA_RESOURCE_TYPE.LEASE_CONTRACT}
+                      mediaType={HOUSE_MEDIA_TYPE.FILE}
+                      maxCount={1}
+                    />
+                  </Form.Item>
+                </Space>
+              </div>
+
+              <div style={sectionStyle}>
+                <Space
+                  orientation="vertical"
+                  size={12}
+                  style={{ width: '100%' }}
+                >
+                  <Form.Item
+                    label="备注"
+                    name="notes"
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Input.TextArea rows={4} />
+                  </Form.Item>
+                </Space>
+              </div>
             </Space>
           </Space>
         </Form>

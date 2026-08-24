@@ -1,11 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Descriptions, Space, Tag, Typography } from 'antd';
-import {
-  contactLabel,
-  houseLabel,
-  moneyText,
-  STATUS_COLOR,
-} from '@/pages/rental/constants';
+import { Descriptions, Space, Typography } from 'antd';
+import { AppStatusTag } from '@/components/AppStatus';
+import { contactLabel, houseLabel, moneyText } from '@/pages/rental/constants';
 import { useTenantWorkspace } from '@/pages/space/shared';
 import { enumMapping } from '@/services/manual/enums';
 import { houseApi } from '@/services/manual/house';
@@ -57,9 +53,9 @@ export function LeasePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
       >
         <EntityPreviewHeader
           aside={
-            <Tag color={STATUS_COLOR[lease.data.status] || 'default'}>
+            <AppStatusTag name="lease" state={lease.data.status}>
               {enumMapping(lease.data.status, lease.data.status__mapping)}
-            </Tag>
+            </AppStatusTag>
           }
           highlight={
             <Typography.Text strong type="danger" style={{ fontSize: 18 }}>
@@ -115,9 +111,9 @@ export function LeasePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
           <Typography.Text strong type="danger">
             {moneyText(lease.data.monthly_rent)}
           </Typography.Text>
-          <Tag color={STATUS_COLOR[lease.data.status] || 'default'}>
+          <AppStatusTag name="lease" state={lease.data.status}>
             {enumMapping(lease.data.status, lease.data.status__mapping)}
-          </Tag>
+          </AppStatusTag>
         </Space>
       </Space>
       <Descriptions
