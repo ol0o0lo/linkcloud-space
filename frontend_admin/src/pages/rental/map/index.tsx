@@ -1,6 +1,6 @@
 import { AimOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Spin, Tag } from 'antd';
+import { Alert, Button, Card, Spin } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -8,10 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import { useAmap } from '@/services/manual/amap';
 import { type BuildingMapMarkerOut, houseApi } from '@/services/manual/house';
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
@@ -48,6 +45,7 @@ const VIEWPORT_MAX_WAIT_MS = 1500;
 const DIRECT_MARKER_LIMIT = 80;
 const EMPTY_MARKERS: BuildingMapMarkerOut[] = [];
 const RESULT_PANEL_COLLAPSED_KEY = 'property-rental-map:result-panel-collapsed';
+const RESULT_PANEL_CENTER_OFFSET_MAX = 195;
 
 type MapBounds = { west: number; south: number; east: number; north: number };
 type ClusterPoint = {
@@ -1113,6 +1111,18 @@ const PropertyRentalMapPage: React.FC = () => {
   const toggleResultPanel = () => {
     setResultPanelCollapsed((current) => {
       const next = !current;
+      const map = mapRef.current;
+      const mapWidth = mapNode.current?.clientWidth || 0;
+      if (map?.panBy && mapWidth) {
+        const panelWidth = Math.min(
+          390,
+          Math.max(320, window.innerWidth * 0.28),
+          Math.max(0, mapWidth - 24),
+        );
+        const offset = Math.min(panelWidth / 2, RESULT_PANEL_CENTER_OFFSET_MAX);
+        programmaticMoveRef.current = true;
+        map.panBy(next ? -offset : offset, 0);
+      }
       window.localStorage.setItem(RESULT_PANEL_COLLAPSED_KEY, String(next));
       return next;
     });
@@ -1307,48 +1317,12 @@ const PropertyRentalMapPage: React.FC = () => {
           }}
           onClear={clearFilters}
         />
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 8 }}>
-          {estateDisplayLevel ? (
-            <EstateResultPanel
-              points={estateDisplayPoints}
-              houseStatus={houseStatus}
-              collapsed={resultPanelCollapsed}
-              focusedKey={focusedEstateKey}
-              loading={mapDataLoading}
-              error={mapDataError}
-              truncated={mapResultsTruncated}
-              onSelect={selectEstatePoint}
-              onToggleCollapsed={toggleResultPanel}
-              onRetry={() => {
-                estateMarkers.refetch();
-                standaloneMarkers.refetch();
-              }}
-            />
-          ) : (
-            <BuildingResultPanel
-              located={locatedItems}
-              unlocated={unlocatedItems}
-              unlocatedTotal={unlocated.data?.total || 0}
-              collapsed={resultPanelCollapsed}
-              selectedId={focusedBuildingId}
-              loading={buildingMarkers.isLoading || unlocated.isLoading}
-              truncated={mapResultsTruncated}
-              locatedError={buildingMarkers.isError}
-              unlocatedError={unlocated.isError}
-              returnTo={returnTo}
-              pendingListHref={pendingListHref}
-              onSelect={selectBuilding}
-              onToggleCollapsed={toggleResultPanel}
-              onRetryLocated={() => buildingMarkers.refetch()}
-              onRetryUnlocated={() => unlocated.refetch()}
-            />
-          )}
+        <div style={{ flex: 1, minHeight: 0 }}>
           <Card
             size="small"
             styles={{ body: { padding: 0, height: '100%' } }}
             style={{
-              flex: 1,
-              minWidth: 0,
+              height: '100%',
               position: 'relative',
               overflow: 'hidden',
             }}
@@ -1368,20 +1342,41 @@ const PropertyRentalMapPage: React.FC = () => {
                 <div ref={mapNode} style={{ width: '100%', height: '100%' }} />
               </section>
             )}
-            {!mapError ? (
-              <Tag
-                color="blue"
-                style={{ position: 'absolute', top: 12, left: 12, zIndex: 3 }}
-              >
-                {mapLevel === 'estate-cluster'
-                  ? '概览视图 · 点击聚合点或放大查看小区'
-                  : mapLevel === 'estate'
-                    ? '小区视图 · 点击气泡查看楼栋'
-                    : mapLevel === 'building-compact'
-                      ? '楼栋视图 · 继续放大查看详细位置'
-                      : '楼栋详情视图'}
-              </Tag>
-            ) : null}
+            {estateDisplayLevel ? (
+              <EstateResultPanel
+                points={estateDisplayPoints}
+                houseStatus={houseStatus}
+                collapsed={resultPanelCollapsed}
+                focusedKey={focusedEstateKey}
+                loading={mapDataLoading}
+                error={mapDataError}
+                truncated={mapResultsTruncated}
+                onSelect={selectEstatePoint}
+                onToggleCollapsed={toggleResultPanel}
+                onRetry={() => {
+                  estateMarkers.refetch();
+                  standaloneMarkers.refetch();
+                }}
+              />
+            ) : (
+              <BuildingResultPanel
+                located={locatedItems}
+                unlocated={unlocatedItems}
+                unlocatedTotal={unlocated.data?.total || 0}
+                collapsed={resultPanelCollapsed}
+                selectedId={focusedBuildingId}
+                loading={buildingMarkers.isLoading || unlocated.isLoading}
+                truncated={mapResultsTruncated}
+                locatedError={buildingMarkers.isError}
+                unlocatedError={unlocated.isError}
+                returnTo={returnTo}
+                pendingListHref={pendingListHref}
+                onSelect={selectBuilding}
+                onToggleCollapsed={toggleResultPanel}
+                onRetryLocated={() => buildingMarkers.refetch()}
+                onRetryUnlocated={() => unlocated.refetch()}
+              />
+            )}
             {!mapError && visiblePointCount ? (
               <Button
                 icon={<AimOutlined />}

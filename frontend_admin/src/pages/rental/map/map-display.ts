@@ -62,9 +62,9 @@ const PRIMARY_METRICS: Record<
   Pick<MapPrimaryMetric, 'key' | 'label'>
 > = {
   vacant: { key: 'vacant', label: '空置' },
-  listed: { key: 'listed', label: '招租中' },
+  listed: { key: 'listed', label: '招租' },
   rented: { key: 'rented', label: '已租' },
-  renovating: { key: 'renovating', label: '装修中' },
+  renovating: { key: 'renovating', label: '装修' },
 };
 
 export function getMapDisplayLevel(zoom: number): MapDisplayLevel {

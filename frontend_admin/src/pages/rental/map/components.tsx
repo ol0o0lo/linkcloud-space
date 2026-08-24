@@ -1,5 +1,4 @@
 import {
-  EnvironmentOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ReloadOutlined,
@@ -18,14 +17,50 @@ import {
   Spin,
   Tag,
   Typography,
+  theme,
 } from 'antd';
-import { useEffect } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
+import { AppIcon } from '@/components/AppIcon';
+import { AppStatusTag } from '@/components/AppStatus';
 import type {
   BuildingMapMarkerOut,
   BuildingMapUnlocatedOut,
 } from '@/services/manual/house';
-import { HOUSE_STATUS, STATUS_COLOR } from '../constants';
+import { HOUSE_STATUS } from '../constants';
 import { type EstateMapDisplayPoint, getMapPrimaryMetric } from './map-display';
+
+const MAP_RESULT_PANEL_WIDTH = 'clamp(320px, 28vw, 390px)';
+
+function useMapResultPanelStyles() {
+  const { token } = theme.useToken();
+  const common: CSSProperties = {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 4,
+    background: `color-mix(in srgb, ${token.colorBgElevated} 92%, transparent)`,
+    backdropFilter: 'blur(12px)',
+    borderColor: token.colorBorderSecondary,
+    borderRadius: token.borderRadiusLG,
+    boxShadow: token.boxShadowSecondary,
+  };
+
+  return {
+    token,
+    expanded: {
+      ...common,
+      bottom: 12,
+      width: MAP_RESULT_PANEL_WIDTH,
+      maxWidth: 'calc(100% - 24px)',
+      overflow: 'hidden',
+    },
+    collapsed: {
+      ...common,
+      width: 40,
+      height: 40,
+    },
+  };
+}
 
 export function MapToolbar({
   keyword,
@@ -75,9 +110,9 @@ export function MapToolbar({
           style={{ width: 130 }}
           options={[
             { value: 'vacant', label: '空置' },
-            { value: 'listed', label: '招租中' },
+            { value: 'listed', label: '招租' },
             { value: 'rented', label: '已租' },
-            { value: 'renovating', label: '装修中' },
+            { value: 'renovating', label: '装修' },
           ]}
         />
         {hasFilters ? (
@@ -127,8 +162,12 @@ function CountTags({ counts }: { counts: BuildingMapMarkerOut['counts'] }) {
   return (
     <Space size={[4, 4]} wrap>
       <Tag color="blue">{counts.total} 套</Tag>
-      <Tag color={STATUS_COLOR[HOUSE_STATUS.VACANT]}>空置 {counts.vacant}</Tag>
-      <Tag color={STATUS_COLOR[HOUSE_STATUS.RENTED]}>已租 {counts.rented}</Tag>
+      <AppStatusTag name="house" state={HOUSE_STATUS.VACANT}>
+        空置 {counts.vacant}
+      </AppStatusTag>
+      <AppStatusTag name="house" state={HOUSE_STATUS.RENTED}>
+        已租 {counts.rented}
+      </AppStatusTag>
     </Space>
   );
 }
@@ -156,28 +195,34 @@ export function EstateResultPanel({
   onToggleCollapsed: () => void;
   onRetry: () => void;
 }) {
+  const {
+    collapsed: collapsedStyle,
+    expanded: expandedStyle,
+    token,
+  } = useMapResultPanelStyles();
+
   if (collapsed) {
     return (
       <Card
         size="small"
-        styles={{ body: { padding: 7 } }}
-        style={{ width: 48, flex: '0 0 48px', height: '100%' }}
+        styles={{
+          body: {
+            display: 'flex',
+            height: '100%',
+            padding: 0,
+          },
+        }}
+        style={collapsedStyle}
       >
         <Button
           type="text"
+          shape="circle"
           icon={<MenuUnfoldOutlined />}
           aria-label="展开小区结果"
           title="展开小区结果"
           onClick={onToggleCollapsed}
+          style={{ width: '100%', height: '100%' }}
         />
-        <Typography.Text
-          type="secondary"
-          aria-label={`当前视野项目 ${points.length} 个`}
-          title={`当前视野项目 ${points.length} 个`}
-          style={{ display: 'block', marginTop: 8, textAlign: 'center' }}
-        >
-          {points.length}个
-        </Typography.Text>
       </Card>
     );
   }
@@ -196,13 +241,13 @@ export function EstateResultPanel({
         />
       }
       styles={{
+        header: {
+          minHeight: 48,
+          paddingInline: 12,
+        },
         body: { padding: 0, height: 'calc(100% - 46px)', overflow: 'auto' },
       }}
-      style={{
-        width: 'clamp(320px, 28vw, 390px)',
-        flex: '0 0 clamp(320px, 28vw, 390px)',
-        height: '100%',
-      }}
+      style={expandedStyle}
     >
       {error ? (
         <Alert
@@ -250,20 +295,25 @@ export function EstateResultPanel({
                       gap: 12,
                       padding: 12,
                       border: 0,
-                      borderBottom: '1px solid #f0f0f0',
+                      borderBottom: `1px solid ${token.colorBorderSecondary}`,
                       borderLeft: focused
-                        ? '3px solid #1677ff'
+                        ? `3px solid ${token.colorPrimary}`
                         : '3px solid transparent',
-                      background: focused ? '#e6f4ff' : '#fff',
+                      background: focused
+                        ? token.colorPrimaryBg
+                        : 'transparent',
                       color: 'inherit',
                       textAlign: 'left',
                       cursor: 'pointer',
                     }}
                   >
-                    <EnvironmentOutlined
+                    <AppIcon
+                      name={point.kind === 'estate' ? 'estate' : 'building'}
                       style={{
                         marginTop: 3,
-                        color: focused ? '#1677ff' : '#8c8c8c',
+                        color: focused
+                          ? token.colorPrimary
+                          : token.colorTextSecondary,
                         fontSize: 18,
                       }}
                     />
@@ -341,6 +391,13 @@ export function BuildingResultPanel({
   onRetryLocated: () => void;
   onRetryUnlocated: () => void;
 }) {
+  const {
+    collapsed: collapsedStyle,
+    expanded: expandedStyle,
+    token,
+  } = useMapResultPanelStyles();
+  const [showUnlocated, setShowUnlocated] = useState(false);
+
   useEffect(() => {
     if (!selectedId) return;
     const item = document.getElementById(`building-map-result-${selectedId}`);
@@ -357,33 +414,24 @@ export function BuildingResultPanel({
     return (
       <Card
         size="small"
-        styles={{ body: { padding: 7 } }}
-        style={{ width: 48, flex: '0 0 48px', height: '100%' }}
+        styles={{
+          body: {
+            display: 'flex',
+            height: '100%',
+            padding: 0,
+          },
+        }}
+        style={collapsedStyle}
       >
         <Button
           type="text"
+          shape="circle"
           icon={<MenuUnfoldOutlined />}
           aria-label="展开楼栋结果"
           title="展开楼栋结果"
           onClick={onToggleCollapsed}
+          style={{ width: '100%', height: '100%' }}
         />
-        {unlocatedTotal ? (
-          <Badge
-            count={unlocatedTotal}
-            overflowCount={99}
-            color="#faad14"
-            title={`待定位楼栋 ${unlocatedTotal}`}
-            style={{ marginTop: 12 }}
-          />
-        ) : null}
-        <Typography.Text
-          type="secondary"
-          aria-label={`当前视野楼栋 ${located.length} 栋`}
-          title={`当前视野楼栋 ${located.length} 栋`}
-          style={{ display: 'block', marginTop: 8, textAlign: 'center' }}
-        >
-          {located.length}栋
-        </Typography.Text>
       </Card>
     );
   }
@@ -392,22 +440,34 @@ export function BuildingResultPanel({
       size="small"
       title={`楼栋结果 ${located.length}`}
       extra={
-        <Button
-          type="text"
-          icon={<MenuFoldOutlined />}
-          aria-label="收起楼栋结果"
-          title="收起楼栋结果"
-          onClick={onToggleCollapsed}
-        />
+        <Space size={2}>
+          {unlocatedTotal ? (
+            <Button
+              type="text"
+              size="small"
+              aria-expanded={showUnlocated}
+              onClick={() => setShowUnlocated((current) => !current)}
+            >
+              <Badge status="warning" /> 待定位楼栋 {unlocatedTotal}
+            </Button>
+          ) : null}
+          <Button
+            type="text"
+            icon={<MenuFoldOutlined />}
+            aria-label="收起楼栋结果"
+            title="收起楼栋结果"
+            onClick={onToggleCollapsed}
+          />
+        </Space>
       }
       styles={{
+        header: {
+          minHeight: 48,
+          paddingInline: 12,
+        },
         body: { padding: 0, height: 'calc(100% - 46px)', overflow: 'auto' },
       }}
-      style={{
-        width: 'clamp(320px, 28vw, 390px)',
-        flex: '0 0 clamp(320px, 28vw, 390px)',
-        height: '100%',
-      }}
+      style={expandedStyle}
     >
       {unlocatedError ? (
         <Alert
@@ -422,12 +482,12 @@ export function BuildingResultPanel({
           style={{ margin: 12 }}
         />
       ) : null}
-      {unlocatedTotal ? (
+      {showUnlocated && unlocatedTotal ? (
         <div
           style={{
             padding: 12,
-            background: '#fffbe6',
-            borderBottom: '1px solid #ffe58f',
+            background: token.colorWarningBg,
+            borderBottom: `1px solid ${token.colorWarningBorder}`,
           }}
         >
           <Typography.Text strong>
@@ -511,18 +571,23 @@ export function BuildingResultPanel({
             style={{
               padding: 12,
               cursor: 'pointer',
-              background: selectedId === item.id ? '#e6f4ff' : undefined,
+              background:
+                selectedId === item.id ? token.colorPrimaryBg : undefined,
               borderLeft:
                 selectedId === item.id
-                  ? '3px solid #1677ff'
+                  ? `3px solid ${token.colorPrimary}`
                   : '3px solid transparent',
             }}
           >
             <List.Item.Meta
               avatar={
-                <EnvironmentOutlined
+                <AppIcon
+                  name="building"
                   style={{
-                    color: selectedId === item.id ? '#1677ff' : '#8c8c8c',
+                    color:
+                      selectedId === item.id
+                        ? token.colorPrimary
+                        : token.colorTextSecondary,
                     fontSize: 18,
                   }}
                 />
