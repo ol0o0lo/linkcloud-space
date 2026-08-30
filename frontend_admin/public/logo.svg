@@ -1,6 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1148 1016">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <title>Link2Cloud</title>
-  <g fill="#0081FF" fill-rule="evenodd" clip-rule="evenodd">
+  <rect width="1024" height="1024" rx="224" fill="#0081FF" />
+  <g transform="translate(121.60 166.49) scale(0.68014)" fill="#FFFFFF" fill-rule="evenodd" clip-rule="evenodd">
     <path d="M 901 322 L 628 321 L 595 355 L 551 405 L 551 409 L 867 409 L 939 481 L 980 525 L 951 558 L 924 585 L 765 586 L 757 592 L 635 735 L 560 819 L 558 825 L 559 963 L 564 961 L 802 678 L 965 676 L 1087 537 L 1099 526 L 1099 521 Z M 597 48 L 595 48 L 576 74 L 556 97 L 547 111 L 508 160 L 420 278 L 385 321 L 206 322 L 188 345 L 172 370 L 64 522 L 48 541 L 48 544 L 181 676 L 554 677 L 557 676 L 639 589 L 638 585 L 223 585 L 166 529 L 166 525 L 247 410 L 431 408 L 578 212 L 584 155 L 587 145 L 587 132 L 591 109 L 592 90 L 595 78 Z" />
   </g>
 </svg>
