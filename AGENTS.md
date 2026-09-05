@@ -213,3 +213,10 @@
 - **管理端前端**：React、Umi Max、Ant Design / ProComponents、Tailwind v4、antd-style、React Query、Vitest、npm。
 - **小程序/H5 前端**：uni-app、unibest、Vue 3、wot-ui-v2、alova、pnpm。
 - **开发**：Docker、pytest、pytest-playwright、pyotp、Ruff、Ty、ESLint、djLint、model-bakery。
+
+<!-- open-wot agent instructions start -->
+## Wot UI Agent Instructions
+
+Before generating or modifying wot-ui component code, read the project Skill at `.agents/skills/wot-ui-v2/SKILL.md` and query the configured `wot-ui` MCP server for version-accurate APIs and examples.
+
+<!-- open-wot agent instructions end -->

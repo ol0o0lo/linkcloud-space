@@ -6,3 +6,8 @@ args = ["-y", "@ant-design/cli", "mcp"]
 
 [sandbox_workspace_write]
 network_access = true
+# open-wot managed mcp server start
+[mcp_servers.wot-ui]
+command = "npx"
+args = ["-y", "@wot-ui/cli", "mcp"]
+# open-wot managed mcp server end
