@@ -15,12 +15,12 @@
 house.Lease
   │
   ▼
-house.LeaseAllocationLink
+house.LeaseAllocation
   │
   ▼
-allocation.AllocationApplication
-  ├── allocation.AllocationBasisItem
-  └── allocation.AllocationLine
+allocation.AllocationRequest
+  ├── allocation.AllocationItem
+  └── allocation.AllocationShare
           │ 审核通过
           ▼
       allocation.AccrualEntry
@@ -30,10 +30,10 @@ allocation.AllocationApplication
 
 | 模型 | 唯一职责 |
 |---|---|
-| `LeaseAllocationLink` | 明确连接租约与通用分配申请，并保护两端不被物理删除 |
-| `AllocationApplication` | 保存一次不可修改的分配申请、审核状态和可分配金额 |
-| `AllocationBasisItem` | 保存计算依据金额的增加、扣减明细 |
-| `AllocationLine` | 保存审核中的受益人、权重和计划分配结果 |
+| `LeaseAllocation` | 明确连接租约与通用分配申请，并保护两端不被物理删除 |
+| `AllocationRequest` | 保存一次不可修改的分配申请、审核状态和可分配金额 |
+| `AllocationItem` | 保存计算依据金额的增加、扣减明细 |
+| `AllocationShare` | 保存审核中的受益人、权重和计划分配结果 |
 | `AccrualEntry` | 保存审核通过后生效的不可变正负应计流水 |
 
 本模块不是财务总账，不处理实际收付款、钱包余额、工资发放、应收应付、银行流水、对账或月度冻结。
@@ -55,7 +55,7 @@ allocation.AllocationApplication
 
 ### 3.1 分配申请
 
-`AllocationApplication` 表示一份业务单据形成的应计收益分配申请，回答：
+`AllocationRequest` 表示一份业务单据形成的应计收益分配申请，回答：
 
 - 为什么进行分配；
 - 计算依据金额是多少；
@@ -67,11 +67,11 @@ allocation.AllocationApplication
 
 ### 3.2 计算依据项
 
-`AllocationBasisItem` 回答可分配金额的业务计算依据由哪些增加项和扣减项组成。它不表示真实资金收入或支出。
+`AllocationItem` 回答可分配金额的业务计算依据由哪些增加项和扣减项组成。它不表示真实资金收入或支出。
 
 ### 3.3 分配明细
 
-`AllocationLine` 表示申请计划分给哪个受益人、其权重和金额。申请仍在待审核时，分配明细不进入员工收益统计。
+`AllocationShare` 表示申请计划分给哪个受益人、其权重和金额。申请仍在待审核时，分配明细不进入员工收益统计。
 
 ### 3.4 应计流水
 
@@ -91,9 +91,9 @@ allocation.AllocationApplication
 第一期由 `house` 模块定义：
 
 ```text
-LeaseAllocationLink
+LeaseAllocation
 - lease                   OneToOne → house.Lease, PROTECT
-- allocation_application  OneToOne → AllocationApplication, PROTECT
+- allocation_request  OneToOne → AllocationRequest, PROTECT
 - created_at
 ```
 
@@ -102,21 +102,21 @@ LeaseAllocationLink
 未来出现其他业务来源时，优先由其业务模块增加自己的明确关联表，例如：
 
 ```text
-MotorcycleTradeAllocationLink
-ServiceOrderAllocationLink
+MotorcycleTradeAllocation
+ServiceOrderAllocation
 ```
 
 核心 `allocation` 模块不导入、解析或反向调用这些业务模型。
 
 ### 4.2 业务快照
 
-`AllocationApplication.source_snapshot` 由来源业务模块在创建申请时提供。核心模块只保存快照，不根据其中字段执行业务判断。
+`AllocationRequest.source_snapshot` 由来源业务模块在创建申请时提供。核心模块只保存快照，不根据其中字段执行业务判断。
 
 租约快照可以包含当时用于审核展示的房源、租客、签约时间、租期、月租和租约状态。快照只用于追溯，不取代租约关系型事实。
 
 ## 5. 数据模型
 
-### 5.1 AllocationApplication
+### 5.1 AllocationRequest
 
 | 字段 | 说明 |
 |---|---|
@@ -125,7 +125,6 @@ ServiceOrderAllocationLink
 | `basis_amount` | 计算依据金额，非负 |
 | `distribution_method` | `percentage` 或 `fixed` |
 | `distribution_rate_bp` | 比例万分比；比例模式必填 |
-| `fixed_distributable_amount` | 固定可分配金额；固定模式必填 |
 | `distributable_amount` | 最终可分配金额，非负 |
 | `currency` | 一期固定 `CNY` |
 | `source_snapshot` | 来源业务提交时快照，JSON 对象 |
@@ -136,7 +135,7 @@ ServiceOrderAllocationLink
 | `reviewed_by` | 审核人，可空，`PROTECT` |
 | `reviewed_by_name_snapshot` | 审核人姓名快照 |
 | `reviewed_at` | 审核时间 |
-| `review_reason` | 审核不通过时必填 |
+| `rejection_reason` | 审核不通过时必填 |
 | `voided_by` | 作废人，可空，`PROTECT` |
 | `voided_by_name_snapshot` | 作废人姓名快照 |
 | `voided_at` | 作废时间 |
@@ -151,13 +150,13 @@ ServiceOrderAllocationLink
 distributable_amount = basis_amount × distribution_rate_bp / 10000
 ```
 
-所有货币计算统一量化到 `0.01` 元并使用 `ROUND_HALF_UP`。固定模式直接使用 `fixed_distributable_amount` 作为最终可分配金额。
+所有货币计算统一量化到 `0.01` 元并使用 `ROUND_HALF_UP`。固定模式直接使用请求中的 `distributable_amount`，比例模式则由服务端计算并冻结该字段。
 
-### 5.2 AllocationBasisItem
+### 5.2 AllocationItem
 
 | 字段 | 说明 |
 |---|---|
-| `allocation_application` | 所属申请 |
+| `allocation_request` | 所属申请 |
 | `name` | 明细名称 |
 | `effect` | `increase` 或 `decrease` |
 | `amount` | 正数金额 |
@@ -172,15 +171,15 @@ basis_amount = increase 金额合计 - decrease 金额合计
 
 计算结果必须非负。计算项只是分配依据，不得命名或解释为真实公司收入、支出或资金流水。
 
-### 5.3 AllocationLine
+### 5.3 AllocationShare
 
 | 字段 | 说明 |
 |---|---|
-| `allocation_application` | 所属申请 |
+| `allocation_request` | 所属申请 |
 | `beneficiary_user` | 当前受益人账号，`PROTECT` |
 | `beneficiary_name_snapshot` | 受益人姓名快照 |
 | `weight_bp` | 权重万分比，范围 `1..10000` |
-| `credited_basis_amount` | 按权重折算的计算依据金额 |
+| `attributed_basis_amount` | 按权重折算的计算依据金额 |
 | `allocated_amount` | 最终计划分配金额，非负 |
 | `sort_order` | 展示顺序 |
 | `remark` | 备注 |
@@ -203,7 +202,7 @@ basis_amount = increase 金额合计 - decrease 金额合计
 | `currency` | 一期固定 `CNY` |
 | `effective_at` | 应计生效时间，由服务端确定 |
 | `effective_month` | 按 `Asia/Shanghai` 计算的月份，保存为该月第一天 |
-| `allocation_line` | 原始业务分配来源，可空，非空时唯一，`PROTECT` |
+| `allocation_share` | 原始业务分配来源，可空，非空时唯一，`PROTECT` |
 | `reversal_of` | 被冲销的原流水，可空，非空时唯一，`PROTECT` |
 | `reason` | 人工调整或冲销原因 |
 | `created_by` | 创建人，`PROTECT` |
@@ -211,7 +210,7 @@ basis_amount = increase 金额合计 - decrease 金额合计
 
 来源和符号规则：
 
-| 类型 | `allocation_line` | `reversal_of` | 金额 |
+| 类型 | `allocation_share` | `reversal_of` | 金额 |
 |---|---|---|---|
 | `allocation` | 必填 | 空 | 正数 |
 | `manual_increase` | 空 | 空 | 正数 |
@@ -248,7 +247,7 @@ approved
 1. 创建并激活租约；
 2. 创建 `pending` 分配申请；
 3. 创建计算项和分配明细；
-4. 创建 `LeaseAllocationLink`；
+4. 创建 `LeaseAllocation`；
 5. 设置 `submitted_at` 和 `expires_at = submitted_at + 168 hours`。
 
 提交成功后所有申请内容立即冻结，不允许修改。
@@ -261,13 +260,13 @@ approved
 2. 确认申请仍为 `pending`；
 3. 确认当前时间严格早于 `expires_at`；
 4. 重新校验租户、金额、权重和员工身份；
-5. 为每条非零 `AllocationLine` 创建一条 `allocation` 类型的 `AccrualEntry`；
+5. 为每条非零 `AllocationShare` 创建一条 `allocation` 类型的 `AccrualEntry`；
 6. 将申请更新为 `approved`。
 
 收益时间取申请提交时间，而不是审核操作时间：
 
 ```text
-effective_at = AllocationApplication.submitted_at
+effective_at = AllocationRequest.submitted_at
 effective_month = submitted_at 按 Asia/Shanghai 所属月份的第一天
 ```
 
@@ -277,7 +276,7 @@ effective_month = submitted_at 按 Asia/Shanghai 所属月份的第一天
 
 审核不通过时：
 
-1. `AllocationApplication → rejected`；
+1. `AllocationRequest → rejected`；
 2. 必须保存审核理由；
 3. 对应 `Lease → terminated`；
 4. 不生成任何 `AccrualEntry`；
@@ -289,7 +288,7 @@ effective_month = submitted_at 按 Asia/Shanghai 所属月份的第一天
 
 达到 `expires_at` 时：
 
-1. `AllocationApplication → expired`；
+1. `AllocationRequest → expired`；
 2. 对应 `Lease → terminated`；
 3. 不生成任何 `AccrualEntry`；
 4. 事务提交后通知申请人和全部受益人。
@@ -303,7 +302,7 @@ effective_month = submitted_at 按 Asia/Shanghai 所属月份的第一天
 1. 必须填写作废原因；
 2. 为每条原始应计流水创建一条等额负数冲销流水；
 3. 冲销的 `effective_at` 取作废时间，归属作废所在月份；
-4. `AllocationApplication → voided`；
+4. `AllocationRequest → voided`；
 5. 对应 `Lease → terminated`。
 
 原始流水永久保留，不修改、不删除。
@@ -335,20 +334,20 @@ GROUP BY organization, beneficiary_user, effective_month
 
 至少建立以下约束：
 
-- `LeaseAllocationLink.lease` 唯一。
-- `LeaseAllocationLink.allocation_application` 唯一。
-- `AllocationApplication.basis_amount >= 0`。
-- `AllocationApplication.distributable_amount >= 0`。
+- `LeaseAllocation.lease` 唯一。
+- `LeaseAllocation.allocation_request` 唯一。
+- `AllocationRequest.basis_amount >= 0`。
+- `AllocationRequest.distributable_amount >= 0`。
 - `currency = CNY`。
 - 比例模式只能填写 `distribution_rate_bp`，范围 `0..10000`。
-- 固定模式只能填写非负 `fixed_distributable_amount`。
-- `AllocationBasisItem.amount > 0`。
-- `AllocationLine.weight_bp` 范围为 `1..10000`。
-- `AllocationLine.credited_basis_amount >= 0`。
-- `AllocationLine.allocated_amount >= 0`。
-- `(allocation_application, beneficiary_user)` 唯一。
+- 固定模式必须直接填写非负 `distributable_amount`；比例模式不得填写，由服务端计算。
+- `AllocationItem.amount > 0`。
+- `AllocationShare.weight_bp` 范围为 `1..10000`。
+- `AllocationShare.attributed_basis_amount >= 0`。
+- `AllocationShare.allocated_amount >= 0`。
+- `(allocation_request, beneficiary_user)` 唯一。
 - `AccrualEntry.amount != 0`。
-- 非空 `AccrualEntry.allocation_line` 条件唯一。
+- 非空 `AccrualEntry.allocation_share` 条件唯一。
 - 非空 `AccrualEntry.reversal_of` 条件唯一。
 - `entry_type`、来源字段和金额符号必须匹配。
 - 审核、驳回、过期和作废状态必须与对应时间、操作人和原因字段一致。
@@ -373,11 +372,11 @@ GROUP BY organization, beneficiary_user, effective_month
 
 ```text
 Lease
-→ AllocationApplication
-→ AllocationLine / AccrualEntry
+→ AllocationRequest
+→ AllocationShare / AccrualEntry
 ```
 
-`LeaseAllocationLink` 是不可修改的关系，可在锁定租约后读取并校验。
+`LeaseAllocation` 是不可修改的关系，可在锁定租约后读取并校验。
 
 ### 9.2 重复提交
 
@@ -386,7 +385,7 @@ Lease
 ```text
 transaction.atomic()
 → select_for_update(Lease)
-→ 检查不存在 LeaseAllocationLink
+→ 检查不存在 LeaseAllocation
 → 创建申请、计算项、分配明细和关联记录
 ```
 
@@ -402,7 +401,7 @@ transaction.atomic()
 
 ### 9.4 审核幂等
 
-申请状态锁和 `AccrualEntry.allocation_line` 唯一约束共同保证一条分配明细只生成一条原始应计流水。
+申请状态锁和 `AccrualEntry.allocation_share` 唯一约束共同保证一条分配明细只生成一条原始应计流水。
 
 任何一条流水创建失败，申请通过和全部流水创建必须一起回滚，不允许出现“申请已通过但收益流水不完整”。
 
@@ -437,7 +436,7 @@ allocation.invalid_weight_total
 allocation.exceeds_distributable_amount
 allocation.cross_organization
 allocation.lease_not_active
-allocation.review_reason_required
+allocation.rejection_reason_required
 allocation.void_reason_required
 allocation.already_voided
 allocation.entry_already_created
@@ -470,13 +469,13 @@ voided    → 已作废
 
 ```text
 AccrualEntry
-→ AllocationLine
-→ AllocationApplication
-→ LeaseAllocationLink
+→ AllocationShare
+→ AllocationRequest
+→ LeaseAllocation
 → Lease
 ```
 
-人工增加和扣减没有 `AllocationLine`，直接根据流水类型和原因展示。
+人工增加和扣减没有 `AllocationShare`，直接根据流水类型和原因展示。
 
 ## 12. 权限边界
 
@@ -513,7 +512,7 @@ AccrualEntry
 ### 第一阶段
 
 - 创建 `allocation` 应用及四张核心表。
-- 创建 `house.LeaseAllocationLink`。
+- 创建 `house.LeaseAllocation`。
 - 实现租约提交时的分配申请创建。
 - 实现审核通过、审核不通过、自动过期和主动作废。
 - 实现人工增加和人工扣减。
@@ -553,19 +552,19 @@ AccrualEntry
 
 ## 16. 为什么五张表不能安全合并
 
-### LeaseAllocationLink
+### LeaseAllocation
 
 它是业务域与通用核心之间的明确接缝，同时以双向 `PROTECT` 保证租约和申请不会失去历史关联。把来源字段放回核心申请会导致核心依赖具体业务；把关系改成字符串或 JSON 会失去数据库引用完整性。
 
-### AllocationApplication
+### AllocationRequest
 
 它承载整份申请的审核生命周期和金额上限。把这些字段重复到计算项或分配明细会产生多行状态不一致。
 
-### AllocationBasisItem
+### AllocationItem
 
 它需要独立查询、排序和金额校验。放入 JSON 会降低约束和统计能力，当前已明确选择关系型保存。
 
-### AllocationLine
+### AllocationShare
 
 它代表待审核的多人分配方案，需要受益人外键、同申请受益人唯一约束和权重校验。它不能与正式应计流水合并，否则所有收益查询都必须排除待审、驳回和过期记录。
 
