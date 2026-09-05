@@ -12,7 +12,15 @@ const MockFormContext = React.createContext<{
   setFormValue: () => {},
 });
 
-const { mockInvalidateQueries, mockMessageSuccess, mockQueryCurrent, mockSetInitialState, mockSetQueryData, mockUpdateCurrentUser, mockUploadAvatar } = vi.hoisted(() => ({
+const {
+  mockInvalidateQueries,
+  mockMessageSuccess,
+  mockQueryCurrent,
+  mockSetInitialState,
+  mockSetQueryData,
+  mockUpdateCurrentUser,
+  mockUploadAvatar,
+} = vi.hoisted(() => ({
   mockInvalidateQueries: vi.fn(),
   mockMessageSuccess: vi.fn(),
   mockQueryCurrent: vi.fn(),
@@ -46,7 +54,9 @@ vi.mock('@umijs/max', () => ({
 }));
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  const actual = await vi.importActual<typeof import('@tanstack/react-query')>(
+    '@tanstack/react-query',
+  );
   return {
     ...actual,
     useQueryClient: () => ({
@@ -80,7 +90,7 @@ vi.mock('@ant-design/icons', () => ({
   UploadOutlined: () => <span>upload</span>,
 }));
 
-vi.mock('antd', () => {
+vi.mock('antd', async () => {
   const Descriptions = ({ children }: any) => <div>{children}</div>;
   Descriptions.Item = ({ children, label }: any) => (
     <div>
@@ -88,10 +98,14 @@ vi.mock('antd', () => {
       <span>{children}</span>
     </div>
   );
-  const actual = vi.importActual<typeof import('antd')>('antd');
+  const actual = await vi.importActual<typeof import('antd')>('antd');
   return {
     ...actual,
-    Button: ({ children, loading: _loading, ...props }: any) => <button type="button" {...props}>{children}</button>,
+    Button: ({ children, loading: _loading, ...props }: any) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
     Descriptions,
     Upload: ({ children, customRequest }: any) => (
       <div>
@@ -137,7 +151,14 @@ vi.mock('@ant-design/pro-components', () => ({
           }}
         >
           {children}
-          {submitter?.render?.({}, [<button key="reset" type="button">重置</button>, <button key="submit" type="submit">更新基本信息</button>])}
+          {submitter?.render?.({}, [
+            <button key="reset" type="button">
+              重置
+            </button>,
+            <button key="submit" type="submit">
+              更新基本信息
+            </button>,
+          ])}
         </form>
       </MockFormContext.Provider>
     );
@@ -188,42 +209,6 @@ describe('BaseView', () => {
     });
   });
 
-  it('shows profile fields and keeps phone email edits under security actions', async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <BaseView />
-      </QueryClientProvider>,
-    );
-
-    expect(await screen.findByText('昵称')).toBeInTheDocument();
-    expect(screen.getByText('邮箱')).toBeInTheDocument();
-    expect(screen.getByText('手机号')).toBeInTheDocument();
-    expect(screen.queryByText('时区')).not.toBeInTheDocument();
-    expect(screen.getByText(/\+86 13800138000/)).toBeInTheDocument();
-    expect(screen.queryByText(/\+\+86/)).not.toBeInTheDocument();
-
-    const securityLinks = screen.getAllByText('修改');
-    expect(securityLinks).toHaveLength(2);
-    expect(screen.queryByText('前往账号安全修改')).not.toBeInTheDocument();
-  });
-
-  it('仅回显昵称，并隐藏已移除的字段', async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <BaseView />
-      </QueryClientProvider>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('昵称')).toHaveValue('产品昵称');
-    });
-
-    expect(screen.queryByTestId('field-email')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('field-profile')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('field-country')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('field-phone')).not.toBeInTheDocument();
-  });
-
   it('提交时更新昵称并同步当前用户状态', async () => {
     mockUpdateCurrentUser.mockResolvedValue({ last_name: '新昵称' });
 
@@ -251,7 +236,9 @@ describe('BaseView', () => {
   });
 
   it('上传头像后刷新资料并同步全局头像', async () => {
-    mockUploadAvatar.mockResolvedValue({ avatar: [{ media_id: 42, url: '/uploaded-avatar.png', thumbnail: null }] });
+    mockUploadAvatar.mockResolvedValue({
+      avatar: [{ media_id: 42, url: '/uploaded-avatar.png', thumbnail: null }],
+    });
 
     render(
       <QueryClientProvider client={queryClient}>

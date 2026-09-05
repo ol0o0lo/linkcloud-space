@@ -1,6 +1,6 @@
-import { AimOutlined } from '@ant-design/icons';
+import { AimOutlined, FullscreenOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Spin } from 'antd';
+import { Alert, Button, Card, message, Space, Spin, Tooltip } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -14,6 +14,10 @@ import { type BuildingMapMarkerOut, houseApi } from '@/services/manual/house';
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import { ADMIN_BASE_PATH, normalizeAdminPath } from '@/utils/adminRouting';
 import { settingLocation } from '../location-utils';
+import {
+  getBrowserLocationErrorMessage,
+  requestBrowserMapLocation,
+} from './browser-location';
 import {
   BuildingResultPanel,
   EstateResultPanel,
@@ -46,6 +50,9 @@ const DIRECT_MARKER_LIMIT = 80;
 const EMPTY_MARKERS: BuildingMapMarkerOut[] = [];
 const RESULT_PANEL_COLLAPSED_KEY = 'property-rental-map:result-panel-collapsed';
 const RESULT_PANEL_CENTER_OFFSET_MAX = 195;
+const MAP_OVERLAY_EDGE = 12;
+const MAP_OVERLAY_GAP = 8;
+const MAP_OVERLAY_DEFAULT_CONTENT_TOP = 80;
 
 type MapBounds = { west: number; south: number; east: number; north: number };
 type ClusterPoint = {
@@ -83,6 +90,10 @@ const PropertyRentalMapPage: React.FC = () => {
   const [focusedEstateKey, setFocusedEstateKey] = useState<
     string | undefined
   >();
+  const [locatingNearby, setLocatingNearby] = useState(false);
+  const [mapOverlayContentTop, setMapOverlayContentTop] = useState(
+    MAP_OVERLAY_DEFAULT_CONTENT_TOP,
+  );
   const [bounds, setBounds] = useState<MapBounds>();
   const [viewport, setViewport] = useState(initialState.current.viewport);
   const [resultPanelCollapsed, setResultPanelCollapsed] = useState(
@@ -91,6 +102,7 @@ const PropertyRentalMapPage: React.FC = () => {
       window.localStorage.getItem(RESULT_PANEL_COLLAPSED_KEY) === 'true',
   );
   const mapNode = useRef<HTMLDivElement>(null);
+  const mapToolbarNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const clusterRef = useRef<any>(null);
   const infoWindowRef = useRef<any>(null);
@@ -1108,6 +1120,27 @@ const PropertyRentalMapPage: React.FC = () => {
     fitMapToCoordinates(points, estateDisplayLevel ? 13 : 16);
   };
 
+  const locateNearby = async () => {
+    if (locatingNearby) return;
+    setLocatingNearby(true);
+    try {
+      const location = await requestBrowserMapLocation(navigator.geolocation);
+      cancelPendingDeepLink();
+      closeBuildingInfo(true);
+      setFocusedBuildingId(undefined);
+      setFocusedEstateKey(undefined);
+      geolocationRequestedRef.current = true;
+      userMovedRef.current = true;
+      fittedInitialMarkersRef.current = true;
+      moveMapTo(location.lng, location.lat, 15);
+      message.success('已定位到你附近');
+    } catch (error) {
+      message.warning(getBrowserLocationErrorMessage(error));
+    } finally {
+      setLocatingNearby(false);
+    }
+  };
+
   const toggleResultPanel = () => {
     setResultPanelCollapsed((current) => {
       const next = !current;
@@ -1127,6 +1160,23 @@ const PropertyRentalMapPage: React.FC = () => {
       return next;
     });
   };
+
+  useEffect(() => {
+    const node = mapToolbarNode.current;
+    if (!node) return;
+    const updateContentTop = () => {
+      const next =
+        MAP_OVERLAY_EDGE +
+        Math.ceil(node.getBoundingClientRect().height) +
+        MAP_OVERLAY_GAP;
+      setMapOverlayContentTop((current) => (current === next ? current : next));
+    };
+    updateContentTop();
+    if (!window.ResizeObserver) return;
+    const observer = new ResizeObserver(updateContentTop);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!mapNode.current || !window.ResizeObserver) return;
@@ -1257,26 +1307,13 @@ const PropertyRentalMapPage: React.FC = () => {
     selectedBuildingId,
   ]);
 
-  const clearFilters = () => {
-    committedKeywordRef.current = '';
-    setKeywordInput('');
-    setKeyword('');
-    setEstateId(undefined);
-    setHouseStatus(undefined);
-    cancelPendingDeepLink();
-    resetViewportScope();
-    closeBuildingInfo(true);
-    setFocusedBuildingId(undefined);
-    setFocusedEstateKey(undefined);
-  };
   const returnTo = currentReturnTo();
   const pendingListParams = new URLSearchParams({
-    view: 'buildings',
-    task: 'building_location',
+    asset_issue: 'building_location',
   });
   if (estateId) pendingListParams.set('estate_id', String(estateId));
   if (keyword) pendingListParams.set('keyword', keyword);
-  const pendingListHref = `/rental/properties/estates?${pendingListParams.toString()}`;
+  const pendingListHref = `/rental/properties/list?${pendingListParams.toString()}`;
 
   return (
     <TenantSelectionGuard title="房源地图">
@@ -1284,40 +1321,9 @@ const PropertyRentalMapPage: React.FC = () => {
         style={{
           height: 'calc(100vh - 128px)',
           minHeight: 620,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
         }}
       >
-        <MapToolbar
-          keyword={keywordInput}
-          houseStatus={houseStatus}
-          hasFilters={Boolean(keywordInput || estateId || houseStatus)}
-          counts={{
-            levelLabel:
-              mapLevel === 'estate-cluster'
-                ? '聚合'
-                : estateDisplayLevel
-                  ? '小区'
-                  : '楼栋',
-            located: visiblePointCount,
-            buildings: visibleBuildingCount,
-            unlocated: unlocated.data?.total || 0,
-            ...aggregateCounts,
-          }}
-          updating={mapDataFetching || unlocated.isFetching}
-          onKeywordChange={setKeywordInput}
-          onKeywordSearch={(value) => applyKeyword(value, true)}
-          onHouseStatusChange={(value) => {
-            cancelPendingDeepLink();
-            closeBuildingInfo(true);
-            setFocusedBuildingId(undefined);
-            setFocusedEstateKey(undefined);
-            setHouseStatus(value);
-          }}
-          onClear={clearFilters}
-        />
-        <div style={{ flex: 1, minHeight: 0 }}>
+        <div style={{ height: '100%', minHeight: 0 }}>
           <Card
             size="small"
             styles={{ body: { padding: 0, height: '100%' } }}
@@ -1333,6 +1339,13 @@ const PropertyRentalMapPage: React.FC = () => {
                 title="高德地图加载失败"
                 description={mapError.message}
                 action={<Button onClick={reload}>重试</Button>}
+                style={{
+                  position: 'absolute',
+                  top: mapOverlayContentTop,
+                  left: MAP_OVERLAY_EDGE,
+                  right: MAP_OVERLAY_EDGE,
+                  zIndex: 4,
+                }}
               />
             ) : (
               <section
@@ -1342,7 +1355,44 @@ const PropertyRentalMapPage: React.FC = () => {
                 <div ref={mapNode} style={{ width: '100%', height: '100%' }} />
               </section>
             )}
-            {estateDisplayLevel ? (
+            <div
+              ref={mapToolbarNode}
+              style={{
+                position: 'absolute',
+                top: MAP_OVERLAY_EDGE,
+                left: MAP_OVERLAY_EDGE,
+                right: MAP_OVERLAY_EDGE,
+                zIndex: 5,
+              }}
+            >
+              <MapToolbar
+                keyword={keywordInput}
+                houseStatus={houseStatus}
+                counts={{
+                  levelLabel:
+                    mapLevel === 'estate-cluster'
+                      ? '聚合'
+                      : estateDisplayLevel
+                        ? '小区'
+                        : '楼栋',
+                  located: visiblePointCount,
+                  buildings: visibleBuildingCount,
+                  unlocated: unlocated.data?.total || 0,
+                  ...aggregateCounts,
+                }}
+                updating={mapDataFetching || unlocated.isFetching}
+                onKeywordChange={setKeywordInput}
+                onKeywordSearch={(value) => applyKeyword(value, true)}
+                onHouseStatusChange={(value) => {
+                  cancelPendingDeepLink();
+                  closeBuildingInfo(true);
+                  setFocusedBuildingId(undefined);
+                  setFocusedEstateKey(undefined);
+                  setHouseStatus(value);
+                }}
+              />
+            </div>
+            {!mapError && estateDisplayLevel ? (
               <EstateResultPanel
                 points={estateDisplayPoints}
                 houseStatus={houseStatus}
@@ -1353,12 +1403,13 @@ const PropertyRentalMapPage: React.FC = () => {
                 truncated={mapResultsTruncated}
                 onSelect={selectEstatePoint}
                 onToggleCollapsed={toggleResultPanel}
+                topOffset={mapOverlayContentTop}
                 onRetry={() => {
                   estateMarkers.refetch();
                   standaloneMarkers.refetch();
                 }}
               />
-            ) : (
+            ) : !mapError ? (
               <BuildingResultPanel
                 located={locatedItems}
                 unlocated={unlocatedItems}
@@ -1373,18 +1424,40 @@ const PropertyRentalMapPage: React.FC = () => {
                 pendingListHref={pendingListHref}
                 onSelect={selectBuilding}
                 onToggleCollapsed={toggleResultPanel}
+                topOffset={mapOverlayContentTop}
                 onRetryLocated={() => buildingMarkers.refetch()}
                 onRetryUnlocated={() => unlocated.refetch()}
               />
-            )}
-            {!mapError && visiblePointCount ? (
-              <Button
-                icon={<AimOutlined />}
-                onClick={fitVisibleResults}
-                style={{ position: 'absolute', top: 12, right: 12, zIndex: 3 }}
+            ) : null}
+            {!mapError ? (
+              <Space
+                size={8}
+                style={{
+                  position: 'absolute',
+                  top: mapOverlayContentTop,
+                  right: MAP_OVERLAY_EDGE,
+                  zIndex: 3,
+                }}
               >
-                适配当前结果
-              </Button>
+                <Tooltip title="定位到我的附近">
+                  <Button
+                    aria-label="定位到我的附近"
+                    shape="circle"
+                    icon={<AimOutlined />}
+                    disabled={mapLoading}
+                    loading={locatingNearby}
+                    onClick={locateNearby}
+                  />
+                </Tooltip>
+                {visiblePointCount ? (
+                  <Button
+                    icon={<FullscreenOutlined />}
+                    onClick={fitVisibleResults}
+                  >
+                    适配当前结果
+                  </Button>
+                ) : null}
+              </Space>
             ) : null}
             {mapLoading || mapDataLoading ? (
               <Spin

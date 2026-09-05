@@ -3,6 +3,11 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockLogin = vi.fn();
+const mockConfirmLoginCode = vi.fn();
+const mockRequestLoginCode = vi.fn();
+const mockStartProviderLogin = vi.fn();
+const mockLoginWithPasskey = vi.fn();
+const mockAuthenticateMfaWithWebauthn = vi.fn();
 const mockTwoFactorAuthenticate = vi.fn();
 const mockTwoFactorTrust = vi.fn();
 const mockFetchUserInfo = vi.fn();
@@ -21,6 +26,7 @@ const authenticatedUser = {
 vi.mock('@umijs/max', () => ({
   FormattedMessage: mockFormattedMessage,
   Helmet: ({ children }: any) => <>{children}</>,
+  Link: ({ children, to }: any) => <a href={to}>{children}</a>,
   SelectLang: () => null,
   history: {
     replace: mockHistoryReplace,
@@ -93,14 +99,17 @@ vi.mock('@ant-design/pro-components', () => {
     );
   };
 
-  const ProFormText = ({ name, placeholder }: any) => {
+  const ProFormText = ({ fieldProps, name, placeholder }: any) => {
     const { values, setValue } = React.useContext(FormContext);
     return (
       <input
         aria-label={name}
         placeholder={placeholder}
         value={String(values[name] || '')}
-        onChange={(event) => setValue(name, event.target.value)}
+        onChange={(event) => {
+          setValue(name, event.target.value);
+          fieldProps?.onChange?.(event);
+        }}
       />
     );
   };
@@ -147,6 +156,18 @@ vi.mock('@/services/allauth/authAccount', () => ({
 vi.mock('@/services/allauth/authTwoFactor', () => ({
   postBrowserV1AuthTwofaAuthenticate: mockTwoFactorAuthenticate,
   postBrowserV1AuthTwofaTrust: mockTwoFactorTrust,
+}));
+
+vi.mock('@/services/manual/publicAuth', () => ({
+  confirmPublicLoginCode: mockConfirmLoginCode,
+  getPublicAuthErrorMessage: (_error: unknown, fallback: string) => fallback,
+  requestPublicLoginCode: mockRequestLoginCode,
+  startPublicProviderLogin: mockStartProviderLogin,
+}));
+
+vi.mock('@/services/manual/webauthn', () => ({
+  authenticateMfaWithWebauthn: mockAuthenticateMfaWithWebauthn,
+  loginWithPasskey: mockLoginWithPasskey,
 }));
 
 vi.mock('@/services/openapi/organizations', () => ({
@@ -197,6 +218,82 @@ describe('admin 登录 MFA 流程', () => {
     expect(mockHistoryReplace).toHaveBeenCalledWith(
       '/space/settings/organization',
     );
+  });
+
+  it('在认证页面之间透传安全的登录后目标地址', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/user/login?redirect=%2Fdashboard%2Fspace%2Finvitations%3Fsource%3Dmail%23accept',
+    );
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    expect(
+      await screen.findByRole('link', { name: '忘记密码' }),
+    ).toHaveAttribute(
+      'href',
+      '/user/password/reset?redirect=%2Fspace%2Finvitations%3Fsource%3Dmail%23accept',
+    );
+    expect(screen.getByRole('link', { name: '注册账号' })).toHaveAttribute(
+      'href',
+      '/user/register?redirect=%2Fspace%2Finvitations%3Fsource%3Dmail%23accept',
+    );
+  });
+
+  it('请求并确认邮箱登录验证码', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(authenticatedUser);
+    mockRequestLoginCode.mockResolvedValueOnce(undefined);
+    mockConfirmLoginCode.mockResolvedValueOnce({});
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '邮箱验证码登录' }),
+    );
+    fireEvent.change(screen.getByPlaceholderText('请输入邮箱'), {
+      target: { value: 'person@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发送验证码' }));
+
+    await waitFor(() =>
+      expect(mockRequestLoginCode).toHaveBeenCalledWith('person@example.com'),
+    );
+    fireEvent.change(screen.getByPlaceholderText('请输入邮箱验证码'), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '提交' }));
+
+    await waitFor(() =>
+      expect(mockConfirmLoginCode).toHaveBeenCalledWith('123456'),
+    );
+    expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
+    expect(mockHistoryReplace).toHaveBeenCalledWith(
+      '/rental/workbench/overview',
+    );
+  });
+
+  it('可发起 GitHub 登录和通行密钥登录', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(authenticatedUser);
+    mockLoginWithPasskey.mockResolvedValueOnce({});
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '使用 GitHub 登录' }),
+    );
+    expect(mockStartProviderLogin).toHaveBeenCalledWith('github');
+
+    fireEvent.click(screen.getByRole('button', { name: '使用通行密钥登录' }));
+    await waitFor(() => expect(mockLoginWithPasskey).toHaveBeenCalled());
+    expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
   });
 
   it('重复登录返回 409 时应按已有会话恢复并跳转', async () => {
@@ -306,7 +403,7 @@ describe('admin 登录 MFA 流程', () => {
         data: {
           flows: [
             { id: 'login' },
-            { id: 'mfa_login_webauthn', is_pending: true },
+            { id: 'custom_identity_step', is_pending: true },
           ],
         },
       },
@@ -325,9 +422,50 @@ describe('admin 登录 MFA 流程', () => {
 
     await waitFor(() => {
       expect(mockError).toHaveBeenCalledWith(
-        '当前登录流程包含暂未支持的认证步骤：mfa_login_webauthn，请联系开发处理。',
+        '当前登录流程包含暂未支持的认证步骤：custom_identity_step，请联系开发处理。',
       );
     });
+  });
+
+  it('MFA 支持 WebAuthn 安全密钥验证', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(authenticatedUser);
+    mockLogin.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: {
+          flows: [
+            { id: 'login' },
+            {
+              id: 'mfa_authenticate',
+              is_pending: true,
+              types: ['webauthn'],
+            },
+          ],
+        },
+      },
+    });
+    mockAuthenticateMfaWithWebauthn.mockResolvedValueOnce({});
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
+      target: { value: 'admin@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('密码'), {
+      target: { value: 'secret123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '提交' }));
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '使用安全密钥验证' }),
+    );
+    await waitFor(() =>
+      expect(mockAuthenticateMfaWithWebauthn).toHaveBeenCalled(),
+    );
+    expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
   });
 
   it('邮箱中的全角句号应在提交前规范化', async () => {

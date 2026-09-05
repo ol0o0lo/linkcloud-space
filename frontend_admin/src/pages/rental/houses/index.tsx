@@ -4,6 +4,7 @@ import {
   MenuUnfoldOutlined,
   MoreOutlined,
   PlusOutlined,
+  ShareAltOutlined,
 } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { EditableProTable } from '@ant-design/pro-components';
@@ -11,11 +12,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history } from '@umijs/max';
 import {
   Avatar,
+  Badge,
   Button,
   Card,
-  Drawer,
   Dropdown,
   Empty,
+  Form,
   Input,
   InputNumber,
   Modal,
@@ -29,6 +31,7 @@ import {
 } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AdvancedFilterToolbar } from '@/components/AdvancedFilterToolbar';
 import { AppIcon } from '@/components/AppIcon';
 import { AppStatusTag } from '@/components/AppStatus';
 import {
@@ -51,12 +54,16 @@ import {
 import {
   type BuildingOut,
   type ContactOut,
+  type EstateOut,
   type HouseOut,
+  type HousePatchInput,
   houseApi,
 } from '@/services/manual/house';
+import DealSigningDrawer from '../components/DealSigningDrawer';
 import {
   buildingLabel,
   contactLabel,
+  dateTimeText,
   evaluateHousePublishState,
   HOUSE_STATUS,
   houseBalconyText,
@@ -68,7 +75,6 @@ import {
   mediaCoverUrl,
   moneyText,
 } from '../constants';
-import EstatesPage from '../estates';
 import { isInitialQueryPending } from '../loading';
 import { useHousePublishRules } from '../useHousePublishRules';
 import { usePagedSelectOptions } from '../usePagedSelectOptions';
@@ -80,30 +86,40 @@ import {
   HouseRoomLayoutInlineEditor,
 } from './HouseListInlineEditors';
 import {
+  HouseMatchShareModal,
+  mergeHouseMatchSelection,
+} from './HouseMatchShareModal';
+import {
   HOUSE_STATUS_COLUMN_WIDTH,
   HOUSE_TABLE_BODY_SCROLL_Y,
+  HOUSE_TABLE_CONTEXT_BODY_SCROLL_Y,
   HOUSE_TABLE_PAGINATION_MIN_HEIGHT,
 } from './houseListLayout';
 import {
+  getHouseListStateFromSearch,
+  HOUSE_PAGE_SIZE_OPTIONS,
+  type HouseInspectionFilter,
+  type HouseInspectionReason,
+  type HouseOrdering,
+  type HouseScope,
+  type HouseSortableField,
+  type HouseStatus,
+  parseHouseOrdering,
+  syncHouseListSearch,
+} from './listState';
+import {
+  type PropertyAssetAction,
   PropertyAssetNavigator,
   type PropertyAssetScope,
-  type PropertyStructureIntent,
   readPropertyAssetNavigatorCollapsed,
   writePropertyAssetNavigatorCollapsed,
 } from './PropertyAssetNavigator';
+import {
+  PropertyAssetWorkspace,
+  type PropertyAssetWorkspaceTab,
+} from './PropertyAssetWorkspace';
 
-const DEFAULT_PAGE_SIZE = 20;
-const HOUSE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const HOUSE_TABLE_KEY = 'rental.houses';
-const HOUSE_SORTABLE_FIELDS = [
-  'room_number',
-  'layout',
-  'building',
-  'asking_rent',
-  'deposit_amount',
-  'landlord',
-  'status',
-] as const;
 
 const useStyles = createStyles(({ css, token }) => ({
   stableEditableTable: css`
@@ -168,6 +184,11 @@ const useStyles = createStyles(({ css, token }) => ({
       }
     }
   `,
+  scopedAssetTable: css`
+    .ant-table-body {
+      min-height: ${HOUSE_TABLE_CONTEXT_BODY_SCROLL_Y};
+    }
+  `,
   assetLayout: css`
     display: flex;
     align-items: stretch;
@@ -196,6 +217,9 @@ const useStyles = createStyles(({ css, token }) => ({
     flex: 1;
     min-height: 0;
     min-width: 0;
+  `,
+  assetNavigatorToggle: css`
+    margin-inline-end: ${token.marginSM}px;
   `,
   tableCard: css`
     flex: 1;
@@ -279,16 +303,29 @@ const useStyles = createStyles(({ css, token }) => ({
     flex-direction: column;
     gap: ${token.marginXXS}px;
   `,
+  shareBadge: css`
+    .ant-badge-count {
+      background: ${token.colorPrimary};
+      box-shadow: 0 0 0 1px ${token.colorBgContainer};
+    }
+  `,
+  houseColumnTitle: css`
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: ${token.marginXXS}px;
+  `,
+  selectedCountButton: css`
+    height: auto;
+    padding-inline: 2px;
+    font-size: ${token.fontSizeSM}px;
+  `,
 }));
 
-type HouseSortableField = (typeof HOUSE_SORTABLE_FIELDS)[number];
-type HouseOrdering = HouseSortableField | `-${HouseSortableField}`;
-type HouseScopeFilters = {
-  q?: string;
-  status?: string;
-  estateId?: number;
-  buildingId?: number;
-  ordering?: HouseOrdering;
+type HouseAdvancedFilterDraft = {
+  inspectionFilter?: HouseInspectionFilter;
+  q: string;
+  status?: HouseStatus;
 };
 
 type EditableHouseRow = HouseOut & HouseInlineEditableFields;
@@ -307,26 +344,6 @@ function toEditableHouseRow(house: HouseOut): EditableHouseRow {
   };
 }
 
-function getPositiveId(value: string | null) {
-  return value && /^[1-9]\d*$/.test(value) ? Number(value) : undefined;
-}
-
-function getHousePageSize(value: string | null) {
-  const pageSize = Number(value);
-  return HOUSE_PAGE_SIZE_OPTIONS.includes(pageSize)
-    ? pageSize
-    : DEFAULT_PAGE_SIZE;
-}
-
-function parseHouseOrdering(value: string | null): HouseOrdering | undefined {
-  if (!value || value.includes(',')) return undefined;
-  const field = value.startsWith('-') ? value.slice(1) : value;
-  if (!HOUSE_SORTABLE_FIELDS.includes(field as HouseSortableField)) {
-    return undefined;
-  }
-  return value as HouseOrdering;
-}
-
 function getHouseOrderingField(columnKey: string) {
   if (columnKey === 'room_layout_edit') return 'layout';
   if (columnKey === 'building_id') return 'building';
@@ -341,77 +358,6 @@ function getHouseColumnSortOrder(
   if (ordering === field) return 'ascend' as const;
   if (ordering === `-${field}`) return 'descend' as const;
   return undefined;
-}
-
-function getHouseListStateFromSearch(search: string) {
-  const params = new URLSearchParams(search);
-  const pageValue = Number(params.get('page') || '1');
-  return {
-    page: Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1,
-    pageSize: getHousePageSize(params.get('page_size')),
-    q: params.get('keyword') || undefined,
-    status: params.get('status') || undefined,
-    estateId: getPositiveId(params.get('estate_id')),
-    buildingId: getPositiveId(params.get('building_id')),
-    ordering: parseHouseOrdering(params.get('ordering')),
-  };
-}
-
-function syncHouseListSearch(
-  filters: HouseScopeFilters & { page: number; pageSize: number },
-) {
-  const params = new URLSearchParams(window.location.search);
-  params.delete('keyword');
-  params.delete('status');
-  params.delete('estate_id');
-  params.delete('building_id');
-  params.delete('ordering');
-  params.delete('page');
-  params.delete('page_size');
-  if (filters.q) params.set('keyword', filters.q);
-  if (filters.status) params.set('status', filters.status);
-  if (filters.estateId) params.set('estate_id', String(filters.estateId));
-  if (filters.buildingId) params.set('building_id', String(filters.buildingId));
-  if (filters.ordering) params.set('ordering', filters.ordering);
-  if (filters.page > 1) params.set('page', String(filters.page));
-  if (filters.pageSize !== DEFAULT_PAGE_SIZE) {
-    params.set('page_size', String(filters.pageSize));
-  }
-  const nextSearch = params.toString();
-  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
-  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash || ''}`;
-  if (nextUrl !== currentUrl) {
-    window.history.replaceState(window.history.state, '', nextUrl);
-  }
-}
-
-function syncPropertyStructureIntent(intent?: PropertyStructureIntent) {
-  const params = new URLSearchParams(window.location.search);
-  params.delete('estate_edit');
-  params.delete('estate_create');
-  params.delete('building_edit');
-  params.delete('building_create');
-  if (intent?.estateCreate) {
-    params.set('estate_create', '1');
-  }
-  if (intent?.estateEditId) {
-    params.set('estate_edit', String(intent.estateEditId));
-  }
-  if (intent?.buildingEditId) {
-    params.set('building_edit', String(intent.buildingEditId));
-  }
-  if (intent?.buildingCreateEstateId) {
-    params.set('building_create', String(intent.buildingCreateEstateId));
-  }
-  if (intent?.buildingCreateStandalone) {
-    params.set('building_create', 'standalone');
-  }
-  const nextSearch = params.toString();
-  window.history.replaceState(
-    window.history.state,
-    '',
-    `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`,
-  );
 }
 
 function buildHouseDetailHref(houseId: number, action?: 'edit') {
@@ -461,8 +407,40 @@ function HouseTags({ tags }: { tags: string[] }) {
   );
 }
 
+function HouseInspectionReasons({ house }: { house: HouseOut }) {
+  const reasons = house.inspection_reasons || [];
+  if (!reasons.length) return '-';
+  return (
+    <Space size={[4, 4]} wrap>
+      {reasons.map((reason) => {
+        if (reason === 'missing_images') {
+          return (
+            <Tag key={reason} color="warning">
+              缺少照片
+            </Tag>
+          );
+        }
+        if (reason === 'missing_videos') {
+          return (
+            <Tag key={reason} color="warning">
+              缺少视频
+            </Tag>
+          );
+        }
+        return (
+          <Tag key={reason} color="error">
+            {house.inspection_max_age_days
+              ? `超过 ${house.inspection_max_age_days} 天未更新`
+              : '资料已过期'}
+          </Tag>
+        );
+      })}
+    </Space>
+  );
+}
+
 const HousesPage: React.FC = () => {
-  const { styles } = useStyles();
+  const { styles, cx } = useStyles();
   const workspace = useTenantWorkspace();
   const publishRules = useHousePublishRules();
   const queryClient = useQueryClient();
@@ -473,7 +451,7 @@ const HousesPage: React.FC = () => {
   const [searchDraft, setSearchDraft] = useState(
     initialListState.current.q || '',
   );
-  const [status, setStatus] = useState<string | undefined>(
+  const [status, setStatus] = useState<HouseStatus | undefined>(
     initialListState.current.status,
   );
   const [estateId, setEstateId] = useState<number | undefined>(
@@ -482,9 +460,24 @@ const HousesPage: React.FC = () => {
   const [buildingId, setBuildingId] = useState<number | undefined>(
     initialListState.current.buildingId,
   );
+  const [assetTab, setAssetTab] = useState<PropertyAssetWorkspaceTab>(
+    initialListState.current.assetTab,
+  );
+  const [assetAction, setAssetAction] = useState<
+    PropertyAssetAction | undefined
+  >(initialListState.current.assetAction);
   const [ordering, setOrdering] = useState<HouseOrdering | undefined>(
     initialListState.current.ordering,
   );
+  const [scope, setScope] = useState<HouseScope>(
+    initialListState.current.scope,
+  );
+  const [inspectionDue, setInspectionDue] = useState(
+    initialListState.current.inspectionDue,
+  );
+  const [inspectionReason, setInspectionReason] = useState<
+    HouseInspectionReason | undefined
+  >(initialListState.current.inspectionReason);
   const [page, setPage] = useState(initialListState.current.page);
   const [pageSize, setPageSize] = useState(initialListState.current.pageSize);
   const [listingConfirmHouseId, setListingConfirmHouseId] = useState<
@@ -494,6 +487,24 @@ const HousesPage: React.FC = () => {
     'listed' | 'vacant' | null
   >(null);
   const [editableKeys, setEditableKeys] = useState<React.Key[]>([]);
+  const [selectedHouseIds, setSelectedHouseIds] = useState<number[]>([]);
+  const [advancedFilterOpen, setAdvancedFilterOpen] = useState(false);
+  const [responsiveOverflowFilterKeys, setResponsiveOverflowFilterKeys] =
+    useState<string[]>([]);
+  const [advancedFilterDraft, setAdvancedFilterDraft] =
+    useState<HouseAdvancedFilterDraft>(() => ({
+      q: initialListState.current.q || '',
+      status: initialListState.current.status,
+      inspectionFilter:
+        initialListState.current.inspectionReason ||
+        (initialListState.current.inspectionDue ? 'due' : undefined),
+    }));
+  const [houseMatchOpen, setHouseMatchOpen] = useState(false);
+  const [dealSigningHouse, setDealSigningHouse] = useState<HouseOut | null>(
+    null,
+  );
+  const [confirmCurrentHouse, setConfirmCurrentHouse] =
+    useState<HouseOut | null>(null);
   const [tableRows, setTableRows] = useState<EditableHouseRow[]>([]);
   const [mediaEditorHouseId, setMediaEditorHouseId] = useState<number | null>(
     null,
@@ -501,16 +512,24 @@ const HousesPage: React.FC = () => {
   const [mediaDrafts, setMediaDrafts] = useState<
     Record<number, HouseMediaEditValue>
   >({});
-  const [structureOpen, setStructureOpen] = useState(false);
+  const [assetProfileEditing, setAssetProfileEditing] = useState(false);
   const [assetNavigatorCollapsed, setAssetNavigatorCollapsed] = useState(() =>
     readPropertyAssetNavigatorCollapsed(workspace.selectedOrgSlug),
   );
   const enabled = Boolean(workspace.selectedOrgSlug);
+  const isMineScope = scope === 'mine';
+  const inspectionFilter: HouseInspectionFilter | undefined =
+    inspectionReason || (inspectionDue ? 'due' : undefined);
 
   useEffect(() => {
     setAssetNavigatorCollapsed(
       readPropertyAssetNavigatorCollapsed(workspace.selectedOrgSlug),
     );
+    setSelectedHouseIds([]);
+    setAdvancedFilterOpen(false);
+    setHouseMatchOpen(false);
+    setDealSigningHouse(null);
+    setConfirmCurrentHouse(null);
   }, [workspace.selectedOrgSlug]);
 
   const houseEnums = useEnums([
@@ -530,6 +549,9 @@ const HousesPage: React.FC = () => {
       estateId,
       buildingId,
       ordering,
+      scope,
+      inspectionDue,
+      inspectionReason,
     ],
     queryFn: () =>
       houseApi.listHouses({
@@ -537,6 +559,11 @@ const HousesPage: React.FC = () => {
         page_size: pageSize,
         keyword: q,
         status,
+        scope,
+        ...(inspectionDue ? { inspection_due: true } : {}),
+        ...(inspectionDue && inspectionReason
+          ? { inspection_reason: inspectionReason }
+          : {}),
         ...(estateId && !buildingId ? { estate_id: estateId } : {}),
         ...(buildingId ? { building_id: buildingId } : {}),
         ...(ordering ? { ordering } : {}),
@@ -549,7 +576,7 @@ const HousesPage: React.FC = () => {
       values,
     }: {
       id: number;
-      values: Record<string, unknown>;
+      values: HousePatchInput;
       successMessage?: string;
     }) => houseApi.patchHouse(id, values),
     onSuccess: async (data, variables) => {
@@ -558,8 +585,13 @@ const HousesPage: React.FC = () => {
           row.id === variables.id ? toEditableHouseRow(data) : row,
         ),
       );
-      message.success(variables.successMessage || '房源状态已更新');
-      await queryClient.invalidateQueries({ queryKey: ['house', 'houses'] });
+      message.success(variables.successMessage || '房源已更新');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['house', 'houses'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['house', 'workbench-inspections'],
+        }),
+      ]);
     },
   });
   const openListingConfirm = (id: number, nextStatus: 'listed' | 'vacant') => {
@@ -585,24 +617,71 @@ const HousesPage: React.FC = () => {
     setSearchDraft('');
     setQ(undefined);
     setStatus(undefined);
+    setInspectionDue(false);
+    setInspectionReason(undefined);
   };
-  const hasActiveFilters = Boolean(q || status);
+  const hasActiveFilters = Boolean(q || status || inspectionReason);
+  const newHouseHref = buildingId
+    ? `/rental/properties/new?building_id=${buildingId}`
+    : '/rental/properties/new';
   const emptyState = (
     <div className={styles.emptyState}>
-      {hasActiveFilters ? (
+      {inspectionDue && !hasActiveFilters ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={
+            <span className={styles.emptyDescription}>
+              <Typography.Text strong>
+                {isMineScope
+                  ? '当前负责房源均无需勘察'
+                  : '当前没有需要勘察的房源'}
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                {isMineScope
+                  ? '当前没有需要补充照片、视频或复查资料的负责房源'
+                  : '组织内没有需要补充照片、视频或复查资料的房源'}
+              </Typography.Text>
+            </span>
+          }
+        >
+          <Button
+            onClick={() => {
+              setPage(1);
+              setInspectionReason(undefined);
+              setInspectionDue(false);
+            }}
+          >
+            {isMineScope ? '查看我的全部房源' : '查看全部房源'}
+          </Button>
+        </Empty>
+      ) : hasActiveFilters ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description={
             <span className={styles.emptyDescription}>
               <Typography.Text strong>未找到符合条件的房源</Typography.Text>
               <Typography.Text type="secondary">
-                可以清除关键词或房态筛选后重试
+                可以清除关键词、房态或勘察原因筛选后重试
               </Typography.Text>
             </span>
           }
         >
           <Button onClick={clearHouseFilters}>清除筛选</Button>
         </Empty>
+      ) : isMineScope ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={
+            <span className={styles.emptyDescription}>
+              <Typography.Text strong>
+                当前没有分配给你的负责房源
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                管理员完成房东、小区或楼栋分工后，相关房源会显示在这里
+              </Typography.Text>
+            </span>
+          }
+        />
       ) : (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -619,7 +698,7 @@ const HousesPage: React.FC = () => {
             type="primary"
             aria-label="新建房源"
             icon={<PlusOutlined />}
-            onClick={() => history.push('/rental/properties/new')}
+            onClick={() => history.push(newHouseHref)}
           >
             新建房源
           </Button>
@@ -689,7 +768,13 @@ const HousesPage: React.FC = () => {
   }, [editableKeys.length, rows]);
 
   useEffect(() => {
+    if (editableKeys.length) setAdvancedFilterOpen(false);
+  }, [editableKeys.length]);
+
+  useEffect(() => {
     syncHouseListSearch({
+      assetAction,
+      assetTab,
       page,
       pageSize,
       q,
@@ -697,8 +782,24 @@ const HousesPage: React.FC = () => {
       estateId,
       buildingId,
       ordering,
+      scope,
+      inspectionDue,
+      inspectionReason,
     });
-  }, [buildingId, estateId, ordering, page, pageSize, q, status]);
+  }, [
+    assetAction,
+    assetTab,
+    buildingId,
+    estateId,
+    inspectionReason,
+    ordering,
+    page,
+    pageSize,
+    q,
+    status,
+    scope,
+    inspectionDue,
+  ]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -710,7 +811,12 @@ const HousesPage: React.FC = () => {
       setPageSize(listState.pageSize);
       setEstateId(listState.estateId);
       setBuildingId(listState.buildingId);
+      setAssetTab(listState.assetTab);
+      setAssetAction(listState.assetAction);
       setOrdering(listState.ordering);
+      setScope(listState.scope);
+      setInspectionDue(listState.inspectionDue);
+      setInspectionReason(listState.inspectionReason);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -718,7 +824,25 @@ const HousesPage: React.FC = () => {
 
   const columns: ProColumns<EditableHouseRow>[] = [
     {
-      title: '房源',
+      title: (
+        <span className={styles.houseColumnTitle}>
+          <span>房源</span>
+          {selectedHouseIds.length ? (
+            <Button
+              type="link"
+              size="small"
+              className={styles.selectedCountButton}
+              aria-label={`清除已选择的 ${selectedHouseIds.length} 套房源`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedHouseIds([]);
+              }}
+            >
+              已选 {selectedHouseIds.length}
+            </Button>
+          ) : null}
+        </span>
+      ),
       dataIndex: 'room_number',
       key: 'room_number',
       sorter: true,
@@ -1159,6 +1283,27 @@ const HousesPage: React.FC = () => {
         ),
     },
     {
+      title: '勘察原因',
+      dataIndex: 'inspection_reasons',
+      key: 'inspection_reasons',
+      search: false,
+      editable: false,
+      hideInTable: !inspectionDue,
+      width: 240,
+      render: (_value, record) => <HouseInspectionReasons house={record} />,
+    },
+    {
+      title: '资料更新',
+      dataIndex: 'updated_at',
+      key: 'updated_at',
+      search: false,
+      editable: false,
+      hideInTable: !inspectionDue,
+      width: 170,
+      align: 'center',
+      render: (_value, record) => dateTimeText(record.updated_at),
+    },
+    {
       title: '房态',
       dataIndex: 'status',
       key: 'status',
@@ -1188,30 +1333,80 @@ const HousesPage: React.FC = () => {
       valueType: 'option',
       fixed: 'right',
       search: false,
-      width: 120,
+      width: inspectionDue ? 180 : 120,
       align: 'center',
       render: (_value, record, _index, action) => {
         const isListed = record.status === HOUSE_STATUS.LISTED;
         const canToggleListing =
           isListed || record.status === HOUSE_STATUS.VACANT;
+        const canDealSign = record.status !== HOUSE_STATUS.INACTIVE;
         const nextStatus = isListed ? HOUSE_STATUS.VACANT : HOUSE_STATUS.LISTED;
+        const inspectionReasons = record.inspection_reasons || [];
+        const hasMissingMedia = inspectionReasons.some(
+          (reason) =>
+            reason === 'missing_images' || reason === 'missing_videos',
+        );
+        const hasExpiredInspection = inspectionReasons.includes('expired');
         return (
           <ResponsiveActions>
-            <Tooltip title="行内编辑">
-              <Button
-                type="link"
-                size="small"
-                aria-label={`编辑房源 ${record.room_number}`}
-                icon={<EditOutlined />}
-                onClick={() => action?.startEditable?.(record.id)}
-              />
-            </Tooltip>
-            <a href={buildHouseDetailHref(record.id, 'edit')}>编辑资料</a>
+            {inspectionDue ? (
+              hasMissingMedia ? (
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => {
+                    action?.startEditable?.(record.id);
+                    setMediaEditorHouseId(record.id);
+                  }}
+                >
+                  补充资料
+                </Button>
+              ) : (
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => action?.startEditable?.(record.id)}
+                >
+                  更新资料
+                </Button>
+              )
+            ) : (
+              <Tooltip title="快速编辑">
+                <Button
+                  type="link"
+                  size="small"
+                  aria-label={`快速编辑房源 ${record.room_number}`}
+                  icon={<EditOutlined />}
+                  onClick={() => action?.startEditable?.(record.id)}
+                />
+              </Tooltip>
+            )}
+            <a
+              href={buildHouseDetailHref(
+                record.id,
+                inspectionDue ? undefined : 'edit',
+              )}
+            >
+              {inspectionDue ? '查看详情' : '完整编辑'}
+            </a>
             <Tooltip title="更多操作">
               <Dropdown
                 trigger={['click']}
                 menu={{
                   items: [
+                    ...(inspectionDue && hasExpiredInspection
+                      ? [
+                          {
+                            key: 'confirm-current',
+                            label: '确认资料仍有效',
+                          },
+                        ]
+                      : []),
+                    {
+                      key: 'deal-signing',
+                      disabled: !canDealSign,
+                      label: '成交签约',
+                    },
                     {
                       key: 'publish',
                       disabled:
@@ -1221,7 +1416,16 @@ const HousesPage: React.FC = () => {
                       label: isListed ? '下架' : '发布',
                     },
                   ],
-                  onClick: () => {
+                  onClick: ({ key }) => {
+                    if (key === 'confirm-current') {
+                      setConfirmCurrentHouse(record);
+                      return;
+                    }
+                    if (key === 'deal-signing') {
+                      setDealSigningHouse(record);
+                      return;
+                    }
+                    if (key !== 'publish') return;
                     if (nextStatus === HOUSE_STATUS.LISTED) {
                       const publishState = evaluateHousePublishState(
                         record,
@@ -1256,219 +1460,456 @@ const HousesPage: React.FC = () => {
     columns,
   });
 
-  const handleScopeChange = (scope: PropertyAssetScope) => {
+  const handleScopeChange = (assetScope: PropertyAssetScope) => {
     setPage(1);
-    setEstateId(scope.estateId);
-    setBuildingId(scope.buildingId);
+    setAssetAction(undefined);
+    setAssetTab('houses');
+    setEstateId(assetScope.estateId);
+    setBuildingId(assetScope.buildingId);
   };
 
-  const handleOpenStructure = (intent?: PropertyStructureIntent) => {
-    syncPropertyStructureIntent(intent);
-    setStructureOpen(true);
+  const handleAssetTabChange = (nextTab: PropertyAssetWorkspaceTab) => {
+    if (editableKeys.length || assetProfileEditing) return;
+    setAssetTab(nextTab);
   };
 
-  const handleCloseStructure = () => {
-    syncPropertyStructureIntent();
-    setStructureOpen(false);
+  const handleAssetAction = (nextAction: PropertyAssetAction) => {
+    if (editableKeys.length || assetProfileEditing) return;
+    setPage(1);
+    setAssetAction(nextAction);
+    if (nextAction.type === 'create-building' && nextAction.estateId) {
+      setEstateId(nextAction.estateId);
+      setBuildingId(undefined);
+      return;
+    }
+    if (nextAction.type === 'edit-estate') {
+      setEstateId(nextAction.estateId);
+      setBuildingId(undefined);
+      setAssetTab('profile');
+      return;
+    }
+    if (nextAction.type === 'edit-building') {
+      setEstateId(undefined);
+      setBuildingId(nextAction.buildingId);
+      setAssetTab('profile');
+    }
+  };
+
+  const handleAssetActionCancel = () => {
+    setAssetAction(undefined);
+  };
+
+  const handleAssetSaved = (
+    kind: 'estate' | 'building',
+    asset: EstateOut | BuildingOut,
+  ) => {
+    setPage(1);
+    setAssetAction(undefined);
+    setAssetTab('profile');
+    if (kind === 'estate') {
+      setEstateId(asset.id);
+      setBuildingId(undefined);
+      return;
+    }
+    setEstateId(undefined);
+    setBuildingId(asset.id);
+  };
+
+  const handleAssetDeleted = () => {
+    setPage(1);
+    setAssetAction(undefined);
+    setAssetTab('houses');
+    setEstateId(undefined);
+    setBuildingId(undefined);
   };
 
   const handleAssetNavigatorCollapsedChange = (collapsed: boolean) => {
     setAssetNavigatorCollapsed(collapsed);
     writePropertyAssetNavigatorCollapsed(collapsed, workspace.selectedOrgSlug);
   };
+  const assetNavigatorToggle = (
+    <Tooltip title={assetNavigatorCollapsed ? '展开房源范围' : '收起房源范围'}>
+      <Button
+        className={styles.assetNavigatorToggle}
+        type="text"
+        aria-label={assetNavigatorCollapsed ? '展开房源范围' : '收起侧栏'}
+        icon={
+          assetNavigatorCollapsed ? (
+            <MenuUnfoldOutlined />
+          ) : (
+            <MenuFoldOutlined />
+          )
+        }
+        onClick={() =>
+          handleAssetNavigatorCollapsedChange(!assetNavigatorCollapsed)
+        }
+      />
+    </Tooltip>
+  );
+  const handleHouseScopeChange = (nextScope: HouseScope) => {
+    if (editableKeys.length) return;
+    setPage(1);
+    setSelectedHouseIds([]);
+    setEstateId(undefined);
+    setBuildingId(undefined);
+    setAssetAction(undefined);
+    setAssetTab('houses');
+    setScope(nextScope);
+  };
+  const handleAdvancedFilterOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setAdvancedFilterDraft({
+        q: q || '',
+        status,
+        inspectionFilter,
+      });
+    }
+    setAdvancedFilterOpen(nextOpen);
+  };
+  const handleConfirmAdvancedFilters = () => {
+    setPage(1);
+    setSelectedHouseIds([]);
+    if (responsiveOverflowFilterKeys.includes('keyword')) {
+      const nextKeyword = advancedFilterDraft.q.trim() || undefined;
+      setSearchDraft(advancedFilterDraft.q);
+      setQ(nextKeyword);
+    }
+    setStatus(advancedFilterDraft.status);
+    if (!advancedFilterDraft.inspectionFilter) {
+      setInspectionDue(false);
+      setInspectionReason(undefined);
+      return;
+    }
+    setInspectionDue(true);
+    setInspectionReason(
+      advancedFilterDraft.inspectionFilter === 'due'
+        ? undefined
+        : advancedFilterDraft.inspectionFilter,
+    );
+  };
   return (
     <TenantSelectionGuard title="房源">
       <div className={styles.assetLayout}>
         <PropertyAssetNavigator
           collapsed={assetNavigatorCollapsed}
-          disabled={editableKeys.length > 0}
+          disabled={editableKeys.length > 0 || assetProfileEditing}
           enabled={enabled}
+          houseScope={scope}
           orgSlug={workspace.selectedOrgSlug}
           scope={{ estateId, buildingId }}
-          onOpenManagement={handleOpenStructure}
+          onAction={handleAssetAction}
+          onHouseScopeChange={handleHouseScopeChange}
           onScopeChange={handleScopeChange}
         />
         <div className={styles.tablePane}>
           <Card className={styles.tableCard}>
-            <EditableProTable<EditableHouseRow>
-              key={`house-table-ordering:${ordering || 'default'}`}
-              className={styles.stableEditableTable}
-              rowKey="id"
-              loading={listLoading}
-              columns={columns}
-              value={tableRows}
-              onChange={(nextRows) => setTableRows([...nextRows])}
-              recordCreatorProps={false}
-              editable={{
-                type: 'multiple',
-                editableKeys,
-                saveText: '保存',
-                cancelText: '取消',
-                onChange: (keys) => {
-                  setEditableKeys(keys);
-                  if (!keys.length) {
-                    setMediaEditorHouseId(null);
-                  }
-                },
-                onSave: async (key, record) => {
-                  const houseId = Number(key);
-                  await patchHouse.mutateAsync({
-                    id: houseId,
-                    values: buildHouseInlinePatch({
-                      ...record,
-                      media_edit: mediaDrafts[houseId] || record.media_edit,
-                    }),
-                    successMessage: '房源已更新',
-                  });
-                  setMediaEditorHouseId((current) =>
-                    current === houseId ? null : current,
-                  );
-                  setMediaDrafts((current) => {
-                    const next = { ...current };
-                    delete next[houseId];
-                    return next;
-                  });
-                },
-                onCancel: async (key) => {
-                  const houseId = Number(key);
-                  setMediaEditorHouseId((current) =>
-                    current === houseId ? null : current,
-                  );
-                  setMediaDrafts((current) => {
-                    const next = { ...current };
-                    delete next[houseId];
-                    return next;
-                  });
-                },
-                actionRender: (_row, _config, defaultDoms) => [
-                  defaultDoms.save,
-                  defaultDoms.cancel,
-                ],
-              }}
-              search={false}
-              locale={{ emptyText: emptyState }}
-              headerTitle={
-                <Tooltip
-                  title={
-                    assetNavigatorCollapsed ? '展开房源范围' : '收起房源范围'
-                  }
-                >
-                  <Button
-                    type="text"
-                    aria-label={
-                      assetNavigatorCollapsed ? '展开房源范围' : '收起侧栏'
+            <PropertyAssetWorkspace
+              action={assetAction}
+              activeTab={assetTab}
+              buildingId={buildingId}
+              estateId={estateId}
+              tabSwitchDisabled={editableKeys.length > 0}
+              onAction={handleAssetAction}
+              onActionCancel={handleAssetActionCancel}
+              onAssetDeleted={handleAssetDeleted}
+              onAssetSaved={handleAssetSaved}
+              onEditingChange={setAssetProfileEditing}
+              onScopeChange={handleScopeChange}
+              onTabChange={handleAssetTabChange}
+              tabBarExtraContent={assetNavigatorToggle}
+            >
+              <EditableProTable<EditableHouseRow>
+                key={`house-table-ordering:${ordering || 'default'}`}
+                className={cx(
+                  styles.stableEditableTable,
+                  Boolean(estateId || buildingId) && styles.scopedAssetTable,
+                )}
+                rowKey="id"
+                loading={listLoading}
+                columns={columns}
+                value={tableRows}
+                onChange={(nextRows) => setTableRows([...nextRows])}
+                recordCreatorProps={false}
+                editable={{
+                  type: 'multiple',
+                  editableKeys,
+                  saveText: '保存',
+                  cancelText: '取消',
+                  onChange: (keys) => {
+                    setEditableKeys(keys);
+                    if (!keys.length) {
+                      setMediaEditorHouseId(null);
                     }
-                    icon={
-                      assetNavigatorCollapsed ? (
-                        <MenuUnfoldOutlined />
-                      ) : (
-                        <MenuFoldOutlined />
-                      )
+                  },
+                  onSave: async (key, record) => {
+                    const houseId = Number(key);
+                    await patchHouse.mutateAsync({
+                      id: houseId,
+                      values: buildHouseInlinePatch({
+                        ...record,
+                        media_edit: mediaDrafts[houseId] || record.media_edit,
+                      }),
+                      successMessage: '房源已更新',
+                    });
+                    setMediaEditorHouseId((current) =>
+                      current === houseId ? null : current,
+                    );
+                    setMediaDrafts((current) => {
+                      const next = { ...current };
+                      delete next[houseId];
+                      return next;
+                    });
+                  },
+                  onCancel: async (key) => {
+                    const houseId = Number(key);
+                    setMediaEditorHouseId((current) =>
+                      current === houseId ? null : current,
+                    );
+                    setMediaDrafts((current) => {
+                      const next = { ...current };
+                      delete next[houseId];
+                      return next;
+                    });
+                  },
+                  actionRender: (_row, _config, defaultDoms) => [
+                    defaultDoms.save,
+                    defaultDoms.cancel,
+                  ],
+                }}
+                search={false}
+                locale={{ emptyText: emptyState }}
+                headerTitle={
+                  <Space size="small">
+                    {!estateId && !buildingId ? assetNavigatorToggle : null}
+                    <Typography.Text strong>房源列表</Typography.Text>
+                  </Space>
+                }
+                options={{
+                  density: true,
+                  reload: false,
+                  setting: true,
+                }}
+                columnsState={{
+                  value: tableColumnsState.value,
+                  onChange: tableColumnsState.onChange,
+                }}
+                rowSelection={{
+                  preserveSelectedRowKeys: true,
+                  selectedRowKeys: selectedHouseIds,
+                  getCheckboxProps: (record) => ({
+                    disabled:
+                      editableKeys.length > 0 ||
+                      record.status !== HOUSE_STATUS.LISTED ||
+                      (selectedHouseIds.length >= 100 &&
+                        !selectedHouseIds.includes(record.id)),
+                  }),
+                  onChange: (nextKeys) => {
+                    setSelectedHouseIds((current) => {
+                      const merged = mergeHouseMatchSelection(
+                        current,
+                        nextKeys,
+                      );
+                      if (
+                        merged === current &&
+                        nextKeys.length > current.length
+                      ) {
+                        message.warning('手工配房最多选择 100 套房源');
+                      }
+                      return merged;
+                    });
+                  },
+                }}
+                tableAlertRender={false}
+                tableAlertOptionRender={false}
+                toolBarRender={() => [
+                  <AdvancedFilterToolbar
+                    key="house-filters"
+                    advancedActive={Boolean(
+                      (status && status !== HOUSE_STATUS.LISTED) ||
+                        inspectionDue,
+                    )}
+                    advancedContent={
+                      <Form
+                        component={false}
+                        disabled={editableKeys.length > 0}
+                        layout="vertical"
+                        requiredMark={false}
+                      >
+                        <Form.Item label="房态">
+                          <Select<HouseStatus>
+                            aria-label="房态筛选"
+                            allowClear
+                            options={houseStatusOptions}
+                            placeholder="全部房态"
+                            value={advancedFilterDraft.status}
+                            onChange={(value) =>
+                              setAdvancedFilterDraft((current) => ({
+                                ...current,
+                                status: value,
+                              }))
+                            }
+                          />
+                        </Form.Item>
+                        <Form.Item label="勘察状态">
+                          <Select<HouseInspectionFilter>
+                            aria-label="勘察筛选"
+                            allowClear
+                            options={[
+                              { label: '待勘察', value: 'due' },
+                              { label: '缺少照片', value: 'missing_images' },
+                              { label: '缺少视频', value: 'missing_videos' },
+                              { label: '资料过期', value: 'expired' },
+                            ]}
+                            placeholder="全部勘察状态"
+                            value={advancedFilterDraft.inspectionFilter}
+                            onChange={(value) =>
+                              setAdvancedFilterDraft((current) => ({
+                                ...current,
+                                inspectionFilter: value,
+                              }))
+                            }
+                          />
+                        </Form.Item>
+                      </Form>
                     }
-                    onClick={() =>
-                      handleAssetNavigatorCollapsedChange(
-                        !assetNavigatorCollapsed,
-                      )
+                    responsiveFilters={[
+                      {
+                        key: 'keyword',
+                        priority: 10,
+                        active: Boolean(q),
+                        content: (
+                          <Input.Search
+                            allowClear
+                            disabled={editableKeys.length > 0}
+                            placeholder="搜索房号 / 小区 / 楼栋 / 房东"
+                            value={searchDraft}
+                            onChange={(event) => {
+                              const nextValue = event.target.value;
+                              setSearchDraft(nextValue);
+                              if (!nextValue) {
+                                setPage(1);
+                                setQ(undefined);
+                              }
+                            }}
+                            onSearch={(value) => {
+                              setPage(1);
+                              const nextValue = value.trim() || undefined;
+                              setSearchDraft(value);
+                              setQ(nextValue);
+                            }}
+                            style={{ width: 240 }}
+                          />
+                        ),
+                        drawerContent: (
+                          <Form.Item label="关键词">
+                            <Input
+                              allowClear
+                              aria-label="关键词高级筛选"
+                              placeholder="搜索房号 / 小区 / 楼栋 / 房东"
+                              value={advancedFilterDraft.q}
+                              onChange={(event) =>
+                                setAdvancedFilterDraft((current) => ({
+                                  ...current,
+                                  q: event.target.value,
+                                }))
+                              }
+                            />
+                          </Form.Item>
+                        ),
+                      },
+                    ]}
+                    actions={
+                      <>
+                        {selectedHouseIds.length ? (
+                          <Tooltip
+                            title={`生成配房链接（已选 ${selectedHouseIds.length} 套）`}
+                          >
+                            <Badge
+                              count={selectedHouseIds.length}
+                              className={styles.shareBadge}
+                              offset={[-2, 2]}
+                              size="small"
+                            >
+                              <Button
+                                aria-label={`生成配房链接，已选 ${selectedHouseIds.length} 套`}
+                                disabled={editableKeys.length > 0}
+                                icon={<ShareAltOutlined />}
+                                onClick={() => setHouseMatchOpen(true)}
+                              />
+                            </Badge>
+                          </Tooltip>
+                        ) : null}
+                        <Button
+                          type="primary"
+                          aria-label="新建房源"
+                          disabled={editableKeys.length > 0}
+                          icon={<PlusOutlined />}
+                          onClick={() => history.push(newHouseHref)}
+                        >
+                          新建房源
+                        </Button>
+                      </>
                     }
-                  />
-                </Tooltip>
-              }
-              options={{
-                density: true,
-                reload: false,
-                setting: true,
-              }}
-              columnsState={{
-                value: tableColumnsState.value,
-                onChange: tableColumnsState.onChange,
-              }}
-              toolBarRender={() => [
-                <Input.Search
-                  key="keyword"
-                  allowClear
-                  disabled={editableKeys.length > 0}
-                  placeholder="搜索房号 / 小区 / 楼栋 / 房东"
-                  value={searchDraft}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    setSearchDraft(nextValue);
-                    if (!nextValue) {
+                    disabled={editableKeys.length > 0}
+                    open={advancedFilterOpen}
+                    triggerAriaLabel="高级筛选"
+                    triggerText={null}
+                    onConfirm={handleConfirmAdvancedFilters}
+                    onOpenChange={handleAdvancedFilterOpenChange}
+                    onResponsiveOverflowChange={setResponsiveOverflowFilterKeys}
+                    onReset={() =>
+                      setAdvancedFilterDraft((current) => ({
+                        q: responsiveOverflowFilterKeys.includes('keyword')
+                          ? ''
+                          : current.q,
+                        status: HOUSE_STATUS.LISTED,
+                      }))
+                    }
+                  />,
+                ]}
+                ghost
+                pagination={{
+                  current: page,
+                  disabled: editableKeys.length > 0,
+                  pageSize,
+                  pageSizeOptions: HOUSE_PAGE_SIZE_OPTIONS,
+                  showSizeChanger: true,
+                  showTotal: (total) => `共 ${total} 套`,
+                  total: houses.data?.total || 0,
+                  onChange: (nextPage, nextPageSize) => {
+                    if (editableKeys.length) return;
+                    if (nextPageSize !== pageSize) {
                       setPage(1);
-                      setQ(undefined);
+                      setPageSize(nextPageSize);
+                      return;
                     }
-                  }}
-                  onSearch={(value) => {
-                    setPage(1);
-                    const nextValue = value.trim() || undefined;
-                    setSearchDraft(value);
-                    setQ(nextValue);
-                  }}
-                  style={{ width: 240 }}
-                />,
-                <Select
-                  key="status"
-                  aria-label="房态筛选"
-                  allowClear
-                  disabled={editableKeys.length > 0}
-                  placeholder="房态"
-                  options={houseStatusOptions}
-                  value={status}
-                  onChange={(value) => {
-                    setPage(1);
-                    setStatus(value);
-                  }}
-                  style={{ width: 120 }}
-                />,
-                <Button
-                  key="create"
-                  type="primary"
-                  aria-label="新建房源"
-                  disabled={editableKeys.length > 0}
-                  icon={<PlusOutlined />}
-                  onClick={() => history.push('/rental/properties/new')}
-                >
-                  新建房源
-                </Button>,
-              ]}
-              ghost
-              pagination={{
-                current: page,
-                disabled: editableKeys.length > 0,
-                pageSize,
-                pageSizeOptions: HOUSE_PAGE_SIZE_OPTIONS,
-                showSizeChanger: true,
-                showTotal: (total) => `共 ${total} 套`,
-                total: houses.data?.total || 0,
-                onChange: (nextPage, nextPageSize) => {
+                    setPage(nextPage);
+                  },
+                }}
+                scroll={{
+                  ...adminTableScroll,
+                  scrollToFirstRowOnChange: true,
+                  y:
+                    estateId || buildingId
+                      ? HOUSE_TABLE_CONTEXT_BODY_SCROLL_Y
+                      : HOUSE_TABLE_BODY_SCROLL_Y,
+                }}
+                onTableChange={(_pagination, _filters, sorter, extra) => {
                   if (editableKeys.length) return;
-                  if (nextPageSize !== pageSize) {
-                    setPage(1);
-                    setPageSize(nextPageSize);
-                    return;
-                  }
-                  setPage(nextPage);
-                },
-              }}
-              scroll={{
-                ...adminTableScroll,
-                scrollToFirstRowOnChange: true,
-                y: HOUSE_TABLE_BODY_SCROLL_Y,
-              }}
-              onTableChange={(_pagination, _filters, sorter, extra) => {
-                if (editableKeys.length) return;
-                if (extra.action !== 'sort' || Array.isArray(sorter)) return;
-                const field = getHouseOrderingField(
-                  String(sorter.columnKey || ''),
-                );
-                const nextOrdering = sorter.order
-                  ? parseHouseOrdering(
-                      `${sorter.order === 'descend' ? '-' : ''}${field}`,
-                    )
-                  : undefined;
-                setPage(1);
-                setOrdering(nextOrdering);
-              }}
-            />
+                  if (extra.action !== 'sort' || Array.isArray(sorter)) return;
+                  const field = getHouseOrderingField(
+                    String(sorter.columnKey || ''),
+                  );
+                  const nextOrdering = sorter.order
+                    ? parseHouseOrdering(
+                        `${sorter.order === 'descend' ? '-' : ''}${field}`,
+                      )
+                    : undefined;
+                  setPage(1);
+                  setOrdering(nextOrdering);
+                }}
+              />
+            </PropertyAssetWorkspace>
           </Card>
         </div>
       </div>
@@ -1489,6 +1930,42 @@ const HousesPage: React.FC = () => {
           }));
         }}
       />
+      <HouseMatchShareModal
+        open={houseMatchOpen}
+        selectedHouseIds={selectedHouseIds}
+        decorationOptions={decorationOptions}
+        onCancel={() => setHouseMatchOpen(false)}
+      />
+      <DealSigningDrawer
+        open={Boolean(dealSigningHouse)}
+        house={dealSigningHouse}
+        onClose={() => setDealSigningHouse(null)}
+      />
+      <Modal
+        open={Boolean(confirmCurrentHouse)}
+        title="确认房源资料仍有效"
+        okText="确认仍有效"
+        cancelText="返回核对"
+        confirmLoading={patchHouse.isPending}
+        onCancel={() => setConfirmCurrentHouse(null)}
+        onOk={async () => {
+          if (!confirmCurrentHouse) return;
+          await patchHouse.mutateAsync({
+            id: confirmCurrentHouse.id,
+            values: { confirm_current: true },
+            successMessage: '房源资料已确认有效',
+          });
+          setConfirmCurrentHouse(null);
+        }}
+      >
+        <Typography.Paragraph>
+          请确认已经核对“{confirmCurrentHouse?.room_number}
+          ”的房源资料，且当前信息仍然准确。
+        </Typography.Paragraph>
+        <Typography.Text type="secondary">
+          确认后会刷新资料更新时间；如果照片、视频仍有缺失，房源仍会保留在待勘察列表中。
+        </Typography.Text>
+      </Modal>
       <Modal
         open={listingConfirmStatus !== null}
         aria-label={
@@ -1529,15 +2006,6 @@ const HousesPage: React.FC = () => {
             : '确认后房源状态将切换为空置，不再对外展示。'}
         </Typography.Text>
       </Modal>
-      <Drawer
-        title="管理项目与楼栋"
-        open={structureOpen}
-        size="large"
-        destroyOnHidden
-        onClose={handleCloseStructure}
-      >
-        <EstatesPage />
-      </Drawer>
     </TenantSelectionGuard>
   );
 };

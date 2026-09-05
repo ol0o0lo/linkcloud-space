@@ -16,6 +16,7 @@ import {
   Space,
   Spin,
   Tag,
+  Tooltip,
   Typography,
   theme,
 } from 'antd';
@@ -31,11 +32,11 @@ import { type EstateMapDisplayPoint, getMapPrimaryMetric } from './map-display';
 
 const MAP_RESULT_PANEL_WIDTH = 'clamp(320px, 28vw, 390px)';
 
-function useMapResultPanelStyles() {
+function useMapResultPanelStyles(top: number) {
   const { token } = theme.useToken();
   const common: CSSProperties = {
     position: 'absolute',
-    top: 12,
+    top,
     left: 12,
     zIndex: 4,
     background: `color-mix(in srgb, ${token.colorBgElevated} 92%, transparent)`,
@@ -65,17 +66,14 @@ function useMapResultPanelStyles() {
 export function MapToolbar({
   keyword,
   houseStatus,
-  hasFilters,
   counts,
   updating,
   onKeywordChange,
   onKeywordSearch,
   onHouseStatusChange,
-  onClear,
 }: {
   keyword: string;
   houseStatus?: string;
-  hasFilters: boolean;
   counts: {
     levelLabel: string;
     located: number;
@@ -89,38 +87,73 @@ export function MapToolbar({
   onKeywordChange: (value: string) => void;
   onKeywordSearch: (value: string) => void;
   onHouseStatusChange: (value?: string) => void;
-  onClear: () => void;
 }) {
+  const { token } = theme.useToken();
+  const floatingSurface: CSSProperties = {
+    background: `color-mix(in srgb, ${token.colorBgElevated} 92%, transparent)`,
+    backdropFilter: 'blur(12px)',
+    borderColor: token.colorBorderSecondary,
+    borderRadius: token.borderRadiusLG,
+    boxShadow: token.boxShadowTertiary,
+    pointerEvents: 'auto',
+  };
+
   return (
-    <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
-      <Space wrap size={10} className="w-full">
-        <Input.Search
-          allowClear
-          value={keyword}
-          onChange={(event) => onKeywordChange(event.target.value)}
-          onSearch={onKeywordSearch}
-          placeholder="搜索小区、楼栋或地址"
-          style={{ width: 300 }}
-        />
-        <Select
-          allowClear
-          value={houseStatus}
-          onChange={onHouseStatusChange}
-          placeholder="全部房态"
-          style={{ width: 130 }}
-          options={[
-            { value: 'vacant', label: '空置' },
-            { value: 'listed', label: '招租' },
-            { value: 'rented', label: '已租' },
-            { value: 'renovating', label: '装修' },
-          ]}
-        />
-        {hasFilters ? (
-          <Button type="link" onClick={onClear}>
-            清除筛选
-          </Button>
-        ) : null}
-        <Space size={16} style={{ marginLeft: 'auto' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
+        gap: 8,
+        pointerEvents: 'none',
+      }}
+    >
+      <Card
+        size="small"
+        styles={{ body: { padding: '10px 12px' } }}
+        style={{
+          ...floatingSurface,
+          flex: '0 1 auto',
+          width: 'fit-content',
+          maxWidth: '100%',
+          minWidth: 0,
+        }}
+      >
+        <Space wrap size={8} className="w-full">
+          <Input.Search
+            allowClear
+            value={keyword}
+            onChange={(event) => onKeywordChange(event.target.value)}
+            onSearch={onKeywordSearch}
+            placeholder="搜索小区、楼栋或地址"
+            style={{ flex: '1 1 280px', minWidth: 200 }}
+          />
+          <Select
+            allowClear
+            value={houseStatus}
+            onChange={onHouseStatusChange}
+            placeholder="全部房态"
+            style={{ width: 130 }}
+            options={[
+              { value: 'vacant', label: '空置' },
+              { value: 'listed', label: '招租' },
+              { value: 'rented', label: '已租' },
+              { value: 'renovating', label: '装修' },
+            ]}
+          />
+        </Space>
+      </Card>
+      <Card
+        size="small"
+        styles={{ body: { padding: '10px 12px' } }}
+        style={{
+          ...floatingSurface,
+          flex: '0 1 auto',
+          maxWidth: '100%',
+          marginLeft: 'auto',
+        }}
+      >
+        <Space size={[12, 6]} wrap>
           <Typography.Text type="secondary">当前视野</Typography.Text>
           <Typography.Text type="secondary">
             {counts.levelLabel}{' '}
@@ -144,17 +177,14 @@ export function MapToolbar({
             待定位任务{' '}
             <Typography.Text strong>{counts.unlocated}</Typography.Text>
           </Typography.Text>
-          <Tag
-            icon={<ReloadOutlined spin={updating} />}
-            color="processing"
-            aria-hidden={!updating}
-            style={{ visibility: updating ? 'visible' : 'hidden' }}
-          >
-            正在更新地图
-          </Tag>
+          {updating ? (
+            <Typography.Text type="secondary">
+              <ReloadOutlined spin /> 更新中
+            </Typography.Text>
+          ) : null}
         </Space>
-      </Space>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
@@ -183,6 +213,7 @@ export function EstateResultPanel({
   onSelect,
   onToggleCollapsed,
   onRetry,
+  topOffset = 12,
 }: {
   points: EstateMapDisplayPoint[];
   houseStatus?: string;
@@ -194,12 +225,13 @@ export function EstateResultPanel({
   onSelect: (point: EstateMapDisplayPoint) => void;
   onToggleCollapsed: () => void;
   onRetry: () => void;
+  topOffset?: number;
 }) {
   const {
     collapsed: collapsedStyle,
     expanded: expandedStyle,
     token,
-  } = useMapResultPanelStyles();
+  } = useMapResultPanelStyles(topOffset);
 
   if (collapsed) {
     return (
@@ -214,15 +246,15 @@ export function EstateResultPanel({
         }}
         style={collapsedStyle}
       >
-        <Button
-          type="text"
-          shape="circle"
-          icon={<MenuUnfoldOutlined />}
-          aria-label="展开小区结果"
-          title="展开小区结果"
-          onClick={onToggleCollapsed}
-          style={{ width: '100%', height: '100%' }}
-        />
+        <Tooltip title="展开小区结果" placement="right">
+          <Button
+            type="text"
+            icon={<MenuUnfoldOutlined />}
+            aria-label="展开小区结果"
+            onClick={onToggleCollapsed}
+            style={{ width: '100%', height: '100%' }}
+          />
+        </Tooltip>
       </Card>
     );
   }
@@ -374,6 +406,7 @@ export function BuildingResultPanel({
   onToggleCollapsed,
   onRetryLocated,
   onRetryUnlocated,
+  topOffset = 12,
 }: {
   located: BuildingMapMarkerOut[];
   unlocated: BuildingMapUnlocatedOut[];
@@ -390,12 +423,13 @@ export function BuildingResultPanel({
   onToggleCollapsed: () => void;
   onRetryLocated: () => void;
   onRetryUnlocated: () => void;
+  topOffset?: number;
 }) {
   const {
     collapsed: collapsedStyle,
     expanded: expandedStyle,
     token,
-  } = useMapResultPanelStyles();
+  } = useMapResultPanelStyles(topOffset);
   const [showUnlocated, setShowUnlocated] = useState(false);
 
   useEffect(() => {
@@ -423,15 +457,15 @@ export function BuildingResultPanel({
         }}
         style={collapsedStyle}
       >
-        <Button
-          type="text"
-          shape="circle"
-          icon={<MenuUnfoldOutlined />}
-          aria-label="展开楼栋结果"
-          title="展开楼栋结果"
-          onClick={onToggleCollapsed}
-          style={{ width: '100%', height: '100%' }}
-        />
+        <Tooltip title="展开楼栋结果" placement="right">
+          <Button
+            type="text"
+            icon={<MenuUnfoldOutlined />}
+            aria-label="展开楼栋结果"
+            onClick={onToggleCollapsed}
+            style={{ width: '100%', height: '100%' }}
+          />
+        </Tooltip>
       </Card>
     );
   }
@@ -502,7 +536,7 @@ export function BuildingResultPanel({
                 actions={[
                   <Link
                     key="locate"
-                    to={`/rental/properties/estates?view=buildings&task=building_location&building_edit=${item.id}&return_to=${encodeURIComponent(returnTo)}`}
+                    to={`/rental/properties/list?building_id=${item.id}&asset_tab=profile&asset_action=edit-building&return_to=${encodeURIComponent(returnTo)}`}
                   >
                     立即定位
                   </Link>,

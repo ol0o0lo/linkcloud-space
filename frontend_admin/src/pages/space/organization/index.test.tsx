@@ -74,7 +74,18 @@ vi.mock('./components/InvitationWorkspacePanel', () => ({
   InvitationWorkspacePanel: () => null,
 }));
 vi.mock('./components/MemberWorkspacePanel', () => ({
-  MemberWorkspacePanel: () => null,
+  MemberWorkspacePanel: ({
+    onOpenRoleSettings,
+  }: {
+    onOpenRoleSettings?: (
+      scope: 'organization' | 'team',
+      teamId?: number,
+    ) => void;
+  }) => (
+    <button type="button" onClick={() => onOpenRoleSettings?.('team', 3)}>
+      打开成员角色设置
+    </button>
+  ),
 }));
 vi.mock('./components/OrganizationOverviewPanel', () => ({
   OrganizationOverviewPanel: () => null,
@@ -84,15 +95,14 @@ vi.mock('./components/OrganizationTreePanel', () => ({
 }));
 vi.mock('./components/TeamWorkspacePanel', () => ({
   TeamFormModal: () => null,
-  TeamWorkspacePanel: ({
-    onOpenRoleSettings,
+  TeamWorkspacePanel: () => <div>团队工作区</div>,
+}));
+vi.mock('@/pages/access', () => ({
+  RoleManagementPage: ({
+    embeddedScope,
   }: {
-    onOpenRoleSettings?: (teamId: number) => void;
-  }) => (
-    <button type="button" onClick={() => onOpenRoleSettings?.(3)}>
-      管理角色定义
-    </button>
-  ),
+    embeddedScope: { kind: 'space' | 'team' };
+  }) => <div>嵌入角色管理：{embeddedScope.kind}</div>,
 }));
 
 describe('OrganizationWorkspacePage', () => {
@@ -101,29 +111,23 @@ describe('OrganizationWorkspacePage', () => {
     mockLocation.search = '?section=members&node=all&tab=members';
   });
 
-  it('移除重复页面标题并展示统一成员工作区', () => {
+  it('空间角色在组织架构内直接显示', () => {
+    mockLocation.search = '?section=members&node=organization&tab=roles';
+
     render(<OrganizationWorkspacePage />);
 
-    expect(
-      screen.queryByRole('tab', { name: '角色权限' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText('全部成员内容')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: '组织架构' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: /邀请成员/ }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText('嵌入角色管理：space')).toBeInTheDocument();
+    expect(mockHistoryPush).not.toHaveBeenCalled();
   });
 
-  it('从团队角色授权页打开对应团队的角色定义', () => {
-    mockLocation.search = '?section=members&node=team%3A3&tab=roles';
+  it('成员角色设置切换到组织架构内的团队角色页', () => {
+    mockLocation.search = '?section=members&node=member%3A8&tab=access';
 
     render(<OrganizationWorkspacePage />);
-    fireEvent.click(screen.getByRole('button', { name: '管理角色定义' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开成员角色设置' }));
 
     expect(mockHistoryPush).toHaveBeenCalledWith(
-      '/space/access?scope=team&team=3',
+      '/space/organization?section=members&node=team%3A3&tab=roles',
     );
   });
 });

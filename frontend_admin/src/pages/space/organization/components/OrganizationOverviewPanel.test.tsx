@@ -245,7 +245,7 @@ describe('OrganizationOverviewPanel', () => {
     mockWorkspace.appContext.org.is_owner = false;
     renderPanel();
 
-    expect((await screen.findAllByText('仅 Owner 可查看')).length).toBe(2);
+    expect((await screen.findAllByText('仅所有者可查看')).length).toBe(2);
     expect(
       screen.queryByRole('button', { name: /编辑资料/ }),
     ).not.toBeInTheDocument();

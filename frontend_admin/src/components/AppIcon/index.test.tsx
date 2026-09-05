@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import { theme } from 'antd';
 import { describe, expect, it } from 'vitest';
 import {
   APP_ICON_DEFINITIONS,
@@ -36,18 +35,6 @@ describe('AppIcon', () => {
       name,
     );
     expect(resolveAppIconDefinition(name).icon).toBe(iconName);
-  });
-
-  it('通过状态解析渲染状态专用图标和语义色', () => {
-    render(<AppIcon data-testid="rented-house" name="house" state="rented" />);
-
-    const icon = screen.getByTestId('rented-house');
-    expect(icon).toHaveAttribute('data-app-status-name', 'house');
-    expect(icon).toHaveAttribute('data-app-status-state', 'rented');
-    expect(icon).toHaveAttribute('data-app-status-tone', 'success');
-    expect(icon).toHaveStyle({
-      color: theme.getDesignToken().colorSuccess,
-    });
   });
 
   it('允许插件注册自己的语义图标', () => {

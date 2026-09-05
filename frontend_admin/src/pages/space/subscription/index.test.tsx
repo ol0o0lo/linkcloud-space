@@ -1,17 +1,29 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { Modal, message } from 'antd';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriptionPage from './index';
 
-const { mockCurrent, mockPlans, mockGetOrder, mockCreateOrder } = vi.hoisted(
-  () => ({
-    mockCurrent: vi.fn(),
-    mockPlans: vi.fn(),
-    mockGetOrder: vi.fn(),
-    mockCreateOrder: vi.fn(),
-  }),
-);
+const {
+  mockCurrent,
+  mockPlans,
+  mockGetOrder,
+  mockCreateOrder,
+  mockCancelOrder,
+} = vi.hoisted(() => ({
+  mockCurrent: vi.fn(),
+  mockPlans: vi.fn(),
+  mockGetOrder: vi.fn(),
+  mockCreateOrder: vi.fn(),
+  mockCancelOrder: vi.fn(),
+}));
 
 vi.mock('../shared', () => ({
   TenantSelectionGuard: ({
@@ -37,6 +49,10 @@ vi.mock('@/services/openapi/subscriptions', () => ({
   appsSubscriptionsApiListPlans: mockPlans,
   appsSubscriptionsApiGetOrder: mockGetOrder,
   appsSubscriptionsApiCreateOrder: mockCreateOrder,
+}));
+
+vi.mock('@/services/manual/subscriptions', () => ({
+  cancelSubscriptionOrder: mockCancelOrder,
 }));
 
 describe('SubscriptionPage', () => {
@@ -92,6 +108,15 @@ describe('SubscriptionPage', () => {
       payable_amount: 29900,
       payment: { checkout: { code_url: 'weixin://wxpay/bizpayurl?pr=test' } },
     });
+    mockCancelOrder.mockResolvedValue({
+      order_no: 'S001',
+      status: 'closed',
+      close_reason: 'user_cancelled',
+    });
+  });
+
+  afterEach(() => {
+    Modal.destroyAll();
   });
 
   it('shows entitlement usage and opens a native payment QR code after purchase', async () => {
@@ -151,6 +176,85 @@ describe('SubscriptionPage', () => {
     expect(
       screen.getByText('支付完成后页面会自动同步，请勿重复创建订单。'),
     ).toBeInTheDocument();
+  });
+
+  it('确认取消待支付订单后关闭二维码并允许重新下单', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionPage />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /开通 专业版（月付）/ }),
+    );
+    expect(await screen.findByAltText('微信支付二维码')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '取消订单' }));
+    expect(
+      (await screen.findAllByText('取消当前订单？')).length,
+    ).toBeGreaterThan(0);
+    const cancelButtons = screen.getAllByRole('button', { name: '取消订单' });
+    fireEvent.click(cancelButtons[cancelButtons.length - 1]);
+
+    await waitFor(() =>
+      expect(mockCancelOrder.mock.calls[0]?.[0]).toBe('S001'),
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /开通 专业版（月付）/ }),
+    );
+    await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(2));
+  });
+
+  it('轮询发现订单关闭时关闭失效二维码', async () => {
+    const warning = vi.spyOn(message, 'warning');
+    let resolveOrder: (value: Record<string, unknown>) => void = () => {};
+    mockGetOrder.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOrder = resolve;
+      }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionPage />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /开通 专业版（月付）/ }),
+    );
+    expect(await screen.findByAltText('微信支付二维码')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockGetOrder).toHaveBeenCalledWith({ order_no: 'S001' }),
+    );
+
+    await act(async () => {
+      resolveOrder({ order_no: 'S001', status: 'closed' });
+    });
+
+    await waitFor(() => {
+      expect(
+        queryClient.getQueryData(['subscriptions', 'order', 'acme', 'S001']),
+      ).toMatchObject({ status: 'closed' });
+    });
+
+    await waitFor(() => {
+      expect(warning).toHaveBeenCalledWith('订单已关闭，请重新下单。');
+    });
+    warning.mockRestore();
   });
 
   it('hides upgrade recommendation when the current API does not recommend a plan', async () => {

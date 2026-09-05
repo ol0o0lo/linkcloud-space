@@ -14,6 +14,8 @@ import {
   SettingSchemaControl,
   buildSettingSections,
   initialDraftValue,
+  leaseAllocationRuleSettingKey,
+  LeaseAllocationRuleControl,
   parseSettingValue,
   publishRulesSettingKey,
   settingAnchorId,
@@ -110,6 +112,10 @@ const TeamSettingsPage: React.FC = () => {
       return <PublishRulesControl value={value} onCommit={onCommit} />;
     }
 
+    if (setting.key === leaseAllocationRuleSettingKey) {
+      return <LeaseAllocationRuleControl value={value} onCommit={onCommit} />;
+    }
+
     return <SettingSchemaControl setting={setting} value={value} onChange={onChange} onCommit={onCommit} />;
   };
 
@@ -145,6 +151,11 @@ const TeamSettingsPage: React.FC = () => {
               <div style={{ paddingLeft: 8 }}>
                 {section.rows.map((setting, settingIndex) => {
                   const title = setting.label || setting.key;
+                  const valueSource = (
+                    setting as API.SettingOut & {
+                      value_source?: 'default' | 'organization' | 'team';
+                    }
+                  ).value_source;
                   const description = setting.key !== publishRulesSettingKey && setting.description && setting.description !== title ? setting.description : undefined;
 
                   return (
@@ -158,6 +169,15 @@ const TeamSettingsPage: React.FC = () => {
                                 恢复默认
                               </Button>
                             </Popconfirm>
+                          ) : null}
+                          {setting.key === leaseAllocationRuleSettingKey ? (
+                            <Typography.Text type="secondary">
+                              {valueSource === 'team'
+                                ? '团队已覆盖'
+                                : valueSource === 'organization'
+                                  ? '继承空间规则'
+                                  : '使用平台默认'}
+                            </Typography.Text>
                           ) : null}
                         </Space>
                         {description ? (

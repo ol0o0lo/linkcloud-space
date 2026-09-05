@@ -211,7 +211,7 @@ export function createBuildingInfoWindowContent(
   appendLink(
     actions,
     '编辑位置',
-    `${options.adminBasePath}/rental/properties/estates?view=buildings&building_edit=${building.id}&return_to=${encodeURIComponent(options.returnTo)}`,
+    `${options.adminBasePath}/rental/properties/list?building_id=${building.id}&asset_tab=profile&asset_action=edit-building&return_to=${encodeURIComponent(options.returnTo)}`,
   );
   content.appendChild(actions);
 

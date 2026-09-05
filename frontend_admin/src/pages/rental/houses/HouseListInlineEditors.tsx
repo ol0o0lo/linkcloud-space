@@ -1,4 +1,5 @@
 import { InputNumber, Modal, Space, Typography } from 'antd';
+import type { HouseOut, HousePatchInput } from '@/services/manual/house';
 import MediaRefsUpload from '../components/MediaRefsUpload';
 import { normalizePropertyTags } from '../components/PropertyTagSelect';
 import {
@@ -119,21 +120,31 @@ export function HouseMediaInlineEditorModal({
 }
 
 function zeroIfEmpty(value: unknown) {
-  return value === '' || value === null || value === undefined ? 0 : value;
+  if (value === '' || value === null || value === undefined) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function nullIfEmpty(value: unknown) {
-  return value === '' || value === undefined ? null : value;
+function nullableNumber(value: unknown) {
+  if (value === '' || value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function nullableString(value: unknown) {
+  return typeof value === 'string' && value ? value : null;
 }
 
 export function buildHouseInlinePatch(
-  record: Record<string, unknown> & HouseInlineEditableFields,
-) {
+  record: Pick<HouseOut, 'building_id' | 'room_number'> &
+    Partial<HouseOut> &
+    HouseInlineEditableFields,
+): HousePatchInput {
   const roomLayout = record.room_layout_edit;
   const media = record.media_edit || { images: [], videos: [] };
   return {
     building_id: record.building_id,
-    landlord_id: nullIfEmpty(record.landlord_id),
+    landlord_id: nullableNumber(record.landlord_id),
     room_number: record.room_number,
     floor: zeroIfEmpty(record.floor),
     area: zeroIfEmpty(record.area),
@@ -147,8 +158,8 @@ export function buildHouseInlinePatch(
     bathrooms: zeroIfEmpty(record.bathrooms),
     kitchens: zeroIfEmpty(record.kitchens),
     balconies: zeroIfEmpty(record.balconies),
-    orientation: nullIfEmpty(record.orientation),
-    decoration: nullIfEmpty(record.decoration),
+    orientation: nullableString(record.orientation),
+    decoration: nullableString(record.decoration),
     status: record.status,
     images: stripDerivedMediaFields(media.images),
     videos: stripDerivedMediaFields(media.videos),

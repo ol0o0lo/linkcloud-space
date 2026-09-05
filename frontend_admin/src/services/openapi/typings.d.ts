@@ -14,8 +14,22 @@ declare namespace API {
     is_active: boolean;
     /** Organization Id */
     organization_id?: number | null;
+    /** Team Id */
+    team_id?: number | null;
+    /** Description */
+    description?: string;
     /** Permission Keys */
     permission_keys: string[];
+    /** Permission Count */
+    permission_count: number;
+    /** Permission Modules */
+    permission_modules: PermissionModuleSummaryOut[];
+    /** Assigned Member Count */
+    assigned_member_count?: number;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
   };
 
   type AccessRoleSummaryOut = {
@@ -38,8 +52,51 @@ declare namespace API {
     first_name?: string;
     /** Last Name */
     last_name?: string;
+    /** Email */
+    email?: string;
     /** Avatar Url */
     avatar_url?: string | null;
+  };
+
+  type AccrualEntryOut = {
+    /** Id */
+    id: number;
+    /** Organization Id */
+    organization_id: number;
+    /** Beneficiary User Id */
+    beneficiary_user_id: number;
+    /** Beneficiary Name Snapshot */
+    beneficiary_name_snapshot: string;
+    /** Entry Type */
+    entry_type: string;
+    /** Entry Type  Mapping */
+    entry_type__mapping: string;
+    /** Amount */
+    amount: string;
+    /** Currency */
+    currency: string;
+    /** Effective At */
+    effective_at: string;
+    /** Effective Month */
+    effective_month: string;
+    /** Allocation Share Id */
+    allocation_share_id: number | null;
+    /** Allocation Request Id */
+    allocation_request_id: number | null;
+    /** Reversal Of Id */
+    reversal_of_id: number | null;
+    /** Reversal Entry Id */
+    reversal_entry_id: number | null;
+    /** Reason */
+    reason: string;
+    /** Created By Id */
+    created_by_id: number;
+    /** Created By Name */
+    created_by_name: string;
+    /** Created At */
+    created_at: string;
+    /** Source Snapshot */
+    source_snapshot: Record<string, any> | null;
   };
 
   type AdminRealNameDecisionIn = {
@@ -194,6 +251,138 @@ declare namespace API {
     is_superuser?: boolean | null;
   };
 
+  type AllocationBeneficiaryOut = {
+    /** User Id */
+    user_id: number;
+    /** Name */
+    name: string;
+  };
+
+  type AllocationCapabilitiesOut = {
+    /** Submit */
+    submit: boolean;
+    /** Change Beneficiaries */
+    change_beneficiaries: boolean;
+    /** View Scope */
+    view_scope: "self" | "organization";
+    /** Review */
+    review: boolean;
+    /** Adjust */
+    adjust: boolean;
+    /** Void */
+    void: boolean;
+    /** Signing Teams */
+    signing_teams: AllocationSigningTeamOut[];
+  };
+
+  type AllocationItemOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Effect */
+    effect: string;
+    /** Effect  Mapping */
+    effect__mapping: string;
+    /** Amount */
+    amount: string;
+    /** Sort Order */
+    sort_order: number;
+    /** Remark */
+    remark: string;
+  };
+
+  type AllocationRequestOut = {
+    /** Id */
+    id: number;
+    /** Organization Id */
+    organization_id: number;
+    /** Team Id */
+    team_id: number | null;
+    /** Team Name Snapshot */
+    team_name_snapshot: string;
+    /** Rule Source */
+    rule_source: string;
+    /** Rule Source  Mapping */
+    rule_source__mapping: string;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Basis Amount */
+    basis_amount: string;
+    /** Distribution Method */
+    distribution_method: string;
+    /** Distribution Method  Mapping */
+    distribution_method__mapping: string;
+    /** Distribution Rate Bp */
+    distribution_rate_bp: number | null;
+    /** Distributable Amount */
+    distributable_amount: string;
+    /** Currency */
+    currency: string;
+    /** Source Snapshot */
+    source_snapshot: Record<string, any>;
+    /** Submitted By Id */
+    submitted_by_id: number;
+    /** Submitted By Name Snapshot */
+    submitted_by_name_snapshot: string;
+    /** Submitted At */
+    submitted_at: string;
+    /** Expires At */
+    expires_at: string;
+    /** Reviewed By Id */
+    reviewed_by_id: number | null;
+    /** Reviewed By Name Snapshot */
+    reviewed_by_name_snapshot: string;
+    /** Reviewed At */
+    reviewed_at: string | null;
+    /** Rejection Reason */
+    rejection_reason: string;
+    /** Voided By Id */
+    voided_by_id: number | null;
+    /** Voided By Name Snapshot */
+    voided_by_name_snapshot: string;
+    /** Voided At */
+    voided_at: string | null;
+    /** Void Reason */
+    void_reason: string;
+    /** Items */
+    items: AllocationItemOut[];
+    /** Shares */
+    shares: AllocationShareOut[];
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type AllocationShareOut = {
+    /** Id */
+    id: number;
+    /** Beneficiary User Id */
+    beneficiary_user_id: number;
+    /** Beneficiary Name Snapshot */
+    beneficiary_name_snapshot: string;
+    /** Weight Bp */
+    weight_bp: number;
+    /** Attributed Basis Amount */
+    attributed_basis_amount: string;
+    /** Allocated Amount */
+    allocated_amount: string;
+    /** Sort Order */
+    sort_order: number;
+    /** Remark */
+    remark: string;
+  };
+
+  type AllocationSigningTeamOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+  };
+
   type AnalyticsCollectErrorOut = {
     /** Index */
     index: number;
@@ -275,6 +464,13 @@ declare namespace API {
     unique_visitors: number | null;
     /** Metrics */
     metrics: AnalyticsMetricOut[];
+  };
+
+  type AnalyticsSourceDefinitionOut = {
+    /** Value */
+    value: string;
+    /** Label */
+    label: string;
   };
 
   type AnalyticsTargetDisplayItemOut = {
@@ -473,6 +669,15 @@ declare namespace API {
     role_id: number;
   };
 
+  type appsAccessApiListRoleMembersParams = {
+    role_id: number;
+    team_id?: number | null;
+    keyword?: string | null;
+    assignment?: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsAccessApiListTeamBindingsViewParams = {
     team_id: number;
   };
@@ -483,6 +688,11 @@ declare namespace API {
 
   type appsAccessApiPatchOrgRoleParams = {
     role_id: number;
+  };
+
+  type appsAccessApiPatchRoleMembersParams = {
+    role_id: number;
+    team_id?: number | null;
   };
 
   type appsAccessApiPatchTeamRoleParams = {
@@ -586,6 +796,41 @@ declare namespace API {
     user_id: number;
   };
 
+  type appsAllocationApiGetAllocationRequestParams = {
+    allocation_request_id: number;
+  };
+
+  type appsAllocationApiListAccrualEntriesParams = {
+    beneficiary_user_id?: number | null;
+    entry_type?: string | null;
+    effective_month?: string | null;
+    effective_from?: string | null;
+    effective_to?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsAllocationApiListAllocationBeneficiariesParams = {
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsAllocationApiListAllocationRequestsParams = {
+    status?: string | null;
+    submitted_by_id?: number | null;
+    beneficiary_user_id?: number | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsAllocationApiListMonthlyAccrualTotalsParams = {
+    beneficiary_user_id?: number | null;
+    effective_month?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsAnalyticsApiGetOverviewParams = {
     start_date?: string | null;
     end_date?: string | null;
@@ -628,6 +873,10 @@ declare namespace API {
     target_id: string;
   };
 
+  type appsHouseApiAcceptLandlordInviteParams = {
+    token: string;
+  };
+
   type appsHouseApiCheckBuildingDeleteParams = {
     building_id: number;
   };
@@ -664,12 +913,29 @@ declare namespace API {
     house_id: number;
   };
 
+  type appsHouseApiGetLandlordInviteParams = {
+    token: string;
+  };
+
+  type appsHouseApiGetLeaseAllocationRequestParams = {
+    lease_id: number;
+  };
+
   type appsHouseApiGetLeaseParams = {
     lease_id: number;
   };
 
   type appsHouseApiGetPublicHouseParams = {
     house_id: number;
+  };
+
+  type appsHouseApiGetPublicLandlordHouseParams = {
+    public_key: string;
+    house_id: number;
+  };
+
+  type appsHouseApiGetPublicLandlordProfileParams = {
+    public_key: string;
   };
 
   type appsHouseApiGetStaffResponsibilityParams = {
@@ -682,6 +948,11 @@ declare namespace API {
 
   type appsHouseApiGetViewingRecordParams = {
     record_id: number;
+  };
+
+  type appsHouseApiInviteLandlordContactParams = {
+    contact_id: number;
+    delivery_method?: "sms" | "manual";
   };
 
   type appsHouseApiListBuildingMapParams = {
@@ -742,10 +1013,35 @@ declare namespace API {
     estate_id?: number | null;
     building_id?: number | null;
     responsible_member_id?: number | null;
-    status?: string | null;
+    scope?: "all" | "mine" | null;
+    responsibility?: string | null;
+    inspection_due?: boolean;
+    inspection_reason?: "missing_images" | "missing_videos" | "expired" | null;
+    status?: HouseStatus | null;
     keyword?: string | null;
     /** 排序字段，多个字段使用英文逗号分隔，字段前的 - 表示降序，最多 3 项。允许字段：room_number、layout、building、asking_rent、deposit_amount、landlord、has_elevator_access、status、area、floor、created_at、updated_at。 */
     ordering?: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListLandlordContactHousesParams = {
+    contact_id: number;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListLandlordContactLeasesParams = {
+    contact_id: number;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListLeaseAllocationsParams = {
+    status?: string | null;
+    keyword?: string | null;
+    submitted_by_id?: number | null;
+    beneficiary_user_id?: number | null;
     page?: number;
     page_size?: number | null;
   };
@@ -785,6 +1081,12 @@ declare namespace API {
     tags?: string[] | null;
     publisher_slug?: string | null;
     sort?: "latest" | "rent_asc" | "rent_desc" | "area_asc" | "area_desc";
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListPublicLandlordHousesParams = {
+    public_key: string;
     page?: number;
     page_size?: number | null;
   };
@@ -832,6 +1134,29 @@ declare namespace API {
 
   type appsHouseApiReplaceStaffResponsibilitiesParams = {
     member_id: number;
+  };
+
+  type appsHouseApiReviewLeaseAllocationRequestParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiVoidLeaseAllocationRequestParams = {
+    lease_id: number;
+  };
+
+  type appsHouseMatchApiGetShareHouseParams = {
+    share_key: string;
+    house_id: number;
+  };
+
+  type appsHouseMatchApiGetShareParams = {
+    share_key: string;
+  };
+
+  type appsHouseMatchApiListShareHousesParams = {
+    share_key: string;
+    page?: number;
+    page_size?: number | null;
   };
 
   type appsMediaApiOssTokenParams = {
@@ -949,7 +1274,7 @@ declare namespace API {
   };
 
   type appsOrganizationsApiListMembersParams = {
-    /** 按姓名、用户名或邮箱搜索成员。 */
+    /** 按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。 */
     keyword?: string | null;
     page?: number;
     page_size?: number | null;
@@ -995,7 +1320,7 @@ declare namespace API {
   };
 
   type appsOrganizationsWorkspaceApiListWorkspaceMembersParams = {
-    /** 按姓名、用户名或邮箱搜索成员。 */
+    /** 按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。 */
     keyword?: string | null;
     /** 按可见团队筛选成员。 */
     team_id?: number | null;
@@ -1006,7 +1331,7 @@ declare namespace API {
   };
 
   type appsOrganizationsWorkspaceApiSearchWorkspaceParams = {
-    /** 团队名称、成员姓名、用户名或邮箱。 */
+    /** 团队名称、员工姓名、职位、账号姓名、用户名或邮箱。 */
     keyword?: string;
   };
 
@@ -1546,6 +1871,12 @@ declare namespace API {
     roles__mapping: string[];
     /** User Id */
     user_id: number | null;
+    /** Public Key */
+    public_key: string | null;
+    /** Landlord Binding Status */
+    landlord_binding_status: "unbound" | "invited" | "bound" | null;
+    /** Landlord Invite Expires At */
+    landlord_invite_expires_at: string | null;
     /** Notes */
     notes: string;
     /** Is Active */
@@ -1591,6 +1922,8 @@ declare namespace API {
   type CustomRoleCreateIn = {
     /** Name 角色显示名称，需在当前作用域内唯一。 */
     name: string;
+    /** Description 角色用途说明。 */
+    description?: string;
     /** Permission Keys 角色拥有的权限 key 列表。 */
     permission_keys?: string[] | null;
     /** Copy From 可选，基于现有角色复制权限配置的角色 ID。 */
@@ -1600,6 +1933,8 @@ declare namespace API {
   type CustomRolePatchIn = {
     /** Name 新的角色显示名称，需在当前作用域内唯一。 */
     name?: string | null;
+    /** Description 新的角色用途说明。 */
+    description?: string | null;
     /** Permission Keys 新的权限 key 列表。 */
     permission_keys?: string[] | null;
   };
@@ -1619,6 +1954,49 @@ declare namespace API {
     unacknowledged_announcements: number;
     /** Urgent Items */
     urgent_items?: TaskAssignmentOut[];
+  };
+
+  type DealSigningLeaseIn = {
+    /** House Id */
+    house_id: number;
+    /** Tenant Id */
+    tenant_id?: number | null;
+    tenant_identity?: DealSigningTenantIdentityIn | null;
+    /** Source Viewing Record Id */
+    source_viewing_record_id?: number | null;
+    /** Sign At */
+    sign_at?: string | null;
+    /** Start Date */
+    start_date: string;
+    /** End Date */
+    end_date: string;
+    /** Monthly Rent */
+    monthly_rent: number | string;
+    /** Deposit */
+    deposit?: number | string | null;
+    /** Payment Day */
+    payment_day?: number;
+    /** Contract Files */
+    contract_files?: Record<string, any>[];
+    /** Notes */
+    notes?: string;
+    /** Extra */
+    extra?: Record<string, any>;
+  };
+
+  type DealSigningTenantIdentityIn = {
+    /** Name */
+    name: string;
+    /** Phone */
+    phone: string;
+  };
+
+  type DealSigningWithAllocationIn = {
+    lease: DealSigningLeaseIn;
+    /** Team Id */
+    team_id?: number | null;
+    /** Beneficiary User Ids */
+    beneficiary_user_ids: number[];
   };
 
   type DefaultBuildingIn = {
@@ -1892,6 +2270,73 @@ declare namespace API {
     public_description?: string;
   };
 
+  type HouseMatchConsultantOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Avatar Url */
+    avatar_url: string | null;
+    /** Phone */
+    phone: string | null;
+  };
+
+  type HouseMatchCriteriaIn = {
+    /** Keyword */
+    keyword?: string | null;
+    /** Province */
+    province?: string | null;
+    /** City */
+    city?: string | null;
+    /** District */
+    district?: string | null;
+    /** Min Rent */
+    min_rent?: number | string | null;
+    /** Max Rent */
+    max_rent?: number | string | null;
+    /** Min Area */
+    min_area?: number | string | null;
+    /** Max Area */
+    max_area?: number | string | null;
+    /** Bedrooms */
+    bedrooms?: number | null;
+    /** Living Rooms */
+    living_rooms?: number | null;
+    /** Decoration */
+    decoration?: "raw" | "simple" | "fine" | "luxury" | null;
+    /** Has Elevator Access */
+    has_elevator_access?: boolean | null;
+    /** Tags */
+    tags?: string[];
+    /** Sort */
+    sort?: "latest" | "rent_asc" | "rent_desc" | "area_asc" | "area_desc";
+  };
+
+  type HouseMatchShareCreateIn = {
+    /** Title */
+    title: string;
+    /** Remark */
+    remark?: string;
+    /** Mode */
+    mode: "manual" | "dynamic";
+    /** House Ids */
+    house_ids?: number[];
+    criteria?: HouseMatchCriteriaIn | null;
+    /** Expires At */
+    expires_at?: string | null;
+  };
+
+  type HouseMatchShareCreateOut = {
+    /** Share Key */
+    share_key: string;
+    /** Share Url */
+    share_url: string;
+    /** Expires At */
+    expires_at: string | null;
+    /** Created At */
+    created_at: string;
+  };
+
   type HouseOut = {
     /** Id */
     id: number;
@@ -1933,8 +2378,7 @@ declare namespace API {
     decoration__mapping: string;
     /** Has Elevator Access */
     has_elevator_access: boolean;
-    /** Status */
-    status: string;
+    status: HouseStatus;
     /** Status  Mapping */
     status__mapping: string;
     /** Images */
@@ -1951,9 +2395,19 @@ declare namespace API {
     internal_notes: string;
     /** Extra */
     extra: Record<string, any>;
+    /** Updated At */
+    updated_at: string;
+    /** Inspection Reasons */
+    inspection_reasons: ("missing_images" | "missing_videos" | "expired")[];
+    /** Inspection Due At */
+    inspection_due_at: string | null;
+    /** Inspection Max Age Days */
+    inspection_max_age_days: number | null;
   };
 
   type HousePatchIn = {
+    /** Confirm Current */
+    confirm_current?: boolean;
     /** Building Id */
     building_id?: number | null;
     /** Landlord Id */
@@ -1986,8 +2440,7 @@ declare namespace API {
     decoration?: string | null;
     /** Has Elevator Access */
     has_elevator_access?: boolean | null;
-    /** Status */
-    status?: string | null;
+    status?: HouseStatus | null;
     /** Images */
     images?: Record<string, any>[] | null;
     /** Videos */
@@ -2001,6 +2454,8 @@ declare namespace API {
     /** Extra */
     extra?: Record<string, any> | null;
   };
+
+  type HouseStatus = "vacant" | "listed" | "rented" | "renovating" | "inactive";
 
   type HouseSummaryOut = {
     /** Id */
@@ -2168,6 +2623,129 @@ declare namespace API {
     created_at: string;
   };
 
+  type LandlordHouseOut = {
+    /** Id */
+    id: number;
+    /** Building Id */
+    building_id: number;
+    building: BuildingSummaryOut;
+    /** Landlord Id */
+    landlord_id: number | null;
+    landlord: ContactSummaryOut | null;
+    /** Room Number */
+    room_number: string;
+    /** Floor */
+    floor: number | null;
+    /** Area */
+    area: string | null;
+    /** Interior Area */
+    interior_area: string | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Deposit Amount */
+    deposit_amount: string | null;
+    /** Bedrooms */
+    bedrooms: number | null;
+    /** Living Rooms */
+    living_rooms: number | null;
+    /** Bathrooms */
+    bathrooms: number | null;
+    /** Kitchens */
+    kitchens: number | null;
+    /** Balconies */
+    balconies: number | null;
+    /** Orientation */
+    orientation: string | null;
+    /** Orientation  Mapping */
+    orientation__mapping: string;
+    /** Decoration */
+    decoration: string | null;
+    /** Decoration  Mapping */
+    decoration__mapping: string;
+    /** Has Elevator Access */
+    has_elevator_access: boolean;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Images */
+    images: Record<string, any>[];
+    /** Videos */
+    videos: Record<string, any>[];
+    /** Tags */
+    tags: string[];
+    /** Effective Tags */
+    effective_tags: string[];
+    /** Public Description */
+    public_description: string;
+  };
+
+  type LandlordInvitationAcceptOut = {
+    /** Contact Id */
+    contact_id: number;
+    /** Organization Id */
+    organization_id: number;
+    /** Organization Name */
+    organization_name: string;
+    /** Public Key */
+    public_key: string;
+  };
+
+  type LandlordInvitationOut = {
+    /** Organization Name */
+    organization_name: string;
+    /** Contact Name */
+    contact_name: string;
+    /** Invitee Phone Masked */
+    invitee_phone_masked: string;
+    /** Expires At */
+    expires_at: string;
+    /** Action Url */
+    action_url?: string | null;
+  };
+
+  type LandlordRelationshipOut = {
+    /** Contact Id */
+    contact_id: number;
+    /** Organization Id */
+    organization_id: number;
+    /** Organization Name */
+    organization_name: string;
+    /** Organization Slug */
+    organization_slug: string;
+    /** Contact Name */
+    contact_name: string;
+    /** House Count */
+    house_count: number;
+    /** Public House Count */
+    public_house_count: number;
+    /** Public Key */
+    public_key: string;
+    /** Public Url */
+    public_url: string;
+  };
+
+  type LeaseAllocationOut = {
+    /** Id */
+    id: number;
+    lease: LeaseOut;
+    allocation_request: AllocationRequestOut;
+    /** Created At */
+    created_at: string;
+  };
+
+  type LeaseAllocationReviewIn = {
+    /** Decision */
+    decision: "approve" | "reject";
+    /** Reason */
+    reason?: string;
+  };
+
+  type LeaseAllocationVoidIn = {
+    /** Reason */
+    reason: string;
+  };
+
   type LeaseIn = {
     /** House Id */
     house_id: number;
@@ -2260,6 +2838,27 @@ declare namespace API {
     extra?: Record<string, any> | null;
   };
 
+  type LeaseWithAllocationIn = {
+    lease: LeaseIn;
+    /** Team Id */
+    team_id?: number | null;
+    /** Beneficiary User Ids */
+    beneficiary_user_ids: number[];
+  };
+
+  type ManualAccrualEntryIn = {
+    /** Beneficiary User Id */
+    beneficiary_user_id: number;
+    /** Entry Type */
+    entry_type: "manual_increase" | "manual_decrease";
+    /** Amount */
+    amount: number | string;
+    /** Effective Month */
+    effective_month: string;
+    /** Reason */
+    reason: string;
+  };
+
   type MediaFileConfirmIn = {
     /** Oss Path 对象存储中的文件路径。 */
     oss_path: string;
@@ -2321,6 +2920,10 @@ declare namespace API {
     /** Organization */
     organization: number;
     user: OrgUserOut;
+    /** Employee Name */
+    employee_name?: string;
+    /** Job Title */
+    job_title?: string;
     /** Is Owner */
     is_owner: boolean;
     /** Created At */
@@ -2332,6 +2935,10 @@ declare namespace API {
   type MemberPatchIn = {
     /** Is Owner 是否修改为租户 owner。 */
     is_owner?: boolean | null;
+    /** Employee Name 员工在当前租户内使用的姓名。 */
+    employee_name?: string | null;
+    /** Job Title 员工在当前租户内的职位。 */
+    job_title?: string | null;
   };
 
   type MemberSearchOut = {
@@ -2396,6 +3003,27 @@ declare namespace API {
     notify_count?: number;
     /** Unread Count */
     unread_count?: number;
+  };
+
+  type MonthlyAccrualTotalOut = {
+    /** Beneficiary User Id */
+    beneficiary_user_id: number;
+    /** Beneficiary Name Snapshot */
+    beneficiary_name_snapshot: string;
+    /** Effective Month */
+    effective_month: string;
+    /** Allocation Amount */
+    allocation_amount: string;
+    /** Manual Increase Amount */
+    manual_increase_amount: string;
+    /** Manual Decrease Amount */
+    manual_decrease_amount: string;
+    /** Reversal Amount */
+    reversal_amount: string;
+    /** Total Amount */
+    total_amount: string;
+    /** Entry Count */
+    entry_count: number;
   };
 
   type NotificationActorOut = {
@@ -2711,6 +3339,17 @@ declare namespace API {
     expires_at: string;
   };
 
+  type PagedAccrualEntryOut = {
+    /** Items */
+    items: AccrualEntryOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedAdminRealNameVerificationRowOut = {
     /** Items */
     items: AdminRealNameVerificationRowOut[];
@@ -2725,6 +3364,28 @@ declare namespace API {
   type PagedAdminUserOut = {
     /** Items */
     items: AdminUserOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedAllocationBeneficiaryOut = {
+    /** Items */
+    items: AllocationBeneficiaryOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedAllocationRequestOut = {
+    /** Items */
+    items: AllocationRequestOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2865,6 +3526,28 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedLandlordHouseOut = {
+    /** Items */
+    items: LandlordHouseOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedLeaseAllocationOut = {
+    /** Items */
+    items: LeaseAllocationOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedLeaseOut = {
     /** Items */
     items: LeaseOut[];
@@ -2879,6 +3562,17 @@ declare namespace API {
   type PagedMemberOut = {
     /** Items */
     items: MemberOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMonthlyAccrualTotalOut = {
+    /** Items */
+    items: MonthlyAccrualTotalOut[];
     /** Total */
     total: number;
     /** Page */
@@ -2945,6 +3639,17 @@ declare namespace API {
   type PagedReferralRecordOut = {
     /** Items */
     items: ReferralRecordOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedRoleMemberOptionOut = {
+    /** Items */
+    items: RoleMemberOptionOut[];
     /** Total */
     total: number;
     /** Page */
@@ -3081,6 +3786,15 @@ declare namespace API {
     idempotency_key: string;
   };
 
+  type PermissionModuleSummaryOut = {
+    /** Key */
+    key: string;
+    /** Name */
+    name: string;
+    /** Count */
+    count: number;
+  };
+
   type PermissionOut = {
     /** Key */
     key: string;
@@ -3090,6 +3804,10 @@ declare namespace API {
     app_label: string;
     /** Codename */
     codename: string;
+    /** Module Key */
+    module_key: string;
+    /** Module Name */
+    module_name: string;
   };
 
   type PhoneCodeVerifyIn = {
@@ -3296,6 +4014,20 @@ declare namespace API {
     updated_at: string;
   };
 
+  type PublicHouseMatchShareOut = {
+    /** Title */
+    title: string;
+    /** Remark */
+    remark: string;
+    /** Mode */
+    mode: string;
+    /** Created At */
+    created_at: string;
+    /** Expires At */
+    expires_at: string | null;
+    consultant: HouseMatchConsultantOut | null;
+  };
+
   type PublicInviteOut = {
     /** Organization Name */
     organization_name: string;
@@ -3309,6 +4041,20 @@ declare namespace API {
     is_expired: boolean;
     /** Is Already Member */
     is_already_member: boolean;
+  };
+
+  type PublicLandlordProfileOut = {
+    /** Public Key */
+    public_key: string;
+    /** Name */
+    name: string;
+    /** Avatar */
+    avatar: ResolvedMediaRefOut[];
+    /** Phone */
+    phone: string;
+    organization: PublicPublisherOut;
+    /** House Count */
+    house_count: number;
   };
 
   type PublicPublisherOut = {
@@ -3664,6 +4410,58 @@ declare namespace API {
     role: number;
   };
 
+  type RoleManagementCapabilitiesOut = {
+    /** Role View */
+    role_view: boolean;
+    /** Role Manage */
+    role_manage: boolean;
+    /** Team Role View Ids */
+    team_role_view_ids: number[];
+    /** Team Role Manage Ids */
+    team_role_manage_ids: number[];
+  };
+
+  type RoleManagementNavigationOut = {
+    /** Space Role Count */
+    space_role_count: number;
+    /** Space Assigned Member Count */
+    space_assigned_member_count: number;
+    /** Teams */
+    teams: RoleManagementTeamOut[];
+    capabilities: RoleManagementCapabilitiesOut;
+  };
+
+  type RoleManagementTeamOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Role Count */
+    role_count: number;
+    /** Assigned Member Count */
+    assigned_member_count: number;
+  };
+
+  type RoleMemberAssignmentIn = {
+    /** Add User Ids */
+    add_user_ids?: number[];
+    /** Remove User Ids */
+    remove_user_ids?: number[];
+  };
+
+  type RoleMemberAssignmentOut = {
+    /** Assigned Member Count */
+    assigned_member_count: number;
+  };
+
+  type RoleMemberOptionOut = {
+    /** Member Id */
+    member_id: number;
+    user: AccessUserOut;
+    /** Assigned */
+    assigned: boolean;
+  };
+
   type SaaSOrderOut = {
     /** Id */
     id: number;
@@ -3730,6 +4528,8 @@ declare namespace API {
     category: string;
     /** Is Customized */
     is_customized: boolean;
+    /** Value Source */
+    value_source: "default" | "organization" | "team";
   };
 
   type SettingsOut = {
@@ -4464,6 +5264,10 @@ declare namespace API {
     /** Member Id */
     member_id: number;
     user: OrgUserOut;
+    /** Employee Name */
+    employee_name?: string;
+    /** Job Title */
+    job_title?: string;
     /** Is Owner */
     is_owner: boolean;
     /** Teams */

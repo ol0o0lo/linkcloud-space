@@ -402,7 +402,7 @@ export default function HouseLocationPoiCard({
   const mapHref = coordinates
     ? `/dashboard/rental/properties/map?selected_building_id=${buildingId}&center_lat=${coordinates.lat.toFixed(6)}&center_lng=${coordinates.lng.toFixed(6)}&zoom=16`
     : undefined;
-  const editHref = `/dashboard/rental/properties/estates?view=buildings&task=building_location&building_edit=${buildingId}&return_to=${encodeURIComponent(returnTo)}`;
+  const editHref = `/dashboard/rental/properties/list?building_id=${buildingId}&asset_tab=profile&asset_action=edit-building&return_to=${encodeURIComponent(returnTo)}`;
 
   return (
     <Card

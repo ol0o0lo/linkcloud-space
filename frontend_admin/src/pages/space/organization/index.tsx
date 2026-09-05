@@ -4,9 +4,9 @@ import { history, useLocation } from '@umijs/max';
 import { Alert, Button, Card, Drawer, Grid, message, Skeleton } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { drawerWidthSm } from '@/pages/_shared/adminLayout';
+import { RoleManagementPage } from '@/pages/access';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import { appsOrganizationsWorkspaceApiGetNavigation } from '@/services/openapi/organizationWorkspace';
-import { buildRoleManagementPath } from '@/utils/adminRouting';
 import { AllMembersPanel } from './components/AllMembersPanel';
 import { InvitationWorkspacePanel } from './components/InvitationWorkspacePanel';
 import { InviteMemberModal } from './components/InviteMemberModal';
@@ -143,11 +143,11 @@ const OrganizationWorkspacePage: React.FC = () => {
     scope: 'organization' | 'team' = 'organization',
     teamId?: number,
   ) => {
-    const target =
-      scope === 'team' && teamId
-        ? buildRoleManagementPath('team', teamId)
-        : buildRoleManagementPath('space');
-    void unsavedGuard.requestTransition(() => history.push(target));
+    if (scope === 'team' && teamId) {
+      navigate({ section: 'members', node: `team:${teamId}`, tab: 'roles' });
+      return;
+    }
+    selectOrganizationTab('roles');
   };
 
   const renderMembersContent = () => {
@@ -215,6 +215,13 @@ const OrganizationWorkspacePage: React.FC = () => {
           />
         );
       }
+      if (routeState.tab === 'roles') {
+        return (
+          <Card>
+            <RoleManagementPage embeddedScope={{ kind: 'space' }} />
+          </Card>
+        );
+      }
     }
     if (routeState.node === 'ungrouped') {
       return (
@@ -259,9 +266,6 @@ const OrganizationWorkspacePage: React.FC = () => {
           }}
           onDirtyStateChange={setUnsavedRegistration}
           onOpenMember={openMember}
-          onOpenRoleSettings={(selectedTeamId) =>
-            openRoleManagement('team', selectedTeamId)
-          }
           onTabChange={(tab) => navigate({ tab })}
         />
       );
@@ -274,7 +278,9 @@ const OrganizationWorkspacePage: React.FC = () => {
       ? 'organization'
       : routeState.node === 'organization' && routeState.tab === 'invites'
         ? 'invites'
-        : undefined;
+        : routeState.node === 'organization' && routeState.tab === 'roles'
+          ? 'roles'
+          : undefined;
 
   const tree = (
     <OrganizationTreePanel
@@ -296,7 +302,7 @@ const OrganizationWorkspacePage: React.FC = () => {
       }}
       onOpenRoles={() => {
         setTreeDrawerOpen(false);
-        openRoleManagement();
+        selectOrganizationTab('roles');
       }}
       onOpenInvites={() => {
         setTreeDrawerOpen(false);

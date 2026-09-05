@@ -1,15 +1,15 @@
 import {
   DeleteOutlined,
   EditOutlined,
+  LockOutlined,
   MenuOutlined,
   MoreOutlined,
   PlusOutlined,
   SearchOutlined,
-  TeamOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { history, useLocation } from '@umijs/max';
-import type { MenuProps, TableColumnsType, TreeDataNode } from 'antd';
+import type { MenuProps, TableColumnsType } from 'antd';
 import {
   Alert,
   App,
@@ -31,12 +31,14 @@ import {
   Statistic,
   Table,
   Tag,
-  Tree,
   Typography,
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useEffect, useMemo, useState } from 'react';
+import { AppIcon } from '@/components/AppIcon';
+import { TreeSectionHeader } from '@/components/TreeSectionHeader';
 import {
+  AdminToolbar,
   adminTableScroll,
   drawerWidthLg,
   fixedPagePagination,
@@ -68,6 +70,73 @@ type DrawerMode = 'view' | 'edit' | 'create' | 'members' | null;
 type RoleTypeFilter = 'all' | 'system' | 'custom';
 type AssignmentFilter = 'all' | 'assigned' | 'unassigned';
 type MemberChange = { original: boolean; next: boolean };
+type PermissionFormGroup = {
+  key: string;
+  name: string;
+  items: PermissionOption[];
+};
+
+const PermissionGroupSelector: React.FC<{
+  groupClassName: string;
+  groups: PermissionFormGroup[];
+  headerClassName: string;
+  onChange?: (value: string[]) => void;
+  value?: string[];
+}> = ({ groupClassName, groups, headerClassName, onChange, value = [] }) => (
+  <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+    {groups.map((group) => {
+      const groupKeys = new Set(
+        group.items.map((permission) => permission.key),
+      );
+      const selectedCount = group.items.filter((permission) =>
+        value.includes(permission.key),
+      ).length;
+      const updateGroup = (checked: boolean) => {
+        const otherKeys = value.filter((key) => !groupKeys.has(key));
+        onChange?.(
+          checked
+            ? [...otherKeys, ...group.items.map((permission) => permission.key)]
+            : otherKeys,
+        );
+      };
+
+      return (
+        <div key={group.key} className={groupClassName}>
+          <div className={headerClassName}>
+            <Typography.Text strong>{group.name}</Typography.Text>
+            <Checkbox
+              aria-label={`全选${group.name}`}
+              checked={selectedCount === group.items.length}
+              indeterminate={
+                selectedCount > 0 && selectedCount < group.items.length
+              }
+              onChange={(event) => updateGroup(event.target.checked)}
+            >
+              全选
+            </Checkbox>
+          </div>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {group.items.map((permission) => (
+              <Checkbox
+                key={permission.key}
+                checked={value.includes(permission.key)}
+                onChange={(event) => {
+                  onChange?.(
+                    event.target.checked
+                      ? [...value, permission.key]
+                      : value.filter((key) => key !== permission.key),
+                  );
+                }}
+              >
+                {permission.name}
+              </Checkbox>
+            ))}
+          </div>
+        </div>
+      );
+    })}
+  </Space>
+);
 
 function readRequestedScope(search: string) {
   const params = new URLSearchParams(search);
@@ -112,11 +181,18 @@ function permissionGroups(
   return [...groups.entries()].map(([key, value]) => ({ key, ...value }));
 }
 
-const RoleManagementPage: React.FC = () => {
+export type RoleManagementPageProps = {
+  embeddedScope?: RoleScope;
+};
+
+export const RoleManagementPage: React.FC<RoleManagementPageProps> = ({
+  embeddedScope,
+}) => {
   const { styles } = useRoleManagementStyles();
   const { message, modal } = App.useApp();
   const screens = Grid.useBreakpoint();
   const isNarrow = !screens.md;
+  const embedded = Boolean(embeddedScope);
   const location = useLocation();
   const workspace = useTenantWorkspace();
   const requestedScope = useMemo(
@@ -124,7 +200,6 @@ const RoleManagementPage: React.FC = () => {
     [location.search],
   );
   const [scopeSearch, setScopeSearch] = useState('');
-  const [roleSearch, setRoleSearch] = useState('');
   const [roleType, setRoleType] = useState<RoleTypeFilter>('all');
   const [moduleFilter, setModuleFilter] = useState<string>();
   const [assignedOnly, setAssignedOnly] = useState(false);
@@ -156,25 +231,27 @@ const RoleManagementPage: React.FC = () => {
     requestedScope.kind === 'team'
       ? navigation?.teams.find((team) => team.id === requestedScope.teamId)
       : undefined;
-  const currentScope: RoleScope | undefined = requestedScope.requested
-    ? requestedScope.kind === 'space'
-      ? { kind: 'space' }
-      : requestedTeam
-        ? {
-            kind: 'team',
-            teamId: requestedTeam.id,
-            teamName: requestedTeam.name,
-          }
-        : undefined
-    : navigation?.capabilities.role_view
-      ? { kind: 'space' }
-      : defaultTeam
-        ? {
-            kind: 'team',
-            teamId: defaultTeam.id,
-            teamName: defaultTeam.name,
-          }
-        : undefined;
+  const currentScope: RoleScope | undefined = embeddedScope
+    ? embeddedScope
+    : requestedScope.requested
+      ? requestedScope.kind === 'space'
+        ? { kind: 'space' }
+        : requestedTeam
+          ? {
+              kind: 'team',
+              teamId: requestedTeam.id,
+              teamName: requestedTeam.name,
+            }
+          : undefined
+      : navigation?.capabilities.role_view
+        ? { kind: 'space' }
+        : defaultTeam
+          ? {
+              kind: 'team',
+              teamId: defaultTeam.id,
+              teamName: defaultTeam.name,
+            }
+          : undefined;
   const canView = Boolean(
     currentScope?.kind === 'space'
       ? navigation?.capabilities.role_view
@@ -193,13 +270,26 @@ const RoleManagementPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!navigation || requestedScope.requested || !currentScope) return;
+    if (embedded || !navigation || requestedScope.requested || !currentScope)
+      return;
     history.replace(
       currentScope.kind === 'space'
         ? buildRoleManagementPath('space')
         : buildRoleManagementPath('team', currentScope.teamId),
     );
-  }, [currentScope, navigation, requestedScope.requested]);
+  }, [currentScope, embedded, navigation, requestedScope.requested]);
+
+  const currentScopeKey = scopeKey(currentScope);
+
+  useEffect(() => {
+    setDrawerMode(null);
+    setSelectedRole(null);
+    setCopySourceId(undefined);
+    setMemberChanges({});
+    setMemberKeyword('');
+    setMemberFilter('all');
+    setMemberPage(1);
+  }, [currentScopeKey]);
 
   const rolesQuery = useQuery({
     queryKey: [
@@ -240,15 +330,7 @@ const RoleManagementPage: React.FC = () => {
     return [...modules.entries()].map(([value, label]) => ({ value, label }));
   }, [permissionsQuery.data, roleItems]);
   const filteredRoles = useMemo(() => {
-    const keyword = roleSearch.trim().toLocaleLowerCase();
     return roleItems.filter((role) => {
-      if (
-        keyword &&
-        !`${role.name} ${role.description}`
-          .toLocaleLowerCase()
-          .includes(keyword)
-      )
-        return false;
       if (roleType === 'system' && !role.is_system) return false;
       if (roleType === 'custom' && role.is_system) return false;
       if (
@@ -259,7 +341,7 @@ const RoleManagementPage: React.FC = () => {
       if (assignedOnly && role.assigned_member_count === 0) return false;
       return true;
     });
-  }, [assignedOnly, moduleFilter, roleItems, roleSearch, roleType]);
+  }, [assignedOnly, moduleFilter, roleItems, roleType]);
 
   const currentTeamSummary =
     currentScope?.kind === 'team'
@@ -476,68 +558,103 @@ const RoleManagementPage: React.FC = () => {
       .toLocaleLowerCase()
       .includes(scopeSearch.trim().toLocaleLowerCase()),
   );
-  const scopeTreeData: TreeDataNode[] = [
-    ...(navigation?.capabilities.role_view &&
-    (!scopeSearch || '空间角色'.includes(scopeSearch.trim()))
-      ? [
-          {
-            key: 'space-group',
-            title: '空间范围',
-            selectable: false,
-            children: [
-              {
-                key: 'space',
-                title: (
-                  <span className={styles.scopeTitle}>
-                    <span className={styles.scopeName}>空间角色</span>
-                    <span className={styles.scopeCount}>
-                      {navigation.space_role_count}
-                    </span>
-                  </span>
-                ),
-              },
-            ],
-          },
-        ]
-      : []),
-    ...(filteredTeams.length
-      ? [
-          {
-            key: 'team-group',
-            title: '团队范围',
-            selectable: false,
-            children: filteredTeams.map((team) => ({
-              key: `team:${team.id}`,
-              title: (
-                <span className={styles.scopeTitle}>
-                  <span className={styles.scopeName}>{team.name}</span>
-                  <span className={styles.scopeCount}>{team.role_count}</span>
-                </span>
-              ),
-            })),
-          },
-        ]
-      : []),
-  ];
+  const normalizedScopeSearch = scopeSearch.trim().toLocaleLowerCase();
+  const showScopeSearch = (navigation?.teams || []).length > 8;
+  const showSpaceScope = Boolean(navigation?.capabilities.role_view);
+  const hasScopeSearchResult = normalizedScopeSearch
+    ? filteredTeams.length > 0
+    : showSpaceScope || filteredTeams.length > 0;
 
   const renderScopeNavigation = () => (
     <>
-      <Input
-        allowClear
-        prefix={<SearchOutlined />}
-        placeholder="搜索团队或空间"
-        value={scopeSearch}
-        onChange={(event) => setScopeSearch(event.target.value)}
-      />
-      <Tree
-        blockNode
-        className={styles.scopeTree}
-        defaultExpandAll
-        selectedKeys={currentScope ? [scopeKey(currentScope)] : []}
-        showLine={{ showLeafIcon: false }}
-        treeData={scopeTreeData}
-        onSelect={(keys) => keys[0] && selectScope(keys[0])}
-      />
+      {showScopeSearch ? (
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="搜索团队"
+          value={scopeSearch}
+          onChange={(event) => setScopeSearch(event.target.value)}
+        />
+      ) : null}
+      <div className={styles.scopeNavigationBody}>
+        {showSpaceScope ? (
+          <div className={styles.scopePrimaryLinks}>
+            <div
+              className={styles.scopeRow}
+              data-active={currentScope?.kind === 'space'}
+            >
+              <AppIcon name="key" />
+              <Button
+                type="text"
+                className={styles.scopeRowButton}
+                aria-current={
+                  currentScope?.kind === 'space' ? 'page' : undefined
+                }
+                onClick={() => selectScope('space')}
+              >
+                空间角色
+              </Button>
+              <span className={`${styles.scopeCount} role-scope-count`}>
+                {navigation?.space_role_count || 0}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        {filteredTeams.length ? (
+          <>
+            <TreeSectionHeader
+              title="团队角色"
+              count={`${filteredTeams.length} 个团队`}
+            />
+            <div className={styles.scopeTeamList}>
+              {filteredTeams.map((team) => (
+                <div
+                  className={styles.scopeRow}
+                  data-active={
+                    currentScope?.kind === 'team' &&
+                    currentScope.teamId === team.id
+                  }
+                  key={team.id}
+                >
+                  <AppIcon name="team" />
+                  <Button
+                    type="text"
+                    className={styles.scopeRowButton}
+                    aria-current={
+                      currentScope?.kind === 'team' &&
+                      currentScope.teamId === team.id
+                        ? 'page'
+                        : undefined
+                    }
+                    onClick={() => selectScope(`team:${team.id}`)}
+                  >
+                    {team.name}
+                  </Button>
+                  <span className={`${styles.scopeCount} role-scope-count`}>
+                    {team.role_count}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {!hasScopeSearchResult ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              normalizedScopeSearch
+                ? '没有找到匹配的团队'
+                : '没有可访问的作用范围'
+            }
+          >
+            {normalizedScopeSearch ? (
+              <Button onClick={() => setScopeSearch('')}>清空搜索</Button>
+            ) : null}
+          </Empty>
+        ) : null}
+      </div>
     </>
   );
 
@@ -547,7 +664,7 @@ const RoleManagementPage: React.FC = () => {
       dataIndex: 'name',
       width: 300,
       render: (_value, role) => (
-        <div>
+        <div className={styles.roleIdentity}>
           <Button
             type="link"
             className={styles.roleNameButton}
@@ -599,19 +716,10 @@ const RoleManagementPage: React.FC = () => {
     {
       title: '操作',
       dataIndex: 'actions',
-      width: 260,
-      align: 'center',
+      width: 210,
+      align: 'right',
       render: (_value, role) => {
         const menuItems: MenuProps['items'] = [
-          ...(role.is_system || !canManage
-            ? []
-            : [
-                {
-                  key: 'edit',
-                  icon: <EditOutlined />,
-                  label: '编辑角色',
-                },
-              ]),
           ...(canManage ? [{ key: 'copy', label: '复制角色' }] : []),
           ...(role.is_system || !canManage
             ? []
@@ -627,9 +735,16 @@ const RoleManagementPage: React.FC = () => {
         ];
         return (
           <Space size="small">
-            <Button type="link" size="small" onClick={() => openView(role)}>
-              查看权限
-            </Button>
+            {!role.is_system && canManage ? (
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => openEdit(role)}
+              >
+                编辑
+              </Button>
+            ) : null}
             {canManage ? (
               <Button
                 type="link"
@@ -644,7 +759,6 @@ const RoleManagementPage: React.FC = () => {
                 menu={{
                   items: menuItems,
                   onClick: ({ key }) => {
-                    if (key === 'edit') openEdit(role);
                     if (key === 'copy') openCreate(role);
                     if (key === 'delete') confirmDelete(role);
                   },
@@ -757,29 +871,11 @@ const RoleManagementPage: React.FC = () => {
               />
             ) : (
               <Form.Item name="permission_keys" noStyle>
-                <Checkbox.Group style={{ width: '100%' }}>
-                  <Space
-                    orientation="vertical"
-                    size="middle"
-                    style={{ width: '100%' }}
-                  >
-                    {permissionFormGroups.map((group) => (
-                      <div key={group.key} className={styles.permissionGroup}>
-                        <Typography.Text strong>{group.name}</Typography.Text>
-                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          {group.items.map((permission) => (
-                            <Checkbox
-                              key={permission.key}
-                              value={permission.key}
-                            >
-                              {permission.name}
-                            </Checkbox>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </Space>
-                </Checkbox.Group>
+                <PermissionGroupSelector
+                  groupClassName={styles.permissionGroup}
+                  groups={permissionFormGroups}
+                  headerClassName={styles.permissionGroupHeader}
+                />
               </Form.Item>
             )}
           </Form.Item>
@@ -1039,10 +1135,12 @@ const RoleManagementPage: React.FC = () => {
     if (navigationQuery.isLoading) {
       return (
         <div className={styles.workspace}>
-          <aside className={styles.scopeNavigator}>
-            <Skeleton active paragraph={{ rows: 6 }} />
-          </aside>
-          <main className={styles.content}>
+          {!embedded ? (
+            <aside className={styles.scopeNavigator}>
+              <Skeleton active paragraph={{ rows: 6 }} />
+            </aside>
+          ) : null}
+          <main className={embedded ? styles.embeddedContent : styles.content}>
             <Skeleton active paragraph={{ rows: 8 }} />
           </main>
         </div>
@@ -1050,7 +1148,7 @@ const RoleManagementPage: React.FC = () => {
     }
     if (navigationQuery.isError) {
       return (
-        <div className={styles.content}>
+        <div className={embedded ? styles.embeddedContent : styles.content}>
           <Alert
             type="error"
             showIcon
@@ -1070,7 +1168,7 @@ const RoleManagementPage: React.FC = () => {
       !navigation?.capabilities.team_role_view_ids.length
     ) {
       return (
-        <div className={styles.content}>
+        <div className={embedded ? styles.embeddedContent : styles.content}>
           <Alert
             type="warning"
             showIcon
@@ -1083,17 +1181,21 @@ const RoleManagementPage: React.FC = () => {
     if (!currentScope || !canView) {
       return (
         <div className={styles.workspace}>
-          {!isNarrow ? (
+          {!embedded && !isNarrow ? (
             <aside className={styles.scopeNavigator}>
               {renderScopeNavigation()}
             </aside>
           ) : null}
-          <main className={styles.content}>
+          <main className={embedded ? styles.embeddedContent : styles.content}>
             <Alert
               type="warning"
               showIcon
               title="无权查看所选作用范围"
-              description="该团队不存在、已被删除，或当前账号没有查看权限。请从左侧选择可访问范围。"
+              description={
+                embedded
+                  ? '当前账号没有查看该角色范围的权限。'
+                  : '该团队不存在、已被删除，或当前账号没有查看权限。请从左侧选择可访问范围。'
+              }
             />
           </main>
         </div>
@@ -1101,27 +1203,72 @@ const RoleManagementPage: React.FC = () => {
     }
     return (
       <div className={styles.workspace}>
-        {!isNarrow ? (
+        {!embedded && !isNarrow ? (
           <aside className={styles.scopeNavigator}>
             {renderScopeNavigation()}
           </aside>
         ) : null}
-        <main className={styles.content} aria-label="角色列表">
-          <div className={styles.mobileScopeBar}>
-            <Space>
-              <TeamOutlined />
-              <Typography.Text strong>
+        <main
+          className={embedded ? styles.embeddedContent : styles.content}
+          aria-label="角色列表"
+        >
+          {!embedded ? (
+            <div className={styles.mobileScopeBar}>
+              <Space>
+                <AppIcon
+                  name={currentScope.kind === 'space' ? 'key' : 'team'}
+                />
+                <Typography.Text strong>
+                  {currentScope.kind === 'space'
+                    ? '空间角色'
+                    : currentScope.teamName}
+                </Typography.Text>
+              </Space>
+              <Button
+                icon={<MenuOutlined />}
+                onClick={() => setScopeDrawerOpen(true)}
+              >
+                切换范围
+              </Button>
+            </div>
+          ) : null}
+          <div className={styles.scopeContext}>
+            <span className={styles.scopeContextIcon}>
+              <AppIcon name={currentScope.kind === 'space' ? 'key' : 'team'} />
+            </span>
+            <div className={styles.scopeContextCopy}>
+              <div className={styles.scopeContextTitleRow}>
+                <Typography.Title
+                  level={5}
+                  className={styles.scopeContextTitle}
+                >
+                  {currentScope.kind === 'space'
+                    ? '空间角色'
+                    : `${currentScope.teamName} · 团队角色`}
+                </Typography.Title>
+                <Tag color={currentScope.kind === 'space' ? 'blue' : undefined}>
+                  {currentScope.kind === 'space' ? '空间范围' : '团队范围'}
+                </Tag>
+              </div>
+              <Typography.Text
+                type="secondary"
+                className={styles.scopeContextDescription}
+              >
                 {currentScope.kind === 'space'
-                  ? '空间角色'
-                  : currentScope.teamName}
+                  ? '管理当前空间通用的访问角色、权限与成员授权。'
+                  : '系统角色由空间统一维护，各团队独立分配；自定义角色仅在当前团队生效。'}
               </Typography.Text>
-            </Space>
-            <Button
-              icon={<MenuOutlined />}
-              onClick={() => setScopeDrawerOpen(true)}
-            >
-              切换范围
-            </Button>
+            </div>
+            {canManage ? (
+              <Button
+                type="primary"
+                className={styles.scopeContextAction}
+                icon={<PlusOutlined />}
+                onClick={() => openCreate()}
+              >
+                新建角色
+              </Button>
+            ) : null}
           </div>
           <div className={styles.summaryStrip}>
             {[
@@ -1134,10 +1281,52 @@ const RoleManagementPage: React.FC = () => {
                 <Statistic
                   title={title}
                   value={value}
-                  styles={{ content: { fontSize: 20 } }}
+                  styles={{ content: { fontSize: 18 } }}
                 />
               </div>
             ))}
+          </div>
+          <div className={styles.roleListToolbar}>
+            <AdminToolbar>
+              <Select
+                className={styles.toolbarSelect}
+                value={roleType}
+                options={[
+                  { label: '全部类型', value: 'all' },
+                  { label: '系统角色', value: 'system' },
+                  { label: '自定义角色', value: 'custom' },
+                ]}
+                onChange={setRoleType}
+              />
+              {moduleOptions.length > 0 || moduleFilter ? (
+                <Select
+                  allowClear
+                  className={styles.toolbarSelect}
+                  placeholder="权限模块"
+                  value={moduleFilter}
+                  options={moduleOptions}
+                  onChange={setModuleFilter}
+                />
+              ) : null}
+              <Checkbox
+                checked={assignedOnly}
+                onChange={(event) => setAssignedOnly(event.target.checked)}
+              >
+                仅看已授权
+              </Checkbox>
+              {roleType !== 'all' || moduleFilter || assignedOnly ? (
+                <Button
+                  type="link"
+                  onClick={() => {
+                    setRoleType('all');
+                    setModuleFilter(undefined);
+                    setAssignedOnly(false);
+                  }}
+                >
+                  清除筛选
+                </Button>
+              ) : null}
+            </AdminToolbar>
           </div>
           {rolesQuery.isError ? (
             <Alert
@@ -1169,7 +1358,6 @@ const RoleManagementPage: React.FC = () => {
                     {roleItems.length ? (
                       <Button
                         onClick={() => {
-                          setRoleSearch('');
                           setRoleType('all');
                           setModuleFilter(undefined);
                           setAssignedOnly(false);
@@ -1192,73 +1380,11 @@ const RoleManagementPage: React.FC = () => {
     );
   };
 
-  return (
-    <TenantSelectionGuard title="角色管理">
-      <Typography.Paragraph type="secondary" className={styles.pageDescription}>
-        统一管理空间与团队角色、权限及成员授权。
-      </Typography.Paragraph>
-      <Card className={styles.workbenchCard}>
-        <div className={styles.toolbar}>
-          <Input
-            allowClear
-            className={styles.toolbarSearch}
-            prefix={<SearchOutlined />}
-            placeholder="搜索角色名称或描述"
-            value={roleSearch}
-            onChange={(event) => setRoleSearch(event.target.value)}
-          />
-          <Select
-            className={styles.toolbarSelect}
-            value={roleType}
-            options={[
-              { label: '全部类型', value: 'all' },
-              { label: '系统角色', value: 'system' },
-              { label: '自定义角色', value: 'custom' },
-            ]}
-            onChange={setRoleType}
-          />
-          <Select
-            allowClear
-            className={styles.toolbarSelect}
-            placeholder="权限模块"
-            value={moduleFilter}
-            options={moduleOptions}
-            onChange={setModuleFilter}
-          />
-          <Checkbox
-            checked={assignedOnly}
-            onChange={(event) => setAssignedOnly(event.target.checked)}
-          >
-            仅看已授权
-          </Checkbox>
-          <Button
-            onClick={() => {
-              setRoleSearch('');
-              setRoleType('all');
-              setModuleFilter(undefined);
-              setAssignedOnly(false);
-            }}
-          >
-            重置
-          </Button>
-          <div className={styles.toolbarSpacer} />
-          {canManage ? (
-            <Button
-              type="primary"
-              className={styles.toolbarPrimary}
-              icon={<PlusOutlined />}
-              onClick={() => openCreate()}
-            >
-              新建角色
-            </Button>
-          ) : null}
-        </div>
-        {renderContent()}
-      </Card>
-
+  const drawers = (
+    <>
       <Drawer
         title="选择作用范围"
-        open={scopeDrawerOpen}
+        open={!embedded && scopeDrawerOpen}
         size={drawerWidthLg}
         onClose={() => setScopeDrawerOpen(false)}
       >
@@ -1270,11 +1396,19 @@ const RoleManagementPage: React.FC = () => {
         size={drawerWidthLg}
         destroyOnHidden
         extra={
-          drawerMode === 'view' &&
-          selectedRole &&
-          !selectedRole.is_system &&
-          canManage ? (
-            <Button onClick={() => openEdit(selectedRole)}>编辑</Button>
+          drawerMode === 'view' && selectedRole ? (
+            selectedRole.is_system ? (
+              <Typography.Text type="secondary">
+                <LockOutlined /> 系统角色不可编辑
+              </Typography.Text>
+            ) : canManage ? (
+              <Button
+                icon={<EditOutlined />}
+                onClick={() => openEdit(selectedRole)}
+              >
+                编辑角色
+              </Button>
+            ) : null
           ) : null
         }
         footer={drawerFooter}
@@ -1282,6 +1416,25 @@ const RoleManagementPage: React.FC = () => {
       >
         {renderDrawerContent()}
       </Drawer>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {renderContent()}
+        {drawers}
+      </>
+    );
+  }
+
+  return (
+    <TenantSelectionGuard title="角色管理">
+      <Typography.Paragraph type="secondary" className={styles.pageDescription}>
+        统一管理空间与团队角色、权限及成员授权。
+      </Typography.Paragraph>
+      <Card className={styles.workbenchCard}>{renderContent()}</Card>
+      {drawers}
     </TenantSelectionGuard>
   );
 };

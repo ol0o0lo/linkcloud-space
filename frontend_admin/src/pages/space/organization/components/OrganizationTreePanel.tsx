@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { AppIcon } from '@/components/AppIcon';
 import { TreeSectionHeader } from '@/components/TreeSectionHeader';
 import { formatPersonLabel, useTenantWorkspace } from '@/pages/space/shared';
+import { getWorkspaceMemberEmployeeName } from '@/services/manual/organizationMembers';
 import {
   appsOrganizationsWorkspaceApiListWorkspaceMembers,
   appsOrganizationsWorkspaceApiSearchWorkspace,
@@ -31,7 +32,7 @@ type MemberPage = {
   total: number;
 };
 
-export type OrganizationTreeUtility = 'organization' | 'invites';
+export type OrganizationTreeUtility = 'organization' | 'roles' | 'invites';
 
 export const OrganizationTreePanel: React.FC<{
   activeUtility?: OrganizationTreeUtility;
@@ -361,7 +362,8 @@ export const OrganizationTreePanel: React.FC<{
                           onSelect(`member:${member.member_id}`);
                         }}
                       >
-                        {formatPersonLabel(member.user)}
+                        {getWorkspaceMemberEmployeeName(member) ||
+                          formatPersonLabel(member.user)}
                       </Button>
                       <span
                         className={`${styles.treeCount} organization-row-count`}
@@ -482,7 +484,9 @@ export const OrganizationTreePanel: React.FC<{
                           renderLeafRow({
                             node: `member:${member.member_id}`,
                             icon: <AppIcon name="member" />,
-                            label: formatPersonLabel(member.user),
+                            label:
+                              getWorkspaceMemberEmployeeName(member) ||
+                              formatPersonLabel(member.user),
                             nested: true,
                           }),
                         )}
@@ -584,7 +588,9 @@ export const OrganizationTreePanel: React.FC<{
                     renderLeafRow({
                       node: `member:${member.member_id}`,
                       icon: <AppIcon name="member" />,
-                      label: formatPersonLabel(member.user),
+                      label:
+                        getWorkspaceMemberEmployeeName(member) ||
+                        formatPersonLabel(member.user),
                       nested: true,
                     }),
                   )}
@@ -628,6 +634,7 @@ export const OrganizationTreePanel: React.FC<{
           <Button
             type="text"
             className={styles.treeFooterButton}
+            data-active={activeUtility === 'roles'}
             aria-label="角色管理"
             icon={<AppIcon name="key" />}
             onClick={onOpenRoles}

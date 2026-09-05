@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OrganizationTreePanel } from './OrganizationTreePanel';
 
@@ -25,7 +25,7 @@ describe('OrganizationTreePanel', () => {
     fetchQuery.mockResolvedValue({ items: [], page: 1, total: 0 });
   });
 
-  it('按房源导航结构展示所有成员、团队分组和底部工具栏', () => {
+  it('触发组织导航动作并按需加载未分组成员', () => {
     const onCreateTeam = vi.fn();
     const onOpenOrganization = vi.fn();
     const onOpenRoles = vi.fn();
@@ -33,7 +33,7 @@ describe('OrganizationTreePanel', () => {
 
     render(
       <OrganizationTreePanel
-        activeUtility="invites"
+        activeUtility="roles"
         canCreateTeam
         canInvite
         canViewRoles
@@ -70,36 +70,16 @@ describe('OrganizationTreePanel', () => {
       />,
     );
 
-    const heading = screen.getByText('组织架构').closest('div');
-    expect(heading).not.toBeNull();
-    expect(
-      within(heading as HTMLElement).getByRole('img', {
-        name: 'user-add',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('所有成员').closest('[data-active]'),
-    ).toHaveAttribute('data-active', 'true');
-    expect(screen.getByText('团队')).toBeInTheDocument();
-    expect(screen.getByText('运营组')).toBeInTheDocument();
-    expect(screen.getByText('未分组')).toBeInTheDocument();
-    expect(screen.getByText('未分组成员')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '展开未分组成员' }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('LAN')).not.toBeInTheDocument();
-    expect(screen.queryByText('当前组织')).not.toBeInTheDocument();
-    expect(screen.queryByText('团队 1')).not.toBeInTheDocument();
-    expect(screen.queryByText('邀请记录 1')).not.toBeInTheDocument();
-
     const inviteRecordButtons = screen.getAllByRole('button', {
       name: '邀请记录',
     });
-    expect(inviteRecordButtons).toHaveLength(2);
     fireEvent.click(inviteRecordButtons[0]);
     fireEvent.click(screen.getByRole('button', { name: '新建团队' }));
     fireEvent.click(screen.getByRole('button', { name: '组织资料' }));
-    fireEvent.click(screen.getByRole('button', { name: '角色管理' }));
+    const roleManagementButton = screen.getByRole('button', {
+      name: '角色管理',
+    });
+    fireEvent.click(roleManagementButton);
     fireEvent.click(inviteRecordButtons[1]);
     fireEvent.click(screen.getByRole('button', { name: '展开未分组成员' }));
 

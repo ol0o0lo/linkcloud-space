@@ -6,6 +6,7 @@ vi.mock('@umijs/max', () => ({ request: mockRequest }));
 
 import {
   browserAnalyticsIdentity,
+  getAnalyticsSources,
   trackAnalyticsEvent,
 } from './analytics';
 
@@ -57,5 +58,13 @@ describe('analytics client', () => {
         },
       }),
     );
+  });
+
+  it('从后端获取分析来源定义', async () => {
+    await getAnalyticsSources();
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/analytics/sources/', {
+      method: 'GET',
+    });
   });
 });

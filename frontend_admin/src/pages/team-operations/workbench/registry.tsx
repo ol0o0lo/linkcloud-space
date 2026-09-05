@@ -4,6 +4,7 @@ import type {
   WorkbenchWidgetWidth,
 } from './layout/model';
 import { AnnouncementSummaryWidget } from './widgets/mine/AnnouncementSummaryWidget';
+import { HouseInspectionWidget } from './widgets/mine/HouseInspectionWidget';
 import { MineQuickActionsWidget } from './widgets/mine/MineQuickActionsWidget';
 import { PriorityTasksWidget } from './widgets/mine/PriorityTasksWidget';
 import { TaskProgressWidget } from './widgets/mine/TaskProgressWidget';
@@ -33,6 +34,14 @@ export const mineWidgetDefinitions = [
     component: PriorityTasksWidget,
     defaultWidth: 2,
     allowedWidths: [2, 3],
+    defaultVisible: true,
+  },
+  {
+    id: 'mine-inspections',
+    title: '待勘察房源',
+    component: HouseInspectionWidget,
+    defaultWidth: 2,
+    allowedWidths: [1, 2, 3],
     defaultVisible: true,
   },
   {

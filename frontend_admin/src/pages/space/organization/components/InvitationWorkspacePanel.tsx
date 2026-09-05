@@ -153,7 +153,7 @@ export const InvitationWorkspacePanel: React.FC<{
       width: 150,
       render: (_value, record) =>
         record.is_owner ? (
-          <Tag color="gold">Owner</Tag>
+          <Tag color="gold">所有者</Tag>
         ) : record.access_role ? (
           roleNameById.get(record.access_role) || '组织角色'
         ) : (

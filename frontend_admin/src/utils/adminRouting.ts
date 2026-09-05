@@ -2,6 +2,11 @@ export const ADMIN_BASE_PATH = '/dashboard';
 export const LOGIN_PATH = '/user/login';
 export const REGISTER_PATH = '/user/register';
 export const REGISTER_RESULT_PATH = '/user/register-result';
+export const VERIFY_PHONE_PATH = '/user/verify-phone';
+export const PASSWORD_RESET_PATH = '/user/password/reset';
+export const PASSWORD_RESET_CONFIRM_PATH = '/user/password/reset/key';
+export const EMAIL_CONFIRM_PATH = '/user/confirm-email';
+export const SOCIAL_LOGIN_ERROR_PATH = '/user/social/error';
 
 export const RENTAL_PATHS = {
   root: '/rental',
@@ -20,6 +25,7 @@ export const RENTAL_PATHS = {
   customers: '/rental/customers',
   viewings: '/rental/viewings',
   leases: '/rental/leases',
+  earnings: '/rental/earnings',
   analytics: '/rental/analytics',
 } as const;
 
@@ -43,6 +49,7 @@ export const SPACE_PATHS = {
 } as const;
 
 export const DEFAULT_POST_LOGIN_PATH = RENTAL_PATHS.workbenchOverview;
+export const DEFAULT_PROPERTY_LIST_PATH = `${RENTAL_PATHS.propertyList}?scope=all&status=listed`;
 
 export type RoleManagementScope = 'space' | 'team';
 
@@ -58,7 +65,14 @@ export function buildRoleManagementPath(
   return `${SPACE_PATHS.access}?${params.toString()}`;
 }
 
-const AUTH_PATHS = new Set([LOGIN_PATH, REGISTER_PATH, REGISTER_RESULT_PATH]);
+const AUTH_PATHS = new Set([
+  LOGIN_PATH,
+  REGISTER_PATH,
+  REGISTER_RESULT_PATH,
+  VERIFY_PHONE_PATH,
+  PASSWORD_RESET_PATH,
+  SOCIAL_LOGIN_ERROR_PATH,
+]);
 
 export function normalizeAdminPath(path?: string | null) {
   const value = (path || '').trim();
@@ -85,6 +99,66 @@ export function buildAdminPath(
   return `${normalizeAdminPath(pathname)}${search}${hash}`;
 }
 
+function parseSafeAdminRedirect(value?: string | null) {
+  const redirect = (value || '').trim();
+  if (!redirect.startsWith('/') || redirect.startsWith('//')) {
+    return undefined;
+  }
+
+  try {
+    const baseUrl = new URL('https://admin.local');
+    const parsed = new URL(redirect, baseUrl);
+    if (parsed.origin !== baseUrl.origin) {
+      return undefined;
+    }
+    const normalized = buildAdminPath(
+      parsed.pathname,
+      parsed.search,
+      parsed.hash,
+    );
+    return normalized.startsWith('//') ? undefined : normalized;
+  } catch (_error) {
+    return undefined;
+  }
+}
+
+export function getSafeAdminRedirect(
+  value?: string | null,
+  fallback: string = DEFAULT_POST_LOGIN_PATH,
+): string {
+  return parseSafeAdminRedirect(value) || fallback;
+}
+
+export function buildAuthRedirectPath(
+  authPath: string,
+  redirect?: string | null,
+) {
+  const safeRedirect = parseSafeAdminRedirect(redirect);
+  if (!safeRedirect) {
+    return authPath;
+  }
+  const params = new URLSearchParams({ redirect: safeRedirect });
+  return `${authPath}?${params.toString()}`;
+}
+
 export function isAuthPagePath(pathname?: string | null) {
-  return AUTH_PATHS.has(normalizeAdminPath(pathname));
+  const normalized = normalizeAdminPath(pathname);
+  return (
+    AUTH_PATHS.has(normalized) ||
+    normalized.startsWith(`${PASSWORD_RESET_CONFIRM_PATH}/`) ||
+    normalized.startsWith(`${EMAIL_CONFIRM_PATH}/`)
+  );
+}
+
+export function isPublicPagePath(pathname?: string | null) {
+  return normalizeAdminPath(pathname).startsWith('/landlords/');
+}
+
+export function isAnonymousPagePath(pathname?: string | null) {
+  const normalized = normalizeAdminPath(pathname);
+  return (
+    isAuthPagePath(normalized) ||
+    normalized.startsWith('/landlord-invitations/') ||
+    isPublicPagePath(normalized)
+  );
 }

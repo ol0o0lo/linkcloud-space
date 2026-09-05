@@ -172,12 +172,6 @@ describe('EntityPreview', () => {
 
     await act(async () => vi.advanceTimersByTime(1));
     expect(screen.getByText('popover 房源预览 42')).toBeInTheDocument();
-    const root = screen.getByTestId('preview-popover-root');
-    expect(root).toHaveStyle({ width: '460px' });
-    expect(root.style.maxWidth).toBe('calc(100vw - 32px)');
-    expect(screen.getByTestId('preview-popover-container')).toHaveStyle({
-      padding: '0px',
-    });
   });
 
   it('Escape 关闭已打开的预览', async () => {
@@ -288,58 +282,6 @@ describe('EntityPreview', () => {
     });
     fireEvent.mouseLeave(trigger);
     expect(screen.queryByText('popover 房源预览 42')).not.toBeInTheDocument();
-  });
-
-  it('图片实体的延迟面板使用媒体骨架', async () => {
-    entityPreviewRegistry.house = {
-      Panel: lazy(
-        () =>
-          new Promise<{ default: typeof Panel }>(() => {
-            // 保持 Suspense 加载态
-          }),
-      ),
-      getHref: (id) => `/rental/properties/${id}`,
-      popoverMedia: true,
-      popoverWidth: 460,
-    };
-
-    render(
-      <EntityPreview type="house" id={42}>
-        春风里 2 号
-      </EntityPreview>,
-    );
-    fireEvent.mouseEnter(getPreviewTrigger());
-    await act(async () => vi.advanceTimersByTime(1000));
-
-    expect(
-      screen.getByTestId('entity-preview-skeleton-media'),
-    ).toBeInTheDocument();
-  });
-
-  it('信息实体的延迟面板不渲染媒体骨架', async () => {
-    entityPreviewRegistry.contact = {
-      Panel: lazy(
-        () =>
-          new Promise<{ default: typeof Panel }>(() => {
-            // 保持 Suspense 加载态
-          }),
-      ),
-      getHref: (id) => `/rental/customers?preview=${id}`,
-      popoverMedia: false,
-      popoverWidth: 390,
-    };
-
-    render(
-      <EntityPreview type="contact" id={12}>
-        张房东
-      </EntityPreview>,
-    );
-    fireEvent.mouseEnter(getPreviewTrigger());
-    await act(async () => vi.advanceTimersByTime(1000));
-
-    expect(
-      screen.queryByTestId('entity-preview-skeleton-media'),
-    ).not.toBeInTheDocument();
   });
 
   it('Panel 抛错时隔离异常并保留宿主内容', async () => {

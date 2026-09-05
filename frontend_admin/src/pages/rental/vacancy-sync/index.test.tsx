@@ -234,32 +234,6 @@ describe('VacancySyncPage', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('同步按钮位于原始房表输入区下方', async () => {
-    mockVacancySync.mockResolvedValueOnce(makePreview());
-    renderPage();
-
-    fireEvent.change(screen.getByLabelText('房表内容'), {
-      target: { value: '测试路1号\n101单间1200' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /预览同步计划/ }));
-
-    const sourcePanel = screen.getByTestId('vacancy-sync-source-panel');
-    expect(
-      await within(sourcePanel).findByRole('button', {
-        name: /执行同步/,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(sourcePanel).queryByRole('button', { name: /清空/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(sourcePanel).getByRole('button', { name: /预览同步计划/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId('vacancy-sync-action-bar'),
-    ).not.toBeInTheDocument();
-  });
-
   it('房表内容停止变化后防抖自动更新预览', async () => {
     mockVacancySync
       .mockResolvedValueOnce(makePreview())

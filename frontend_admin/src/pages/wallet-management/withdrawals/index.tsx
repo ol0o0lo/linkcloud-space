@@ -9,11 +9,11 @@ import {
   Input,
   Modal,
   Space,
-  Tag,
   Typography,
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useRef, useState } from 'react';
+import { AppStatusTag } from '@/components/AppStatus';
 import { PageContainer } from '@/components/PageContainer';
 import {
   adminTableScroll,
@@ -50,7 +50,6 @@ type PayoutState = {
 
 type WithdrawalInsight = WithdrawalWithMapping & {
   status_label: string;
-  status_color: string;
   is_review_pending: boolean;
   is_ready_for_payout: boolean;
   is_paying: boolean;
@@ -71,7 +70,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'gold',
         is_review_pending: true,
         is_ready_for_payout: false,
         is_paying: false,
@@ -82,7 +80,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'blue',
         is_review_pending: false,
         is_ready_for_payout: true,
         is_paying: false,
@@ -93,7 +90,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'cyan',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: true,
@@ -104,7 +100,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'red',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -115,7 +110,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'default',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -126,7 +120,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'default',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -137,7 +130,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'green',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -148,7 +140,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'default',
         is_review_pending: false,
         is_ready_for_payout: false,
         is_paying: false,
@@ -227,7 +218,11 @@ const WalletWithdrawalsPage: React.FC = () => {
       dataIndex: 'status_label',
       width: 140,
       align: 'center',
-      render: (_value, record) => <Tag color={record.status_color}>{record.status_label}</Tag>,
+      render: (_value, record) => (
+        <AppStatusTag name="wallet.withdrawal" state={record.status}>
+          {record.status_label}
+        </AppStatusTag>
+      ),
     },
     {
       title: '资金结果',

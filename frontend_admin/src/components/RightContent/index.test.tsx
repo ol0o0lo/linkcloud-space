@@ -9,7 +9,10 @@ const mockSetSelectedOrgSlug = vi.fn((value) => value);
 const mockFetchQuery = vi.fn();
 const mockInvalidateQueries = vi.fn();
 const mockGetTeamOperationsCapabilities = vi.fn();
+const mockGetNavigationAccessCapabilities = vi.fn();
 const mockHistoryReplace = vi.fn();
+const mockMessageError = vi.fn();
+const mockMessageWarning = vi.fn();
 
 vi.mock('@umijs/max', () => ({
   useModel: () => ({
@@ -46,6 +49,7 @@ vi.mock('antd', () => ({
     options,
     placeholder,
     prefix,
+    loading,
     suffixIcon,
     value,
     onChange,
@@ -53,6 +57,7 @@ vi.mock('antd', () => ({
     <div
       aria-expanded={false}
       aria-label={ariaLabel}
+      data-loading={loading ? 'true' : 'false'}
       data-suffix-icon={suffixIcon === null ? 'none' : 'default'}
       role="combobox"
       tabIndex={0}
@@ -80,6 +85,10 @@ vi.mock('antd', () => ({
     <button {...props}>{children}</button>
   ),
   Tooltip: ({ children }: any) => <>{children}</>,
+  message: {
+    error: mockMessageError,
+    warning: mockMessageWarning,
+  },
 }));
 
 vi.mock('@/services/openapi/organizations', () => ({
@@ -89,6 +98,10 @@ vi.mock('@/services/openapi/organizations', () => ({
 
 vi.mock('@/services/manual/teamOperations', () => ({
   getTeamOperationsCapabilities: mockGetTeamOperationsCapabilities,
+}));
+
+vi.mock('@/services/manual/navigationAccess', () => ({
+  getNavigationAccessCapabilities: mockGetNavigationAccessCapabilities,
 }));
 
 vi.mock('@/utils/orgSelection', () => ({
@@ -127,6 +140,15 @@ describe('OrgSwitcher', () => {
       task_organization_manage: true,
       task_team_ids: [],
     });
+    mockGetNavigationAccessCapabilities.mockResolvedValue({
+      role_management: true,
+      organization_settings: true,
+      team_settings: true,
+      subscriptions: true,
+      analytics: true,
+      allocation: true,
+      notification_dispatches: true,
+    });
   });
 
   it('selects an organization through the backend and refreshes tenant caches', async () => {
@@ -148,33 +170,53 @@ describe('OrgSwitcher', () => {
       expect(mockSetSelectedOrgSlug).toHaveBeenCalledWith('beta');
       expect(mockSetInitialState).toHaveBeenCalled();
       expect(mockGetTeamOperationsCapabilities).toHaveBeenCalled();
+      expect(mockGetNavigationAccessCapabilities).toHaveBeenCalled();
       expect(mockInvalidateQueries).toHaveBeenCalled();
+    });
+    const updateState = mockSetInitialState.mock.calls[0][0];
+    expect(updateState({ existing: true })).toMatchObject({
+      existing: true,
+      selectedOrgSlug: 'beta',
+      navigationCapabilities: {
+        subscriptions: true,
+        role_management: true,
+      },
     });
   });
 
-  it('labels the organization selector as the current space', async () => {
+  it('切换接口失败时保留原空间并显示错误', async () => {
+    mockSelectOrg.mockRejectedValueOnce(new Error('network'));
     const { OrgSwitcher } = await import('./index');
 
     render(<OrgSwitcher />);
+    fireEvent.click(screen.getByRole('button', { name: 'Beta' }));
 
-    expect(
-      screen.getByRole('combobox', { name: '当前空间' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('当前空间')).toBeInTheDocument();
-    expect(screen.getByText('选择空间')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: '当前空间' })).toHaveAttribute(
-      'data-suffix-icon',
-      'none',
-    );
+    await waitFor(() => {
+      expect(mockMessageError).toHaveBeenCalledWith(
+        '空间切换失败，请稍后重试。',
+      );
+    });
+    expect(mockSetSelectedOrgSlug).not.toHaveBeenCalled();
+    expect(mockSetInitialState).not.toHaveBeenCalled();
   });
 
-  it('does not expose a clear action for the current space selector', async () => {
+  it('权限刷新失败时安全清空对应权限并提示刷新', async () => {
+    mockGetNavigationAccessCapabilities.mockRejectedValueOnce(
+      new Error('network'),
+    );
     const { OrgSwitcher } = await import('./index');
 
     render(<OrgSwitcher />);
+    fireEvent.click(screen.getByRole('button', { name: 'Beta' }));
 
+    await waitFor(() => {
+      expect(mockMessageWarning).toHaveBeenCalledWith(
+        '空间已切换，但部分权限或数据刷新失败，请刷新页面重试。',
+      );
+    });
+    const updateState = mockSetInitialState.mock.calls[0][0];
     expect(
-      screen.queryByRole('button', { name: '清空' }),
-    ).not.toBeInTheDocument();
+      updateState({ navigationCapabilities: { subscriptions: true } }),
+    ).toMatchObject({ navigationCapabilities: undefined });
   });
 });

@@ -293,10 +293,10 @@ const MediaRefsUpload: React.FC<Props> = ({
           style={{
             width: CARD_SIZE,
             height: CARD_SIZE,
-            border: '1px solid #d9d9d9',
+            border: '1px solid var(--ant-color-border)',
             borderRadius: 8,
             overflow: 'hidden',
-            background: '#fafafa',
+            background: 'var(--ant-color-fill-quaternary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -336,9 +336,9 @@ const MediaRefsUpload: React.FC<Props> = ({
         style={{
           width: CARD_SIZE,
           height: CARD_SIZE,
-          border: '1px dashed #d9d9d9',
+          border: '1px dashed var(--ant-color-border)',
           borderRadius: 8,
-          background: '#fafafa',
+          background: 'var(--ant-color-fill-quaternary)',
           cursor: uploading ? 'default' : 'pointer',
           fontSize: 16,
         }}

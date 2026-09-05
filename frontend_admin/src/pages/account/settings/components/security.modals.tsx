@@ -672,9 +672,9 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
             <div
               style={{
                 padding: 20,
-                border: '1px solid #f0f0f0',
+                border: '1px solid var(--ant-color-border-secondary)',
                 borderRadius: 16,
-                background: '#fafafa',
+                background: 'var(--ant-color-fill-quaternary)',
               }}
             >
               <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
@@ -730,8 +730,9 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                           style={{
                             padding: 20,
                             borderRadius: 12,
-                            background: '#fff',
-                            border: '1px solid #f0f0f0',
+                            background: 'var(--ant-color-bg-container)',
+                            border:
+                              '1px solid var(--ant-color-border-secondary)',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
@@ -767,8 +768,9 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                           style={{
                             padding: 16,
                             borderRadius: 12,
-                            background: '#fff',
-                            border: '1px solid #f0f0f0',
+                            background: 'var(--ant-color-bg-container)',
+                            border:
+                              '1px solid var(--ant-color-border-secondary)',
                           }}
                         >
                           <Typography.Text strong>手动录入密钥</Typography.Text>
@@ -806,8 +808,8 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                         style={{
                           padding: 20,
                           borderRadius: 12,
-                          background: '#fff',
-                          border: '1px solid #f0f0f0',
+                          background: 'var(--ant-color-bg-container)',
+                          border: '1px solid var(--ant-color-border-secondary)',
                         }}
                       >
                         <Typography.Text strong>
@@ -1028,8 +1030,8 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
           style={{
             padding: 16,
             borderRadius: 12,
-            background: '#fafafa',
-            border: '1px solid #f0f0f0',
+            background: 'var(--ant-color-fill-quaternary)',
+            border: '1px solid var(--ant-color-border-secondary)',
             marginBottom: 12,
           }}
         >
@@ -1046,8 +1048,8 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
           style={{
             padding: 12,
             borderRadius: 10,
-            background: '#fff',
-            border: '1px solid #f0f0f0',
+            background: 'var(--ant-color-bg-container)',
+            border: '1px solid var(--ant-color-border-secondary)',
             maxHeight: 220,
             overflowY: 'auto',
           }}
@@ -1065,8 +1067,8 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                 style={{
                   padding: '10px 12px',
                   borderRadius: 8,
-                  background: '#fafafa',
-                  border: '1px solid #f0f0f0',
+                  background: 'var(--ant-color-fill-quaternary)',
+                  border: '1px solid var(--ant-color-border-secondary)',
                   lineHeight: 1.4,
                 }}
               >

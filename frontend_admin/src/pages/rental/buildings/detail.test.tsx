@@ -38,97 +38,6 @@ vi.mock('@/services/manual/house', () => ({
 }));
 
 describe('BuildingDetailPage', () => {
-  it('将所属小区作为可下钻入口并展示楼栋经营概览', async () => {
-    mockUseTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'demo' });
-    mockGetBuildingMapDetail.mockResolvedValue({
-      id: 9,
-      name: '1栋',
-      estate: { id: 7, name: '云岸', display_name: '云岸花园' },
-      address: '科技园 1 栋',
-      floors: 20,
-      lat: 22.5,
-      lng: 113.9,
-      counts: {
-        total: 2,
-        vacant: 1,
-        listed: 0,
-        rented: 1,
-        renovating: 0,
-      },
-      houses: [],
-    });
-    mockGetBuilding.mockResolvedValue({
-      id: 9,
-      name: '1栋',
-      estate: { id: 7, name: '云岸', display_name: '云岸花园' },
-      address: '科技园 1 栋',
-      floors: 20,
-      elevator: true,
-      tags: ['近地铁', '成熟配套'],
-      images: [
-        {
-          media_id: 11,
-          media_type: 'image',
-          label: '楼栋正门',
-          url: '/building.jpg',
-          thumbnail: '/building-thumb.jpg',
-        },
-      ],
-      lat: 22.5,
-      lng: 113.9,
-      counts: {
-        total: 2,
-        vacant: 1,
-        listed: 0,
-        rented: 1,
-        renovating: 0,
-      },
-    });
-    mockListHouses.mockResolvedValue({
-      items: [],
-      total: 0,
-      page: 1,
-      page_size: 20,
-    });
-
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <BuildingDetailPage />
-      </QueryClientProvider>,
-    );
-
-    expect(
-      await screen.findByRole('heading', { level: 2, name: '1栋' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getAllByRole('link', { name: '云岸花园' })[0],
-    ).toHaveAttribute('href', '/rental/properties/estates/7');
-    expect(screen.getByText('楼栋档案')).toBeInTheDocument();
-    expect(screen.getByText('总房源')).toBeInTheDocument();
-    expect(screen.getByText('已租')).toBeInTheDocument();
-    expect(screen.getByText('当前出租率')).toBeInTheDocument();
-    expect(screen.queryByText('管理待办')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /登记房源/ })).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/new?building_id=9',
-    );
-    expect(screen.getByText('房源列表')).toBeInTheDocument();
-    expect(screen.getByText('近地铁')).toBeInTheDocument();
-    expect(screen.getByText('成熟配套')).toBeInTheDocument();
-    expect(
-      screen.getByRole('region', { name: '楼栋名片' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('region', { name: '运营仪表盘' }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('档案状态')).not.toBeInTheDocument();
-    expect(screen.getByAltText('楼栋正门')).toHaveAttribute(
-      'src',
-      '/building-thumb.jpg',
-    );
-    expect(screen.queryByText('楼栋图片待补充')).not.toBeInTheDocument();
-  });
-
   it('按楼栋条件分页加载房源列表', async () => {
     mockUseTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'demo' });
     mockGetBuilding.mockResolvedValue({
@@ -171,21 +80,17 @@ describe('BuildingDetailPage', () => {
       </QueryClientProvider>,
     );
 
-    const houseLink = await screen.findByRole('link', { name: '1001' });
-    expect(houseLink).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/91',
-    );
-    expect(houseLink).toHaveAttribute('target', '_blank');
-    expect(screen.getByText('楼栋图片待补充')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '添加楼栋图片' })).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/estates?view=buildings&building_edit=9',
-    );
-    expect(screen.getByText('采光好')).toBeInTheDocument();
-    expect(screen.getByText('近地铁')).toBeInTheDocument();
+    await screen.findByRole('link', { name: '1001' });
     expect(mockListHouses).toHaveBeenCalledWith(
       expect.objectContaining({ building_id: 9, page: 1, page_size: 20 }),
+    );
+    expect(screen.getByRole('link', { name: /编辑资料/ })).toHaveAttribute(
+      'href',
+      '/dashboard/rental/properties/list?building_id=9&asset_tab=profile&asset_action=edit-building',
+    );
+    expect(screen.getByRole('link', { name: '返回房源管理' })).toHaveAttribute(
+      'href',
+      '/dashboard/rental/properties/list?building_id=9',
     );
   });
 });

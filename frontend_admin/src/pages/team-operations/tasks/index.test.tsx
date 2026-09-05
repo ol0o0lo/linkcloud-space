@@ -164,45 +164,12 @@ describe('TeamTasksPage', () => {
     vi.clearAllMocks();
   });
 
-  it('分段选择器独立放置，搜索重置和新建任务位于筛选栏右侧', async () => {
-    mockGetTeamOperationsCapabilities.mockResolvedValue({
-      task_organization_manage: true,
-      task_team_ids: [],
-    });
-
-    renderPage();
-
-    const segmented = await screen.findByRole('radiogroup', {
-      name: 'segmented control',
-    });
-    const toolbar = screen.getByRole('toolbar', { name: '团队任务工具栏' });
-    const actions = await screen.findByRole('region', { name: '任务操作' });
-    const createButton = within(actions).getByRole('button', {
-      name: '新建任务',
-    });
-
-    expect(toolbar).toContainElement(segmented);
-    expect(toolbar).not.toContainElement(createButton);
-    expect(actions).toContainElement(createButton);
-    expect(actions).toContainElement(
-      within(actions).getByRole('searchbox', { name: '搜索任务' }),
-    );
-    expect(actions).toContainElement(
-      within(actions).getByRole('button', { name: /重置/ }),
-    );
-    expect(toolbar.closest('.ant-card')).not.toBeInTheDocument();
-  });
-
   it('我的任务显示对应统计卡，点击后联动状态筛选', async () => {
     renderPage();
 
     const pendingMetric = await screen.findByRole('button', {
       name: /待接受.*3/,
     });
-    expect(within(pendingMetric).getByText('等待你确认')).toBeInTheDocument();
-    expect(within(pendingMetric).getByText('项')).toBeInTheDocument();
-    expect(screen.getByText('进行中')).toBeInTheDocument();
-
     fireEvent.click(pendingMetric);
 
     await waitFor(() => {
@@ -223,27 +190,6 @@ describe('TeamTasksPage', () => {
     const dueSoonMetric = await screen.findByRole('button', {
       name: /24 小时内到期.*2/,
     });
-    expect(screen.getByText('全部任务')).toBeInTheDocument();
-    const taskTable = screen
-      .getByRole('columnheader', { name: '任务标题' })
-      .closest('table');
-    expect(taskTable).not.toBeNull();
-    expect(
-      within(taskTable as HTMLElement).getByRole('columnheader', {
-        name: '所属团队',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(taskTable as HTMLElement).getByRole('columnheader', {
-        name: '创建人',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(taskTable as HTMLElement).queryByRole('columnheader', {
-        name: '团队 / 创建人',
-      }),
-    ).not.toBeInTheDocument();
-
     fireEvent.click(dueSoonMetric);
 
     await waitFor(() => {

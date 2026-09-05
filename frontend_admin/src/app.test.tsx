@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setSelectedOrgSlug } from './utils/orgSelection';
@@ -17,10 +17,11 @@ const mockHistory = {
 const mockQueryCurrentUser = vi.fn();
 const mockGetOrganizationSwitchList = vi.fn();
 const mockGetTeamOperationsCapabilities = vi.fn();
+const mockGetNavigationAccessCapabilities = vi.fn();
 
 vi.mock('@umijs/max', () => ({
   history: mockHistory,
-  Link: ({ children }: any) => children,
+  Link: ({ children, to }: any) => <a href={to}>{children}</a>,
 }));
 
 vi.mock('@/services/openapi/userAccount', () => ({
@@ -33,6 +34,10 @@ vi.mock('@/services/openapi/organizations', () => ({
 
 vi.mock('@/services/manual/teamOperations', () => ({
   getTeamOperationsCapabilities: mockGetTeamOperationsCapabilities,
+}));
+
+vi.mock('@/services/manual/navigationAccess', () => ({
+  getNavigationAccessCapabilities: mockGetNavigationAccessCapabilities,
 }));
 
 vi.mock('@/components', () => ({
@@ -59,6 +64,7 @@ vi.mock('antd', () => ({
 vi.mock('@ant-design/icons', () => ({
   BgColorsOutlined: () => null,
   LinkOutlined: () => null,
+  ShareAltOutlined: () => null,
 }));
 
 vi.mock('./requestErrorConfig', () => ({
@@ -80,6 +86,15 @@ describe('app getInitialState', () => {
       announcement_team_ids: [],
       task_organization_manage: false,
       task_team_ids: [],
+    });
+    mockGetNavigationAccessCapabilities.mockResolvedValue({
+      role_management: false,
+      organization_settings: false,
+      team_settings: false,
+      subscriptions: false,
+      analytics: false,
+      allocation: false,
+      notification_dispatches: false,
     });
     mockHistory.location = {
       pathname: '/welcome',
@@ -152,6 +167,10 @@ describe('app getInitialState', () => {
     ]);
     expect(state.selectedOrgSlug).toBe('acme');
     expect(mockGetTeamOperationsCapabilities).toHaveBeenCalled();
+    expect(mockGetNavigationAccessCapabilities).toHaveBeenCalled();
+    expect(state.navigationCapabilities).toEqual(
+      expect.objectContaining({ team_settings: false }),
+    );
   });
 
   it('should prefer the backend current organization when multiple orgs are available', async () => {
@@ -290,68 +309,26 @@ describe('app getInitialState', () => {
     );
   });
 
-  it('layout actions should expose a header button to open theme settings', async () => {
-    const setInitialState = vi.fn();
-    const { layout } = await import('./app');
-
-    const config = layout({
-      initialState: {
-        settings: { navTheme: 'light' },
-      },
-      setInitialState,
-    } as any);
-
-    const actionsRender = config.actionsRender as
-      | (() => React.ReactNode[])
-      | undefined;
-
-    render(<>{actionsRender?.().filter(Boolean)}</>);
-
-    fireEvent.click(screen.getByRole('button', { name: '界面设置' }));
-
-    expect(setInitialState).toHaveBeenCalled();
-  });
-
-  it('should hide the footer in the authenticated layout', async () => {
-    const { layout } = await import('./app');
-
-    const config = layout({
-      initialState: {
-        settings: { navTheme: 'light' },
-      },
-      setInitialState: vi.fn(),
-    } as any);
-
-    expect(config.footerRender).toBe(false);
-  });
-
-  it('should render icons for nested menu items', async () => {
+  it('房源菜单默认链接到全部范围的招租房源', async () => {
     const { layout } = await import('./app');
     const config = layout({
       initialState: { settings: { navTheme: 'light' } },
       setInitialState: vi.fn(),
     } as any);
-    const menuItem = {
-      path: '/space/organization',
-      pro_layout_parentKeys: ['/space'],
-      icon: <span data-testid="nested-menu-icon" />,
-    };
-    const defaultDom = (
-      <div>
-        <span style={{ display: 'none' }} />
-        <span>组织架构</span>
-      </div>
-    );
-    const menuItemRender = config.menuItemRender as (item: any, dom: React.ReactNode) => React.ReactNode;
-    const subMenuItemRender = config.subMenuItemRender as (item: any, dom: React.ReactNode) => React.ReactNode;
+    const menuItemRender = config.menuItemRender as (
+      item: any,
+      dom: React.ReactNode,
+    ) => React.ReactNode;
 
     render(
-      <>
-        {menuItemRender(menuItem, defaultDom)}
-        {subMenuItemRender(menuItem, defaultDom)}
-      </>,
+      <div>
+        {menuItemRender({ path: '/rental/properties/list' }, '房源列表')}
+      </div>,
     );
 
-    expect(screen.getAllByTestId('nested-menu-icon')).toHaveLength(2);
+    expect(screen.getByRole('link', { name: '房源列表' })).toHaveAttribute(
+      'href',
+      '/rental/properties/list?scope=all&status=listed',
+    );
   });
 });

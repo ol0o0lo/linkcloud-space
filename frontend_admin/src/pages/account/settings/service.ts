@@ -28,6 +28,7 @@ import {
 import { appsMediaApiUploadFiles } from '@/services/openapi/mediaFiles';
 import { normalizeEmailLikeInput } from '@/utils/email';
 import { normalizeAccountPhoneParts } from '@/utils/phone';
+import { ADMIN_BASE_PATH } from '@/utils/adminRouting';
 import type {
   CurrentUser,
   SocialBindingItem,
@@ -136,7 +137,7 @@ export async function querySocialBindings(): Promise<SocialBindingsResponse> {
 
 export async function startSocialBinding(provider: SocialBindingProvider) {
   const csrfToken = await ensureCsrfToken();
-  const callbackUrl = `${window.location.origin}/account/settings?tab=security`;
+  const callbackUrl = `${window.location.origin}${ADMIN_BASE_PATH}/account/settings?tab=security`;
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = `${ALLAUTH_BROWSER_BASE}/auth/provider/redirect`;

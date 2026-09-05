@@ -61,18 +61,6 @@ export const TreeSectionHeader = ({
       </span>
       {createAction || collapseAllAction ? (
         <span className={styles.actions}>
-          {createAction ? (
-            <Tooltip title={createAction.label}>
-              <Button
-                type="text"
-                size="small"
-                disabled={createAction.disabled}
-                aria-label={createAction.label}
-                icon={createAction.icon ?? <PlusOutlined />}
-                onClick={createAction.onClick}
-              />
-            </Tooltip>
-          ) : null}
           {collapseAllAction ? (
             <Button
               type="text"
@@ -84,6 +72,18 @@ export const TreeSectionHeader = ({
             >
               全部折叠
             </Button>
+          ) : null}
+          {createAction ? (
+            <Tooltip title={createAction.label}>
+              <Button
+                type="text"
+                size="small"
+                disabled={createAction.disabled}
+                aria-label={createAction.label}
+                icon={createAction.icon ?? <PlusOutlined />}
+                onClick={createAction.onClick}
+              />
+            </Tooltip>
           ) : null}
         </span>
       ) : null}

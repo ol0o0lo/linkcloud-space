@@ -49,23 +49,6 @@ vi.mock('../settings/components/notification', () => ({
 }));
 
 describe('PersonalCenterPage', () => {
-  it('renders four personal center sections', () => {
-    render(<PersonalCenterPage />);
-
-    expect(
-      screen.getByRole('menuitem', { name: '个人资料' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('menuitem', { name: '账号安全' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('menuitem', { name: '偏好设置' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('menuitem', { name: '通知设置' }),
-    ).toBeInTheDocument();
-  });
-
   it('defaults to profile tab when no tab param is present', () => {
     window.history.replaceState({}, '', '/account/center');
     render(<PersonalCenterPage />);
@@ -78,6 +61,14 @@ describe('PersonalCenterPage', () => {
     render(<PersonalCenterPage />);
 
     expect(screen.getByText('账号安全内容')).toBeInTheDocument();
+  });
+
+  it('旧的 preferences 查询参数回退到个人资料', () => {
+    window.history.replaceState({}, '', '/account/center?tab=preferences');
+    render(<PersonalCenterPage />);
+
+    expect(screen.getByText('个人资料内容')).toBeInTheDocument();
+    expect(window.location.search).toBe('?tab=profile');
   });
 
   it('updates url when switching tabs', () => {

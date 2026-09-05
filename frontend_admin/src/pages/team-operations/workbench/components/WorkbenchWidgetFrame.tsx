@@ -2,6 +2,7 @@ import {
   AppstoreOutlined,
   BarChartOutlined,
   BranchesOutlined,
+  CameraOutlined,
   CloudUploadOutlined,
   FlagOutlined,
   NotificationOutlined,
@@ -19,6 +20,7 @@ export type WorkbenchWidgetVariant =
   | 'progress'
   | 'announcement'
   | 'quick-actions'
+  | 'inspection'
   | 'overview'
   | 'publish'
   | 'risks'
@@ -41,6 +43,7 @@ const widgetIcons: Record<WorkbenchWidgetVariant, ReactNode> = {
   progress: <PieChartOutlined />,
   announcement: <NotificationOutlined />,
   'quick-actions': <AppstoreOutlined />,
+  inspection: <CameraOutlined />,
   overview: <BarChartOutlined />,
   publish: <CloudUploadOutlined />,
   risks: <WarningOutlined />,
@@ -93,7 +96,10 @@ export function WorkbenchWidgetFrame({
         data-testid="workbench-widget-frame"
         data-variant={variant}
       >
-        <Card className={cx(styles.widgetCard, styles.widgetCardError)} title={heading}>
+        <Card
+          className={cx(styles.widgetCard, styles.widgetCardError)}
+          title={heading}
+        >
           <Result
             status="error"
             title="组件数据加载失败"

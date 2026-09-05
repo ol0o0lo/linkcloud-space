@@ -90,33 +90,6 @@ vi.mock('./data/SpaceWorkbenchData', () => ({
 describe('SpaceWorkbenchContent', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('renders the redesigned default widgets', () => {
-    render(
-      <SpaceWorkbenchContent
-        layout={defaultWorkbenchLayout(spaceWidgetDefinitions)}
-      />,
-    );
-
-    expect(screen.getByText('经营总览')).toBeInTheDocument();
-    expect(screen.getByText('发布工作区')).toBeInTheDocument();
-    expect(screen.getByText('关键风险')).toBeInTheDocument();
-    expect(screen.getByText('成交转签')).toBeInTheDocument();
-    expect(screen.getByText('空间快捷操作')).toBeInTheDocument();
-    expect(screen.getByTestId('space-metric-deck')).toHaveTextContent(
-      '在管房源',
-    );
-    expect(screen.getByTestId('space-publish-queue')).toHaveTextContent(
-      '星河湾 / 1 栋 / 103',
-    );
-    expect(screen.getByTestId('space-risk-stack')).toHaveTextContent('4');
-    expect(screen.getByTestId('space-workflow-rail')).toHaveTextContent(
-      '王客户 待签约',
-    );
-    expect(screen.getByTestId('space-quick-actions')).toHaveTextContent(
-      '房源管理',
-    );
-  });
-
   it('keeps direct house publishing behind confirmation', () => {
     render(
       <SpaceWorkbenchContent

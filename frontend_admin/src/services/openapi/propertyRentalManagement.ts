@@ -230,6 +230,27 @@ export async function appsHouseApiPatchContact(
   });
 }
 
+/** 邀请房东绑定账号 POST /api/house/contacts/${param0}/landlord-invite/ */
+export async function appsHouseApiInviteLandlordContact(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiInviteLandlordContactParams,
+  options?: { [key: string]: any }
+) {
+  const { contact_id: param0, ...queryParams } = params;
+  return request<API.LandlordInvitationOut>(
+    `/api/house/contacts/${param0}/landlord-invite/`,
+    {
+      method: "POST",
+      params: {
+        // delivery_method has a default value: sms
+        delivery_method: "sms",
+        ...queryParams,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取默认楼栋 GET /api/house/default-building/ */
 export async function appsHouseApiGetDefaultBuilding(options?: {
   [key: string]: any;
@@ -435,6 +456,23 @@ export async function appsHouseApiPatchHouse(
   });
 }
 
+/** 获取租约收益分配申请列表 GET /api/house/lease-allocations/ */
+export async function appsHouseApiListLeaseAllocations(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiListLeaseAllocationsParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.PagedLeaseAllocationOut>("/api/house/lease-allocations/", {
+    method: "GET",
+    params: {
+      // page has a default value: 1
+      page: "1",
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
 /** 获取租约列表 GET /api/house/leases/ */
 export async function appsHouseApiListLeases(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -495,6 +533,97 @@ export async function appsHouseApiPatchLease(
       "Content-Type": "application/json",
     },
     params: { ...queryParams },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 获取租约收益分配申请 GET /api/house/leases/${param0}/allocation/ */
+export async function appsHouseApiGetLeaseAllocationRequest(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiGetLeaseAllocationRequestParams,
+  options?: { [key: string]: any }
+) {
+  const { lease_id: param0, ...queryParams } = params;
+  return request<API.LeaseAllocationOut>(
+    `/api/house/leases/${param0}/allocation/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 审核租约收益分配申请 POST /api/house/leases/${param0}/allocation/review/ */
+export async function appsHouseApiReviewLeaseAllocationRequest(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiReviewLeaseAllocationRequestParams,
+  body: API.LeaseAllocationReviewIn,
+  options?: { [key: string]: any }
+) {
+  const { lease_id: param0, ...queryParams } = params;
+  return request<API.AllocationRequestOut>(
+    `/api/house/leases/${param0}/allocation/review/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 作废租约收益分配申请 POST /api/house/leases/${param0}/allocation/void/ */
+export async function appsHouseApiVoidLeaseAllocationRequest(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiVoidLeaseAllocationRequestParams,
+  body: API.LeaseAllocationVoidIn,
+  options?: { [key: string]: any }
+) {
+  const { lease_id: param0, ...queryParams } = params;
+  return request<API.AllocationRequestOut>(
+    `/api/house/leases/${param0}/allocation/void/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 登记签约并提交收益分配申请 POST /api/house/leases/deal-signing/ */
+export async function appsHouseApiDealSigning(
+  body: API.DealSigningWithAllocationIn,
+  options?: { [key: string]: any }
+) {
+  return request<API.LeaseAllocationOut>("/api/house/leases/deal-signing/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 创建租约并提交收益分配申请 POST /api/house/leases/with-allocation/ */
+export async function appsHouseApiCreateLeaseAndAllocation(
+  body: API.LeaseWithAllocationIn,
+  options?: { [key: string]: any }
+) {
+  return request<API.LeaseAllocationOut>("/api/house/leases/with-allocation/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     data: body,
     ...(options || {}),
   });

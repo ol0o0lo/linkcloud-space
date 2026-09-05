@@ -53,6 +53,20 @@ export const APP_ICON_DEFINITIONS = {
   'lease.active': { icon: 'solar:verified-check-outline' },
   'lease.expired': { icon: 'solar:calendar-mark-outline' },
   'lease.terminated': { icon: 'solar:close-circle-outline' },
+  'allocation-request': {
+    icon: 'solar:document-text-line-duotone',
+  },
+  'allocation-request.pending': { icon: 'solar:clock-circle-outline' },
+  'allocation-request.approved': {
+    icon: 'solar:verified-check-outline',
+  },
+  'allocation-request.rejected': {
+    icon: 'solar:danger-triangle-outline',
+  },
+  'allocation-request.expired': {
+    icon: 'solar:calendar-mark-outline',
+  },
+  'allocation-request.voided': { icon: 'solar:close-circle-outline' },
   viewing: {
     icon: 'solar:calendar-search-outline',
   },
@@ -87,6 +101,30 @@ export const APP_ICON_DEFINITIONS = {
   'organization-invite.expired': {
     icon: 'solar:close-circle-outline',
   },
+  'wallet.withdrawal': {
+    icon: 'solar:document-text-outline',
+  },
+  'wallet.withdrawal.pending_review': {
+    icon: 'solar:clock-circle-outline',
+  },
+  'wallet.withdrawal.approved': {
+    icon: 'solar:verified-check-outline',
+  },
+  'wallet.withdrawal.paying': {
+    icon: 'solar:clock-circle-outline',
+  },
+  'wallet.withdrawal.failed': {
+    icon: 'solar:danger-triangle-outline',
+  },
+  'wallet.withdrawal.rejected': {
+    icon: 'solar:close-circle-outline',
+  },
+  'wallet.withdrawal.cancelled': {
+    icon: 'solar:close-circle-outline',
+  },
+  'wallet.withdrawal.paid': {
+    icon: 'solar:verified-check-outline',
+  },
   key: {
     icon: 'solar:key-line-duotone',
   },
@@ -108,6 +146,7 @@ export const APP_ICON_NAMES = {
   room: APP_ICON_DEFINITIONS.room.icon,
   location: APP_ICON_DEFINITIONS.location.icon,
   lease: APP_ICON_DEFINITIONS.lease.icon,
+  allocationRequest: APP_ICON_DEFINITIONS['allocation-request'].icon,
   viewing: APP_ICON_DEFINITIONS.viewing.icon,
   contact: APP_ICON_DEFINITIONS.contact.icon,
   organization: APP_ICON_DEFINITIONS.organization.icon,

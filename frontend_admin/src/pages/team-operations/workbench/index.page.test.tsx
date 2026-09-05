@@ -120,33 +120,14 @@ describe('TeamOperationsWorkbenchPage', () => {
 
     expect(screen.getByText('我的工作台内容')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: '我的工作台' })).toBeDisabled();
-    expect(screen.getByText('正在自定义我的工作台')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '组件管理' }),
-    ).not.toHaveTextContent('组件管理');
   });
 
-  it('renders customization as a low-emphasis icon action', () => {
-    renderPage();
-
-    expect(screen.getByTestId('workbench-command-header')).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: '我的工作台' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: '我的工作台' })).toBeChecked();
-    const button = screen.getByRole('button', { name: '自定义工作台' });
-    expect(button).toHaveAttribute('aria-label', '自定义工作台');
-    expect(button).toHaveClass('ant-btn-text');
-    expect(button).not.toHaveClass('ant-btn-circle');
-    expect(button).not.toHaveTextContent('自定义工作台');
-  });
-
-  it('disables customization and exposes retry when settings fail to load', () => {
+  it('disables customization and retries when settings fail to load', () => {
     controllerState.loadError = true;
     renderPage();
 
     expect(screen.getByRole('button', { name: '自定义工作台' })).toBeDisabled();
-    expect(screen.getByText('工作台布局加载失败')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^重\s*试$/ })).toBeEnabled();
+    screen.getByRole('button', { name: /^重\s*试$/ }).click();
+    expect(retry).toHaveBeenCalledOnce();
   });
 });

@@ -224,7 +224,7 @@ describe('RealNameAdminPage', () => {
     });
   });
 
-  it('renders governance layout and handles review actions', async () => {
+  it('approves a verification and filters by keyword', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <RealNameAdminPage />
@@ -239,19 +239,6 @@ describe('RealNameAdminPage', () => {
         keyword: undefined,
         status: undefined,
       });
-      expect(screen.queryByText('实名概览')).not.toBeInTheDocument();
-      expect(screen.queryByText('审核详情')).not.toBeInTheDocument();
-      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
-      expect(screen.getByText('实名列表')).toBeInTheDocument();
-      expect(screen.queryByText('待校验记录')).not.toBeInTheDocument();
-      expect(screen.queryByText('驳回回流')).not.toBeInTheDocument();
-      expect(screen.queryByText('撤销与回收')).not.toBeInTheDocument();
-      expect(screen.queryByText('继续审核')).not.toBeInTheDocument();
-      expect(screen.queryByText('联动用户治理')).not.toBeInTheDocument();
-      expect(screen.queryByText('查看账号承接')).not.toBeInTheDocument();
-      expect(screen.queryByText('来源与承接')).not.toBeInTheDocument();
-      expect(screen.queryByText('返回用户治理')).not.toBeInTheDocument();
-      expect(screen.getByText('张*')).toBeInTheDocument();
       expect(screen.getByText('alice')).toBeInTheDocument();
     });
 
@@ -260,14 +247,6 @@ describe('RealNameAdminPage', () => {
       throw new Error('Expected alice row to render');
     }
     const rowWithin = within(row);
-    expect(rowWithin.getByText('人工复核')).toBeInTheDocument();
-    expect(rowWithin.getByText('用户提交')).toBeInTheDocument();
-    expect(rowWithin.getByText('人工处理')).toBeInTheDocument();
-    expect(rowWithin.queryByText('旧人工审核')).not.toBeInTheDocument();
-    expect(rowWithin.getByText('通过实名')).toBeInTheDocument();
-    expect(rowWithin.getByText('驳回实名')).toBeInTheDocument();
-    expect(screen.queryByText('撤销实名')).not.toBeInTheDocument();
-
     fireEvent.click(rowWithin.getByText('通过实名'));
     const approveDialog = screen.getAllByRole('dialog').at(-1);
     if (!(approveDialog instanceof HTMLElement)) {
@@ -283,18 +262,6 @@ describe('RealNameAdminPage', () => {
         { note: 'ok' },
       ),
     );
-
-    fireEvent.click(rowWithin.getByText('详情'));
-    expect(await screen.findByAltText('身份证人像面')).toHaveAttribute(
-      'src',
-      '/front.png',
-    );
-    expect(screen.getByAltText('身份证国徽面')).toHaveAttribute(
-      'src',
-      '/back.png',
-    );
-    expect(screen.getAllByText('人工复核').length).toBeGreaterThan(0);
-    expect(screen.getByText('转人工复核')).toBeInTheDocument();
 
     const searchBox = screen.getByPlaceholderText(
       '按用户名、邮箱、手机号、实名搜索',

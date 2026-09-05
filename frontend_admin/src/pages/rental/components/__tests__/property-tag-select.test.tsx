@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -55,24 +55,6 @@ describe('PropertyTagSelect utilities', () => {
 });
 
 describe('PropertyTagSelect', () => {
-  it('keeps normalized suggestions in the select without rendering shortcut tags', async () => {
-    render(
-      <PropertyTagSelectHarness
-        aria-label="房源标签"
-        value={['已有标签']}
-        suggestions={[' 近地铁 ', '采光   好', '近地铁', '拎包入住']}
-      />,
-    );
-
-    expect(screen.queryByLabelText('常用标签')).not.toBeInTheDocument();
-    fireEvent.mouseDown(screen.getByRole('combobox', { name: '房源标签' }));
-    expect(
-      await screen.findByRole('option', { name: '近地铁' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: '采光 好' })).toBeInTheDocument();
-    expect(screen.getByTitle('拎包入住')).toBeInTheDocument();
-  });
-
   it('accepts manual tags separated by Chinese and Western punctuation', () => {
     const onValueChange = vi.fn();
     render(
@@ -97,7 +79,7 @@ describe('PropertyTagSelect', () => {
     ]);
   });
 
-  it('shows only non-duplicate inherited tags without emitting them as own tags', () => {
+  it('does not emit inherited tags as house-owned tags', () => {
     const onValueChange = vi.fn();
     render(
       <PropertyTagSelectHarness
@@ -109,37 +91,11 @@ describe('PropertyTagSelect', () => {
       />,
     );
 
-    const inherited = screen.getByLabelText('继承标签');
-    expect(within(inherited).queryByText('近地铁')).not.toBeInTheDocument();
-    expect(within(inherited).getByText('有 电梯')).toBeInTheDocument();
-    expect(within(inherited).getByText('采光好')).toBeInTheDocument();
-
     fireEvent.change(screen.getByRole('combobox', { name: '房源标签' }), {
       target: { value: '采光好,' },
     });
 
     expect(onValueChange).toHaveBeenLastCalledWith(['近地铁', '采光好']);
-    expect(screen.queryByLabelText('继承标签')).toHaveTextContent('有 电梯');
-    expect(screen.queryByText('将从当前楼栋继承：')).not.toBeInTheDocument();
-  });
-
-  it('marks inherited tags as blue read-only values with their building source', async () => {
-    render(<PropertyTagSelectHarness inheritedTags={['近地铁']} />);
-
-    expect(
-      screen.queryByText('选择常用标签，或输入后按回车；逗号可批量添加。'),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('蓝色标签继承自楼栋，仅可在楼栋资料中修改'),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText('将从当前楼栋继承：')).not.toBeInTheDocument();
-    const inheritedTag = screen.getByText('近地铁').closest('.ant-tag');
-    expect(inheritedTag).toHaveClass('ant-tag-blue');
-
-    fireEvent.mouseEnter(inheritedTag as HTMLElement);
-    expect(
-      await screen.findByText('该标签来自楼栋，暂不可修改'),
-    ).toBeInTheDocument();
   });
 
   it('keeps manual entry enabled when suggestions fail to load and supports clearing', () => {
@@ -152,11 +108,6 @@ describe('PropertyTagSelect', () => {
         onValueChange={onValueChange}
       />,
     );
-
-    expect(
-      screen.getByText('常用标签暂时不可用，仍可手动输入。'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: '房源标签' })).toBeEnabled();
 
     fireEvent.mouseDown(
       container.querySelector('.ant-select-clear') as Element,

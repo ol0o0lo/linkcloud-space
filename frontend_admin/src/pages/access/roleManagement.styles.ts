@@ -11,40 +11,11 @@ export const useRoleManagementStyles = createStyles(({ css, token }) => ({
       padding: 0;
     }
   `,
-  toolbar: css`
-    display: flex;
-    align-items: center;
-    gap: ${token.marginSM}px;
-    padding: ${token.padding}px ${token.paddingLG}px;
-    border-bottom: 1px solid ${token.colorBorderSecondary};
-    flex-wrap: wrap;
-
-    @media (max-width: ${token.screenSM - 1}px) {
-      align-items: stretch;
-      flex-direction: column;
-      padding: ${token.padding}px;
-    }
-  `,
-  toolbarSearch: css`
-    width: min(260px, 100%);
-  `,
   toolbarSelect: css`
     width: 150px;
 
     @media (max-width: ${token.screenSM - 1}px) {
       width: 100%;
-    }
-  `,
-  toolbarSpacer: css`
-    min-width: 0;
-    flex: 1;
-  `,
-  toolbarPrimary: css`
-    margin-left: auto;
-
-    @media (max-width: ${token.screenSM - 1}px) {
-      width: 100%;
-      margin-left: 0;
     }
   `,
   workspace: css`
@@ -64,40 +35,92 @@ export const useRoleManagementStyles = createStyles(({ css, token }) => ({
     flex-direction: column;
     padding: ${token.padding}px;
     border-right: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorFillQuaternary};
+    background: ${token.colorBgContainer};
 
     @media (max-width: ${token.screenMD - 1}px) {
       display: none;
     }
   `,
-  scopeTree: css`
+  scopeNavigationBody: css`
     min-height: 0;
     margin-top: ${token.marginSM}px;
     overflow: auto;
-    background: transparent;
+    padding-inline: 1px;
+  `,
+  scopePrimaryLinks: css`
+    display: grid;
+    gap: 4px;
+    padding-block: 4px;
+  `,
+  scopeTeamList: css`
+    display: grid;
+    gap: 4px;
+  `,
+  scopeRow: css`
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 36px;
+    padding-inline: ${token.paddingSM}px;
+    border: 1px solid transparent;
+    border-radius: ${token.borderRadius}px;
+    color: ${token.colorText};
+    transition:
+      background-color ${token.motionDurationFast},
+      border-color ${token.motionDurationFast},
+      color ${token.motionDurationFast};
 
-    .ant-tree-node-content-wrapper {
-      min-width: 0;
-      flex: 1;
+    &:hover {
+      background: ${token.colorFillQuaternary};
+    }
+
+    &[data-active='true'] {
+      border-color: ${token.colorPrimaryBorderHover};
+      background: ${token.colorPrimaryBg};
+      color: ${token.colorPrimary};
+      font-weight: 500;
+    }
+
+    &[data-active='true'] .role-scope-count {
+      padding: 2px 7px;
+      border-radius: ${token.borderRadiusLG}px;
+      background: ${token.colorBgContainer};
+      color: ${token.colorPrimary};
+    }
+
+    > .ant-btn:hover,
+    > .ant-btn:active,
+    > .ant-btn:focus {
+      background: transparent !important;
+      color: inherit !important;
     }
   `,
-  scopeTitle: css`
+  scopeRowButton: css`
     display: flex;
+    height: auto;
+    min-height: 34px;
+    flex: 1;
     min-width: 0;
-    align-items: center;
-    justify-content: space-between;
-    gap: ${token.marginSM}px;
-  `,
-  scopeName: css`
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    justify-content: flex-start;
+    padding-inline: 4px;
+    color: inherit;
+    text-align: start;
+
+    > span:last-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   `,
   scopeCount: css`
     flex: 0 0 auto;
     color: ${token.colorTextTertiary};
     font-size: ${token.fontSizeSM}px;
+    white-space: nowrap;
+    transition:
+      background-color ${token.motionDurationFast},
+      color ${token.motionDurationFast};
   `,
   content: css`
     min-width: 0;
@@ -107,6 +130,10 @@ export const useRoleManagementStyles = createStyles(({ css, token }) => ({
     @media (max-width: ${token.screenMD - 1}px) {
       padding: ${token.padding}px;
     }
+  `,
+  embeddedContent: css`
+    min-width: 0;
+    flex: 1;
   `,
   mobileScopeBar: css`
     display: none;
@@ -119,10 +146,66 @@ export const useRoleManagementStyles = createStyles(({ css, token }) => ({
       display: flex;
     }
   `,
+  scopeContext: css`
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    min-width: 0;
+    align-items: flex-start;
+    gap: ${token.marginSM}px;
+    margin-bottom: ${token.margin}px;
+
+    @media (max-width: ${token.screenSM - 1}px) {
+      grid-template-columns: 36px minmax(0, 1fr);
+    }
+  `,
+  scopeContextIcon: css`
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid ${token.colorPrimaryBorder};
+    border-radius: ${token.borderRadiusLG}px;
+    background: ${token.colorPrimaryBg};
+    color: ${token.colorPrimary};
+    font-size: ${token.fontSizeLG}px;
+  `,
+  scopeContextCopy: css`
+    min-width: 0;
+    flex: 1;
+  `,
+  scopeContextTitleRow: css`
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: ${token.marginSM}px;
+  `,
+  scopeContextTitle: css`
+    min-width: 0;
+    margin: 0 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  `,
+  scopeContextDescription: css`
+    display: block;
+    margin-top: 2px;
+  `,
+  scopeContextAction: css`
+    margin-left: auto;
+
+    @media (max-width: ${token.screenSM - 1}px) {
+      width: 100%;
+      grid-column: 1 / -1;
+      margin-left: 0;
+    }
+  `,
   summaryStrip: css`
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-bottom: ${token.marginLG}px;
+    margin-bottom: ${token.margin}px;
     border: 1px solid ${token.colorBorderSecondary};
     border-radius: ${token.borderRadiusLG}px;
     background: ${token.colorFillQuaternary};
@@ -133,7 +216,7 @@ export const useRoleManagementStyles = createStyles(({ css, token }) => ({
   `,
   summaryItem: css`
     min-width: 0;
-    padding: ${token.paddingSM}px ${token.padding}px;
+    padding: ${token.paddingXS}px ${token.padding}px;
     border-right: 1px solid ${token.colorBorderSecondary};
 
     &:last-child {
@@ -150,6 +233,9 @@ export const useRoleManagementStyles = createStyles(({ css, token }) => ({
       }
     }
   `,
+  roleListToolbar: css`
+    margin-bottom: ${token.marginSM}px;
+  `,
   roleNameButton: css`
     height: auto;
     max-width: 100%;
@@ -157,10 +243,17 @@ export const useRoleManagementStyles = createStyles(({ css, token }) => ({
     text-align: left;
     white-space: normal;
   `,
+  roleIdentity: css`
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  `,
   roleDescription: css`
     display: block;
+    width: 100%;
     max-width: 360px;
-    margin-top: 2px;
   `,
   permissionGroups: css`
     display: grid;
@@ -176,6 +269,12 @@ export const useRoleManagementStyles = createStyles(({ css, token }) => ({
     border: 1px solid ${token.colorBorderSecondary};
     border-radius: ${token.borderRadius}px;
     background: ${token.colorFillQuaternary};
+  `,
+  permissionGroupHeader: css`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: ${token.marginSM}px;
   `,
   memberIdentity: css`
     display: flex;

@@ -1,4 +1,8 @@
-import { RENTAL_PATHS, SPACE_PATHS } from '../src/utils/adminRouting';
+import {
+  DEFAULT_PROPERTY_LIST_PATH,
+  RENTAL_PATHS,
+  SPACE_PATHS,
+} from '../src/utils/adminRouting';
 
 /**
  * @name umi 的路由配置
@@ -13,6 +17,24 @@ import { RENTAL_PATHS, SPACE_PATHS } from '../src/utils/adminRouting';
  * @doc https://umijs.org/docs/guides/routes
  */
 export default [
+  {
+    path: '/landlord-invitations/:token',
+    component: './landlord/invitation-accept',
+    layout: false,
+    hideInMenu: true,
+  },
+  {
+    path: '/landlords/:publicKey/houses/:houseId',
+    component: './landlord/public-house',
+    layout: false,
+    hideInMenu: true,
+  },
+  {
+    path: '/landlords/:publicKey',
+    component: './landlord/public-store',
+    layout: false,
+    hideInMenu: true,
+  },
   {
     path: '/invitations/:key',
     component: './space/invitation-accept',
@@ -43,6 +65,26 @@ export default [
         icon: 'userAdd',
         path: '/user/register',
         component: './user/register',
+      },
+      {
+        path: '/user/verify-phone',
+        component: './user/verify-phone',
+      },
+      {
+        path: '/user/password/reset',
+        component: './user/password-reset',
+      },
+      {
+        path: '/user/password/reset/key/:key',
+        component: './user/password-reset/confirm',
+      },
+      {
+        path: '/user/confirm-email/:key',
+        component: './user/confirm-email',
+      },
+      {
+        path: '/user/social/error',
+        component: './user/social-error',
       },
       {
         name: '404',
@@ -97,20 +139,13 @@ export default [
     routes: [
       {
         path: RENTAL_PATHS.properties,
-        redirect: RENTAL_PATHS.propertyList,
+        redirect: DEFAULT_PROPERTY_LIST_PATH,
       },
       {
         name: 'houses',
         icon: 'home',
         path: RENTAL_PATHS.propertyList,
         component: './rental/houses',
-      },
-      {
-        name: 'estates',
-        icon: 'apartment',
-        path: RENTAL_PATHS.estates,
-        component: './rental/estates',
-        hideInMenu: true,
       },
       {
         name: 'map',
@@ -171,10 +206,18 @@ export default [
     component: './rental/leases',
   },
   {
+    name: 'earnings',
+    icon: 'accountBook',
+    path: RENTAL_PATHS.earnings,
+    component: './rental/earnings',
+    access: 'canViewAllocation',
+  },
+  {
     name: 'data-insights',
     icon: 'barChart',
     path: RENTAL_PATHS.analytics,
     component: './rental/analytics',
+    access: 'canViewAnalytics',
   },
   {
     path: SPACE_PATHS.root,
@@ -218,6 +261,8 @@ export default [
         locale: false,
         icon: 'key',
         component: './access',
+        hideInMenu: true,
+        access: 'canViewRoleManagement',
       },
       {
         path: SPACE_PATHS.profile,
@@ -228,17 +273,20 @@ export default [
         path: SPACE_PATHS.subscriptionOrders,
         component: './space/subscription/orders',
         hideInMenu: true,
+        access: 'canViewSubscriptions',
       },
       {
         name: 'subscription',
         icon: 'creditCard',
         path: SPACE_PATHS.subscription,
         component: './space/subscription',
+        access: 'canViewSubscriptions',
       },
       {
         path: SPACE_PATHS.settings,
         name: 'business-settings',
         icon: 'setting',
+        access: 'canViewBusinessSettings',
         routes: [
           {
             path: SPACE_PATHS.settings,
@@ -249,12 +297,14 @@ export default [
             icon: 'control',
             path: SPACE_PATHS.organizationSettings,
             component: './settings-management/organization',
+            access: 'canViewOrganizationSettings',
           },
           {
             name: 'team',
             icon: 'sliders',
             path: SPACE_PATHS.teamSettings,
             component: './settings-management/team',
+            access: 'canViewTeamSettings',
           },
         ],
       },
@@ -263,6 +313,7 @@ export default [
         icon: 'notification',
         path: SPACE_PATHS.notificationDispatches,
         component: './platform-management/notification-dispatches',
+        access: 'canManageNotificationDispatches',
       },
     ],
   },
@@ -299,6 +350,12 @@ export default [
         icon: 'transaction',
         path: '/super-admin/wallet/withdrawals',
         component: './wallet-management/withdrawals',
+      },
+      {
+        name: 'subscriptions',
+        icon: 'creditCard',
+        path: '/super-admin/subscriptions',
+        component: './platform-management/subscriptions',
       },
       {
         name: 'referrals',
@@ -347,6 +404,13 @@ export default [
         icon: 'bell',
         path: '/personal-business/notifications',
         component: './platform-management/notifications',
+      },
+      {
+        name: '房东中心',
+        locale: false,
+        icon: 'home',
+        path: '/personal-business/landlord',
+        component: './personal-business/landlord',
       },
     ],
   },

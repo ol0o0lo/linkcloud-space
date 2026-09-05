@@ -30,6 +30,13 @@ describe('createBuildingInfoWindowContent', () => {
     expect(content.querySelector('a')?.getAttribute('href')).toBe(
       '/dashboard/rental/properties/list?building_id=3',
     );
+    expect(
+      Array.from(content.querySelectorAll('a'))
+        .find((link) => link.textContent === '编辑位置')
+        ?.getAttribute('href'),
+    ).toBe(
+      '/dashboard/rental/properties/list?building_id=3&asset_tab=profile&asset_action=edit-building&return_to=%2Fdashboard%2Frental%2Fproperties%2Fmap',
+    );
   });
 
   it('生成带房源数的楼栋定位点与聚合点', () => {

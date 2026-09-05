@@ -357,7 +357,9 @@ const IdCardUpload: React.FC<{
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 14, color: 'rgba(0,0,0,0.88)' }}>{label}</span>
+      <span style={{ fontSize: 14, color: 'var(--ant-color-text)' }}>
+        {label}
+      </span>
       <Upload
         accept="image/png,image/jpeg,image/webp"
         customRequest={onUpload}
@@ -367,9 +369,15 @@ const IdCardUpload: React.FC<{
         onRemove={onRemove}
       >
         {fileList.length >= 1 ? null : loading ? (
-          <span style={{ color: '#999' }}>上传中...</span>
+          <span style={{ color: 'var(--ant-color-text-secondary)' }}>
+            上传中...
+          </span>
         ) : (
-          <span style={{ fontSize: 12, color: '#999' }}>点击上传</span>
+          <span
+            style={{ fontSize: 12, color: 'var(--ant-color-text-secondary)' }}
+          >
+            点击上传
+          </span>
         )}
       </Upload>
     </div>
@@ -408,7 +416,7 @@ const IdCardPreview: React.FC<{ items: IdCardMediaPreviewItem[] }> = ({
             key={side}
             style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
           >
-            <span style={{ fontSize: 14, color: 'rgba(0,0,0,0.88)' }}>
+            <span style={{ fontSize: 14, color: 'var(--ant-color-text)' }}>
               {label}
             </span>
             <div
@@ -416,12 +424,12 @@ const IdCardPreview: React.FC<{ items: IdCardMediaPreviewItem[] }> = ({
                 width: 104,
                 height: 104,
                 borderRadius: 8,
-                border: '1px solid #d9d9d9',
+                border: '1px solid var(--ant-color-border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 overflow: 'hidden',
-                background: '#fafafa',
+                background: 'var(--ant-color-fill-quaternary)',
               }}
             >
               {item.url ? (
@@ -436,7 +444,14 @@ const IdCardPreview: React.FC<{ items: IdCardMediaPreviewItem[] }> = ({
                   preview={{ mask: '查看大图' }}
                 />
               ) : (
-                <span style={{ color: '#bfbfbf', fontSize: 12 }}>暂无图片</span>
+                <span
+                  style={{
+                    color: 'var(--ant-color-text-disabled)',
+                    fontSize: 12,
+                  }}
+                >
+                  暂无图片
+                </span>
               )}
             </div>
           </div>

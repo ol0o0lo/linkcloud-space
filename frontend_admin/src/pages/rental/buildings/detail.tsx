@@ -286,7 +286,10 @@ const BuildingDetailPage: React.FC = () => {
   const rented = counts?.rented || 0;
   const rentable = (counts?.vacant || 0) + (counts?.listed || 0) + rented;
   const editHref = dashboardHref(
-    `/rental/properties/estates?view=buildings&building_edit=${building.id}`,
+    `/rental/properties/list?building_id=${building.id}&asset_tab=profile&asset_action=edit-building`,
+  );
+  const workspaceHref = dashboardHref(
+    `/rental/properties/list?building_id=${building.id}`,
   );
   const buildingImages = (building.images || []).flatMap((item, index) => {
     const source = item.thumbnail || item.url;
@@ -349,7 +352,9 @@ const BuildingDetailPage: React.FC = () => {
             <Button type="primary" icon={<EditOutlined />} href={editHref}>
               编辑资料
             </Button>
-            <Button href={returnTo}>返回地图</Button>
+            <Button href={returnTo || workspaceHref}>
+              {returnTo ? '返回地图' : '返回房源管理'}
+            </Button>
           </Space>
         </Card>
 

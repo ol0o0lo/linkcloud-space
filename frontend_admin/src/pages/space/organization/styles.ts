@@ -301,6 +301,7 @@ export const useStyles = createStyles(({ css, token }) => ({
     > .ant-card {
       display: flex;
       flex: 1;
+      flex-direction: column;
       min-height: 0;
       overflow: hidden;
       border-color: ${token.colorBorderSecondary};
@@ -350,6 +351,56 @@ export const useStyles = createStyles(({ css, token }) => ({
         width: 100%;
       }
     }
+  `,
+  memberTeamsCard: css`
+    > .ant-card-body {
+      min-height: 240px;
+    }
+
+    @media (max-width: ${token.screenSM - 1}px) {
+      > .ant-card-head .ant-card-head-wrapper {
+        align-items: stretch;
+        flex-direction: column;
+        gap: ${token.marginSM}px;
+        padding-block: ${token.paddingSM}px;
+      }
+
+      > .ant-card-head .ant-card-title,
+      > .ant-card-head .ant-card-extra {
+        width: 100%;
+        padding-block: 0;
+      }
+    }
+  `,
+  memberTeamsHint: css`
+    font-size: ${token.fontSizeSM}px;
+    font-weight: 400;
+  `,
+  memberTeamsHeaderActions: css`
+    display: flex;
+    align-items: center;
+    gap: ${token.marginSM}px;
+
+    > .ant-select {
+      width: 260px;
+    }
+
+    @media (max-width: ${token.screenSM - 1}px) {
+      align-items: stretch;
+      flex-direction: column;
+
+      > .ant-select,
+      > .ant-btn {
+        width: 100%;
+      }
+    }
+  `,
+  memberTeamRow: css`
+    min-height: 56px;
+    padding-block: ${token.paddingXS}px;
+  `,
+  memberTeamDivider: css`
+    margin-block: 0 !important;
   `,
   entityHeader: css`
     display: flex;

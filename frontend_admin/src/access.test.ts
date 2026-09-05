@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import routes from '../config/routes';
 import access from './access';
+import { RENTAL_PATHS, SPACE_PATHS } from './utils/adminRouting';
+
+type AppRoute = {
+  access?: string;
+  path?: string;
+  routes?: AppRoute[];
+};
+
+function findRoute(routeList: AppRoute[], path: string): AppRoute | undefined {
+  for (const route of routeList) {
+    if (route.path === path) return route;
+    const nested = route.routes ? findRoute(route.routes, path) : undefined;
+    if (nested) return nested;
+  }
+  return undefined;
+}
 
 describe('access', () => {
   it('should return canAdmin true when user has admin access', () => {
@@ -135,5 +152,56 @@ describe('access', () => {
         },
       }).canViewSpaceWorkbench,
     ).toBe(false);
+  });
+
+  it('maps backend navigation capabilities to Umi access keys', () => {
+    const result = access({
+      navigationCapabilities: {
+        role_management: true,
+        organization_settings: false,
+        team_settings: true,
+        subscriptions: true,
+        analytics: false,
+        allocation: true,
+        notification_dispatches: false,
+      },
+    });
+
+    expect(result).toMatchObject({
+      canViewRoleManagement: true,
+      canViewOrganizationSettings: false,
+      canViewTeamSettings: true,
+      canViewBusinessSettings: true,
+      canViewSubscriptions: true,
+      canViewAnalytics: false,
+      canViewAllocation: true,
+      canManageNotificationDispatches: false,
+    });
+  });
+
+  it('declares access keys on restricted tenant routes', () => {
+    const appRoutes = routes as AppRoute[];
+
+    expect(findRoute(appRoutes, RENTAL_PATHS.earnings)?.access).toBe(
+      'canViewAllocation',
+    );
+    expect(findRoute(appRoutes, RENTAL_PATHS.analytics)?.access).toBe(
+      'canViewAnalytics',
+    );
+    expect(findRoute(appRoutes, SPACE_PATHS.access)?.access).toBe(
+      'canViewRoleManagement',
+    );
+    expect(findRoute(appRoutes, SPACE_PATHS.subscription)?.access).toBe(
+      'canViewSubscriptions',
+    );
+    expect(findRoute(appRoutes, SPACE_PATHS.organizationSettings)?.access).toBe(
+      'canViewOrganizationSettings',
+    );
+    expect(findRoute(appRoutes, SPACE_PATHS.teamSettings)?.access).toBe(
+      'canViewTeamSettings',
+    );
+    expect(
+      findRoute(appRoutes, SPACE_PATHS.notificationDispatches)?.access,
+    ).toBe('canManageNotificationDispatches');
   });
 });

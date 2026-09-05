@@ -3,7 +3,11 @@ import { getMatchMenu } from '@umijs/route-utils';
 import { describe, expect, it } from 'vitest';
 import routes from '../config/routes';
 import zhCN from './locales/zh-CN';
-import { RENTAL_PATHS, SPACE_PATHS } from './utils/adminRouting';
+import {
+  DEFAULT_PROPERTY_LIST_PATH,
+  RENTAL_PATHS,
+  SPACE_PATHS,
+} from './utils/adminRouting';
 
 type AppRoute = {
   access?: string;
@@ -43,6 +47,23 @@ const collectMenuKeys = (routeList: AppRoute[], parents: string[] = []) => {
 const appRoutes = routes as AppRoute[];
 
 describe('backend capability routes', () => {
+  it('承接 allauth 的公开认证回调页面', () => {
+    const authGroup = appRoutes.find((route) => route.path === '/user');
+    const authPaths = authGroup?.routes?.map((route) => route.path) ?? [];
+
+    expect(authPaths).toEqual(
+      expect.arrayContaining([
+        '/user/login',
+        '/user/register',
+        '/user/verify-phone',
+        '/user/password/reset',
+        '/user/password/reset/key/:key',
+        '/user/confirm-email/:key',
+        '/user/social/error',
+      ]),
+    );
+  });
+
   it('按用户租赁流程组织一级导航', () => {
     const visibleTopLevelNames = appRoutes
       .filter(
@@ -57,6 +78,7 @@ describe('backend capability routes', () => {
       'customers',
       'viewings',
       'leases',
+      'earnings',
       'data-insights',
       'space-management',
       'super-admin',
@@ -101,10 +123,12 @@ describe('backend capability routes', () => {
 
     expect(propertyGroup?.name).toBe('property-assets');
     expect(propertyGroup?.path).toBe(RENTAL_PATHS.properties);
+    expect(propertyGroup?.routes?.[0]?.redirect).toBe(
+      DEFAULT_PROPERTY_LIST_PATH,
+    );
     expect(propertyGroup?.routes?.map((route) => route.path)).toEqual([
       RENTAL_PATHS.properties,
       RENTAL_PATHS.propertyList,
-      RENTAL_PATHS.estates,
       RENTAL_PATHS.map,
       RENTAL_PATHS.vacancySync,
       `${RENTAL_PATHS.buildings}/:id`,
@@ -187,6 +211,7 @@ describe('backend capability routes', () => {
       locale: false,
       icon: 'key',
       component: './access',
+      hideInMenu: true,
     });
     expect(accessGroup?.routes).toBeUndefined();
     expect(
@@ -239,6 +264,7 @@ describe('backend capability routes', () => {
       '/super-admin/real-name',
       '/super-admin/wallet/accounts',
       '/super-admin/wallet/withdrawals',
+      '/super-admin/subscriptions',
       '/super-admin/referrals',
       '/super-admin/notification-dispatches',
       '/super-admin/operations',
@@ -270,6 +296,7 @@ describe('backend capability routes', () => {
       '/personal-business/overview',
       '/personal-business/favorites',
       '/personal-business/notifications',
+      '/personal-business/landlord',
     ]);
     expect(zhCN['menu.personal-business']).toBe('个人');
     expect(zhCN['menu.personal-business.overview']).toBe('个人概览');

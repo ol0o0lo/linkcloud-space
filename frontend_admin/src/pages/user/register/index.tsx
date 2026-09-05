@@ -1,319 +1,223 @@
-import { useMutation } from '@tanstack/react-query';
-import { history, Link } from '@umijs/max';
+import { history, Link, useSearchParams } from '@umijs/max';
 import {
+  Alert,
   Button,
-  Col,
+  Checkbox,
   Form,
   Input,
-  message,
-  Popover,
-  Progress,
-  Row,
   Select,
   Space,
+  Typography,
 } from 'antd';
-import type { Store } from 'antd/es/form/interface';
-import type { FC } from 'react';
-import { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import {
+  getPendingPublicAuthFlow,
+  getPublicAuthErrorMessage,
+  signupPublicAccount,
+} from '@/services/manual/publicAuth';
+import {
+  buildAuthRedirectPath,
+  getSafeAdminRedirect,
+  LOGIN_PATH,
+  VERIFY_PHONE_PATH,
+} from '@/utils/adminRouting';
 import { normalizeEmailLikeInput } from '@/utils/email';
-import { fakeRegister } from './service';
-import useStyles from './styles';
 
-const FormItem = Form.Item;
-const { Option } = Select;
-
-const passwordProgressMap: {
-  ok: 'success';
-  pass: 'normal';
-  poor: 'exception';
-} = {
-  ok: 'success',
-  pass: 'normal',
-  poor: 'exception',
+type RegisterValues = {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  phoneCountryCode: string;
+  phoneNationalNumber: string;
+  inviteCode?: string;
+  acceptedTerms: boolean;
 };
-const Register: FC = () => {
-  const { styles } = useStyles();
-  const [count, setCount]: [number, any] = useState(0);
-  const [open, setVisible]: [boolean, any] = useState(false);
-  const [prefix, setPrefix]: [string, any] = useState('86');
-  const [popover, setPopover]: [boolean, any] = useState(false);
-  const confirmDirty = false;
-  let interval: number | undefined;
 
-  const passwordStatusMap = {
-    ok: (
-      <div className={styles.success}>
-        <span>强度：强</span>
-      </div>
-    ),
-    pass: (
-      <div className={styles.warning}>
-        <span>强度：中</span>
-      </div>
-    ),
-    poor: (
-      <div className={styles.error}>
-        <span>强度：太短</span>
-      </div>
-    ),
-  };
+const RegisterPage: React.FC = () => {
+  const [params] = useSearchParams();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const queryInviteCode = (params.get('invite_code') || '')
+    .trim()
+    .toUpperCase();
+  const referralSource =
+    params.get('referral_source') === 'link' ? 'link' : 'code';
+  const requestedRedirect = params.get('redirect');
+  const redirect = getSafeAdminRedirect(requestedRedirect, '/');
 
-  const [form] = Form.useForm();
-  useEffect(
-    () => () => {
-      clearInterval(interval);
-    },
-    [interval],
-  );
-  const onGetCaptcha = () => {
-    let counts = 59;
-    setCount(counts);
-    interval = window.setInterval(() => {
-      counts -= 1;
-      setCount(counts);
-      if (counts === 0) {
-        clearInterval(interval);
-      }
-    }, 1000);
-  };
-  const getPasswordStatus = () => {
-    const value = form.getFieldValue('password');
-    if (value && value.length > 9) {
-      return 'ok';
-    }
-    if (value && value.length > 5) {
-      return 'pass';
-    }
-    return 'poor';
-  };
-  const { isPending: submitting, mutate: register } = useMutation({
-    mutationFn: (formValues: Store) => {
-      const payload = {
-        mail: formValues.email,
-        password: formValues.password,
-        confirm: formValues.confirm,
-        mobile: formValues.mobile,
-        captcha: formValues.captcha,
-        prefix: formValues.prefix,
-      };
-      return fakeRegister(payload);
-    },
-    onSuccess: (data, params) => {
-      if (data.status === 'ok') {
-        message.success('注册成功！');
-        history.push({
-          pathname: `/user/register-result?account=${params.mail}`,
+  const submit = async (values: RegisterValues) => {
+    setSubmitting(true);
+    setError('');
+    const phoneCountryCode = values.phoneCountryCode || '+86';
+    const phoneNationalNumber = values.phoneNationalNumber.trim();
+    try {
+      await signupPublicAccount({
+        email: values.email,
+        phoneCountryCode,
+        phoneNationalNumber,
+        password: values.password,
+        inviteCode: values.inviteCode,
+        referralSource,
+      });
+      history.replace(redirect);
+    } catch (requestError) {
+      if (getPendingPublicAuthFlow(requestError) === 'verify_phone') {
+        const nextParams = new URLSearchParams({
+          phone: `${phoneCountryCode}${phoneNationalNumber}`,
+          redirect,
         });
+        history.push(`${VERIFY_PHONE_PATH}?${nextParams.toString()}`);
+        return;
       }
-    },
-  });
-  const onFinish = (values: Store) => {
-    register(values);
-  };
-  const checkConfirm = (_: any, value: string) => {
-    const promise = Promise;
-    if (value && value !== form.getFieldValue('password')) {
-      return promise.reject('两次输入的密码不匹配!');
+      setError(
+        getPublicAuthErrorMessage(requestError, '注册失败，请稍后重试。'),
+      );
+    } finally {
+      setSubmitting(false);
     }
-    return promise.resolve();
   };
-  const checkPassword = (_: any, value: string) => {
-    const promise = Promise;
-    // 没有值的情况
-    if (!value) {
-      setVisible(!!value);
-      return promise.reject('请输入密码!');
-    }
-    // 有值的情况
-    if (!open) {
-      setVisible(!!value);
-    }
-    setPopover(!popover);
-    if (value.length < 6) {
-      return promise.reject('');
-    }
-    if (value && confirmDirty) {
-      form.validateFields(['confirm']);
-    }
-    return promise.resolve();
-  };
-  const changePrefix = (value: string) => {
-    setPrefix(value);
-  };
-  const renderPasswordProgress = () => {
-    const value = form.getFieldValue('password');
-    const passwordStatus = getPasswordStatus();
-    return value?.length ? (
-      <div
-        className={styles[`progress-${passwordStatus}` as keyof typeof styles]}
-      >
-        <Progress
-          status={passwordProgressMap[passwordStatus]}
-          size={6}
-          percent={value.length * 10 > 100 ? 100 : value.length * 10}
-          showInfo={false}
-        />
-      </div>
-    ) : null;
-  };
+
   return (
-    <div className={styles.main}>
-      <h3>注册</h3>
-      <Form form={form} name="UserRegister" onFinish={onFinish}>
-        <FormItem
-          name="email"
-          normalize={normalizeEmailLikeInput}
-          rules={[
-            {
-              required: true,
-              message: '请输入邮箱地址!',
-            },
-            {
-              type: 'email',
-              message: '邮箱地址格式错误!',
-            },
-          ]}
-        >
-          <Input size="large" placeholder="邮箱" />
-        </FormItem>
-        <Popover
-          getPopupContainer={(node) => {
-            if (node?.parentNode) {
-              return node.parentNode as HTMLElement;
-            }
-            return node;
+    <div
+      style={{
+        width: 'min(420px, calc(100vw - 32px))',
+        margin: '40px auto',
+      }}
+    >
+      <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+        <div>
+          <Typography.Title level={2}>创建账号</Typography.Title>
+          <Typography.Text type="secondary">
+            注册后需要完成手机验证，才能进入管理端。
+          </Typography.Text>
+        </div>
+        {queryInviteCode ? (
+          <Alert
+            showIcon
+            type="info"
+            title={`已应用邀请码 ${queryInviteCode}`}
+          />
+        ) : null}
+        {error ? <Alert showIcon type="error" title={error} /> : null}
+        <Form<RegisterValues>
+          layout="vertical"
+          initialValues={{
+            phoneCountryCode: '+86',
+            inviteCode: queryInviteCode,
+            acceptedTerms: false,
           }}
-          content={
-            open && (
-              <div
-                style={{
-                  padding: '4px 0',
-                }}
+          onFinish={submit}
+        >
+          <Form.Item
+            label="邮箱"
+            name="email"
+            normalize={normalizeEmailLikeInput}
+            rules={[
+              { required: true, message: '请输入邮箱' },
+              { type: 'email', message: '邮箱格式不正确' },
+            ]}
+          >
+            <Input size="large" autoComplete="email" placeholder="请输入邮箱" />
+          </Form.Item>
+          <Form.Item label="手机号" required>
+            <Space.Compact style={{ width: '100%' }}>
+              <Form.Item name="phoneCountryCode" noStyle>
+                <Select
+                  size="large"
+                  style={{ width: 112 }}
+                  options={[{ label: '中国 +86', value: '+86' }]}
+                />
+              </Form.Item>
+              <Form.Item
+                name="phoneNationalNumber"
+                noStyle
+                rules={[
+                  { required: true, message: '请输入手机号' },
+                  {
+                    pattern: /^1\d{10}$/,
+                    message: '请输入 11 位中国大陆手机号',
+                  },
+                ]}
               >
-                {passwordStatusMap[getPasswordStatus()]}
-                {renderPasswordProgress()}
-                <div
-                  style={{
-                    marginTop: 10,
-                  }}
-                >
-                  <span>请至少输入 6 个字符。请不要使用容易被猜到的密码。</span>
-                </div>
-              </div>
-            )
-          }
-          overlayStyle={{
-            width: 240,
-          }}
-          placement="right"
-          open={open}
-        >
-          <FormItem
+                <Input
+                  size="large"
+                  autoComplete="tel-national"
+                  placeholder="请输入手机号"
+                />
+              </Form.Item>
+            </Space.Compact>
+          </Form.Item>
+          <Form.Item
+            label="密码"
             name="password"
-            className={
-              form.getFieldValue('password') &&
-              form.getFieldValue('password').length > 0 &&
-              styles.password
-            }
+            rules={[
+              { required: true, message: '请输入密码' },
+              { min: 8, message: '密码至少 8 位' },
+            ]}
+          >
+            <Input.Password
+              size="large"
+              autoComplete="new-password"
+              placeholder="请输入密码"
+            />
+          </Form.Item>
+          <Form.Item
+            label="确认密码"
+            name="confirmPassword"
+            dependencies={['password']}
+            rules={[
+              { required: true, message: '请再次输入新密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  return !value || getFieldValue('password') === value
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('两次输入的密码不一致'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password
+              size="large"
+              autoComplete="new-password"
+              placeholder="请确认密码"
+            />
+          </Form.Item>
+          <Form.Item label="邀请码（选填）" name="inviteCode">
+            <Input size="large" placeholder="请输入邀请码" />
+          </Form.Item>
+          <Form.Item
+            name="acceptedTerms"
+            valuePropName="checked"
             rules={[
               {
-                validator: checkPassword,
+                validator: (_, checked) =>
+                  checked
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('请确认同意服务条款和隐私政策')),
               },
             ]}
           >
-            <Input
-              size="large"
-              type="password"
-              placeholder="至少6位密码，区分大小写"
-            />
-          </FormItem>
-        </Popover>
-        <FormItem
-          name="confirm"
-          rules={[
-            {
-              required: true,
-              message: '确认密码',
-            },
-            {
-              validator: checkConfirm,
-            },
-          ]}
-        >
-          <Input size="large" type="password" placeholder="确认密码" />
-        </FormItem>
-        <FormItem
-          name="mobile"
-          rules={[
-            {
-              required: true,
-              message: '请输入手机号!',
-            },
-            {
-              pattern: /^\d{11}$/,
-              message: '手机号格式错误!',
-            },
-          ]}
-        >
-          <Space.Compact style={{ width: '100%' }}>
-            <Select
-              size="large"
-              value={prefix}
-              onChange={changePrefix}
-              style={{
-                width: '30%',
-              }}
-            >
-              <Option value="86">+86</Option>
-              <Option value="87">+87</Option>
-            </Select>
-
-            <Input size="large" placeholder="手机号" />
-          </Space.Compact>
-        </FormItem>
-        <Row gutter={8}>
-          <Col span={16}>
-            <FormItem
-              name="captcha"
-              rules={[
-                {
-                  required: true,
-                  message: '请输入验证码!',
-                },
-              ]}
-            >
-              <Input size="large" placeholder="验证码" />
-            </FormItem>
-          </Col>
-          <Col span={8}>
-            <Button
-              size="large"
-              disabled={!!count}
-              className={styles.getCaptcha}
-              onClick={onGetCaptcha}
-            >
-              {count ? `${count} s` : '获取验证码'}
-            </Button>
-          </Col>
-        </Row>
-        <FormItem>
-          <div className={styles.footer}>
-            <Button
-              size="large"
-              loading={submitting}
-              className={styles.submit}
-              type="primary"
-              htmlType="submit"
-            >
-              <span>注册</span>
-            </Button>
-            <Link to="/user/login" prefetch>
-              <span>使用已有账户登录</span>
-            </Link>
-          </div>
-        </FormItem>
-      </Form>
+            <Checkbox>我已阅读并同意服务条款和隐私政策</Checkbox>
+          </Form.Item>
+          <Button
+            block
+            size="large"
+            type="primary"
+            htmlType="submit"
+            loading={submitting}
+          >
+            创建账号
+          </Button>
+        </Form>
+        <Typography.Text>
+          已有账号？{' '}
+          <Link to={buildAuthRedirectPath(LOGIN_PATH, requestedRedirect)}>
+            返回登录
+          </Link>
+        </Typography.Text>
+      </Space>
     </div>
   );
 };
-export default Register;
+
+export default RegisterPage;

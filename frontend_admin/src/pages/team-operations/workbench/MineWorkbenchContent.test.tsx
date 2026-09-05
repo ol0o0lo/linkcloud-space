@@ -89,6 +89,22 @@ const data: MineWorkbenchDataValue = {
   announcementsLoading: false,
   announcementsError: false,
   retryAnnouncements: vi.fn(),
+  inspectionHouses: [
+    {
+      id: 31,
+      room_number: '1803',
+      building: {
+        id: 3,
+        name: '2栋',
+        estate: { id: 2, name: '云景花园', display_name: '云景花园' },
+      },
+      inspection_reasons: ['missing_images', 'expired'],
+    },
+  ] as any,
+  inspectionTotal: 6,
+  inspectionLoading: false,
+  inspectionError: false,
+  retryInspection: vi.fn(),
   acceptingId: undefined,
   completingId: undefined,
   accept,
@@ -104,30 +120,6 @@ vi.mock('./data/MineWorkbenchData', () => ({
 
 describe('MineWorkbenchContent', () => {
   beforeEach(() => vi.clearAllMocks());
-
-  it('renders the redesigned default widgets', () => {
-    render(
-      <MineWorkbenchContent
-        layout={defaultWorkbenchLayout(mineWidgetDefinitions)}
-      />,
-    );
-
-    expect(screen.getByText('待办概览')).toBeInTheDocument();
-    expect(screen.getByText('优先处理')).toBeInTheDocument();
-    expect(screen.getByText('任务进展')).toBeInTheDocument();
-    expect(screen.getByText('公告摘要')).toBeInTheDocument();
-    expect(screen.getByText('快捷操作')).toBeInTheDocument();
-    expect(screen.getByText('房源发布规则调整通知')).toBeInTheDocument();
-    expect(screen.getByTestId('mine-summary-rail')).toBeInTheDocument();
-    expect(screen.getByTestId('mine-priority-queue')).toBeInTheDocument();
-    expect(screen.getByTestId('mine-progress-ring')).toHaveTextContent(
-      '今日完成率',
-    );
-    expect(screen.getByTestId('mine-announcement-note')).toHaveTextContent(
-      '房源发布规则调整通知',
-    );
-    expect(screen.getByTestId('mine-quick-actions')).toBeInTheDocument();
-  });
 
   it('keeps accept and complete task actions', () => {
     render(

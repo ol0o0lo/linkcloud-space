@@ -2,7 +2,7 @@
 /* eslint-disable */
 import { request } from "@umijs/max";
 
-/** 获取租户成员列表 返回当前租户成员列表，支持按姓名、用户名和邮箱搜索。 GET /api/organization-members/ */
+/** 获取租户成员列表 返回当前租户成员列表，支持按员工资料和账号资料搜索。 GET /api/organization-members/ */
 export async function appsOrganizationsApiListMembers(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsOrganizationsApiListMembersParams,

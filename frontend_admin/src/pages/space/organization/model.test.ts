@@ -51,13 +51,16 @@ describe('组织架构 URL 状态', () => {
     });
   });
 
-  it('组织节点只保留资料和邀请上下文', () => {
+  it('组织节点承载资料、角色和邀请上下文', () => {
     expect(
       parseOrganizationRoute('?section=members&node=organization&tab=overview'),
     ).toMatchObject({ node: 'organization', tab: 'overview' });
     expect(
       parseOrganizationRoute('?section=members&node=organization&tab=members'),
     ).toMatchObject({ node: 'organization', tab: 'overview' });
+    expect(
+      parseOrganizationRoute('?section=members&node=organization&tab=roles'),
+    ).toMatchObject({ node: 'organization', tab: 'roles' });
   });
 
   it('角色管理参数不再由组织架构页面承载', () => {

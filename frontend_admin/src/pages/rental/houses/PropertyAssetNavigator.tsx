@@ -3,8 +3,8 @@ import {
   DownOutlined,
   EditOutlined,
   PlusOutlined,
+  QuestionCircleOutlined,
   RightOutlined,
-  SettingOutlined,
   SyncOutlined,
 } from '@ant-design/icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -14,6 +14,8 @@ import {
   Button,
   Empty,
   Input,
+  Popover,
+  Segmented,
   Skeleton,
   Tooltip,
   Typography,
@@ -25,6 +27,7 @@ import { TreeSectionHeader } from '@/components/TreeSectionHeader';
 import {
   type BuildingOut,
   type EstateOut,
+  type HouseListParams,
   houseApi,
 } from '@/services/manual/house';
 
@@ -38,13 +41,13 @@ export type PropertyAssetScope = {
   buildingId?: number;
 };
 
-export type PropertyStructureIntent = {
-  estateCreate?: boolean;
-  estateEditId?: number;
-  buildingCreateStandalone?: boolean;
-  buildingEditId?: number;
-  buildingCreateEstateId?: number;
-};
+type PropertyHouseScope = NonNullable<HouseListParams['scope']>;
+
+export type PropertyAssetAction =
+  | { type: 'create-estate' }
+  | { type: 'create-building'; estateId?: number }
+  | { type: 'edit-estate'; estateId: number }
+  | { type: 'edit-building'; buildingId: number };
 
 type RecentPropertyScope = {
   key: string;
@@ -57,9 +60,11 @@ type PropertyAssetNavigatorProps = {
   collapsed: boolean;
   disabled?: boolean;
   enabled: boolean;
+  houseScope: PropertyHouseScope;
   orgSlug?: string;
   scope: PropertyAssetScope;
-  onOpenManagement: (intent?: PropertyStructureIntent) => void;
+  onAction: (action: PropertyAssetAction) => void;
+  onHouseScopeChange: (scope: PropertyHouseScope) => void;
   onScopeChange: (scope: PropertyAssetScope) => void;
 };
 
@@ -134,6 +139,39 @@ const useStyles = createStyles(({ css, token }) => ({
     display: flex;
     align-items: center;
     gap: 8px;
+  `,
+  scopeTitle: css`
+    display: inline-flex;
+    align-items: flex-start;
+    white-space: nowrap;
+  `,
+  scopeControls: css`
+    display: flex;
+    align-items: center;
+    margin-inline-start: auto;
+  `,
+  scopeHelpButton: css`
+    position: relative;
+    top: -5px;
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0;
+    color: ${token.colorTextTertiary};
+    font-size: ${token.fontSizeSM}px;
+
+    &:hover,
+    &:active {
+      border-color: transparent !important;
+      background: transparent !important;
+      color: ${token.colorTextSecondary} !important;
+      box-shadow: none !important;
+    }
+  `,
+  scopeHelpContent: css`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   `,
   scopeHeadingIcon: css`
     display: inline-flex;
@@ -417,7 +455,7 @@ const useStyles = createStyles(({ css, token }) => ({
   `,
   footer: css`
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
     padding: 8px;
     border-top: 1px solid ${token.colorBorderSecondary};
@@ -505,13 +543,17 @@ function buildingCountText(building: BuildingOut) {
     : '';
 }
 
-async function fetchAllEstateBuildings(estateId: number) {
+async function fetchAllEstateBuildings(
+  estateId: number,
+  houseScope: PropertyHouseScope,
+) {
   const items: BuildingOut[] = [];
   let page = 1;
 
   while (true) {
     const result = await houseApi.listBuildings({
       estate_id: estateId,
+      scope: houseScope,
       page,
       page_size: BUILDING_PAGE_SIZE,
     });
@@ -523,7 +565,7 @@ async function fetchAllEstateBuildings(estateId: number) {
   return items;
 }
 
-async function fetchAllBuildings() {
+async function fetchAllBuildings(houseScope: PropertyHouseScope) {
   const items: BuildingOut[] = [];
   let page = 1;
 
@@ -531,6 +573,7 @@ async function fetchAllBuildings() {
     const result = await houseApi.listBuildings({
       page,
       page_size: BUILDING_PAGE_SIZE,
+      scope: houseScope,
     });
     items.push(...result.items);
     if (!result.items.length || items.length >= result.total) break;
@@ -545,10 +588,11 @@ function EstateNode({
   enabled,
   estate,
   expanded,
+  houseScope,
   orgSlug,
   scope,
   onExpandedChange,
-  onOpenManagement,
+  onAction,
   onRememberScope,
   onScopeChange,
 }: {
@@ -556,18 +600,26 @@ function EstateNode({
   enabled: boolean;
   estate: EstateOut;
   expanded: boolean;
+  houseScope: PropertyHouseScope;
   orgSlug?: string;
   scope: PropertyAssetScope;
   onExpandedChange: (expanded: boolean) => void;
-  onOpenManagement: (intent?: PropertyStructureIntent) => void;
+  onAction: (action: PropertyAssetAction) => void;
   onRememberScope: (scope: RecentPropertyScope) => void;
   onScopeChange: (scope: PropertyAssetScope) => void;
 }) {
   const { styles } = useStyles();
   const name = estateName(estate);
   const buildings = useQuery({
-    queryKey: ['house', 'asset-navigator', 'buildings', orgSlug, estate.id],
-    queryFn: () => fetchAllEstateBuildings(estate.id),
+    queryKey: [
+      'house',
+      'asset-navigator',
+      'buildings',
+      orgSlug,
+      houseScope,
+      estate.id,
+    ],
+    queryFn: () => fetchAllEstateBuildings(estate.id, houseScope),
     enabled: enabled && expanded,
   });
 
@@ -591,7 +643,6 @@ function EstateNode({
           aria-current={scope.estateId === estate.id ? 'page' : undefined}
           onClick={() => {
             if (scope.estateId === estate.id) {
-              onExpandedChange(false);
               onScopeChange({});
               return;
             }
@@ -621,7 +672,7 @@ function EstateNode({
                 aria-label={`新建${name}楼栋`}
                 icon={<PlusOutlined />}
                 onClick={() =>
-                  onOpenManagement({ buildingCreateEstateId: estate.id })
+                  onAction({ type: 'create-building', estateId: estate.id })
                 }
               />
             </Tooltip>
@@ -632,7 +683,9 @@ function EstateNode({
                 disabled={disabled}
                 aria-label={`编辑${name}项目`}
                 icon={<EditOutlined />}
-                onClick={() => onOpenManagement({ estateEditId: estate.id })}
+                onClick={() =>
+                  onAction({ type: 'edit-estate', estateId: estate.id })
+                }
               />
             </Tooltip>
           </span>
@@ -710,7 +763,10 @@ function EstateNode({
                         aria-label={`编辑${name} / ${building.name}`}
                         icon={<EditOutlined />}
                         onClick={() =>
-                          onOpenManagement({ buildingEditId: building.id })
+                          onAction({
+                            type: 'edit-building',
+                            buildingId: building.id,
+                          })
                         }
                       />
                     </Tooltip>
@@ -737,9 +793,11 @@ export function PropertyAssetNavigator({
   collapsed,
   disabled = false,
   enabled,
+  houseScope,
   orgSlug,
   scope,
-  onOpenManagement,
+  onAction,
+  onHouseScopeChange,
   onScopeChange,
 }: PropertyAssetNavigatorProps) {
   const { cx, styles } = useStyles();
@@ -763,11 +821,12 @@ export function PropertyAssetNavigator({
     enabled: enabled && Boolean(scope.buildingId),
   });
   const estates = useInfiniteQuery({
-    queryKey: ['house', 'asset-navigator', 'estates', orgSlug],
+    queryKey: ['house', 'asset-navigator', 'estates', orgSlug, houseScope],
     queryFn: ({ pageParam }) =>
       houseApi.listEstates({
         page: pageParam,
         page_size: ESTATE_PAGE_SIZE,
+        scope: houseScope,
       }),
     initialPageParam: 1,
     getNextPageParam: (lastPage) =>
@@ -786,6 +845,7 @@ export function PropertyAssetNavigator({
       'asset-navigator',
       'search-estates',
       orgSlug,
+      houseScope,
       searchKeyword,
     ],
     queryFn: () =>
@@ -793,6 +853,7 @@ export function PropertyAssetNavigator({
         keyword: searchKeyword,
         page: 1,
         page_size: SEARCH_PAGE_SIZE,
+        scope: houseScope,
       }),
     enabled: enabled && Boolean(searchKeyword),
   });
@@ -802,6 +863,7 @@ export function PropertyAssetNavigator({
       'asset-navigator',
       'search-buildings',
       orgSlug,
+      houseScope,
       searchKeyword,
     ],
     queryFn: () =>
@@ -809,13 +871,22 @@ export function PropertyAssetNavigator({
         keyword: searchKeyword,
         page: 1,
         page_size: SEARCH_PAGE_SIZE,
+        scope: houseScope,
       }),
     enabled: enabled && Boolean(searchKeyword),
   });
   const standaloneBuildings = useQuery({
-    queryKey: ['house', 'asset-navigator', 'standalone-buildings', orgSlug],
+    queryKey: [
+      'house',
+      'asset-navigator',
+      'standalone-buildings',
+      orgSlug,
+      houseScope,
+    ],
     queryFn: async () =>
-      (await fetchAllBuildings()).filter((building) => !building.estate_id),
+      (await fetchAllBuildings(houseScope)).filter(
+        (building) => !building.estate_id,
+      ),
     enabled: enabled && standaloneExpanded,
   });
 
@@ -864,7 +935,9 @@ export function PropertyAssetNavigator({
   useEffect(() => {
     const estateId = scope.estateId || selectedBuilding.data?.estate_id;
     if (!estateId) return;
-    setExpandedEstateIds([estateId]);
+    setExpandedEstateIds((current) =>
+      current.includes(estateId) ? current : [...current, estateId],
+    );
   }, [scope.estateId, selectedBuilding.data?.estate_id]);
 
   useEffect(() => {
@@ -890,7 +963,47 @@ export function PropertyAssetNavigator({
             >
               <AppIcon name="house" />
             </span>
-            <Typography.Text strong>房源范围</Typography.Text>
+            <span className={styles.scopeTitle}>
+              <Typography.Text strong>房源范围</Typography.Text>
+              <Popover
+                trigger="click"
+                placement="bottomLeft"
+                title="房源范围说明"
+                content={
+                  <div className={styles.scopeHelpContent}>
+                    <Typography.Text>
+                      <Typography.Text strong>全部：</Typography.Text>
+                      查看空间内全部房源
+                    </Typography.Text>
+                    <Typography.Text>
+                      <Typography.Text strong>我的：</Typography.Text>
+                      仅查看当前账号负责的房源
+                    </Typography.Text>
+                  </div>
+                }
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  className={styles.scopeHelpButton}
+                  aria-label="查看房源范围说明"
+                  icon={<QuestionCircleOutlined />}
+                />
+              </Popover>
+            </span>
+            <div className={styles.scopeControls}>
+              <Segmented<PropertyHouseScope>
+                aria-label="房源范围选择"
+                disabled={disabled}
+                name="house-scope"
+                options={[
+                  { label: '全部', value: 'all' },
+                  { label: '我的', value: 'mine' },
+                ]}
+                value={houseScope}
+                onChange={onHouseScopeChange}
+              />
+            </div>
           </div>
           <AutoComplete
             className={styles.search}
@@ -936,7 +1049,11 @@ export function PropertyAssetNavigator({
               );
               if (!recentScope) return;
               if (recentScope.scope.estateId) {
-                setExpandedEstateIds([recentScope.scope.estateId]);
+                setExpandedEstateIds((current) =>
+                  current.includes(recentScope.scope.estateId as number)
+                    ? current
+                    : [...current, recentScope.scope.estateId as number],
+                );
               }
               onScopeChange(recentScope.scope);
               rememberScope(recentScope);
@@ -984,7 +1101,11 @@ export function PropertyAssetNavigator({
                         scope.estateId === estate.id ? 'page' : undefined
                       }
                       onClick={() => {
-                        setExpandedEstateIds([estate.id]);
+                        setExpandedEstateIds((current) =>
+                          current.includes(estate.id)
+                            ? current
+                            : [...current, estate.id],
+                        );
                         const nextScope = { estateId: estate.id };
                         onScopeChange(nextScope);
                         rememberScope({
@@ -1033,7 +1154,11 @@ export function PropertyAssetNavigator({
                       }
                       onClick={() => {
                         if (building.estate_id) {
-                          setExpandedEstateIds([building.estate_id]);
+                          setExpandedEstateIds((current) =>
+                            current.includes(building.estate_id as number)
+                              ? current
+                              : [...current, building.estate_id as number],
+                          );
                         }
                         const nextScope = { buildingId: building.id };
                         onScopeChange(nextScope);
@@ -1093,7 +1218,7 @@ export function PropertyAssetNavigator({
                 createAction={{
                   disabled,
                   label: '新建项目',
-                  onClick: () => onOpenManagement({ estateCreate: true }),
+                  onClick: () => onAction({ type: 'create-estate' }),
                 }}
                 collapseAllAction={
                   expandedEstateIds.length
@@ -1115,12 +1240,19 @@ export function PropertyAssetNavigator({
                   enabled={enabled}
                   estate={estate}
                   expanded={expandedEstateIds.includes(estate.id)}
+                  houseScope={houseScope}
                   orgSlug={orgSlug}
                   scope={scope}
                   onExpandedChange={(expanded) =>
-                    setExpandedEstateIds(expanded ? [estate.id] : [])
+                    setExpandedEstateIds((current) =>
+                      expanded
+                        ? current.includes(estate.id)
+                          ? current
+                          : [...current, estate.id]
+                        : current.filter((id) => id !== estate.id),
+                    )
                   }
-                  onOpenManagement={onOpenManagement}
+                  onAction={onAction}
                   onRememberScope={rememberScope}
                   onScopeChange={onScopeChange}
                 />
@@ -1147,8 +1279,7 @@ export function PropertyAssetNavigator({
                 createAction={{
                   disabled,
                   label: '新建独立楼栋',
-                  onClick: () =>
-                    onOpenManagement({ buildingCreateStandalone: true }),
+                  onClick: () => onAction({ type: 'create-building' }),
                 }}
               />
               <div className={styles.row}>
@@ -1246,8 +1377,9 @@ export function PropertyAssetNavigator({
                               aria-label={`编辑独立楼栋 / ${building.name}`}
                               icon={<EditOutlined />}
                               onClick={() =>
-                                onOpenManagement({
-                                  buildingEditId: building.id,
+                                onAction({
+                                  type: 'edit-building',
+                                  buildingId: building.id,
                                 })
                               }
                             />
@@ -1268,15 +1400,6 @@ export function PropertyAssetNavigator({
           )}
         </div>
         <div className={styles.footer}>
-          <Button
-            type="text"
-            className={styles.footerButton}
-            aria-label="管理项目与楼栋"
-            icon={<SettingOutlined />}
-            onClick={() => onOpenManagement()}
-          >
-            管理结构
-          </Button>
           <Button
             type="text"
             className={styles.footerButton}

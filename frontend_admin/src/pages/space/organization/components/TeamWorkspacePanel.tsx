@@ -1,18 +1,22 @@
 import {
   DeleteOutlined,
+  EditOutlined,
   PlusOutlined,
+  QuestionCircleOutlined,
   SaveOutlined,
-  SettingOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Alert,
+  AutoComplete,
   Avatar,
   Button,
   Card,
   Collapse,
+  Descriptions,
   Form,
   Input,
   Modal,
@@ -24,6 +28,7 @@ import {
   Tabs,
   Tag,
   Typography,
+  theme,
 } from 'antd';
 import dayjs from 'dayjs';
 import React, {
@@ -33,15 +38,18 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import {
+  LocationPicker,
+  type LocationValue,
+} from '@/components/LocationPicker';
 import { adminTableScroll } from '@/pages/_shared/adminLayout';
+import { RoleManagementPage } from '@/pages/access';
 import { formatPersonLabel, useTenantWorkspace } from '@/pages/space/shared';
 import { houseApi } from '@/services/manual/house';
 import {
-  appsAccessApiCreateTeamBinding,
-  appsAccessApiDeleteTeamBinding,
-  appsAccessApiListTeamBindingsView,
-} from '@/services/openapi/accessTeamBindings';
-import { appsAccessApiListTeamRoles } from '@/services/openapi/accessTeamRoles';
+  getWorkspaceMemberEmployeeName,
+  getWorkspaceMemberJobTitle,
+} from '@/services/manual/organizationMembers';
 import { appsOrganizationsWorkspaceApiListWorkspaceMembers } from '@/services/openapi/organizationWorkspace';
 import { appsHouseApiGetStaffResponsibilitySummary } from '@/services/openapi/propertyRentalManagement';
 import {
@@ -65,6 +73,40 @@ type TeamFormValues = Pick<
   API.TeamIn,
   'name' | 'phone' | 'wechat' | 'address' | 'business_hours'
 >;
+
+const BUSINESS_HOURS_OPTIONS = [
+  '工作日 09:00-18:00',
+  '周一至周六 09:00-18:00',
+  '周一至周日 09:00-21:00',
+  '每天 09:00-18:00',
+  '24小时营业',
+  '需提前预约',
+].map((value) => ({ value }));
+
+export const BusinessHoursInput: React.FC<
+  React.ComponentProps<typeof AutoComplete>
+> = ({ className, ...props }) => (
+  <AutoComplete
+    {...props}
+    className={['w-full', className].filter(Boolean).join(' ')}
+    options={BUSINESS_HOURS_OPTIONS}
+    placeholder="例如：工作日 09:00-18:00"
+  />
+);
+
+export const BusinessHoursField: React.FC = () => (
+  <Form.Item
+    label="营业时间"
+    name="business_hours"
+    tooltip={{
+      trigger: 'click',
+      icon: <QuestionCircleOutlined aria-label="查看营业时间填写说明" />,
+      title: <div>填写团队对外服务时间，可直接输入或选择常用时间。</div>,
+    }}
+  >
+    <BusinessHoursInput />
+  </Form.Item>
+);
 
 function isNotFoundError(error: unknown) {
   const candidate = error as
@@ -91,7 +133,7 @@ const TEAM_FIELDS: Array<{
 }> = [
   { label: '团队名称', name: 'name', required: true },
   { label: '联系电话', name: 'phone' },
-  { label: '客服微信', name: 'wechat' },
+  { label: '联系微信', name: 'wechat' },
   { label: '团队地址', name: 'address' },
   {
     label: '营业时间',
@@ -100,28 +142,23 @@ const TEAM_FIELDS: Array<{
   },
 ];
 
-export const TeamRoleSettingsAction: React.FC<{
-  teamId: number;
-  onOpen: (teamId: number) => void;
-}> = ({ onOpen, teamId }) => (
-  <Button icon={<SettingOutlined />} onClick={() => onOpen(teamId)}>
-    管理角色定义
-  </Button>
-);
-
 export const TeamFormModal: React.FC<{
   open: boolean;
   onCancel: () => void;
   onCreated: (team: API.TeamOut) => void;
 }> = ({ onCancel, onCreated, open }) => {
   const workspace = useTenantWorkspace();
+  const { token } = theme.useToken();
   const [form] = Form.useForm<TeamFormValues>();
+  const [selectedLocation, setSelectedLocation] =
+    useState<LocationValue | null>(null);
   const createMutation = useMutation({
     mutationFn: (values: TeamFormValues) =>
       appsTeamsApiCreateTeam({ ...values, members: [] }),
     onSuccess: async (team) => {
       message.success('团队已创建');
       form.resetFields();
+      setSelectedLocation(null);
       await workspace.queryClient.invalidateQueries({
         queryKey: organizationQueryKeys.navigation(workspace.selectedOrgSlug),
       });
@@ -130,34 +167,156 @@ export const TeamFormModal: React.FC<{
   });
   const close = () => {
     form.resetFields();
+    setSelectedLocation(null);
     onCancel();
   };
   return (
     <Modal
-      title="新建团队"
+      title={
+        <Space size={10}>
+          <Avatar
+            shape="square"
+            size={32}
+            icon={<TeamOutlined />}
+            style={{
+              color: token.colorPrimary,
+              backgroundColor: token.colorPrimaryBg,
+            }}
+          />
+          <span>新建团队</span>
+        </Space>
+      }
       open={open}
+      width={560}
       okText="创建团队"
       confirmLoading={createMutation.isPending}
+      styles={{
+        body: { paddingTop: token.paddingXS },
+        footer: { marginTop: token.marginLG },
+      }}
       onCancel={close}
       onOk={async () => createMutation.mutateAsync(await form.validateFields())}
     >
-      <Form form={form} layout="vertical">
-        {TEAM_FIELDS.map((field) => (
-          <Form.Item
-            key={field.name}
-            label={field.label}
-            name={field.name}
-            rules={
-              field.required
-                ? [{ required: true, message: '请输入团队名称' }]
-                : undefined
-            }
-          >
-            <Input placeholder={field.placeholder} />
-          </Form.Item>
-        ))}
+      <Form
+        form={form}
+        layout="vertical"
+        className="[&>.ant-form-item]:mb-5 [&>.ant-form-item:last-child]:mb-0"
+      >
+        {TEAM_FIELDS.map((field) => {
+          if (field.name === 'address') {
+            return (
+              <Form.Item
+                key={field.name}
+                label={field.label}
+                htmlFor="team-create-address"
+              >
+                <Space.Compact block>
+                  <Form.Item name={field.name} noStyle>
+                    <Input
+                      id="team-create-address"
+                      className="min-w-0 flex-1"
+                      placeholder="输入详细地址，或通过地图选择"
+                    />
+                  </Form.Item>
+                  {open ? (
+                    <LocationPicker
+                      ariaLabel="地图选址"
+                      value={selectedLocation}
+                      fallbackLocation={null}
+                      onChange={(location) => {
+                        setSelectedLocation(location);
+                        if (location) {
+                          form.setFieldValue('address', location.address);
+                        }
+                      }}
+                    />
+                  ) : null}
+                </Space.Compact>
+              </Form.Item>
+            );
+          }
+          if (field.name === 'business_hours') {
+            return <BusinessHoursField key={field.name} />;
+          }
+          return (
+            <Form.Item
+              key={field.name}
+              label={field.label}
+              name={field.name}
+              rules={
+                field.required
+                  ? [{ required: true, message: '请输入团队名称' }]
+                  : undefined
+              }
+            >
+              <Input placeholder={field.placeholder} />
+            </Form.Item>
+          );
+        })}
       </Form>
     </Modal>
+  );
+};
+
+export const TeamProfileDetails: React.FC<{
+  team: Pick<
+    API.TeamOut,
+    | 'name'
+    | 'phone'
+    | 'wechat'
+    | 'address'
+    | 'business_hours'
+    | 'created_at'
+    | 'updated_at'
+  >;
+  canEdit: boolean;
+  onEdit: () => void;
+}> = ({ canEdit, onEdit, team }) => {
+  const displayValue = (value?: string) =>
+    value || <Typography.Text type="secondary">未填写</Typography.Text>;
+
+  return (
+    <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+      <Descriptions
+        title="基本信息"
+        layout="vertical"
+        column={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2, xxl: 2 }}
+        extra={
+          canEdit ? (
+            <Button icon={<EditOutlined />} onClick={onEdit}>
+              编辑
+            </Button>
+          ) : null
+        }
+        items={[
+          { key: 'name', label: '团队名称', children: displayValue(team.name) },
+          {
+            key: 'phone',
+            label: '联系电话',
+            children: displayValue(team.phone),
+          },
+          {
+            key: 'wechat',
+            label: '联系微信',
+            children: displayValue(team.wechat),
+          },
+          {
+            key: 'address',
+            label: '团队地址',
+            children: displayValue(team.address),
+          },
+          {
+            key: 'business_hours',
+            label: '营业时间',
+            children: displayValue(team.business_hours),
+          },
+        ]}
+      />
+      <Typography.Text type="secondary">
+        创建于 {dayjs(team.created_at).format('YYYY-MM-DD HH:mm')} · 更新于{' '}
+        {dayjs(team.updated_at).format('YYYY-MM-DD HH:mm')}
+      </Typography.Text>
+    </Space>
   );
 };
 
@@ -169,7 +328,6 @@ export const TeamWorkspacePanel: React.FC<{
   onMissing: () => void;
   onDirtyStateChange?: (state: UnsavedWorkspaceRegistration) => void;
   onOpenMember: (memberId: number, tab: 'profile' | 'responsibilities') => void;
-  onOpenRoleSettings?: (teamId: number) => void;
   onTabChange: (tab: TeamWorkspaceTab) => void;
 }> = ({
   capabilities,
@@ -177,7 +335,6 @@ export const TeamWorkspacePanel: React.FC<{
   onDirtyStateChange,
   onMissing,
   onOpenMember,
-  onOpenRoleSettings,
   onTabChange,
   tab,
   teamId,
@@ -186,19 +343,16 @@ export const TeamWorkspacePanel: React.FC<{
   const workspace = useTenantWorkspace();
   const [form] = Form.useForm<TeamFormValues>();
   const watchedTeamValues = Form.useWatch([], form);
+  const [profileEditing, setProfileEditing] = useState(false);
   const [memberPage, setMemberPage] = useState(1);
   const [responsibilityPage, setResponsibilityPage] = useState(1);
   const [candidateKeyword, setCandidateKeyword] = useState('');
-  const [roleMemberKeyword, setRoleMemberKeyword] = useState('');
   const [candidateMemberId, setCandidateMemberId] = useState<number>();
-  const [bindingRoleId, setBindingRoleId] = useState<number>();
-  const [bindingUserId, setBindingUserId] = useState<number>();
   const missingHandledRef = useRef(false);
   const canUpdate = capabilities.team_update_ids.includes(teamId);
   const canDelete = capabilities.team_delete_ids.includes(teamId);
   const canManageMembers = capabilities.team_member_manage_ids.includes(teamId);
   const canViewRoles = capabilities.team_role_view_ids.includes(teamId);
-  const canManageRoles = capabilities.team_role_manage_ids.includes(teamId);
   const teamQuery = useQuery({
     queryKey: organizationQueryKeys.team(workspace.selectedOrgSlug, teamId),
     queryFn: () =>
@@ -231,37 +385,6 @@ export const TeamWorkspacePanel: React.FC<{
       }),
     enabled: Boolean(
       workspace.selectedOrgSlug && tab === 'members' && canManageMembers,
-    ),
-  });
-  const rolesQuery = useQuery({
-    queryKey: ['access', 'team-roles', workspace.selectedOrgSlug, teamId],
-    queryFn: () => appsAccessApiListTeamRoles({ team_id: teamId }),
-    enabled: Boolean(
-      workspace.selectedOrgSlug && tab === 'roles' && canViewRoles,
-    ),
-  });
-  const bindingsQuery = useQuery({
-    queryKey: ['access', 'team-bindings', workspace.selectedOrgSlug, teamId],
-    queryFn: () => appsAccessApiListTeamBindingsView({ team_id: teamId }),
-    enabled: Boolean(
-      workspace.selectedOrgSlug && tab === 'roles' && canViewRoles,
-    ),
-  });
-  const roleMembersQuery = useQuery({
-    queryKey: organizationQueryKeys.members(workspace.selectedOrgSlug, {
-      page: 1,
-      keyword: roleMemberKeyword,
-      teamId,
-    }),
-    queryFn: () =>
-      appsOrganizationsWorkspaceApiListWorkspaceMembers({
-        page: 1,
-        page_size: 20,
-        keyword: roleMemberKeyword || undefined,
-        team_id: teamId,
-      }),
-    enabled: Boolean(
-      workspace.selectedOrgSlug && tab === 'roles' && canManageRoles,
     ),
   });
   const responsibilitiesQuery = useQuery({
@@ -297,9 +420,14 @@ export const TeamWorkspacePanel: React.FC<{
 
   useEffect(() => {
     missingHandledRef.current = false;
+    setProfileEditing(false);
     setMemberPage(1);
     setResponsibilityPage(1);
   }, [teamId]);
+
+  useEffect(() => {
+    if (tab !== 'profile') setProfileEditing(false);
+  }, [tab]);
 
   useEffect(() => {
     if (
@@ -334,12 +462,28 @@ export const TeamWorkspacePanel: React.FC<{
   }, [form, initialTeamValues, teamQuery.data]);
 
   const invalidateTeam = async () => {
-    await workspace.queryClient.invalidateQueries({
-      queryKey: organizationQueryKeys.root(workspace.selectedOrgSlug),
-    });
-    await workspace.queryClient.invalidateQueries({
-      queryKey: ['access', 'team-bindings', workspace.selectedOrgSlug, teamId],
-    });
+    await Promise.all([
+      workspace.queryClient.invalidateQueries({
+        queryKey: organizationQueryKeys.root(workspace.selectedOrgSlug),
+      }),
+      workspace.queryClient.invalidateQueries({
+        queryKey: [
+          'access',
+          'role-management',
+          'roles',
+          workspace.selectedOrgSlug,
+          `team:${teamId}`,
+        ],
+      }),
+      workspace.queryClient.invalidateQueries({
+        queryKey: [
+          'access',
+          'role-management',
+          'navigation',
+          workspace.selectedOrgSlug,
+        ],
+      }),
+    ]);
   };
   const saveMutation = useMutation({
     mutationFn: (values: TeamFormValues) =>
@@ -347,17 +491,20 @@ export const TeamWorkspacePanel: React.FC<{
     onSuccess: async () => {
       message.success('团队资料已保存');
       await invalidateTeam();
+      setProfileEditing(false);
     },
   });
   const resetTeamForm = useCallback(() => {
     form.resetFields();
     form.setFieldsValue(initialTeamValues);
+    setProfileEditing(false);
   }, [form, initialTeamValues]);
   const saveTeamForm = useCallback(async () => {
     await saveMutation.mutateAsync(await form.validateFields());
   }, [form, saveMutation.mutateAsync]);
   const teamFormDirty =
     canUpdate &&
+    profileEditing &&
     tab === 'profile' &&
     JSON.stringify(normalizeTeamFormValues(watchedTeamValues)) !==
       JSON.stringify(initialTeamValues);
@@ -401,45 +548,11 @@ export const TeamWorkspacePanel: React.FC<{
       await invalidateTeam();
     },
   });
-  const bindingMutation = useMutation({
-    mutationFn: ({
-      action,
-      bindingId,
-    }: {
-      action: 'add' | 'remove';
-      bindingId?: number;
-    }) => {
-      if (action === 'remove' && bindingId)
-        return appsAccessApiDeleteTeamBinding({
-          team_id: teamId,
-          binding_id: bindingId,
-        });
-      if (!bindingRoleId || !bindingUserId)
-        throw new Error('请选择团队成员和角色');
-      return appsAccessApiCreateTeamBinding(
-        { team_id: teamId },
-        { user: bindingUserId, role: bindingRoleId },
-      );
-    },
-    onSuccess: async () => {
-      setBindingRoleId(undefined);
-      setBindingUserId(undefined);
-      await workspace.queryClient.invalidateQueries({
-        queryKey: [
-          'access',
-          'team-bindings',
-          workspace.selectedOrgSlug,
-          teamId,
-        ],
-      });
-    },
-  });
-
   const candidateOptions = (candidatesQuery.data?.items || [])
     .filter((member) => !member.teams.some((team) => team.id === teamId))
     .map((member) => ({
       value: member.user.id,
-      label: `${formatPersonLabel(member.user)} (${member.user.email || member.user.username})`,
+      label: `${getWorkspaceMemberEmployeeName(member) || formatPersonLabel(member.user)} (${member.user.email || member.user.username})`,
     }));
 
   const memberColumns: ProColumns<API.WorkspaceMemberOut>[] = useMemo(
@@ -450,14 +563,23 @@ export const TeamWorkspacePanel: React.FC<{
         render: (_value, record) => (
           <Space>
             <Avatar src={record.user.avatar_url}>
-              {formatPersonLabel(record.user).slice(0, 1)}
+              {(
+                getWorkspaceMemberEmployeeName(record) ||
+                formatPersonLabel(record.user)
+              ).slice(0, 1)}
             </Avatar>
             <Space orientation="vertical" size={0}>
               <Typography.Text strong>
-                {formatPersonLabel(record.user)}
+                {getWorkspaceMemberEmployeeName(record) ||
+                  formatPersonLabel(record.user)}
               </Typography.Text>
               <Typography.Text type="secondary">
-                {record.user.email || record.user.username}
+                {[
+                  getWorkspaceMemberJobTitle(record),
+                  record.user.email || record.user.username,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </Typography.Text>
             </Space>
           </Space>
@@ -490,7 +612,7 @@ export const TeamWorkspacePanel: React.FC<{
             </Button>
             {canManageMembers ? (
               <Popconfirm
-                title={`从团队移除 ${formatPersonLabel(record.user)}？`}
+                title={`从团队移除 ${getWorkspaceMemberEmployeeName(record) || formatPersonLabel(record.user)}？`}
                 description="不会移出组织或清理个人房源分工，但会清理该团队下的角色绑定。"
                 okText="确认移除"
                 onConfirm={() =>
@@ -504,7 +626,7 @@ export const TeamWorkspacePanel: React.FC<{
                   type="link"
                   danger
                   size="small"
-                  aria-label={`移除 ${formatPersonLabel(record.user)}`}
+                  aria-label={`移除 ${getWorkspaceMemberEmployeeName(record) || formatPersonLabel(record.user)}`}
                 >
                   移除
                 </Button>
@@ -598,38 +720,38 @@ export const TeamWorkspacePanel: React.FC<{
                 size="large"
                 style={{ width: '100%' }}
               >
-                {!canUpdate ? (
-                  <Alert
-                    type="info"
-                    showIcon
-                    title="团队资料为只读"
-                    description="当前角色没有该团队的资料编辑权限。"
-                  />
-                ) : null}
-                <Form
-                  form={form}
-                  layout="vertical"
-                  disabled={!canUpdate}
-                  onFinish={(values) => saveMutation.mutateAsync(values)}
-                >
-                  <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-                    {TEAM_FIELDS.map((field) => (
-                      <Form.Item
-                        key={field.name}
-                        label={field.label}
-                        name={field.name}
-                        rules={
-                          field.required
-                            ? [{ required: true, message: '请输入团队名称' }]
-                            : undefined
-                        }
-                      >
-                        <Input placeholder={field.placeholder} />
-                      </Form.Item>
-                    ))}
-                  </div>
-                  <Space wrap>
-                    {canUpdate ? (
+                {profileEditing ? (
+                  <Form
+                    form={form}
+                    layout="vertical"
+                    onFinish={(values) => saveMutation.mutateAsync(values)}
+                  >
+                    <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
+                      {TEAM_FIELDS.map((field) =>
+                        field.name === 'business_hours' ? (
+                          <BusinessHoursField key={field.name} />
+                        ) : (
+                          <Form.Item
+                            key={field.name}
+                            label={field.label}
+                            name={field.name}
+                            rules={
+                              field.required
+                                ? [
+                                    {
+                                      required: true,
+                                      message: '请输入团队名称',
+                                    },
+                                  ]
+                                : undefined
+                            }
+                          >
+                            <Input placeholder={field.placeholder} />
+                          </Form.Item>
+                        ),
+                      )}
+                    </div>
+                    <Space wrap>
                       <Button
                         type="primary"
                         htmlType="submit"
@@ -638,14 +760,19 @@ export const TeamWorkspacePanel: React.FC<{
                       >
                         保存团队资料
                       </Button>
-                    ) : null}
-                    <Typography.Text type="secondary">
-                      创建于 {dayjs(team.created_at).format('YYYY-MM-DD HH:mm')}{' '}
-                      · 更新于{' '}
-                      {dayjs(team.updated_at).format('YYYY-MM-DD HH:mm')}
-                    </Typography.Text>
-                  </Space>
-                </Form>
+                      <Button onClick={resetTeamForm}>取消</Button>
+                    </Space>
+                  </Form>
+                ) : (
+                  <TeamProfileDetails
+                    team={team}
+                    canEdit={canUpdate}
+                    onEdit={() => {
+                      form.setFieldsValue(initialTeamValues);
+                      setProfileEditing(true);
+                    }}
+                  />
+                )}
                 {canDelete ? (
                   <Collapse
                     size="small"
@@ -773,155 +900,13 @@ export const TeamWorkspacePanel: React.FC<{
             key: 'roles',
             label: '团队角色',
             children: canViewRoles ? (
-              <Space
-                orientation="vertical"
-                size="middle"
-                style={{ width: '100%' }}
-              >
-                {onOpenRoleSettings ? (
-                  <div className="flex justify-end">
-                    <TeamRoleSettingsAction
-                      teamId={teamId}
-                      onOpen={onOpenRoleSettings}
-                    />
-                  </div>
-                ) : null}
-                {!canManageRoles ? (
-                  <Alert
-                    type="info"
-                    showIcon
-                    title="团队角色为只读"
-                    description="当前角色可以查看该团队授权，但不能新增或移除角色。"
-                  />
-                ) : null}
-                {rolesQuery.isError || bindingsQuery.isError ? (
-                  <Alert
-                    type="error"
-                    showIcon
-                    title="团队角色加载失败"
-                    description={
-                      ((rolesQuery.error || bindingsQuery.error) as Error)
-                        .message
-                    }
-                    action={
-                      <Button
-                        onClick={() => {
-                          void rolesQuery.refetch();
-                          void bindingsQuery.refetch();
-                        }}
-                      >
-                        重试
-                      </Button>
-                    }
-                  />
-                ) : (
-                  <>
-                    {canManageRoles ? (
-                      <Card size="small" title="分配团队角色">
-                        <Space wrap>
-                          <Select
-                            aria-label="角色成员"
-                            placeholder="搜索团队成员"
-                            value={bindingUserId}
-                            onChange={setBindingUserId}
-                            showSearch={{
-                              filterOption: false,
-                              onSearch: setRoleMemberKeyword,
-                            }}
-                            loading={roleMembersQuery.isFetching}
-                            options={(roleMembersQuery.data?.items || []).map(
-                              (member) => ({
-                                value: member.user.id,
-                                label: formatPersonLabel(member.user),
-                              }),
-                            )}
-                            style={{ width: 240 }}
-                          />
-                          <Select
-                            aria-label="团队角色"
-                            placeholder="选择角色"
-                            value={bindingRoleId}
-                            onChange={setBindingRoleId}
-                            options={(rolesQuery.data || [])
-                              .filter((role) => role.is_active)
-                              .map((role) => ({
-                                value: role.id,
-                                label: role.name,
-                              }))}
-                            style={{ width: 240 }}
-                          />
-                          <Button
-                            type="primary"
-                            disabled={!bindingUserId || !bindingRoleId}
-                            loading={bindingMutation.isPending}
-                            onClick={() =>
-                              bindingMutation.mutateAsync({ action: 'add' })
-                            }
-                          >
-                            分配角色
-                          </Button>
-                        </Space>
-                      </Card>
-                    ) : null}
-                    <ProTable<API.TeamBindingOut>
-                      rowKey="id"
-                      dataSource={bindingsQuery.data || []}
-                      loading={bindingsQuery.isLoading}
-                      search={false}
-                      options={false}
-                      pagination={false}
-                      columns={[
-                        {
-                          title: '成员',
-                          dataIndex: 'user',
-                          render: (_value, record) =>
-                            formatPersonLabel(record.user),
-                        },
-                        {
-                          title: '角色',
-                          dataIndex: 'role',
-                          render: (_value, record) => record.role.name,
-                        },
-                        {
-                          title: '授权时间',
-                          dataIndex: 'created_at',
-                          align: 'center',
-                          render: (value) =>
-                            dayjs(value as string).format('YYYY-MM-DD HH:mm'),
-                        },
-                        ...(canManageRoles
-                          ? [
-                              {
-                                title: '操作',
-                                dataIndex: 'actions',
-                                align: 'center' as const,
-                                render: (
-                                  _value: unknown,
-                                  record: API.TeamBindingOut,
-                                ) => (
-                                  <Popconfirm
-                                    title="移除该团队角色？"
-                                    onConfirm={() =>
-                                      bindingMutation.mutateAsync({
-                                        action: 'remove',
-                                        bindingId: record.id,
-                                      })
-                                    }
-                                  >
-                                    <Button type="link" danger size="small">
-                                      移除
-                                    </Button>
-                                  </Popconfirm>
-                                ),
-                              },
-                            ]
-                          : []),
-                      ]}
-                      scroll={adminTableScroll}
-                    />
-                  </>
-                )}
-              </Space>
+              <RoleManagementPage
+                embeddedScope={{
+                  kind: 'team',
+                  teamId,
+                  teamName: team.name,
+                }}
+              />
             ) : (
               <Alert
                 type="info"

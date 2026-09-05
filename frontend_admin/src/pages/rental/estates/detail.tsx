@@ -252,10 +252,13 @@ const EstateDetailPage: React.FC = () => {
     .join(' / ');
   const fullAddress = [region, estate.address].filter(Boolean).join(' · ');
   const editHref = dashboardHref(
-    `/rental/properties/estates?estate_edit=${estate.id}`,
+    `/rental/properties/list?estate_id=${estate.id}&asset_tab=profile&asset_action=edit-estate`,
+  );
+  const workspaceHref = dashboardHref(
+    `/rental/properties/list?estate_id=${estate.id}`,
   );
   const createBuildingHref = dashboardHref(
-    `/rental/properties/estates?view=buildings&building_create=${estate.id}`,
+    `/rental/properties/list?estate_id=${estate.id}&asset_tab=structure&asset_action=create-building`,
   );
   const mapParams = new URLSearchParams({ estate_id: String(estate.id) });
   if (estate.lat != null && estate.lng != null) {
@@ -344,6 +347,7 @@ const EstateDetailPage: React.FC = () => {
                 <Button type="primary" icon={<EditOutlined />} href={editHref}>
                   编辑资料
                 </Button>
+                <Button href={workspaceHref}>返回房源管理</Button>
                 <Button href={mapHref}>在地图查看</Button>
               </Space>
             </div>
@@ -399,7 +403,7 @@ const EstateDetailPage: React.FC = () => {
                 <Space wrap>
                   <a
                     href={dashboardHref(
-                      `/rental/properties/estates?view=buildings&estate_id=${estate.id}`,
+                      `/rental/properties/list?estate_id=${estate.id}&asset_tab=structure`,
                     )}
                   >
                     查看全部楼栋

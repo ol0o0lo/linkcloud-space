@@ -24,8 +24,8 @@ const blockedCheck = {
       items: [{ id: 11, label: '1栋 · 科技路 1 号' }],
       truncated: false,
       target: {
-        path: '/rental/properties/estates',
-        query: { view: 'buildings', estate_id: 10 },
+        path: '/rental/properties/list',
+        query: { estate_id: 10, asset_tab: 'structure' },
       },
     },
   ],
@@ -57,7 +57,7 @@ describe('ResourceDeleteModal', () => {
       screen.getByRole('link', { name: '查看全部关联楼栋' }),
     ).toHaveAttribute(
       'href',
-      '/dashboard/rental/properties/estates?view=buildings&estate_id=10',
+      '/dashboard/rental/properties/list?estate_id=10&asset_tab=structure',
     );
   });
 

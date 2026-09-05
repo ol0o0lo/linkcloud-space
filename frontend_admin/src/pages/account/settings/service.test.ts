@@ -94,7 +94,7 @@ describe('account settings service', () => {
     ).toBe('test-token');
     expect(
       form?.querySelector('input[name="callback_url"]')?.getAttribute('value'),
-    ).toBe(`${window.location.origin}/account/settings?tab=security`);
+    ).toBe(`${window.location.origin}/dashboard/account/settings?tab=security`);
     expect(submit).toHaveBeenCalledTimes(1);
   });
 

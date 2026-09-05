@@ -22,6 +22,10 @@ import React, { useMemo, useState } from 'react';
 import { AdminToolbar, adminTableScroll } from '@/pages/_shared/adminLayout';
 import { formatPersonLabel, useTenantWorkspace } from '@/pages/space/shared';
 import {
+  getWorkspaceMemberEmployeeName,
+  getWorkspaceMemberJobTitle,
+} from '@/services/manual/organizationMembers';
+import {
   appsOrganizationsApiCreateMember,
   appsOrganizationsApiSearchMembers,
 } from '@/services/openapi/organizationMembers';
@@ -42,12 +46,7 @@ export const AllMembersPanel: React.FC<{
     tab: 'profile' | 'access' | 'responsibilities',
   ) => void;
   workspaceCard: OrganizationWorkspaceCardContext;
-}> = ({
-  canManageMembers,
-  mode = 'all',
-  onOpenMember,
-  workspaceCard,
-}) => {
+}> = ({ canManageMembers, mode = 'all', onOpenMember, workspaceCard }) => {
   const workspace = useTenantWorkspace();
   const screens = Grid.useBreakpoint();
   const isNarrow = !screens.sm;
@@ -108,17 +107,26 @@ export const AllMembersPanel: React.FC<{
         render: (_value, record) => (
           <Space>
             <Avatar src={record.user.avatar_url}>
-              {formatPersonLabel(record.user).slice(0, 1)}
+              {(
+                getWorkspaceMemberEmployeeName(record) ||
+                formatPersonLabel(record.user)
+              ).slice(0, 1)}
             </Avatar>
             <Space orientation="vertical" size={0}>
               <Space size={6} wrap>
                 <Typography.Text strong>
-                  {formatPersonLabel(record.user)}
+                  {getWorkspaceMemberEmployeeName(record) ||
+                    formatPersonLabel(record.user)}
                 </Typography.Text>
-                {record.is_owner ? <Tag color="gold">Owner</Tag> : null}
+                {record.is_owner ? <Tag color="gold">所有者</Tag> : null}
               </Space>
               <Typography.Text type="secondary">
-                {record.user.email || record.user.username}
+                {[
+                  getWorkspaceMemberJobTitle(record),
+                  record.user.email || record.user.username,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </Typography.Text>
             </Space>
           </Space>
@@ -189,7 +197,7 @@ export const AllMembersPanel: React.FC<{
     <AdminToolbar>
       <Input.Search
         allowClear
-        placeholder="搜索姓名 / 用户名 / 邮箱"
+        placeholder="搜索姓名 / 职位 / 用户名 / 邮箱"
         value={searchDraft}
         onChange={(event) => {
           setSearchDraft(event.target.value);
@@ -277,7 +285,7 @@ export const AllMembersPanel: React.FC<{
           }
         >
           <Typography.Paragraph type="secondary">
-            搜索尚未加入当前组织的站内用户。Owner 身份需要通过组织概览中的 Owner
+            搜索尚未加入当前组织的站内用户。所有者身份需要通过组织概览中的所有者
             转移流程管理。
           </Typography.Paragraph>
           <Form form={form} layout="vertical">

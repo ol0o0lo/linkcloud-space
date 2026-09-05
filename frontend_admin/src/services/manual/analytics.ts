@@ -19,6 +19,11 @@ export type AnalyticsCollectResult = {
   errors: { index: number; event_name: string; message: string }[];
 };
 
+export type AnalyticsSourceOption = {
+  value: string;
+  label: string;
+};
+
 export type AnalyticsMetric = {
   event_name: string;
   label: string;
@@ -128,6 +133,12 @@ export function getAnalyticsOverview(params: AnalyticsQuery) {
   return request<AnalyticsOverview>('/api/analytics/overview/', {
     method: 'GET',
     params,
+  });
+}
+
+export function getAnalyticsSources() {
+  return request<AnalyticsSourceOption[]>('/api/analytics/sources/', {
+    method: 'GET',
   });
 }
 

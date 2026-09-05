@@ -1,5 +1,5 @@
 import { Button, Card, Input, InputNumber, Select, Space, Switch, Typography } from 'antd';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   HOUSE_PUBLISH_RULE_MODE,
   HOUSE_PUBLISH_RULE_PRESETS,
@@ -18,6 +18,8 @@ type SettingUi = {
   placeholder?: string;
   min?: number;
   max?: number;
+  step?: number;
+  unit?: string;
 };
 
 export const settingsManagementQueryKeys = {
@@ -28,6 +30,7 @@ export const settingsManagementQueryKeys = {
 
 export const defaultBuildingSettingKey = 'property_rental.default_building_id';
 export const publishRulesSettingKey = 'property_rental.publish_rules';
+export const leaseAllocationRuleSettingKey = 'property_rental.lease_allocation_rule';
 
 const categoryTitles: Record<string, string> = {
   property_rental: '房源租赁设置',
@@ -113,6 +116,7 @@ export const SettingSchemaControl: React.FC<{
   onCommit?: (value: unknown) => void;
 }> = ({ setting, value, onChange, onCommit }) => {
   const widget = setting.widget || 'textarea';
+  const ui = (setting.ui || {}) as SettingUi;
 
   if (widget === 'switch') {
     return (
@@ -130,6 +134,10 @@ export const SettingSchemaControl: React.FC<{
     return (
       <InputNumber
         aria-label={setting.label || setting.key}
+        min={ui.min}
+        max={ui.max}
+        step={ui.step}
+        suffix={ui.unit}
         value={typeof value === 'number' ? value : Number(value)}
         onChange={(nextValue) => onChange(nextValue)}
         onBlur={(event) => onCommit?.(event.target.value)}
@@ -271,6 +279,145 @@ export const PublishRulesControl: React.FC<{
             )}
           </div>
         ))}
+      </div>
+    </Space>
+  );
+};
+
+type LeaseAllocationRuleValue = {
+  method: 'percentage' | 'fixed';
+  rate_bp: number | null;
+  fixed_amount: string | null;
+};
+
+function normalizeLeaseAllocationRule(value: unknown): LeaseAllocationRuleValue {
+  if (value && typeof value === 'object') {
+    const raw = value as Partial<LeaseAllocationRuleValue>;
+    if (raw.method === 'fixed') {
+      return {
+        method: 'fixed',
+        rate_bp: null,
+        fixed_amount:
+          raw.fixed_amount == null ? '' : String(raw.fixed_amount),
+      };
+    }
+    if (
+      raw.method === 'percentage' &&
+      typeof raw.rate_bp === 'number' &&
+      raw.rate_bp >= 1 &&
+      raw.rate_bp <= 10000
+    ) {
+      return {
+        method: 'percentage',
+        rate_bp: raw.rate_bp,
+        fixed_amount: null,
+      };
+    }
+  }
+  return { method: 'percentage', rate_bp: 9000, fixed_amount: null };
+}
+
+export const LeaseAllocationRuleControl: React.FC<{
+  value: unknown;
+  onCommit: (value: LeaseAllocationRuleValue) => void;
+}> = ({ value, onCommit }) => {
+  const [draft, setDraft] = useState(() => normalizeLeaseAllocationRule(value));
+
+  useEffect(() => {
+    setDraft(normalizeLeaseAllocationRule(value));
+  }, [value]);
+
+  const percentage = (draft.rate_bp || 0) / 100;
+  const fixedAmount = Number(draft.fixed_amount || 0);
+  const valid =
+    draft.method === 'percentage'
+      ? percentage >= 0.01 && percentage <= 100
+      : Number.isFinite(fixedAmount) && fixedAmount > 0;
+
+  const save = () => {
+    if (!valid) return;
+    if (draft.method === 'percentage') {
+      onCommit({
+        method: 'percentage',
+        rate_bp: Math.round(percentage * 100),
+        fixed_amount: null,
+      });
+      return;
+    }
+    onCommit({
+      method: 'fixed',
+      rate_bp: null,
+      fixed_amount: fixedAmount.toFixed(2),
+    });
+  };
+
+  return (
+    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+      <Select
+        aria-label="收益计算方式"
+        value={draft.method}
+        options={[
+          { value: 'percentage', label: '按成交房源月租比例' },
+          { value: 'fixed', label: '每笔签约固定金额' },
+        ]}
+        onChange={(method: LeaseAllocationRuleValue['method']) =>
+          setDraft(
+            method === 'percentage'
+              ? { method, rate_bp: draft.rate_bp || 9000, fixed_amount: null }
+              : {
+                  method,
+                  rate_bp: null,
+                  fixed_amount: draft.fixed_amount || '',
+                },
+          )
+        }
+        style={{ width: 320, maxWidth: '100%' }}
+      />
+      {draft.method === 'percentage' ? (
+        <InputNumber
+          aria-label="员工收益比例"
+          min={0.01}
+          max={100}
+          precision={2}
+          suffix="%"
+          value={percentage}
+          onChange={(nextValue) =>
+            setDraft({
+              method: 'percentage',
+              rate_bp: Math.round(Number(nextValue || 0) * 100),
+              fixed_amount: null,
+            })
+          }
+          style={{ width: 240, maxWidth: '100%' }}
+        />
+      ) : (
+        <InputNumber<string>
+          aria-label="每笔签约固定员工收益"
+          stringMode
+          min="0.01"
+          precision={2}
+          prefix="¥"
+          suffix="元"
+          value={draft.fixed_amount || undefined}
+          onChange={(nextValue) =>
+            setDraft({
+              method: 'fixed',
+              rate_bp: null,
+              fixed_amount: nextValue || '',
+            })
+          }
+          style={{ width: 240, maxWidth: '100%' }}
+        />
+      )}
+      <Typography.Text type="secondary">
+        {draft.method === 'percentage'
+          ? `新签约将按成交房源月租的 ${percentage || 0}% 计算员工收益。`
+          : `新签约每笔固定产生 ¥${fixedAmount.toFixed(2)} 员工收益。`}
+      </Typography.Text>
+      <div>
+        <Button type="primary" disabled={!valid} onClick={save}>
+          保存收益规则
+        </Button>
       </div>
     </Space>
   );

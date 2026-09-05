@@ -1,7 +1,7 @@
 import { BgColorsOutlined } from '@ant-design/icons';
 import type {
-  MenuDataItem,
   Settings as LayoutSettings,
+  MenuDataItem,
 } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
@@ -22,6 +22,10 @@ import {
   OrgSwitcher,
 } from '@/components';
 import {
+  getNavigationAccessCapabilities,
+  type NavigationAccessCapabilities,
+} from '@/services/manual/navigationAccess';
+import {
   getTeamOperationsCapabilities,
   type TeamOperationsCapabilities,
 } from '@/services/manual/teamOperations';
@@ -29,8 +33,12 @@ import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations
 import { appsAccountsApiGetMe } from '@/services/openapi/userAccount';
 import {
   buildAdminPath,
+  DEFAULT_PROPERTY_LIST_PATH,
+  isAnonymousPagePath,
   isAuthPagePath,
+  isPublicPagePath,
   LOGIN_PATH,
+  RENTAL_PATHS,
 } from '@/utils/adminRouting';
 import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import defaultSettings from '../config/defaultSettings';
@@ -69,6 +77,7 @@ type InitialState = {
   organizations?: API.SwitchListItemOut[];
   selectedOrgSlug?: string;
   teamOperationsCapabilities?: TeamOperationsCapabilities;
+  navigationCapabilities?: NavigationAccessCapabilities;
 };
 
 function getUserDisplayName(user?: API.MeOut) {
@@ -95,7 +104,7 @@ export async function getInitialState(): Promise<InitialState> {
       });
     } catch (_error) {
       const { pathname, search, hash } = history.location;
-      if (!isAuthPagePath(pathname)) {
+      if (!isAnonymousPagePath(pathname)) {
         history.replace(
           `${LOGIN_PATH}?redirect=${encodeURIComponent(buildAdminPath(pathname, search, hash))}`,
         );
@@ -119,15 +128,28 @@ export async function getInitialState(): Promise<InitialState> {
       return undefined;
     }
   };
+  const fetchNavigationCapabilities = async () => {
+    try {
+      return await getNavigationAccessCapabilities();
+    } catch (_error) {
+      return undefined;
+    }
+  };
   // 如果不是登录页面，执行
   const { location } = history;
-  if (!isAuthPagePath(location.pathname)) {
+  if (
+    !isAuthPagePath(location.pathname) &&
+    !isPublicPagePath(location.pathname)
+  ) {
     const currentUser = await fetchUserInfo();
     const organizations = currentUser ? await fetchOrganizations() : [];
     const selectedOrgSlug = resolveSelectedOrgSlug(organizations);
-    const teamOperationsCapabilities = selectedOrgSlug
-      ? await fetchTeamOperationsCapabilities()
-      : undefined;
+    const [teamOperationsCapabilities, navigationCapabilities] = selectedOrgSlug
+      ? await Promise.all([
+          fetchTeamOperationsCapabilities(),
+          fetchNavigationCapabilities(),
+        ])
+      : [undefined, undefined];
 
     return {
       fetchUserInfo,
@@ -135,6 +157,7 @@ export async function getInitialState(): Promise<InitialState> {
       organizations,
       selectedOrgSlug,
       teamOperationsCapabilities,
+      navigationCapabilities,
       settings: defaultSettings as Partial<LayoutSettings>,
       settingDrawerOpen: false,
     };
@@ -160,8 +183,12 @@ export const layout: RunTimeLayoutConfig = ({
     menuItemRender: (item, dom) => {
       const menuItem = withNestedMenuIcon(item, dom);
       if (item.path) {
+        const targetPath =
+          item.path === RENTAL_PATHS.propertyList
+            ? DEFAULT_PROPERTY_LIST_PATH
+            : item.path;
         return (
-          <Link to={item.path} prefetch>
+          <Link to={targetPath} prefetch>
             {menuItem}
           </Link>
         );
@@ -207,7 +234,10 @@ export const layout: RunTimeLayoutConfig = ({
     onPageChange: () => {
       const { location } = history;
       // 如果没有登录，重定向到 login
-      if (!initialState?.currentUser && !isAuthPagePath(location.pathname)) {
+      if (
+        !initialState?.currentUser &&
+        !isAnonymousPagePath(location.pathname)
+      ) {
         history.replace(
           `${LOGIN_PATH}?redirect=${encodeURIComponent(buildAdminPath(location.pathname, location.search, location.hash))}`,
         );

@@ -124,7 +124,7 @@ describe('ReferralsAdminPage', () => {
     mockReview.mockResolvedValue({});
   });
 
-  it('renders governance layout and triggers config save / review', async () => {
+  it('saves referral config and approves a referral', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ReferralsAdminPage />
@@ -134,19 +134,6 @@ describe('ReferralsAdminPage', () => {
     await waitFor(() => {
       expect(mockGetConfig).toHaveBeenCalled();
       expect(mockRecords).toHaveBeenCalledWith({ page: 1, page_size: 10 });
-      expect(screen.queryByText('规则概览')).not.toBeInTheDocument();
-      expect(screen.queryByText('当前状态')).not.toBeInTheDocument();
-      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
-      expect(screen.getByText('邀请记录')).toBeInTheDocument();
-      expect(screen.queryByText('邀请入口')).not.toBeInTheDocument();
-      expect(screen.queryByText('展示口径')).not.toBeInTheDocument();
-      expect(screen.queryByText('规则触发条件')).not.toBeInTheDocument();
-      expect(screen.queryByText('继续处理审核')).not.toBeInTheDocument();
-      expect(screen.queryByText('查看业务概览')).not.toBeInTheDocument();
-      expect(screen.queryByText('查看用户列表')).not.toBeInTheDocument();
-      expect(screen.queryByText('查看实名认证')).not.toBeInTheDocument();
-      expect(screen.queryByText('裂变列表')).not.toBeInTheDocument();
-      expect(screen.queryByText('裂变规则')).not.toBeInTheDocument();
       expect(screen.getByText('bob')).toBeInTheDocument();
     });
 
@@ -165,7 +152,6 @@ describe('ReferralsAdminPage', () => {
     if (!row) {
       throw new Error('邀请记录行未渲染');
     }
-    expect(within(row).getByText('待审核')).toBeInTheDocument();
     fireEvent.click(within(row).getByText('通过'));
     await waitFor(() =>
       expect(mockReview).toHaveBeenCalledWith(

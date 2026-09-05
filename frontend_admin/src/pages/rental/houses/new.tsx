@@ -25,6 +25,7 @@ import { enumSelectOptions, useEnums } from '@/services/manual/enums';
 import {
   type BuildingOut,
   type ContactOut,
+  type HouseCreateInput,
   houseApi,
 } from '@/services/manual/house';
 import MediaRefsUpload from '../components/MediaRefsUpload';
@@ -42,6 +43,7 @@ import {
   houseLayoutText,
   type MediaRefValue,
   moneyText,
+  stripDerivedMediaFields,
 } from '../constants';
 import { useHousePublishRules } from '../useHousePublishRules';
 import { usePagedSelectOptions } from '../usePagedSelectOptions';
@@ -168,6 +170,53 @@ function normalizeHouseNumericValues(values: Record<string, unknown>) {
   return normalized;
 }
 
+function numericValue(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function nullableText(value: unknown) {
+  return typeof value === 'string' && value ? value : null;
+}
+
+function buildHouseCreateInput(
+  values: Record<string, unknown>,
+  buildingId: number,
+): HouseCreateInput {
+  return {
+    building_id: buildingId,
+    ...(values.landlord_id
+      ? { landlord_id: numericValue(values.landlord_id) }
+      : {}),
+    room_number: String(values.room_number || '').trim(),
+    floor: numericValue(values.floor),
+    area: numericValue(values.area),
+    interior_area: numericValue(values.interior_area),
+    asking_rent: numericValue(values.asking_rent),
+    deposit_amount: numericValue(values.deposit_amount),
+    bedrooms: numericValue(values.bedrooms),
+    living_rooms: numericValue(values.living_rooms),
+    bathrooms: numericValue(values.bathrooms),
+    kitchens: numericValue(values.kitchens),
+    balconies: numericValue(values.balconies),
+    orientation: nullableText(values.orientation),
+    decoration: nullableText(values.decoration),
+    images: stripDerivedMediaFields(
+      Array.isArray(values.images) ? (values.images as MediaRefValue[]) : [],
+    ),
+    videos: stripDerivedMediaFields(
+      Array.isArray(values.videos) ? (values.videos as MediaRefValue[]) : [],
+    ),
+    tags: Array.isArray(values.tags)
+      ? values.tags.filter((tag): tag is string => typeof tag === 'string')
+      : [],
+    public_description:
+      typeof values.public_description === 'string'
+        ? values.public_description
+        : '',
+  };
+}
+
 const HouseNewPage: React.FC = () => {
   const { styles } = useStyles();
   const [form] = Form.useForm();
@@ -256,8 +305,7 @@ const HouseNewPage: React.FC = () => {
   );
   const canAdvanceFromBaseStep = readiness.baseReady;
   const createHouse = useMutation({
-    mutationFn: (values: Record<string, unknown>) =>
-      houseApi.createHouse(values),
+    mutationFn: (values: HouseCreateInput) => houseApi.createHouse(values),
     onSuccess: (house) => {
       message.success('房源已创建');
       history.push(`/rental/properties/${house.id}`);
@@ -325,12 +373,7 @@ const HouseNewPage: React.FC = () => {
       setBuildingOpen(true);
       return;
     }
-    const { landlord_id, ...restValues } = allValues;
-    const payload = {
-      ...restValues,
-      building_id: buildingId,
-      ...(landlord_id ? { landlord_id } : {}),
-    };
+    const payload = buildHouseCreateInput(allValues, Number(buildingId));
     createHouse.mutate(payload);
   };
 

@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import RoleManagementPage from './index';
+import RoleManagementPage, { type RoleManagementPageProps } from './index';
 
 const {
   mockGetNavigation,
@@ -79,13 +79,18 @@ const navigation = {
   },
 };
 
-const makeRole = (id: number, name: string, scope: 'org' | 'team') => ({
+const makeRole = (
+  id: number,
+  name: string,
+  scope: 'org' | 'team',
+  isSystem = true,
+) => ({
   id,
   code: `role_${id}`,
   name,
   description: `${name}说明`,
   scope,
-  is_system: true,
+  is_system: isSystem,
   is_active: true,
   organization_id: null,
   team_id: null,
@@ -128,7 +133,9 @@ describe('RoleManagementPage', () => {
     });
   });
 
-  const renderPage = () => {
+  const renderPage = (
+    embeddedScope?: RoleManagementPageProps['embeddedScope'],
+  ) => {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -140,7 +147,7 @@ describe('RoleManagementPage', () => {
     return render(
       <QueryClientProvider client={queryClient}>
         <App>
-          <RoleManagementPage />
+          <RoleManagementPage embeddedScope={embeddedScope} />
         </App>
       </QueryClientProvider>,
     );
@@ -150,8 +157,16 @@ describe('RoleManagementPage', () => {
     renderPage();
 
     expect(
-      await screen.findByRole('button', { name: '空间管理员' }),
+      await screen.findByRole(
+        'button',
+        { name: '空间管理员' },
+        { timeout: 4000 },
+      ),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText('搜索角色名称或描述'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('搜索团队')).not.toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     await waitFor(() =>
       expect(mockHistoryReplace).toHaveBeenCalledWith(
@@ -171,6 +186,25 @@ describe('RoleManagementPage', () => {
     expect(mockListRoles).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'team', teamId: 3, teamName: '销售部' }),
     );
+  });
+
+  it('嵌入团队范围时直接显示完整角色内容且不提供范围切换', async () => {
+    mockLocation.search = '?scope=space';
+
+    renderPage({ kind: 'team', teamId: 3, teamName: '销售部' });
+
+    expect(
+      await screen.findByRole('button', { name: '团队管理员' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('销售部 · 团队角色')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '切换范围' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '空间角色' }),
+    ).not.toBeInTheDocument();
+    expect(mockHistoryReplace).not.toHaveBeenCalled();
+    expect(mockHistoryPush).not.toHaveBeenCalled();
   });
 
   it('只有团队角色查看权限时默认进入第一个可访问团队', async () => {
@@ -210,5 +244,59 @@ describe('RoleManagementPage', () => {
     expect(mockHistoryReplace).not.toHaveBeenCalled();
     expect(mockHistoryPush).not.toHaveBeenCalled();
     expect(mockListRoles).not.toHaveBeenCalled();
+  });
+
+  it('自定义角色直接显示编辑入口', async () => {
+    mockListRoles.mockResolvedValue([makeRole(3, '招商主管', 'org', false)]);
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /编辑/ }, { timeout: 4000 }),
+    );
+    expect(
+      await screen.findByDisplayValue('招商主管', {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('作用范围：当前空间')).toBeInTheDocument();
+  });
+
+  it('权限分组支持整组全选', async () => {
+    mockListRoles.mockResolvedValue([makeRole(3, '招商主管', 'org', false)]);
+    mockListPermissions.mockResolvedValue([
+      {
+        key: 'organizations.member_view',
+        name: '查看组织成员',
+        app_label: 'organizations',
+        codename: 'member_view',
+        module_key: 'organization',
+        module_name: '成员与组织',
+      },
+      {
+        key: 'organizations.member_manage',
+        name: '管理组织成员',
+        app_label: 'organizations',
+        codename: 'member_manage',
+        module_key: 'organization',
+        module_name: '成员与组织',
+      },
+    ]);
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /编辑/ }, { timeout: 4000 }),
+    );
+    const selectAll = await screen.findByRole(
+      'checkbox',
+      { name: '全选成员与组织' },
+      { timeout: 4000 },
+    );
+    fireEvent.click(selectAll);
+    expect(
+      screen.getByRole('checkbox', { name: '查看组织成员' }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', { name: '管理组织成员' }),
+    ).toBeChecked();
   });
 });

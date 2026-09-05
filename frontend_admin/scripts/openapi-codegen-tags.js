@@ -6,6 +6,7 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '权限/租户授权': 'access-organization-bindings',
   '权限/团队角色': 'access-team-roles',
   '权限/团队授权': 'access-team-bindings',
+  '权限/角色管理工作台': 'access-role-management',
   '租户/基础': 'organizations',
   '租户/成员': 'organization-members',
   '租户/邀请': 'organization-invites',
@@ -33,10 +34,14 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '设置/团队设置': 'team-settings',
   '设置/个人设置': 'user-settings',
   '房源/房东': 'property-rental-landlord',
+  '房源/房东公开店铺': 'public-landlord-store',
   '房源/管理': 'property-rental-management',
+  '房源/配房分享': 'house-match-shares',
   '房源/公开': 'public-houses',
+  '房源/公开配房分享': 'public-house-match-shares',
   '公开/行为采集': 'public-analytics-events',
   经营分析: 'analytics',
+  收益分配: 'allocation',
 };
 
 const ALLAUTH_TAG_CODEGEN_MAP = {

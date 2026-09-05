@@ -13,10 +13,14 @@ import {
   useModel,
 } from '@umijs/max';
 import type { MenuProps } from 'antd';
-import { Button, Select, Tooltip } from 'antd';
+import { Button, message, Select, Tooltip } from 'antd';
 import { createStyles } from 'antd-style';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { canAccessSpaceWorkbench } from '@/pages/team-operations/workbench/view';
+import {
+  getNavigationAccessCapabilities,
+  type NavigationAccessCapabilities,
+} from '@/services/manual/navigationAccess';
 import {
   getTeamOperationsCapabilities,
   type TeamOperationsCapabilities,
@@ -96,25 +100,43 @@ export const OrgSwitcher: React.FC = () => {
   const queryClient = useQueryClient();
   const { initialState, setInitialState } = useModel('@@initialState');
   const organizations = initialState?.organizations || [];
+  const [switching, setSwitching] = useState(false);
 
   const syncOrganizations = async (slug?: string) => {
-    const nextOrganizations = await queryClient.fetchQuery({
-      queryKey: ['tenant', 'organizations'],
-      queryFn: () => appsOrganizationsApiSwitchList({ skipErrorHandler: true }),
-    });
+    let refreshFailed = false;
+    let nextOrganizations = organizations;
+    try {
+      nextOrganizations = await queryClient.fetchQuery({
+        queryKey: ['tenant', 'organizations'],
+        queryFn: () =>
+          appsOrganizationsApiSwitchList({ skipErrorHandler: true }),
+      });
+    } catch (_error) {
+      refreshFailed = true;
+    }
     const storedSlug = setSelectedOrgSlug(slug);
     let teamOperationsCapabilities: TeamOperationsCapabilities | undefined;
-    try {
-      teamOperationsCapabilities = storedSlug
-        ? await getTeamOperationsCapabilities()
-        : undefined;
-    } catch (_error) {
-      teamOperationsCapabilities = undefined;
+    let navigationCapabilities: NavigationAccessCapabilities | undefined;
+    if (storedSlug) {
+      const [teamOperationsResult, navigationResult] = await Promise.allSettled(
+        [getTeamOperationsCapabilities(), getNavigationAccessCapabilities()],
+      );
+      if (teamOperationsResult.status === 'fulfilled') {
+        teamOperationsCapabilities = teamOperationsResult.value;
+      } else {
+        refreshFailed = true;
+      }
+      if (navigationResult.status === 'fulfilled') {
+        navigationCapabilities = navigationResult.value;
+      } else {
+        refreshFailed = true;
+      }
     }
     setInitialState((state) => ({
       ...state,
       selectedOrgSlug: storedSlug,
       teamOperationsCapabilities,
+      navigationCapabilities,
       organizations: nextOrganizations.map((item) => ({
         ...item,
         is_current: Boolean(storedSlug) && item.slug === storedSlug,
@@ -129,32 +151,56 @@ export const OrgSwitcher: React.FC = () => {
     ) {
       history.replace(RENTAL_PATHS.workbenchOverview);
     }
-    await queryClient.invalidateQueries({
-      queryKey: ['tenant', 'app-context', storedSlug],
-    });
-    await queryClient.invalidateQueries({
-      queryKey: ['tenant', 'organization-detail', storedSlug],
-    });
-    await queryClient.invalidateQueries({
-      queryKey: ['tenant', 'organization-profile', storedSlug],
-    });
-    await queryClient.invalidateQueries({
-      queryKey: ['tenant', 'usage', storedSlug],
-    });
-    await queryClient.invalidateQueries({ queryKey: ['tenant', 'members'] });
-    await queryClient.invalidateQueries({ queryKey: ['tenant', 'invites'] });
-    await queryClient.invalidateQueries({ queryKey: ['tenant', 'teams'] });
-    await queryClient.invalidateQueries({ queryKey: ['access'] });
-    await queryClient.invalidateQueries({ queryKey: ['team-operations'] });
-    await queryClient.invalidateQueries({ queryKey: ['settings-management'] });
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['tenant', 'app-context', storedSlug],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['tenant', 'organization-detail', storedSlug],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['tenant', 'organization-profile', storedSlug],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['tenant', 'usage', storedSlug],
+        }),
+        queryClient.invalidateQueries({ queryKey: ['tenant', 'members'] }),
+        queryClient.invalidateQueries({ queryKey: ['tenant', 'invites'] }),
+        queryClient.invalidateQueries({ queryKey: ['tenant', 'teams'] }),
+        queryClient.invalidateQueries({ queryKey: ['access'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-operations'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['settings-management'],
+        }),
+      ]);
+    } catch (_error) {
+      refreshFailed = true;
+    }
+    if (refreshFailed) {
+      message.warning('空间已切换，但部分权限或数据刷新失败，请刷新页面重试。');
+    }
   };
 
   const handleChange = async (value: string) => {
-    await appsOrganizationsApiSelectOrg(
-      { slug: value },
-      { skipErrorHandler: true },
-    );
-    await syncOrganizations(value);
+    setSwitching(true);
+    try {
+      await appsOrganizationsApiSelectOrg(
+        { slug: value },
+        { skipErrorHandler: true },
+      );
+    } catch (_error) {
+      message.error('空间切换失败，请稍后重试。');
+      setSwitching(false);
+      return;
+    }
+    try {
+      await syncOrganizations(value);
+    } catch (_error) {
+      message.warning('空间已切换，但权限和数据刷新失败，请刷新页面重试。');
+    } finally {
+      setSwitching(false);
+    }
   };
 
   if (organizations.length === 0) {
@@ -174,6 +220,7 @@ export const OrgSwitcher: React.FC = () => {
       popupMatchSelectWidth={false}
       size="middle"
       suffixIcon={null}
+      loading={switching}
       value={initialState?.selectedOrgSlug}
       onChange={(value) => {
         void handleChange(value);

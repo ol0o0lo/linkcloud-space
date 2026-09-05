@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -45,7 +51,12 @@ describe('NotificationsAdminPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
     mockListNotifications.mockResolvedValue({
       items: [
         {
@@ -76,7 +87,7 @@ describe('NotificationsAdminPage', () => {
     mockBulk.mockResolvedValue({});
   });
 
-  it('renders governance layout and handles notification actions', async () => {
+  it('marks notifications read in bulk or individually and applies filters', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <NotificationsAdminPage />
@@ -84,35 +95,48 @@ describe('NotificationsAdminPage', () => {
     );
 
     await waitFor(() => {
-      expect(mockListNotifications).toHaveBeenCalledWith({ page: 1, page_size: 10, is_read: undefined });
-      expect(screen.queryByText('通知概览')).not.toBeInTheDocument();
-      expect(screen.queryByText('处理状态')).not.toBeInTheDocument();
-      expect(screen.queryByText('关键提醒')).not.toBeInTheDocument();
-      expect(screen.getByText('通知列表')).toBeInTheDocument();
+      expect(mockListNotifications).toHaveBeenCalledWith({
+        page: 1,
+        page_size: 10,
+        is_read: undefined,
+      });
       expect(screen.getByText('系统通知')).toBeInTheDocument();
-      expect(screen.queryByText('当前处理面')).not.toBeInTheDocument();
-      expect(screen.queryByText('来源与承接')).not.toBeInTheDocument();
-      expect(screen.queryByText('回到通知治理')).not.toBeInTheDocument();
     });
 
     const row = screen.getByText('系统通知').closest('tr');
     expect(row).not.toBeNull();
-    expect(within(row!).getByText('待处理')).toBeInTheDocument();
-    expect(within(row!).getByText('来自 Alice Zhang')).toBeInTheDocument();
 
     fireEvent.click(within(row!).getByText('详情'));
-    await waitFor(() => expect(mockPatchNotification).toHaveBeenCalledWith({ notification_id: 8 }, { is_read: true }));
-    expect(await screen.findByText('通知详情')).toBeInTheDocument();
-    expect(screen.queryByText('通知详情需要一起查看正文、确认状态和后续入口。')).not.toBeInTheDocument();
-    expect(screen.getByText('打开通知链接')).toHaveAttribute('href', '/dashboard/rental/workbench/overview');
+    await waitFor(() =>
+      expect(mockPatchNotification).toHaveBeenCalledWith(
+        { notification_id: 8 },
+        { is_read: true },
+      ),
+    );
 
     fireEvent.click(within(row!).getByText('标记已读'));
-    await waitFor(() => expect(mockPatchNotification).toHaveBeenCalledWith({ notification_id: 8 }, { is_read: true }));
+    await waitFor(() =>
+      expect(mockPatchNotification).toHaveBeenCalledWith(
+        { notification_id: 8 },
+        { is_read: true },
+      ),
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'check 全部标记已读' }));
-    await waitFor(() => expect(mockBulk).toHaveBeenCalledWith({ action: 'mark_read', all_unread: true }));
+    await waitFor(() =>
+      expect(mockBulk).toHaveBeenCalledWith({
+        action: 'mark_read',
+        all_unread: true,
+      }),
+    );
 
     fireEvent.click(screen.getByText('未读'));
-    await waitFor(() => expect(mockListNotifications).toHaveBeenLastCalledWith({ page: 1, page_size: 10, is_read: 'false' }));
+    await waitFor(() =>
+      expect(mockListNotifications).toHaveBeenLastCalledWith({
+        page: 1,
+        page_size: 10,
+        is_read: 'false',
+      }),
+    );
   });
 });

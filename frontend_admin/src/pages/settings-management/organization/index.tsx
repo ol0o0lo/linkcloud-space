@@ -16,6 +16,8 @@ import {
   buildSettingSections,
   defaultBuildingSettingKey,
   initialDraftValue,
+  leaseAllocationRuleSettingKey,
+  LeaseAllocationRuleControl,
   PublishRulesControl,
   parseSettingValue,
   publishRulesSettingKey,
@@ -208,6 +210,10 @@ const OrganizationSettingsPage: React.FC = () => {
 
     if (setting.key === publishRulesSettingKey) {
       return <PublishRulesControl value={value} onCommit={onCommit} />;
+    }
+
+    if (setting.key === leaseAllocationRuleSettingKey) {
+      return <LeaseAllocationRuleControl value={value} onCommit={onCommit} />;
     }
 
     if (setting.key === 'property_rental.default_location' || setting.widget === 'location_picker') {

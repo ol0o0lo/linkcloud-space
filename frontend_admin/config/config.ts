@@ -8,6 +8,9 @@ import proxy from './proxy';
 import routes from './routes';
 
 const { UMI_ENV = 'dev' } = process.env;
+const openApiCodegenTarget = process.env.OPENAPI_CODEGEN_TARGET || 'all';
+const generateDjangoOpenApi = openApiCodegenTarget !== 'allauth';
+const generateAllauthOpenApi = openApiCodegenTarget !== 'django';
 
 // Compute commit hash: env vars take precedence, fall back to git at build time
 const commitHash =
@@ -213,23 +216,31 @@ export default defineConfig({
          * @doc https://pro.ant.design/zh-cn/docs/openapi/
          */
         openAPI: [
-          {
-            projectName: 'openapi',
-            requestLibPath: "import { request } from '@umijs/max'",
-            schemaPath:
-              process.env.OPENAPI_SCHEMA_PATH ||
-              'http://localhost:18000/api/openapi.json',
-            mock: false,
-          },
-          {
-            projectName: 'allauth',
-            requestLibPath: "import { request } from '@umijs/max'",
-            schemaPath:
-              process.env.ALLAUTH_OPENAPI_SCHEMA_PATH ||
-              'http://127.0.0.1:4523/export/openapi/2?version=3.0',
-            namespace: 'AllauthAPI',
-            mock: false,
-          },
+          ...(generateDjangoOpenApi
+            ? [
+                {
+                  projectName: 'openapi',
+                  requestLibPath: "import { request } from '@umijs/max'",
+                  schemaPath:
+                    process.env.OPENAPI_SCHEMA_PATH ||
+                    'http://localhost:18000/api/openapi.json',
+                  mock: false,
+                },
+              ]
+            : []),
+          ...(generateAllauthOpenApi
+            ? [
+                {
+                  projectName: 'allauth',
+                  requestLibPath: "import { request } from '@umijs/max'",
+                  schemaPath:
+                    process.env.ALLAUTH_OPENAPI_SCHEMA_PATH ||
+                    'http://127.0.0.1:4523/export/openapi/2?version=3.0',
+                  namespace: 'AllauthAPI',
+                  mock: false,
+                },
+              ]
+            : []),
         ],
       }
     : {}),

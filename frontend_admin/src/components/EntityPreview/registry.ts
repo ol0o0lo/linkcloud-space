@@ -8,7 +8,7 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
         ({ EstatePreviewPanel }) => ({ default: EstatePreviewPanel }),
       ),
     ),
-    getHref: (id) => `/rental/properties/estates?preview_estate=${id}`,
+    getHref: (id) => `/rental/properties/estates/${id}`,
     popoverMedia: true,
     popoverWidth: 460,
   },
@@ -18,8 +18,7 @@ export const entityPreviewRegistry: EntityPreviewRegistry = {
         ({ BuildingPreviewPanel }) => ({ default: BuildingPreviewPanel }),
       ),
     ),
-    getHref: (id) =>
-      `/rental/properties/estates?view=buildings&preview_building=${id}`,
+    getHref: (id) => `/rental/properties/buildings/${id}`,
     popoverMedia: true,
     popoverWidth: 460,
   },

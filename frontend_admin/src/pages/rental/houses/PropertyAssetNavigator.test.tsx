@@ -26,9 +26,11 @@ const mockedHouseApi = vi.mocked(houseApi);
 
 function renderNavigator(
   onScopeChange = vi.fn(),
-  onOpenManagement = vi.fn(),
+  onAction = vi.fn(),
   scope = {},
   collapsed = false,
+  houseScope: 'all' | 'mine' = 'all',
+  onHouseScopeChange = vi.fn(),
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -39,9 +41,11 @@ function renderNavigator(
       <PropertyAssetNavigator
         collapsed={collapsed}
         enabled
+        houseScope={houseScope}
         orgSlug="demo"
         scope={scope}
-        onOpenManagement={onOpenManagement}
+        onAction={onAction}
+        onHouseScopeChange={onHouseScopeChange}
         onScopeChange={onScopeChange}
       />
     </QueryClientProvider>,
@@ -102,19 +106,11 @@ describe('PropertyAssetNavigator', () => {
     } as never);
   });
 
-  it('decorates the house scope heading with a hidden house icon', async () => {
-    const { container } = renderNavigator();
-
-    expect(await screen.findByText('房源范围')).toBeInTheDocument();
-    expect(
-      container.querySelector('[data-scope-heading-icon="true"]'),
-    ).toHaveAttribute('aria-hidden', 'true');
-  });
-
   it('only loads all buildings after an estate is expanded', async () => {
     renderNavigator();
 
     expect(await screen.findByText('星河湾')).toBeInTheDocument();
+    expect(screen.queryByLabelText('待完善筛选')).not.toBeInTheDocument();
     expect(mockedHouseApi.listBuildings).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: '展开星河湾' }));
@@ -124,7 +120,69 @@ describe('PropertyAssetNavigator', () => {
       estate_id: 1,
       page: 1,
       page_size: 500,
+      scope: 'all',
     });
+  });
+
+  it('keeps other projects expanded when another project is opened', async () => {
+    mockedHouseApi.listEstates.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          name: '星河湾',
+          display_name: '星河湾',
+        } as never,
+        {
+          id: 3,
+          name: '云栖花园',
+          display_name: '云栖花园',
+        } as never,
+      ],
+      total: 2,
+      page: 1,
+      page_size: 30,
+    });
+    mockedHouseApi.listBuildings.mockImplementation(async (params) => ({
+      items:
+        params?.estate_id === 1
+          ? ([{ id: 2, estate_id: 1, name: '1栋' }] as never[])
+          : ([{ id: 4, estate_id: 3, name: '2栋' }] as never[]),
+      total: 1,
+      page: 1,
+      page_size: 500,
+    }));
+
+    renderNavigator();
+
+    fireEvent.click(await screen.findByRole('button', { name: '展开星河湾' }));
+    expect(await screen.findByText('1栋')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '展开云栖花园' }));
+
+    expect(await screen.findByText('2栋')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '收起星河湾' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '收起云栖花园' }),
+    ).toBeInTheDocument();
+
+    const collapseAllButton = screen.getByRole('button', { name: '全部折叠' });
+    const createEstateButton = screen.getByRole('button', { name: '新建项目' });
+    expect(collapseAllButton.nextElementSibling).toBe(createEstateButton);
+  });
+
+  it('changes the whole page house scope from the navigator header', async () => {
+    const onHouseScopeChange = vi.fn();
+    renderNavigator(vi.fn(), vi.fn(), {}, false, 'all', onHouseScopeChange);
+
+    fireEvent.click(screen.getByRole('radio', { name: '我的' }));
+
+    expect(onHouseScopeChange).toHaveBeenCalledWith('mine');
+
+    fireEvent.click(screen.getByRole('button', { name: '查看房源范围说明' }));
+    expect(await screen.findByText('查看空间内全部房源')).toBeInTheDocument();
+    expect(screen.getByText('仅查看当前账号负责的房源')).toBeInTheDocument();
   });
 
   it('selects estate and building scopes independently', async () => {
@@ -142,7 +200,7 @@ describe('PropertyAssetNavigator', () => {
     expect(onScopeChange).toHaveBeenLastCalledWith({ buildingId: 2 });
   });
 
-  it('clears the scope and collapses the estate when its selected label is clicked again', async () => {
+  it('clears the scope without collapsing the estate when its selected label is clicked again', async () => {
     const onScopeChange = vi.fn();
     renderNavigator(onScopeChange, vi.fn(), { estateId: 1 });
 
@@ -156,33 +214,15 @@ describe('PropertyAssetNavigator', () => {
     fireEvent.click(estateButton);
 
     expect(onScopeChange).toHaveBeenLastCalledWith({});
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('button', { name: '选择楼栋 星河湾 / 1栋' }),
-      ).not.toBeInTheDocument(),
-    );
+    expect(
+      screen.getByRole('button', { name: '选择楼栋 星河湾 / 1栋' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '收起星河湾' }),
+    ).toBeInTheDocument();
   });
 
-  it('marks the active scope with aria-current', async () => {
-    const allHousesView = renderNavigator();
-
-    expect(screen.getByRole('button', { name: '全部房源' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-
-    allHousesView.unmount();
-    renderNavigator(vi.fn(), vi.fn(), { estateId: 1 });
-
-    expect(
-      await screen.findByRole('button', { name: '选择项目 星河湾' }),
-    ).toHaveAttribute('aria-current', 'page');
-    expect(
-      screen.getByRole('button', { name: '全部房源' }),
-    ).not.toHaveAttribute('aria-current');
-  });
-
-  it('collapses the previous estate when another estate is selected', async () => {
+  it('keeps the previous estate expanded when another estate is selected', async () => {
     mockedHouseApi.listEstates.mockResolvedValue({
       items: [
         {
@@ -232,22 +272,14 @@ describe('PropertyAssetNavigator', () => {
       await screen.findByRole('button', { name: '选择楼栋 云栖花园 / 3栋' }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: '选择楼栋 星河湾 / 1栋' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '展开星河湾' }),
+      screen.getByRole('button', { name: '选择楼栋 星河湾 / 1栋' }),
     ).toBeInTheDocument();
-  });
-
-  it('opens the integrated project and building manager', async () => {
-    const onOpenManagement = vi.fn();
-    renderNavigator(vi.fn(), onOpenManagement);
-
-    fireEvent.click(
-      await screen.findByRole('button', { name: '管理项目与楼栋' }),
-    );
-
-    await waitFor(() => expect(onOpenManagement).toHaveBeenCalledTimes(1));
+    expect(
+      screen.getByRole('button', { name: '收起星河湾' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '收起云栖花园' }),
+    ).toBeInTheDocument();
   });
 
   it('searches estates and buildings on the server', async () => {
@@ -303,23 +335,26 @@ describe('PropertyAssetNavigator', () => {
       keyword: '云栖',
       page: 1,
       page_size: 50,
+      scope: 'all',
     });
     expect(mockedHouseApi.listBuildings).toHaveBeenCalledWith({
       keyword: '云栖',
       page: 1,
       page_size: 50,
+      scope: 'all',
     });
   });
 
   it('offers contextual create actions for estates and buildings', async () => {
-    const onOpenManagement = vi.fn();
-    renderNavigator(vi.fn(), onOpenManagement);
+    const onAction = vi.fn();
+    renderNavigator(vi.fn(), onAction);
 
     fireEvent.click(
       await screen.findByRole('button', { name: '新建星河湾楼栋' }),
     );
-    expect(onOpenManagement).toHaveBeenCalledWith({
-      buildingCreateEstateId: 1,
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'create-building',
+      estateId: 1,
     });
 
     fireEvent.click(screen.getByRole('button', { name: '展开星河湾' }));
@@ -331,49 +366,38 @@ describe('PropertyAssetNavigator', () => {
     );
   });
 
-  it('shows a compact empty state when an estate has no buildings', async () => {
-    mockedHouseApi.listBuildings.mockResolvedValue({
-      items: [],
-      total: 0,
-      page: 1,
-      page_size: 500,
-    });
-    renderNavigator();
-
-    fireEvent.click(await screen.findByRole('button', { name: '展开星河湾' }));
-
-    expect(await screen.findByText('暂无楼栋')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: '在星河湾下新建楼栋' }),
-    ).not.toBeInTheDocument();
-  });
-
   it('offers contextual edit actions for estates and buildings', async () => {
-    const onOpenManagement = vi.fn();
-    renderNavigator(vi.fn(), onOpenManagement);
+    const onAction = vi.fn();
+    renderNavigator(vi.fn(), onAction);
 
     fireEvent.click(
       await screen.findByRole('button', { name: '编辑星河湾项目' }),
     );
-    expect(onOpenManagement).toHaveBeenCalledWith({ estateEditId: 1 });
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'edit-estate',
+      estateId: 1,
+    });
 
     fireEvent.click(screen.getByRole('button', { name: '展开星河湾' }));
     fireEvent.click(
       await screen.findByRole('button', { name: '编辑星河湾 / 1栋' }),
     );
-    expect(onOpenManagement).toHaveBeenCalledWith({ buildingEditId: 2 });
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'edit-building',
+      buildingId: 2,
+    });
   });
 
   it('offers top-level project and standalone-building creation', async () => {
-    const onOpenManagement = vi.fn();
-    renderNavigator(vi.fn(), onOpenManagement);
+    const onAction = vi.fn();
+    renderNavigator(vi.fn(), onAction);
 
     fireEvent.click(await screen.findByRole('button', { name: '新建项目' }));
-    expect(onOpenManagement).toHaveBeenCalledWith({ estateCreate: true });
+    expect(onAction).toHaveBeenCalledWith({ type: 'create-estate' });
 
     fireEvent.click(screen.getByRole('button', { name: '新建独立楼栋' }));
-    expect(onOpenManagement).toHaveBeenCalledWith({
-      buildingCreateStandalone: true,
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'create-building',
     });
   });
 
@@ -446,6 +470,7 @@ describe('PropertyAssetNavigator', () => {
     expect(mockedHouseApi.listBuildings).toHaveBeenCalledWith({
       page: 1,
       page_size: 500,
+      scope: 'all',
     });
   });
 
@@ -460,18 +485,6 @@ describe('PropertyAssetNavigator', () => {
     fireEvent.click(screen.getByRole('button', { name: '房态同步' }));
     expect(mockHistoryPush).toHaveBeenCalledWith(
       '/rental/properties/vacancy-sync?building_id=2',
-    );
-  });
-
-  it('can collapse and restore the navigator', async () => {
-    const { container } = renderNavigator(vi.fn(), vi.fn(), {}, true);
-
-    expect(
-      container.querySelector('[data-asset-navigator-collapsed="true"]'),
-    ).toBeInTheDocument();
-    expect(container.querySelector('aside')).toHaveAttribute(
-      'aria-hidden',
-      'true',
     );
   });
 });

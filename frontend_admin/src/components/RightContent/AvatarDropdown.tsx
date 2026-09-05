@@ -8,7 +8,12 @@ import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
 import React, { startTransition } from 'react';
 import { deleteBrowserV1AuthSession } from '@/services/allauth/authSession';
-import { buildAdminPath, isAuthPagePath, LOGIN_PATH } from '@/utils/adminRouting';
+import {
+  buildAdminPath,
+  isAuthPagePath,
+  LOGIN_PATH,
+} from '@/utils/adminRouting';
+import { Icon } from '../Icon';
 import HeaderDropdown from '../HeaderDropdown';
 
 type GlobalHeaderRightProps = {
@@ -57,6 +62,10 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
       setInitialState((s) => ({ ...s, settingDrawerOpen: true }));
       return;
     }
+    if (key === 'landlord') {
+      history.push('/personal-business/landlord');
+      return;
+    }
     history.push(`/account/${key}`);
   };
 
@@ -71,6 +80,11 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   }
 
   const menuItems: MenuProps['items'] = [
+    {
+      key: 'landlord',
+      icon: <Icon icon="tabler:home-cog" />,
+      label: '房东中心',
+    },
     {
       key: 'settings',
       icon: <SettingOutlined />,

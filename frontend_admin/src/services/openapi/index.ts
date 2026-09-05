@@ -5,11 +5,14 @@
 import * as accessOrganizationBindings from "./accessOrganizationBindings";
 import * as accessOrganizationRoles from "./accessOrganizationRoles";
 import * as accessPermissions from "./accessPermissions";
+import * as accessRoleManagement from "./accessRoleManagement";
 import * as accessTeamBindings from "./accessTeamBindings";
 import * as accessTeamRoles from "./accessTeamRoles";
 import * as adminReferrals from "./adminReferrals";
+import * as allocation from "./allocation";
 import * as analytics from "./analytics";
 import * as appSystem from "./appSystem";
+import * as houseMatchShares from "./houseMatchShares";
 import * as mediaFiles from "./mediaFiles";
 import * as notificationDispatches from "./notificationDispatches";
 import * as notifications from "./notifications";
@@ -22,7 +25,9 @@ import * as organizationWorkspace from "./organizationWorkspace";
 import * as payments from "./payments";
 import * as propertyRentalLandlord from "./propertyRentalLandlord";
 import * as propertyRentalManagement from "./propertyRentalManagement";
+import * as publicHouseMatchShares from "./publicHouseMatchShares";
 import * as publicHouses from "./publicHouses";
+import * as publicLandlordStore from "./publicLandlordStore";
 import * as publicOrganizationInvites from "./publicOrganizationInvites";
 import * as realName from "./realName";
 import * as realNameAdmin from "./realNameAdmin";
@@ -43,6 +48,7 @@ export default {
   appSystem,
   mediaFiles,
   accessPermissions,
+  accessRoleManagement,
   accessOrganizationRoles,
   accessOrganizationBindings,
   accessTeamRoles,
@@ -53,6 +59,7 @@ export default {
   notifications,
   teamOperations,
   analytics,
+  allocation,
   organizationMembers,
   organizationWorkspace,
   organizationProfile,
@@ -74,7 +81,10 @@ export default {
   teamSettings,
   userSettings,
   propertyRentalManagement,
+  houseMatchShares,
   propertyRentalLandlord,
   publicHouses,
+  publicHouseMatchShares,
+  publicLandlordStore,
   userFavorites,
 };

@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { message } from 'antd';
 import dayjs from 'dayjs';
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useEffect } from 'react';
 import { useTenantWorkspace } from '@/pages/space/shared';
+import { type HouseOut, houseApi } from '@/services/manual/house';
 import {
   acceptTaskAssignment,
   completeTaskAssignment,
+  type DailyDashboard,
   getDailyTeamOperationsDashboard,
   listTeamAnnouncements,
-  type DailyDashboard,
   type TeamAnnouncement,
 } from '@/services/manual/teamOperations';
 import {
@@ -32,6 +33,11 @@ export type MineWorkbenchDataValue = {
   announcementsLoading: boolean;
   announcementsError: boolean;
   retryAnnouncements: () => void;
+  inspectionHouses: HouseOut[];
+  inspectionTotal: number;
+  inspectionLoading: boolean;
+  inspectionError: boolean;
+  retryInspection: () => void;
   acceptingId?: number;
   completingId?: number;
   accept: (assignmentId: number) => Promise<unknown>;
@@ -46,10 +52,7 @@ const MineWorkbenchDataContext = createContext<MineWorkbenchDataValue | null>(
 
 type MineWorkbenchDataProviderProps = {
   visibleWidgetIds: ReadonlySet<string>;
-  onDataStatusChange?: (
-    isFetching: boolean,
-    updatedAt: string | null,
-  ) => void;
+  onDataStatusChange?: (isFetching: boolean, updatedAt: string | null) => void;
   children: ReactNode;
 };
 
@@ -66,6 +69,8 @@ export function MineWorkbenchDataProvider({
     [...DASHBOARD_WIDGET_IDS].some((id) => visibleWidgetIds.has(id));
   const announcementsEnabled =
     tenantEnabled && visibleWidgetIds.has('mine-announcements');
+  const inspectionEnabled =
+    tenantEnabled && visibleWidgetIds.has('mine-inspections');
 
   const dashboardQuery = useQuery({
     queryKey: teamOperationsQueryKeys.dashboard(workspace.selectedOrgSlug),
@@ -86,6 +91,19 @@ export function MineWorkbenchDataProvider({
     refetchInterval: REFRESH_INTERVAL,
     refetchIntervalInBackground: false,
   });
+  const inspectionQuery = useQuery({
+    queryKey: ['house', 'workbench-inspections', workspace.selectedOrgSlug],
+    queryFn: () =>
+      houseApi.listHouses({
+        page: 1,
+        page_size: 5,
+        scope: 'mine',
+        inspection_due: true,
+      }),
+    enabled: inspectionEnabled,
+    refetchInterval: REFRESH_INTERVAL,
+    refetchIntervalInBackground: false,
+  });
   const acceptMutation = useMutation({
     mutationFn: acceptTaskAssignment,
     onSuccess: async () => {
@@ -103,12 +121,15 @@ export function MineWorkbenchDataProvider({
   const updatedAtValue = Math.max(
     dashboardQuery.dataUpdatedAt,
     announcementsQuery.dataUpdatedAt,
+    inspectionQuery.dataUpdatedAt,
   );
   const updatedAt = updatedAtValue
     ? dayjs(updatedAtValue).format('HH:mm')
     : null;
   const isFetching =
-    dashboardQuery.isFetching || announcementsQuery.isFetching;
+    dashboardQuery.isFetching ||
+    announcementsQuery.isFetching ||
+    inspectionQuery.isFetching;
 
   useEffect(() => {
     onDataStatusChange?.(isFetching, updatedAt);
@@ -123,6 +144,11 @@ export function MineWorkbenchDataProvider({
     announcementsLoading: announcementsQuery.isLoading,
     announcementsError: announcementsQuery.isError,
     retryAnnouncements: () => void announcementsQuery.refetch(),
+    inspectionHouses: inspectionQuery.data?.items || [],
+    inspectionTotal: inspectionQuery.data?.total || 0,
+    inspectionLoading: inspectionQuery.isLoading,
+    inspectionError: inspectionQuery.isError,
+    retryInspection: () => void inspectionQuery.refetch(),
     acceptingId: acceptMutation.isPending
       ? acceptMutation.variables
       : undefined,

@@ -1495,6 +1495,56 @@ export const useStyles = createStyles(({ css, token }) => ({
     flex-direction: column;
     gap: 8px;
   `,
+  inspectionHouseList: css`
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  `,
+  inspectionHouseItem: css`
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid ${token.colorBorderSecondary};
+    border-radius: ${token.borderRadiusLG}px;
+    background: rgb(255 255 255 / 68%);
+    color: ${token.colorTextTertiary};
+    text-align: left;
+    transition:
+      border-color ${token.motionDurationFast},
+      background ${token.motionDurationFast};
+
+    &:hover,
+    &:focus-visible {
+      border-color: ${token.colorPrimaryBorder};
+      background: ${token.colorPrimaryBg};
+    }
+
+    &:focus-visible {
+      outline: 2px solid ${token.colorPrimaryBorderHover};
+      outline-offset: 2px;
+    }
+  `,
+  inspectionHouseCopy: css`
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+
+    strong {
+      overflow: hidden;
+      color: ${token.colorText};
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ant-tag {
+      margin-inline-end: 0;
+    }
+  `,
   priorityTaskContent: css`
     display: flex;
     min-height: 0;

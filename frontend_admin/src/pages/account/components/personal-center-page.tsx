@@ -6,11 +6,7 @@ import NotificationView from '../settings/components/notification';
 import SecurityOverview from '../settings/components/security-overview';
 import useStyles from '../settings/style.style';
 
-type PersonalCenterTab =
-  | 'profile'
-  | 'security'
-  | 'preferences'
-  | 'notifications';
+type PersonalCenterTab = 'profile' | 'security' | 'notifications';
 
 type PageState = {
   mode: 'inline' | 'horizontal';
@@ -20,7 +16,6 @@ type PageState = {
 const menuMap: Record<PersonalCenterTab, string> = {
   profile: '个人资料',
   security: '账号安全',
-  preferences: '偏好设置',
   notifications: '通知设置',
 };
 
@@ -28,10 +23,7 @@ const isPersonalCenterTab = (
   value: string | null,
 ): value is PersonalCenterTab => {
   return (
-    value === 'profile' ||
-    value === 'security' ||
-    value === 'preferences' ||
-    value === 'notifications'
+    value === 'profile' || value === 'security' || value === 'notifications'
   );
 };
 
@@ -48,8 +40,6 @@ const PersonalCenterContent: React.FC<{ selectKey: PersonalCenterTab }> = ({
       return <BaseView />;
     case 'security':
       return <SecurityOverview />;
-    case 'preferences':
-      return <div>偏好设置（即将接入）</div>;
     case 'notifications':
       return <NotificationView />;
     default:

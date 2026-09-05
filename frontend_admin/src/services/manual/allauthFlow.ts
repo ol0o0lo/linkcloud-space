@@ -26,6 +26,15 @@ export type ParsedAllauthFlowState =
   | UnsupportedFlowState
   | null;
 
+const AVAILABLE_LOGIN_FLOW_IDS = new Set([
+  'login',
+  'login_by_code',
+  'mfa_login_webauthn',
+  'provider_redirect',
+  'provider_token',
+  'signup',
+]);
+
 export function getAllauthFlows(error: any): AllauthFlow[] {
   const flows =
     error?.response?.data?.flows ||
@@ -66,7 +75,12 @@ export function parseLoginFlowState(error: any): ParsedAllauthFlowState {
     };
   }
 
-  const unsupportedFlows = flows.filter((flow) => flow?.id && flow.id !== 'login');
+  const unsupportedFlows = flows.filter(
+    (flow) =>
+      flow?.id &&
+      flow.is_pending &&
+      !AVAILABLE_LOGIN_FLOW_IDS.has(flow.id),
+  );
   if (!unsupportedFlows.length) {
     return null;
   }

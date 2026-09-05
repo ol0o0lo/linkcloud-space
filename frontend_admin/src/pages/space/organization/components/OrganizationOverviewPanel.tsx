@@ -35,6 +35,7 @@ import {
   tenantQueryKeys,
   useTenantWorkspace,
 } from '@/pages/space/shared';
+import { getWorkspaceMemberEmployeeName } from '@/services/manual/organizationMembers';
 import { appsOrganizationsApiListMembers } from '@/services/openapi/organizationMembers';
 import {
   appsOrganizationsApiGetSettings,
@@ -223,7 +224,7 @@ export const OrganizationOverviewPanel: React.FC<{
     onSuccess: async () => {
       setTransferUserId(undefined);
       setDangerExpanded(false);
-      message.success('Owner 已转移');
+      message.success('所有者已转移');
       await workspace.queryClient.invalidateQueries({
         queryKey: tenantQueryKeys.appContext(workspace.selectedOrgSlug),
       });
@@ -264,7 +265,9 @@ export const OrganizationOverviewPanel: React.FC<{
       (membersQuery.data?.items || [])
         .filter((item) => item.user.id !== workspace.appContext?.user?.id)
         .map((item) => ({
-          label: formatPersonLabel(item.user),
+          label:
+            getWorkspaceMemberEmployeeName(item) ||
+            formatPersonLabel(item.user),
           value: item.user.id,
         })),
     [membersQuery.data, workspace.appContext?.user?.id],
@@ -281,7 +284,7 @@ export const OrganizationOverviewPanel: React.FC<{
     {
       id: 'owners',
       key: 'all' as const,
-      label: 'Owner',
+      label: '所有者',
       value: navigation.owner_count,
       suffix: '人',
       icon: 'member',
@@ -447,7 +450,7 @@ export const OrganizationOverviewPanel: React.FC<{
                 ? profileQuery.data?.billing_email ||
                   detailQuery.data?.billing_email ||
                   '未设置'
-                : '仅 Owner 可查看'}
+                : '仅所有者可查看'}
           </Descriptions.Item>
           <Descriptions.Item label="状态">
             {!ownershipResolved
@@ -456,7 +459,7 @@ export const OrganizationOverviewPanel: React.FC<{
                 ? detailQuery.data?.is_active === false
                   ? '已归档'
                   : '正常'
-                : '仅 Owner 可查看'}
+                : '仅所有者可查看'}
           </Descriptions.Item>
         </Descriptions>
       )}
@@ -529,7 +532,7 @@ export const OrganizationOverviewPanel: React.FC<{
                       description={
                         detailQuery.data?.is_active === false
                           ? '恢复后组织将重新启用。'
-                          : '归档不会删除数据，之后仍可由 Owner 恢复。'
+                          : '归档不会删除数据，之后仍可由所有者恢复。'
                       }
                       okText={
                         detailQuery.data?.is_active === false
@@ -554,7 +557,7 @@ export const OrganizationOverviewPanel: React.FC<{
                   </div>
                   <div className={styles.dangerActionPanel}>
                     <div className={styles.dangerActionCopy}>
-                      <Typography.Text strong>转移 Owner</Typography.Text>
+                      <Typography.Text strong>转移所有者</Typography.Text>
                       <Typography.Text type="secondary">
                         转移后你将失去组织资料和危险操作的管理权限。
                       </Typography.Text>
@@ -563,7 +566,7 @@ export const OrganizationOverviewPanel: React.FC<{
                       <Select
                         allowClear
                         showSearch={{ optionFilterProp: 'label' }}
-                        placeholder="选择新 Owner"
+                        placeholder="选择新所有者"
                         loading={membersQuery.isLoading}
                         value={transferUserId}
                         options={memberOptions}
@@ -571,8 +574,8 @@ export const OrganizationOverviewPanel: React.FC<{
                         onChange={setTransferUserId}
                       />
                       <Popconfirm
-                        title="确认转移 Owner？"
-                        description="转移后你将不再拥有当前组织的 Owner 权限。"
+                        title="确认转移所有者？"
+                        description="转移后你将不再拥有当前组织的所有者权限。"
                         okText="确认转移"
                         disabled={!transferUserId}
                         onConfirm={() =>
@@ -585,7 +588,7 @@ export const OrganizationOverviewPanel: React.FC<{
                           disabled={!transferUserId}
                           loading={transferMutation.isPending}
                         >
-                          转移 Owner
+                          转移所有者
                         </Button>
                       </Popconfirm>
                     </Space>

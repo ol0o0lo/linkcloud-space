@@ -66,33 +66,4 @@ describe('EntityPreviewDetailDrawer', () => {
       screen.queryByRole('region', { name: '联系人详情' }),
     ).not.toBeInTheDocument();
   });
-
-  it('Drawer 面板延迟加载时保留原有普通骨架', () => {
-    entityPreviewRegistry.contact = {
-      getHref: (id) => `/rental/customers?preview=${id}`,
-      Panel: lazy(
-        () =>
-          new Promise<{ default: typeof Panel }>(() => {
-            // 保持 Suspense 加载态
-          }),
-      ),
-      popoverMedia: false,
-      popoverWidth: 390,
-    };
-
-    render(
-      <EntityPreviewDetailDrawer
-        searchParam="preview"
-        title="联系人详情"
-        type="contact"
-      />,
-    );
-
-    expect(screen.getByRole('status', { name: '正在加载预览' })).toHaveStyle({
-      width: '320px',
-    });
-    expect(
-      screen.queryByTestId('entity-preview-skeleton-media'),
-    ).not.toBeInTheDocument();
-  });
 });

@@ -33,6 +33,7 @@ import {
 import { createStyles } from 'antd-style';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AppIcon } from '@/components/AppIcon';
+import { cancelSubscriptionOrder } from '@/services/manual/subscriptions';
 import {
   appsSubscriptionsApiCreateOrder,
   appsSubscriptionsApiCurrentSubscription,
@@ -1499,6 +1500,34 @@ const SubscriptionPage: React.FC = () => {
     },
   });
 
+  const cancelOrderMutation = useMutation({
+    mutationFn: cancelSubscriptionOrder,
+    onSuccess: async () => {
+      setCheckoutOpen(false);
+      setCheckoutCodeUrl(undefined);
+      setCheckoutOrderNo(undefined);
+      message.success('订单已取消，可重新下单。');
+      await workspace.queryClient.invalidateQueries({
+        queryKey: ['subscriptions', 'orders', workspace.selectedOrgSlug],
+      });
+    },
+    onError: () => {
+      message.error('取消订单失败，请稍后重试。');
+    },
+  });
+
+  const requestCancelOrder = () => {
+    if (!checkoutOrderNo || cancelOrderMutation.isPending) return;
+    Modal.confirm({
+      title: '取消当前订单？',
+      content: '取消后当前支付二维码将失效，如需购买请重新下单。',
+      okText: '取消订单',
+      cancelText: '继续支付',
+      okButtonProps: { danger: true },
+      onOk: () => cancelOrderMutation.mutateAsync(checkoutOrderNo),
+    });
+  };
+
   useEffect(() => {
     const activeCycle = (currentQuery.data?.subscription as CurrentSubscription)
       ?.billing_cycle;
@@ -1507,23 +1536,34 @@ const SubscriptionPage: React.FC = () => {
   }, [currentQuery.data?.subscription]);
 
   useEffect(() => {
-    if (
-      checkoutOrderQuery.data?.status !== 'paid' ||
-      !checkoutOrderNo ||
-      checkoutOrderNo === completedOrderNo
-    )
+    const orderStatus = checkoutOrderQuery.data?.status;
+    if (!checkoutOrderNo) return;
+    if (orderStatus === 'paid' && checkoutOrderNo !== completedOrderNo) {
+      setCompletedOrderNo(checkoutOrderNo);
+      setCheckoutOpen(false);
+      setCheckoutCodeUrl(undefined);
+      setCheckoutOrderNo(undefined);
+      message.success('支付成功，套餐权益已开通。');
+      void Promise.all([
+        workspace.queryClient.invalidateQueries({
+          queryKey: ['subscriptions', 'current', workspace.selectedOrgSlug],
+        }),
+        workspace.queryClient.invalidateQueries({
+          queryKey: ['subscriptions', 'orders', workspace.selectedOrgSlug],
+        }),
+      ]);
       return;
-    setCompletedOrderNo(checkoutOrderNo);
-    setCheckoutOpen(false);
-    message.success('支付成功，套餐权益已开通。');
-    void Promise.all([
-      workspace.queryClient.invalidateQueries({
-        queryKey: ['subscriptions', 'current', workspace.selectedOrgSlug],
-      }),
-      workspace.queryClient.invalidateQueries({
-        queryKey: ['subscriptions', 'orders', workspace.selectedOrgSlug],
-      }),
-    ]);
+    }
+    if (orderStatus === 'closed' || orderStatus === 'payment_failed') {
+      setCheckoutOpen(false);
+      setCheckoutCodeUrl(undefined);
+      setCheckoutOrderNo(undefined);
+      message.warning(
+        orderStatus === 'closed'
+          ? '订单已关闭，请重新下单。'
+          : '支付失败，请重新下单。',
+      );
+    }
   }, [
     checkoutOrderNo,
     checkoutOrderQuery.data?.status,
@@ -2080,7 +2120,7 @@ const SubscriptionPage: React.FC = () => {
         <Modal
           title="微信扫码支付"
           open={checkoutOpen}
-          onCancel={() => setCheckoutOpen(false)}
+          onCancel={requestCancelOrder}
           footer={null}
           width={400}
           centered
@@ -2133,9 +2173,11 @@ const SubscriptionPage: React.FC = () => {
             <Button
               className={styles.checkoutAction}
               block
-              onClick={() => setCheckoutOpen(false)}
+              danger
+              loading={cancelOrderMutation.isPending}
+              onClick={requestCancelOrder}
             >
-              稍后支付
+              取消订单
             </Button>
           </div>
         </Modal>

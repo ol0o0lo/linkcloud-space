@@ -52,7 +52,7 @@
 `【当前实现】`
 
 - React 19、Umi Max 4、Ant Design 6、ProComponents 3。
-- Ant Design 全局变体为 `filled`。
+- Ant Design 全局变体为 `outlined`。
 - 主应用挂载于 `/dashboard/`。
 - 主题与布局入口：`config/config.ts`、`config/defaultSettings.ts`、`src/app.tsx`。
 

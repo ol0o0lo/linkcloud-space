@@ -21,7 +21,7 @@ import {
   Typography,
   theme,
 } from 'antd';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppStatusTag } from '@/components/AppStatus';
 import {
   ContactPreview,
@@ -33,6 +33,7 @@ import {
   ResponsiveActions,
 } from '@/pages/_shared/adminLayout';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
+import type { AllocationCapabilities } from '@/services/manual/allocation';
 import {
   enumMapping,
   enumOptionMapping,
@@ -44,6 +45,8 @@ import {
   houseApi,
   type LeaseOut,
 } from '@/services/manual/house';
+import DealSigningDrawer from '../components/DealSigningDrawer';
+import EarningAttributionFields from '../components/EarningAttributionFields';
 import MediaRefsUpload from '../components/MediaRefsUpload';
 import {
   CONTACT_ROLE,
@@ -198,7 +201,7 @@ function getLeaseEmptyState(options: { openCreate: () => void }) {
   return (
     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无租约">
       <Button type="primary" onClick={openCreate}>
-        新建租约
+        登记签约
       </Button>
     </Empty>
   );
@@ -216,6 +219,8 @@ type LeaseFormValues = {
   status?: string;
   contract_files?: Record<string, unknown>[];
   notes?: string;
+  beneficiary_user_ids: number[];
+  team_id?: number | null;
 };
 
 const LeasesPage: React.FC = () => {
@@ -242,11 +247,16 @@ const LeasesPage: React.FC = () => {
     useState<LeaseDrawerSearchState>(initialDrawerState);
   const sourceViewingRecordId = drawerState.sourceViewingRecordId;
   const sourceHouseId = Number(queryParams.get('house_id')) || undefined;
+  const dealSigningMode =
+    queryParams.get('action') === 'deal-signing' && Boolean(sourceHouseId);
+  const [dealSigningOpen, setDealSigningOpen] = useState(false);
   const editLeaseId = drawerState.editLeaseId;
   const [editing, setEditing] = useState<LeaseOut | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tenantOpen, setTenantOpen] = useState(false);
   const [createdTenants, setCreatedTenants] = useState<ContactOut[]>([]);
+  const [_allocationCapabilities, setAllocationCapabilities] =
+    useState<AllocationCapabilities>();
   const [openedSourceViewing, setOpenedSourceViewing] = useState(false);
   const [openedSourceHouse, setOpenedSourceHouse] = useState(false);
   const [openedEditLease, setOpenedEditLease] = useState(false);
@@ -438,14 +448,14 @@ const LeasesPage: React.FC = () => {
       !sourceViewing?.contact_id ||
       openedSourceViewing ||
       editing ||
-      drawerOpen ||
+      dealSigningOpen ||
       !sourceViewingLookup.isSuccess
     )
       return;
-    setDrawerOpen(true);
+    setDealSigningOpen(true);
     setOpenedSourceViewing(true);
   }, [
-    drawerOpen,
+    dealSigningOpen,
     editing,
     openedSourceViewing,
     sourceViewing,
@@ -474,19 +484,21 @@ const LeasesPage: React.FC = () => {
   useEffect(() => {
     if (
       !sourceHouseId ||
+      dealSigningMode ||
       sourceViewingRecordId ||
+      editLeaseId ||
       openedSourceHouse ||
       editing ||
-      drawerOpen ||
-      !houses.isSuccess
+      dealSigningOpen
     )
       return;
-    setDrawerOpen(true);
+    setDealSigningOpen(true);
     setOpenedSourceHouse(true);
   }, [
-    drawerOpen,
+    dealSigningOpen,
+    dealSigningMode,
+    editLeaseId,
     editing,
-    houses.isSuccess,
     openedSourceHouse,
     sourceHouseId,
     sourceViewingRecordId,
@@ -521,18 +533,45 @@ const LeasesPage: React.FC = () => {
   const saveLease = useMutation({
     mutationFn: (values: LeaseFormValues) => {
       if (editing) return houseApi.patchLease(editing.id, values);
-      const { status: _status, ...payload } = values;
-      return houseApi.createLease({
+      const {
+        status: _status,
+        beneficiary_user_ids,
+        team_id,
+        tenant_id,
+        ...payload
+      } = values;
+      if (!tenant_id) throw new Error('请选择租客');
+      const normalizedPayload = {
         ...payload,
+        tenant_id,
         payment_day: Number(payload.payment_day || 1),
-      });
+      };
+      return houseApi
+        .createDealSigning({
+          lease: normalizedPayload,
+          team_id: team_id ?? null,
+          beneficiary_user_ids,
+        })
+        .then((result) => result.lease);
     },
     onSuccess: async () => {
-      message.success(editing ? '租约已更新' : '租约已创建');
+      message.success(
+        editing ? '租约已更新' : '签约已登记，收益分配申请正在等待审核',
+      );
       closeDrawer();
-      await queryClient.invalidateQueries({ queryKey: ['house', 'leases'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['house', 'leases'] }),
+        queryClient.invalidateQueries({ queryKey: ['house', 'houses'] }),
+        queryClient.invalidateQueries({ queryKey: ['allocation'] }),
+      ]);
     },
   });
+
+  const handleCapabilitiesChange = useCallback(
+    (capabilities?: AllocationCapabilities) =>
+      setAllocationCapabilities(capabilities),
+    [],
+  );
   const updateLeaseStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       houseApi.patchLease(id, { status }),
@@ -557,7 +596,7 @@ const LeasesPage: React.FC = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setDrawerOpen(true);
+    setDealSigningOpen(true);
   };
 
   const openEdit = (record: LeaseOut) => {
@@ -575,6 +614,24 @@ const LeasesPage: React.FC = () => {
     if (drawerState.sourceViewingRecordId || drawerState.editLeaseId) {
       clearDrawerState();
     }
+  };
+
+  const closeDealSigningDrawer = () => {
+    setDealSigningOpen(false);
+    const params = new URLSearchParams(window.location.search);
+    const removeSourceHouse = params.get('action') === 'deal-signing';
+    params.delete('action');
+    params.delete('source_viewing_record_id');
+    if (removeSourceHouse) params.delete('house_id');
+    const nextSearch = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`,
+    );
+    setOpenedSourceViewing(false);
+    setOpenedSourceHouse(false);
+    setLocationSearch(window.location.search);
   };
 
   const fillLeaseFromViewing = (viewingId?: number | null) => {
@@ -804,7 +861,7 @@ const LeasesPage: React.FC = () => {
               icon={<PlusOutlined />}
               onClick={openCreate}
             >
-              新建租约
+              登记签约
             </Button>,
           ]}
           ghost
@@ -832,9 +889,15 @@ const LeasesPage: React.FC = () => {
         title="租约详情"
         type="lease"
       />
+      <DealSigningDrawer
+        open={dealSigningMode || dealSigningOpen}
+        houseId={sourceViewing?.house_id || sourceHouseId}
+        sourceViewing={sourceViewing}
+        onClose={closeDealSigningDrawer}
+      />
       <Drawer
-        title={editing ? '编辑租约' : '新建租约'}
-        open={drawerOpen}
+        title="编辑租约"
+        open={drawerOpen && Boolean(editing)}
         size="large"
         onClose={closeDrawer}
         destroyOnHidden
@@ -844,6 +907,7 @@ const LeasesPage: React.FC = () => {
             htmlType="submit"
             form="lease-form"
             loading={saveLease.isPending}
+            disabled={!editing}
           >
             保存
           </Button>
@@ -1017,6 +1081,29 @@ const LeasesPage: React.FC = () => {
                   </Row>
                 </Space>
               </div>
+
+              {!editing ? (
+                <div style={sectionStyle}>
+                  <Space
+                    orientation="vertical"
+                    size={12}
+                    style={{ width: '100%' }}
+                  >
+                    <div>
+                      <Typography.Text strong>收益归属</Typography.Text>
+                      <br />
+                      <Typography.Text type="secondary">
+                        收益将在审核通过后计入员工流水。
+                      </Typography.Text>
+                    </div>
+                    <EarningAttributionFields
+                      enabled={drawerOpen && enabled}
+                      form={form}
+                      onCapabilitiesChange={handleCapabilitiesChange}
+                    />
+                  </Space>
+                </div>
+              ) : null}
 
               <div style={sectionStyle}>
                 <Space

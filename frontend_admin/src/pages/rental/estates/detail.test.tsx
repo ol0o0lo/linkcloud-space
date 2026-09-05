@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import EstateDetailPage from './detail';
 
@@ -39,7 +39,7 @@ vi.mock('@/services/manual/house', () => ({
 }));
 
 describe('EstateDetailPage', () => {
-  it('使用统一详情布局展示小区概览、资料与楼栋经营状态', async () => {
+  it('按小区条件分页加载楼栋列表', async () => {
     mockUseTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'demo' });
     mockGetEstate.mockResolvedValue({
       id: 7,
@@ -92,32 +92,27 @@ describe('EstateDetailPage', () => {
       </QueryClientProvider>,
     );
 
-    expect(
-      await screen.findByRole('heading', { level: 2, name: '云岸花园' }),
-    ).toBeInTheDocument();
-    const metrics = screen.getByRole('region', { name: '小区经营指标' });
-    expect(within(metrics).getByText('70%')).toBeInTheDocument();
-    expect(within(metrics).getByText('出租率')).toBeInTheDocument();
-    expect(
-      screen.getByRole('region', { name: '项目档案' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('小区项目总览')).toBeInTheDocument();
-    expect(screen.getByText('楼栋经营')).toBeInTheDocument();
-    expect(screen.queryByText('档案状态')).not.toBeInTheDocument();
-    expect(screen.getByTestId('estate-no-image-state')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /编辑资料/ })).toHaveAttribute(
-      'href',
-      '/dashboard/rental/properties/estates?estate_edit=7',
-    );
-    expect(screen.getByRole('link', { name: '1栋' })).toHaveAttribute(
-      'href',
-      '/rental/properties/buildings/9',
-    );
-    expect(screen.getByText('近地铁')).toBeInTheDocument();
+    await screen.findByRole('link', { name: '1栋' });
     expect(mockListBuildings).toHaveBeenCalledWith({
       estate_id: 7,
       page: 1,
       page_size: 20,
     });
+    expect(screen.getByRole('link', { name: /编辑资料/ })).toHaveAttribute(
+      'href',
+      '/dashboard/rental/properties/list?estate_id=7&asset_tab=profile&asset_action=edit-estate',
+    );
+    expect(screen.getByRole('link', { name: '返回房源管理' })).toHaveAttribute(
+      'href',
+      '/dashboard/rental/properties/list?estate_id=7',
+    );
+    expect(screen.getByRole('link', { name: '查看全部楼栋' })).toHaveAttribute(
+      'href',
+      '/dashboard/rental/properties/list?estate_id=7&asset_tab=structure',
+    );
+    expect(screen.getByRole('link', { name: /新建楼栋/ })).toHaveAttribute(
+      'href',
+      '/dashboard/rental/properties/list?estate_id=7&asset_tab=structure&asset_action=create-building',
+    );
   });
 });

@@ -8,11 +8,12 @@ import {
   FormattedMessage,
   Helmet,
   history,
+  Link,
   SelectLang,
   useIntl,
   useModel,
 } from '@umijs/max';
-import { Alert, App, Spin } from 'antd';
+import { Alert, App, Button, Spin } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { startTransition, useEffect, useRef, useState } from 'react';
 import { Footer } from '@/components';
@@ -25,10 +26,23 @@ import {
   formatUnsupportedFlowMessage,
   parseLoginFlowState,
 } from '@/services/manual/allauthFlow';
+import {
+  confirmPublicLoginCode,
+  getPublicAuthErrorMessage,
+  requestPublicLoginCode,
+  startPublicProviderLogin,
+} from '@/services/manual/publicAuth';
+import {
+  authenticateMfaWithWebauthn,
+  loginWithPasskey,
+} from '@/services/manual/webauthn';
 import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations';
 import {
+  buildAuthRedirectPath,
   DEFAULT_POST_LOGIN_PATH,
-  normalizeAdminPath,
+  getSafeAdminRedirect,
+  PASSWORD_RESET_PATH,
+  REGISTER_PATH,
 } from '@/utils/adminRouting';
 import { normalizeEmailLikeInput } from '@/utils/email';
 import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
@@ -36,12 +50,15 @@ import Settings from '../../../../config/defaultSettings';
 import logoUrl from '../../../../public/logo.svg';
 
 type LoginFormValues = {
+  email?: string;
   username?: string;
   password?: string;
   code?: string;
   autoLogin?: boolean;
   type?: string;
 };
+
+type LoginMethod = 'password' | 'code';
 
 type LoginResult = {
   status?: 'ok' | 'error';
@@ -54,30 +71,14 @@ type PendingMfaState = {
   types: string[];
 };
 
-/**
- * Validate redirect URL to prevent open redirect attacks.
- * Only allow same-origin relative paths starting with '/'.
- */
-function getSafeRedirectUrl(redirect: string | null): string {
-  if (!redirect?.startsWith('/')) return DEFAULT_POST_LOGIN_PATH;
-
-  if (redirect.startsWith('//')) return DEFAULT_POST_LOGIN_PATH;
-
-  try {
-    const parsed = new URL(redirect, window.location.origin);
-    if (parsed.origin !== window.location.origin)
-      return DEFAULT_POST_LOGIN_PATH;
-    return `${normalizeAdminPath(parsed.pathname)}${parsed.search}${parsed.hash}`;
-  } catch {
-    return DEFAULT_POST_LOGIN_PATH;
-  }
-}
-
 function getPostLoginRedirectUrl(): string {
   const currentHref = window.location.href || '/user/login';
   const currentOrigin = window.location.origin || 'http://localhost';
   const currentUrl = new URL(currentHref, currentOrigin);
-  return getSafeRedirectUrl(currentUrl.searchParams.get('redirect'));
+  return getSafeAdminRedirect(
+    currentUrl.searchParams.get('redirect'),
+    DEFAULT_POST_LOGIN_PATH,
+  );
 }
 
 function buildAllauthLoginData(body: LoginFormValues) {
@@ -168,6 +169,11 @@ const LoginMessage: React.FC<{
 const Login: React.FC = () => {
   const [userLoginState, setUserLoginState] = useState<LoginResult>({});
   const [checkingSession, setCheckingSession] = useState(true);
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('password');
+  const [loginCodeEmail, setLoginCodeEmail] = useState('');
+  const [requestingCode, setRequestingCode] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [mfaWebauthnLoading, setMfaWebauthnLoading] = useState(false);
   const [pendingMfa, setPendingMfa] = useState<PendingMfaState>({
     active: false,
     types: [],
@@ -175,6 +181,10 @@ const Login: React.FC = () => {
   const sessionCheckRef = useRef<Promise<boolean> | null>(null);
   const type = 'account';
   const { initialState, setInitialState } = useModel('@@initialState');
+  const requestedRedirect = new URL(
+    window.location.href || '/user/login',
+    window.location.origin || 'http://localhost',
+  ).searchParams.get('redirect');
   const { styles } = useStyles();
   const { message } = App.useApp();
   const intl = useIntl();
@@ -242,8 +252,88 @@ const Login: React.FC = () => {
     redirectAuthenticatedUser();
   };
 
+  const handlePendingAuthenticationFlow = async (error: unknown) => {
+    const flowState = parseLoginFlowState(error);
+    if (flowState?.kind === 'pending_mfa') {
+      setPendingMfa({
+        active: true,
+        types: Array.isArray(flowState.flow.types) ? flowState.flow.types : [],
+      });
+      setUserLoginState({});
+      return true;
+    }
+
+    if (flowState?.kind === 'pending_mfa_trust') {
+      await postBrowserV1AuthTwofaTrust(
+        { client: 'browser' } as any,
+        { trust: false },
+        { skipErrorHandler: true } as any,
+      );
+      await finishLogin();
+      return true;
+    }
+
+    if (flowState?.kind === 'unsupported_flow') {
+      message.error(formatUnsupportedFlowMessage(flowState.flowIds));
+      return true;
+    }
+    return false;
+  };
+
+  const handleRequestLoginCode = async () => {
+    setRequestingCode(true);
+    try {
+      await requestPublicLoginCode(loginCodeEmail);
+      message.success('验证码已发送，请检查邮箱');
+    } catch (error) {
+      message.error(
+        getPublicAuthErrorMessage(error, '验证码发送失败，请重试！'),
+      );
+    } finally {
+      setRequestingCode(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setPasskeyLoading(true);
+    try {
+      await loginWithPasskey();
+      await finishLogin();
+    } catch (error) {
+      if (await handlePendingAuthenticationFlow(error)) return;
+      message.error(
+        getPublicAuthErrorMessage(error, '通行密钥登录失败，请重试！'),
+      );
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
+
+  const handleWebauthnMfa = async () => {
+    setMfaWebauthnLoading(true);
+    try {
+      await authenticateMfaWithWebauthn();
+      await finishLogin();
+    } catch (error) {
+      if (await handlePendingAuthenticationFlow(error)) return;
+      message.error(
+        getPublicAuthErrorMessage(error, '安全密钥验证失败，请重试！'),
+      );
+    } finally {
+      setMfaWebauthnLoading(false);
+    }
+  };
+
   const handleSubmit = async (values: LoginFormValues) => {
     if (pendingMfa.active) {
+      const supportsCode =
+        !pendingMfa.types.length ||
+        pendingMfa.types.includes('totp') ||
+        pendingMfa.types.includes('recovery_codes');
+      if (!supportsCode && pendingMfa.types.includes('webauthn')) {
+        await handleWebauthnMfa();
+        return;
+      }
       try {
         await postBrowserV1AuthTwofaAuthenticate(
           { client: 'browser' },
@@ -280,6 +370,19 @@ const Login: React.FC = () => {
       }
     }
 
+    if (loginMethod === 'code') {
+      try {
+        await confirmPublicLoginCode((values.code || '').trim());
+        await finishLogin();
+      } catch (error) {
+        if (await handlePendingAuthenticationFlow(error)) return;
+        message.error(
+          getPublicAuthErrorMessage(error, '验证码登录失败，请重试！'),
+        );
+      }
+      return;
+    }
+
     try {
       await postBrowserV1AuthLogin(
         { client: 'browser' },
@@ -310,22 +413,7 @@ const Login: React.FC = () => {
         }
       }
 
-      const flowState = parseLoginFlowState(error);
-      if (flowState?.kind === 'pending_mfa') {
-        setPendingMfa({
-          active: true,
-          types: Array.isArray(flowState.flow.types)
-            ? flowState.flow.types
-            : [],
-        });
-        setUserLoginState({});
-        return;
-      }
-
-      if (flowState?.kind === 'unsupported_flow') {
-        message.error(formatUnsupportedFlowMessage(flowState.flowIds));
-        return;
-      }
+      if (await handlePendingAuthenticationFlow(error)) return;
 
       if (isAllauthValidationError(error)) {
         setUserLoginState({
@@ -403,75 +491,150 @@ const Login: React.FC = () => {
                   style={{
                     marginBottom: 24,
                   }}
-                  title="请输入身份验证器验证码或恢复码"
+                  title={
+                    pendingMfa.types.length === 1 &&
+                    pendingMfa.types.includes('webauthn')
+                      ? '请使用安全密钥完成多因素认证'
+                      : '请输入身份验证器验证码或恢复码'
+                  }
                   description={
-                    pendingMfa.types.includes('recovery_codes')
-                      ? '当前账号开启了多因素认证，请输入 6 位验证码，或直接输入恢复码完成登录。'
-                      : '当前账号开启了多因素认证，请输入身份验证器当前显示的 6 位验证码完成登录。'
+                    pendingMfa.types.includes('webauthn')
+                      ? '当前账号支持 WebAuthn 安全密钥；也可使用账号已启用的其他验证方式。'
+                      : pendingMfa.types.includes('recovery_codes')
+                        ? '当前账号开启了多因素认证，请输入 6 位验证码，或直接输入恢复码完成登录。'
+                        : '当前账号开启了多因素认证，请输入身份验证器当前显示的 6 位验证码完成登录。'
                   }
                   type="info"
                   showIcon
                 />
-                <ProFormText
-                  name="code"
-                  fieldProps={{
-                    size: 'large',
-                  }}
-                  placeholder="6 位验证码或恢复码"
-                  rules={[
-                    {
-                      required: true,
-                      message: '请输入验证码或恢复码！',
-                    },
-                  ]}
-                />
+                {(!pendingMfa.types.length ||
+                  pendingMfa.types.includes('totp') ||
+                  pendingMfa.types.includes('recovery_codes')) && (
+                  <ProFormText
+                    name="code"
+                    fieldProps={{
+                      size: 'large',
+                    }}
+                    placeholder="6 位验证码或恢复码"
+                    rules={[
+                      {
+                        required: true,
+                        message: '请输入验证码或恢复码！',
+                      },
+                    ]}
+                  />
+                )}
+                {pendingMfa.types.includes('webauthn') && (
+                  <Button
+                    block
+                    htmlType="button"
+                    loading={mfaWebauthnLoading}
+                    onClick={() => void handleWebauthnMfa()}
+                  >
+                    使用安全密钥验证
+                  </Button>
+                )}
               </>
             ) : (
               <>
-                <ProFormText
-                  name="username"
-                  fieldProps={{
-                    size: 'large',
-                    prefix: <UserOutlined />,
-                  }}
-                  placeholder={intl.formatMessage({
-                    id: 'pages.login.username.placeholder',
-                    defaultMessage: '邮箱 / 手机号',
-                  })}
-                  rules={[
-                    {
-                      required: true,
-                      message: (
-                        <FormattedMessage
-                          id="pages.login.username.required"
-                          defaultMessage="请输入邮箱或手机号!"
-                        />
-                      ),
-                    },
-                  ]}
-                />
-                <ProFormText.Password
-                  name="password"
-                  fieldProps={{
-                    size: 'large',
-                    prefix: <LockOutlined />,
-                  }}
-                  placeholder={intl.formatMessage({
-                    id: 'pages.login.password.placeholder',
-                    defaultMessage: '密码',
-                  })}
-                  rules={[
-                    {
-                      required: true,
-                      message: (
-                        <FormattedMessage
-                          id="pages.login.password.required"
-                          defaultMessage="请输入密码！"
-                        />
-                      ),
-                    },
-                  ]}
-                />
+                <div className="mb-6 flex gap-2">
+                  <Button
+                    block
+                    htmlType="button"
+                    type={loginMethod === 'password' ? 'primary' : 'default'}
+                    onClick={() => setLoginMethod('password')}
+                  >
+                    密码登录
+                  </Button>
+                  <Button
+                    block
+                    htmlType="button"
+                    type={loginMethod === 'code' ? 'primary' : 'default'}
+                    onClick={() => setLoginMethod('code')}
+                  >
+                    邮箱验证码登录
+                  </Button>
+                </div>
+                {loginMethod === 'password' ? (
+                  <>
+                    <ProFormText
+                      name="username"
+                      fieldProps={{
+                        size: 'large',
+                        prefix: <UserOutlined />,
+                      }}
+                      placeholder={intl.formatMessage({
+                        id: 'pages.login.username.placeholder',
+                        defaultMessage: '邮箱 / 手机号',
+                      })}
+                      rules={[
+                        {
+                          required: true,
+                          message: (
+                            <FormattedMessage
+                              id="pages.login.username.required"
+                              defaultMessage="请输入邮箱或手机号!"
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                    <ProFormText.Password
+                      name="password"
+                      fieldProps={{
+                        size: 'large',
+                        prefix: <LockOutlined />,
+                      }}
+                      placeholder={intl.formatMessage({
+                        id: 'pages.login.password.placeholder',
+                        defaultMessage: '密码',
+                      })}
+                      rules={[
+                        {
+                          required: true,
+                          message: (
+                            <FormattedMessage
+                              id="pages.login.password.required"
+                              defaultMessage="请输入密码！"
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <ProFormText
+                      name="email"
+                      fieldProps={{
+                        size: 'large',
+                        prefix: <UserOutlined />,
+                        onChange: (event) =>
+                          setLoginCodeEmail(event.target.value),
+                      }}
+                      placeholder="请输入邮箱"
+                      rules={[
+                        { required: true, message: '请输入邮箱！' },
+                        { type: 'email', message: '请输入有效的邮箱地址！' },
+                      ]}
+                    />
+                    <ProFormText
+                      name="code"
+                      fieldProps={{ size: 'large' }}
+                      placeholder="请输入邮箱验证码"
+                      rules={[{ required: true, message: '请输入验证码！' }]}
+                    />
+                    <Button
+                      block
+                      disabled={!loginCodeEmail.trim()}
+                      htmlType="button"
+                      loading={requestingCode}
+                      onClick={() => void handleRequestLoginCode()}
+                    >
+                      发送验证码
+                    </Button>
+                  </>
+                )}
                 <div
                   style={{
                     marginBottom: 24,
@@ -483,8 +646,11 @@ const Login: React.FC = () => {
                       defaultMessage="自动登录"
                     />
                   </ProFormCheckbox>
-                  <a
-                    href="#"
+                  <Link
+                    to={buildAuthRedirectPath(
+                      PASSWORD_RESET_PATH,
+                      requestedRedirect,
+                    )}
                     style={{
                       float: 'right',
                     }}
@@ -493,7 +659,32 @@ const Login: React.FC = () => {
                       id="pages.login.forgotPassword"
                       defaultMessage="忘记密码"
                     />
-                  </a>
+                  </Link>
+                </div>
+                <div className="mb-4 flex gap-2">
+                  <Button
+                    block
+                    htmlType="button"
+                    loading={passkeyLoading}
+                    onClick={() => void handlePasskeyLogin()}
+                  >
+                    使用通行密钥登录
+                  </Button>
+                  <Button
+                    block
+                    htmlType="button"
+                    onClick={() => void startPublicProviderLogin('github')}
+                  >
+                    使用 GitHub 登录
+                  </Button>
+                </div>
+                <div className="text-center">
+                  还没有账号？
+                  <Link
+                    to={buildAuthRedirectPath(REGISTER_PATH, requestedRedirect)}
+                  >
+                    注册账号
+                  </Link>
                 </div>
               </>
             )}

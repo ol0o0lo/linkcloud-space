@@ -1,8 +1,9 @@
-import { MoreOutlined, PlusOutlined } from '@ant-design/icons';
+import { CopyOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Alert,
   Avatar,
   Button,
   Card,
@@ -13,6 +14,7 @@ import {
   Input,
   Modal,
   message,
+  QRCode,
   Segmented,
   Select,
   Space,
@@ -21,22 +23,26 @@ import {
   Typography,
   theme,
 } from 'antd';
+import dayjs from 'dayjs';
 import React, { useEffect, useRef, useState } from 'react';
+import { AppStatusTag } from '@/components/AppStatus';
 import {
   ContactPreview,
   EntityPreviewDetailDrawer,
 } from '@/components/EntityPreview';
 import { adminTableScroll } from '@/pages/_shared/adminLayout';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   enumOptionMapping,
   enumSelectOptions,
   useEnums,
 } from '@/services/manual/enums';
-import { type ContactOut, houseApi } from '@/services/manual/house';
+import {
+  type ContactOut,
+  houseApi,
+  type LandlordInvitation,
+  type LandlordInvitationDelivery,
+} from '@/services/manual/house';
 import { getLoadingAwareEmptyState, isInitialQueryPending } from '../loading';
 
 const PAGE_SIZE = 20;
@@ -209,6 +215,11 @@ const ContactsPage: React.FC = () => {
   >();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [statusContact, setStatusContact] = useState<ContactOut | null>(null);
+  const [inviteContact, setInviteContact] = useState<ContactOut | null>(null);
+  const [invitationResult, setInvitationResult] =
+    useState<LandlordInvitation | null>(null);
+  const [invitationDelivery, setInvitationDelivery] =
+    useState<LandlordInvitationDelivery | null>(null);
   const [drawerState, setDrawerState] = useState<ContactDrawerState>(() =>
     getContactDrawerStateFromSearch(window.location.search),
   );
@@ -299,6 +310,30 @@ const ContactsPage: React.FC = () => {
       await invalidateContactQueries();
     },
   });
+  const inviteLandlord = useMutation({
+    mutationFn: ({
+      contact,
+      deliveryMethod,
+    }: {
+      contact: ContactOut;
+      deliveryMethod: LandlordInvitationDelivery;
+    }) => houseApi.inviteLandlord(contact.id, deliveryMethod),
+    onSuccess: async (invitation, { deliveryMethod }) => {
+      setInvitationResult(invitation);
+      setInvitationDelivery(deliveryMethod);
+      message.success(
+        deliveryMethod === 'sms' ? '短信邀请已发送' : '邀请链接已生成',
+      );
+      await invalidateContactQueries();
+    },
+  });
+
+  const closeInviteModal = () => {
+    if (inviteLandlord.isPending) return;
+    setInviteContact(null);
+    setInvitationResult(null);
+    setInvitationDelivery(null);
+  };
 
   const openCreate = (presetRole?: string) => {
     setEditing(null);
@@ -362,6 +397,9 @@ const ContactsPage: React.FC = () => {
     setEditing(null);
     setCreateRolePreset(undefined);
     setStatusContact(null);
+    setInviteContact(null);
+    setInvitationResult(null);
+    setInvitationDelivery(null);
   }, [workspace.selectedOrgSlug]);
 
   useEffect(() => {
@@ -512,6 +550,36 @@ const ContactsPage: React.FC = () => {
       },
     },
     {
+      title: '房东账号',
+      dataIndex: 'landlord_binding_status',
+      width: 190,
+      align: 'center',
+      render: (_value, record) => {
+        const status = record.landlord_binding_status;
+        if (!record.roles?.includes('landlord') || !status) return '-';
+        const label = {
+          unbound: '未绑定',
+          invited: '待接受',
+          bound: '已绑定',
+        }[status];
+        return (
+          <Space orientation="vertical" size={2} align="center">
+            <AppStatusTag name="landlord-binding" state={status}>
+              {label}
+            </AppStatusTag>
+            {status === 'invited' && record.landlord_invite_expires_at ? (
+              <Typography.Text type="secondary">
+                {dayjs(record.landlord_invite_expires_at).format(
+                  'YYYY-MM-DD HH:mm',
+                )}{' '}
+                失效
+              </Typography.Text>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
       title: '操作',
       dataIndex: 'actions',
       fixed: 'right',
@@ -519,6 +587,10 @@ const ContactsPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => {
         const primaryAction = getContactPrimaryAction(record);
+        const canInviteLandlord =
+          record.is_active !== false &&
+          record.roles?.includes('landlord') &&
+          record.landlord_binding_status !== 'bound';
 
         return (
           <div
@@ -541,6 +613,20 @@ const ContactsPage: React.FC = () => {
               menu={{
                 items: [
                   { key: 'edit', label: '编辑资料' },
+                  ...(canInviteLandlord
+                    ? [
+                        {
+                          key: 'invite-landlord',
+                          label:
+                            record.landlord_binding_status === 'invited'
+                              ? '重新发送房东邀请'
+                              : '邀请房东',
+                          disabled:
+                            inviteLandlord.isPending &&
+                            inviteLandlord.variables?.contact.id === record.id,
+                        },
+                      ]
+                    : []),
                   record.is_active === false
                     ? { key: 'activate', label: '启用联系人' }
                     : {
@@ -552,6 +638,12 @@ const ContactsPage: React.FC = () => {
                 onClick: ({ key }) => {
                   if (key === 'edit') {
                     openEdit(record);
+                    return;
+                  }
+                  if (key === 'invite-landlord') {
+                    setInviteContact(record);
+                    setInvitationResult(null);
+                    setInvitationDelivery(null);
                     return;
                   }
                   setStatusContact(record);
@@ -717,6 +809,122 @@ const ContactsPage: React.FC = () => {
         title="联系人详情"
         type="contact"
       />
+      <Modal
+        destroyOnHidden
+        open={Boolean(inviteContact)}
+        title={
+          invitationResult
+            ? '房东邀请已生成'
+            : `邀请${inviteContact?.name || '房东'}绑定账号`
+        }
+        onCancel={closeInviteModal}
+        footer={
+          invitationResult ? (
+            <Space>
+              <Button onClick={closeInviteModal}>关闭</Button>
+              <Button
+                type="primary"
+                icon={<CopyOutlined />}
+                disabled={!invitationResult.action_url}
+                onClick={async () => {
+                  if (!invitationResult.action_url) return;
+                  await navigator.clipboard.writeText(
+                    invitationResult.action_url,
+                  );
+                  message.success('邀请链接已复制');
+                }}
+              >
+                复制链接
+              </Button>
+            </Space>
+          ) : (
+            <Space>
+              <Button onClick={closeInviteModal}>取消</Button>
+              <Button
+                loading={
+                  inviteLandlord.isPending &&
+                  inviteLandlord.variables?.deliveryMethod === 'manual'
+                }
+                disabled={inviteLandlord.isPending}
+                onClick={() => {
+                  if (!inviteContact) return;
+                  inviteLandlord.mutate({
+                    contact: inviteContact,
+                    deliveryMethod: 'manual',
+                  });
+                }}
+              >
+                生成分享链接
+              </Button>
+              <Button
+                type="primary"
+                loading={
+                  inviteLandlord.isPending &&
+                  inviteLandlord.variables?.deliveryMethod === 'sms'
+                }
+                disabled={inviteLandlord.isPending}
+                onClick={() => {
+                  if (!inviteContact) return;
+                  inviteLandlord.mutate({
+                    contact: inviteContact,
+                    deliveryMethod: 'sms',
+                  });
+                }}
+              >
+                短信发送
+              </Button>
+            </Space>
+          )
+        }
+      >
+        {invitationResult ? (
+          <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+            <Alert
+              showIcon
+              type="success"
+              title={
+                invitationDelivery === 'sms'
+                  ? `邀请短信已发送至 ${invitationResult.invitee_phone_masked}`
+                  : '可通过微信、企微、邮件或其他渠道分享以下链接'
+              }
+            />
+            {invitationResult.action_url ? (
+              <div
+                style={{
+                  alignItems: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                }}
+              >
+                <QRCode value={invitationResult.action_url} />
+                <Input
+                  readOnly
+                  aria-label="房东邀请链接"
+                  value={invitationResult.action_url}
+                />
+              </div>
+            ) : null}
+            <Typography.Text type="secondary">
+              链接将在{' '}
+              {dayjs(invitationResult.expires_at).format('YYYY-MM-DD HH:mm')}{' '}
+              失效。房东接受时，账号已验证手机号必须与联系人手机号一致。
+            </Typography.Text>
+          </Space>
+        ) : (
+          <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+            <Typography.Paragraph style={{ marginBottom: 0 }}>
+              受邀手机号：{inviteContact?.phone || '-'}
+            </Typography.Paragraph>
+            <Alert
+              showIcon
+              type="info"
+              title="可直接发送短信，也可生成链接或二维码后自行分享"
+              description="每次重新生成都会使之前的邀请链接失效，有效期为 7 天。"
+            />
+          </Space>
+        )}
+      </Modal>
       <Modal
         open={Boolean(statusContact)}
         title={

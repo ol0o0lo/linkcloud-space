@@ -7,7 +7,7 @@ export type OrganizationNode =
   | 'ungrouped'
   | `team:${number}`
   | `member:${number}`;
-export type OrganizationWorkspaceTab = 'overview' | 'invites';
+export type OrganizationWorkspaceTab = 'overview' | 'roles' | 'invites';
 
 export type OrganizationRouteState = {
   section: OrganizationSection;
@@ -25,6 +25,7 @@ const MEMBER_TABS = new Set(['profile', 'access', 'responsibilities']);
 const TEAM_TABS = new Set(['profile', 'members', 'roles', 'responsibilities']);
 const ORGANIZATION_TABS = new Set<OrganizationWorkspaceTab>([
   'overview',
+  'roles',
   'invites',
 ]);
 

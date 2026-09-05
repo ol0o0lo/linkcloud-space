@@ -19,6 +19,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
+import { AppStatusTag } from '@/components/AppStatus';
 import { PageContainer } from '@/components/PageContainer';
 import {
   adminTableScroll,
@@ -71,6 +72,15 @@ type WalletLedgerWithMapping = API.WalletLedgerOut & {
 type ReferralRecordWithMapping = API.ReferralRecordOut & {
   status__mapping?: string;
 };
+type ReferralSummaryWithCapabilities = Omit<
+  API.ReferralSummaryOut,
+  'invite_code' | 'share_link'
+> & {
+  invite_code: string | null;
+  share_link: string | null;
+  allow_link: boolean;
+  allow_code: boolean;
+};
 type RealNameWithMapping = API.RealNameVerificationOut & {
   status__mapping?: string;
 };
@@ -79,7 +89,6 @@ type RealNameLogWithMapping = API.RealNameLogOut & {
 };
 type WithdrawalInsight = WithdrawalWithMapping & {
   status_label: string;
-  status_color: string;
   governance_summary: string;
 };
 type RealNameStatusRecord = API.RealNameVerificationOut & {
@@ -113,7 +122,6 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'gold',
         governance_summary:
           '资金已冻结，等待平台审核决定是否继续进入出款链路。',
       };
@@ -121,21 +129,18 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'blue',
         governance_summary: '审核已经通过，但尚未真正完成出款。',
       };
     case 'paying':
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'cyan',
         governance_summary: '代付已发起，当前重点是等待回调并确认状态同步。',
       };
     case 'failed':
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'red',
         governance_summary:
           '申请已经失败，先核查失败原因和余额回流，再决定是否继续操作。',
       };
@@ -143,28 +148,24 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'default',
         governance_summary: '申请已被退回，后续重点是补资料和重新发起。',
       };
     case 'cancelled':
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'default',
         governance_summary: '申请已由本人撤销，资金通常已回流到可用余额。',
       };
     case 'paid':
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'green',
         governance_summary: '申请已经完成打款，后续重点转到到账与对账确认。',
       };
     default:
       return {
         ...withdrawal,
         status_label: statusLabel,
-        status_color: 'default',
         governance_summary: '当前申请处于未归类状态，建议补充统一业务语义。',
       };
   }
@@ -172,6 +173,7 @@ function buildWithdrawalInsight(
 
 const PersonalBusinessPage: React.FC = () => {
   const [withdrawalDetailId, setWithdrawalDetailId] = useState<number>();
+  const [referralCopyStatus, setReferralCopyStatus] = useState('');
   const [settingDetailKey, setSettingDetailKey] = useState<string>();
   const [withdrawalForm] = Form.useForm<{
     amount: number;
@@ -279,9 +281,25 @@ const PersonalBusinessPage: React.FC = () => {
   const userSettings = visibleUserSettings(
     (userSettingsQuery.data || []) as API.UserSettingOut[],
   );
-  const referralSummary = referralSummaryQuery.data;
+  const referralSummary = referralSummaryQuery.data as
+    | ReferralSummaryWithCapabilities
+    | undefined;
   const realName = realNameQuery.data as RealNameWithMapping | undefined;
   const withdrawalDetail = withdrawalDetailQuery.data as WithdrawalWithMapping | undefined;
+
+  const copyReferralLink = async () => {
+    if (!referralSummary?.share_link) return;
+    try {
+      const absoluteUrl = new URL(
+        referralSummary.share_link,
+        window.location.origin,
+      ).toString();
+      await navigator.clipboard.writeText(absoluteUrl);
+      setReferralCopyStatus('分享链接已复制');
+    } catch {
+      setReferralCopyStatus('浏览器未允许复制，请手动选择链接');
+    }
+  };
 
   const ledgerColumns: ColumnsType<WalletLedgerWithMapping> = [
     {
@@ -322,7 +340,9 @@ const PersonalBusinessPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <Space orientation="vertical" size={6}>
-          <Tag color={record.status_color}>{record.status_label}</Tag>
+          <AppStatusTag name="wallet.withdrawal" state={record.status}>
+            {record.status_label}
+          </AppStatusTag>
           <Typography.Text type="secondary">
             {record.governance_summary}
           </Typography.Text>
@@ -566,7 +586,9 @@ const PersonalBusinessPage: React.FC = () => {
                             : 'blue'
                         }
                       >
-                        {referralSummary?.invite_code || '未生成邀请码'}
+                        {referralSummary?.allow_code
+                          ? referralSummary.invite_code || '未生成邀请码'
+                          : '手工邀请码已关闭'}
                       </Tag>
                     </Space>
                     <Descriptions
@@ -574,9 +596,27 @@ const PersonalBusinessPage: React.FC = () => {
                       size="small"
                     >
                       <Descriptions.Item label="分享链接">
-                        <span style={wrapTextStyle}>
-                          {referralSummary?.share_link || '-'}
-                        </span>
+                        {referralSummary?.allow_link &&
+                        referralSummary.share_link ? (
+                          <Space wrap size={4}>
+                            <span style={wrapTextStyle}>
+                              {referralSummary.share_link}
+                            </span>
+                            <Button
+                              type="link"
+                              onClick={() => void copyReferralLink()}
+                            >
+                              复制分享链接
+                            </Button>
+                          </Space>
+                        ) : (
+                          '邀请链接已关闭'
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="邀请码">
+                        {referralSummary?.allow_code
+                          ? referralSummary.invite_code || '-'
+                          : '手工邀请码已关闭'}
                       </Descriptions.Item>
                       <Descriptions.Item label="注册数">
                         {referralSummary?.registered_count || 0}
@@ -588,6 +628,11 @@ const PersonalBusinessPage: React.FC = () => {
                         {referralSummary?.rewarded_count || 0}
                       </Descriptions.Item>
                     </Descriptions>
+                    {referralCopyStatus ? (
+                      <Typography.Text type="secondary">
+                        {referralCopyStatus}
+                      </Typography.Text>
+                    ) : null}
                     <Table
                       rowKey="id"
                       dataSource={(referralRecordsQuery.data?.items || []) as ReferralRecordWithMapping[]}

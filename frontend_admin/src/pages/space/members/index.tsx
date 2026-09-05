@@ -285,7 +285,7 @@ const TenantMembersPage: React.FC = () => {
             <Space orientation="vertical" size={6} style={{ width: '100%' }}>
               <Space wrap size={[8, 8]}>
                 <Tag color={value ? 'purple' : 'default'}>
-                  {value ? 'Owner' : '普通成员'}
+                  {value ? '所有者' : '普通成员'}
                 </Tag>
                 {uniqueRoleNames(bindings).map((name) => (
                   <Tag key={name} color="cyan">
@@ -489,7 +489,7 @@ const TenantMembersPage: React.FC = () => {
             />
           </Form.Item>
           <Form.Item
-            label="加入后设为 Owner"
+            label="加入后设为所有者"
             name="is_owner"
             valuePropName="checked"
           >
@@ -516,7 +516,7 @@ const TenantMembersPage: React.FC = () => {
               {detailQuery.data?.user.email || '-'}
             </span>
           </Descriptions.Item>
-          <Descriptions.Item label="Owner">
+          <Descriptions.Item label="所有者">
             {detailQuery.data?.is_owner ? '是' : '否'}
           </Descriptions.Item>
           <Descriptions.Item label="归属团队">

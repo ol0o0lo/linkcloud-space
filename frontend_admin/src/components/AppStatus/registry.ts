@@ -53,6 +53,35 @@ export const APP_STATUS_DEFINITIONS = {
       terminated: { icon: 'lease.terminated', tone: 'error' },
     },
   },
+  'allocation-request': {
+    states: {
+      pending: {
+        description: '申请已提交，等待有审核权限的人员处理',
+        icon: 'allocation-request.pending',
+        tone: 'warning',
+      },
+      approved: {
+        description: '审核已通过，收益已经计入受益人流水',
+        icon: 'allocation-request.approved',
+        tone: 'success',
+      },
+      rejected: {
+        description: '审核不通过，不会生成收益流水',
+        icon: 'allocation-request.rejected',
+        tone: 'error',
+      },
+      expired: {
+        description: '超过审核有效期，需要重新登记签约',
+        icon: 'allocation-request.expired',
+        tone: 'secondary',
+      },
+      voided: {
+        description: '已生效申请被作废，系统已追加冲销流水',
+        icon: 'allocation-request.voided',
+        tone: 'secondary',
+      },
+    },
+  },
   viewing: {
     states: {
       scheduled: { icon: 'viewing.scheduled', tone: 'info' },
@@ -80,6 +109,57 @@ export const APP_STATUS_DEFINITIONS = {
         description: '邀请已超过有效期，需要重新发送后才能继续',
         icon: 'organization-invite.expired',
         tone: 'error',
+      },
+    },
+  },
+  'landlord-binding': {
+    states: {
+      unbound: {
+        description: '尚未邀请房东绑定平台账号',
+        icon: 'contact',
+        tone: 'secondary',
+      },
+      invited: {
+        description: '邀请已发送，等待房东接受',
+        icon: 'organization-invite.pending',
+        tone: 'info',
+      },
+      bound: {
+        description: '房东已接受邀请并绑定平台账号',
+        icon: 'member',
+        tone: 'success',
+      },
+    },
+  },
+  'wallet.withdrawal': {
+    states: {
+      pending_review: {
+        icon: 'wallet.withdrawal.pending_review',
+        tone: 'warning',
+      },
+      approved: {
+        icon: 'wallet.withdrawal.approved',
+        tone: 'info',
+      },
+      paying: {
+        icon: 'wallet.withdrawal.paying',
+        tone: 'info',
+      },
+      failed: {
+        icon: 'wallet.withdrawal.failed',
+        tone: 'error',
+      },
+      rejected: {
+        icon: 'wallet.withdrawal.rejected',
+        tone: 'secondary',
+      },
+      cancelled: {
+        icon: 'wallet.withdrawal.cancelled',
+        tone: 'secondary',
+      },
+      paid: {
+        icon: 'wallet.withdrawal.paid',
+        tone: 'success',
       },
     },
   },

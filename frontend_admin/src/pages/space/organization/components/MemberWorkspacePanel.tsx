@@ -1,5 +1,6 @@
 import {
   DeleteOutlined,
+  EditOutlined,
   PlusOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
@@ -14,6 +15,9 @@ import {
   Divider,
   Empty,
   Flex,
+  Form,
+  Input,
+  Modal,
   message,
   Popconfirm,
   Select,
@@ -27,6 +31,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AppIcon } from '@/components/AppIcon';
 import { formatPersonLabel, useTenantWorkspace } from '@/pages/space/shared';
 import { houseApi } from '@/services/manual/house';
+import {
+  getWorkspaceMemberEmployeeName,
+  getWorkspaceMemberJobTitle,
+  patchOrganizationMemberEmployeeProfile,
+} from '@/services/manual/organizationMembers';
 import {
   appsAccessApiCreateOrganizationBinding,
   appsAccessApiDeleteOrganizationBinding,
@@ -92,6 +101,11 @@ export const MemberWorkspacePanel: React.FC<{
   const [teamRoleToAdd, setTeamRoleToAdd] = useState<
     Record<number, number | undefined>
   >({});
+  const [employeeEditorOpen, setEmployeeEditorOpen] = useState(false);
+  const [employeeForm] = Form.useForm<{
+    employee_name: string;
+    job_title: string;
+  }>();
   const missingHandledRef = useRef(false);
   const memberQuery = useQuery({
     queryKey: organizationQueryKeys.member(workspace.selectedOrgSlug, memberId),
@@ -194,6 +208,19 @@ export const MemberWorkspacePanel: React.FC<{
       onDeleted();
     },
   });
+  const employeeProfileMutation = useMutation({
+    mutationFn: (values: { employee_name: string; job_title: string }) =>
+      patchOrganizationMemberEmployeeProfile(memberId, {
+        employee_name: values.employee_name?.trim() || '',
+        job_title: values.job_title?.trim() || '',
+      }),
+    onSuccess: async () => {
+      message.success('员工信息已更新');
+      setEmployeeEditorOpen(false);
+      employeeForm.resetFields();
+      await invalidateMember();
+    },
+  });
   const orgBindingMutation = useMutation({
     mutationFn: ({
       action,
@@ -294,9 +321,46 @@ export const MemberWorkspacePanel: React.FC<{
   }
   if (!member) return <Card loading />;
 
+  const employeeName = getWorkspaceMemberEmployeeName(member);
+  const jobTitle = getWorkspaceMemberJobTitle(member);
+  const memberDisplayName = employeeName || formatPersonLabel(member.user);
+  const memberAccountLabel = member.user.email || member.user.username;
+  const openEmployeeEditor = () => {
+    employeeForm.setFieldsValue({
+      employee_name: employeeName,
+      job_title: jobTitle,
+    });
+    setEmployeeEditorOpen(true);
+  };
+  const closeEmployeeEditor = () => {
+    setEmployeeEditorOpen(false);
+    employeeForm.resetFields();
+  };
+
   const memberInformationContent = (
-    <Card size="small" title="员工信息">
+    <Card
+      size="small"
+      title="员工信息"
+      extra={
+        capabilities.member_manage ? (
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={openEmployeeEditor}
+          >
+            编辑
+          </Button>
+        ) : undefined
+      }
+    >
       <Descriptions bordered column={{ xs: 1, md: 2 }}>
+        <Descriptions.Item label="员工姓名">
+          {employeeName || '未填写'}
+        </Descriptions.Item>
+        <Descriptions.Item label="职位">
+          {jobTitle || '未填写'}
+        </Descriptions.Item>
         <Descriptions.Item label="用户名">
           {member.user.username}
         </Descriptions.Item>
@@ -304,7 +368,7 @@ export const MemberWorkspacePanel: React.FC<{
           {member.user.email || '未提供'}
         </Descriptions.Item>
         <Descriptions.Item label="空间身份">
-          {member.is_owner ? 'Owner' : '普通成员'}
+          {member.is_owner ? '所有者' : '普通成员'}
         </Descriptions.Item>
         <Descriptions.Item label="所属团队">
           {member.teams.length ? `${member.teams.length} 个` : '未分组'}
@@ -320,57 +384,73 @@ export const MemberWorkspacePanel: React.FC<{
   );
 
   const teamsContent = (
-    <Card size="small" title="所属团队">
-      {manageableAvailableTeams.length ? (
-        <Space wrap style={{ marginBottom: 16 }}>
-          <Select
-            aria-label="选择团队"
-            placeholder="选择团队"
-            value={teamToAdd}
-            onChange={setTeamToAdd}
-            options={manageableAvailableTeams.map((team) => ({
-              value: team.id,
-              label: team.name,
-            }))}
-            style={{ width: 260 }}
-          />
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            disabled={!teamToAdd}
-            loading={teamMutation.isPending}
-            onClick={() =>
-              teamToAdd &&
-              teamMutation.mutateAsync({ action: 'add', teamId: teamToAdd })
-            }
-          >
-            加入团队
-          </Button>
+    <Card
+      size="small"
+      className={styles.memberTeamsCard}
+      title={
+        <Space orientation="vertical" size={0}>
+          <Typography.Text strong>所属团队</Typography.Text>
+          <Typography.Text type="secondary" className={styles.memberTeamsHint}>
+            成员可同时加入多个平级团队。
+          </Typography.Text>
         </Space>
-      ) : availableTeams.length ? (
+      }
+      extra={
+        manageableAvailableTeams.length ? (
+          <div className={styles.memberTeamsHeaderActions}>
+            <Select
+              aria-label="选择团队"
+              allowClear
+              placeholder="选择团队"
+              value={teamToAdd}
+              onChange={setTeamToAdd}
+              onClear={() => setTeamToAdd(undefined)}
+              options={manageableAvailableTeams.map((team) => ({
+                value: team.id,
+                label: team.name,
+              }))}
+            />
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              disabled={!teamToAdd}
+              loading={teamMutation.isPending}
+              onClick={() =>
+                teamToAdd &&
+                teamMutation.mutateAsync({ action: 'add', teamId: teamToAdd })
+              }
+            >
+              加入团队
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      {!manageableAvailableTeams.length && availableTeams.length ? (
         <Alert
           type="info"
           showIcon
           title="团队归属为只读"
           description="当前角色没有可管理团队的成员调整权限。"
-          style={{ marginBottom: 16 }}
+          className="mb-4"
         />
       ) : null}
       {member.teams.length ? (
         <Space orientation="vertical" size={0} style={{ width: '100%' }}>
           {member.teams.map((team, index) => (
             <React.Fragment key={team.id}>
-              <Flex align="center" justify="space-between" gap="middle" wrap>
-                <Space align="start">
+              <Flex
+                align="center"
+                justify="space-between"
+                gap="middle"
+                wrap
+                className={styles.memberTeamRow}
+              >
+                <Space align="center">
                   <AppIcon name="team" />
-                  <Space orientation="vertical" size={2}>
-                    <Space>
-                      <Typography.Text strong>{team.name}</Typography.Text>
-                      <Tag>{team.member_count} 人</Tag>
-                    </Space>
-                    <Typography.Text type="secondary">
-                      员工可以同时属于多个平级团队。
-                    </Typography.Text>
+                  <Space>
+                    <Typography.Text strong>{team.name}</Typography.Text>
+                    <Tag>{team.member_count} 人</Tag>
                   </Space>
                 </Space>
                 {capabilities.team_member_manage_ids.includes(team.id) ? (
@@ -392,7 +472,7 @@ export const MemberWorkspacePanel: React.FC<{
                 ) : null}
               </Flex>
               {index < member.teams.length - 1 ? (
-                <Divider style={{ margin: '12px 0' }} />
+                <Divider className={styles.memberTeamDivider} />
               ) : null}
             </React.Fragment>
           ))}
@@ -423,10 +503,10 @@ export const MemberWorkspacePanel: React.FC<{
                 <div className={styles.dangerActionPanel}>
                   <div className={styles.dangerActionCopy}>
                     <Typography.Text strong>
-                      Owner 不能直接移出组织
+                      所有者不能直接移出组织
                     </Typography.Text>
                     <Typography.Text type="secondary">
-                      如需移除该成员，请先在组织概览的危险操作中完成 Owner
+                      如需移除该成员，请先在组织概览的危险操作中完成所有者
                       转移。
                     </Typography.Text>
                   </div>
@@ -720,17 +800,17 @@ export const MemberWorkspacePanel: React.FC<{
       <div className={styles.entityHeader}>
         <div className={styles.entityIdentity}>
           <Avatar size={56} src={member.user.avatar_url}>
-            {formatPersonLabel(member.user).slice(0, 1)}
+            {memberDisplayName.slice(0, 1)}
           </Avatar>
           <div>
             <Space wrap>
               <Typography.Title level={4} style={{ margin: 0 }}>
-                {formatPersonLabel(member.user)}
+                {memberDisplayName}
               </Typography.Title>
-              {member.is_owner ? <Tag color="gold">Owner</Tag> : null}
+              {member.is_owner ? <Tag color="gold">所有者</Tag> : null}
             </Space>
             <Typography.Text type="secondary">
-              {member.user.email || member.user.username}
+              {[jobTitle, memberAccountLabel].filter(Boolean).join(' · ')}
             </Typography.Text>
             <div>
               <Space size={[4, 4]} wrap>
@@ -764,13 +844,46 @@ export const MemberWorkspacePanel: React.FC<{
               <ResponsibilityEditor
                 editable={capabilities.responsibility_manage}
                 memberId={memberId}
-                memberName={formatPersonLabel(member.user)}
+                memberName={memberDisplayName}
                 onDirtyStateChange={onDirtyStateChange}
               />
             ),
           },
         ]}
       />
+      <Modal
+        title="编辑员工信息"
+        open={employeeEditorOpen}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={employeeProfileMutation.isPending}
+        onCancel={closeEmployeeEditor}
+        onOk={async () =>
+          employeeProfileMutation.mutateAsync(
+            await employeeForm.validateFields(),
+          )
+        }
+      >
+        <Typography.Paragraph type="secondary">
+          以下信息仅用于当前组织，不会修改该用户的账号姓名和邮箱。
+        </Typography.Paragraph>
+        <Form form={employeeForm} layout="vertical">
+          <Form.Item
+            name="employee_name"
+            label="员工姓名"
+            rules={[{ max: 150, message: '员工姓名不能超过 150 个字符' }]}
+          >
+            <Input allowClear maxLength={150} placeholder="请输入员工姓名" />
+          </Form.Item>
+          <Form.Item
+            name="job_title"
+            label="职位"
+            rules={[{ max: 100, message: '职位不能超过 100 个字符' }]}
+          >
+            <Input allowClear maxLength={100} placeholder="请输入职位" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Card>
   );
 };
