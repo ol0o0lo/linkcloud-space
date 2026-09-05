@@ -11,8 +11,10 @@ def _obj_value(obj, field: str):
 
 
 class ReferralSummaryOut(Schema):
-    invite_code: str
-    share_link: str
+    invite_code: str | None
+    share_link: str | None
+    allow_link: bool
+    allow_code: bool
     registered_count: int
     pending_review_count: int
     rewarded_count: int

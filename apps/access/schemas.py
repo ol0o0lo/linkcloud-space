@@ -191,6 +191,16 @@ class RoleManagementNavigationOut(Schema):
     capabilities: RoleManagementCapabilitiesOut
 
 
+class NavigationAccessCapabilitiesOut(Schema):
+    role_management: bool
+    organization_settings: bool
+    team_settings: bool
+    subscriptions: bool
+    analytics: bool
+    allocation: bool
+    notification_dispatches: bool
+
+
 class RoleMemberOptionOut(Schema):
     member_id: int
     user: AccessUserOut

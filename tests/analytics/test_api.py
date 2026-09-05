@@ -3,6 +3,7 @@ from datetime import datetime, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import user_logged_in
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -15,7 +16,7 @@ from apps.analytics.tasks import rollup_and_purge_analytics_events
 from apps.house.constants import ContactRole, HouseStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.organizations.signals import user_logged_in_receiver
-from tests.api_helpers import api_data
+from tests.api_helpers import api_data, api_error
 
 
 class AnalyticsApiTestCase(TestCase):
@@ -109,25 +110,35 @@ class AnalyticsApiTestCase(TestCase):
         self.assertEqual(len(api_data(hidden_response)["errors"]), 1)
 
     @override_settings(
-        ANALYTICS_PUBLIC_RATE_LIMIT_PER_MINUTE=1,
+        ANALYTICS_PUBLIC_EVENT_RATE_LIMIT_PER_MINUTE=2,
         CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "analytics-rate-limit-test"}},
     )
-    def test_collector_is_rate_limited(self):
+    def test_collector_rate_limit_counts_batch_events(self):
         self.client.logout()
+        payload = self.event_payload()
+        payload["events"].append(
+            {
+                **payload["events"][0],
+                "event_name": "house.phone_click",
+                "anonymous_id": "visitor-rate-2",
+                "session_id": "session-rate-2",
+            }
+        )
         first = self.client.post(
             "/api/analytics/events/",
-            data=self.event_payload(),
+            data=payload,
             content_type="application/json",
             REMOTE_ADDR="198.51.100.10",
         )
         second = self.client.post(
             "/api/analytics/events/",
-            data=self.event_payload(anonymous_id="visitor-rate-2"),
+            data=self.event_payload(anonymous_id="visitor-rate-3", session_id="session-rate-3"),
             content_type="application/json",
             REMOTE_ADDR="198.51.100.10",
         )
 
         self.assertEqual(first.status_code, 200)
+        self.assertEqual(api_data(first)["accepted"], 2)
         self.assertEqual(second.status_code, 429)
 
     def test_collector_rejects_unknown_properties_without_saving(self):
@@ -141,6 +152,104 @@ class AnalyticsApiTestCase(TestCase):
         self.assertEqual(api_data(response)["accepted"], 0)
         self.assertIn("不支持属性", api_data(response)["errors"][0]["message"])
         self.assertFalse(AnalyticsEvent.objects.exists())
+
+    def test_sources_are_served_from_backend_registry(self):
+        response = self.client.get("/api/analytics/sources/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            api_data(response),
+            [
+                {"value": "h5", "label": "H5"},
+                {"value": "miniprogram", "label": "微信小程序"},
+                {"value": "public", "label": "公开页面"},
+                {"value": "server", "label": "服务端业务"},
+            ],
+        )
+
+    def test_collector_rejects_unregistered_source(self):
+        response = self.client.post(
+            "/api/analytics/events/",
+            data=self.event_payload(source="unknown"),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(api_data(response)["accepted"], 0)
+        self.assertIn("未注册的来源", api_data(response)["errors"][0]["message"])
+        self.assertFalse(AnalyticsEvent.objects.exists())
+
+    def test_collector_requires_public_visitor_identity(self):
+        response = self.client.post(
+            "/api/analytics/events/",
+            data=self.event_payload(anonymous_id="", session_id=""),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(api_data(response)["accepted"], 0)
+        self.assertIn("匿名标识或会话标识", api_data(response)["errors"][0]["message"])
+        self.assertFalse(AnalyticsEvent.objects.exists())
+
+    def test_source_constraints_reject_unknown_database_values(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            AnalyticsEvent.objects.create(
+                organization=self.org,
+                event_name="house.view",
+                target_type="house",
+                target_id=str(self.house.pk),
+                source="unknown",
+                occurred_at=timezone.now(),
+            )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            AnalyticsDailyMetric.objects.create(
+                organization=self.org,
+                date=timezone.localdate(),
+                source="unknown",
+                scope=AnalyticsDailyMetric.SCOPE_ALL,
+                event_count=1,
+                unique_visitors=1,
+            )
+
+    def test_legacy_admin_source_remains_queryable_but_not_selectable(self):
+        AnalyticsEvent.objects.create(
+            organization=self.org,
+            event_name="house.view",
+            target_type="house",
+            target_id=str(self.house.pk),
+            source="admin",
+            occurred_at=timezone.now(),
+        )
+
+        sources = self.client.get("/api/analytics/sources/")
+        overview = self.client.get("/api/analytics/overview/?source=admin")
+
+        self.assertNotIn("admin", {item["value"] for item in api_data(sources)})
+        self.assertEqual(api_data(overview)["total_events"], 1)
+
+    def test_queries_reject_unregistered_source(self):
+        today = timezone.localdate()
+        urls = (
+            f"/api/analytics/overview/?start_date={today}&end_date={today}&source=unknown",
+            f"/api/analytics/trends/?start_date={today}&end_date={today}&source=unknown",
+            f"/api/analytics/targets/?target_type=house&start_date={today}&end_date={today}&source=unknown",
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 422)
+                self.assertIn("未注册的来源", api_error(response)["message"])
+
+    def test_query_range_is_limited_to_366_inclusive_days(self):
+        today = timezone.localdate()
+        valid = self.client.get(f"/api/analytics/overview/?start_date={today - timedelta(days=365)}&end_date={today}")
+        invalid = self.client.get(f"/api/analytics/overview/?start_date={today - timedelta(days=366)}&end_date={today}")
+
+        self.assertEqual(valid.status_code, 200)
+        self.assertEqual(invalid.status_code, 422)
+        self.assertIn("366 天", api_error(invalid)["message"])
 
     def test_collector_rejects_server_only_business_event(self):
         response = self.client.post(
@@ -195,9 +304,7 @@ class AnalyticsApiTestCase(TestCase):
         single_day = self.client.get(f"/api/analytics/overview/?start_date={recent_historical_day}&end_date={recent_historical_day}")
         historical_range = self.client.get(f"/api/analytics/overview/?start_date={older_historical_day}&end_date={recent_historical_day}")
         mixed_range = self.client.get(f"/api/analytics/overview/?start_date={older_historical_day}&end_date={timezone.localdate()}")
-        targets = self.client.get(
-            f"/api/analytics/targets/?target_type=house&start_date={recent_historical_day}&end_date={recent_historical_day}&page=1&page_size=10"
-        )
+        targets = self.client.get(f"/api/analytics/targets/?target_type=house&start_date={recent_historical_day}&end_date={recent_historical_day}&page=1&page_size=10")
 
         self.assertEqual(api_data(single_day)["unique_visitors"], 1)
         self.assertIsNone(api_data(historical_range)["unique_visitors"])
@@ -207,7 +314,8 @@ class AnalyticsApiTestCase(TestCase):
         self.assertEqual(api_data(targets)["items"][0]["unique_visitors"], 1)
 
     def test_overview_trends_and_target_ranking_aggregate_current_org(self):
-        now = timezone.now()
+        today = timezone.localdate()
+        now = timezone.make_aware(datetime.combine(today, time(hour=12)))
         AnalyticsEvent.objects.create(
             organization=self.org,
             actor=self.user,
@@ -228,7 +336,7 @@ class AnalyticsApiTestCase(TestCase):
             occurred_at=now - timedelta(hours=1),
         )
 
-        query = f"start_date={timezone.localdate()}&end_date={timezone.localdate()}&source=h5"
+        query = f"start_date={today}&end_date={today}&source=h5"
         overview = self.client.get(f"/api/analytics/overview/?{query}")
         trends = self.client.get(f"/api/analytics/trends/?{query}&event_names=house.view,house.phone_click")
         targets = self.client.get(f"/api/analytics/targets/?{query}&target_type=house&page=1&page_size=10")
@@ -245,6 +353,32 @@ class AnalyticsApiTestCase(TestCase):
                 {"target_type": "house", "target_id": str(self.house.pk), "label": "101"},
             ],
         )
+
+    def test_target_ranking_paginates_before_loading_page_details(self):
+        today = timezone.localdate()
+        now = timezone.make_aware(datetime.combine(today, time(hour=12)))
+        houses = [self.house]
+        for room_number in ("102", "103"):
+            houses.append(House.objects.create(building=self.building, room_number=room_number, status=HouseStatus.LISTED))
+        for index, house in enumerate(houses):
+            for event_index in range(3 - index):
+                AnalyticsEvent.objects.create(
+                    organization=self.org,
+                    event_name="house.view",
+                    target_type="house",
+                    target_id=str(house.pk),
+                    source="h5",
+                    visitor_key=f"anonymous:{index}:{event_index}",
+                    occurred_at=now - timedelta(minutes=event_index),
+                )
+
+        response = self.client.get(f"/api/analytics/targets/?target_type=house&start_date={today}&end_date={today}&page=2&page_size=1")
+        data = api_data(response)
+
+        self.assertEqual((data["total"], data["page"], data["page_size"]), (3, 2, 1))
+        self.assertEqual(len(data["items"]), 1)
+        self.assertEqual(data["items"][0]["target_id"], str(houses[1].pk))
+        self.assertEqual(data["items"][0]["total"], 2)
 
     def test_collector_uses_target_organization_instead_of_current_organization(self):
         other_org = baker.make("organizations.Organization", name="其他组织", slug="analytics-other")

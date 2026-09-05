@@ -15,12 +15,16 @@ class Command(BaseCommand):
         parser.add_argument("--dry-run", action="store_true", help="Only report how many bindings would be created.")
 
     def handle(self, *args, **options):
-        role = AccessRole.objects.filter(
-            is_active=True,
-            is_system=True,
-            scope=AccessScope.TEAM,
-            code=AccessRoleCode.TEAM_STAFF,
-        ).select_related("group").first()
+        role = (
+            AccessRole.objects.filter(
+                is_active=True,
+                is_system=True,
+                scope=AccessScope.TEAM,
+                code=AccessRoleCode.TEAM_STAFF,
+            )
+            .select_related("group")
+            .first()
+        )
         if role is None:
             raise CommandError("System role team_staff does not exist.")
 
@@ -31,9 +35,7 @@ class Command(BaseCommand):
         skipped = 0
 
         for team in Team.objects.filter(organization__in=orgs).prefetch_related("members"):
-            org_member_ids = set(
-                OrganizationMember.objects.filter(organization=team.organization).values_list("user_id", flat=True)
-            )
+            org_member_ids = set(OrganizationMember.objects.filter(organization=team.organization).values_list("user_id", flat=True))
             for user in team.members.all():
                 if user.pk not in org_member_ids:
                     skipped += 1

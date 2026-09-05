@@ -20,6 +20,8 @@ class WorkspaceTeamSummaryOut(Schema):
 class WorkspaceMemberOut(Schema):
     member_id: int
     user: OrgUserOut
+    employee_name: str = ""
+    job_title: str = ""
     is_owner: bool
     teams: list[WorkspaceTeamSummaryOut]
     has_responsibility: bool

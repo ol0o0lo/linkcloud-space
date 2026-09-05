@@ -6,13 +6,22 @@ from ninja import Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
-from apps.access.constants import PERMISSION_MODULES, AccessPermission, AccessScope
+from apps.access.constants import (
+    PERMISSION_MODULES,
+    AccessPermission,
+    AccessScope,
+    AllocationPermission,
+    AnalyticsPermission,
+    SettingsPermission,
+    SubscriptionPermission,
+)
 from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
 from apps.access.permissions import require_org_permission, require_team_permission
 from apps.access.schemas import (
     AccessRoleOut,
     CustomRoleCreateIn,
     CustomRolePatchIn,
+    NavigationAccessCapabilitiesOut,
     OrganizationBindingOut,
     PermissionOut,
     RoleBindingIn,
@@ -48,6 +57,40 @@ org_bindings_router = Router(tags=["权限/租户授权"])
 team_roles_router = Router(tags=["权限/团队角色"])
 team_bindings_router = Router(tags=["权限/团队授权"])
 role_management_router = Router(tags=["权限/角色管理工作台"])
+navigation_router = Router(tags=["权限/导航能力"])
+
+
+def _teams_with_user_bindings(request, organization):
+    visible_teams = list(visible_teams_for_request(request, organization))
+    visible_team_ids = {team.pk for team in visible_teams}
+    bound_teams = (
+        TeamGroupBinding.objects.filter(
+            team__organization=organization,
+            user=request.user,
+            group__access_role__is_active=True,
+        )
+        .exclude(team_id__in=visible_team_ids)
+        .select_related("team")
+    )
+    return [*visible_teams, *(binding.team for binding in bound_teams)]
+
+
+@navigation_router.get("/", response=NavigationAccessCapabilitiesOut, summary="获取当前组织导航能力")
+def get_navigation_access_capabilities(request):
+    organization = require_org_selected(request)
+    teams = _teams_with_user_bindings(request, organization)
+
+    return {
+        "role_management": has_permission(request.user, organization, AccessPermission.ROLE_VIEW)
+        or any(has_permission(request.user, organization, AccessPermission.TEAM_ROLE_VIEW, team=team) for team in teams),
+        "organization_settings": has_permission(request.user, organization, SettingsPermission.ORG_SETTING_VIEW),
+        "team_settings": has_permission(request.user, organization, SettingsPermission.TEAM_SETTING_VIEW)
+        or any(has_permission(request.user, organization, SettingsPermission.TEAM_SETTING_VIEW, team=team) for team in teams),
+        "subscriptions": has_permission(request.user, organization, SubscriptionPermission.VIEW),
+        "analytics": has_permission(request.user, organization, AnalyticsPermission.VIEW),
+        "allocation": has_permission(request.user, organization, AllocationPermission.VIEW),
+        "notification_dispatches": request.user.is_superuser or organization.is_owner(request.user),
+    }
 
 
 def _with_assignment_count(roles, *, organization=None, team=None):
@@ -78,15 +121,15 @@ def _resolve_role_context(request, role_id: int, team_id: int | None, *, manage:
         permission = AccessPermission.ROLE_MANAGE if manage else AccessPermission.ROLE_VIEW
         organization = require_org_permission(request, permission)
         if role.organization_id not in (None, organization.pk) or role.team_id is not None:
-            raise HttpError(404, "Role not found in the current space.")
+            raise HttpError(404, "当前空间中不存在该角色。")
         return organization, None, role
 
     if team_id is None:
-        raise HttpError(400, "team_id is required for team roles.")
+        raise HttpError(400, "团队角色必须提供 team_id。")
     permission = AccessPermission.TEAM_ROLE_MANAGE if manage else AccessPermission.TEAM_ROLE_VIEW
     team = require_team_permission(request, team_id, permission)
     if role.organization_id is not None and role.team_id != team.pk:
-        raise HttpError(404, "Role not found in the current team.")
+        raise HttpError(404, "当前团队中不存在该角色。")
     return team.organization, team, role
 
 
@@ -98,7 +141,7 @@ def list_permissions(request):
     if not can_view:
         can_view = any(has_permission(request.user, organization, AccessPermission.TEAM_ROLE_VIEW, team=team) for team in visible_teams_for_request(request, organization))
     if not can_view:
-        raise PermissionDenied("You do not have permission to view role permissions.")
+        raise PermissionDenied("你没有查看角色权限的权限。")
     return [
         {
             "key": f"{permission.content_type.app_label}.{permission.codename}",
@@ -337,7 +380,7 @@ def list_role_members(
     elif assignment == "unassigned":
         members = members.filter(assigned=False)
     elif assignment != "all":
-        raise HttpError(400, "assignment must be all, assigned, or unassigned.")
+        raise HttpError(400, "assignment 只能是 all、assigned 或 unassigned。")
     return members.order_by("user__first_name", "user__last_name", "user__username", "pk").distinct()
 
 

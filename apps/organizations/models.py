@@ -24,16 +24,21 @@ from .managers import OrganizationInviteQuerySet, OrganizationMemberQuerySet, Or
 
 
 class Organization(BaseModelMixin):
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, editable=False, on_delete=models.SET_NULL, related_name="created_organizations")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, editable=False, on_delete=models.SET_NULL, related_name="created_organizations", verbose_name="创建人"
+    )
     name = models.CharField(max_length=75, verbose_name=_("display name"))
     slug = models.SlugField(
         max_length=40,
         unique=True,
-        verbose_name=_("account name"),
+        verbose_name="组织标识",
         help_text=_("The account name is like a username and ideally should be lower case and short."),
-        error_messages={"invalid": _("Enter a valid name consisting of letters, numbers, underscores or hyphens.")},
+        error_messages={
+            "invalid": _("请输入仅包含字母、数字、下划线或连字符的有效标识。"),
+            "unique": _("该组织标识已被占用。"),
+        },
     )
-    billing_email = models.EmailField(null=True, blank=True, help_text="The email address that receipts are sent.")
+    billing_email = models.EmailField(null=True, blank=True, help_text="The email address that receipts are sent.", verbose_name="账单邮箱")
     logo = MediaRefsField(
         blank=True,
         default=list,
@@ -41,14 +46,18 @@ class Organization(BaseModelMixin):
         allowed_media_types=[MediaType.IMAGE],
         allowed_resource_types=[ResourceType.ORG_LOGO],
         business_validators=["apps.organizations.services.validate_organization_media_refs"],
-        verbose_name=_("logo"),
+        verbose_name="组织标志",
     )
-    description = models.TextField(blank=True, default="", verbose_name=_("description"))
-    is_active = models.BooleanField(default=True)
-    archived_at = models.DateTimeField(null=True, blank=True)
-    member_limit = models.PositiveIntegerField(null=True, blank=True)
-    team_limit = models.PositiveIntegerField(null=True, blank=True)
+    description = models.TextField(blank=True, default="", verbose_name="组织描述")
+    is_active = models.BooleanField(default=True, verbose_name="是否启用")
+    archived_at = models.DateTimeField(null=True, blank=True, verbose_name="归档时间")
+    member_limit = models.PositiveIntegerField(null=True, blank=True, verbose_name="成员数量上限")
+    team_limit = models.PositiveIntegerField(null=True, blank=True, verbose_name="团队数量上限")
     objects = OrganizationQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = "组织"
+        verbose_name_plural = "组织"
 
     def __str__(self):
         """Return the organization name."""
@@ -56,9 +65,9 @@ class Organization(BaseModelMixin):
 
     def clean(self):
         if self.pk and self.created_by_id != type(self).objects.filter(pk=self.pk).values_list("created_by_id", flat=True).first():
-            raise ValidationError({"created_by": [_("Organization creator cannot be changed.")]})
+            raise ValidationError({"created_by": [_("组织创建人不能修改。")]})
         if get_user_model().objects.filter(username=self.slug).exists() is True:
-            raise ValidationError({"slug": [_("Account name is already taken.")]})
+            raise ValidationError({"slug": [_("该组织标识已被占用。")]})
 
     def is_member(self, user):
         return OrganizationMember.objects.filter(organization=self, user=user).exists()
@@ -80,26 +89,30 @@ class Organization(BaseModelMixin):
 
 
 class OrganizationRoleMixin(models.Model):
-    is_owner = models.BooleanField(default=False, verbose_name=_("owner"))
+    is_owner = models.BooleanField(default=False, verbose_name="是否所有者")
 
     class Meta:
         abstract = True
 
 
 class OrganizationMember(OrganizationRoleMixin, BaseModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, verbose_name="所属组织")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="用户")
+    employee_name = models.CharField(max_length=150, blank=True, default="", verbose_name="员工姓名")
+    job_title = models.CharField(max_length=100, blank=True, default="", verbose_name="职位")
     is_primary = models.BooleanField(default=False, verbose_name=_("primary"))
     objects = OrganizationMemberQuerySet.as_manager()
 
     class Meta:
-        unique_together = ("organization", "user")
-
-    def unique_error_message(self, model_class, unique_check):
-        if model_class is type(self) and unique_check == ("organization", "user"):
-            return _("This member already exists in this organization.")
-        else:
-            return super().unique_error_message(model_class, unique_check)
+        verbose_name = "组织成员"
+        verbose_name_plural = "组织成员"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("organization", "user"),
+                name="organizations_org_user_unique",
+                violation_error_message="该用户已是此组织成员。",
+            ),
+        ]
 
     def send_removal_email(self, sending_user):
         if not self.user.email:
@@ -130,16 +143,20 @@ class OrganizationMember(OrganizationRoleMixin, BaseModelMixin):
 
 
 class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE)
-    sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE)
-    invitee = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="invitees", null=True, blank=True, on_delete=models.CASCADE)
-    invitee_email = models.EmailField(null=True, blank=True)
-    invitee_phone = models.CharField(max_length=32, null=True, blank=True)
-    access_role = models.ForeignKey("access.AccessRole", null=True, blank=True, on_delete=models.SET_NULL)
-    key = models.CharField(max_length=32, editable=False)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, verbose_name="所属组织")
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE, verbose_name="邀请人")
+    invitee = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="invitees", null=True, blank=True, on_delete=models.CASCADE, verbose_name="受邀人")
+    invitee_email = models.EmailField(null=True, blank=True, verbose_name="受邀人邮箱")
+    invitee_phone = models.CharField(max_length=32, null=True, blank=True, verbose_name="受邀人手机号")
+    access_role = models.ForeignKey("access.AccessRole", null=True, blank=True, on_delete=models.SET_NULL, verbose_name="访问角色")
+    key = models.CharField(max_length=32, editable=False, verbose_name="键")
     objects = OrganizationInviteQuerySet.as_manager()
 
     expired_in_days = 7
+
+    class Meta:
+        verbose_name = "组织邀请"
+        verbose_name_plural = "组织邀请"
 
     @property
     def is_expired(self):
@@ -160,7 +177,7 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
     def clean(self):
         if self.invitee and not self.invitee_email and not self.invitee_phone:
             if not self.invitee.email:
-                raise ValidationError(_("The invitee user is missing their email address."))
+                raise ValidationError(_("受邀用户未设置邮箱地址。"))
             else:
                 # Set the invitee_email, so there is a record of what email was used,
                 # in case they change their email address.
@@ -170,24 +187,23 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
             self.invitee_phone = self._normalize_invitee_phone(self.invitee_phone)
 
         if self.invitee_email and self.invitee_phone:
-            raise ValidationError(_("Provide either an email address or a phone number, not both."))
+            raise ValidationError(_("邮箱地址和手机号只能填写一个。"))
 
         if not self.invitee and not self.invitee_email and not self.invitee_phone:
-            raise ValidationError(_("Provide either an invitee, an email address, or a phone number."))
+            raise ValidationError(_("受邀用户、邮箱地址或手机号至少填写一项。"))
 
         if self.invitee and self.organization.is_member(self.invitee) is True:
-            raise ValidationError(_(f'User "{self.invitee}" is already a member of this organization.'))
+            raise ValidationError(_(f"用户“{self.invitee}”已是该组织成员。"))
 
         if self.access_role_id:
             if self.access_role.scope != AccessScope.ORG:
-                raise ValidationError({"access_role": _("Only organization roles can be preset on invitations.")})
+                raise ValidationError({"access_role": _("邀请只能预设组织级角色。")})
             if self.access_role.organization_id is not None and self.access_role.organization_id != self.organization_id:
-                raise ValidationError({"access_role": _("Custom roles can only be used inside their organization.")})
+                raise ValidationError({"access_role": _("自定义角色只能在所属组织内使用。")})
             if not self.access_role.is_active:
-                raise ValidationError({"access_role": _("Inactive roles cannot be preset on invitations.")})
+                raise ValidationError({"access_role": _("邀请不能预设已停用角色。")})
 
-        # For some reason `unique_together = ('organization', 'sender', 'invitee', 'invitee_email')` didn't work so in
-        # the meta class, so do it manually
+        # 邀请目标字段允许为空，数据库联合唯一约束无法覆盖这些 NULL 组合，因此保留业务层重复校验。
         if (
             OrganizationInvite.objects.filter(
                 organization=self.organization,
@@ -199,22 +215,22 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
             is True
         ):
             if self.invitee is not None:
-                raise ValidationError(_(f"There is already a pending invitation for the user, {self.invitee.get_full_name()} ({self.invitee.username})."))
+                raise ValidationError(_(f"用户 {self.invitee.get_full_name()}（{self.invitee.username}）已有待处理邀请。"))
             else:
                 target = self.invitee_email or self.invitee_phone
-                raise ValidationError(_(f'There is already a pending invitation for "{target}".'))
+                raise ValidationError(_(f"“{target}”已有待处理邀请。"))
 
     @staticmethod
     def _normalize_invitee_phone(phone: str) -> str:
         normalized_phone = normalize_phone(phone)
         if not normalized_phone:
-            raise ValidationError({"invitee_phone": _("Enter a valid phone number.")})
+            raise ValidationError({"invitee_phone": _("请输入有效的手机号。")})
         try:
             parsed_phone = phonenumbers.parse(normalized_phone, None)
         except NumberParseException as err:
-            raise ValidationError({"invitee_phone": _("Enter a valid phone number.")}) from err
+            raise ValidationError({"invitee_phone": _("请输入有效的手机号。")}) from err
         if not phonenumbers.is_valid_number(parsed_phone):
-            raise ValidationError({"invitee_phone": _("Enter a valid phone number.")})
+            raise ValidationError({"invitee_phone": _("请输入有效的手机号。")})
         return phonenumbers.format_number(parsed_phone, phonenumbers.PhoneNumberFormat.E164)
 
     def save(self, **kwargs):

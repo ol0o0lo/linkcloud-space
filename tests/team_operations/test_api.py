@@ -16,6 +16,7 @@ from apps.organizations.models import OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
 from apps.team_operations.constants import AnnouncementStatus, TaskAssignmentStatus, WorkTaskStatus
 from apps.team_operations.models import AnnouncementReceipt, TaskAssignment, TeamAnnouncement, WorkTask
+from apps.team_operations.services import daily_dashboard
 from tests.access.helpers import make_access_group
 from tests.api_helpers import api_data, api_error
 
@@ -556,6 +557,15 @@ class TestTeamOperationsAPI:
 
         assert response.status_code == 200
         assert [item["id"] for item in api_data(response)["urgent_items"]] == [task_ids["urgent"], task_ids["high"], task_ids["normal"]]
+
+    def test_daily_dashboard_uses_three_queries(self, django_assert_num_queries):
+        task = baker.make(WorkTask, organization=self.org, team=self.team, creator=self.owner)
+        TaskAssignment.objects.create(task=task, assignee=self.member)
+
+        with django_assert_num_queries(3):
+            result = daily_dashboard(organization=self.org, user=self.member)
+
+        assert result["pending_acceptance"] == 1
 
     def test_required_team_notification_channel_cannot_be_disabled(self):
         self._login(self.member)

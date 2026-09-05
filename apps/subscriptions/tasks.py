@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def close_saas_order_in_wechat_task(order_id: int) -> None:
-    """关闭被新二维码替代或超时的微信订单。"""
+    """关闭被替代、超时或由用户取消的微信订单。"""
     payment = get_payment(biz_type="subscriptions.saas_order", biz_id=str(order_id))
     if payment is not None:
         close_payment(payment)

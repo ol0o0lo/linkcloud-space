@@ -54,10 +54,6 @@ class AccountAdapter(DefaultAccountAdapter):
         """写回手机号和验证状态到 User。"""
         user.set_phone_number(phone, verified)
         user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
-        if verified:
-            from apps.accounts.services import _claim_landlord_contact_after_phone_bind
-
-            _claim_landlord_contact_after_phone_bind(context.request, user, user.phone)
 
     def get_user_by_phone(self, phone):
         """
@@ -102,9 +98,6 @@ class AccountAdapter(DefaultAccountAdapter):
             user.is_active = True
             update_fields.append("is_active")
         user.save(update_fields=update_fields)
-        from apps.accounts.services import _claim_landlord_contact_after_phone_bind
-
-        _claim_landlord_contact_after_phone_bind(context.request, user, user.phone)
 
     def send_verification_code_sms(self, user, phone, code, **kwargs):
         """通过项目内短信封装发送验证码。"""

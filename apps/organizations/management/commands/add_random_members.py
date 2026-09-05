@@ -11,9 +11,7 @@ user_model = apps.get_model(settings.AUTH_USER_MODEL)
 
 class Command(BaseCommand):
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--org-slug", type=str, required=True, help="The organization's slug that you want to add fake user to."
-        )
+        parser.add_argument("--org-slug", type=str, required=True, help="The organization's slug that you want to add fake user to.")
         parser.add_argument("--number", type=int, default=10, help="Number members to create.")
 
     def handle(self, **options):

@@ -42,6 +42,11 @@ class AnalyticsEventDefinitionOut(Schema):
     client_collectible: bool
 
 
+class AnalyticsSourceDefinitionOut(Schema):
+    value: str
+    label: str
+
+
 class AnalyticsMetricOut(Schema):
     event_name: str
     label: str

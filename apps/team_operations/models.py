@@ -8,17 +8,19 @@ from apps.team_operations.constants import AnnouncementStatus, TaskAssignmentSta
 
 
 class TeamAnnouncement(BaseModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="team_announcements")
-    team = models.ForeignKey("teams.Team", null=True, blank=True, on_delete=models.SET_NULL, related_name="announcements")
-    title = models.CharField(max_length=255)
-    body = models.TextField()
-    status = models.CharField(max_length=20, choices=AnnouncementStatus.choices, default=AnnouncementStatus.DRAFT)
-    require_acknowledgement = models.BooleanField(default=False)
-    published_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="published_team_announcements")
-    published_at = models.DateTimeField(null=True, blank=True)
-    expires_at = models.DateTimeField(null=True, blank=True)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="team_announcements", verbose_name="所属组织")
+    team = models.ForeignKey("teams.Team", null=True, blank=True, on_delete=models.SET_NULL, related_name="announcements", verbose_name="团队")
+    title = models.CharField(max_length=255, verbose_name="标题")
+    body = models.TextField(verbose_name="正文")
+    status = models.CharField(max_length=20, choices=AnnouncementStatus.choices, default=AnnouncementStatus.DRAFT, verbose_name="状态")
+    require_acknowledgement = models.BooleanField(default=False, verbose_name="是否要求确认")
+    published_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="published_team_announcements", verbose_name="发布人")
+    published_at = models.DateTimeField(null=True, blank=True, verbose_name="发布时间")
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name="过期时间")
 
     class Meta:
+        verbose_name = "团队公告"
+        verbose_name_plural = "团队公告"
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=("organization", "status", "-created_at"), name="team_ann_org_status_idx"),
@@ -46,11 +48,13 @@ class TeamAnnouncement(BaseModelMixin):
 
 
 class AnnouncementReceipt(CreateUpdateTimeModelMixin):
-    announcement = models.ForeignKey(TeamAnnouncement, on_delete=models.CASCADE, related_name="receipts")
-    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="announcement_receipts")
-    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    announcement = models.ForeignKey(TeamAnnouncement, on_delete=models.CASCADE, related_name="receipts", verbose_name="公告")
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="announcement_receipts", verbose_name="接收人")
+    acknowledged_at = models.DateTimeField(null=True, blank=True, verbose_name="确认时间")
 
     class Meta:
+        verbose_name = "公告接收记录"
+        verbose_name_plural = "公告接收记录"
         ordering = ("-created_at",)
         constraints = [models.UniqueConstraint(fields=("announcement", "recipient"), name="team_ann_receipt_unique")]
         indexes = [models.Index(fields=("recipient", "acknowledged_at", "-created_at"), name="team_ann_recipient_idx")]
@@ -69,21 +73,23 @@ class AnnouncementReceipt(CreateUpdateTimeModelMixin):
 
 
 class WorkTask(BaseModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="work_tasks")
-    team = models.ForeignKey("teams.Team", null=True, blank=True, on_delete=models.SET_NULL, related_name="work_tasks")
-    title = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-    task_type = models.CharField(max_length=64, default="general")
-    priority = models.CharField(max_length=20, choices=TaskPriority.choices, default=TaskPriority.NORMAL)
-    status = models.CharField(max_length=20, choices=WorkTaskStatus.choices, default=WorkTaskStatus.ACTIVE)
-    due_at = models.DateTimeField(null=True, blank=True)
-    creator = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_work_tasks")
-    url = models.CharField(max_length=500, blank=True, default="")
-    data = models.JSONField(default=dict, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    cancelled_at = models.DateTimeField(null=True, blank=True)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="work_tasks", verbose_name="所属组织")
+    team = models.ForeignKey("teams.Team", null=True, blank=True, on_delete=models.SET_NULL, related_name="work_tasks", verbose_name="团队")
+    title = models.CharField(max_length=255, verbose_name="标题")
+    description = models.TextField(blank=True, verbose_name="描述")
+    task_type = models.CharField(max_length=64, default="general", verbose_name="任务类型")
+    priority = models.CharField(max_length=20, choices=TaskPriority.choices, default=TaskPriority.NORMAL, verbose_name="优先级")
+    status = models.CharField(max_length=20, choices=WorkTaskStatus.choices, default=WorkTaskStatus.ACTIVE, verbose_name="状态")
+    due_at = models.DateTimeField(null=True, blank=True, verbose_name="截止时间")
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_work_tasks", verbose_name="创建人")
+    url = models.CharField(max_length=500, blank=True, default="", verbose_name="链接地址")
+    data = models.JSONField(default=dict, blank=True, verbose_name="扩展数据")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="完成时间")
+    cancelled_at = models.DateTimeField(null=True, blank=True, verbose_name="取消时间")
 
     class Meta:
+        verbose_name = "工作任务"
+        verbose_name_plural = "工作任务"
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=("organization", "status", "due_at"), name="work_task_org_status_idx"),
@@ -107,15 +113,17 @@ class WorkTask(BaseModelMixin):
 
 
 class TaskAssignment(CreateUpdateTimeModelMixin):
-    task = models.ForeignKey(WorkTask, on_delete=models.CASCADE, related_name="assignments")
-    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="task_assignments")
-    status = models.CharField(max_length=20, choices=TaskAssignmentStatus.choices, default=TaskAssignmentStatus.PENDING)
-    accepted_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    rejected_at = models.DateTimeField(null=True, blank=True)
-    result = models.TextField(blank=True)
+    task = models.ForeignKey(WorkTask, on_delete=models.CASCADE, related_name="assignments", verbose_name="任务")
+    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="task_assignments", verbose_name="执行人")
+    status = models.CharField(max_length=20, choices=TaskAssignmentStatus.choices, default=TaskAssignmentStatus.PENDING, verbose_name="状态")
+    accepted_at = models.DateTimeField(null=True, blank=True, verbose_name="接受时间")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="完成时间")
+    rejected_at = models.DateTimeField(null=True, blank=True, verbose_name="拒绝时间")
+    result = models.TextField(blank=True, verbose_name="处理结果")
 
     class Meta:
+        verbose_name = "任务分配"
+        verbose_name_plural = "任务分配"
         ordering = ("task__due_at", "-created_at")
         constraints = [models.UniqueConstraint(fields=("task", "assignee"), name="work_task_assignee_unique")]
         indexes = [models.Index(fields=("assignee", "status", "-created_at"), name="task_assignment_user_idx")]

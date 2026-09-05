@@ -171,14 +171,14 @@ def _prepare_custom_role_identity(org, scope: AccessScope, *, name: str, code: s
     _clear_or_reject_existing_role(_roles_in_identity_scope(org, scope, team=team).select_related("group").filter(code=code).first())
 
     if Group.objects.filter(name=group_name).exists():
-        raise ValidationError({"code": "Role group name already exists. Remove the stale group before creating this role."})
+        raise ValidationError({"code": "角色用户组名称已存在，请先清理残留用户组。"})
 
 
 def _clear_or_reject_existing_role(role: AccessRole | None) -> None:
     if role is None:
         return
     if role.is_active:
-        raise ValidationError({"name": "Role name already exists in this scope."})
+        raise ValidationError({"name": "当前范围内已存在同名角色。"})
     delete_custom_role(role)
 
 
@@ -189,14 +189,14 @@ def _validate_unique_role_name(org, scope: AccessScope, name: str, *, team=None,
     existing_role = qs.first()
     if existing_role is not None:
         if existing_role.is_active:
-            raise ValidationError({"name": "Role name already exists in this scope."})
+            raise ValidationError({"name": "当前范围内已存在同名角色。"})
         delete_custom_role(existing_role)
 
 
 def _normalize_role_name(name: str) -> str:
     normalized = name.strip()
     if not normalized:
-        raise ValidationError({"name": "Role name is required."})
+        raise ValidationError({"name": "角色名称不能为空。"})
     return normalized
 
 
@@ -261,26 +261,26 @@ def update_role_members(
     remove_ids = set(remove_user_ids)
     overlap = add_ids & remove_ids
     if overlap:
-        raise ValidationError({"user_ids": "The same user cannot be added and removed in one request."})
+        raise ValidationError({"user_ids": "同一用户不能在一次请求中同时添加和移除。"})
 
     if role.scope == AccessScope.ORG:
         _validate_assignable_role(role, org, AccessScope.ORG)
         eligible_ids = set(OrganizationMember.objects.filter(organization=org, user_id__in=add_ids).values_list("user_id", flat=True))
         missing_ids = add_ids - eligible_ids
         if missing_ids:
-            raise ValidationError({"add_user_ids": [f"User is not an organization member: {user_id}" for user_id in sorted(missing_ids)]})
+            raise ValidationError({"add_user_ids": [f"用户不是组织成员：{user_id}" for user_id in sorted(missing_ids)]})
         OrganizationGroupBinding.objects.filter(organization=org, group=role.group, user_id__in=remove_ids).delete()
         for user_id in sorted(add_ids):
             assign_org_role(org, user_id, role)
         return OrganizationGroupBinding.objects.filter(organization=org, group=role.group).values("user_id").distinct().count()
 
     if team is None:
-        raise ValidationError({"team": "Team is required for team role assignments."})
+        raise ValidationError({"team": "团队级角色分配必须指定团队。"})
     _validate_assignable_role(role, org, AccessScope.TEAM, team=team)
     eligible_ids = set(team.members.filter(pk__in=add_ids).values_list("pk", flat=True))
     missing_ids = add_ids - eligible_ids
     if missing_ids:
-        raise ValidationError({"add_user_ids": [f"User is not a team member: {user_id}" for user_id in sorted(missing_ids)]})
+        raise ValidationError({"add_user_ids": [f"用户不是团队成员：{user_id}" for user_id in sorted(missing_ids)]})
     TeamGroupBinding.objects.filter(team=team, group=role.group, user_id__in=remove_ids).delete()
     for user_id in sorted(add_ids):
         assign_team_role(team, user_id, role)
@@ -294,13 +294,13 @@ def _as_user_id(user_or_id) -> int:
 def _validate_assignable_role(role: AccessRole, org, scope: AccessScope, *, team=None) -> None:
     errors = {}
     if role.scope != scope:
-        errors["role"] = "Role scope does not match the target binding scope."
+        errors["role"] = "角色范围与目标绑定范围不匹配。"
     if not role.is_active:
-        errors["role"] = "Inactive roles cannot be assigned."
+        errors["role"] = "不能分配已停用角色。"
     if role.organization_id is not None and role.organization_id != org.pk:
-        errors["role"] = "Custom roles can only be assigned inside their organization."
+        errors["role"] = "自定义角色只能在所属组织内分配。"
     if scope == AccessScope.TEAM and role.team_id is not None and (team is None or role.team_id != team.pk):
-        errors["role"] = "Custom team roles can only be assigned inside their owning team."
+        errors["role"] = "自定义团队角色只能在所属团队内分配。"
     if errors:
         raise ValidationError(errors)
 
@@ -319,7 +319,7 @@ def _resolve_permissions(permission_keys: list[str]) -> list[Permission]:
         else:
             permissions.append(permission)
     if missing:
-        raise ValidationError({"permission_keys": [f"Unknown permission: {key}" for key in missing]})
+        raise ValidationError({"permission_keys": [f"未知权限：{key}" for key in missing]})
     return permissions
 
 
@@ -331,18 +331,18 @@ def _copy_permissions(role: AccessRole | None) -> list[Permission]:
 
 def _validate_copy_source(role: AccessRole, org, scope: AccessScope, *, team=None) -> None:
     if not role.is_active:
-        raise ValidationError({"copy_from": "Inactive roles cannot be copied."})
+        raise ValidationError({"copy_from": "不能复制已停用角色。"})
     if role.scope != scope:
-        raise ValidationError({"copy_from": "Role scope does not match the target scope."})
+        raise ValidationError({"copy_from": "来源角色范围与目标范围不匹配。"})
     if role.organization_id is not None and role.organization_id != org.pk:
-        raise ValidationError({"copy_from": "Custom roles can only be copied inside their organization."})
+        raise ValidationError({"copy_from": "自定义角色只能在所属组织内复制。"})
     if scope == AccessScope.TEAM and role.team_id is not None and (team is None or role.team_id != team.pk):
-        raise ValidationError({"copy_from": "Custom team roles can only be copied inside their owning team."})
+        raise ValidationError({"copy_from": "自定义团队角色只能在所属团队内复制。"})
 
 
 def _validate_custom_role(role: AccessRole) -> None:
     if role.is_system or role.organization_id is None:
-        raise ValidationError({"role": "System roles cannot be modified through this API."})
+        raise ValidationError({"role": "系统角色不能通过此接口修改。"})
 
 
 def _group_name(org, scope: AccessScope, code: str, *, team=None) -> str:

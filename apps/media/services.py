@@ -321,7 +321,7 @@ def extract_media_ids(media_refs: Iterable[int | Mapping[str, Any]]) -> list[int
     return [extract_media_id(media_ref) for media_ref in media_refs]
 
 
-def load_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> MediaRefBatch:
+def load_media_refs(media_refs: Iterable[int | Mapping[str, Any]], *, media_by_id: dict[int, MediaFile] | None = None) -> MediaRefBatch:
     """校验媒体引用是否存在且不重复，并返回按原顺序的 ID 与媒体映射。"""
     refs = [to_plain_media_ref(media_ref) for media_ref in media_refs]
     ordered_ids = extract_media_ids(refs)
@@ -330,7 +330,8 @@ def load_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> MediaRefBa
     if not ordered_ids:
         return MediaRefBatch(refs=refs, ids=[], media_by_id={})
 
-    media_by_id = MediaFile.objects.in_bulk(ordered_ids)
+    if media_by_id is None:
+        media_by_id = MediaFile.objects.in_bulk(ordered_ids)
     missing_ids = [media_id for media_id in ordered_ids if media_id not in media_by_id]
     if missing_ids:
         raise ValueError(f"媒体文件不存在: {missing_ids}")
@@ -378,9 +379,9 @@ def validate_media_refs(
     return normalized_refs
 
 
-def resolve_media_refs(media_refs: Iterable[int | Mapping[str, Any]]) -> list[dict]:
+def resolve_media_refs(media_refs: Iterable[int | Mapping[str, Any]], *, media_by_id: dict[int, MediaFile] | None = None) -> list[dict]:
     """解析媒体引用为前端展示结构，平台派生字段始终动态刷新。"""
-    batch = load_media_refs(media_refs)
+    batch = load_media_refs(media_refs, media_by_id=media_by_id)
     media_infos = [get_media_file_info(batch.media_by_id[media_id]) for media_id in batch.ids]
 
     result = []

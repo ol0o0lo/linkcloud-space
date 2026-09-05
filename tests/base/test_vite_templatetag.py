@@ -50,16 +50,14 @@ class TestViteAssetDevModeOff(BaseViteTest):
     def test_no_js_item(self):
         with pytest.raises(
             Exception,
-            match=f'The vite asset "js/does_not_exist.js" was not found in the manifest file '
-            f"{settings.BASE_DIR}/tests/base/vite_manifest.json.",
+            match=f'The vite asset "js/does_not_exist.js" was not found in the manifest file {settings.BASE_DIR}/tests/base/vite_manifest.json.',
         ):
             vite_asset("js/does_not_exist.js")
 
     def test_no_css_item(self):
         with pytest.raises(
             Exception,
-            match=f'The vite asset "js/does_not_exist.css" was not found in the manifest file '
-            f"{settings.BASE_DIR}/tests/base/vite_manifest.json.",
+            match=f'The vite asset "js/does_not_exist.css" was not found in the manifest file {settings.BASE_DIR}/tests/base/vite_manifest.json.',
         ):
             vite_asset("js/does_not_exist.css")
 
@@ -73,8 +71,7 @@ class TestViteAssetDevModeOff(BaseViteTest):
 
         with pytest.raises(
             Exception,
-            match=f'The vite asset "js/does_not_exist.js" was not found in the manifest file '
-            f"{settings.BASE_DIR}/tests/base/vite_manifest.json.",
+            match=f'The vite asset "js/does_not_exist.js" was not found in the manifest file {settings.BASE_DIR}/tests/base/vite_manifest.json.',
         ):
             vite_asset("js/does_not_exist.js")
 
@@ -88,8 +85,7 @@ class TestViteAssetDevModeOff(BaseViteTest):
 
         with pytest.raises(
             Exception,
-            match=f'The vite asset "js/does_not_exist.css" was not found in the manifest file '
-            f"{settings.BASE_DIR}/tests/base/vite_manifest.json.",
+            match=f'The vite asset "js/does_not_exist.css" was not found in the manifest file {settings.BASE_DIR}/tests/base/vite_manifest.json.',
         ):
             vite_asset("js/does_not_exist.css")
 
@@ -98,9 +94,7 @@ class TestViteHMRClientTagOn(BaseViteTest):
     @override_settings(VITE_DEV_MODE=True)
     def test_vite_hmr_client_dev_mode_on(self):
         result = vite_hmr_client()
-        assert (
-            result == '<script type="module" src="http://localhost:3000/public/static/dist/js/@vite/client"></script>'
-        )
+        assert result == '<script type="module" src="http://localhost:3000/public/static/dist/js/@vite/client"></script>'
 
         with override_settings(
             VITE_SERVER_HOST=VITE_SERVER_HOST,

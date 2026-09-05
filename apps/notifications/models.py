@@ -17,21 +17,24 @@ class NotificationDispatch(BaseModelMixin):
         null=True,
         blank=True,
         help_text="Management owner; null means platform-owned.",
+        verbose_name="所属组织",
     )
-    scope = models.CharField(max_length=32, choices=NotificationDispatchScope.choices)
-    scope_ids = models.JSONField(default=list, blank=True)
-    category = models.CharField(max_length=64, blank=True)
-    title = models.CharField(max_length=255)
-    body = models.TextField(blank=True)
-    url = models.CharField(max_length=500, null=True, blank=True)
-    data = models.JSONField(default=dict, blank=True)
-    status = models.CharField(max_length=20, choices=NotificationDispatchStatus.choices, default=NotificationDispatchStatus.PENDING)
-    target_count = models.PositiveIntegerField(default=0)
-    delivered_count = models.PositiveIntegerField(default=0)
-    error_message = models.TextField(blank=True)
-    sent_at = models.DateTimeField(null=True, blank=True)
+    scope = models.CharField(max_length=32, choices=NotificationDispatchScope.choices, verbose_name="作用域")
+    scope_ids = models.JSONField(default=list, blank=True, verbose_name="作用域标识列表")
+    category = models.CharField(max_length=64, blank=True, verbose_name="分类")
+    title = models.CharField(max_length=255, verbose_name="标题")
+    body = models.TextField(blank=True, verbose_name="正文")
+    url = models.CharField(max_length=500, null=True, blank=True, verbose_name="链接地址")
+    data = models.JSONField(default=dict, blank=True, verbose_name="扩展数据")
+    status = models.CharField(max_length=20, choices=NotificationDispatchStatus.choices, default=NotificationDispatchStatus.PENDING, verbose_name="状态")
+    target_count = models.PositiveIntegerField(default=0, verbose_name="目标数量")
+    delivered_count = models.PositiveIntegerField(default=0, verbose_name="送达数量")
+    error_message = models.TextField(blank=True, verbose_name="错误信息")
+    sent_at = models.DateTimeField(null=True, blank=True, verbose_name="发送时间")
 
     class Meta:
+        verbose_name = "通知派发任务"
+        verbose_name_plural = "通知派发任务"
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=["owner_organization", "-created_at"], name="notif_dispatch_owner_idx"),
@@ -42,16 +45,16 @@ class NotificationDispatch(BaseModelMixin):
     def clean(self):
         super().clean()
         if not isinstance(self.scope_ids, list):
-            raise ValidationError({"scope_ids": "Scope ids must be a list of integers."})
+            raise ValidationError({"scope_ids": "scope_ids 必须是整数列表。"})
         if any(type(scope_id) is not int for scope_id in self.scope_ids):
-            raise ValidationError({"scope_ids": "Scope ids must be a list of integers."})
+            raise ValidationError({"scope_ids": "scope_ids 必须是整数列表。"})
         if self.scope == NotificationDispatchScope.PLATFORM and self.scope_ids:
-            raise ValidationError({"scope_ids": "Platform dispatches must not include scope_ids."})
+            raise ValidationError({"scope_ids": "平台级通知分发不能包含 scope_ids。"})
         if self.scope != NotificationDispatchScope.PLATFORM and not self.scope_ids:
-            raise ValidationError({"scope_ids": "Organization, teams, and users dispatches require scope_ids."})
+            raise ValidationError({"scope_ids": "组织、团队和用户级通知分发必须提供 scope_ids。"})
         if self.scope == NotificationDispatchScope.TEAMS:
             if self.owner_organization_id is None:
-                raise ValidationError({"owner_organization": "Team dispatches must belong to an organization."})
+                raise ValidationError({"owner_organization": "团队级通知分发必须归属于组织。"})
 
             from apps.teams.models import Team
 
@@ -63,13 +66,13 @@ class NotificationDispatch(BaseModelMixin):
                 ).values_list("pk", flat=True)
             )
             if team_ids != target_ids:
-                raise ValidationError({"scope_ids": "Team dispatches can only target teams in the owner organization."})
+                raise ValidationError({"scope_ids": "团队级通知分发只能选择所属组织内的团队。"})
         if self.url:
             normalized_url = self.url.lower()
             is_internal_path = self.url.startswith("/") and not self.url.startswith(("//", "/\\"))
             is_http_url = normalized_url.startswith(("http://", "https://"))
             if not is_internal_path and not is_http_url:
-                raise ValidationError({"url": "URL must be an internal path or use the http/https scheme."})
+                raise ValidationError({"url": "URL 必须是站内路径或使用 http/https 协议。"})
 
     def __str__(self):
         """Return a readable label for the dispatch."""
@@ -96,6 +99,7 @@ class Notification(CreateUpdateTimeModelMixin):
         on_delete=models.CASCADE,
         related_name="notifications",
         help_text="The user who will see this notification in their inbox.",
+        verbose_name="接收人",
     )
     organization = models.ForeignKey(
         "organizations.Organization",
@@ -104,6 +108,7 @@ class Notification(CreateUpdateTimeModelMixin):
         null=True,
         blank=True,
         help_text="Org scope; null for personal/global notifications.",
+        verbose_name="所属组织",
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -112,6 +117,7 @@ class Notification(CreateUpdateTimeModelMixin):
         on_delete=models.SET_NULL,
         related_name="+",
         help_text="The user whose action produced this notification (null for system events).",
+        verbose_name="操作人",
     )
 
     target_content_type = models.ForeignKey(
@@ -120,8 +126,9 @@ class Notification(CreateUpdateTimeModelMixin):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="+",
+        verbose_name="目标内容类型",
     )
-    target_object_id = models.PositiveBigIntegerField(null=True, blank=True)
+    target_object_id = models.PositiveBigIntegerField(null=True, blank=True, verbose_name="目标对象标识")
     target = GenericForeignKey("target_content_type", "target_object_id")
 
     category = models.CharField(
@@ -129,11 +136,12 @@ class Notification(CreateUpdateTimeModelMixin):
         blank=True,
         db_index=True,
         help_text="Producer-defined category key — see apps/notifications/categories.py.",
+        verbose_name="分类",
     )
-    title = models.CharField(max_length=255)
-    body = models.TextField(blank=True)
-    url = models.CharField(max_length=500, null=True, blank=True)
-    data = models.JSONField(default=dict, blank=True)
+    title = models.CharField(max_length=255, verbose_name="标题")
+    body = models.TextField(blank=True, verbose_name="正文")
+    url = models.CharField(max_length=500, null=True, blank=True, verbose_name="链接地址")
+    data = models.JSONField(default=dict, blank=True, verbose_name="扩展数据")
     dispatch = models.ForeignKey(
         NotificationDispatch,
         null=True,
@@ -141,18 +149,22 @@ class Notification(CreateUpdateTimeModelMixin):
         on_delete=models.SET_NULL,
         related_name="notifications",
         help_text="The management dispatch that produced this inbox row.",
+        verbose_name="通知任务",
     )
-    read_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    read_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="阅读时间")
     expires_at = models.DateTimeField(
         null=True,
         blank=True,
         db_index=True,
         help_text="Per-row retention override; cleanup deletes the row once this time has passed.",
+        verbose_name="过期时间",
     )
 
     objects = NotificationQuerySet.as_manager()
 
     class Meta:
+        verbose_name = "通知"
+        verbose_name_plural = "通知"
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=["recipient", "organization", "-created_at"], name="notificatio_recipie_6e705f_idx"),
@@ -183,13 +195,16 @@ class NotificationPreference(CreateUpdateTimeModelMixin):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="notification_preferences",
+        verbose_name="用户",
     )
-    category = models.CharField(max_length=64)
-    in_app = models.BooleanField(default=True)
-    email = models.BooleanField(default=False)
+    category = models.CharField(max_length=64, verbose_name="分类")
+    in_app = models.BooleanField(default=True, verbose_name="站内通知")
+    email = models.BooleanField(default=False, verbose_name="邮箱")
 
     class Meta:
-        unique_together = ("user", "category")
+        verbose_name = "通知偏好"
+        verbose_name_plural = "通知偏好"
+        constraints = [models.UniqueConstraint(fields=("user", "category"), name="notifications_user_cat_unique")]
 
     def __str__(self):
         """Return a string representation of the preference."""

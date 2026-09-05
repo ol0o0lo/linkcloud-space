@@ -118,10 +118,7 @@ class SyncAccessPermissionsTests(TestCase):
         )
 
         role = AccessRole.objects.get(code="org_admin", organization__isnull=True)
-        permission_keys = {
-            f"{permission.content_type.app_label}.{permission.codename}"
-            for permission in role.group.permissions.select_related("content_type")
-        }
+        permission_keys = {f"{permission.content_type.app_label}.{permission.codename}" for permission in role.group.permissions.select_related("content_type")}
         self.assertEqual(permission_keys, {AccessPermission.ROLE_VIEW, AccessPermission.ROLE_MANAGE})
         self.assertTrue(role.is_system)
 
@@ -143,10 +140,7 @@ class SyncAccessPermissionsTests(TestCase):
         sync_access_permissions(permission_registry=permission_registry, role_registry=role_registry)
 
         role = AccessRole.objects.get(code=AccessRoleCode.TEAM_MANAGER, organization__isnull=True)
-        permission_keys = {
-            f"{permission.content_type.app_label}.{permission.codename}"
-            for permission in role.group.permissions.select_related("content_type")
-        }
+        permission_keys = {f"{permission.content_type.app_label}.{permission.codename}" for permission in role.group.permissions.select_related("content_type")}
         self.assertEqual(permission_keys, {TeamPermission.VIEW, TeamPermission.UPDATE})
 
     def test_sync_command_runs(self):

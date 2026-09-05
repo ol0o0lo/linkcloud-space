@@ -48,10 +48,7 @@ def notify(
         )
         outsiders = [r.pk for r in recipients if r.pk not in member_ids]
         if outsiders:
-            raise ValueError(
-                f"notify(): recipients {outsiders} are not members of "
-                f"organization {organization.pk} ({organization.name})."
-            )
+            raise ValueError(f"notify(): recipients {outsiders} are not members of organization {organization.pk} ({organization.name}).")
 
     target_ct = None
     target_id = None

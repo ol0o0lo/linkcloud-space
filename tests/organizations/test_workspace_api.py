@@ -30,9 +30,7 @@ class TestOrganizationWorkspaceAPI(TestCase):
     def _login(self, *, is_owner=True):
         self.client.force_login(self.user)
         session = self.client.session
-        session["organization_data"] = json.dumps(
-            {"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": is_owner}
-        )
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": is_owner})
         session.save()
 
     def test_navigation_returns_counts_and_lightweight_teams(self):
@@ -102,10 +100,7 @@ class TestOrganizationWorkspaceAPI(TestCase):
             sender=self.user,
             invitee_email="expired@example.com",
         )
-        OrganizationInvite.objects.filter(pk=expired_invite.pk).update(
-            created_at=timezone.now()
-            - timedelta(days=OrganizationInvite.expired_in_days + 1)
-        )
+        OrganizationInvite.objects.filter(pk=expired_invite.pk).update(created_at=timezone.now() - timedelta(days=OrganizationInvite.expired_in_days + 1))
         self._login()
 
         response = self.client.get("/api/organization-workspace/navigation/")
@@ -131,7 +126,13 @@ class TestOrganizationWorkspaceAPI(TestCase):
 
     def test_member_detail_includes_team_tags_and_responsibility_state(self):
         employee = User.objects.create_user(username="responsible", password="secret")  # noqa: S106
-        member = baker.make("organizations.OrganizationMember", organization=self.org, user=employee)
+        member = baker.make(
+            "organizations.OrganizationMember",
+            organization=self.org,
+            user=employee,
+            employee_name="吴晨",
+            job_title="招商主管",
+        )
         team = baker.make("teams.Team", organization=self.org, name="资产管理组")
         team.members.add(employee)
         estate = baker.make("house.Estate", organization=self.org)
@@ -143,6 +144,8 @@ class TestOrganizationWorkspaceAPI(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = api_data(response)
         self.assertTrue(payload["has_responsibility"])
+        self.assertEqual(payload["employee_name"], "吴晨")
+        self.assertEqual(payload["job_title"], "招商主管")
         self.assertEqual(payload["teams"], [{"id": team.pk, "name": "资产管理组", "member_count": 1}])
 
     def test_search_deduplicates_member_and_returns_team_tags(self):
@@ -160,3 +163,20 @@ class TestOrganizationWorkspaceAPI(TestCase):
         members = api_data(response)["members"]
         self.assertEqual([item["member_id"] for item in members], [member.pk])
         self.assertEqual({item["name"] for item in members[0]["teams"]}, {"运营一组", "运营二组"})
+
+    def test_search_matches_employee_name_and_job_title(self):
+        employee = User.objects.create_user(username="employee-card", password="secret")  # noqa: S106
+        member = baker.make(
+            "organizations.OrganizationMember",
+            organization=self.org,
+            user=employee,
+            employee_name="周静",
+            job_title="客服主管",
+        )
+        self._login()
+
+        name_response = self.client.get("/api/organization-workspace/search/", {"keyword": "周静"})
+        title_response = self.client.get("/api/organization-workspace/search/", {"keyword": "客服"})
+
+        self.assertEqual([item["member_id"] for item in api_data(name_response)["members"]], [member.pk])
+        self.assertEqual([item["member_id"] for item in api_data(title_response)["members"]], [member.pk])

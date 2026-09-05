@@ -88,7 +88,7 @@ def get_navigation(request):
 @paginate(LegacyPagination)
 def list_workspace_members(
     request,
-    keyword: str | None = Query(None, description="按姓名、用户名或邮箱搜索成员。"),
+    keyword: str | None = Query(None, description="按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。"),
     team_id: int | None = Query(None, description="按可见团队筛选成员。"),
     ungrouped: bool = Query(False, description="仅返回未加入任何当前组织团队的成员。"),
 ):
@@ -96,7 +96,9 @@ def list_workspace_members(
     qs = workspace_members_queryset(request, organization)
     if keyword:
         qs = qs.filter(
-            Q(user__first_name__icontains=keyword)
+            Q(employee_name__icontains=keyword)
+            | Q(job_title__icontains=keyword)
+            | Q(user__first_name__icontains=keyword)
             | Q(user__last_name__icontains=keyword)
             | Q(user__username__icontains=keyword)
             | Q(user__email__icontains=keyword)
@@ -116,21 +118,18 @@ def get_workspace_member(request, member_id: int):
 
 
 @router.get("/search/", response=OrganizationSearchOut, summary="搜索组织架构")
-def search_workspace(request, keyword: str = Query("", description="团队名称、成员姓名、用户名或邮箱。")):
+def search_workspace(request, keyword: str = Query("", description="团队名称、员工姓名、职位、账号姓名、用户名或邮箱。")):
     organization = require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     normalized = keyword.strip()
     if not normalized:
         return {"teams": [], "members": []}
-    teams = (
-        visible_teams_for_request(request, organization)
-        .filter(name__icontains=normalized)
-        .annotate(member_count=Count("members", distinct=True))
-        .order_by("name", "pk")[:10]
-    )
+    teams = visible_teams_for_request(request, organization).filter(name__icontains=normalized).annotate(member_count=Count("members", distinct=True)).order_by("name", "pk")[:10]
     members = (
         workspace_members_queryset(request, organization)
         .filter(
-            Q(user__first_name__icontains=normalized)
+            Q(employee_name__icontains=normalized)
+            | Q(job_title__icontains=normalized)
+            | Q(user__first_name__icontains=normalized)
             | Q(user__last_name__icontains=normalized)
             | Q(user__username__icontains=normalized)
             | Q(user__email__icontains=normalized)

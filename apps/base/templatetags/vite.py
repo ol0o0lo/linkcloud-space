@@ -27,9 +27,7 @@ class ViteSettings:
 
     @property
     def VITE_MANIFEST_FILE(self):
-        return self._get_setting(
-            "VITE_MANIFEST_FILE", settings.STATIC_ROOT.joinpath(self.VITE_OUTPUT_DIR, ".vite", "manifest.json")
-        )
+        return self._get_setting("VITE_MANIFEST_FILE", settings.STATIC_ROOT.joinpath(self.VITE_OUTPUT_DIR, ".vite", "manifest.json"))
 
     @property
     def VITE_SERVER_HOST(self):
@@ -72,9 +70,7 @@ def _get_file_data(filename: str) -> dict[str, str | list[str | None] | bool]:
     js_filename = filename.replace(".css", ".js") if filename.endswith(".css") else filename
     file_data = manifest.get(js_filename)
     if file_data is None:
-        raise Exception(
-            f'The vite asset "{filename}" was not found in the manifest file {vite_settings.VITE_MANIFEST_FILE}.'
-        )
+        raise Exception(f'The vite asset "{filename}" was not found in the manifest file {vite_settings.VITE_MANIFEST_FILE}.')
     return file_data
 
 

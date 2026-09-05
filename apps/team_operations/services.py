@@ -2,7 +2,7 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Case, F, IntegerField, Q, Value, When
+from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.utils import timezone
 
 from apps.notifications.models import Notification
@@ -321,6 +321,13 @@ def daily_dashboard(*, organization, user) -> dict:
     urgent_items = list(
         assignments.filter(status__in=open_statuses).annotate(priority_order=priority_order).order_by(F("task__due_at").asc(nulls_last=True), "priority_order", "-created_at")[:5]
     )
+    counts = assignments.aggregate(
+        pending_acceptance=Count("pk", filter=Q(status=TaskAssignmentStatus.PENDING)),
+        in_progress=Count("pk", filter=Q(status=TaskAssignmentStatus.IN_PROGRESS)),
+        due_today=Count("pk", filter=Q(status__in=open_statuses, task__due_at__date=today)),
+        overdue=Count("pk", filter=Q(status__in=open_statuses, task__due_at__lt=now)),
+        completed_today=Count("pk", filter=Q(status=TaskAssignmentStatus.COMPLETED, completed_at__date=today)),
+    )
     pending_announcements = AnnouncementReceipt.objects.filter(
         announcement__organization=organization,
         announcement__status=AnnouncementStatus.PUBLISHED,
@@ -329,11 +336,7 @@ def daily_dashboard(*, organization, user) -> dict:
         acknowledged_at__isnull=True,
     ).filter(Q(announcement__expires_at__isnull=True) | Q(announcement__expires_at__gt=now))
     return {
-        "pending_acceptance": assignments.filter(status=TaskAssignmentStatus.PENDING).count(),
-        "in_progress": assignments.filter(status=TaskAssignmentStatus.IN_PROGRESS).count(),
-        "due_today": assignments.filter(status__in=open_statuses, task__due_at__date=today).count(),
-        "overdue": assignments.filter(status__in=open_statuses, task__due_at__lt=now).count(),
-        "completed_today": assignments.filter(status=TaskAssignmentStatus.COMPLETED, completed_at__date=today).count(),
+        **counts,
         "unacknowledged_announcements": pending_announcements.distinct().count(),
         "urgent_items": urgent_items,
     }

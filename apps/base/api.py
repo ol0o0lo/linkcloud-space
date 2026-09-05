@@ -142,7 +142,7 @@ def list_enums(request):
         try:
             registry = {key: registry[key] for key in keys.split(",")}
         except KeyError as exc:
-            raise HttpError(400, f"Unknown enum key: {exc.args[0]}") from exc
+            raise HttpError(400, f"未知枚举键：{exc.args[0]}") from exc
 
     return {key: [{"label": str(label), "value": str(value)} for value, label in enum_cls.choices] for key, enum_cls in registry.items()}
 
@@ -225,14 +225,14 @@ def send_test_notification(request, payload: TestNotificationIn):
     """向指定 staff 用户发送测试邮件或站内通知，仅超级管理员可用。"""
     require_superuser(request)
     if not payload.send_email and not payload.send_in_app:
-        raise HttpError(400, "Select at least one notification channel.")
+        raise HttpError(400, "请至少选择一种通知渠道。")
     try:
         recipient = User.objects.get(pk=payload.user_id, is_staff=True)
     except User.DoesNotExist as exc:
-        raise HttpError(400, "Invalid recipient.") from exc
+        raise HttpError(400, "无效的收件人。") from exc
 
     date_time = dateformat.format(now(), settings.SHORT_DATETIME_FORMAT)
-    subject = f"Test Email ({date_time})"
+    subject = f"测试邮件（{date_time}）"
     debug_settings = [
         (name, getattr(settings, name, None))
         for name in (
@@ -260,21 +260,19 @@ def send_test_notification(request, payload: TestNotificationIn):
         if sender_org is not None and not OrganizationMember.objects.filter(user=recipient, organization=sender_org).exists():
             raise HttpError(
                 400,
-                f"{recipient.get_full_name() or recipient.username} isn't a member of "
-                f"{sender_org.name}. Switch to an organization they belong to (or none) "
-                f"to send a personal-scope test notification.",
+                f"{recipient.get_full_name() or recipient.username} 不是 {sender_org.name} 的成员。请切换到该用户所属的组织或不选择组织，再发送个人范围测试通知。",
             )
         notify(
             [recipient],
-            title="Test Notification",
-            body="This is a test notification.",
+            title="测试通知",
+            body="这是一条测试通知。",
             actor=request.user,
             organization=sender_org,
         )
 
     recipient_label = f"{recipient.get_full_name() or recipient.username} ({recipient.email})"
     if payload.send_email and payload.send_in_app:
-        return {"message": f"Email + in-app notification sent to {recipient_label}"}
+        return {"message": f"已向 {recipient_label} 发送邮件和站内通知。"}
     if payload.send_email:
-        return {"message": f"Email sent to {recipient_label}"}
-    return {"message": f"In-app notification sent to {recipient_label}"}
+        return {"message": f"已向 {recipient_label} 发送邮件。"}
+    return {"message": f"已向 {recipient_label} 发送站内通知。"}

@@ -71,7 +71,7 @@ def create_organization(request, payload: OrganizationCreateIn):
 def _selected_owner_org(request, slug: str) -> Organization:
     org = require_org_owner(request)
     if org.slug != slug:
-        raise HttpError(403, "Select this organization before managing it.")
+        raise HttpError(403, "管理该组织前请先切换到此组织。")
     return org
 
 
@@ -118,7 +118,7 @@ def get_organization(request, slug: str):
 def patch_organization(request, slug: str, payload: OrganizationPatchIn):
     """更新当前选中租户的基础资料和账单邮箱。"""
     org = _selected_owner_org(request, slug)
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     for field, value in data.items():
         setattr(org, field, value)
     org.full_clean()
@@ -146,7 +146,7 @@ def transfer_owner(request, slug: str, payload: TransferOwnerIn):
         new_owner = get_object_or_404(OrganizationMember.objects.select_for_update(), organization=org, user_id=payload.user)
         current_owner = get_object_or_404(OrganizationMember.objects.select_for_update(), organization=org, user=request.user)
         if new_owner.user_id == request.user.pk:
-            raise HttpError(400, "The selected user is already the current owner.")
+            raise HttpError(400, "所选用户已经是当前所有者。")
         updated_at = timezone.now()
         new_owner.is_owner = True
         new_owner.updated_at = updated_at
@@ -174,7 +174,7 @@ def select_org(request, slug: str = Path(..., description="租户 slug。")):
     require_authenticated(request)
     org = get_object_or_404(Organization, slug=slug)
     if not org.is_member(request.user):
-        raise HttpError(403, "Not a member.")
+        raise HttpError(403, "该用户不是组织成员。")
     save_org_data(request, org)
     return {"id": org.pk, "slug": org.slug, "name": org.name, "is_owner": org.is_owner(request.user)}
 
@@ -187,7 +187,7 @@ def set_primary(request, slug: str = Path(..., description="租户 slug。")):
     with transaction.atomic():
         membership = OrganizationMember.objects.select_for_update().filter(user=request.user, organization=org).first()
         if membership is None:
-            raise HttpError(403, "Not a member.")
+            raise HttpError(403, "该用户不是组织成员。")
         if membership.is_primary:
             membership.is_primary = False
             membership.save(update_fields=["is_primary"])
@@ -209,13 +209,18 @@ def _members_qs(request):
 
 @members_router.get("/", response=list[MemberOut], summary="获取租户成员列表")
 @paginate(LegacyPagination)
-def list_members(request, keyword: str | None = Query(None, description="按姓名、用户名或邮箱搜索成员。")):
-    """返回当前租户成员列表，支持按姓名、用户名和邮箱搜索。"""
+def list_members(request, keyword: str | None = Query(None, description="按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。")):
+    """返回当前租户成员列表，支持按员工资料和账号资料搜索。"""
     require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     qs = _members_qs(request)
     if keyword:
         qs = qs.filter(
-            Q(user__first_name__icontains=keyword) | Q(user__last_name__icontains=keyword) | Q(user__username__icontains=keyword) | Q(user__email__icontains=keyword)
+            Q(employee_name__icontains=keyword)
+            | Q(job_title__icontains=keyword)
+            | Q(user__first_name__icontains=keyword)
+            | Q(user__last_name__icontains=keyword)
+            | Q(user__username__icontains=keyword)
+            | Q(user__email__icontains=keyword)
         )
     return qs
 
@@ -273,11 +278,20 @@ def patch_member(request, member_id: int, payload: MemberPatchIn):
     require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     membership = get_object_or_404(_members_qs(request), pk=member_id)
     was_owner = membership.is_owner
+    update_fields = []
     if payload.is_owner is not None:
         membership.is_owner = payload.is_owner
-        membership.save(update_fields=["is_owner", "updated_at"])
-        if not was_owner and membership.is_owner:
-            membership.send_owner_email(sending_user=request.user)
+        update_fields.append("is_owner")
+    if payload.employee_name is not None:
+        membership.employee_name = payload.employee_name.strip()
+        update_fields.append("employee_name")
+    if payload.job_title is not None:
+        membership.job_title = payload.job_title.strip()
+        update_fields.append("job_title")
+    if update_fields:
+        membership.save(update_fields=[*update_fields, "updated_at"])
+    if not was_owner and membership.is_owner:
+        membership.send_owner_email(sending_user=request.user)
     return membership
 
 
@@ -287,7 +301,7 @@ def delete_member(request, member_id: int):
     require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
     membership = get_object_or_404(_members_qs(request), pk=member_id)
     if membership.user.pk == request.user.pk:
-        raise HttpError(400, "You're not allowed to remove yourself from the organization.")
+        raise HttpError(400, "不能将自己移出组织。")
     membership.send_removal_email(sending_user=request.user)
     membership.delete()
     return Status(200, {})
@@ -373,7 +387,7 @@ def get_settings(request):
 def update_settings(request, payload: SettingsPatchIn):
     """更新当前租户的基础资料字段。"""
     org = require_org_permission(request, OrganizationPermission.SETTING_MANAGE)
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     for field, value in data.items():
         setattr(org, field, value)
     org.save()
@@ -406,13 +420,13 @@ def accept_invite_by_key(request, key: str = Path(..., description="邀请 key�
     require_authenticated(request)
     invite = get_object_or_404(OrganizationInvite.objects.select_related("organization", "sender"), key=key)
     if invite.is_expired:
-        raise HttpError(410, "This invite has expired.")
+        raise HttpError(410, "该邀请已过期。")
     if invite.invitee_email and invite.invitee_email.lower() != request.user.email.lower():
-        raise HttpError(403, "This invitation was sent to a different email address.")
+        raise HttpError(403, "该邀请不是发送给当前账号邮箱的。")
     if invite.invitee_phone and (not request.user.phone_verified or invite.invitee_phone != request.user.phone):
-        raise HttpError(403, "This invitation was sent to a different phone number.")
+        raise HttpError(403, "该邀请不是发送给当前账号手机号的。")
     if invite.organization.is_member(request.user):
-        raise HttpError(409, "You're already a member of this organization.")
+        raise HttpError(409, "你已经是该组织成员。")
     is_owner = invite.is_owner and invite.organization.is_owner(invite.sender)
     with transaction.atomic():
         from apps.subscriptions.entitlements import EntitlementService
@@ -433,8 +447,8 @@ def decline_invite_by_key(request, key: str = Path(..., description="邀请 key�
     require_authenticated(request)
     invite = get_object_or_404(OrganizationInvite.objects, key=key)
     if invite.invitee_email and invite.invitee_email.lower() != request.user.email.lower():
-        raise HttpError(403, "This invitation was sent to a different email address.")
+        raise HttpError(403, "该邀请不是发送给当前账号邮箱的。")
     if invite.invitee_phone and (not request.user.phone_verified or invite.invitee_phone != request.user.phone):
-        raise HttpError(403, "This invitation was sent to a different phone number.")
+        raise HttpError(403, "该邀请不是发送给当前账号手机号的。")
     invite.delete()
     return {"success": True}

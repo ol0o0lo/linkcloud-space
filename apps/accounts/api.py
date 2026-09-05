@@ -39,9 +39,9 @@ from apps.accounts.schemas import (
     RealNameVerificationDetailOut,
     RealNameVerificationOut,
     ResetMfaOut,
+    SocialBindingsOut,
     SplitPhoneIn,
     SplitPhoneSignupIn,
-    SocialBindingsOut,
     TotpSetupOut,
     UserOut,
     UserPatchIn,
@@ -58,8 +58,10 @@ from apps.accounts.services import (
     set_user_avatar,
     submit_real_name_verification,
 )
-from apps.base.ninja_pagination import make_pagination
+from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_superuser
+from apps.media.models import MediaFile
+from apps.media.services import extract_media_ids
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,19 @@ users_router = Router(tags=["用户/账户"])
 admin_users_router = Router(tags=["用户/管理"])
 real_name_router = Router(tags=["用户/实名"])
 admin_real_name_router = Router(tags=["用户/实名管理"])
+
+
+class AccountsPagination(LegacyPagination):
+    default_page_size = 50
+
+
+class AdminRealNamePagination(AccountsPagination):
+    def paginate_queryset(self, queryset, pagination, **params) -> dict:
+        result = super().paginate_queryset(queryset, pagination, **params)
+        media_ids = {media_id for verification in result["items"] for media_id in extract_media_ids(verification.id_card_media)}
+        media_by_id = MediaFile.objects.in_bulk(media_ids)
+        result["items"] = [serialize_real_name_verification(verification, media_by_id=media_by_id) for verification in result["items"]]
+        return result
 
 
 def _users_qs(request):
@@ -185,9 +200,7 @@ def get_social_bindings(request):
     """返回管理端账号绑定页需要展示的当前用户社交绑定状态。"""
     require_authenticated(request)
 
-    connected_providers = set(
-        SocialAccount.objects.filter(user=request.user, provider__in=["github", "weixin"]).values_list("provider", flat=True)
-    )
+    connected_providers = set(SocialAccount.objects.filter(user=request.user, provider__in=["github", "weixin"]).values_list("provider", flat=True))
     return {
         "items": [
             {
@@ -205,7 +218,7 @@ def get_social_bindings(request):
 
 
 @users_router.get("/", response=list[UserOut], summary="获取用户列表")
-@paginate(make_pagination(default_page_size=50))
+@paginate(AccountsPagination)
 def list_users(request, keyword: str | None = Query(None, description="按用户姓名搜索。")):
     """返回当前租户下可见的用户列表，支持按姓名关键字筛选。"""
     require_authenticated(request)
@@ -220,7 +233,7 @@ def impersonate_search(request, keyword: str = Query("", description="按姓名�
     """供超级管理员搜索可用于 impersonate 的用户候选列表。"""
     require_authenticated(request)
     if not request.user.is_superuser:
-        raise HttpError(403, "Superuser permission required.")
+        raise HttpError(403, "需要超级管理员权限。")
     User = get_user_model()
     qs = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
     keyword = keyword.strip()
@@ -254,9 +267,9 @@ def patch_user(request, user_id: int, payload: UserPatchIn):
     require_authenticated(request)
     user = get_object_or_404(_users_qs(request), pk=user_id)
     if user != request.user:
-        raise HttpError(403, "You can only update your own profile.")
+        raise HttpError(403, "只能更新自己的个人资料。")
     old_tz = user.timezone
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     avatar = data.pop("avatar", None)
     for field, value in data.items():
         setattr(user, field, value)
@@ -305,7 +318,7 @@ def get_totp_setup(request):
     """返回当前用户可用于初始化 TOTP 的密钥和 otpauth URL。"""
     require_authenticated(request)
     if is_mfa_enabled(request.user, [Authenticator.Type.TOTP]):
-        raise HttpError(409, "TOTP is already enabled.")
+        raise HttpError(409, "TOTP 已启用。")
 
     secret = generate_totp_secret()
     return {
@@ -320,7 +333,7 @@ def delete_my_authenticator(request, authenticator_type: str):
     require_authenticated(request)
     deleted, _ = Authenticator.objects.filter(user=request.user, type=authenticator_type).delete()
     if deleted == 0:
-        raise HttpError(404, "Authenticator not found.")
+        raise HttpError(404, "未找到认证器。")
     return Status(200, {})
 
 
@@ -334,15 +347,15 @@ def _prevent_self_admin_lockout(request, user, data: dict):
     if user.pk != request.user.pk:
         return
     if data.get("is_active") is False:
-        raise HttpError(400, "You cannot disable your own account.")
+        raise HttpError(400, "不能停用自己的账号。")
     if data.get("is_staff") is False:
-        raise HttpError(400, "You cannot remove staff access from your own account.")
+        raise HttpError(400, "不能移除自己的后台访问权限。")
     if data.get("is_superuser") is False:
-        raise HttpError(400, "You cannot remove superuser access from your own account.")
+        raise HttpError(400, "不能移除自己的超级管理员权限。")
 
 
 @admin_users_router.get("/", response=list[AdminUserOut], summary="获取后台用户列表")
-@paginate(make_pagination(default_page_size=50))
+@paginate(AccountsPagination)
 def list_admin_users(
     request,
     keyword: str | None = Query(None, description="按姓名、用户名、邮箱、手机号或实名展示搜索。"),
@@ -384,7 +397,7 @@ def create_admin_user(request, payload: AdminUserCreateIn):
     """由超级管理员创建用户，可同时设置角色、手机号和初始密码。"""
     require_superuser(request)
     User = get_user_model()
-    data = payload.dict()
+    data = payload.model_dump()
     password = data.pop("password")
     user = User(**data)
     user.set_password(password)
@@ -397,7 +410,7 @@ def create_admin_user(request, payload: AdminUserCreateIn):
 def patch_admin_user(request, user_id: int, payload: AdminUserPatchIn):
     """由超级管理员更新用户资料、角色与联系方式。"""
     user = _get_admin_user(request, user_id)
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     _prevent_self_admin_lockout(request, user, data)
     for field, value in data.items():
         setattr(user, field, value)
@@ -410,7 +423,7 @@ def patch_admin_user(request, user_id: int, payload: AdminUserPatchIn):
 def patch_user_status(request, user_id: int, payload: UserStatusPatchIn):
     """由超级管理员启用或禁用用户账号；禁止通过该接口禁用自己。"""
     user = _get_admin_user(request, user_id)
-    data = payload.dict()
+    data = payload.model_dump()
     _prevent_self_admin_lockout(request, user, data)
     user.is_active = payload.is_active
     user.full_clean()
@@ -549,7 +562,7 @@ def retry_my_real_name(request, payload: RealNameRetryIn):
 
 
 @admin_real_name_router.get("/", response=list[AdminRealNameVerificationRowOut], summary="获取实名认证记录列表")
-@paginate(make_pagination(default_page_size=50))
+@paginate(AdminRealNamePagination)
 def list_admin_real_name_verifications(
     request,
     keyword: str | None = Query(None, description="按用户名、邮箱、手机号、实名或身份证脱敏值搜索。"),
@@ -569,7 +582,7 @@ def list_admin_real_name_verifications(
             | Q(id_number_masked__icontains=keyword)
         )
 
-    return [serialize_real_name_verification(item) for item in qs]
+    return qs
 
 
 @admin_real_name_router.get("/{verification_id}/", response=RealNameVerificationDetailOut, summary="获取实名认证详情")

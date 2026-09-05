@@ -1,21 +1,63 @@
+from datetime import timedelta
 from decimal import Decimal
 from typing import Literal
+from uuid import UUID
 
+from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Avg, Case, CharField, Count, DecimalField, Exists, F, IntegerField, Max, Min, OuterRef, Prefetch, Q, Subquery, Sum, Value, When
+from django.db.models import (
+    Avg,
+    BooleanField,
+    Case,
+    CharField,
+    Count,
+    DateTimeField,
+    DecimalField,
+    Exists,
+    ExpressionWrapper,
+    F,
+    IntegerField,
+    Max,
+    Min,
+    OuterRef,
+    Prefetch,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce
+from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from ninja import Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
-from apps.access.constants import OrganizationPermission, TeamPermission
+from apps.access.constants import AllocationPermission, OrganizationPermission, TeamPermission
 from apps.access.permissions import require_org_permission, require_team_permission
+from apps.access.services import has_permission
+from apps.allocation.schemas import AllocationRequestOut
 from apps.base.ninja_pagination import LegacyPagination
-from apps.base.permissions import require_org_selected
+from apps.base.permissions import require_authenticated, require_org_selected
+from apps.base.sms import send_invitation_sms
+from apps.house.allocation_services import create_lease_with_allocation, get_lease_allocation, review_lease_allocation, void_lease_allocation
 from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus, ViewingRecordStatus
-from apps.house.models import Building, Contact, Estate, House, Lease, PropertyResponsibility, ViewingRecord
+from apps.house.landlord_invitations import (
+    LANDLORD_INVITATION_VALID_DAYS,
+    LandlordInvitationCacheError,
+    consume_landlord_invitation,
+    create_landlord_invitation,
+    get_landlord_invitation,
+    invitation_action_url,
+    invitation_expires_at,
+    mask_phone,
+    normalize_invitation_phone,
+)
+from apps.house.models import Building, Contact, Estate, House, Lease, LeaseAllocation, PropertyResponsibility, ViewingRecord
 from apps.house.ordering import HOUSE_DEFAULT_ORDERING, HOUSE_ORDERING_DESCRIPTION, HOUSE_ORDERING_PATTERN, apply_house_ordering
 from apps.house.schemas import (
     BuildingIn,
@@ -29,6 +71,7 @@ from apps.house.schemas import (
     ContactIn,
     ContactOut,
     ContactPatchIn,
+    DealSigningWithAllocationIn,
     DefaultBuildingIn,
     DefaultBuildingOut,
     DeleteCheckOut,
@@ -38,17 +81,29 @@ from apps.house.schemas import (
     EstateOut,
     EstatePatchIn,
     HouseIn,
+    HouseInspectionReason,
     HouseOut,
     HousePatchIn,
+    HouseScope,
+    HouseStatusValue,
+    LandlordHouseOut,
+    LandlordInvitationAcceptOut,
+    LandlordInvitationOut,
+    LandlordRelationshipOut,
+    LeaseAllocationOut,
+    LeaseAllocationReviewIn,
+    LeaseAllocationVoidIn,
     LeaseIn,
     LeaseOut,
     LeasePatchIn,
+    LeaseWithAllocationIn,
     PropertyResponsibilityMemberOut,
     PropertyResponsibilitySummaryOut,
     PropertyResponsibilityUpdateIn,
     PublicHouseDetailOut,
     PublicHouseFiltersOut,
     PublicHouseListOut,
+    PublicLandlordProfileOut,
     TagSuggestionsOut,
     VacancySyncIn,
     VacancySyncOut,
@@ -57,6 +112,7 @@ from apps.house.schemas import (
     ViewingRecordPatchIn,
 )
 from apps.house.services import (
+    apply_public_house_filters,
     building_map_counts,
     delete_building,
     delete_estate,
@@ -65,10 +121,15 @@ from apps.house.services import (
     get_building_delete_check,
     get_estate_delete_check,
     get_landlord_houses,
+    get_landlord_houses_for_contact,
     get_landlord_leases,
+    get_landlord_leases_for_contact,
+    get_landlord_relationship_contacts,
     get_org_house_publish_rules,
+    get_org_inspection_max_age_days,
     get_public_houses_queryset,
     get_tag_suggestions,
+    resolve_deal_signing_tenant,
     set_default_building,
     sort_houses_for_building,
 )
@@ -78,6 +139,48 @@ from apps.organizations.models import OrganizationMember
 router = Router(tags=["房源/管理"])
 landlord_router = Router(tags=["房源/房东"])
 public_router = Router(tags=["房源/公开"])
+public_landlord_router = Router(tags=["房源/房东公开店铺"])
+
+
+def _get_public_landlord_contact(public_key: UUID):
+    contact = get_object_or_404(
+        Contact.objects.select_related("organization", "user"),
+        public_key=public_key,
+        is_active=True,
+        organization__is_active=True,
+        user__is_active=True,
+        user__phone_verified=True,
+    )
+    if ContactRole.LANDLORD not in (contact.roles or []) or not contact.user.phone:
+        raise Http404
+    return contact
+
+
+@public_landlord_router.get("/{public_key}/", response=PublicLandlordProfileOut, auth=None, summary="获取房东公开店铺")
+def get_public_landlord_profile(request, public_key: UUID):
+    contact = _get_public_landlord_contact(public_key)
+    user = contact.user
+    return {
+        "public_key": str(contact.public_key),
+        "name": user.get_full_name() or user.username,
+        "avatar": user.avatar_resolved,
+        "phone": user.phone,
+        "organization": contact.organization,
+        "house_count": get_public_houses_queryset().filter(landlord=contact).count(),
+    }
+
+
+@public_landlord_router.get("/{public_key}/houses/", response=list[PublicHouseListOut], auth=None, summary="获取房东店铺公开房源")
+@paginate(LegacyPagination)
+def list_public_landlord_houses(request, public_key: UUID):
+    contact = _get_public_landlord_contact(public_key)
+    return get_public_houses_queryset().filter(landlord=contact)
+
+
+@public_landlord_router.get("/{public_key}/houses/{house_id}/", response=PublicHouseDetailOut, auth=None, summary="获取房东店铺公开房源详情")
+def get_public_landlord_house(request, public_key: UUID, house_id: int):
+    contact = _get_public_landlord_contact(public_key)
+    return get_object_or_404(get_public_houses_queryset().filter(landlord=contact), pk=house_id)
 
 
 @public_router.get("/", response=list[PublicHouseListOut], auth=None, summary="全局搜索公开房源")
@@ -100,52 +203,24 @@ def list_public_houses(
     publisher_slug: str | None = Query(None),
     sort: Literal["latest", "rent_asc", "rent_desc", "area_asc", "area_desc"] = Query("latest"),
 ):
-    qs = get_public_houses_queryset()
-    if keyword:
-        qs = qs.filter(
-            Q(room_number__icontains=keyword)
-            | Q(public_description__icontains=keyword)
-            | Q(building__name__icontains=keyword)
-            | Q(building__address__icontains=keyword)
-            | Q(building__estate__name__icontains=keyword)
-            | Q(building__estate__display_name__icontains=keyword)
-            | Q(building__organization__name__icontains=keyword)
-        )
-    if province:
-        qs = qs.filter(building__estate__province__iexact=province)
-    if city:
-        qs = qs.filter(building__estate__city__iexact=city)
-    if district:
-        qs = qs.filter(building__estate__district__iexact=district)
-    if min_rent is not None:
-        qs = qs.filter(asking_rent__gte=min_rent)
-    if max_rent is not None:
-        qs = qs.filter(asking_rent__lte=max_rent)
-    if min_area is not None:
-        qs = qs.filter(area__gte=min_area)
-    if max_area is not None:
-        qs = qs.filter(area__lte=max_area)
-    if bedrooms is not None:
-        qs = qs.filter(bedrooms=bedrooms)
-    if living_rooms is not None:
-        qs = qs.filter(living_rooms=living_rooms)
-    if decoration:
-        qs = qs.filter(decoration=decoration)
-    if has_elevator_access is not None:
-        qs = qs.filter(has_elevator_access=has_elevator_access)
-    for tag in tags or []:
-        qs = qs.filter(Q(tags__contains=[tag]) | Q(building__tags__contains=[tag]))
-    if publisher_slug:
-        qs = qs.filter(building__organization__slug=publisher_slug)
-
-    ordering = {
-        "latest": ("-updated_at", "-pk"),
-        "rent_asc": (F("asking_rent").asc(nulls_last=True), "-pk"),
-        "rent_desc": (F("asking_rent").desc(nulls_last=True), "-pk"),
-        "area_asc": (F("area").asc(nulls_last=True), "-pk"),
-        "area_desc": (F("area").desc(nulls_last=True), "-pk"),
-    }
-    return qs.order_by(*ordering[sort])
+    return apply_public_house_filters(
+        get_public_houses_queryset(),
+        keyword=keyword,
+        province=province,
+        city=city,
+        district=district,
+        min_rent=min_rent,
+        max_rent=max_rent,
+        min_area=min_area,
+        max_area=max_area,
+        bedrooms=bedrooms,
+        living_rooms=living_rooms,
+        decoration=decoration,
+        has_elevator_access=has_elevator_access,
+        tags=tags,
+        publisher_slug=publisher_slug,
+        sort=sort,
+    )
 
 
 @public_router.get("/filters/", response=PublicHouseFiltersOut, auth=None, summary="获取公开房源筛选项")
@@ -185,7 +260,7 @@ def get_property_rental_tag_suggestions(request):
 @router.post("/vacancy-sync/", response=VacancySyncOut, summary="预览或执行房表空置同步")
 def vacancy_sync(request, payload: VacancySyncIn):
     org = require_org_selected(request)
-    building_overrides = [item.dict() for item in payload.building_overrides]
+    building_overrides = [item.model_dump() for item in payload.building_overrides]
     if payload.mode == "preview":
         return build_vacancy_sync_plan(
             org,
@@ -202,19 +277,29 @@ def vacancy_sync(request, payload: VacancySyncIn):
     )
 
 
-def _inventory_annotations(house_lookup: str):
+def _inventory_annotations(house_lookup: str, scope_filter: Q | None = None):
     active_houses = Q(**{f"{house_lookup}__status__in": HOUSE_ACTIVE_STATUSES})
+    if scope_filter is not None:
+        active_houses &= scope_filter
     return {
-        "inventory_total": Count(house_lookup, filter=active_houses),
-        "inventory_vacant": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.VACANT})),
-        "inventory_listed": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.LISTED})),
-        "inventory_rented": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENTED})),
-        "inventory_renovating": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENOVATING})),
+        "inventory_total": Count(house_lookup, filter=active_houses, distinct=True),
+        "inventory_vacant": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.VACANT}), distinct=True),
+        "inventory_listed": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.LISTED}), distinct=True),
+        "inventory_rented": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENTED}), distinct=True),
+        "inventory_renovating": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENOVATING}), distinct=True),
     }
 
 
+def _houses_in_scope(org, user, scope: HouseScope | None):
+    qs = House.objects.filter(building__organization=org)
+    if scope == "mine":
+        member = get_object_or_404(OrganizationMember, organization=org, user=user)
+        qs = _filter_responsible_houses(qs, org, member.pk)
+    return qs
+
+
 def _patch(obj, payload):
-    for field, value in payload.dict(exclude_unset=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(obj, field, value)
     obj.save()
     return obj
@@ -226,6 +311,20 @@ def _get_house_in_org(house_id: int, org):
 
 def _get_contact_in_org(contact_id: int, org):
     return get_object_or_404(Contact, pk=contact_id, organization=org)
+
+
+def _get_landlord_contact_for_user(request, contact_id: int):
+    require_authenticated(request)
+    contact = get_object_or_404(
+        Contact.objects.select_related("organization"),
+        pk=contact_id,
+        user=request.user,
+        is_active=True,
+        organization__is_active=True,
+    )
+    if ContactRole.LANDLORD not in (contact.roles or []):
+        raise Http404
+    return contact
 
 
 def _get_contact_for_new_business(contact_id: int, org, role: str):
@@ -269,6 +368,20 @@ def _filter_responsible_houses(qs, org, member_id):
             )
         )
         .distinct()
+    )
+
+
+def _annotate_house_inspection_state(qs, org):
+    max_age_days = get_org_inspection_max_age_days(org)
+    cutoff = timezone.now() - timedelta(days=max_age_days)
+    return qs.annotate(
+        inspection_due_at=ExpressionWrapper(F("updated_at") + timedelta(days=max_age_days), output_field=DateTimeField()),
+        inspection_max_age_days=Value(max_age_days, output_field=IntegerField()),
+        inspection_expired=Case(
+            When(updated_at__lt=cutoff, then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        ),
     )
 
 
@@ -368,16 +481,20 @@ def replace_staff_responsibilities(request, member_id: int, payload: PropertyRes
 
 @router.get("/estates/", response=list[EstateDetailOut], summary="获取项目片区列表")
 @paginate(LegacyPagination)
-def list_estates(request, keyword: str | None = Query(None)):
+def list_estates(request, keyword: str | None = Query(None), scope: HouseScope | None = Query(None)):
     org = require_org_selected(request)
+    scoped_houses = _houses_in_scope(org, request.user, scope)
+    scope_filter = Q(buildings__houses__in=scoped_houses) if scope == "mine" else None
     qs = (
         Estate.objects.filter(organization=org)
         .annotate(
-            building_count=Count("buildings", distinct=True),
-            **_inventory_annotations("buildings__houses"),
+            building_count=Count("buildings", filter=scope_filter, distinct=True),
+            **_inventory_annotations("buildings__houses", scope_filter),
         )
         .order_by("name", "id")
     )
+    if scope == "mine":
+        qs = qs.filter(buildings__houses__in=scoped_houses).distinct()
     if keyword:
         qs = qs.filter(Q(name__icontains=keyword) | Q(display_name__icontains=keyword))
     return qs
@@ -386,7 +503,7 @@ def list_estates(request, keyword: str | None = Query(None)):
 @router.post("/estates/", response={201: EstateOut}, summary="创建项目片区")
 def create_estate(request, payload: EstateIn):
     org = require_org_selected(request)
-    estate = Estate.objects.create(organization=org, **payload.dict())
+    estate = Estate.objects.create(organization=org, **payload.model_dump())
     return Status(201, estate)
 
 
@@ -419,20 +536,29 @@ def delete_estate_endpoint(request, estate_id: int):
 
 @router.get("/buildings/", response=list[BuildingInventoryOut], summary="获取楼栋列表")
 @paginate(LegacyPagination)
-def list_buildings(request, estate_id: int | None = Query(None), keyword: str | None = Query(None)):
+def list_buildings(
+    request,
+    estate_id: int | None = Query(None),
+    keyword: str | None = Query(None),
+    scope: HouseScope | None = Query(None),
+):
     org = require_org_selected(request)
-    qs = Building.objects.filter(organization=org).select_related("estate").annotate(**_inventory_annotations("houses")).order_by("estate__name", "name")
+    scoped_houses = _houses_in_scope(org, request.user, scope)
+    scope_filter = Q(houses__in=scoped_houses) if scope == "mine" else None
+    qs = Building.objects.filter(organization=org).select_related("estate").annotate(**_inventory_annotations("houses", scope_filter)).order_by("estate__name", "name")
+    if scope == "mine":
+        qs = qs.filter(houses__in=scoped_houses).distinct()
     if estate_id:
         qs = qs.filter(estate_id=estate_id)
     if keyword:
-        qs = qs.filter(Q(name__icontains=keyword) | Q(estate__name__icontains=keyword) | Q(estate__display_name__icontains=keyword))
+        qs = qs.filter(Q(name__icontains=keyword) | Q(address__icontains=keyword) | Q(estate__name__icontains=keyword) | Q(estate__display_name__icontains=keyword))
     return qs
 
 
 @router.post("/buildings/", response={201: BuildingOut}, summary="创建楼栋")
 def create_building(request, payload: BuildingIn):
     org = require_org_selected(request)
-    data = payload.dict()
+    data = payload.model_dump()
     estate_id = data.pop("estate_id")
     estate = get_object_or_404(Estate, pk=estate_id, organization=org) if estate_id is not None else None
     building = Building.objects.create(organization=org, estate=estate, **data)
@@ -453,7 +579,7 @@ def check_building_delete(request, building_id: int):
 @router.patch("/buildings/{building_id}/", response=BuildingOut, summary="更新楼栋")
 def patch_building(request, building_id: int, payload: BuildingPatchIn):
     building = get_building(request, building_id)
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     if "estate_id" in data:
         estate_id = data.pop("estate_id")
         building.estate = get_object_or_404(Estate, pk=estate_id, organization=building.organization) if estate_id is not None else None
@@ -721,7 +847,7 @@ def list_contacts(request, role: str | None = Query(None), task: str | None = Qu
 @router.post("/contacts/", response={201: ContactOut}, summary="创建联系人")
 def create_contact(request, payload: ContactIn):
     org = require_org_selected(request)
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     contact = Contact.objects.create(organization=org, **data)
     return Status(201, contact)
 
@@ -734,12 +860,42 @@ def get_contact(request, contact_id: int):
 
 @router.patch("/contacts/{contact_id}/", response=ContactOut, summary="更新联系人")
 def patch_contact(request, contact_id: int, payload: ContactPatchIn):
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     contact = get_contact(request, contact_id)
     for field, value in data.items():
         setattr(contact, field, value)
     contact.save()
     return contact
+
+
+@router.post("/contacts/{contact_id}/landlord-invite/", response=LandlordInvitationOut, summary="邀请房东绑定账号")
+def invite_landlord_contact(request, contact_id: int, delivery_method: Literal["sms", "manual"] = Query("sms")):
+    org = require_org_selected(request)
+    contact = _get_contact_in_org(contact_id, org)
+    if not contact.is_active:
+        raise HttpError(422, "已停用联系人不能邀请房东。")
+    if ContactRole.LANDLORD not in (contact.roles or []):
+        raise HttpError(422, "联系人必须具备房东角色。")
+    if contact.user_id:
+        raise HttpError(409, "该房东联系人已绑定账号。")
+    try:
+        normalize_invitation_phone(contact.phone)
+        invitation = create_landlord_invitation(contact=contact, inviter=request.user)
+    except ValueError as err:
+        raise HttpError(422, str(err)) from err
+    except LandlordInvitationCacheError as err:
+        raise HttpError(503, str(err)) from err
+
+    action_url = invitation_action_url(invitation["token"])
+    if delivery_method == "sms":
+        send_invitation_sms(invitation["phone"], action_url, LANDLORD_INVITATION_VALID_DAYS)
+    return {
+        "organization_name": org.name,
+        "contact_name": contact.name,
+        "invitee_phone_masked": mask_phone(invitation["phone"]),
+        "expires_at": invitation_expires_at(invitation),
+        "action_url": action_url,
+    }
 
 
 @router.get("/houses/", response=list[HouseOut], summary="获取房源列表")
@@ -749,7 +905,11 @@ def list_houses(
     estate_id: int | None = Query(None),
     building_id: int | None = Query(None),
     responsible_member_id: int | None = Query(None),
-    status: str | None = Query(None),
+    scope: HouseScope | None = Query(None),
+    responsibility: Literal["mine"] | None = Query(None),
+    inspection_due: bool = Query(False),
+    inspection_reason: HouseInspectionReason | None = Query(None),
+    status: HouseStatusValue | None = Query(None),
     keyword: str | None = Query(None),
     ordering: str = Query(
         HOUSE_DEFAULT_ORDERING,
@@ -759,15 +919,34 @@ def list_houses(
     ),
 ):
     org = require_org_selected(request)
+    if scope == "all" and responsibility == "mine":
+        raise HttpError(422, "scope=all 与 responsibility=mine 不能同时使用")
+    effective_scope = scope or ("mine" if responsibility == "mine" else "all")
+    if effective_scope == "mine" and responsible_member_id is not None:
+        raise HttpError(422, "scope=mine 与 responsible_member_id 不能同时使用")
     qs = House.objects.filter(building__organization=org).select_related("building__estate", "landlord")
     if estate_id:
         qs = qs.filter(building__estate_id=estate_id)
     if building_id:
         qs = qs.filter(building_id=building_id)
-    if responsible_member_id:
+    if responsible_member_id is not None:
         member = get_object_or_404(OrganizationMember, pk=responsible_member_id, organization=org)
         qs = _filter_responsible_houses(qs, org, member.pk)
-    qs = qs.filter(status=status) if status else qs.exclude(status=HouseStatus.INACTIVE)
+    if effective_scope == "mine":
+        member = get_object_or_404(OrganizationMember, organization=org, user=request.user)
+        qs = _filter_responsible_houses(qs, org, member.pk)
+    if inspection_due or inspection_reason:
+        qs = _annotate_house_inspection_state(qs, org)
+    if inspection_due:
+        qs = qs.filter(Q(images=[]) | Q(videos=[]) | Q(inspection_expired=True))
+    if inspection_reason == "missing_images":
+        qs = qs.filter(images=[])
+    elif inspection_reason == "missing_videos":
+        qs = qs.filter(videos=[])
+    elif inspection_reason == "expired":
+        qs = qs.filter(inspection_expired=True)
+    if status:
+        qs = qs.filter(status=status)
     if keyword:
         qs = qs.filter(
             Q(room_number__icontains=keyword)
@@ -787,7 +966,7 @@ def create_house(request, payload: HouseIn):
 
     EntitlementService.check_can_add(org, "house")
     building = get_object_or_404(Building, pk=payload.building_id, organization=org)
-    data = payload.dict()
+    data = payload.model_dump()
     data.pop("building_id")
     landlord_id = data.pop("landlord_id", None)
     landlord = _get_contact_for_new_business(landlord_id, org, ContactRole.LANDLORD) if landlord_id is not None else None
@@ -807,7 +986,8 @@ def get_house(request, house_id: int):
 def patch_house(request, house_id: int, payload: HousePatchIn):
     house = get_house(request, house_id)
     previous_status = house.status
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
+    data.pop("confirm_current", False)
     building_id = data.pop("building_id", None)
     if building_id is not None:
         house.building = get_object_or_404(Building, pk=building_id, organization=house.organization)
@@ -879,7 +1059,7 @@ def get_viewing_record(request, record_id: int):
 @router.post("/viewing-records/", response={201: ViewingRecordOut}, summary="创建带看记录")
 def create_viewing_record(request, payload: ViewingRecordIn):
     org = require_org_selected(request)
-    data = payload.dict()
+    data = payload.model_dump()
     house_id = data.pop("house_id")
     contact_id = data.pop("contact_id", None)
     _validate_assignee_in_org(data.get("assigned_to_id"), org)
@@ -894,7 +1074,7 @@ def create_viewing_record(request, payload: ViewingRecordIn):
 def patch_viewing_record(request, record_id: int, payload: ViewingRecordPatchIn):
     org = require_org_selected(request)
     record = get_object_or_404(ViewingRecord.objects.select_related("house__building__estate", "contact", "assigned_to"), pk=record_id, organization=org)
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     if "house_id" in data:
         record.house = _get_house_in_org(data.pop("house_id"), org)
     if "contact_id" in data:
@@ -943,7 +1123,7 @@ def list_leases(
 @router.post("/leases/", response={201: LeaseOut}, summary="创建租约")
 def create_lease(request, payload: LeaseIn):
     org = require_org_selected(request)
-    data = payload.dict()
+    data = payload.model_dump()
     house_id = data.pop("house_id")
     tenant_id = data.pop("tenant_id")
     source_viewing_record_id = data.pop("source_viewing_record_id", None)
@@ -955,16 +1135,158 @@ def create_lease(request, payload: LeaseIn):
     return Status(201, lease)
 
 
+def _create_lease_allocation_from_payload(request, payload: LeaseWithAllocationIn):
+    org = require_org_permission(request, AllocationPermission.SUBMIT)
+    beneficiary_user_ids = sorted(set(payload.beneficiary_user_ids))
+    if not has_permission(request.user, org, AllocationPermission.CHANGE_BENEFICIARIES) and beneficiary_user_ids != [request.user.pk]:
+        raise PermissionDenied("你没有修改收益受益人的权限。")
+
+    lease_data = payload.lease.model_dump()
+    house_id = lease_data.pop("house_id")
+    tenant_id = lease_data.pop("tenant_id")
+    source_viewing_record_id = lease_data.pop("source_viewing_record_id", None)
+    lease_data["house"] = _get_house_in_org(house_id, org)
+    lease_data["tenant"] = _get_contact_for_new_business(tenant_id, org, ContactRole.TENANT)
+    if source_viewing_record_id is not None:
+        lease_data["source_viewing_record"] = _get_viewing_record_in_org(source_viewing_record_id, org)
+    return create_lease_with_allocation(
+        organization=org,
+        submitted_by=request.user,
+        lease_data=lease_data,
+        beneficiary_user_ids=beneficiary_user_ids,
+        team_id=payload.team_id,
+    )
+
+
+@transaction.atomic
+def _create_deal_signing_allocation_from_payload(request, payload: DealSigningWithAllocationIn):
+    org = require_org_permission(request, AllocationPermission.SUBMIT)
+    beneficiary_user_ids = sorted(set(payload.beneficiary_user_ids))
+    if not has_permission(request.user, org, AllocationPermission.CHANGE_BENEFICIARIES) and beneficiary_user_ids != [request.user.pk]:
+        raise PermissionDenied("你没有修改收益受益人的权限。")
+
+    lease_data = payload.lease.model_dump()
+    house_id = lease_data.pop("house_id")
+    tenant_id = lease_data.pop("tenant_id")
+    tenant_identity = lease_data.pop("tenant_identity")
+    source_viewing_record_id = lease_data.pop("source_viewing_record_id", None)
+    lease_data["house"] = _get_house_in_org(house_id, org)
+    if tenant_id is not None:
+        lease_data["tenant"] = _get_contact_for_new_business(tenant_id, org, ContactRole.TENANT)
+    else:
+        lease_data["tenant"] = resolve_deal_signing_tenant(organization=org, **tenant_identity)
+    if source_viewing_record_id is not None:
+        lease_data["source_viewing_record"] = _get_viewing_record_in_org(source_viewing_record_id, org)
+    return create_lease_with_allocation(
+        organization=org,
+        submitted_by=request.user,
+        lease_data=lease_data,
+        beneficiary_user_ids=beneficiary_user_ids,
+        team_id=payload.team_id,
+    )
+
+
+@router.post("/leases/deal-signing/", response={201: LeaseAllocationOut}, summary="登记签约并提交收益分配申请")
+def deal_signing(request, payload: DealSigningWithAllocationIn):
+    return Status(201, _create_deal_signing_allocation_from_payload(request, payload))
+
+
+@router.post("/leases/with-allocation/", response={201: LeaseAllocationOut}, summary="创建租约并提交收益分配申请")
+def create_lease_and_allocation(request, payload: LeaseWithAllocationIn):
+    return Status(201, _create_lease_allocation_from_payload(request, payload))
+
+
+@router.get("/lease-allocations/", response=list[LeaseAllocationOut], summary="获取租约收益分配申请列表")
+@paginate(LegacyPagination)
+def list_lease_allocations(
+    request,
+    status: str | None = Query(None),
+    keyword: str | None = Query(None),
+    submitted_by_id: int | None = Query(None),
+    beneficiary_user_id: int | None = Query(None),
+):
+    org = require_org_selected(request)
+    if not OrganizationMember.objects.filter(organization=org, user=request.user, user__is_active=True).exists():
+        raise PermissionDenied("你不是当前组织的有效成员。")
+    qs = (
+        LeaseAllocation.objects.filter(lease__organization=org)
+        .select_related(
+            "lease__house__building__estate",
+            "lease__tenant",
+            "lease__source_viewing_record",
+            "allocation_request__organization",
+            "allocation_request__team",
+            "allocation_request__submitted_by",
+            "allocation_request__reviewed_by",
+            "allocation_request__voided_by",
+        )
+        .prefetch_related("allocation_request__items", "allocation_request__shares__beneficiary_user")
+        .order_by("-allocation_request__submitted_at", "-pk")
+    )
+    if not has_permission(request.user, org, AllocationPermission.VIEW):
+        qs = qs.filter(Q(allocation_request__submitted_by=request.user) | Q(allocation_request__shares__beneficiary_user=request.user)).distinct()
+    if status:
+        qs = qs.filter(allocation_request__status=status)
+    if submitted_by_id:
+        qs = qs.filter(allocation_request__submitted_by_id=submitted_by_id)
+    if beneficiary_user_id:
+        qs = qs.filter(allocation_request__shares__beneficiary_user_id=beneficiary_user_id).distinct()
+    if keyword:
+        qs = qs.filter(
+            Q(lease__house__room_number__icontains=keyword)
+            | Q(lease__house__building__name__icontains=keyword)
+            | Q(lease__house__building__estate__name__icontains=keyword)
+            | Q(lease__house__building__estate__display_name__icontains=keyword)
+            | Q(lease__tenant__name__icontains=keyword)
+            | Q(allocation_request__submitted_by_name_snapshot__icontains=keyword)
+            | Q(allocation_request__shares__beneficiary_name_snapshot__icontains=keyword)
+        ).distinct()
+    return qs
+
+
 @router.get("/leases/{lease_id}/", response=LeaseOut, summary="获取租约详情")
 def get_lease(request, lease_id: int):
     org = require_org_selected(request)
     return get_object_or_404(Lease.objects.select_related("house__building__estate", "tenant", "source_viewing_record"), pk=lease_id, organization=org)
 
 
+@router.get("/leases/{lease_id}/allocation/", response=LeaseAllocationOut, summary="获取租约收益分配申请")
+def get_lease_allocation_request(request, lease_id: int):
+    org = require_org_selected(request)
+    if not OrganizationMember.objects.filter(organization=org, user=request.user, user__is_active=True).exists():
+        raise PermissionDenied("你不是当前组织的有效成员。")
+    link = get_lease_allocation(organization=org, lease_id=lease_id)
+    allocation_request = link.allocation_request
+    can_view = has_permission(request.user, org, AllocationPermission.VIEW) or allocation_request.submitted_by_id == request.user.pk
+    if not can_view:
+        can_view = allocation_request.shares.filter(beneficiary_user=request.user).exists()
+    if not can_view:
+        raise PermissionDenied("你没有查看该收益申请的权限。")
+    return link
+
+
+@router.post("/leases/{lease_id}/allocation/review/", response=AllocationRequestOut, summary="审核租约收益分配申请")
+def review_lease_allocation_request(request, lease_id: int, payload: LeaseAllocationReviewIn):
+    org = require_org_permission(request, AllocationPermission.REVIEW)
+    return review_lease_allocation(
+        organization=org,
+        lease_id=lease_id,
+        reviewer=request.user,
+        approved=payload.decision == "approve",
+        reason=payload.reason,
+    )
+
+
+@router.post("/leases/{lease_id}/allocation/void/", response=AllocationRequestOut, summary="作废租约收益分配申请")
+def void_lease_allocation_request(request, lease_id: int, payload: LeaseAllocationVoidIn):
+    org = require_org_permission(request, AllocationPermission.VOID)
+    return void_lease_allocation(organization=org, lease_id=lease_id, actor=request.user, reason=payload.reason)
+
+
 @router.patch("/leases/{lease_id}/", response=LeaseOut, summary="更新租约")
 def patch_lease(request, lease_id: int, payload: LeasePatchIn):
     lease = get_lease(request, lease_id)
-    data = payload.dict(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True)
     if "house_id" in data:
         lease.house = _get_house_in_org(data.pop("house_id"), lease.organization)
     if "tenant_id" in data:
@@ -992,3 +1314,110 @@ def list_my_houses(request):
 def list_my_leases(request):
     org = require_org_selected(request)
     return get_landlord_leases(request.user, org)
+
+
+@landlord_router.get("/invites/{token}/", response=LandlordInvitationOut, auth=None, summary="查询房东邀请")
+def get_landlord_invite(request, token: str):
+    try:
+        invitation = get_landlord_invitation(token)
+    except LandlordInvitationCacheError as err:
+        raise HttpError(503, str(err)) from err
+    if invitation is None:
+        raise HttpError(404, "邀请无效或已过期。")
+
+    contact = get_object_or_404(
+        Contact.objects.select_related("organization"),
+        pk=invitation["contact_id"],
+        organization_id=invitation["organization_id"],
+        is_active=True,
+    )
+    if ContactRole.LANDLORD not in (contact.roles or []):
+        raise Http404
+    return {
+        "organization_name": contact.organization.name,
+        "contact_name": contact.name,
+        "invitee_phone_masked": mask_phone(invitation["phone"]),
+        "expires_at": invitation_expires_at(invitation),
+    }
+
+
+@landlord_router.post("/invites/{token}/accept/", response=LandlordInvitationAcceptOut, summary="接受房东邀请")
+def accept_landlord_invite(request, token: str):
+    require_authenticated(request)
+    try:
+        invitation = get_landlord_invitation(token)
+    except LandlordInvitationCacheError as err:
+        raise HttpError(503, str(err)) from err
+    if invitation is None:
+        raise HttpError(404, "邀请无效或已过期。")
+
+    with transaction.atomic():
+        contact = get_object_or_404(
+            Contact.objects.select_for_update().select_related("organization"),
+            pk=invitation["contact_id"],
+            organization_id=invitation["organization_id"],
+            is_active=True,
+        )
+        if ContactRole.LANDLORD not in (contact.roles or []):
+            raise Http404
+        if contact.user_id and contact.user_id != request.user.pk:
+            raise HttpError(409, "该房东联系人已绑定其他账号。")
+        if not contact.user_id:
+            if not request.user.phone_verified or not request.user.phone:
+                raise HttpError(403, "请先验证受邀手机号。")
+            try:
+                user_phone = normalize_invitation_phone(request.user.phone)
+                contact_phone = normalize_invitation_phone(contact.phone)
+            except ValueError as err:
+                raise HttpError(403, "当前账号手机号与房东联系人手机号不一致。") from err
+            if user_phone != contact_phone or user_phone != invitation["phone"]:
+                raise HttpError(403, "当前账号手机号与房东联系人手机号不一致。")
+            contact.user = request.user
+        contact.ensure_public_key()
+        contact.save(update_fields=["user", "public_key", "updated_at"])
+        result = {
+            "contact_id": contact.pk,
+            "organization_id": contact.organization_id,
+            "organization_name": contact.organization.name,
+            "public_key": str(contact.public_key),
+        }
+        transaction.on_commit(lambda: consume_landlord_invitation(invitation))
+    return result
+
+
+@landlord_router.get("/relationships/", response=list[LandlordRelationshipOut], summary="获取房东绑定关系")
+def list_landlord_relationships(request):
+    require_authenticated(request)
+    relationships = []
+    for contact in get_landlord_relationship_contacts(request.user):
+        if contact.public_key is None:
+            contact.ensure_public_key()
+            contact.save(update_fields=["public_key", "updated_at"])
+        relationships.append(
+            {
+                "contact_id": contact.pk,
+                "organization_id": contact.organization_id,
+                "organization_name": contact.organization.name,
+                "organization_slug": contact.organization.slug,
+                "contact_name": contact.name,
+                "house_count": contact.house_count,
+                "public_house_count": contact.public_house_count,
+                "public_key": str(contact.public_key),
+                "public_url": f"{settings.SITE_URL}/dashboard/landlords/{contact.public_key}",
+            }
+        )
+    return relationships
+
+
+@landlord_router.get("/contacts/{contact_id}/houses/", response=list[LandlordHouseOut], summary="按房东关系查询房源")
+@paginate(LegacyPagination)
+def list_landlord_contact_houses(request, contact_id: int):
+    contact = _get_landlord_contact_for_user(request, contact_id)
+    return get_landlord_houses_for_contact(contact)
+
+
+@landlord_router.get("/contacts/{contact_id}/leases/", response=list[LeaseOut], summary="按房东关系查询租约")
+@paginate(LegacyPagination)
+def list_landlord_contact_leases(request, contact_id: int):
+    contact = _get_landlord_contact_for_user(request, contact_id)
+    return get_landlord_leases_for_contact(contact)

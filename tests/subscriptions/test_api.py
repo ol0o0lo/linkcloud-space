@@ -1,12 +1,14 @@
 import json
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
 from model_bakery import baker
 
 from apps.accounts.models import User
-from apps.subscriptions.constants import BillingCycle, OrderStatus, PaymentMode
-from apps.subscriptions.models import Plan, PlanEntitlement, PlanPrice
+from apps.subscriptions.api import _serialize_order
+from apps.subscriptions.constants import BillingCycle, OrderCloseReason, OrderStatus, PaymentMode
+from apps.subscriptions.models import InvoiceRequest, Plan, PlanEntitlement, PlanPrice, SaaSOrder, SubscriptionAuditLog
 from tests.api_helpers import api_data
 
 
@@ -109,6 +111,74 @@ class SubscriptionAPITest(TestCase):
         self.assertEqual([item["id"] for item in data["items"]], [paid_order.pk])
         self.assertEqual(data["items"][0]["status"], OrderStatus.PAID)
 
+    def test_order_list_only_serializes_the_requested_page(self):
+        professional = Plan.objects.get(code="professional")
+        baker.make(
+            "subscriptions.SaaSOrder",
+            _quantity=2,
+            organization=self.organization,
+            target_plan=professional,
+            status=OrderStatus.PAID,
+            plan_snapshot={"code": professional.code},
+        )
+
+        with patch("apps.subscriptions.api._serialize_order", wraps=_serialize_order) as serialize_order:
+            response = self.client.get("/api/subscriptions/orders/?page=1&page_size=1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(api_data(response)["total"], 2)
+        self.assertEqual(serialize_order.call_count, 1)
+
+    def test_owner_can_cancel_pending_order_and_schedule_wechat_close(self):
+        professional = Plan.objects.get(code="professional")
+        order = baker.make(
+            SaaSOrder,
+            organization=self.organization,
+            target_plan=professional,
+            order_no="LC-CANCEL-001",
+            status=OrderStatus.PENDING_PAYMENT,
+        )
+
+        with (
+            patch("apps.subscriptions.tasks.close_saas_order_in_wechat_task.delay") as close_payment_task,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            response = self.client.post(f"/api/subscriptions/orders/{order.order_no}/cancel/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(api_data(response)["status"], OrderStatus.CLOSED)
+        self.assertEqual(api_data(response)["close_reason"], OrderCloseReason.USER_CANCELLED)
+        order.refresh_from_db()
+        self.assertEqual(order.status, OrderStatus.CLOSED)
+        self.assertEqual(order.close_reason, OrderCloseReason.USER_CANCELLED)
+        self.assertIsNotNone(order.closed_at)
+        close_payment_task.assert_called_once_with(order.pk)
+        self.assertTrue(
+            SubscriptionAuditLog.objects.filter(
+                action="order_cancelled",
+                actor=self.user,
+                organization=self.organization,
+                target_id=order.pk,
+                after={"close_reason": OrderCloseReason.USER_CANCELLED},
+            ).exists()
+        )
+
+    def test_paid_order_cannot_be_cancelled(self):
+        professional = Plan.objects.get(code="professional")
+        order = baker.make(
+            SaaSOrder,
+            organization=self.organization,
+            target_plan=professional,
+            order_no="LC-CANCEL-PAID",
+            status=OrderStatus.PAID,
+        )
+
+        response = self.client.post(f"/api/subscriptions/orders/{order.order_no}/cancel/")
+
+        self.assertEqual(response.status_code, 400)
+        order.refresh_from_db()
+        self.assertEqual(order.status, OrderStatus.PAID)
+
     @override_settings(PAYMENTS_TEST_AMOUNT_CENTS=1)
     def test_test_amount_only_overrides_order_amount(self):
         catalog = api_data(self.client.get("/api/subscriptions/plans/"))
@@ -128,3 +198,53 @@ class SubscriptionAPITest(TestCase):
         )
 
         self.assertEqual(api_data(response)["payable_amount"], 1)
+
+
+class SubscriptionAdminAPITest(TestCase):
+    def setUp(self):
+        self.admin = baker.make(User, is_superuser=True, is_staff=True)
+        self.organization = baker.make(
+            "organizations.Organization",
+            name="链云测试空间",
+            slug="linkcloud-test-space",
+        )
+        self.plan = Plan.objects.create(code="professional", name="专业版", display_order=30)
+        self.order = baker.make(
+            "subscriptions.SaaSOrder",
+            organization=self.organization,
+            target_plan=self.plan,
+            order_no="LC202608300001",
+            status=OrderStatus.PAID,
+            plan_snapshot={"code": self.plan.code, "name": self.plan.name},
+        )
+        self.invoice_request = InvoiceRequest.objects.create(
+            order=self.order,
+            profile_snapshot={"title": "链云测试科技有限公司"},
+            created_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+    def test_admin_order_rows_include_organization_and_plan_identity(self):
+        response = self.client.get("/api/admin/subscriptions/orders/?page=1&page_size=10")
+
+        self.assertEqual(response.status_code, 200)
+        item = api_data(response)["items"][0]
+        self.assertEqual(item["organization_id"], self.organization.pk)
+        self.assertEqual(item["organization_name"], "链云测试空间")
+        self.assertEqual(item["organization_slug"], "linkcloud-test-space")
+        self.assertEqual(item["order_no"], "LC202608300001")
+        self.assertEqual(item["target_plan_code"], "professional")
+        self.assertEqual(item["target_plan_name"], "专业版")
+
+    def test_admin_invoice_rows_include_organization_and_order_identity(self):
+        response = self.client.get("/api/admin/subscriptions/invoice-requests/?page=1&page_size=10")
+
+        self.assertEqual(response.status_code, 200)
+        item = api_data(response)["items"][0]
+        self.assertEqual(item["id"], self.invoice_request.pk)
+        self.assertEqual(item["organization_id"], self.organization.pk)
+        self.assertEqual(item["organization_name"], "链云测试空间")
+        self.assertEqual(item["organization_slug"], "linkcloud-test-space")
+        self.assertEqual(item["order_no"], "LC202608300001")
+        self.assertEqual(item["target_plan_code"], "professional")
+        self.assertEqual(item["target_plan_name"], "专业版")

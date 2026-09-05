@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
@@ -15,6 +16,7 @@ from apps.house.constants import (
     ContactRole,
     EstatePropertyType,
     HouseDecoration,
+    HouseMatchMode,
     HouseOrientation,
     HouseStatus,
     LeaseStatus,
@@ -51,18 +53,18 @@ def validate_coordinates(*, address: str, lat: Decimal | None, lng: Decimal | No
 
 
 class Estate(CreateUpdateTimeModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="estates")
-    name = models.CharField(max_length=100)
-    display_name = models.CharField(max_length=150)
-    developer = models.CharField(max_length=150, blank=True, null=True)
-    built_year = models.PositiveIntegerField(blank=True, null=True)
-    property_type = models.CharField(max_length=32, choices=EstatePropertyType.choices, default=EstatePropertyType.RESIDENTIAL)
-    province = models.CharField(max_length=64)
-    city = models.CharField(max_length=64)
-    district = models.CharField(max_length=64)
-    address = models.CharField(max_length=255, blank=True, default="")
-    lat = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="项目/小区级展示点定位")
-    lng = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="项目/小区级展示点定位")
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="estates", verbose_name="所属组织")
+    name = models.CharField(max_length=100, verbose_name="项目名称")
+    display_name = models.CharField(max_length=150, verbose_name="显示名称")
+    developer = models.CharField(max_length=150, blank=True, null=True, verbose_name="开发商")
+    built_year = models.PositiveIntegerField(blank=True, null=True, verbose_name="建成年份")
+    property_type = models.CharField(max_length=32, choices=EstatePropertyType.choices, default=EstatePropertyType.RESIDENTIAL, verbose_name="物业类型")
+    province = models.CharField(max_length=64, verbose_name="省份")
+    city = models.CharField(max_length=64, verbose_name="城市")
+    district = models.CharField(max_length=64, verbose_name="区县")
+    address = models.CharField(max_length=255, blank=True, default="", verbose_name="地址")
+    lat = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="项目/小区级展示点定位", verbose_name="纬度")
+    lng = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="项目/小区级展示点定位", verbose_name="经度")
     images = MediaRefsField(
         blank=True,
         default=list,
@@ -72,9 +74,11 @@ class Estate(CreateUpdateTimeModelMixin):
         business_validators=["apps.house.services.validate_org_scoped_media_refs"],
         verbose_name="项目图片",
     )
-    description = models.TextField(blank=True)
+    description = models.TextField(blank=True, verbose_name="描述")
 
     class Meta:
+        verbose_name = "项目小区"
+        verbose_name_plural = "项目小区"
         ordering = ["name", "id"]
         constraints = [models.UniqueConstraint(fields=["organization", "name"], name="house_estate_org_name_unique")]
 
@@ -91,16 +95,16 @@ class Estate(CreateUpdateTimeModelMixin):
 
 
 class Building(CreateUpdateTimeModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="buildings")
-    estate = models.ForeignKey(Estate, on_delete=models.PROTECT, related_name="buildings", null=True, blank=True)
-    name = models.CharField(max_length=100)
-    floors = models.PositiveIntegerField(validators=[MinValueValidator(1)])
-    under_floors = models.PositiveIntegerField(blank=True, null=True)
-    year_built = models.PositiveIntegerField(blank=True, null=True)
-    elevator = models.BooleanField(default=False)
-    lat = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="楼栋级精确导航定位")
-    lng = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="楼栋级精确导航定位")
-    address = models.CharField(max_length=255, blank=True)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="buildings", verbose_name="所属组织")
+    estate = models.ForeignKey(Estate, on_delete=models.PROTECT, related_name="buildings", null=True, blank=True, verbose_name="项目小区")
+    name = models.CharField(max_length=100, verbose_name="楼栋名称")
+    floors = models.PositiveIntegerField(validators=[MinValueValidator(1)], verbose_name="地上楼层数")
+    under_floors = models.PositiveIntegerField(blank=True, null=True, verbose_name="地下楼层数")
+    year_built = models.PositiveIntegerField(blank=True, null=True, verbose_name="建成年份")
+    elevator = models.BooleanField(default=False, verbose_name="是否有电梯")
+    lat = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="楼栋级精确导航定位", verbose_name="纬度")
+    lng = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="楼栋级精确导航定位", verbose_name="经度")
+    address = models.CharField(max_length=255, blank=True, verbose_name="地址")
     images = MediaRefsField(
         blank=True,
         default=list,
@@ -110,9 +114,11 @@ class Building(CreateUpdateTimeModelMixin):
         business_validators=["apps.house.services.validate_org_scoped_media_refs"],
         verbose_name="楼栋图片",
     )
-    tags = models.JSONField(default=list, blank=True)
+    tags = models.JSONField(default=list, blank=True, verbose_name="标签")
 
     class Meta:
+        verbose_name = "楼栋"
+        verbose_name_plural = "楼栋"
         ordering = ["estate__name", "name", "id"]
         constraints = [
             models.UniqueConstraint(fields=["estate", "name"], condition=Q(estate__isnull=False), name="house_building_estate_name_unique"),
@@ -153,18 +159,21 @@ class Building(CreateUpdateTimeModelMixin):
 
 
 class Contact(CreateUpdateTimeModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="house_contacts")
-    name = models.CharField(max_length=100)
-    phone = models.CharField(max_length=32)
-    email = models.EmailField(blank=True)
-    roles = models.JSONField(default=list, blank=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="house_contacts")
-    notes = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="house_contacts", verbose_name="所属组织")
+    name = models.CharField(max_length=100, verbose_name="联系人姓名")
+    phone = models.CharField(max_length=32, verbose_name="手机号")
+    email = models.EmailField(blank=True, verbose_name="邮箱")
+    roles = models.JSONField(default=list, blank=True, verbose_name="角色列表")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="house_contacts", verbose_name="用户")
+    public_key = models.UUIDField(null=True, blank=True, unique=True, editable=False, verbose_name="公开标识")
+    notes = models.TextField(blank=True, verbose_name="备注")
+    is_active = models.BooleanField(default=True, verbose_name="是否启用")
 
     class Meta:
+        verbose_name = "联系人"
+        verbose_name_plural = "联系人"
         ordering = ["name", "id"]
-        constraints = [models.UniqueConstraint(fields=["organization", "phone"], name="house_contact_org_phone_unique")]
+        constraints = [models.UniqueConstraint(fields=["organization", "name", "phone"], name="house_contact_org_name_phone_unique")]
 
     def __str__(self):
         return f"{self.name} {self.phone}"
@@ -174,7 +183,9 @@ class Contact(CreateUpdateTimeModelMixin):
 
     def clean(self):
         super().clean()
-        if not self.phone or not self.phone.strip():
+        self.name = self.name.strip()
+        self.phone = self.phone.strip()
+        if not self.phone:
             raise ValidationError({"phone": "联系人手机号不能为空。"})
         if not isinstance(self.roles, list):
             raise ValidationError({"roles": "联系人角色必须是列表。"})
@@ -183,18 +194,31 @@ class Contact(CreateUpdateTimeModelMixin):
             raise ValidationError({"roles": f"不支持的联系人角色: {invalid}"})
 
     def save(self, *args, **kwargs):
+        public_key_created = False
+        if self.user_id and self.has_role(ContactRole.LANDLORD) and self.public_key is None:
+            self.ensure_public_key()
+            public_key_created = True
+        if public_key_created and kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = set(kwargs["update_fields"]) | {"public_key"}
         self.full_clean()
         super().save(*args, **kwargs)
 
+    def ensure_public_key(self):
+        if self.public_key is None:
+            self.public_key = uuid.uuid4()
+        return self.public_key
+
 
 class PropertyResponsibility(BaseModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="property_responsibilities")
-    member = models.ForeignKey("organizations.OrganizationMember", on_delete=models.CASCADE, related_name="property_responsibilities")
-    landlord = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True)
-    building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True)
-    estate = models.ForeignKey(Estate, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.CASCADE, related_name="property_responsibilities", verbose_name="所属组织")
+    member = models.ForeignKey("organizations.OrganizationMember", on_delete=models.CASCADE, related_name="property_responsibilities", verbose_name="组织成员")
+    landlord = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True, verbose_name="房东")
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True, verbose_name="楼栋")
+    estate = models.ForeignKey(Estate, on_delete=models.CASCADE, related_name="property_responsibilities", null=True, blank=True, verbose_name="项目小区")
 
     class Meta:
+        verbose_name = "房源责任分配"
+        verbose_name_plural = "房源责任分配"
         ordering = ["member__user__username", "landlord__name", "building__name", "estate__name", "id"]
         constraints = [
             models.CheckConstraint(
@@ -246,23 +270,23 @@ class PropertyResponsibility(BaseModelMixin):
 
 
 class House(CreateUpdateTimeModelMixin):
-    building = models.ForeignKey(Building, on_delete=models.PROTECT, related_name="houses")
-    landlord = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="landlord_houses", null=True, blank=True)
-    room_number = models.CharField(max_length=64)
-    floor = models.IntegerField(blank=True, null=True)
-    area = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))])
-    interior_area = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))])
-    asking_rent = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))])
-    deposit_amount = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))])
-    bedrooms = models.PositiveIntegerField(blank=True, null=True)
-    living_rooms = models.PositiveIntegerField(blank=True, null=True)
-    bathrooms = models.PositiveIntegerField(blank=True, null=True)
-    kitchens = models.PositiveIntegerField(blank=True, null=True)
-    balconies = models.PositiveIntegerField(blank=True, null=True)
-    orientation = models.CharField(max_length=32, choices=HouseOrientation.choices, blank=True, null=True)
-    decoration = models.CharField(max_length=32, choices=HouseDecoration.choices, blank=True, null=True)
-    has_elevator_access = models.BooleanField(default=False)
-    status = models.CharField(max_length=32, choices=HouseStatus.choices, default=HouseStatus.VACANT, db_index=True)
+    building = models.ForeignKey(Building, on_delete=models.PROTECT, related_name="houses", verbose_name="楼栋")
+    landlord = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="landlord_houses", null=True, blank=True, verbose_name="房东")
+    room_number = models.CharField(max_length=64, verbose_name="房号")
+    floor = models.IntegerField(blank=True, null=True, verbose_name="楼层")
+    area = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="建筑面积")
+    interior_area = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="套内面积")
+    asking_rent = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="挂牌租金")
+    deposit_amount = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="押金金额")
+    bedrooms = models.PositiveIntegerField(blank=True, null=True, verbose_name="卧室数")
+    living_rooms = models.PositiveIntegerField(blank=True, null=True, verbose_name="客厅数")
+    bathrooms = models.PositiveIntegerField(blank=True, null=True, verbose_name="卫生间数")
+    kitchens = models.PositiveIntegerField(blank=True, null=True, verbose_name="厨房数")
+    balconies = models.PositiveIntegerField(blank=True, null=True, verbose_name="阳台数")
+    orientation = models.CharField(max_length=32, choices=HouseOrientation.choices, blank=True, null=True, verbose_name="朝向")
+    decoration = models.CharField(max_length=32, choices=HouseDecoration.choices, blank=True, null=True, verbose_name="装修情况")
+    has_elevator_access = models.BooleanField(default=False, verbose_name="是否可使用电梯")
+    status = models.CharField(max_length=32, choices=HouseStatus.choices, default=HouseStatus.VACANT, db_index=True, verbose_name="状态")
     images = MediaRefsField(
         blank=True,
         default=list,
@@ -281,12 +305,14 @@ class House(CreateUpdateTimeModelMixin):
         business_validators=["apps.house.services.validate_org_scoped_media_refs"],
         verbose_name="房源视频",
     )
-    tags = models.JSONField(default=list, blank=True)
-    public_description = models.TextField(blank=True)
-    internal_notes = models.TextField(blank=True)
-    extra = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=list, blank=True, verbose_name="标签")
+    public_description = models.TextField(blank=True, verbose_name="公开描述")
+    internal_notes = models.TextField(blank=True, verbose_name="内部备注")
+    extra = models.JSONField(default=dict, blank=True, verbose_name="扩展数据")
 
     class Meta:
+        verbose_name = "房源"
+        verbose_name_plural = "房源"
         ordering = ["building__estate__name", "building__name", "room_number", "id"]
         constraints = [models.UniqueConstraint(fields=["building", "room_number"], name="house_building_room_unique")]
 
@@ -318,12 +344,99 @@ class House(CreateUpdateTimeModelMixin):
         super().save(*args, **kwargs)
 
 
-class HouseFavorite(CreateUpdateTimeModelMixin):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="house_favorites")
-    house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="favorites")
-    is_active = models.BooleanField(default=True)
+class HouseMatchShare(BaseModelMixin):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="house_match_shares", verbose_name="所属组织")
+    consultant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="house_match_shares",
+        verbose_name="顾问",
+    )
+    share_key = models.CharField(max_length=64, unique=True, db_index=True, editable=False, verbose_name="分享标识")
+    title = models.CharField(max_length=150, verbose_name="标题")
+    remark = models.TextField(blank=True, default="", verbose_name="备注")
+    mode = models.CharField(max_length=16, choices=HouseMatchMode.choices, verbose_name="模式")
+    house_ids = models.JSONField(default=list, blank=True, verbose_name="房源标识列表")
+    criteria = models.JSONField(default=dict, blank=True, verbose_name="筛选条件")
+    criteria_version = models.PositiveSmallIntegerField(default=1, verbose_name="条件版本")
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="过期时间")
+    revoked_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="失效时间")
+    view_count = models.PositiveBigIntegerField(default=0, verbose_name="访问次数")
+    last_accessed_at = models.DateTimeField(null=True, blank=True, verbose_name="最后访问时间")
 
     class Meta:
+        verbose_name = "房源匹配分享"
+        verbose_name_plural = "房源匹配分享"
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        """返回配房分享标题。"""
+        return self.title
+
+    @property
+    def is_expired(self) -> bool:
+        return self.expires_at is not None and self.expires_at <= timezone.now()
+
+    def clean(self):
+        super().clean()
+        self.title = (self.title or "").strip()
+        self.remark = (self.remark or "").strip()
+        if not self.title:
+            raise ValidationError({"title": "配房标题不能为空。"})
+
+        if not isinstance(self.house_ids, list):
+            raise ValidationError({"house_ids": "手工配房房源必须是列表。"})
+        normalized_house_ids: list[int] = []
+        seen_house_ids: set[int] = set()
+        for value in self.house_ids:
+            if isinstance(value, bool):
+                raise ValidationError({"house_ids": "房源 ID 必须是正整数。"})
+            try:
+                house_id = int(value)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"house_ids": "房源 ID 必须是正整数。"}) from exc
+            if house_id <= 0:
+                raise ValidationError({"house_ids": "房源 ID 必须是正整数。"})
+            if house_id not in seen_house_ids:
+                seen_house_ids.add(house_id)
+                normalized_house_ids.append(house_id)
+        self.house_ids = normalized_house_ids
+
+        if not isinstance(self.criteria, dict):
+            raise ValidationError({"criteria": "动态配房条件必须是对象。"})
+        if self.mode == HouseMatchMode.MANUAL:
+            if not 1 <= len(self.house_ids) <= 100:
+                raise ValidationError({"house_ids": "手工配房必须选择 1 至 100 套房源。"})
+            if self.criteria:
+                raise ValidationError({"criteria": "手工配房不能同时保存动态条件。"})
+        elif self.mode == HouseMatchMode.DYNAMIC:
+            if self.house_ids:
+                raise ValidationError({"house_ids": "动态配房不能同时保存手工房源。"})
+            if not any(value not in (None, "", []) for key, value in self.criteria.items() if key != "sort"):
+                raise ValidationError({"criteria": "动态配房至少需要一个筛选条件。"})
+
+        reference_time = self.created_at if self.created_at else timezone.now()
+        if self.expires_at is not None:
+            if timezone.is_naive(self.expires_at):
+                raise ValidationError({"expires_at": "到期时间必须包含时区。"})
+            if self.expires_at <= reference_time:
+                raise ValidationError({"expires_at": "到期时间必须晚于创建时间。"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class HouseFavorite(CreateUpdateTimeModelMixin):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="house_favorites", verbose_name="用户")
+    house = models.ForeignKey(House, on_delete=models.CASCADE, related_name="favorites", verbose_name="房源")
+    is_active = models.BooleanField(default=True, verbose_name="是否启用")
+
+    class Meta:
+        verbose_name = "房源收藏"
+        verbose_name_plural = "房源收藏"
         ordering = ["-updated_at", "-id"]
         constraints = [models.UniqueConstraint(fields=["user", "house"], name="house_favorite_user_house_unique")]
 
@@ -332,20 +445,22 @@ class HouseFavorite(CreateUpdateTimeModelMixin):
 
 
 class ViewingRecord(CreateUpdateTimeModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="viewing_records")
-    house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="viewing_records")
-    contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="viewing_records", null=True, blank=True)
-    customer_name = models.CharField(max_length=100)
-    customer_phone = models.CharField(max_length=32)
-    scheduled_at = models.DateTimeField()
-    viewed_at = models.DateTimeField(blank=True, null=True)
-    status = models.CharField(max_length=32, choices=ViewingRecordStatus.choices, default=ViewingRecordStatus.SCHEDULED, db_index=True)
-    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_viewing_records")
-    notes = models.TextField(blank=True)
-    extra = models.JSONField(default=dict, blank=True)
-    is_active = models.BooleanField(default=True)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="viewing_records", verbose_name="所属组织")
+    house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="viewing_records", verbose_name="房源")
+    contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="viewing_records", null=True, blank=True, verbose_name="联系人")
+    customer_name = models.CharField(max_length=100, verbose_name="客户姓名")
+    customer_phone = models.CharField(max_length=32, verbose_name="客户手机号")
+    scheduled_at = models.DateTimeField(verbose_name="预约时间")
+    viewed_at = models.DateTimeField(blank=True, null=True, verbose_name="实际带看时间")
+    status = models.CharField(max_length=32, choices=ViewingRecordStatus.choices, default=ViewingRecordStatus.SCHEDULED, db_index=True, verbose_name="状态")
+    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_viewing_records", verbose_name="负责人")
+    notes = models.TextField(blank=True, verbose_name="备注")
+    extra = models.JSONField(default=dict, blank=True, verbose_name="扩展数据")
+    is_active = models.BooleanField(default=True, verbose_name="是否启用")
 
     class Meta:
+        verbose_name = "带看记录"
+        verbose_name_plural = "带看记录"
         ordering = ["-scheduled_at", "-id"]
 
     def __str__(self):
@@ -368,9 +483,9 @@ class ViewingRecord(CreateUpdateTimeModelMixin):
 
 
 class Lease(CreateUpdateTimeModelMixin):
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="leases")
-    house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="leases")
-    tenant = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="tenant_leases")
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="leases", verbose_name="所属组织")
+    house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="leases", verbose_name="房源")
+    tenant = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="tenant_leases", verbose_name="租客")
     source_viewing_record = models.ForeignKey(
         ViewingRecord,
         on_delete=models.PROTECT,
@@ -378,14 +493,15 @@ class Lease(CreateUpdateTimeModelMixin):
         null=True,
         blank=True,
         help_text="成交来源带看记录，可为空。",
+        verbose_name="来源带看记录",
     )
-    sign_at = models.DateTimeField(blank=True, null=True)
-    start_date = models.DateField()
-    end_date = models.DateField()
-    monthly_rent = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
-    deposit = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))])
-    payment_day = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(31)])
-    status = models.CharField(max_length=32, choices=LeaseStatus.choices, default=LeaseStatus.PENDING, db_index=True)
+    sign_at = models.DateTimeField(blank=True, null=True, verbose_name="签约时间")
+    start_date = models.DateField(verbose_name="开始日期")
+    end_date = models.DateField(verbose_name="结束日期")
+    monthly_rent = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0"))], verbose_name="月租金")
+    deposit = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="押金")
+    payment_day = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(31)], verbose_name="每月付款日")
+    status = models.CharField(max_length=32, choices=LeaseStatus.choices, default=LeaseStatus.PENDING, db_index=True, verbose_name="状态")
     contract_files = MediaRefsField(
         blank=True,
         default=list,
@@ -395,10 +511,12 @@ class Lease(CreateUpdateTimeModelMixin):
         business_validators=["apps.house.services.validate_org_scoped_media_refs"],
         verbose_name="租约合同",
     )
-    notes = models.TextField(blank=True)
-    extra = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True, verbose_name="备注")
+    extra = models.JSONField(default=dict, blank=True, verbose_name="扩展数据")
 
     class Meta:
+        verbose_name = "租约"
+        verbose_name_plural = "租约"
         ordering = ["-start_date", "-id"]
         constraints = [
             models.UniqueConstraint(fields=["house"], condition=Q(status=LeaseStatus.ACTIVE), name="house_one_active_lease_unique"),
@@ -453,3 +571,44 @@ class Lease(CreateUpdateTimeModelMixin):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class LeaseAllocationQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("租约与分配申请的关联不可批量修改。")
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        raise ValidationError("租约与分配申请的关联不可批量修改。")
+
+    def delete(self):
+        raise ValidationError("租约与分配申请的关联不可批量删除。")
+
+
+class LeaseAllocation(models.Model):
+    objects = LeaseAllocationQuerySet.as_manager()
+
+    lease = models.OneToOneField(Lease, on_delete=models.PROTECT, related_name="allocation", verbose_name="租约")
+    allocation_request = models.OneToOneField("allocation.AllocationRequest", on_delete=models.PROTECT, related_name="lease_allocation", verbose_name="分配申请")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+
+    class Meta:
+        verbose_name = "租约分配关联"
+        verbose_name_plural = "租约分配关联"
+        ordering = ("-created_at", "-pk")
+
+    def clean(self):
+        super().clean()
+        if self.lease_id and self.allocation_request_id and self.lease.organization_id != self.allocation_request.organization_id:
+            raise ValidationError({"allocation_request": "租约与分配申请必须属于同一组织。"})
+
+    def save(self, *args, **kwargs):
+        if self.pk and not self._state.adding:
+            raise ValidationError("租约与分配申请的关联创建后不可修改。")
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("租约与分配申请的关联不可删除。")
+
+    def __str__(self):
+        return f"LeaseAllocation<{self.lease_id}:{self.allocation_request_id}>"

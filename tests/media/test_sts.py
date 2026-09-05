@@ -72,10 +72,7 @@ class TestGetOssToken:
     def test_policy_restricts_to_path(self, mock_client_cls):
         mock_client = MagicMock()
         mock_client.assume_role.return_value = MagicMock(
-            body=MagicMock(credentials=MagicMock(
-                access_key_id="k", access_key_secret="s",
-                security_token="t", expiration="2026-05-16T08:30:00Z"
-            ))
+            body=MagicMock(credentials=MagicMock(access_key_id="k", access_key_secret="s", security_token="t", expiration="2026-05-16T08:30:00Z"))
         )
         mock_client_cls.return_value = mock_client
 
@@ -84,6 +81,7 @@ class TestGetOssToken:
         call_args = mock_client.assume_role.call_args
         request = call_args[0][0]
         import json
+
         policy = json.loads(request.policy)
         resource = policy["Statement"][0]["Resource"][0]
         assert result["path"] in resource

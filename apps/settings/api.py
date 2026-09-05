@@ -46,6 +46,7 @@ class SettingOut(Schema):
     ui: dict[str, Any]
     category: str
     is_customized: bool
+    value_source: Literal["default", "organization", "team"]
 
 
 class UserSettingOut(Schema):
@@ -95,7 +96,7 @@ def get_org_setting_view(request, key: str = Path(..., description="设置项 ke
 
 
 @org_router.put("/{key}/", response=SettingOut, summary="更新租户设置")
-def put_org_setting(request, key: str = Path(..., description="设置项 key。"), payload: SetSettingIn = ...):
+def put_org_setting(request, payload: SetSettingIn, key: str = Path(..., description="设置项 key。")):
     """更新当前租户某个设置项的值。"""
     require_org_permission(request, SettingsPermission.ORG_SETTING_MANAGE)
     try:
@@ -139,7 +140,7 @@ def get_team_setting_view(request, team_id: int, key: str = Path(..., descriptio
 
 
 @team_router.put("/{team_id}/{key}/", response=SettingOut, summary="更新团队设置")
-def put_team_setting(request, team_id: int, key: str = Path(..., description="设置项 key。"), payload: SetSettingIn = ...):
+def put_team_setting(request, team_id: int, payload: SetSettingIn, key: str = Path(..., description="设置项 key。")):
     """更新指定团队某个设置项的值。"""
     team = require_team_permission(request, team_id, SettingsPermission.TEAM_SETTING_MANAGE)
     try:
@@ -222,7 +223,7 @@ def get_user_setting_view(request, key: str = Path(..., description="个人设�
 
 
 @user_router.put("/{key}/", response=UserSettingOut, summary="更新个人设置")
-def put_user_setting(request, key: str = Path(..., description="个人设置 key。"), payload: SetSettingIn = ...):
+def put_user_setting(request, payload: SetSettingIn, key: str = Path(..., description="个人设置 key。")):
     """更新当前用户某个偏好设置的值。"""
     require_authenticated(request)
     _reject_reserved_user_setting_write(key)

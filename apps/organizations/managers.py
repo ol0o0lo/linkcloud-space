@@ -23,9 +23,7 @@ class OrganizationQuerySet(QuerySet):
     def non_members(self, org):
         user_model = apps.get_model(settings.AUTH_USER_MODEL)
         org_model = apps.get_model("organizations.Organization")
-        return user_model.objects.filter(is_active=True).exclude(
-            pk__in=org_model.objects.filter(organizationmember__organization=org).values_list("user_id", flat=True)
-        )
+        return user_model.objects.filter(is_active=True).exclude(pk__in=org_model.objects.filter(organizationmember__organization=org).values_list("user_id", flat=True))
 
 
 class OrganizationMemberQuerySet(FilterByOrganizationMixin):

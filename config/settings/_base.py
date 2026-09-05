@@ -92,6 +92,7 @@ INSTALLED_APPS = [
     "apps.organizations",
     "apps.teams",
     "apps.access",
+    "apps.allocation",
     "apps.house",
     "apps.favorites",
     "apps.analytics",
@@ -165,11 +166,7 @@ DB_SSL_REQUIRED = env.bool("DB_SSL_REQUIRED", default=not DEBUG)
 
 # Database
 # See https://github.com/jacobian/dj-database-url for more examples
-DATABASES = {
-    "default": env.dj_db_url(
-        "DATABASE_URL", default="postgres://postgres@postgres/postgres", ssl_require=DB_SSL_REQUIRED
-    )
-}
+DATABASES = {"default": env.dj_db_url("DATABASE_URL", default="postgres://postgres@postgres/postgres", ssl_require=DB_SSL_REQUIRED)}
 
 # Custom User Model
 # https://docs.djangoproject.com/en/4.2/topics/auth/customizing/#substituting-a-custom-user-model
@@ -342,6 +339,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.media.tasks.recover_pending_media_thumbnails",
         "schedule": crontab(minute="*/5"),
     },
+    "expire-lease-allocation-requests": {
+        "task": "apps.house.tasks.expire_lease_allocation_requests_task",
+        "schedule": crontab(minute="*/5"),
+    },
 }
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
@@ -477,8 +478,7 @@ ANALYTICS_MAX_PROPERTIES_BYTES = 8192
 ANALYTICS_MAX_EVENT_AGE_DAYS = 7
 ANALYTICS_MAX_QUERY_DAYS = 366
 ANALYTICS_RAW_RETENTION_DAYS = 30
-ANALYTICS_PUBLIC_RATE_LIMIT_PER_MINUTE = 120
-ANALYTICS_PUBLIC_SOURCES = ("h5", "miniprogram", "public")
+ANALYTICS_PUBLIC_EVENT_RATE_LIMIT_PER_MINUTE = 120
 
 # Default page size used by the ninja LegacyPagination paginator.
 DEFAULT_PAGE_SIZE = 50
@@ -486,6 +486,7 @@ DEFAULT_PAGE_SIZE = 50
 # Models registered here get a post_delete receiver that cleans up Notification
 # rows whose GenericForeignKey targets them. Add producer-app models as needed.
 NOTIFICATIONS_TARGET_MODELS: list[str] = [
+    "allocation.AllocationRequest",
     "team_operations.TeamAnnouncement",
     "team_operations.TaskAssignment",
 ]
@@ -535,6 +536,13 @@ MEDIA_REFERENCE_PROVIDERS: list[str] = [
 # `required_channels` cannot be disabled through user preferences. Add entries
 # here as downstream apps introduce notification subjects.
 NOTIFICATIONS_CATEGORIES: list[dict] = [
+    {
+        "key": "allocation.status",
+        "label": "收益分配状态",
+        "description": "分配申请审核不通过、过期或作废通知。",
+        "default_channels": ("in_app",),
+        "required_channels": ("in_app",),
+    },
     {
         "key": "team.announcement",
         "label": "团队公告",
@@ -604,20 +612,20 @@ ACCOUNT_SHOW_POST_LOGIN_MESSAGE = False
 # HEADLESS_FRONTEND_URLS to SPA routes.
 HEADLESS_ONLY = True
 HEADLESS_CLIENTS = ["browser", "app"]  # app client 供移动端使用，通过 JWT 鉴权
-HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.strategy.JWTTokenStrategy"
+HEADLESS_TOKEN_STRATEGY = "allauth.headless.tokens.strategies.jwt.strategy.JWTTokenStrategy"  # noqa: S105 - dotted import path, not a credential
 HEADLESS_JWT_ALGORITHM = "HS256"  # 使用 SECRET_KEY 签名，无需额外密钥管理
 HEADLESS_JWT_ACCESS_TOKEN_EXPIRES_IN = 60 * 60 * 2  # 访问 token 2小时
 HEADLESS_JWT_REFRESH_TOKEN_EXPIRES_IN = 60 * 60 * 24 * 30  # 刷新 token 30天
 HEADLESS_JWT_ROTATE_REFRESH_TOKEN = True  # 刷新时轮换 refresh token
 HEADLESS_JWT_STATEFUL_VALIDATION_ENABLED = True  # 注销立即失效（依赖 Redis session）
 HEADLESS_FRONTEND_URLS = {
-    "account_confirm_email": "/accounts/confirm-email/{key}",
-    "account_reset_password_from_key": "/accounts/password/reset/key/{key}",
-    "account_signup": "/accounts/signup/",
-    "account_login": "/accounts/login/",
-    "account_reauthenticate": "/accounts/reauthenticate/",
-    "account_verify_phone": "/accounts/verify-phone/",
-    "socialaccount_login_error": "/accounts/social/error/",
+    "account_confirm_email": "/dashboard/user/confirm-email/{key}",
+    "account_reset_password_from_key": "/dashboard/user/password/reset/key/{key}",
+    "account_signup": "/dashboard/user/register",
+    "account_login": "/dashboard/user/login",
+    "account_reauthenticate": "/dashboard/account/settings?tab=security",
+    "account_verify_phone": "/dashboard/user/verify-phone",
+    "socialaccount_login_error": "/dashboard/user/social/error",
 }
 
 # ---------------------------------------------------------------------------
@@ -664,17 +672,17 @@ MFA_RECOVERY_CODE_COUNT = 10
 # Vue Router routes defined in frontend/js/router.js; keep them in sync with
 # that file. Referenced from templates via the `spa_url` template tag.
 SPA_URLS = {
-    "account-general": "/accounts/general/",
-    "account-email": "/accounts/email/",
-    "account-password-change": "/accounts/password/change/",
-    "account-security": "/accounts/security/",
-    "logout": "/accounts/logout/",
-    "org-create": "/organizations/create/",
-    "org-switch": "/organizations/switch/",
-    "org-settings-general": "/organizations/{slug}/settings/general/",
-    "org-settings-members": "/organizations/{slug}/settings/members/",
-    "org-settings-teams": "/organizations/{slug}/settings/teams/",
-    "impersonate": "/impersonate/",
+    "account-general": "/dashboard/account/settings?tab=base",
+    "account-email": "/dashboard/account/settings?tab=security",
+    "account-password-change": "/dashboard/account/settings?tab=security",
+    "account-security": "/dashboard/account/settings?tab=security",
+    "logout": "/dashboard/user/login",
+    "org-create": "/dashboard/space/organization",
+    "org-switch": "/dashboard/space/organization",
+    "org-settings-general": "/dashboard/space/settings/organization",
+    "org-settings-members": "/dashboard/space/organization?section=members&node=organization&tab=members",
+    "org-settings-teams": "/dashboard/space/settings/team",
+    "impersonate": "/dashboard/super-admin/users",
 }
 
 # Email — unified SMTP config for all environments.

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from apps.teams.models import Team
 
 
-def pre_create_team(request: "HttpRequest") -> None:
+def pre_create_team(request: HttpRequest) -> None:
     """
     创建团队前调用。
 
@@ -28,7 +28,7 @@ def pre_create_team(request: "HttpRequest") -> None:
     pass  # TODO: 付费等级配额检查
 
 
-def post_create_team(request: "HttpRequest", team: "Team") -> None:
+def post_create_team(request: HttpRequest, team: Team) -> None:
     """
     创建团队后调用（位于 transaction.atomic 内，team 已持久化）。
 

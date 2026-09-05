@@ -23,10 +23,7 @@ HOUSE_ORDERING_FIELDS = (
     "created_at",
     "updated_at",
 )
-HOUSE_ORDERING_DESCRIPTION = (
-    "排序字段，多个字段使用英文逗号分隔，字段前的 - 表示降序，最多 3 项。"
-    f"允许字段：{'、'.join(HOUSE_ORDERING_FIELDS)}。"
-)
+HOUSE_ORDERING_DESCRIPTION = f"排序字段，多个字段使用英文逗号分隔，字段前的 - 表示降序，最多 3 项。允许字段：{'、'.join(HOUSE_ORDERING_FIELDS)}。"
 
 _ESTATE_NAME_ANNOTATION = "_house_ordering_estate_name"
 _STATUS_RANK_ANNOTATION = "_house_ordering_status_rank"
@@ -108,9 +105,5 @@ def apply_house_ordering(queryset: QuerySet, ordering: str) -> QuerySet:
     if annotations:
         queryset = queryset.annotate(**annotations)
 
-    expressions = [
-        _ordering_expression(field_path, descending=descending)
-        for field_name, descending in parsed
-        for field_path in _ORDERING_FIELD_PATHS[field_name]
-    ]
+    expressions = [_ordering_expression(field_path, descending=descending) for field_name, descending in parsed for field_path in _ORDERING_FIELD_PATHS[field_name]]
     return queryset.order_by(*expressions, "pk")

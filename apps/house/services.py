@@ -4,17 +4,22 @@ import re
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import ProtectedError
+from django.db.models import Count, F, ProtectedError, Q
 from django.http import Http404
 
-from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus
+from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus, LeaseStatus
 from apps.house.exceptions import ResourceInUseException
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
 DEFAULT_LOCATION_SETTING_KEY = "property_rental.default_location"
 TAG_SUGGESTIONS_SETTING_KEY = "property_rental.tag_suggestions"
+INSPECTION_MAX_AGE_DAYS_SETTING_KEY = "property_rental.inspection_max_age_days"
+DEFAULT_INSPECTION_MAX_AGE_DAYS = 180
+MIN_INSPECTION_MAX_AGE_DAYS = 1
+MAX_INSPECTION_MAX_AGE_DAYS = 3650
 RESOURCE_PREVIEW_LIMIT = 5
 PUBLISH_RULES_SETTING_KEY = "property_rental.publish_rules"
 PUBLISH_RULE_MODE_REQUIRED = "required"
@@ -80,6 +85,32 @@ def get_tag_suggestions() -> list[str]:
     return normalize_tag_list(setting.value if setting else DEFAULT_TAG_SUGGESTIONS, strict=False)
 
 
+def normalize_inspection_max_age_days(value) -> int:
+    """将租户配置归一为安全的房源资料复查周期。"""
+    if isinstance(value, bool):
+        return DEFAULT_INSPECTION_MAX_AGE_DAYS
+    if isinstance(value, int):
+        days = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        days = int(value.strip())
+    else:
+        return DEFAULT_INSPECTION_MAX_AGE_DAYS
+    if not MIN_INSPECTION_MAX_AGE_DAYS <= days <= MAX_INSPECTION_MAX_AGE_DAYS:
+        return DEFAULT_INSPECTION_MAX_AGE_DAYS
+    return days
+
+
+def get_org_inspection_max_age_days(organization) -> int:
+    """读取租户房源资料复查周期，未配置或脏数据时回退到 180 天。"""
+    from apps.settings.models import DefaultSetting, OrganizationSetting
+
+    setting = DefaultSetting.objects.filter(key=INSPECTION_MAX_AGE_DAYS_SETTING_KEY).first()
+    if setting is None:
+        return DEFAULT_INSPECTION_MAX_AGE_DAYS
+    override = OrganizationSetting.objects.filter(organization=organization, setting=setting).first()
+    return normalize_inspection_max_age_days(override.value if override is not None else setting.value)
+
+
 def get_public_houses_queryset():
     """返回可被普通用户全局检索的公开房源。"""
     from apps.house.models import House
@@ -92,6 +123,74 @@ def get_public_houses_queryset():
         .select_related("building__estate", "building__organization")
         .order_by("-updated_at", "-pk")
     )
+
+
+PUBLIC_HOUSE_SORTS = {
+    "latest": ("-updated_at", "-pk"),
+    "rent_asc": (F("asking_rent").asc(nulls_last=True), "-pk"),
+    "rent_desc": (F("asking_rent").desc(nulls_last=True), "-pk"),
+    "area_asc": (F("area").asc(nulls_last=True), "-pk"),
+    "area_desc": (F("area").desc(nulls_last=True), "-pk"),
+}
+
+
+def apply_public_house_filters(
+    qs,
+    *,
+    keyword=None,
+    province=None,
+    city=None,
+    district=None,
+    min_rent=None,
+    max_rent=None,
+    min_area=None,
+    max_area=None,
+    bedrooms=None,
+    living_rooms=None,
+    decoration=None,
+    has_elevator_access=None,
+    tags=None,
+    publisher_slug=None,
+    sort="latest",
+):
+    """应用公开房源筛选和排序，供全局检索与动态配房共用。"""
+    if keyword:
+        qs = qs.filter(
+            Q(room_number__icontains=keyword)
+            | Q(public_description__icontains=keyword)
+            | Q(building__name__icontains=keyword)
+            | Q(building__address__icontains=keyword)
+            | Q(building__estate__name__icontains=keyword)
+            | Q(building__estate__display_name__icontains=keyword)
+            | Q(building__organization__name__icontains=keyword)
+        )
+    if province:
+        qs = qs.filter(building__estate__province__iexact=province)
+    if city:
+        qs = qs.filter(building__estate__city__iexact=city)
+    if district:
+        qs = qs.filter(building__estate__district__iexact=district)
+    if min_rent is not None:
+        qs = qs.filter(asking_rent__gte=min_rent)
+    if max_rent is not None:
+        qs = qs.filter(asking_rent__lte=max_rent)
+    if min_area is not None:
+        qs = qs.filter(area__gte=min_area)
+    if max_area is not None:
+        qs = qs.filter(area__lte=max_area)
+    if bedrooms is not None:
+        qs = qs.filter(bedrooms=bedrooms)
+    if living_rooms is not None:
+        qs = qs.filter(living_rooms=living_rooms)
+    if decoration:
+        qs = qs.filter(decoration=decoration)
+    if has_elevator_access is not None:
+        qs = qs.filter(has_elevator_access=has_elevator_access)
+    for tag in tags or []:
+        qs = qs.filter(Q(tags__contains=[tag]) | Q(building__tags__contains=[tag]))
+    if publisher_slug:
+        qs = qs.filter(building__organization__slug=publisher_slug)
+    return qs.order_by(*PUBLIC_HOUSE_SORTS[sort])
 
 
 def get_public_buildings_queryset():
@@ -154,7 +253,7 @@ def get_estate_delete_check(estate):
                 "count": count,
                 "items": [{"id": building.pk, "label": f"{building.name} · {building.address}" if building.address else building.name} for building in preview],
                 "truncated": count > RESOURCE_PREVIEW_LIMIT,
-                "target": {"path": "/rental/properties/estates", "query": {"view": "buildings", "estate_id": estate.pk}},
+                "target": {"path": "/rental/properties/list", "query": {"estate_id": estate.pk, "asset_tab": "structure"}},
             }
         ],
     }
@@ -228,36 +327,6 @@ def delete_building(organization: Organization, building_id: int) -> int:
         return _delete_checked_resource(building, get_building_delete_check, "楼栋已关联房源，不能删除。")
 
 
-def claim_landlord_contact_for_bound_phone(user: User, organization: Organization | None, phone: str | None):
-    """手机号绑定后的房东 Contact 统一认领入口。"""
-    if organization is None or not phone:
-        return None
-
-    from apps.accounts.models import normalize_phone, split_phone
-    from apps.house.models import Contact
-
-    normalized_phone = normalize_phone(phone)
-    _country_code, national_number = split_phone(normalized_phone)
-    phone_candidates = {value for value in {phone, normalized_phone, national_number} if value}
-
-    qs = Contact.objects.filter(
-        organization=organization,
-        phone__in=phone_candidates,
-    )
-    landlord_contacts = [contact for contact in qs if ContactRole.LANDLORD in contact.roles]
-    existing = next((contact for contact in landlord_contacts if contact.user_id == user.pk), None)
-    if existing is not None:
-        return existing
-
-    contact = next((contact for contact in landlord_contacts if contact.user_id is None), None)
-    if contact is None:
-        return None
-
-    contact.user = user
-    contact.save(update_fields=["user", "updated_at"])
-    return contact
-
-
 def get_landlord_houses(user: User, organization: Organization):
     from apps.house.models import House
 
@@ -268,6 +337,41 @@ def get_landlord_houses(user: User, organization: Organization):
             building__organization=organization,
         )
         .order_by("building__estate__name", "building__name", "room_number")
+    )
+
+
+def get_landlord_relationship_contacts(user: User):
+    from apps.house.models import Contact
+
+    contacts = (
+        Contact.objects.filter(user=user, is_active=True, organization__is_active=True)
+        .select_related("organization")
+        .annotate(
+            house_count=Count("landlord_houses", distinct=True),
+            public_house_count=Count(
+                "landlord_houses",
+                filter=Q(landlord_houses__status=HouseStatus.LISTED),
+                distinct=True,
+            ),
+        )
+        .order_by("organization__name", "name", "pk")
+    )
+    return [contact for contact in contacts if ContactRole.LANDLORD in (contact.roles or [])]
+
+
+def get_landlord_houses_for_contact(contact):
+    from apps.house.models import House
+
+    return House.objects.select_related("building__estate", "landlord").filter(landlord=contact).order_by("building__estate__name", "building__name", "room_number")
+
+
+def get_landlord_leases_for_contact(contact):
+    from apps.house.models import Lease
+
+    return (
+        Lease.objects.select_related("house__building__estate", "house__landlord", "tenant", "source_viewing_record")
+        .filter(organization=contact.organization, house__landlord=contact)
+        .order_by("-start_date", "-id")
     )
 
 
@@ -283,6 +387,71 @@ def get_landlord_leases(user: User, organization: Organization):
         )
         .order_by("-start_date", "-id")
     )
+
+
+@transaction.atomic
+def resolve_deal_signing_tenant(*, organization: Organization, name: str, phone: str):
+    """按姓名和手机号精确复用租客，不命中时创建联系人。"""
+    from apps.house.models import Contact
+
+    normalized_name = name.strip()
+    normalized_phone = phone.strip()
+    if not normalized_name:
+        raise ValidationError({"tenant_identity": {"name": "请输入租客姓名。"}})
+    if not normalized_phone:
+        raise ValidationError({"tenant_identity": {"phone": "请输入租客手机号。"}})
+
+    try:
+        contact, _created = Contact.objects.get_or_create(
+            organization=organization,
+            name=normalized_name,
+            phone=normalized_phone,
+            defaults={"roles": [ContactRole.TENANT], "is_active": True},
+        )
+    except ValidationError as error:
+        contact = Contact.objects.filter(organization=organization, name=normalized_name, phone=normalized_phone).first()
+        if contact is None:
+            raise error
+    if not contact.is_active:
+        raise ValidationError({"tenant_identity": "该租客已停用，请先启用后再签约。"})
+    if not contact.has_role(ContactRole.TENANT):
+        contact.roles = [*(contact.roles or []), ContactRole.TENANT]
+        contact.save(update_fields=["roles", "updated_at"])
+    return contact
+
+
+@transaction.atomic
+def create_deal_signing(
+    *,
+    organization: Organization,
+    house_id: int,
+    tenant,
+    source_viewing_record=None,
+    lease_data: dict,
+):
+    """显式完成成交签约，不改变普通租约保存与状态流转语义。"""
+    from apps.house.models import House, Lease
+
+    try:
+        house = House.objects.select_for_update().select_related("building").get(pk=house_id, building__organization=organization)
+    except House.DoesNotExist:
+        raise Http404 from None
+
+    if house.status == HouseStatus.INACTIVE:
+        raise ValidationError({"house": "已停用房源不能成交签约。"})
+
+    lease = Lease.objects.create(
+        organization=organization,
+        house=house,
+        tenant=tenant,
+        source_viewing_record=source_viewing_record,
+        status=LeaseStatus.ACTIVE,
+        **lease_data,
+    )
+    if house.status != HouseStatus.RENTED:
+        house.status = HouseStatus.RENTED
+        house.save(update_fields=["status", "updated_at"])
+    return lease
 
 
 def _default_building_setting():

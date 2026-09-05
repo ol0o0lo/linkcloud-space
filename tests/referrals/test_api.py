@@ -17,6 +17,7 @@ class ReferralUserAPITests(TestCase):
         self.client.force_login(self.user)
 
     def test_user_can_get_referral_summary(self):
+        ReferralRuleConfig.objects.create(name="default", allow_link=True, allow_code=True)
         link = ensure_referral_link(self.user)
         baker.make("referrals.ReferralRecord", inviter=self.user, referral_link=link, status=ReferralRecordStatus.REGISTERED)
 
@@ -25,6 +26,9 @@ class ReferralUserAPITests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = api_data(resp)
         self.assertEqual(data["invite_code"], link.code)
+        self.assertEqual(data["share_link"], f"/dashboard/user/register?invite_code={link.code}&referral_source=link")
+        self.assertTrue(data["allow_link"])
+        self.assertTrue(data["allow_code"])
         self.assertEqual(data["registered_count"], 1)
 
         records_resp = self.client.get("/api/referrals/me/records/")
@@ -32,6 +36,18 @@ class ReferralUserAPITests(TestCase):
         self.assertEqual(records_resp.status_code, 200)
         record = api_data(records_resp)["items"][0]
         self.assertEqual(record["status__mapping"], ReferralRecordStatus.get_choice_label(record["status"]))
+
+    def test_disabled_referral_channels_are_not_exposed(self):
+        ReferralRuleConfig.objects.create(name="default", allow_link=False, allow_code=False)
+
+        resp = self.client.get("/api/referrals/me/summary/")
+
+        self.assertEqual(resp.status_code, 200)
+        data = api_data(resp)
+        self.assertIsNone(data["invite_code"])
+        self.assertIsNone(data["share_link"])
+        self.assertFalse(data["allow_link"])
+        self.assertFalse(data["allow_code"])
 
 
 class ReferralAdminAPITests(TestCase):

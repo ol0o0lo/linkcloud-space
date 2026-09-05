@@ -152,8 +152,8 @@ class TestAdminUserLifecycleAPI(TestCase):
         self.assertEqual(member["real_name_status__mapping"], "未实名")
 
     def test_superuser_can_filter_admin_users(self):
-        staff = User.objects.create_user(username="operator", email="ops@example.com", password="secret", is_staff=True)  # noqa: S106
-        verified = User.objects.create_user(
+        User.objects.create_user(username="operator", email="ops@example.com", password="secret", is_staff=True)  # noqa: S106
+        User.objects.create_user(
             username="verified-user",
             email="verified@example.com",
             password="secret",  # noqa: S106

@@ -12,7 +12,7 @@ from apps.accounts.models import User
 from apps.accounts.services import bind_phone_to_user
 from apps.house.constants import ContactRole, EstatePropertyType, HouseStatus, LeaseStatus, ViewingRecordStatus
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
-from apps.house.services import claim_landlord_contact_for_bound_phone, get_landlord_houses, get_landlord_leases
+from apps.house.services import get_landlord_houses, get_landlord_leases
 from apps.media.constants import MediaType, ResourceType
 from apps.media.services import collect_media_ref_field_ids, register_media_file
 
@@ -230,42 +230,27 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         estate.refresh_from_db()
         self.assertEqual(estate.address, "")
 
-    def test_contact_phone_preserves_input_and_is_unique_by_exact_value_inside_org(self):
+    def test_contact_identity_is_unique_by_name_and_phone_inside_org(self):
         contact = self.make_contact(phone="13800138001")
         Contact.objects.create(organization=self.other_org, name="异租户", phone="13800138001", roles=[ContactRole.LANDLORD])
 
         contact.refresh_from_db()
         self.assertEqual(contact.phone, "13800138001")
+        same_phone_other_name = Contact.objects.create(
+            organization=self.org,
+            name="不同姓名",
+            phone="13800138001",
+            roles=[ContactRole.TENANT],
+        )
+        self.assertEqual(same_phone_other_name.phone, contact.phone)
         with self.assertRaises(ValidationError):
-            Contact.objects.create(organization=self.org, name="重复", phone="13800138001", roles=[ContactRole.TENANT])
+            Contact.objects.create(organization=self.org, name=contact.name, phone="13800138001", roles=[ContactRole.TENANT])
         formatted = Contact.objects.create(organization=self.org, name="国际格式", phone="+8613800138001", roles=[ContactRole.TENANT])
         foreign = Contact.objects.create(organization=self.org, name="国外联系人", phone="12025550123", roles=[ContactRole.TENANT])
         self.assertEqual(formatted.phone, "+8613800138001")
         self.assertEqual(foreign.phone, "12025550123")
 
-    def test_claim_landlord_contact_is_idempotent_org_scoped_and_does_not_steal_bound_contact(self):
-        landlord = self.make_contact(phone="13800138002")
-        other = Contact.objects.create(organization=self.other_org, name="跨组织", phone="13800138002", roles=[ContactRole.LANDLORD])
-        bound_user = User.objects.create_user(username="bound", password="secret")  # noqa: S106
-        bound = Contact.objects.create(organization=self.org, name="已绑定", phone="13800138003", roles=[ContactRole.LANDLORD], user=bound_user)
-
-        claimed = claim_landlord_contact_for_bound_phone(self.user, self.org, "13800138002")
-        second = claim_landlord_contact_for_bound_phone(self.user, self.org, "13800138002")
-        skipped_without_org = claim_landlord_contact_for_bound_phone(self.user, None, "13800138002")
-        stolen = claim_landlord_contact_for_bound_phone(self.user, self.org, "13800138003")
-
-        landlord.refresh_from_db()
-        other.refresh_from_db()
-        bound.refresh_from_db()
-        self.assertEqual(claimed, landlord)
-        self.assertEqual(second, landlord)
-        self.assertIsNone(skipped_without_org)
-        self.assertIsNone(stolen)
-        self.assertEqual(landlord.user, self.user)
-        self.assertIsNone(other.user)
-        self.assertEqual(bound.user, bound_user)
-
-    def test_bind_phone_to_user_delegates_to_landlord_contact_claim_service(self):
+    def test_bind_phone_to_user_does_not_claim_landlord_contact(self):
         landlord = self.make_contact(phone="+8613800138010")
         user = User.objects.create_user(username="phone-bound", password="secret")  # noqa: S106
 
@@ -274,9 +259,9 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         landlord.refresh_from_db()
         self.assertFalse(merged)
         self.assertEqual(bound_user, user)
-        self.assertEqual(landlord.user, user)
+        self.assertIsNone(landlord.user)
 
-    def test_bind_phone_claims_landlord_contact_with_national_number(self):
+    def test_bind_phone_with_national_number_does_not_claim_landlord_contact(self):
         landlord = self.make_contact(phone="13800138011")
         user = User.objects.create_user(username="national-phone-bound", password="secret")  # noqa: S106
 
@@ -285,7 +270,7 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         landlord.refresh_from_db()
         self.assertFalse(merged)
         self.assertEqual(bound_user, user)
-        self.assertEqual(landlord.user, user)
+        self.assertIsNone(landlord.user)
 
 
 class TestHouseMediaAndOwnership(HouseDomainTestCase):

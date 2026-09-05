@@ -14,13 +14,13 @@ from django.http import HttpRequest
 
 def require_authenticated(request: HttpRequest) -> None:
     if not (request.user and request.user.is_authenticated):
-        raise PermissionDenied("Authentication required.")
+        raise PermissionDenied("请先登录。")
 
 
 def require_superuser(request: HttpRequest) -> None:
     require_authenticated(request)
     if not request.user.is_superuser:
-        raise PermissionDenied("Superuser permission required.")
+        raise PermissionDenied("需要超级管理员权限。")
 
 
 def require_org_selected(request: HttpRequest) -> Any:
@@ -28,7 +28,7 @@ def require_org_selected(request: HttpRequest) -> Any:
     org_ctx = getattr(request, "org", None)
     org = org_ctx.instance if org_ctx is not None else None
     if org is None:
-        raise PermissionDenied("Make sure you've selected an organization first.")
+        raise PermissionDenied("请先选择组织。")
     return org
 
 
@@ -36,5 +36,5 @@ def require_org_owner(request: HttpRequest) -> Any:
     """Return the active org or raise 403 if the user isn't the owner."""
     org = require_org_selected(request)
     if not org.is_owner(request.user):
-        raise PermissionDenied("Only organization owners are allowed to perform this action.")
+        raise PermissionDenied("仅组织所有者可执行此操作。")
     return org

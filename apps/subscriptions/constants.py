@@ -37,6 +37,7 @@ class OrderCloseReason(StrChoices):
     TIMEOUT = "timeout", "支付超时"
     SUPERSEDED = "superseded", "已被新订单替代"
     PROVIDER_FAILED = "provider_failed", "渠道失败"
+    USER_CANCELLED = "user_cancelled", "用户取消"
 
 
 class RefundStatus(StrChoices):

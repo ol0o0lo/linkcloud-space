@@ -58,13 +58,7 @@ def rollup_and_purge_analytics_events() -> int:
     """归档超过原始保留期的事件，并在同一事务内删除明细。"""
     tz = timezone.get_current_timezone()
     cutoff = timezone.make_aware(datetime.combine(raw_start_date(), time.min), tz)
-    days = list(
-        AnalyticsEvent.objects.filter(occurred_at__lt=cutoff)
-        .annotate(day=TruncDate("occurred_at", tzinfo=tz))
-        .order_by()
-        .values_list("day", flat=True)
-        .distinct()
-    )
+    days = list(AnalyticsEvent.objects.filter(occurred_at__lt=cutoff).annotate(day=TruncDate("occurred_at", tzinfo=tz)).order_by().values_list("day", flat=True).distinct())
     deleted = 0
     for day in days:
         # ponytail: 单日事务保证汇总和清理原子；单日数据量大到超时后再加分区或进度表。

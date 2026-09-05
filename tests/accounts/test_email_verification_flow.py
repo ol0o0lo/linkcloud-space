@@ -28,7 +28,7 @@ def unverified_user(db):
 
 
 def _extract_key_from_email(body: str) -> str:
-    match = re.search(r"http\S*/accounts/confirm-email/(\S+)", body)
+    match = re.search(r"http\S*/dashboard/user/confirm-email/(\S+)", body)
     assert match, f"verification link not found in email body:\n{body}"
     return match.group(1).rstrip("/").rstrip(">").rstrip(".")
 
@@ -85,9 +85,7 @@ def test_verify_endpoint_accepts_decoded_key(mailoutbox, client, unverified_user
         data={"key": decoded_key},
         content_type="application/json",
     )
-    assert verify_response.status_code in (200, 401), (
-        f"expected 200/401 (verified, pending login), got {verify_response.status_code}: {verify_response.content!r}"
-    )
+    assert verify_response.status_code in (200, 401), f"expected 200/401 (verified, pending login), got {verify_response.status_code}: {verify_response.content!r}"
     assert EmailAddress.objects.get(user=unverified_user).verified is True
 
 

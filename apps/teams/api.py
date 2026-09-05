@@ -29,7 +29,7 @@ def _validate_members(member_ids: list[int], org) -> list[int]:
     if invalid:
         from django.core.exceptions import ValidationError
 
-        raise ValidationError({"members": [f"User id {pk} is not a member of this organization." for pk in invalid]})
+        raise ValidationError({"members": [f"用户 {pk} 不是该组织成员。" for pk in invalid]})
     return member_ids
 
 
@@ -78,7 +78,7 @@ def patch_team(request, team_id: int, payload: TeamPatchIn):
     """更新团队资料或成员列表，成员变更需要额外的成员管理权限。"""
     team = require_team_permission(request, team_id, TeamPermission.UPDATE)
     org = team.organization
-    data = payload.dict(exclude_unset=True, exclude={"members"})
+    data = payload.model_dump(exclude_unset=True, exclude={"members"})
     if payload.members is not None:
         require_team_permission(request, team_id, TeamPermission.MEMBER_MANAGE)
     with transaction.atomic():

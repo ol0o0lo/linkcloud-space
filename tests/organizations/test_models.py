@@ -10,4 +10,4 @@ class TestOrganizationInvite(SimpleTestCase):
     def test_accept_invite_url_does_not_depend_on_django_route(self):
         invite = OrganizationInvite(key="abc123")
 
-        self.assertEqual(invite.accept_invite_url, "/organizations/invite/abc123/accept/")
+        self.assertEqual(invite.accept_invite_url, "/dashboard/invitations/abc123")

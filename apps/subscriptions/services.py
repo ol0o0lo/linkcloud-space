@@ -233,6 +233,32 @@ def initiate_wechat_payment(*, order: SaaSOrder, payment: PaymentTransaction, us
     return start_checkout(payment=payment, openid=openid)
 
 
+@transaction.atomic
+def cancel_purchase_order(*, order: SaaSOrder, actor) -> SaaSOrder:
+    """取消待支付订单，并在本地事务提交后尽力关闭微信支付单。"""
+    order = SaaSOrder.objects.select_for_update().select_related("organization").get(pk=order.pk)
+    if order.status != OrderStatus.PENDING_PAYMENT:
+        raise SubscriptionRuleException("仅待支付订单可以取消。")
+
+    now = _now()
+    order.status = OrderStatus.CLOSED
+    order.close_reason = OrderCloseReason.USER_CANCELLED
+    order.closed_at = now
+    order.save(update_fields=["status", "close_reason", "closed_at", "updated_at"])
+
+    from apps.subscriptions.tasks import close_saas_order_in_wechat_task
+
+    transaction.on_commit(lambda order_id=order.pk: close_saas_order_in_wechat_task.delay(order_id))
+    audit(
+        action="order_cancelled",
+        organization=order.organization,
+        target=order,
+        actor=actor,
+        after={"close_reason": OrderCloseReason.USER_CANCELLED},
+    )
+    return order
+
+
 def _apply_paid_order(order: SaaSOrder, *, paid_at) -> Subscription:
     subscription = Subscription.objects.select_for_update().filter(organization=order.organization).first()
     now = paid_at
@@ -281,7 +307,10 @@ def fulfill_saas_order_payment(*, payment: PaymentTransaction) -> None:
     if payment.biz_type != "subscriptions.saas_order":
         return
     order = SaaSOrder.objects.select_for_update().select_related("organization").get(pk=payment.biz_id)
-    if order.status == OrderStatus.CLOSED and order.close_reason == OrderCloseReason.SUPERSEDED:
+    if order.status == OrderStatus.CLOSED and order.close_reason in {
+        OrderCloseReason.SUPERSEDED,
+        OrderCloseReason.USER_CANCELLED,
+    }:
         payment.status = PaymentStatus.EXCEPTION
         payment.save(update_fields=["status", "updated_at"])
         audit(action="late_payment_requires_manual_refund", organization=order.organization, target=order, after={"provider_trade_no": payment.provider_trade_no})

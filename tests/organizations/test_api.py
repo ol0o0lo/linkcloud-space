@@ -219,6 +219,63 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
         self.assertIn("alice", usernames)
         self.assertNotIn("bob", usernames)
 
+    def test_list_searches_employee_name_and_job_title(self):
+        employee = User.objects.create_user(username="employee-profile", password="x")  # noqa: S106
+        membership = baker.make(
+            "organizations.OrganizationMember",
+            organization=self.org,
+            user=employee,
+            employee_name="吴晨",
+            job_title="招商主管",
+        )
+        self._login()
+
+        name_response = self.client.get("/api/organization-members/", {"keyword": "吴晨"})
+        title_response = self.client.get("/api/organization-members/", {"keyword": "招商"})
+
+        self.assertEqual([item["pk"] for item in api_data(name_response)["items"]], [membership.pk])
+        self.assertEqual([item["pk"] for item in api_data(title_response)["items"]], [membership.pk])
+
+    def test_owner_can_update_employee_profile(self):
+        employee = User.objects.create_user(username="editable-member", password="x")  # noqa: S106
+        membership = baker.make("organizations.OrganizationMember", organization=self.org, user=employee)
+        self._login()
+
+        response = self.client.patch(
+            f"/api/organization-members/{membership.pk}/",
+            data=json.dumps({"employee_name": "  吴晨  ", "job_title": "  招商主管  "}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        membership.refresh_from_db()
+        self.assertEqual(membership.employee_name, "吴晨")
+        self.assertEqual(membership.job_title, "招商主管")
+        payload = api_data(response)
+        self.assertEqual(payload["employee_name"], "吴晨")
+        self.assertEqual(payload["job_title"], "招商主管")
+
+    def test_member_without_manage_permission_cannot_update_employee_profile(self):
+        viewer = User.objects.create_user(username="member-viewer", password="x")  # noqa: S106
+        baker.make("organizations.OrganizationMember", organization=self.org, user=viewer, is_owner=False)
+        view_group = make_access_group("member_profile_view_only", AccessScope.ORG, [("organizations", "member_view")])
+        bind_org_role(self.org, viewer, view_group)
+        employee = User.objects.create_user(username="protected-member", password="x")  # noqa: S106
+        membership = baker.make("organizations.OrganizationMember", organization=self.org, user=employee)
+        self.user = viewer
+        self._login()
+
+        response = self.client.patch(
+            f"/api/organization-members/{membership.pk}/",
+            data=json.dumps({"employee_name": "不应保存", "job_title": "不应保存"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        membership.refresh_from_db()
+        self.assertEqual(membership.employee_name, "")
+        self.assertEqual(membership.job_title, "")
+
     def test_create_member(self):
         new_user = User.objects.create_user(
             username="member",

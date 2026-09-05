@@ -21,7 +21,7 @@ from apps.accounts.utils import (
     mask_real_name,
     normalize_id_number,
 )
-from apps.media.services import delete_media_file, extract_media_id, extract_media_ids, to_plain_media_ref
+from apps.media.services import delete_media_file, extract_media_id, extract_media_ids, resolve_media_refs, to_plain_media_ref
 from apps.referrals.services import mark_referral_as_qualified
 
 
@@ -69,7 +69,6 @@ def bind_phone_to_user(request, user, phone: str):
         if not user.phone_verified:
             user.phone_verified = True
             user.save(update_fields=["phone_verified"])
-        _claim_landlord_contact_after_phone_bind(request, user, phone)
         return user, False
 
     existing = User.objects.filter(phone_country_code=country_code, phone_national_number=national_number).exclude(pk=user.pk).first()
@@ -82,34 +81,21 @@ def bind_phone_to_user(request, user, phone: str):
                 user.set_phone_number(phone)
                 user.phone_verified = True
                 user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
-                _claim_landlord_contact_after_phone_bind(request, user, phone)
             return user, False
         if not existing.is_active:
-            raise ValueError("This phone number belongs to a disabled account.")
+            raise ValueError("该手机号属于已停用账号。")
 
         with transaction.atomic():
             SocialAccount.objects.filter(user=user).update(user=existing)
             user.is_active = False
             user.save(update_fields=["is_active"])
         perform_login(request, Login(user=existing))
-        _claim_landlord_contact_after_phone_bind(request, existing, phone)
         return existing, True
     else:
         user.set_phone_number(phone)
         user.phone_verified = True
         user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
-        _claim_landlord_contact_after_phone_bind(request, user, phone)
         return user, False
-
-
-def _claim_landlord_contact_after_phone_bind(request, user, phone: str | None) -> None:
-    org_ctx = getattr(request, "org", None)
-    organization = org_ctx.instance if org_ctx is not None else None
-    if organization is None:
-        return
-    from apps.house.services import claim_landlord_contact_for_bound_phone
-
-    claim_landlord_contact_for_bound_phone(user, organization, phone)
 
 
 def build_real_name_timeline_row(log: RealNameVerificationLog) -> dict:
@@ -177,7 +163,7 @@ def normalize_id_card_media(*, user, id_card_media: list[dict]) -> list[dict]:
         raise HttpError(400, str(exc)) from exc
 
 
-def serialize_real_name_verification(verification: RealNameVerification, *, include_sensitive: bool = False) -> dict:
+def serialize_real_name_verification(verification: RealNameVerification, *, include_sensitive: bool = False, media_by_id=None) -> dict:
     # 统一把实名模型转成 API 返回结构。
     data = {
         "created_at": verification.created_at.isoformat(),
@@ -190,7 +176,7 @@ def serialize_real_name_verification(verification: RealNameVerification, *, incl
         "provider__mapping": RealNameProvider.get_choice_label(verification.provider),
         "provider_request_id": verification.provider_request_id,
         "provider_result": verification.provider_result,
-        "id_card_media": verification.id_card_media_resolved,
+        "id_card_media": resolve_media_refs(verification.id_card_media, media_by_id=media_by_id) if media_by_id is not None else verification.id_card_media_resolved,
         "real_name_masked": verification.real_name_masked,
         "review_note": verification.review_note,
         "reviewed_at": verification.reviewed_at.isoformat() if verification.reviewed_at else None,

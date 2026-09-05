@@ -11,9 +11,7 @@ from apps.organizations.session import remove_org, save_counts, save_org_data
 def _switch_to_primary_org(request, user):
     from .models import OrganizationMember
 
-    primary_membership = (
-        OrganizationMember.objects.filter(user=user, is_primary=True).select_related("organization").first()
-    )
+    primary_membership = OrganizationMember.objects.filter(user=user, is_primary=True).select_related("organization").first()
     if primary_membership:
         save_org_data(request, primary_membership.organization)
     else:

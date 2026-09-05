@@ -22,7 +22,10 @@ def test_frontend_admin_public_signup_with_invite_code(page: Page, live_server):
         captured_code[phone] = code
 
     with patch("apps.accounts.auth_adapter.AccountAdapter.send_verification_code_sms", side_effect=capture_sms):
-        page.goto(f"{live_server.url}/dashboard/auth/register?invite_code=AQPSQ6OVNA&redirect=%2Fpromotion")
+        page.goto(
+            f"{live_server.url}/dashboard/user/register?invite_code=AQPSQ6OVNA"
+            "&referral_source=link&redirect=%2Fpersonal-business%2Foverview"
+        )
 
         expect(page.get_by_text("AQPSQ6OVNA")).to_be_visible()
         page.get_by_placeholder("请输入邮箱").fill("frontend-admin-signup@example.com")
@@ -32,7 +35,7 @@ def test_frontend_admin_public_signup_with_invite_code(page: Page, live_server):
         page.get_by_role("checkbox").check()
         page.get_by_role("button", name="创建账号").click()
 
-        page.wait_for_url(re.compile(r"/dashboard/auth/verify-phone"), timeout=10000)
+        page.wait_for_url(re.compile(r"/dashboard/user/verify-phone"), timeout=10000)
         expect(page.get_by_text("+8613800138011")).to_be_visible()
 
         assert "+8613800138011" in captured_code, "验证码未被发送"
@@ -42,6 +45,5 @@ def test_frontend_admin_public_signup_with_invite_code(page: Page, live_server):
         verify_input.fill(captured_code["+8613800138011"])
         page.get_by_role("button", name="确认验证").click()
 
-        page.wait_for_url(re.compile(r"/dashboard/promotion"), timeout=10000)
-        expect(page.get_by_text("我的推广链接")).to_be_visible(timeout=10000)
-
+        page.wait_for_url(re.compile(r"/dashboard/personal-business/overview"), timeout=10000)
+        expect(page.get_by_text("我的邀请")).to_be_visible(timeout=10000)

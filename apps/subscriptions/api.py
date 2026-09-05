@@ -10,6 +10,7 @@ from apps.access.services import has_permission
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_selected, require_superuser
 from apps.payments.constants import PaymentMode
+from apps.payments.models import PaymentTransaction
 from apps.payments.services import get_payment
 from apps.payments.wechat import is_wechat_checkout_enabled
 from apps.subscriptions.constants import InvoiceStatus, OrderStatus
@@ -28,10 +29,32 @@ from apps.subscriptions.schemas import (
     RefundIn,
     SaaSOrderOut,
 )
-from apps.subscriptions.services import create_purchase_order, initiate_wechat_payment, refund_order
+from apps.subscriptions.services import cancel_purchase_order, create_purchase_order, initiate_wechat_payment, refund_order
 
 router = Router(tags=["SaaS 订阅/组织"])
 admin_router = Router(tags=["SaaS 订阅/平台管理"])
+_PAYMENT_NOT_LOADED = object()
+
+
+class OrderPagination(LegacyPagination):
+    def paginate_queryset(self, queryset, pagination, **params) -> dict:
+        result = super().paginate_queryset(queryset, pagination, **params)
+        payments = {
+            payment.biz_id: payment
+            for payment in PaymentTransaction.objects.filter(
+                biz_type="subscriptions.saas_order",
+                biz_id__in=[str(order.pk) for order in result["items"]],
+            )
+        }
+        result["items"] = [_serialize_order(order, payment=payments.get(str(order.pk))) for order in result["items"]]
+        return result
+
+
+class InvoiceRequestPagination(LegacyPagination):
+    def paginate_queryset(self, queryset, pagination, **params) -> dict:
+        result = super().paginate_queryset(queryset, pagination, **params)
+        result["items"] = [_serialize_invoice_request(invoice_request) for invoice_request in result["items"]]
+        return result
 
 
 def _require_subscription_permission(request, permission: str):
@@ -41,15 +64,20 @@ def _require_subscription_permission(request, permission: str):
     raise PermissionDenied("没有订阅管理权限。")
 
 
-def _serialize_order(order: SaaSOrder) -> dict:
-    payment = get_payment(biz_type="subscriptions.saas_order", biz_id=str(order.pk))
+def _serialize_order(order: SaaSOrder, *, payment=_PAYMENT_NOT_LOADED) -> dict:
+    if payment is _PAYMENT_NOT_LOADED:
+        payment = get_payment(biz_type="subscriptions.saas_order", biz_id=str(order.pk))
     return {
         "id": order.pk,
+        "organization_id": order.organization_id,
+        "organization_name": order.organization.name,
+        "organization_slug": order.organization.slug,
         "order_no": order.order_no,
         "order_type": order.order_type,
         "status": order.status,
         "close_reason": order.close_reason,
         "target_plan_code": order.plan_snapshot.get("code", ""),
+        "target_plan_name": order.plan_snapshot.get("name") or order.target_plan.name,
         "billing_cycle": order.billing_cycle,
         "list_amount": order.list_amount,
         "credit_amount": order.credit_amount,
@@ -140,26 +168,30 @@ def create_order(request, payload: PurchaseOrderIn):
         billing_cycle=payload.billing_cycle,
         payment_mode=payload.payment_mode,
     )
-    data = _serialize_order(order)
+    data = _serialize_order(order, payment=payment)
     if is_wechat_checkout_enabled():
         data["payment"]["checkout"] = initiate_wechat_payment(order=order, payment=payment, user=request.user)
     return Status(201, data)
 
 
 @router.get("/orders/", response=list[SaaSOrderOut], summary="获取本组织支付记录")
-@paginate(LegacyPagination)
+@paginate(OrderPagination)
 def list_orders(request):
     org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
-    return [
-        _serialize_order(order)
-        for order in SaaSOrder.objects.filter(organization=org, status=OrderStatus.PAID).order_by("-created_at", "-pk")
-    ]
+    return SaaSOrder.objects.filter(organization=org, status=OrderStatus.PAID).order_by("-created_at", "-pk")
 
 
 @router.get("/orders/{order_no}/", response=SaaSOrderOut, summary="轮询支付订单状态")
 def get_order(request, order_no: str):
     org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
     return _serialize_order(get_object_or_404(SaaSOrder, organization=org, order_no=order_no))
+
+
+@router.post("/orders/{order_no}/cancel/", response=SaaSOrderOut, summary="取消待支付订单")
+def cancel_order(request, order_no: str):
+    org = _require_subscription_permission(request, SubscriptionPermission.MANAGE)
+    order = get_object_or_404(SaaSOrder, organization=org, order_no=order_no)
+    return _serialize_order(cancel_purchase_order(order=order, actor=request.user))
 
 
 @router.get("/invoice-profile/", response=InvoiceProfileOut | None, summary="获取开票资料")
@@ -174,7 +206,7 @@ def get_invoice_profile(request):
 @router.put("/invoice-profile/", response=InvoiceProfileOut, summary="维护开票资料")
 def put_invoice_profile(request, payload: InvoiceProfileIn):
     org = _require_subscription_permission(request, SubscriptionPermission.MANAGE)
-    profile, _ = OrganizationInvoiceProfile.objects.update_or_create(organization=org, defaults=payload.dict())
+    profile, _ = OrganizationInvoiceProfile.objects.update_or_create(organization=org, defaults=payload.model_dump())
     return {**_serialize_profile(profile), "organization_id": org.pk}
 
 
@@ -201,9 +233,16 @@ def create_invoice_request(request, payload: InvoiceRequestIn):
 
 
 def _serialize_invoice_request(invoice_request: InvoiceRequest) -> dict:
+    order = invoice_request.order
     return {
         "id": invoice_request.pk,
-        "order_id": invoice_request.order_id,
+        "organization_id": order.organization_id,
+        "organization_name": order.organization.name,
+        "organization_slug": order.organization.slug,
+        "order_id": order.pk,
+        "order_no": order.order_no,
+        "target_plan_code": order.plan_snapshot.get("code", ""),
+        "target_plan_name": order.plan_snapshot.get("name") or order.target_plan.name,
         "status": invoice_request.status,
         "profile_snapshot": invoice_request.profile_snapshot,
         "invoice_number": invoice_request.invoice_number,
@@ -215,20 +254,20 @@ def _serialize_invoice_request(invoice_request: InvoiceRequest) -> dict:
 
 
 @router.get("/invoice-requests/", response=list[InvoiceRequestOut], summary="获取本组织开票申请")
-@paginate(LegacyPagination)
+@paginate(InvoiceRequestPagination)
 def list_invoice_requests(request):
     org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
-    return [_serialize_invoice_request(item) for item in InvoiceRequest.objects.filter(order__organization=org).order_by("-created_at", "-pk")]
+    return InvoiceRequest.objects.filter(order__organization=org).select_related("order__organization", "order__target_plan").order_by("-created_at", "-pk")
 
 
 @admin_router.get("/orders/", response=list[SaaSOrderOut], summary="平台查看订阅订单")
-@paginate(LegacyPagination)
+@paginate(OrderPagination)
 def admin_list_orders(request, organization_id: int | None = Query(None)):
     require_superuser(request)
-    qs = SaaSOrder.objects.all()
+    qs = SaaSOrder.objects.select_related("organization", "target_plan")
     if organization_id:
         qs = qs.filter(organization_id=organization_id)
-    return [_serialize_order(order) for order in qs.order_by("-created_at", "-pk")]
+    return qs.order_by("-created_at", "-pk")
 
 
 @admin_router.post("/orders/{order_id}/refund/", response=SaaSOrderOut, summary="线下登记订单退款")
@@ -246,10 +285,10 @@ def admin_refund_order(request, order_id: int, payload: RefundIn):
 
 
 @admin_router.get("/invoice-requests/", response=list[InvoiceRequestOut], summary="平台查看开票申请")
-@paginate(LegacyPagination)
+@paginate(InvoiceRequestPagination)
 def admin_list_invoice_requests(request):
     require_superuser(request)
-    return [_serialize_invoice_request(item) for item in InvoiceRequest.objects.all().order_by("-created_at", "-pk")]
+    return InvoiceRequest.objects.select_related("order__organization", "order__target_plan").order_by("-created_at", "-pk")
 
 
 @admin_router.patch("/invoice-requests/{invoice_request_id}/", response=InvoiceRequestOut, summary="处理开票申请")

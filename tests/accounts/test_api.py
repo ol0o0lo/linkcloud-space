@@ -85,7 +85,7 @@ class TestUserTotpSetupAPI(TestCase):
         error = api_error(resp)
         self.assertEqual(error["code"], 409)
         self.assertEqual(error["error"], "CONFLICT")
-        self.assertEqual(error["message"], "TOTP is already enabled.")
+        self.assertEqual(error["message"], "TOTP 已启用。")
         self.assertEqual(
             Authenticator.objects.filter(user=self.user, type=Authenticator.Type.TOTP).count(),
             1,

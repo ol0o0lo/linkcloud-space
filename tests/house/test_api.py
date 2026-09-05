@@ -126,8 +126,8 @@ class HouseApiTestCase(TestCase):
                         ],
                         "truncated": True,
                         "target": {
-                            "path": "/rental/properties/estates",
-                            "query": {"view": "buildings", "estate_id": self.estate.pk},
+                            "path": "/rental/properties/list",
+                            "query": {"estate_id": self.estate.pk, "asset_tab": "structure"},
                         },
                     }
                 ],
@@ -509,6 +509,19 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(patched_payload["status"], HouseStatus.LISTED)
         self.assertEqual(patched_payload["asking_rent"], "4300.00")
 
+    def test_patch_house_rejects_unknown_status(self):
+        house = House.objects.create(building=self.building, room_number="1601-invalid-status")
+
+        response = self.client.patch(
+            f"/api/house/houses/{house.pk}/",
+            data=json.dumps({"status": "all"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        house.refresh_from_db()
+        self.assertEqual(house.status, HouseStatus.VACANT)
+
     def test_listing_status_requires_publishable_house(self):
         house = House.objects.create(building=self.building, room_number="1601A")
 
@@ -566,13 +579,23 @@ class HouseApiTestCase(TestCase):
     def test_list_houses_filters_by_unified_status(self):
         vacant_house = House.objects.create(building=self.building, room_number="1701")
         listed_house = House.objects.create(building=self.building, room_number="1702", status=HouseStatus.LISTED)
+        inactive_house = House.objects.create(building=self.building, room_number="1703", status=HouseStatus.INACTIVE)
 
+        all_response = self.client.get("/api/house/houses/")
         response = self.client.get(f"/api/house/houses/?status={HouseStatus.LISTED}")
+        invalid_response = self.client.get("/api/house/houses/?status=all")
 
+        self.assertEqual(all_response.status_code, 200)
+        all_ids = {item["id"] for item in api_data(all_response)["items"]}
+        self.assertIn(vacant_house.pk, all_ids)
+        self.assertIn(listed_house.pk, all_ids)
+        self.assertIn(inactive_house.pk, all_ids)
         self.assertEqual(response.status_code, 200)
         ids = {item["id"] for item in api_data(response)["items"]}
         self.assertIn(listed_house.pk, ids)
         self.assertNotIn(vacant_house.pk, ids)
+        self.assertNotIn(inactive_house.pk, ids)
+        self.assertEqual(invalid_response.status_code, 400)
 
     def test_list_houses_filters_by_estate_before_pagination(self):
         House.objects.create(building=self.building, room_number="1701")
@@ -710,6 +733,31 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(ordering["example"], "-asking_rent,room_number")
         self.assertIn("允许字段", ordering["description"])
 
+    def test_house_openapi_describes_shared_query_and_response_contract(self):
+        from config.api import api
+
+        schema = api.get_openapi_schema(path_prefix="/api")
+        parameters = {
+            parameter["name"]: parameter for parameter in schema["paths"]["/api/house/houses/"]["get"]["parameters"]
+        }
+        house_out = schema["components"]["schemas"]["HouseOut"]
+        house_patch = schema["components"]["schemas"]["HousePatchIn"]
+
+        self.assertEqual(parameters["scope"]["schema"]["anyOf"][0]["enum"], ["all", "mine"])
+        self.assertEqual(
+            parameters["inspection_reason"]["schema"]["anyOf"][0]["enum"],
+            ["missing_images", "missing_videos", "expired"],
+        )
+        self.assertEqual(parameters["status"]["schema"]["anyOf"][0]["$ref"], "#/components/schemas/HouseStatus")
+        self.assertEqual(
+            schema["components"]["schemas"]["HouseStatus"]["enum"],
+            ["vacant", "listed", "rented", "renovating", "inactive"],
+        )
+        self.assertIn("confirm_current", house_patch["properties"])
+        self.assertTrue(
+            {"updated_at", "inspection_reasons", "inspection_due_at", "inspection_max_age_days"}.issubset(house_out["required"])
+        )
+
     def test_admin_list_responses_include_display_labels(self):
         self.building.elevator = True
         self.building.save(update_fields=["elevator"])
@@ -843,7 +891,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["contact"]["id"], tenant.pk)
         self.assertEqual(self.client.get(f"/api/house/viewing-records/{other_viewing.pk}/").status_code, 404)
 
-    def test_list_buildings_searches_estate_names(self):
+    def test_list_buildings_searches_keyword_fields(self):
         Building.objects.create(organization=self.org, estate=self.estate, name="2栋", address="科技园 2 栋", floors=18)
         other_estate = Estate.objects.create(
             organization=self.org,
@@ -864,6 +912,13 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["total"], 1)
         self.assertEqual([item["id"] for item in payload["items"]], [other_building.pk])
+
+        address_response = self.client.get("/api/house/buildings/?keyword=科技园%202%20栋")
+        address_payload = api_data(address_response)
+
+        self.assertEqual(address_response.status_code, 200)
+        self.assertEqual(address_payload["total"], 1)
+        self.assertEqual(address_payload["items"][0]["name"], "2栋")
 
     def test_estate_and_building_details_include_active_house_inventory(self):
         second_building = Building.objects.create(organization=self.org, estate=self.estate, name="2栋", address="科技园 2 栋", floors=18)
@@ -1947,6 +2002,94 @@ class HouseApiTestCase(TestCase):
         house.refresh_from_db()
         self.assertEqual(lease.status, LeaseStatus.PENDING)
         self.assertEqual(house.status, HouseStatus.VACANT)
+
+    def test_deal_signing_creates_active_lease_and_marks_house_rented(self):
+        landlord = Contact.objects.create(organization=self.org, name="成交房东", phone="13800138670", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="成交租客", phone="13900139670", roles=[ContactRole.TENANT])
+        house = House.objects.create(building=self.building, landlord=landlord, room_number="1510", status=HouseStatus.LISTED)
+        DefaultSetting.objects.create(
+            key="property_rental.lease_allocation_rule",
+            value={"method": "percentage", "rate_bp": 10000, "fixed_amount": None},
+            value_type="json",
+            widget="json_editor",
+            label="签约员工收益规则",
+            category="property_rental",
+            ui={"scopes": ["organization", "team"], "inherit_org": True},
+        )
+
+        response = self.client.post(
+            "/api/house/leases/deal-signing/",
+            data=json.dumps(
+                {
+                    "lease": {
+                        "house_id": house.pk,
+                        "tenant_id": tenant.pk,
+                        "start_date": str(date.today()),
+                        "end_date": str(date.today() + timedelta(days=365)),
+                        "monthly_rent": "4200",
+                    },
+                    "beneficiary_user_ids": [self.user.pk],
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        lease = Lease.objects.get(pk=api_data(response)["lease"]["id"])
+        house.refresh_from_db()
+        self.assertEqual(lease.status, LeaseStatus.ACTIVE)
+        self.assertEqual(house.status, HouseStatus.RENTED)
+
+    def test_deal_signing_rejects_inactive_house_without_creating_lease(self):
+        landlord = Contact.objects.create(organization=self.org, name="停用房东", phone="13800138671", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="停用租客", phone="13900139671", roles=[ContactRole.TENANT])
+        house = House.objects.create(building=self.building, landlord=landlord, room_number="1511", status=HouseStatus.INACTIVE)
+
+        response = self.client.post(
+            "/api/house/leases/deal-signing/",
+            data=json.dumps(
+                {
+                    "lease": {
+                        "house_id": house.pk,
+                        "tenant_id": tenant.pk,
+                        "start_date": str(date.today()),
+                        "end_date": str(date.today() + timedelta(days=365)),
+                        "monthly_rent": "4200",
+                    },
+                    "beneficiary_user_ids": [self.user.pk],
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Lease.objects.filter(house=house).exists())
+        house.refresh_from_db()
+        self.assertEqual(house.status, HouseStatus.INACTIVE)
+
+    def test_deal_signing_rolls_back_lease_when_house_status_update_fails(self):
+        landlord = Contact.objects.create(organization=self.org, name="回滚房东", phone="13800138672", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="回滚租客", phone="13900139672", roles=[ContactRole.TENANT])
+        house = House.objects.create(building=self.building, landlord=landlord, room_number="1512", status=HouseStatus.LISTED)
+
+        with (
+            patch.object(House, "save", side_effect=IntegrityError("房态更新失败")),
+            self.assertRaises(IntegrityError),
+        ):
+            house_services.create_deal_signing(
+                organization=self.org,
+                house_id=house.pk,
+                tenant=tenant,
+                lease_data={
+                    "start_date": date.today(),
+                    "end_date": date.today() + timedelta(days=365),
+                    "monthly_rent": Decimal("4200"),
+                },
+            )
+
+        self.assertFalse(Lease.objects.filter(house=house).exists())
+        house.refresh_from_db()
+        self.assertEqual(house.status, HouseStatus.LISTED)
 
     def test_patch_lease_to_active_does_not_modify_house_status(self):
         landlord = Contact.objects.create(organization=self.org, name="激活房东", phone="13800138667", roles=[ContactRole.LANDLORD])

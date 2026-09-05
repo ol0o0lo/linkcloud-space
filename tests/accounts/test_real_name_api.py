@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -182,6 +183,31 @@ class TestRealNameAPI(TestCase):
         self.assertNotEqual(resolved[0]["url"], "stale-signed-url")
         self.assertEqual(resolved[0]["file_size"], 123)
         self.assertEqual(verification.id_card_media_resolved[0]["file_size"], 123)
+
+    def test_admin_real_name_list_only_serializes_the_requested_page(self):
+        id_card_media = self.make_id_card_media()
+        for index in range(2):
+            RealNameVerification.objects.create(
+                user=self.user,
+                status=RealNameStatus.PENDING,
+                source=RealNameSource.USER_SUBMIT,
+                provider=RealNameProvider.MOCK_AUTO,
+                real_name_encrypted=f"encrypted-name-{index}",
+                id_number_encrypted=f"encrypted-id-{index}",
+                real_name_masked="张*",
+                id_number_masked="110***********0019",
+                id_number_hash=f"hash-{index}",
+                id_card_media=id_card_media,
+                is_current=True,
+            )
+        self.client.force_login(self.admin)
+
+        with patch("apps.accounts.api.serialize_real_name_verification", wraps=serialize_real_name_verification) as serializer:
+            response = self.client.get("/api/admin/real-name-verifications/?page=1&page_size=1")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(api_data(response)["total"], 2)
+        self.assertEqual(serializer.call_count, 1)
 
     def test_real_name_media_field_rejects_wrong_resource_type(self):
         id_card_media = self.make_id_card_media()

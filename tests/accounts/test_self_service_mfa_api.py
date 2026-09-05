@@ -4,7 +4,7 @@ from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 
 from apps.accounts.models import User
-from tests.api_helpers import api_data
+from tests.api_helpers import api_data, api_error
 
 
 @pytest.mark.django_db
@@ -34,4 +34,4 @@ def test_delete_missing_authenticator_returns_404(client):
     response = client.delete("/api/users/me/mfa/authenticators/totp/")
 
     assert response.status_code == 404
-    assert b"Authenticator not found" in response.content
+    assert api_error(response)["message"] == "未找到认证器。"

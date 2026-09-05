@@ -1,3 +1,5 @@
+import json
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
@@ -17,6 +19,7 @@ from apps.access.services import (
 )
 from apps.accounts.models import User
 from tests.access.helpers import make_access_group, make_permission
+from tests.api_helpers import api_data
 
 
 def make_role(code: str, scope: str, codenames: list[str], organization=None):
@@ -161,3 +164,81 @@ class AccessPermissionTests(TestCase):
 
         with self.assertRaises(ValidationError):
             assign_org_role(self.org, self.user, role_group.access_role)
+
+
+class NavigationAccessAPITests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="navigation-owner", password="secret")  # noqa: S106
+        self.member = User.objects.create_user(username="navigation-member", password="secret")  # noqa: S106
+        self.org = baker.make("organizations.Organization", name="导航测试组织", slug="navigation-org")
+        baker.make("organizations.OrganizationMember", organization=self.org, user=self.owner, is_owner=True)
+        baker.make("organizations.OrganizationMember", organization=self.org, user=self.member, is_owner=False)
+        self.team = baker.make("teams.Team", organization=self.org)
+        self.team.members.add(self.owner, self.member)
+
+    def select_user(self, user, *, is_owner: bool):
+        self.client.force_login(user)
+        session = self.client.session
+        session["organization_data"] = json.dumps(
+            {
+                "pk": self.org.pk,
+                "id": self.org.pk,
+                "name": self.org.name,
+                "slug": self.org.slug,
+                "is_owner": is_owner,
+            }
+        )
+        session.save()
+
+    def test_owner_receives_all_navigation_capabilities(self):
+        self.select_user(self.owner, is_owner=True)
+
+        response = self.client.get("/api/access/navigation/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            api_data(response),
+            {
+                "role_management": True,
+                "organization_settings": True,
+                "team_settings": True,
+                "subscriptions": True,
+                "analytics": True,
+                "allocation": True,
+                "notification_dispatches": True,
+            },
+        )
+
+    def test_member_receives_only_capabilities_granted_by_roles(self):
+        org_group = make_access_group(
+            "navigation-org-reader",
+            AccessScope.ORG,
+            [
+                ("subscriptions", "subscription_view"),
+                ("analytics", "analytics_view"),
+            ],
+        )
+        team_group = make_access_group(
+            "navigation-team-settings",
+            AccessScope.TEAM,
+            [("settings", "team_setting_view")],
+        )
+        OrganizationGroupBinding.objects.create(organization=self.org, user=self.member, group=org_group)
+        TeamGroupBinding.objects.create(team=self.team, user=self.member, group=team_group)
+        self.select_user(self.member, is_owner=False)
+
+        response = self.client.get("/api/access/navigation/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            api_data(response),
+            {
+                "role_management": False,
+                "organization_settings": False,
+                "team_settings": True,
+                "subscriptions": True,
+                "analytics": True,
+                "allocation": False,
+                "notification_dispatches": False,
+            },
+        )

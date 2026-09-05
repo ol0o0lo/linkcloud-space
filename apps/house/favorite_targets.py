@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from apps.favorites.registry import FavoriteTargetDisplay, get_target_adapter, register_target_adapter
+from apps.favorites.registry import FavoriteDisplayFact, FavoriteTargetDisplay, get_target_adapter, register_target_adapter
 from apps.favorites.targets import IntegerFavoriteTargetAdapter
 from apps.house.schemas import FavoriteBuildingTargetOut, FavoriteEstateTargetOut, PublicHouseListOut
 from apps.house.services import get_public_buildings_queryset, get_public_estates_queryset, get_public_houses_queryset
@@ -54,7 +54,7 @@ class HouseFavoriteTargetAdapter(IntegerFavoriteTargetAdapter):
     def serialize_display(self, target, serialized_target: dict[str, Any]) -> FavoriteTargetDisplay:
         building = serialized_target["building"]
         estate = building.get("estate") or {}
-        facts = []
+        facts: list[FavoriteDisplayFact] = []
         if asking_rent := serialized_target.get("asking_rent"):
             facts.append({"label": "月租", "value": f"¥{_format_number(asking_rent)}"})
         if area := serialized_target.get("area"):
@@ -92,7 +92,7 @@ class BuildingFavoriteTargetAdapter(IntegerFavoriteTargetAdapter):
 
     def serialize_display(self, target, serialized_target: dict[str, Any]) -> FavoriteTargetDisplay:
         estate = serialized_target.get("estate") or {}
-        facts = [{"label": "楼层", "value": f"{serialized_target['floors']}层"}]
+        facts: list[FavoriteDisplayFact] = [{"label": "楼层", "value": f"{serialized_target['floors']}层"}]
         facts.append({"label": "电梯", "value": "有" if serialized_target.get("elevator") else "无"})
         return {
             "title": f"{estate.get('display_name') or estate.get('name') or ''} · {serialized_target['name']}".lstrip(" ·"),

@@ -85,6 +85,8 @@ class MemberOut(Schema):
     pk: int
     organization: int
     user: OrgUserOut
+    employee_name: str = ""
+    job_title: str = ""
     is_owner: bool
     created_at: datetime
     updated_at: datetime
@@ -117,6 +119,8 @@ class TransferOwnerIn(Schema):
 
 class MemberPatchIn(Schema):
     is_owner: bool | None = Field(None, description="是否修改为租户 owner。")
+    employee_name: str | None = Field(None, max_length=150, description="员工在当前租户内使用的姓名。")
+    job_title: str | None = Field(None, max_length=100, description="员工在当前租户内的职位。")
 
 
 class MemberSearchOut(Schema):

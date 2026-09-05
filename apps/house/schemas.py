@@ -3,11 +3,16 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from ninja import Schema
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
+from apps.allocation.schemas import AllocationRequestOut
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
 from apps.media.schemas import ResolvedMediaRefOut
 from apps.organizations.schemas import OrgUserOut
+
+HouseScope = Literal["all", "mine"]
+HouseStatusValue = HouseStatus
+HouseInspectionReason = Literal["missing_images", "missing_videos", "expired"]
 
 
 class RelatedResourceItemOut(Schema):
@@ -346,12 +351,125 @@ class ContactOut(Schema):
     roles: list[str]
     roles__mapping: list[str]
     user_id: int | None
+    public_key: str | None
+    landlord_binding_status: Literal["unbound", "invited", "bound"] | None
+    landlord_invite_expires_at: datetime | None
     notes: str
     is_active: bool
 
     @staticmethod
     def resolve_roles__mapping(obj):
         return [ContactRole.get_choice_label(role) for role in (obj.roles or [])]
+
+    @staticmethod
+    def resolve_public_key(obj):
+        return str(obj.public_key) if obj.public_key else None
+
+    @staticmethod
+    def resolve_landlord_binding_status(obj):
+        if ContactRole.LANDLORD not in (obj.roles or []):
+            return None
+        if obj.user_id:
+            return "bound"
+        return "invited" if _contact_invitation_payload(obj) else "unbound"
+
+    @staticmethod
+    def resolve_landlord_invite_expires_at(obj):
+        if ContactRole.LANDLORD not in (obj.roles or []) or obj.user_id:
+            return None
+        payload = _contact_invitation_payload(obj)
+        if not payload:
+            return None
+        from apps.house.landlord_invitations import invitation_expires_at
+
+        return invitation_expires_at(payload)
+
+
+def _contact_invitation_payload(obj):
+    if hasattr(obj, "_landlord_invitation_payload"):
+        return obj._landlord_invitation_payload
+    from apps.house.landlord_invitations import get_contact_invitation
+
+    obj._landlord_invitation_payload = get_contact_invitation(obj.pk)
+    return obj._landlord_invitation_payload
+
+
+class LandlordInvitationOut(Schema):
+    organization_name: str
+    contact_name: str
+    invitee_phone_masked: str
+    expires_at: datetime
+    action_url: str | None = None
+
+
+class LandlordInvitationAcceptOut(Schema):
+    contact_id: int
+    organization_id: int
+    organization_name: str
+    public_key: str
+
+
+class LandlordRelationshipOut(Schema):
+    contact_id: int
+    organization_id: int
+    organization_name: str
+    organization_slug: str
+    contact_name: str
+    house_count: int
+    public_house_count: int
+    public_key: str
+    public_url: str
+
+
+class LandlordHouseOut(Schema):
+    id: int
+    building_id: int
+    building: BuildingSummaryOut
+    landlord_id: int | None
+    landlord: ContactSummaryOut | None
+    room_number: str
+    floor: int | None
+    area: Decimal | None
+    interior_area: Decimal | None
+    asking_rent: Decimal | None
+    deposit_amount: Decimal | None
+    bedrooms: int | None
+    living_rooms: int | None
+    bathrooms: int | None
+    kitchens: int | None
+    balconies: int | None
+    orientation: str | None
+    orientation__mapping: str
+    decoration: str | None
+    decoration__mapping: str
+    has_elevator_access: bool
+    status: str
+    status__mapping: str
+    images: list[dict[str, Any]]
+    videos: list[dict[str, Any]]
+    tags: list[str]
+    effective_tags: list[str]
+    public_description: str
+
+    @staticmethod
+    def resolve_orientation__mapping(obj):
+        return HouseOrientation.get_choice_label(obj.orientation) if obj.orientation else ""
+
+    @staticmethod
+    def resolve_decoration__mapping(obj):
+        return HouseDecoration.get_choice_label(obj.decoration) if obj.decoration else ""
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return HouseStatus.get_choice_label(obj.status)
+
+    @staticmethod
+    def resolve_images(obj):
+        return obj.images_resolved
+
+    @staticmethod
+    def resolve_videos(obj):
+        return obj.videos_resolved
 
 
 class PropertyResponsibilityUpdateIn(Schema):
@@ -528,6 +646,7 @@ class HouseIn(Schema):
 
 
 class HousePatchIn(Schema):
+    confirm_current: bool = False
     building_id: int | None = None
     landlord_id: int | None = None
     room_number: str | None = None
@@ -544,7 +663,7 @@ class HousePatchIn(Schema):
     orientation: str | None = None
     decoration: str | None = None
     has_elevator_access: bool | None = None
-    status: str | None = None
+    status: HouseStatusValue | None = None
     images: list[dict[str, Any]] | None = None
     videos: list[dict[str, Any]] | None = None
     tags: list[str] | None = None
@@ -575,7 +694,7 @@ class HouseOut(Schema):
     decoration: str | None
     decoration__mapping: str
     has_elevator_access: bool
-    status: str
+    status: HouseStatusValue
     status__mapping: str
     images: list[dict[str, Any]]
     videos: list[dict[str, Any]]
@@ -584,6 +703,10 @@ class HouseOut(Schema):
     public_description: str
     internal_notes: str
     extra: dict[str, Any]
+    updated_at: datetime
+    inspection_reasons: list[HouseInspectionReason]
+    inspection_due_at: datetime | None
+    inspection_max_age_days: int | None
 
     @staticmethod
     def resolve_orientation__mapping(obj):
@@ -609,6 +732,27 @@ class HouseOut(Schema):
     def resolve_videos(obj):
         return obj.videos_resolved
 
+    @staticmethod
+    def resolve_inspection_reasons(obj):
+        if getattr(obj, "inspection_max_age_days", None) is None:
+            return []
+        reasons = []
+        if not obj.images:
+            reasons.append("missing_images")
+        if not obj.videos:
+            reasons.append("missing_videos")
+        if getattr(obj, "inspection_expired", False):
+            reasons.append("expired")
+        return reasons
+
+    @staticmethod
+    def resolve_inspection_due_at(obj):
+        return getattr(obj, "inspection_due_at", None)
+
+    @staticmethod
+    def resolve_inspection_max_age_days(obj):
+        return getattr(obj, "inspection_max_age_days", None)
+
 
 class PublicPublisherOut(Schema):
     slug: str
@@ -619,6 +763,15 @@ class PublicPublisherOut(Schema):
     @staticmethod
     def resolve_logo(obj):
         return obj.logo_resolved
+
+
+class PublicLandlordProfileOut(Schema):
+    public_key: str
+    name: str
+    avatar: list[ResolvedMediaRefOut]
+    phone: str
+    organization: PublicPublisherOut
+    house_count: int
 
 
 class PublicEstateOut(Schema):
@@ -852,3 +1005,70 @@ class LeaseOut(Schema):
     @staticmethod
     def resolve_contract_files(obj):
         return obj.contract_files_resolved
+
+
+class LeaseWithAllocationIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    lease: LeaseIn
+    team_id: int | None = None
+    beneficiary_user_ids: list[int] = Field(min_length=1)
+
+
+class DealSigningTenantIdentityIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    phone: str = Field(min_length=1, max_length=32)
+
+
+class DealSigningLeaseIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    house_id: int
+    tenant_id: int | None = None
+    tenant_identity: DealSigningTenantIdentityIn | None = None
+    source_viewing_record_id: int | None = None
+    sign_at: datetime | None = None
+    start_date: date
+    end_date: date
+    monthly_rent: Decimal
+    deposit: Decimal | None = None
+    payment_day: int = 1
+    contract_files: list[dict[str, Any]] = Field(default_factory=list)
+    notes: str = ""
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_tenant_input(self):
+        if (self.tenant_id is None) == (self.tenant_identity is None):
+            raise ValueError("tenant_id 和 tenant_identity 必须且只能提供一个。")
+        return self
+
+
+class DealSigningWithAllocationIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    lease: DealSigningLeaseIn
+    team_id: int | None = None
+    beneficiary_user_ids: list[int] = Field(min_length=1)
+
+
+class LeaseAllocationOut(Schema):
+    id: int
+    lease: LeaseOut
+    allocation_request: AllocationRequestOut
+    created_at: datetime
+
+
+class LeaseAllocationReviewIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["approve", "reject"]
+    reason: str = Field(default="", max_length=2000)
+
+
+class LeaseAllocationVoidIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=2000)

@@ -6,8 +6,8 @@ from django.utils import timezone
 
 from celery import shared_task
 
-from apps.notifications.dispatches import execute_dispatch
 from apps.notifications.constants import NotificationDispatchStatus
+from apps.notifications.dispatches import execute_dispatch
 from apps.notifications.models import Notification, NotificationDispatch
 
 

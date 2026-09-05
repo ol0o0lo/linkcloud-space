@@ -7,6 +7,7 @@ PERMISSION_MODULES = {
     "organizations": ("organization", "成员与组织"),
     "teams": ("team", "团队管理"),
     "settings": ("settings", "系统设置"),
+    "allocation": ("allocation", "收益分配"),
     "finance": ("finance", "财务管理"),
     "subscriptions": ("subscription", "套餐与订阅"),
     "analytics": ("analytics", "数据与报表"),
@@ -63,6 +64,15 @@ class FinancePermission(StrChoices):
     REPORT_EXPORT = "finance.finance_report_export", "导出财务报表"
 
 
+class AllocationPermission(StrChoices):
+    VIEW = "allocation.view", "查看分配申请和应计收益"
+    SUBMIT = "allocation.submit", "提交分配申请"
+    CHANGE_BENEFICIARIES = "allocation.change_beneficiaries", "修改分配受益人"
+    REVIEW = "allocation.review", "审核分配申请"
+    ADJUST = "allocation.adjust", "人工调整应计收益"
+    VOID = "allocation.void", "作废已生效分配"
+
+
 class SubscriptionPermission(StrChoices):
     VIEW = "subscriptions.subscription_view", "查看订阅与支付记录"
     MANAGE = "subscriptions.subscription_manage", "管理订阅、购买与开票"
@@ -82,6 +92,7 @@ ALL_PERMISSION_ENUMS = (
     OrganizationPermission,
     TeamPermission,
     SettingsPermission,
+    AllocationPermission,
     FinancePermission,
     SubscriptionPermission,
     AnalyticsPermission,
@@ -107,6 +118,10 @@ SYSTEM_ROLE_DEFINITIONS = {
             FinancePermission.BILL_VIEW,
             FinancePermission.BILL_REFUND,
             FinancePermission.REPORT_EXPORT,
+            AllocationPermission.VIEW,
+            AllocationPermission.REVIEW,
+            AllocationPermission.ADJUST,
+            AllocationPermission.VOID,
             SubscriptionPermission.VIEW,
             SubscriptionPermission.MANAGE,
         ],

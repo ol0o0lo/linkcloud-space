@@ -24,7 +24,7 @@ def decrypt_identity_value(value: str) -> str:
     try:
         return _fernet().decrypt(value.encode("utf-8")).decode("utf-8")
     except InvalidToken as exc:
-        raise ValueError("Unable to decrypt identity value.") from exc
+        raise ValueError("身份信息解密失败。") from exc
 
 
 def mask_real_name(value: str) -> str:

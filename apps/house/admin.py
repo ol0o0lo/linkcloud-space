@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.db.models import ProtectedError
 
-from apps.house.models import Building, Contact, Estate, House, HouseFavorite, Lease, PropertyResponsibility, ViewingRecord
+from apps.house.models import Building, Contact, Estate, House, HouseFavorite, Lease, LeaseAllocation, PropertyResponsibility, ViewingRecord
 
 
 class ProtectedDeleteMessageMixin:
@@ -90,3 +90,19 @@ class LeaseAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
     list_filter = ("organization", "status")
     search_fields = ("house__room_number", "tenant__name", "tenant__phone")
     autocomplete_fields = ("house", "tenant", "source_viewing_record")
+
+
+@admin.register(LeaseAllocation)
+class LeaseAllocationAdmin(admin.ModelAdmin):
+    list_display = ("id", "lease", "allocation_request", "created_at")
+    search_fields = ("lease__house__room_number", "lease__tenant__name", "allocation_request__submitted_by_name_snapshot")
+    readonly_fields = ("lease", "allocation_request", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

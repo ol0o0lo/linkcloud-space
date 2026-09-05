@@ -13,19 +13,19 @@ def render(template_str: str, context: dict | None = None) -> str:
 class TestSpaUrlTag:
     def test_resolves_static_route(self):
         rendered = render("{% load spa %}{% spa_url 'org-switch' %}")
-        assert rendered == "/organizations/switch/"
+        assert rendered == "/dashboard/space/organization"
 
     def test_formats_slug_into_path(self):
         rendered = render("{% load spa %}{% spa_url 'org-settings-general' slug='acme' %}")
-        assert rendered == "/organizations/acme/settings/general/"
+        assert rendered == "/dashboard/space/settings/organization"
 
     def test_each_settings_tab_url_is_registered(self):
         # Settings tabs need a registered SPA URL so legacy Django templates
         # (and any direct-link emails) can target them via {% spa_url %}.
         expected = {
-            "org-settings-general": "/organizations/{slug}/settings/general/",
-            "org-settings-members": "/organizations/{slug}/settings/members/",
-            "org-settings-teams": "/organizations/{slug}/settings/teams/",
+            "org-settings-general": "/dashboard/space/settings/organization",
+            "org-settings-members": "/dashboard/space/organization?section=members&node=organization&tab=members",
+            "org-settings-teams": "/dashboard/space/settings/team",
         }
         for name, path in expected.items():
             assert settings.SPA_URLS[name] == path

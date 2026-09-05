@@ -111,7 +111,8 @@ def test_app_request_uses_x_org_slug_without_session_org(client, verified_user):
     api_resp = client.get("/api/settings/org/", HTTP_X_SESSION_TOKEN=session_token, HTTP_X_ORG_SLUG=org.slug)
 
     assert api_resp.status_code == 200, api_resp.content
-    assert api_data(api_resp)[0]["key"] == "site_name"
+    settings_by_key = {item["key"]: item for item in api_data(api_resp)}
+    assert settings_by_key["site_name"]["value"] == "My SaaS"
 
 
 @pytest.mark.django_db
@@ -123,10 +124,7 @@ def test_app_request_prefers_x_org_slug_over_session_org(client, verified_user):
     OrganizationMember.objects.create(organization=header_org, user=verified_user, is_owner=True)
     DefaultSetting.objects.create(key="site_name", value="My SaaS", value_type="text", description="站点名称")
     session = client.session
-    session["organization_data"] = (
-        f'{{"pk": {session_org.pk}, "id": {session_org.pk}, "name": "{session_org.name}", '
-        f'"slug": "{session_org.slug}", "is_owner": true}}'
-    )
+    session["organization_data"] = f'{{"pk": {session_org.pk}, "id": {session_org.pk}, "name": "{session_org.name}", "slug": "{session_org.slug}", "is_owner": true}}'
     session.save()
 
     resp = client.post(

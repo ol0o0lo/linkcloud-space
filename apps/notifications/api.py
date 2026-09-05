@@ -75,17 +75,17 @@ def list_preferences(request):
 @router.patch("/preferences/{category}/", response=NotificationPreferenceOut, summary="更新通知偏好设置")
 def patch_preference(
     request,
+    payload: NotificationPreferencePatchIn,
     category: str = Path(..., description="通知类别 key。"),
-    payload: NotificationPreferencePatchIn = ...,
 ):
     """更新某个通知类别的站内和邮件接收偏好。"""
     cat = get_category(category)
     if cat is None:
-        raise HttpError(404, f"Unknown notification category: {category}")
+        raise HttpError(404, f"未知通知类别：{category}")
     if payload.in_app is False and NotificationChannel.IN_APP in cat.required_channels:
-        raise HttpError(422, "This notification category requires the in-app channel.")
+        raise HttpError(422, "该通知类别必须启用站内信渠道。")
     if payload.email is False and NotificationChannel.EMAIL in cat.required_channels:
-        raise HttpError(422, "This notification category requires the email channel.")
+        raise HttpError(422, "该通知类别必须启用邮件渠道。")
     pref, _created = NotificationPreference.objects.get_or_create(
         user=request.user,
         category=category,
@@ -104,14 +104,14 @@ def patch_preference(
 
 
 @router.post("/bulk/", response=BulkResultOut, summary="批量处理通知")
-def bulk_action(request, payload: BulkActionIn = ...):
+def bulk_action(request, payload: BulkActionIn):
     """批量标记通知已读、未读或删除通知。"""
     qs = _base_qs(request)
     if payload.all_unread:
         qs = qs.filter(read_at__isnull=True)
     else:
         if not payload.ids:
-            raise HttpError(400, "ids must be a non-empty list when all_unread is not set")
+            raise HttpError(400, "未设置 all_unread 时，ids 必须是非空列表。")
         qs = qs.filter(pk__in=payload.ids)
 
     if payload.action == "delete":
@@ -167,12 +167,12 @@ def _resolve_management_context(request, management_context: ManagementContext) 
 
     if resolved_context == "platform":
         if not request.user.is_superuser:
-            raise HttpError(403, "Only platform administrators can use the platform management context.")
+            raise HttpError(403, "只有平台管理员可以使用平台管理上下文。")
         return "platform", None
 
     org_id = getattr(request.org, "id", None) if request.user.is_superuser else _current_owned_org_id(request)
     if org_id is None or not Organization.objects.filter(pk=org_id).exists():
-        raise HttpError(403, "Select an organization you can manage before using the tenant management context.")
+        raise HttpError(403, "使用租户管理上下文前，请先选择你有权管理的组织。")
     return "tenant", org_id
 
 
@@ -192,42 +192,42 @@ def _validate_existing_scope_ids(payload: NotificationDispatchIn) -> None:
         existing_ids = set(Organization.objects.filter(pk__in=target_ids).values_list("pk", flat=True))
         missing_ids = sorted(target_ids - existing_ids)
         if missing_ids:
-            raise HttpError(400, f"Unknown organization ids: {missing_ids}")
+            raise HttpError(400, f"未知组织 ID：{missing_ids}")
 
     if payload.scope == NotificationDispatchScope.USERS:
         existing_ids = set(User.objects.filter(pk__in=target_ids).values_list("pk", flat=True))
         missing_ids = sorted(target_ids - existing_ids)
         if missing_ids:
-            raise HttpError(400, f"Unknown user ids: {missing_ids}")
+            raise HttpError(400, f"未知用户 ID：{missing_ids}")
 
 
 def _validate_dispatch_scope(request, payload: NotificationDispatchIn, management_context: ManagementContext) -> int | None:
     resolved_context, org_id = _resolve_management_context(request, management_context)
     if resolved_context == "platform":
         if payload.scope == NotificationDispatchScope.TEAMS:
-            raise HttpError(403, "Team dispatches require the tenant management context.")
+            raise HttpError(403, "团队级通知分发必须使用租户管理上下文。")
         _validate_existing_scope_ids(payload)
         return None
 
     if payload.scope == NotificationDispatchScope.PLATFORM:
-        raise HttpError(403, "The tenant management context cannot create platform notification dispatches.")
+        raise HttpError(403, "租户管理上下文不能创建平台级通知分发。")
 
     if payload.scope == NotificationDispatchScope.ORGANIZATION:
         if payload.scope_ids != [org_id]:
-            raise HttpError(403, "Tenant organization dispatches must target the selected organization.")
+            raise HttpError(403, "租户组织级通知分发必须指向当前所选组织。")
         return org_id
 
     if payload.scope == NotificationDispatchScope.TEAMS:
         target_team_ids = set(payload.scope_ids)
         organization_team_ids = set(Team.objects.filter(organization_id=org_id, pk__in=target_team_ids).values_list("pk", flat=True))
         if organization_team_ids != target_team_ids:
-            raise HttpError(403, "Team dispatches can only target teams in the selected organization.")
+            raise HttpError(403, "团队级通知分发只能选择当前组织内的团队。")
         return org_id
 
     target_user_ids = set(payload.scope_ids)
     member_user_ids = set(OrganizationMember.objects.filter(organization_id=org_id, user_id__in=target_user_ids).values_list("user_id", flat=True))
     if member_user_ids != target_user_ids:
-        raise HttpError(403, "Tenant user dispatches can only target selected organization members.")
+        raise HttpError(403, "租户用户级通知分发只能选择当前组织成员。")
     return org_id
 
 
@@ -242,7 +242,7 @@ def list_dispatch_targets(
     """返回当前管理员有权选择的启用组织、当前组织团队或用户候选。"""
     resolved_context, org_id = _resolve_management_context(request, management_context)
     if resolved_context == "platform" and scope == NotificationDispatchScope.TEAMS:
-        raise HttpError(403, "Team targets require the tenant management context.")
+        raise HttpError(403, "团队目标必须使用租户管理上下文。")
 
     keyword = keyword.strip()
     if scope == NotificationDispatchScope.ORGANIZATION:

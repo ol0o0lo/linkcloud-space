@@ -313,6 +313,22 @@ class TestMediaRefsInfo:
         assert result[0]["label"] == "封面"
         assert result[0]["url"] == media.file.url
 
+    def test_resolve_media_refs_reuses_preloaded_media(self, django_assert_num_queries):
+        user = User.objects.create_user(username="preloaded_viewer", password="secret")  # noqa: S106
+        media = register_media_file(
+            uploader=user,
+            oss_path="uploads/users/1/preloaded.png",
+            original_filename="preloaded.png",
+            resource_type=ResourceType.AVATAR,
+            file_size=300,
+        )
+        media_by_id = MediaFile.objects.in_bulk([media.pk])
+
+        with django_assert_num_queries(0):
+            result = resolve_media_refs([{"media_id": media.pk}], media_by_id=media_by_id)
+
+        assert result[0]["media_id"] == media.pk
+
     def test_non_image_media_has_no_thumbnail(self):
         user = User.objects.create_user(username="non_image_viewer", password="secret")  # noqa: S106
         media = register_media_file(

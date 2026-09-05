@@ -110,7 +110,7 @@ class TestNotificationDispatchAPI:
 
         assert resp.status_code == 400
         body = api_error(resp)
-        assert "organization" in body["message"].lower()
+        assert "未知组织" in body["message"]
         assert str(missing_org_id) in body["message"]
         assert NotificationDispatch.objects.count() == 0
         delay.assert_not_called()
@@ -125,7 +125,7 @@ class TestNotificationDispatchAPI:
 
         assert resp.status_code == 400
         body = api_error(resp)
-        assert "user" in body["message"].lower()
+        assert "未知用户" in body["message"]
         assert str(missing_user_id) in body["message"]
         assert NotificationDispatch.objects.count() == 0
         delay.assert_not_called()

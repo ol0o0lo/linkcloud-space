@@ -40,6 +40,11 @@ class HouseStatus(StrChoices):
 HOUSE_ACTIVE_STATUSES = (HouseStatus.VACANT, HouseStatus.LISTED, HouseStatus.RENTED, HouseStatus.RENOVATING)
 
 
+class HouseMatchMode(StrChoices):
+    MANUAL = "manual", "手工配房"
+    DYNAMIC = "dynamic", "动态配房"
+
+
 class ViewingRecordStatus(StrChoices):
     SCHEDULED = "scheduled", "已预约"
     VIEWED = "viewed", "已带看"

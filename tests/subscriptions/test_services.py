@@ -157,7 +157,8 @@ def test_upgrade_uses_remaining_period_credit_and_immediately_replaces_plan(plan
     assert subscription.ends_at == starts_at + timedelta(days=30)
 
 
-def test_superseded_order_late_payment_is_recorded_without_changing_subscription(plans):
+@pytest.mark.parametrize("close_reason", [OrderCloseReason.SUPERSEDED, OrderCloseReason.USER_CANCELLED])
+def test_closed_order_late_payment_is_recorded_without_changing_subscription(plans, close_reason):
     organization = baker.make("organizations.Organization")
     order, payment = create_purchase_order(
         organization=organization,
@@ -167,7 +168,7 @@ def test_superseded_order_late_payment_is_recorded_without_changing_subscription
         payment_mode=PaymentMode.NATIVE,
     )
     order.status = OrderStatus.CLOSED
-    order.close_reason = OrderCloseReason.SUPERSEDED
+    order.close_reason = close_reason
     order.closed_at = timezone.now()
     order.save(update_fields=["status", "close_reason", "closed_at", "updated_at"])
 

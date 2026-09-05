@@ -5,6 +5,11 @@ from model_bakery import baker
 
 from apps.access.constants import AccessScope
 from apps.accounts.models import User
+from apps.house.services import (
+    INSPECTION_MAX_AGE_DAYS_SETTING_KEY,
+    MAX_INSPECTION_MAX_AGE_DAYS,
+    MIN_INSPECTION_MAX_AGE_DAYS,
+)
 from apps.organizations.models import OrganizationMember
 from apps.settings.models import DefaultSetting, OrganizationSetting
 from tests.access.helpers import bind_org_role, bind_team_role, make_access_group
@@ -32,9 +37,7 @@ def user_detail_url(key):
 
 def set_session_org(client, org, is_owner=False):
     session = client.session
-    session["organization_data"] = json.dumps(
-        {"pk": org.pk, "id": org.pk, "name": org.name, "slug": org.slug, "is_owner": is_owner}
-    )
+    session["organization_data"] = json.dumps({"pk": org.pk, "id": org.pk, "name": org.name, "slug": org.slug, "is_owner": is_owner})
     session.save()
 
 
@@ -58,8 +61,20 @@ def default_text(db):
 
 @pytest.fixture
 def default_password(db):
+    return DefaultSetting.objects.create(key="api_secret", value="raw_secret", value_type="password", description="API 密钥")
+
+
+@pytest.fixture
+def inspection_max_age_setting(db):
     return DefaultSetting.objects.create(
-        key="api_secret", value="raw_secret", value_type="password", description="API 密钥"
+        key=INSPECTION_MAX_AGE_DAYS_SETTING_KEY,
+        value=180,
+        value_type="integer",
+        widget="input_number",
+        label="房源资料复查周期",
+        description="当前员工负责的房源超过该周期未更新时，将进入待勘察列表。",
+        category="property_rental",
+        ui={"scopes": ["organization"], "min": 1, "max": 3650, "step": 1, "unit": "天"},
     )
 
 
@@ -178,6 +193,29 @@ class TestOrgSettingDetail:
         set_session_org(client, org, is_owner=True)
         resp = client.get(org_detail_url("nonexistent"))
         assert resp.status_code == 404
+
+    def test_owner_can_configure_inspection_max_age_days(self, client, inspection_max_age_setting, org, owner):
+        client.force_login(owner)
+        set_session_org(client, org, is_owner=True)
+
+        resp = put_json(client, org_detail_url(INSPECTION_MAX_AGE_DAYS_SETTING_KEY), {"value": 30})
+
+        assert resp.status_code == 200
+        data = api_data(resp)
+        assert data["value"] == 30
+        assert data["is_customized"] is True
+        assert data["ui"] == {"scopes": ["organization"], "min": 1, "max": 3650, "step": 1, "unit": "天"}
+
+    @pytest.mark.parametrize("value", [MIN_INSPECTION_MAX_AGE_DAYS - 1, MAX_INSPECTION_MAX_AGE_DAYS + 1, True, "30"])
+    def test_inspection_max_age_days_rejects_invalid_values(self, client, inspection_max_age_setting, org, owner, value):
+        client.force_login(owner)
+        set_session_org(client, org, is_owner=True)
+        client.raise_request_exception = False
+
+        resp = put_json(client, org_detail_url(INSPECTION_MAX_AGE_DAYS_SETTING_KEY), {"value": value})
+
+        assert resp.status_code == 400
+        assert not OrganizationSetting.objects.filter(organization=org, setting=inspection_max_age_setting).exists()
 
 
 @pytest.mark.django_db

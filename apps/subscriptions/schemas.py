@@ -45,11 +45,15 @@ class PurchaseOrderIn(Schema):
 
 class SaaSOrderOut(Schema):
     id: int
+    organization_id: int
+    organization_name: str
+    organization_slug: str
     order_no: str
     order_type: str
     status: str
     close_reason: str
     target_plan_code: str
+    target_plan_name: str
     billing_cycle: str
     list_amount: int
     credit_amount: int
@@ -83,7 +87,13 @@ class InvoiceRequestIn(Schema):
 
 class InvoiceRequestOut(Schema):
     id: int
+    organization_id: int
+    organization_name: str
+    organization_slug: str
     order_id: int
+    order_no: str
+    target_plan_code: str
+    target_plan_name: str
     status: str
     profile_snapshot: dict
     invoice_number: str

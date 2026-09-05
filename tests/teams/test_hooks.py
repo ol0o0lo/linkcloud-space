@@ -1,5 +1,6 @@
-import pytest
 from django.test import RequestFactory
+
+import pytest
 
 from apps.teams.hooks import post_create_team, pre_create_team
 

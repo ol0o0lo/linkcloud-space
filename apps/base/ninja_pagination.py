@@ -42,15 +42,6 @@ class LegacyPagination(PaginationBase):
         }
 
 
-def make_pagination(default_page_size: int = 15) -> type[LegacyPagination]:
-    """Build a ``LegacyPagination`` subclass with view-specific defaults."""
-    return type(
-        "LegacyPagination_custom",
-        (LegacyPagination,),
-        {"default_page_size": default_page_size},
-    )
-
-
 # Convenience instance for the default page size pulled from Django settings.
 DEFAULT_PAGE_SIZE = getattr(settings, "DEFAULT_PAGE_SIZE", 15)
 LegacyPagination.default_page_size = DEFAULT_PAGE_SIZE

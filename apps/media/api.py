@@ -37,7 +37,7 @@ def oss_token(request, params: OssTokenIn = Query(..., description="上传凭证
 
 
 @router.post("/confirm/", response={201: MediaFileOut}, summary="确认直传文件")
-def confirm_upload(request, payload: MediaFileConfirmIn = ...):
+def confirm_upload(request, payload: MediaFileConfirmIn):
     """在前端完成直传后登记媒体文件元数据，生成系统内媒体记录。"""
     if payload.resource_type not in ResourceType.values:
         raise HttpError(422, f"无效的 resource_type: {payload.resource_type}")

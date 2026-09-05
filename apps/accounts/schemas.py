@@ -247,6 +247,7 @@ class RealNamePayloadIn(Schema):
             raise ValueError("身份证图片必须包含 side=front 和 side=back。")
         return value
 
+
 class RealNameSubmitIn(RealNamePayloadIn):
     pass
 

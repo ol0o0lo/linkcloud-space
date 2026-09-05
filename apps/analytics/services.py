@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -12,6 +13,7 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
+from apps.analytics.constants import ANALYTICS_PUBLIC_SOURCES, AnalyticsSource
 from apps.analytics.models import AnalyticsDailyMetric, AnalyticsEvent
 from apps.analytics.registry import (
     AnalyticsEventDefinition,
@@ -27,6 +29,14 @@ logger = logging.getLogger(__name__)
 
 class AnalyticsValidationError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class AnalyticsTargetPage:
+    items: list[dict]
+    total: int
+    page: int
+    page_size: int
 
 
 def _hash_identifier(namespace: str, value: str) -> str:
@@ -52,6 +62,19 @@ def _validate_key(value: str, field: str, max_length: int) -> str:
     if not value or len(value) > max_length or not KEY_PATTERN.fullmatch(value):
         raise AnalyticsValidationError(f"{field} 格式不正确。")
     return value
+
+
+def validate_source(value: str) -> str:
+    source = _validate_key(value, "source", 32)
+    if source not in AnalyticsSource.values:
+        raise AnalyticsValidationError(f"未注册的来源：{source}。")
+    return source
+
+
+def normalize_source_filter(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    return validate_source(value)
 
 
 def _validate_properties(definition: AnalyticsEventDefinition, properties: dict[str, Any] | None) -> dict[str, Any]:
@@ -112,7 +135,7 @@ def record_event(
 ) -> tuple[AnalyticsEvent, bool]:
     """记录一个事件并返回 ``(event, created)``；调用方无需接触模型。"""
     event_name = _validate_key(event_name, "event_name", 96)
-    source = _validate_key(source, "source", 32)
+    source = validate_source(source)
     definition = get_event_definition(event_name)
     if definition is None:
         raise AnalyticsValidationError(f"未注册的事件：{event_name}。")
@@ -120,8 +143,10 @@ def record_event(
         raise AnalyticsValidationError(f"事件 {event_name} 只能由服务端业务产生。")
     if public and not definition.allow_anonymous:
         raise AnalyticsValidationError(f"事件 {event_name} 不允许匿名采集。")
-    if public and source not in settings.ANALYTICS_PUBLIC_SOURCES:
+    if public and source not in ANALYTICS_PUBLIC_SOURCES:
         raise AnalyticsValidationError(f"公开采集不支持来源：{source}。")
+    if public and not anonymous_id.strip() and not session_id.strip():
+        raise AnalyticsValidationError("公开采集必须提供匿名标识或会话标识。")
 
     target_type, target, target_org = resolve_target(target_type=target_type, target_id=target_id, public=public)
     if target_type not in definition.target_types:
@@ -195,7 +220,7 @@ def normalize_date_range(start_date: date | None, end_date: date | None) -> tupl
     start_date = start_date or end_date - timedelta(days=29)
     if start_date > end_date:
         raise AnalyticsValidationError("开始日期不能晚于结束日期。")
-    if (end_date - start_date).days > settings.ANALYTICS_MAX_QUERY_DAYS:
+    if (end_date - start_date).days + 1 > settings.ANALYTICS_MAX_QUERY_DAYS:
         raise AnalyticsValidationError(f"查询范围不能超过 {settings.ANALYTICS_MAX_QUERY_DAYS} 天。")
     return start_date, end_date
 
@@ -216,7 +241,7 @@ def raw_start_date() -> date:
     return timezone.localdate() - timedelta(days=retention_days - 1)
 
 
-def _split_date_range(start_date: date, end_date: date):
+def _split_date_range(start_date: date, end_date: date) -> tuple[tuple[date, date] | None, tuple[date, date] | None]:
     first_raw_day = raw_start_date()
     historical = (start_date, min(end_date, first_raw_day - timedelta(days=1))) if start_date < first_raw_day else None
     raw = (max(start_date, first_raw_day), end_date) if end_date >= first_raw_day else None
@@ -339,50 +364,74 @@ def trend_metrics(organization, start_date: date, end_date: date, source: str | 
     return result
 
 
-def target_metrics(organization, start_date: date, end_date: date, target_type: str, source: str | None = None, event_names: list[str] | None = None) -> list[dict]:
+def target_metrics(
+    organization,
+    start_date: date,
+    end_date: date,
+    target_type: str,
+    source: str | None = None,
+    event_names: list[str] | None = None,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+) -> AnalyticsTargetPage:
     target_definition = get_target_definition(target_type)
     if target_definition is None:
         raise AnalyticsValidationError(f"未注册的目标类型：{target_type}。")
     historical, raw = _split_date_range(start_date, end_date)
-    by_target: dict[str, dict] = {}
-
-    def target_values(target_id: str):
-        return by_target.setdefault(target_id, {"metrics": {}, "total": 0, "unique_visitors": None})
+    totals_by_target: dict[str, int] = {}
 
     def add_totals(rows):
         for row in rows:
-            target_values(row["target_id"])["total"] += row["total"] or 0
-
-    def add_metrics(rows):
-        for row in rows:
-            metrics = target_values(row["target_id"])["metrics"]
-            metrics[row["event_name"]] = metrics.get(row["event_name"], 0) + (row["count"] or 0)
+            target_id = row["target_id"]
+            totals_by_target[target_id] = totals_by_target.get(target_id, 0) + (row["total"] or 0)
 
     visitor_available = _unique_visitors_available(historical, raw) and (not historical or not event_names or len(set(event_names)) == 1)
+    historical_total_qs = None
     if historical:
         total_scope = AnalyticsDailyMetric.SCOPE_TARGET_EVENT if event_names else AnalyticsDailyMetric.SCOPE_TARGET
-        total_qs = _daily_queryset(organization, *historical, total_scope, source).filter(target_type=target_type)
+        historical_total_qs = _daily_queryset(organization, *historical, total_scope, source).filter(target_type=target_type)
         if event_names:
-            total_qs = total_qs.filter(event_name__in=event_names)
-        add_totals(total_qs.values("target_id").annotate(total=Sum("event_count")))
-        metric_qs = _daily_queryset(organization, *historical, AnalyticsDailyMetric.SCOPE_TARGET_EVENT, source).filter(target_type=target_type)
-        if event_names:
-            metric_qs = metric_qs.filter(event_name__in=event_names)
-        add_metrics(metric_qs.values("target_id", "event_name").annotate(count=Sum("event_count")))
-        if visitor_available:
-            for row in total_qs.values("target_id").annotate(unique_visitors=Sum("unique_visitors")):
-                target_values(row["target_id"])["unique_visitors"] = row["unique_visitors"] or 0
+            historical_total_qs = historical_total_qs.filter(event_name__in=event_names)
+        add_totals(historical_total_qs.values("target_id").annotate(total=Sum("event_count")))
+    raw_qs = None
     if raw:
         raw_qs = event_queryset(organization, *raw, source).filter(target_type=target_type)
         if event_names:
             raw_qs = raw_qs.filter(event_name__in=event_names)
         add_totals(raw_qs.values("target_id").annotate(total=Count("id")))
-        add_metrics(raw_qs.values("target_id", "event_name").annotate(count=Count("id")))
-        if visitor_available:
-            for row in raw_qs.values("target_id").annotate(unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key=""))):
-                target_values(row["target_id"])["unique_visitors"] = row["unique_visitors"] or 0
 
-    target_ids = list(by_target)
+    ordered_target_ids = sorted(totals_by_target, key=lambda target_id: (-totals_by_target[target_id], target_id))
+    total = len(ordered_target_ids)
+    page = max(1, page)
+    page_size = max(1, page_size)
+    offset = (page - 1) * page_size
+    target_ids = ordered_target_ids[offset : offset + page_size]
+    by_target = {target_id: {"metrics": {}, "total": totals_by_target[target_id], "unique_visitors": None} for target_id in target_ids}
+
+    def add_metrics(rows):
+        for row in rows:
+            metrics = by_target[row["target_id"]]["metrics"]
+            metrics[row["event_name"]] = metrics.get(row["event_name"], 0) + (row["count"] or 0)
+
+    if target_ids and historical:
+        metric_qs = _daily_queryset(organization, *historical, AnalyticsDailyMetric.SCOPE_TARGET_EVENT, source).filter(
+            target_type=target_type,
+            target_id__in=target_ids,
+        )
+        if event_names:
+            metric_qs = metric_qs.filter(event_name__in=event_names)
+        add_metrics(metric_qs.values("target_id", "event_name").annotate(count=Sum("event_count")))
+        if visitor_available and historical_total_qs is not None:
+            for row in historical_total_qs.filter(target_id__in=target_ids).values("target_id").annotate(unique_visitors=Sum("unique_visitors")):
+                by_target[row["target_id"]]["unique_visitors"] = row["unique_visitors"] or 0
+    if target_ids and raw_qs is not None:
+        page_raw_qs = raw_qs.filter(target_id__in=target_ids)
+        add_metrics(page_raw_qs.values("target_id", "event_name").annotate(count=Count("id")))
+        if visitor_available:
+            for row in page_raw_qs.values("target_id").annotate(unique_visitors=Count("visitor_key", distinct=True, filter=~Q(visitor_key=""))):
+                by_target[row["target_id"]]["unique_visitors"] = row["unique_visitors"] or 0
+
     targets = target_definition.model_class.objects.filter(pk__in=target_ids, **{target_definition.organization_filter: organization})
     if target_definition.ranking_select_related:
         targets = targets.select_related(*target_definition.ranking_select_related)
@@ -399,15 +448,13 @@ def target_metrics(organization, start_date: date, end_date: date, target_type: 
             for item in target_definition.ranking_display
             if (target_id := resolve_path(target, item.target_id_path)) is not None and (label := resolve_path(target, item.label_path)) is not None
         ]
-    return sorted(
-        (
-            {
-                "target_id": target_id,
-                "label": labels.get(target_id, f"{target_definition.label} #{target_id}"),
-                "display_items": display_items.get(target_id, []),
-                **values,
-            }
-            for target_id, values in by_target.items()
-        ),
-        key=lambda item: (-item["total"], item["target_id"]),
-    )
+    items = [
+        {
+            "target_id": target_id,
+            "label": labels.get(target_id, f"{target_definition.label} #{target_id}"),
+            "display_items": display_items.get(target_id, []),
+            **by_target[target_id],
+        }
+        for target_id in target_ids
+    ]
+    return AnalyticsTargetPage(items=items, total=total, page=page, page_size=page_size)

@@ -32,9 +32,7 @@ def get_user_js_object(request):
         "timezone": request.user.timezone,
         "timezone_display": get_timezone_label(request.user.timezone),
     }
-    user_orgs_qs = Organization.objects.prefetch_related("organizationmember_set").filter(
-        organizationmember__user=request.user
-    )
+    user_orgs_qs = Organization.objects.prefetch_related("organizationmember_set").filter(organizationmember__user=request.user)
     user_orgs = []
     for org in user_orgs_qs:
         user_orgs.append({"id": org.pk, "name": org.name, "slug": org.slug})

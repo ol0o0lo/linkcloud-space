@@ -51,7 +51,7 @@ router = Router(tags=["团队运营"])
 def _current_org(request):
     org = require_org_selected(request)
     if not OrganizationMember.objects.filter(organization=org, user=request.user).exists():
-        raise PermissionDenied("You are no longer a member of the selected organization.")
+        raise PermissionDenied("你已不是当前所选组织的成员。")
     return org
 
 

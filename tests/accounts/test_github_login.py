@@ -11,9 +11,11 @@ GitHub 登录集成测试。
 因此测试中使用 settings APP 方式（不建 DB 记录）。
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from django.test import override_settings
+
+import pytest
 
 # settings APP 方式提供凭据（不使用 DB SocialApp）
 GITHUB_TEST_SETTINGS = {
@@ -40,12 +42,14 @@ GITHUB_TEST_SETTINGS = {
 @pytest.fixture
 def browser_client():
     from django.test import Client
+
     return Client(SERVER_NAME="localhost")
 
 
 @pytest.fixture
 def app_client():
     from django.test import Client
+
     return Client(SERVER_NAME="localhost")
 
 
@@ -74,8 +78,7 @@ def test_github_provider_in_flows(browser_client, db):
     flows = body.get("data", {}).get("flows", [])
     provider_flow = next((f for f in flows if f.get("id") == "provider_redirect"), None)
     assert provider_flow is not None, f"No provider_redirect flow: {flows}"
-    assert "github" in provider_flow.get("providers", []), \
-        f"GitHub not in providers: {provider_flow}"
+    assert "github" in provider_flow.get("providers", []), f"GitHub not in providers: {provider_flow}"
 
 
 @override_settings(**GITHUB_TEST_SETTINGS)
