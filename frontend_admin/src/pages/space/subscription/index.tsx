@@ -1544,12 +1544,29 @@ const SubscriptionPage: React.FC = () => {
   const requestCancelOrder = () => {
     if (!checkoutOrderNo || cancelOrderMutation.isPending) return;
     Modal.confirm({
-      title: '确定关闭？',
-      okText: '确认关闭',
+      title: '取消当前订单？',
+      okText: '确认取消',
       cancelText: '继续支付',
       okButtonProps: { danger: true },
       onOk: () => cancelOrderMutation.mutateAsync(checkoutOrderNo),
     });
+  };
+
+  const openOrCreateCheckout = (payload: API.PurchaseOrderIn) => {
+    const previousPayload = purchaseMutation.variables;
+    const canResumeCurrentOrder =
+      checkoutOrderNo &&
+      checkoutCodeUrl &&
+      previousPayload?.target_plan_code === payload.target_plan_code &&
+      previousPayload?.billing_cycle === payload.billing_cycle &&
+      (!checkoutOrderQuery.data ||
+        checkoutOrderQuery.data.status === 'pending_payment');
+
+    if (canResumeCurrentOrder) {
+      setCheckoutOpen(true);
+      return;
+    }
+    purchaseMutation.mutate(payload);
   };
 
   useEffect(() => {
@@ -1923,7 +1940,7 @@ const SubscriptionPage: React.FC = () => {
                     loading={purchaseMutation.isPending}
                     aria-label={`推荐升级 ${recommendedPlan.name}（${billingCycleLabel(billingCycle)}） ${formatAmount(recommendedAmount)}`}
                     onClick={() =>
-                      purchaseMutation.mutate({
+                      openOrCreateCheckout({
                         target_plan_code: recommendedPlan.code,
                         billing_cycle: billingCycle,
                         payment_mode: 'native',
@@ -2100,7 +2117,7 @@ const SubscriptionPage: React.FC = () => {
                                 }
                                 aria-label={actionAriaLabel}
                                 onClick={() =>
-                                  purchaseMutation.mutate({
+                                  openOrCreateCheckout({
                                     target_plan_code: plan.code,
                                     billing_cycle: billingCycle,
                                     payment_mode: 'native',
@@ -2242,7 +2259,7 @@ const SubscriptionPage: React.FC = () => {
         <Modal
           title={checkoutAction === 'renewal' ? '微信扫码续费' : '微信扫码支付'}
           open={checkoutOpen}
-          onCancel={requestCancelOrder}
+          onCancel={() => setCheckoutOpen(false)}
           footer={null}
           width={400}
           centered
@@ -2298,15 +2315,25 @@ const SubscriptionPage: React.FC = () => {
                     : '支付完成后页面会自动同步，请勿重复创建订单。'
               }
             />
-            <Button
-              className={styles.checkoutAction}
-              block
-              danger
-              loading={cancelOrderMutation.isPending}
-              onClick={requestCancelOrder}
-            >
-              取消订单
-            </Button>
+            <Space orientation="vertical" size="small" style={{ width: '100%' }}>
+              <Button
+                className={styles.checkoutAction}
+                block
+                onClick={() => setCheckoutOpen(false)}
+              >
+                稍后支付
+              </Button>
+              <Button
+                className={styles.checkoutAction}
+                block
+                danger
+                type="text"
+                loading={cancelOrderMutation.isPending}
+                onClick={requestCancelOrder}
+              >
+                取消订单
+              </Button>
+            </Space>
           </div>
         </Modal>
       </div>

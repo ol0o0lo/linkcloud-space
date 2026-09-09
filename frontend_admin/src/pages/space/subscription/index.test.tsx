@@ -190,6 +190,34 @@ describe('SubscriptionPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('关闭支付窗口不会取消订单并可重新打开同一订单', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionPage />
+      </QueryClientProvider>,
+    );
+
+    const purchaseButton = await screen.findByRole('button', {
+      name: /开通 专业版（月付）/,
+    });
+    fireEvent.click(purchaseButton);
+    expect(await screen.findByAltText('微信支付二维码')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '稍后支付' }));
+    expect(mockCancelOrder).not.toHaveBeenCalled();
+    expect(screen.queryByText('取消当前订单？')).not.toBeInTheDocument();
+
+    fireEvent.click(purchaseButton);
+    expect(await screen.findByAltText('微信支付二维码')).toBeInTheDocument();
+    expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+  });
+
   it('确认取消待支付订单后关闭二维码并允许重新下单', async () => {
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -210,9 +238,9 @@ describe('SubscriptionPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '取消订单' }));
     expect(
-      (await screen.findAllByText('确定关闭？')).length,
+      (await screen.findAllByText('取消当前订单？')).length,
     ).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: '确认关闭' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认取消' }));
 
     await waitFor(() =>
       expect(mockCancelOrder.mock.calls[0]?.[0]).toBe('S001'),
