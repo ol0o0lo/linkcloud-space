@@ -5,7 +5,7 @@ import { CustomRequestOptions_ } from '@/http/types';
 
 import * as API from './types';
 
-/** 获取租户成员列表 返回当前租户成员列表，支持按姓名、用户名和邮箱搜索。 GET /api/organization-members/ */
+/** 获取租户成员列表 返回当前租户成员列表，支持按员工资料和账号资料搜索。 GET /api/organization-members/ */
 export function organizationMembersUsingGet({
   params,
   options,

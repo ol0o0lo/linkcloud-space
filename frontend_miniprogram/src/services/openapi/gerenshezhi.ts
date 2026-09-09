@@ -76,3 +76,51 @@ export function settingsUserKeyUsingDelete({
     ...(options || {}),
   });
 }
+
+/** 更新列表表头个人设置 原子替换当前用户指定列表的表头配置。 PUT /api/settings/user/table-columns/${param0}/ */
+export function settingsUserTableColumnsTableKeyUsingPut({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.SettingsUserTableColumnsTableKeyUsingPutParams;
+  body: API.SettingsUserTableColumnsTableKeyUsingPutBody;
+  options?: CustomRequestOptions_;
+}) {
+  const { table_key: param0, ...queryParams } = params;
+
+  return request<Record<string, API.TableColumnStateOut>>(
+    `/api/settings/user/table-columns/${param0}/`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 重置列表表头个人设置 删除当前用户指定列表的表头配置。 DELETE /api/settings/user/table-columns/${param0}/ */
+export function settingsUserTableColumnsTableKeyUsingDelete({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.SettingsUserTableColumnsTableKeyUsingDeleteParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { table_key: param0, ...queryParams } = params;
+
+  return request<Record<string, unknown>>(
+    `/api/settings/user/table-columns/${param0}/`,
+    {
+      method: 'DELETE',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}

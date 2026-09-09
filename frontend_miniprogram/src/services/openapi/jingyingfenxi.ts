@@ -56,22 +56,43 @@ export function analyticsOverviewUsingGet({
   });
 }
 
+/** 获取分析来源 GET /api/analytics/sources/ */
+export function analyticsSourcesUsingGet({
+  options,
+}: {
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.AnalyticsSourceDefinitionOut[]>(
+    '/api/analytics/sources/',
+    {
+      method: 'GET',
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取分析目标排行 GET /api/analytics/targets/ */
 export function analyticsTargetsUsingGet({
   params,
+  body,
   options,
 }: {
   // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
   params: API.AnalyticsTargetsUsingGetParams;
+  body: API.AnalyticsTargetsUsingGetBody;
   options?: CustomRequestOptions_;
 }) {
   return request<API.PagedAnalyticsTargetMetricOut>('/api/analytics/targets/', {
     method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
     params: {
       // page has a default value: 1
       page: '1',
       ...params,
     },
+    data: body,
     ...(options || {}),
   });
 }

@@ -25,7 +25,7 @@ export function internalWalletWithdrawalsWithdrawalIdRetryUsingPost({
 }: {
   // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
   params: API.InternalWalletWithdrawalsWithdrawalIdRetryUsingPostParams;
-  body: API.WithdrawalRetryIn;
+  body: API.PayoutCreateIn;
   options?: CustomRequestOptions_;
 }) {
   const { withdrawal_id: param0, ...queryParams } = params;

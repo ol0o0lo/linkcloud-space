@@ -308,6 +308,27 @@ export function teamOperationsTaskAssignmentsAssignmentIdRejectUsingPost({
   );
 }
 
+/** 获取我的任务统计 GET /api/team-operations/task-assignments/summary/ */
+export function teamOperationsTaskAssignmentsSummaryUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.TeamOperationsTaskAssignmentsSummaryUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.TaskAssignmentSummaryOut>(
+    '/api/team-operations/task-assignments/summary/',
+    {
+      method: 'GET',
+      params: {
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取团队任务列表 GET /api/team-operations/tasks/ */
 export function teamOperationsTasksUsingGet({
   params,
@@ -380,6 +401,27 @@ export function teamOperationsTasksTaskIdCancelUsingPost({
     {
       method: 'POST',
       params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取团队任务统计 GET /api/team-operations/tasks/summary/ */
+export function teamOperationsTasksSummaryUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.TeamOperationsTasksSummaryUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.WorkTaskSummaryOut>(
+    '/api/team-operations/tasks/summary/',
+    {
+      method: 'GET',
+      params: {
+        ...params,
+      },
       ...(options || {}),
     }
   );

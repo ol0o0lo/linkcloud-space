@@ -112,6 +112,58 @@ export async function appsAccountsApiSignupWithSplitPhone(
   });
 }
 
+/** 创建公众号扫码登录二维码 POST /api/users/auth/wechat-official/qr/ */
+export async function appsAccountsApiCreateWechatOfficialQr(
+  body: API.WechatOfficialQrCreateIn,
+  options?: { [key: string]: any }
+) {
+  return request<API.WechatOfficialQrOut>(
+    "/api/users/auth/wechat-official/qr/",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 查询公众号扫码登录状态 GET /api/users/auth/wechat-official/qr/${param0}/ */
+export async function appsAccountsApiGetWechatOfficialQrStatus(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsAccountsApiGetWechatOfficialQrStatusParams,
+  options?: { [key: string]: any }
+) {
+  const { login_id: param0, ...queryParams } = params;
+  return request<API.WechatOfficialQrStatusOut>(
+    `/api/users/auth/wechat-official/qr/${param0}/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 完成公众号扫码登录 POST /api/users/auth/wechat-official/qr/${param0}/complete/ */
+export async function appsAccountsApiCompleteWechatOfficialQrLogin(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsAccountsApiCompleteWechatOfficialQrLoginParams,
+  options?: { [key: string]: any }
+) {
+  const { login_id: param0, ...queryParams } = params;
+  return request<any>(
+    `/api/users/auth/wechat-official/qr/${param0}/complete/`,
+    {
+      method: "POST",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 搜索可代登录用户 供超级管理员搜索可用于 impersonate 的用户候选列表。 GET /api/users/impersonate-search/ */
 export async function appsAccountsApiImpersonateSearch(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

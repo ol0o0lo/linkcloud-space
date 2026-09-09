@@ -1,6 +1,13 @@
 /* eslint-disable */
 // @ts-ignore
 
+export type AccessNavigationUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: NavigationAccessCapabilitiesOut;
+};
+
 export type AccessOrganizationBindingsBindingIdUsingDeleteParams = {
   binding_id: number;
 };
@@ -69,6 +76,41 @@ export type AccessPermissionsUsingGetResponses = {
   200: PermissionOut[];
 };
 
+export type AccessRoleManagementNavigationUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: RoleManagementNavigationOut;
+};
+
+export type AccessRoleManagementRolesRoleIdMembersUsingGetParams = {
+  role_id: number;
+  team_id?: number | null;
+  keyword?: string | null;
+  assignment?: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AccessRoleManagementRolesRoleIdMembersUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedRoleMemberOptionOut;
+};
+
+export type AccessRoleManagementRolesRoleIdMembersUsingPatchParams = {
+  role_id: number;
+  team_id?: number | null;
+};
+
+export type AccessRoleManagementRolesRoleIdMembersUsingPatchResponses = {
+  /**
+   * OK
+   */
+  200: RoleMemberAssignmentOut;
+};
+
 export type AccessRoleOut = {
   /** Id */
   id: number;
@@ -84,8 +126,22 @@ export type AccessRoleOut = {
   is_active: boolean;
   /** Organization Id */
   organization_id?: number | null;
+  /** Team Id */
+  team_id?: number | null;
+  /** Description */
+  description?: string;
   /** Permission Keys */
   permission_keys: string[];
+  /** Permission Count */
+  permission_count: number;
+  /** Permission Modules */
+  permission_modules: PermissionModuleSummaryOut[];
+  /** Assigned Member Count */
+  assigned_member_count?: number;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
 };
 
 export type AccessRoleSummaryOut = {
@@ -188,8 +244,51 @@ export type AccessUserOut = {
   first_name?: string;
   /** Last Name */
   last_name?: string;
+  /** Email */
+  email?: string;
   /** Avatar Url */
   avatar_url?: string | null;
+};
+
+export type AccrualEntryOut = {
+  /** Id */
+  id: number;
+  /** Organization Id */
+  organization_id: number;
+  /** Beneficiary User Id */
+  beneficiary_user_id: number;
+  /** Beneficiary Name Snapshot */
+  beneficiary_name_snapshot: string;
+  /** Entry Type */
+  entry_type: string;
+  /** Entry Type  Mapping */
+  entry_type__mapping: string;
+  /** Amount */
+  amount: string;
+  /** Currency */
+  currency: string;
+  /** Effective At */
+  effective_at: string;
+  /** Effective Month */
+  effective_month: string;
+  /** Allocation Share Id */
+  allocation_share_id: number | null;
+  /** Allocation Request Id */
+  allocation_request_id: number | null;
+  /** Reversal Of Id */
+  reversal_of_id: number | null;
+  /** Reversal Entry Id */
+  reversal_entry_id: number | null;
+  /** Reason */
+  reason: string;
+  /** Created By Id */
+  created_by_id: number;
+  /** Created By Name */
+  created_by_name: string;
+  /** Created At */
+  created_at: string;
+  /** Source Snapshot */
+  source_snapshot: Record<string, unknown> | null;
 };
 
 export enum ActionEnum {
@@ -684,6 +783,222 @@ export type AdminWalletWithdrawalsWithdrawalIdReviewUsingPostResponses = {
   200: WithdrawalOut;
 };
 
+export type AllocationBeneficiariesUsingGetParams = {
+  keyword?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AllocationBeneficiariesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedAllocationBeneficiaryOut;
+};
+
+export type AllocationBeneficiaryOut = {
+  /** User Id */
+  user_id: number;
+  /** Name */
+  name: string;
+};
+
+export type AllocationCapabilitiesOut = {
+  /** Submit */
+  submit: boolean;
+  /** Change Beneficiaries */
+  change_beneficiaries: boolean;
+  /** View Scope */
+  view_scope: 'self' | 'organization';
+  /** Review */
+  review: boolean;
+  /** Adjust */
+  adjust: boolean;
+  /** Void */
+  void: boolean;
+  /** Signing Teams */
+  signing_teams: AllocationSigningTeamOut[];
+};
+
+export type AllocationCapabilitiesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: AllocationCapabilitiesOut;
+};
+
+export type AllocationEntriesUsingGetParams = {
+  beneficiary_user_id?: number | null;
+  entry_type?: string | null;
+  effective_month?: string | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AllocationEntriesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedAccrualEntryOut;
+};
+
+export type AllocationItemOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Effect */
+  effect: string;
+  /** Effect  Mapping */
+  effect__mapping: string;
+  /** Amount */
+  amount: string;
+  /** Sort Order */
+  sort_order: number;
+  /** Remark */
+  remark: string;
+};
+
+export type AllocationManualEntriesUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: AccrualEntryOut;
+};
+
+export type AllocationMonthlyTotalsUsingGetParams = {
+  beneficiary_user_id?: number | null;
+  effective_month?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AllocationMonthlyTotalsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMonthlyAccrualTotalOut;
+};
+
+export type AllocationRequestOut = {
+  /** Id */
+  id: number;
+  /** Organization Id */
+  organization_id: number;
+  /** Team Id */
+  team_id: number | null;
+  /** Team Name Snapshot */
+  team_name_snapshot: string;
+  /** Rule Source */
+  rule_source: string;
+  /** Rule Source  Mapping */
+  rule_source__mapping: string;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Basis Amount */
+  basis_amount: string;
+  /** Distribution Method */
+  distribution_method: string;
+  /** Distribution Method  Mapping */
+  distribution_method__mapping: string;
+  /** Distribution Rate Bp */
+  distribution_rate_bp: number | null;
+  /** Distributable Amount */
+  distributable_amount: string;
+  /** Currency */
+  currency: string;
+  /** Source Snapshot */
+  source_snapshot: Record<string, unknown>;
+  /** Submitted By Id */
+  submitted_by_id: number;
+  /** Submitted By Name Snapshot */
+  submitted_by_name_snapshot: string;
+  /** Submitted At */
+  submitted_at: string;
+  /** Expires At */
+  expires_at: string;
+  /** Reviewed By Id */
+  reviewed_by_id: number | null;
+  /** Reviewed By Name Snapshot */
+  reviewed_by_name_snapshot: string;
+  /** Reviewed At */
+  reviewed_at: string | null;
+  /** Rejection Reason */
+  rejection_reason: string;
+  /** Voided By Id */
+  voided_by_id: number | null;
+  /** Voided By Name Snapshot */
+  voided_by_name_snapshot: string;
+  /** Voided At */
+  voided_at: string | null;
+  /** Void Reason */
+  void_reason: string;
+  /** Items */
+  items: AllocationItemOut[];
+  /** Shares */
+  shares: AllocationShareOut[];
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type AllocationRequestsAllocationRequestIdUsingGetParams = {
+  allocation_request_id: number;
+};
+
+export type AllocationRequestsAllocationRequestIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: AllocationRequestOut;
+};
+
+export type AllocationRequestsUsingGetParams = {
+  status?: string | null;
+  submitted_by_id?: number | null;
+  beneficiary_user_id?: number | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AllocationRequestsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedAllocationRequestOut;
+};
+
+export type AllocationShareOut = {
+  /** Id */
+  id: number;
+  /** Beneficiary User Id */
+  beneficiary_user_id: number;
+  /** Beneficiary Name Snapshot */
+  beneficiary_name_snapshot: string;
+  /** Weight Bp */
+  weight_bp: number;
+  /** Attributed Basis Amount */
+  attributed_basis_amount: string;
+  /** Allocated Amount */
+  allocated_amount: string;
+  /** Sort Order */
+  sort_order: number;
+  /** Remark */
+  remark: string;
+};
+
+export type AllocationSigningTeamOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+};
+
 export type AnalyticsCollectErrorOut = {
   /** Index */
   index: number;
@@ -765,7 +1080,7 @@ export type AnalyticsMetricOut = {
   /** Count */
   count: number;
   /** Unique Visitors */
-  unique_visitors: number;
+  unique_visitors: number | null;
 };
 
 export type AnalyticsOverviewOut = {
@@ -776,7 +1091,7 @@ export type AnalyticsOverviewOut = {
   /** Total Events */
   total_events: number;
   /** Unique Visitors */
-  unique_visitors: number;
+  unique_visitors: number | null;
   /** Metrics */
   metrics: AnalyticsMetricOut[];
 };
@@ -792,6 +1107,20 @@ export type AnalyticsOverviewUsingGetResponses = {
    * OK
    */
   200: AnalyticsOverviewOut;
+};
+
+export type AnalyticsSourceDefinitionOut = {
+  /** Value */
+  value: string;
+  /** Label */
+  label: string;
+};
+
+export type AnalyticsSourcesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: AnalyticsSourceDefinitionOut[];
 };
 
 export type AnalyticsTargetDisplayItemOut = {
@@ -813,10 +1142,12 @@ export type AnalyticsTargetMetricOut = {
   /** Total */
   total: number;
   /** Unique Visitors */
-  unique_visitors: number;
+  unique_visitors: number | null;
   /** Metrics */
   metrics: Record<string, number>;
 };
+
+export type AnalyticsTargetsUsingGetBody = Input | null;
 
 export type AnalyticsTargetsUsingGetParams = {
   target_type: string;
@@ -1211,6 +1542,8 @@ export type BuildingSummaryOut = {
   /** Estate Id */
   estate_id: number | null;
   estate: EstateSummaryOut | null;
+  /** Elevator */
+  elevator: boolean;
   /** Address */
   address: string;
   /** Lat */
@@ -1265,6 +1598,12 @@ export type ContactOut = {
   roles__mapping: string[];
   /** User Id */
   user_id: number | null;
+  /** Public Key */
+  public_key: string | null;
+  /** Landlord Binding Status */
+  landlord_binding_status: 'unbound' | 'invited' | 'bound' | null;
+  /** Landlord Invite Expires At */
+  landlord_invite_expires_at: string | null;
   /** Notes */
   notes: string;
   /** Is Active */
@@ -1304,11 +1643,14 @@ export type CurrentSubscriptionOut = {
   usage: Record<string, unknown>;
   /** Subscription */
   subscription: Record<string, unknown> | null;
+  recommendation: UpgradeRecommendationOut | null;
 };
 
 export type CustomRoleCreateIn = {
   /** Name 角色显示名称，需在当前作用域内唯一。 */
   name: string;
+  /** Description 角色用途说明。 */
+  description?: string;
   /** Permission Keys 角色拥有的权限 key 列表。 */
   permission_keys?: string[] | null;
   /** Copy From 可选，基于现有角色复制权限配置的角色 ID。 */
@@ -1318,6 +1660,8 @@ export type CustomRoleCreateIn = {
 export type CustomRolePatchIn = {
   /** Name 新的角色显示名称，需在当前作用域内唯一。 */
   name?: string | null;
+  /** Description 新的角色用途说明。 */
+  description?: string | null;
   /** Permission Keys 新的权限 key 列表。 */
   permission_keys?: string[] | null;
 };
@@ -1338,6 +1682,56 @@ export type DailyDashboardOut = {
   /** Urgent Items */
   urgent_items?: TaskAssignmentOut[];
 };
+
+export type DealSigningLeaseIn = {
+  /** House Id */
+  house_id: number;
+  /** Tenant Id */
+  tenant_id?: number | null;
+  tenant_identity?: DealSigningTenantIdentityIn | null;
+  /** Source Viewing Record Id */
+  source_viewing_record_id?: number | null;
+  /** Sign At */
+  sign_at?: string | null;
+  /** Start Date */
+  start_date: string;
+  /** End Date */
+  end_date: string;
+  /** Monthly Rent */
+  monthly_rent: number | string;
+  /** Deposit */
+  deposit?: number | string | null;
+  /** Payment Day */
+  payment_day?: number;
+  /** Contract Files */
+  contract_files?: Record<string, unknown>[];
+  /** Notes */
+  notes?: string;
+  /** Extra */
+  extra?: Record<string, unknown>;
+};
+
+export type DealSigningTenantIdentityIn = {
+  /** Name */
+  name: string;
+  /** Phone */
+  phone: string;
+};
+
+export type DealSigningWithAllocationIn = {
+  lease: DealSigningLeaseIn;
+  /** Team Id */
+  team_id?: number | null;
+  /** Beneficiary User Ids */
+  beneficiary_user_ids: number[];
+};
+
+export enum DecisionEnum {
+  'approve' = 'approve',
+  'reject' = 'reject',
+}
+
+export type IDecisionEnum = keyof typeof DecisionEnum;
 
 export type DefaultBuildingIn = {
   /** Building Id */
@@ -1364,6 +1758,13 @@ export type DeleteCheckOut = {
   /** Resources */
   resources: RelatedResourceOut[];
 };
+
+export enum Entry_typeEnum {
+  'manual_increase' = 'manual_increase',
+  'manual_decrease' = 'manual_decrease',
+}
+
+export type IEntry_typeEnum = keyof typeof Entry_typeEnum;
 
 export type EnumsUsingGetResponses = {
   /**
@@ -1674,6 +2075,7 @@ export type HouseBuildingsBuildingIdUsingPatchResponses = {
 export type HouseBuildingsUsingGetParams = {
   estate_id?: number | null;
   keyword?: string | null;
+  scope?: 'all' | 'mine' | null;
   page?: number;
   page_size?: number | null;
 };
@@ -1690,6 +2092,18 @@ export type HouseBuildingsUsingPostResponses = {
    * Created
    */
   201: BuildingOut;
+};
+
+export type HouseContactsContactIdLandlordInviteUsingPostParams = {
+  contact_id: number;
+  delivery_method?: 'sms' | 'manual';
+};
+
+export type HouseContactsContactIdLandlordInviteUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: LandlordInvitationOut;
 };
 
 export type HouseContactsContactIdUsingGetParams = {
@@ -1815,6 +2229,7 @@ export type HouseEstatesEstateIdUsingPatchResponses = {
 
 export type HouseEstatesUsingGetParams = {
   keyword?: string | null;
+  scope?: 'all' | 'mine' | null;
   page?: number;
   page_size?: number | null;
 };
@@ -1823,7 +2238,7 @@ export type HouseEstatesUsingGetResponses = {
   /**
    * OK
    */
-  200: PagedEstateOut;
+  200: PagedEstateDetailOut;
 };
 
 export type HouseEstatesUsingPostResponses = {
@@ -1859,8 +2274,14 @@ export type HouseHousesUsingGetParams = {
   estate_id?: number | null;
   building_id?: number | null;
   responsible_member_id?: number | null;
-  status?: string | null;
+  scope?: 'all' | 'mine' | null;
+  responsibility?: string | null;
+  inspection_due?: boolean;
+  inspection_reason?: 'missing_images' | 'missing_videos' | 'expired' | null;
+  status?: HouseStatus | null;
   keyword?: string | null;
+  /** 排序字段，多个字段使用英文逗号分隔，字段前的 - 表示降序，最多 3 项。允许字段：room_number、layout、building、asking_rent、deposit_amount、landlord、has_elevator_access、status、area、floor、created_at、updated_at。 */
+  ordering?: string;
   page?: number;
   page_size?: number | null;
 };
@@ -1922,6 +2343,54 @@ export type HouseIn = {
   public_description?: string;
 };
 
+export type HouseLandlordContactsContactIdHousesUsingGetParams = {
+  contact_id: number;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseLandlordContactsContactIdHousesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedLandlordHouseOut;
+};
+
+export type HouseLandlordContactsContactIdLeasesUsingGetParams = {
+  contact_id: number;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseLandlordContactsContactIdLeasesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedLeaseOut;
+};
+
+export type HouseLandlordInvitesTokenAcceptUsingPostParams = {
+  token: string;
+};
+
+export type HouseLandlordInvitesTokenAcceptUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: LandlordInvitationAcceptOut;
+};
+
+export type HouseLandlordInvitesTokenUsingGetParams = {
+  token: string;
+};
+
+export type HouseLandlordInvitesTokenUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: LandlordInvitationOut;
+};
+
 export type HouseLandlordMyHousesUsingGetParams = {
   page?: number;
   page_size?: number | null;
@@ -1944,6 +2413,69 @@ export type HouseLandlordMyLeasesUsingGetResponses = {
    * OK
    */
   200: PagedLeaseOut;
+};
+
+export type HouseLandlordRelationshipsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: LandlordRelationshipOut[];
+};
+
+export type HouseLeaseAllocationsUsingGetParams = {
+  status?: string | null;
+  keyword?: string | null;
+  submitted_by_id?: number | null;
+  beneficiary_user_id?: number | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseLeaseAllocationsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedLeaseAllocationOut;
+};
+
+export type HouseLeasesDealSigningUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: LeaseAllocationOut;
+};
+
+export type HouseLeasesLeaseIdAllocationOpenApiVoidUsingPostParams = {
+  lease_id: number;
+};
+
+export type HouseLeasesLeaseIdAllocationOpenApiVoidUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: AllocationRequestOut;
+};
+
+export type HouseLeasesLeaseIdAllocationReviewUsingPostParams = {
+  lease_id: number;
+};
+
+export type HouseLeasesLeaseIdAllocationReviewUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: AllocationRequestOut;
+};
+
+export type HouseLeasesLeaseIdAllocationUsingGetParams = {
+  lease_id: number;
+};
+
+export type HouseLeasesLeaseIdAllocationUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: LeaseAllocationOut;
 };
 
 export type HouseLeasesLeaseIdUsingGetParams = {
@@ -1991,6 +2523,151 @@ export type HouseLeasesUsingPostResponses = {
   201: LeaseOut;
 };
 
+export type HouseLeasesWithAllocationUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: LeaseAllocationOut;
+};
+
+export type HouseMatchConsultantOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Avatar Url */
+  avatar_url: string | null;
+  /** Phone */
+  phone: string | null;
+};
+
+export type HouseMatchCriteriaIn = {
+  /** Keyword */
+  keyword?: string | null;
+  /** Province */
+  province?: string | null;
+  /** City */
+  city?: string | null;
+  /** District */
+  district?: string | null;
+  /** Min Rent */
+  min_rent?: number | string | null;
+  /** Max Rent */
+  max_rent?: number | string | null;
+  /** Min Area */
+  min_area?: number | string | null;
+  /** Max Area */
+  max_area?: number | string | null;
+  /** Bedrooms */
+  bedrooms?: number | null;
+  /** Living Rooms */
+  living_rooms?: number | null;
+  /** Decoration */
+  decoration?: 'raw' | 'simple' | 'fine' | 'luxury' | null;
+  /** Has Elevator Access */
+  has_elevator_access?: boolean | null;
+  /** Tags */
+  tags?: string[];
+  /** Sort */
+  sort?: 'latest' | 'rent_asc' | 'rent_desc' | 'area_asc' | 'area_desc';
+};
+
+export type HouseMatchShareCreateIn = {
+  /** Title */
+  title: string;
+  /** Remark */
+  remark?: string;
+  /** Mode */
+  mode: 'manual' | 'dynamic';
+  /** House Ids */
+  house_ids?: number[];
+  criteria?: HouseMatchCriteriaIn | null;
+  /** Expires At */
+  expires_at?: string | null;
+};
+
+export type HouseMatchShareCreateOut = {
+  /** Share Key */
+  share_key: string;
+  /** Share Url */
+  share_url: string;
+  /** Expires At */
+  expires_at: string | null;
+  /** Created At */
+  created_at: string;
+};
+
+export type HouseMatchShareExtendIn = {
+  /** Expires At */
+  expires_at: string;
+};
+
+export type HouseMatchShareOut = {
+  /** Id */
+  id: number;
+  /** Share Key */
+  share_key: string;
+  /** Share Url */
+  share_url: string;
+  /** Title */
+  title: string;
+  /** Mode */
+  mode: string;
+  /** Status */
+  status: 'active' | 'expired' | 'revoked';
+  /** Expires At */
+  expires_at: string | null;
+  /** Revoked At */
+  revoked_at: string | null;
+  /** View Count */
+  view_count: number;
+  /** Last Accessed At */
+  last_accessed_at: string | null;
+  /** Created At */
+  created_at: string;
+};
+
+export type HouseMatchSharesShareIdExtendUsingPostParams = {
+  share_id: number;
+};
+
+export type HouseMatchSharesShareIdExtendUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: HouseMatchShareOut;
+};
+
+export type HouseMatchSharesShareIdRevokeUsingPostParams = {
+  share_id: number;
+};
+
+export type HouseMatchSharesShareIdRevokeUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: HouseMatchShareOut;
+};
+
+export type HouseMatchSharesUsingGetParams = {
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseMatchSharesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedHouseMatchShareOut;
+};
+
+export type HouseMatchSharesUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: HouseMatchShareCreateOut;
+};
+
 export type HouseOut = {
   /** Id */
   id: number;
@@ -2032,8 +2709,7 @@ export type HouseOut = {
   decoration__mapping: string;
   /** Has Elevator Access */
   has_elevator_access: boolean;
-  /** Status */
-  status: string;
+  status: HouseStatus;
   /** Status  Mapping */
   status__mapping: string;
   /** Images */
@@ -2050,9 +2726,19 @@ export type HouseOut = {
   internal_notes: string;
   /** Extra */
   extra: Record<string, unknown>;
+  /** Updated At */
+  updated_at: string;
+  /** Inspection Reasons */
+  inspection_reasons: ('missing_images' | 'missing_videos' | 'expired')[];
+  /** Inspection Due At */
+  inspection_due_at: string | null;
+  /** Inspection Max Age Days */
+  inspection_max_age_days: number | null;
 };
 
 export type HousePatchIn = {
+  /** Confirm Current */
+  confirm_current?: boolean;
   /** Building Id */
   building_id?: number | null;
   /** Landlord Id */
@@ -2085,8 +2771,7 @@ export type HousePatchIn = {
   decoration?: string | null;
   /** Has Elevator Access */
   has_elevator_access?: boolean | null;
-  /** Status */
-  status?: string | null;
+  status?: HouseStatus | null;
   /** Images */
   images?: Record<string, unknown>[] | null;
   /** Videos */
@@ -2101,6 +2786,17 @@ export type HousePatchIn = {
   extra?: Record<string, unknown> | null;
 };
 
+export type HouseStaffResponsibilitiesMemberIdUsingGetParams = {
+  member_id: number;
+};
+
+export type HouseStaffResponsibilitiesMemberIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PropertyResponsibilityMemberOut;
+};
+
 export type HouseStaffResponsibilitiesMemberIdUsingPutParams = {
   member_id: number;
 };
@@ -2112,8 +2808,20 @@ export type HouseStaffResponsibilitiesMemberIdUsingPutResponses = {
   200: PropertyResponsibilityMemberOut;
 };
 
+export type HouseStaffResponsibilitiesSummaryUsingGetParams = {
+  team_id: number;
+};
+
+export type HouseStaffResponsibilitiesSummaryUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PropertyResponsibilitySummaryOut;
+};
+
 export type HouseStaffResponsibilitiesUsingGetParams = {
   keyword?: string | null;
+  team_id?: number | null;
   page?: number;
   page_size?: number | null;
 };
@@ -2124,6 +2832,16 @@ export type HouseStaffResponsibilitiesUsingGetResponses = {
    */
   200: PagedPropertyResponsibilityMemberOut;
 };
+
+export enum HouseStatus {
+  'vacant' = 'vacant',
+  'listed' = 'listed',
+  'rented' = 'rented',
+  'renovating' = 'renovating',
+  'inactive' = 'inactive',
+}
+
+export type IHouseStatus = keyof typeof HouseStatus;
 
 export type HouseSummaryOut = {
   /** Id */
@@ -2142,6 +2860,70 @@ export type HouseTagSuggestionsUsingGetResponses = {
    * OK
    */
   200: TagSuggestionsOut;
+};
+
+export type HouseTenantLeasesLeaseIdUsingGetParams = {
+  lease_id: number;
+};
+
+export type HouseTenantLeasesLeaseIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: TenantLeaseOut;
+};
+
+export type HouseTenantLeasesUsingGetParams = {
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseTenantLeasesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedTenantLeaseOut;
+};
+
+export type HouseTenantViewingRecordsUsingGetParams = {
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseTenantViewingRecordsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedTenantViewingRecordOut;
+};
+
+export type HouseTenantViewingRecordsUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: TenantViewingRecordOut;
+};
+
+export type HouseTenantViewingRecordsViewingRecordIdCancelUsingPostParams = {
+  viewing_record_id: number;
+};
+
+export type HouseTenantViewingRecordsViewingRecordIdCancelUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: TenantViewingRecordOut;
+};
+
+export type HouseTenantViewingRecordsViewingRecordIdUsingGetParams = {
+  viewing_record_id: number;
+};
+
+export type HouseTenantViewingRecordsViewingRecordIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: TenantViewingRecordOut;
 };
 
 export type HouseVacancySyncUsingPostResponses = {
@@ -2214,6 +2996,13 @@ export type ImpersonateUserOut = {
   avatar_url?: string | null;
 };
 
+export type Input = {
+  /** Page */
+  page?: number;
+  /** Page Size */
+  page_size?: number | null;
+};
+
 export type InternalWalletReconcileUsingPostResponses = {
   /**
    * OK
@@ -2284,6 +3073,8 @@ export type InviteByKeyKeyUsingGetResponses = {
 export type InviteIn = {
   /** Invitee Email 被邀请人邮箱，可用于未注册用户邀请。 */
   invitee_email?: string;
+  /** Invitee Phone 被邀请人手机号，可用于未注册用户邀请。 */
+  invitee_phone?: string;
   /** Invitee 被邀请用户 ID，可用于站内已存在用户邀请。 */
   invitee?: number | null;
   /** Is Owner 接受邀请后是否授予租户 owner 权限。 */
@@ -2303,12 +3094,16 @@ export type InviteOut = {
   invitee?: number | null;
   /** Invitee Email */
   invitee_email?: string;
+  /** Invitee Phone */
+  invitee_phone?: string;
   /** Is Owner */
   is_owner: boolean;
   /** Access Role */
   access_role?: number | null;
   /** Key */
   key: string;
+  /** Is Expired */
+  is_expired: boolean;
   /** Created At */
   created_at: string;
   /** Updated At */
@@ -2374,8 +3169,20 @@ export type InvoiceRequestIn = {
 export type InvoiceRequestOut = {
   /** Id */
   id: number;
+  /** Organization Id */
+  organization_id: number;
+  /** Organization Name */
+  organization_name: string;
+  /** Organization Slug */
+  organization_slug: string;
   /** Order Id */
   order_id: number;
+  /** Order No */
+  order_no: string;
+  /** Target Plan Code */
+  target_plan_code: string;
+  /** Target Plan Name */
+  target_plan_name: string;
   /** Status */
   status: string;
   /** Profile Snapshot */
@@ -2390,6 +3197,129 @@ export type InvoiceRequestOut = {
   admin_note: string;
   /** Created At */
   created_at: string;
+};
+
+export type LandlordHouseOut = {
+  /** Id */
+  id: number;
+  /** Building Id */
+  building_id: number;
+  building: BuildingSummaryOut;
+  /** Landlord Id */
+  landlord_id: number | null;
+  landlord: ContactSummaryOut | null;
+  /** Room Number */
+  room_number: string;
+  /** Floor */
+  floor: number | null;
+  /** Area */
+  area: string | null;
+  /** Interior Area */
+  interior_area: string | null;
+  /** Asking Rent */
+  asking_rent: string | null;
+  /** Deposit Amount */
+  deposit_amount: string | null;
+  /** Bedrooms */
+  bedrooms: number | null;
+  /** Living Rooms */
+  living_rooms: number | null;
+  /** Bathrooms */
+  bathrooms: number | null;
+  /** Kitchens */
+  kitchens: number | null;
+  /** Balconies */
+  balconies: number | null;
+  /** Orientation */
+  orientation: string | null;
+  /** Orientation  Mapping */
+  orientation__mapping: string;
+  /** Decoration */
+  decoration: string | null;
+  /** Decoration  Mapping */
+  decoration__mapping: string;
+  /** Has Elevator Access */
+  has_elevator_access: boolean;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Images */
+  images: Record<string, unknown>[];
+  /** Videos */
+  videos: Record<string, unknown>[];
+  /** Tags */
+  tags: string[];
+  /** Effective Tags */
+  effective_tags: string[];
+  /** Public Description */
+  public_description: string;
+};
+
+export type LandlordInvitationAcceptOut = {
+  /** Contact Id */
+  contact_id: number;
+  /** Organization Id */
+  organization_id: number;
+  /** Organization Name */
+  organization_name: string;
+  /** Public Key */
+  public_key: string;
+};
+
+export type LandlordInvitationOut = {
+  /** Organization Name */
+  organization_name: string;
+  /** Contact Name */
+  contact_name: string;
+  /** Invitee Phone Masked */
+  invitee_phone_masked: string;
+  /** Expires At */
+  expires_at: string;
+  /** Action Url */
+  action_url?: string | null;
+};
+
+export type LandlordRelationshipOut = {
+  /** Contact Id */
+  contact_id: number;
+  /** Organization Id */
+  organization_id: number;
+  /** Organization Name */
+  organization_name: string;
+  /** Organization Slug */
+  organization_slug: string;
+  /** Contact Name */
+  contact_name: string;
+  /** House Count */
+  house_count: number;
+  /** Public House Count */
+  public_house_count: number;
+  /** Public Key */
+  public_key: string;
+  /** Public Url */
+  public_url: string;
+};
+
+export type LeaseAllocationOut = {
+  /** Id */
+  id: number;
+  lease: LeaseOut;
+  allocation_request: AllocationRequestOut;
+  /** Created At */
+  created_at: string;
+};
+
+export type LeaseAllocationReviewIn = {
+  /** Decision */
+  decision: 'approve' | 'reject';
+  /** Reason */
+  reason?: string;
+};
+
+export type LeaseAllocationVoidIn = {
+  /** Reason */
+  reason: string;
 };
 
 export type LeaseIn = {
@@ -2484,12 +3414,33 @@ export type LeasePatchIn = {
   extra?: Record<string, unknown> | null;
 };
 
+export type LeaseWithAllocationIn = {
+  lease: LeaseIn;
+  /** Team Id */
+  team_id?: number | null;
+  /** Beneficiary User Ids */
+  beneficiary_user_ids: number[];
+};
+
 export enum Location_sourceEnum {
   'estate' = 'estate',
   'building_centroid' = 'building_centroid',
 }
 
 export type ILocation_sourceEnum = keyof typeof Location_sourceEnum;
+
+export type ManualAccrualEntryIn = {
+  /** Beneficiary User Id */
+  beneficiary_user_id: number;
+  /** Entry Type */
+  entry_type: 'manual_increase' | 'manual_decrease';
+  /** Amount */
+  amount: number | string;
+  /** Effective Month */
+  effective_month: string;
+  /** Reason */
+  reason: string;
+};
 
 export enum Media_typeEnum {
   'image' = 'image',
@@ -2599,6 +3550,10 @@ export type MemberOut = {
   /** Organization */
   organization: number;
   user: OrgUserOut;
+  /** Employee Name */
+  employee_name?: string;
+  /** Job Title */
+  job_title?: string;
   /** Is Owner */
   is_owner: boolean;
   /** Created At */
@@ -2610,6 +3565,10 @@ export type MemberOut = {
 export type MemberPatchIn = {
   /** Is Owner 是否修改为租户 owner。 */
   is_owner?: boolean | null;
+  /** Employee Name 员工在当前租户内使用的姓名。 */
+  employee_name?: string | null;
+  /** Job Title 员工在当前租户内的职位。 */
+  job_title?: string | null;
 };
 
 export type MemberSearchOut = {
@@ -2689,6 +3648,53 @@ export enum ModeEnum2 {
 }
 
 export type IModeEnum2 = keyof typeof ModeEnum2;
+
+export enum ModeEnum3 {
+  'manual' = 'manual',
+  'dynamic' = 'dynamic',
+}
+
+export type IModeEnum3 = keyof typeof ModeEnum3;
+
+export type MonthlyAccrualTotalOut = {
+  /** Beneficiary User Id */
+  beneficiary_user_id: number;
+  /** Beneficiary Name Snapshot */
+  beneficiary_name_snapshot: string;
+  /** Effective Month */
+  effective_month: string;
+  /** Allocation Amount */
+  allocation_amount: string;
+  /** Manual Increase Amount */
+  manual_increase_amount: string;
+  /** Manual Decrease Amount */
+  manual_decrease_amount: string;
+  /** Reversal Amount */
+  reversal_amount: string;
+  /** Total Amount */
+  total_amount: string;
+  /** Entry Count */
+  entry_count: number;
+};
+
+export type NavigationAccessCapabilitiesOut = {
+  /** Role Management */
+  role_management: boolean;
+  /** Organization Settings */
+  organization_settings: boolean;
+  /** Team Settings */
+  team_settings: boolean;
+  /** Subscriptions */
+  subscriptions: boolean;
+  /** Subscriptions Manage */
+  subscriptions_manage: boolean;
+  /** Analytics */
+  analytics: boolean;
+  /** Allocation */
+  allocation: boolean;
+  /** Notification Dispatches */
+  notification_dispatches: boolean;
+};
 
 export type NotificationActorOut = {
   /** Id */
@@ -3108,7 +4114,7 @@ export type OrganizationMembersSearchUsingGetResponses = {
 };
 
 export type OrganizationMembersUsingGetParams = {
-  /** 按姓名、用户名或邮箱搜索成员。 */
+  /** 按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。 */
   keyword?: string | null;
   page?: number;
   page_size?: number | null;
@@ -3126,6 +4132,25 @@ export type OrganizationMembersUsingPostResponses = {
    * Created
    */
   201: MemberOut;
+};
+
+export type OrganizationNavigationOut = {
+  organization: WorkspaceOrganizationOut;
+  /** Member Count */
+  member_count: number;
+  /** Owner Count */
+  owner_count: number;
+  /** Team Count */
+  team_count: number;
+  /** Ungrouped Member Count */
+  ungrouped_member_count: number;
+  /** Pending Invite Count */
+  pending_invite_count: number | null;
+  /** Unassigned Responsibility Count */
+  unassigned_responsibility_count: number;
+  /** Teams */
+  teams: WorkspaceTeamSummaryOut[];
+  capabilities: OrganizationWorkspaceCapabilitiesOut;
 };
 
 export type OrganizationOut = {
@@ -3156,6 +4181,13 @@ export type OrganizationPatchIn = {
   logo?: MediaRefIn[] | null;
   /** Description 租户介绍。 */
   description?: string | null;
+};
+
+export type OrganizationSearchOut = {
+  /** Teams */
+  teams: WorkspaceTeamSummaryOut[];
+  /** Members */
+  members: WorkspaceMemberOut[];
 };
 
 export type OrganizationSettingsUpdateSettingsUsingPatchResponses = {
@@ -3284,6 +4316,79 @@ export type OrganizationUsageOut = {
   team_count: number;
 };
 
+export type OrganizationWorkspaceCapabilitiesOut = {
+  /** Member Manage */
+  member_manage: boolean;
+  /** Invite Manage */
+  invite_manage: boolean;
+  /** Role View */
+  role_view: boolean;
+  /** Role Manage */
+  role_manage: boolean;
+  /** Team Create */
+  team_create: boolean;
+  /** Responsibility Manage */
+  responsibility_manage: boolean;
+  /** Team Update Ids */
+  team_update_ids: number[];
+  /** Team Delete Ids */
+  team_delete_ids: number[];
+  /** Team Member Manage Ids */
+  team_member_manage_ids: number[];
+  /** Team Role View Ids */
+  team_role_view_ids: number[];
+  /** Team Role Manage Ids */
+  team_role_manage_ids: number[];
+};
+
+export type OrganizationWorkspaceMembersMemberIdUsingGetParams = {
+  member_id: number;
+};
+
+export type OrganizationWorkspaceMembersMemberIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceMemberOut;
+};
+
+export type OrganizationWorkspaceMembersUsingGetParams = {
+  /** 按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。 */
+  keyword?: string | null;
+  /** 按可见团队筛选成员。 */
+  team_id?: number | null;
+  /** 仅返回未加入任何当前组织团队的成员。 */
+  ungrouped?: boolean;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type OrganizationWorkspaceMembersUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedWorkspaceMemberOut;
+};
+
+export type OrganizationWorkspaceNavigationUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: OrganizationNavigationOut;
+};
+
+export type OrganizationWorkspaceSearchUsingGetParams = {
+  /** 团队名称、员工姓名、职位、账号姓名、用户名或邮箱。 */
+  keyword?: string;
+};
+
+export type OrganizationWorkspaceSearchUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: OrganizationSearchOut;
+};
+
 export type OrgSelectOut = {
   /** Id */
   id: number;
@@ -3327,6 +4432,17 @@ export type OssTokenOut = {
   expires_at: string;
 };
 
+export type PagedAccrualEntryOut = {
+  /** Items */
+  items: AccrualEntryOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedAdminRealNameVerificationRowOut = {
   /** Items */
   items: AdminRealNameVerificationRowOut[];
@@ -3341,6 +4457,28 @@ export type PagedAdminRealNameVerificationRowOut = {
 export type PagedAdminUserOut = {
   /** Items */
   items: AdminUserOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedAllocationBeneficiaryOut = {
+  /** Items */
+  items: AllocationBeneficiaryOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedAllocationRequestOut = {
+  /** Items */
+  items: AllocationRequestOut[];
   /** Total */
   total: number;
   /** Page */
@@ -3415,6 +4553,17 @@ export type PagedContactOut = {
   page_size: number;
 };
 
+export type PagedEstateDetailOut = {
+  /** Items */
+  items: EstateDetailOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedEstateMapMarkerOut = {
   /** Items */
   items: EstateMapMarkerOut[];
@@ -3426,9 +4575,9 @@ export type PagedEstateMapMarkerOut = {
   page_size: number;
 };
 
-export type PagedEstateOut = {
+export type PagedFavoriteOut = {
   /** Items */
-  items: EstateOut[];
+  items: FavoriteOut[];
   /** Total */
   total: number;
   /** Page */
@@ -3437,9 +4586,9 @@ export type PagedEstateOut = {
   page_size: number;
 };
 
-export type PagedFavoriteOut = {
+export type PagedHouseMatchShareOut = {
   /** Items */
-  items: FavoriteOut[];
+  items: HouseMatchShareOut[];
   /** Total */
   total: number;
   /** Page */
@@ -3481,6 +4630,28 @@ export type PagedInvoiceRequestOut = {
   page_size: number;
 };
 
+export type PagedLandlordHouseOut = {
+  /** Items */
+  items: LandlordHouseOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedLeaseAllocationOut = {
+  /** Items */
+  items: LeaseAllocationOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedLeaseOut = {
   /** Items */
   items: LeaseOut[];
@@ -3495,6 +4666,17 @@ export type PagedLeaseOut = {
 export type PagedMemberOut = {
   /** Items */
   items: MemberOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMonthlyAccrualTotalOut = {
+  /** Items */
+  items: MonthlyAccrualTotalOut[];
   /** Total */
   total: number;
   /** Page */
@@ -3569,6 +4751,17 @@ export type PagedReferralRecordOut = {
   page_size: number;
 };
 
+export type PagedRoleMemberOptionOut = {
+  /** Items */
+  items: RoleMemberOptionOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedSaaSOrderOut = {
   /** Items */
   items: SaaSOrderOut[];
@@ -3594,6 +4787,28 @@ export type PagedTaskAssignmentOut = {
 export type PagedTeamOut = {
   /** Items */
   items: TeamOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedTenantLeaseOut = {
+  /** Items */
+  items: TenantLeaseOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedTenantViewingRecordOut = {
+  /** Items */
+  items: TenantViewingRecordOut[];
   /** Total */
   total: number;
   /** Page */
@@ -3668,6 +4883,17 @@ export type PagedWithdrawalOut = {
   page_size: number;
 };
 
+export type PagedWorkspaceMemberOut = {
+  /** Items */
+  items: WorkspaceMemberOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedWorkTaskOut = {
   /** Items */
   items: WorkTaskOut[];
@@ -3679,15 +4905,34 @@ export type PagedWorkTaskOut = {
   page_size: number;
 };
 
+export type PaymentsWechatNotifyUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, unknown>;
+};
+
+export type PaymentsWechatPayoutNotifyUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, unknown>;
+};
+
 export type PayoutCreateIn = {
-  /** Provider */
-  provider: string;
   /** Out Trade No */
   out_trade_no: string;
-  /** Request Payload */
-  request_payload?: Record<string, unknown>;
   /** Idempotency Key */
   idempotency_key: string;
+};
+
+export type PermissionModuleSummaryOut = {
+  /** Key */
+  key: string;
+  /** Name */
+  name: string;
+  /** Count */
+  count: number;
 };
 
 export type PermissionOut = {
@@ -3699,6 +4944,10 @@ export type PermissionOut = {
   app_label: string;
   /** Codename */
   codename: string;
+  /** Module Key */
+  module_key: string;
+  /** Module Name */
+  module_name: string;
 };
 
 export type PhoneCodeVerifyIn = {
@@ -3737,6 +4986,17 @@ export type PropertyResponsibilityMemberOut = {
   estates: EstateSummaryOut[];
   /** Responsible House Count */
   responsible_house_count: number;
+};
+
+export type PropertyResponsibilitySummaryOut = {
+  /** Member Count */
+  member_count: number;
+  /** Configured Member Count */
+  configured_member_count: number;
+  /** Unconfigured Member Count */
+  unconfigured_member_count: number;
+  /** Responsible House Count Sum */
+  responsible_house_count_sum: number;
 };
 
 export type PropertyResponsibilityUpdateIn = {
@@ -3894,6 +5154,56 @@ export type PublicHouseListOut = {
   updated_at: string;
 };
 
+export type PublicHouseMatchShareOut = {
+  /** Title */
+  title: string;
+  /** Remark */
+  remark: string;
+  /** Mode */
+  mode: string;
+  /** Created At */
+  created_at: string;
+  /** Expires At */
+  expires_at: string | null;
+  consultant: HouseMatchConsultantOut | null;
+};
+
+export type PublicHouseMatchSharesShareKeyHousesHouseIdUsingGetParams = {
+  share_key: string;
+  house_id: number;
+};
+
+export type PublicHouseMatchSharesShareKeyHousesHouseIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseDetailOut;
+};
+
+export type PublicHouseMatchSharesShareKeyHousesUsingGetParams = {
+  share_key: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type PublicHouseMatchSharesShareKeyHousesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedPublicHouseListOut;
+};
+
+export type PublicHouseMatchSharesShareKeyUsingGetParams = {
+  share_key: string;
+};
+
+export type PublicHouseMatchSharesShareKeyUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseMatchShareOut;
+};
+
 export type PublicHousesFiltersUsingGetResponses = {
   /**
    * OK
@@ -3946,10 +5256,62 @@ export type PublicInviteOut = {
   sender_name: string;
   /** Invitee Email */
   invitee_email?: string;
+  /** Invitee Phone */
+  invitee_phone?: string;
   /** Is Expired */
   is_expired: boolean;
   /** Is Already Member */
   is_already_member: boolean;
+};
+
+export type PublicLandlordProfileOut = {
+  /** Public Key */
+  public_key: string;
+  /** Name */
+  name: string;
+  /** Avatar */
+  avatar: ResolvedMediaRefOut[];
+  /** Phone */
+  phone: string;
+  organization: PublicPublisherOut;
+  /** House Count */
+  house_count: number;
+};
+
+export type PublicLandlordsPublicKeyHousesHouseIdUsingGetParams = {
+  public_key: string;
+  house_id: number;
+};
+
+export type PublicLandlordsPublicKeyHousesHouseIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseDetailOut;
+};
+
+export type PublicLandlordsPublicKeyHousesUsingGetParams = {
+  public_key: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type PublicLandlordsPublicKeyHousesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedPublicHouseListOut;
+};
+
+export type PublicLandlordsPublicKeyUsingGetParams = {
+  public_key: string;
+};
+
+export type PublicLandlordsPublicKeyUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicLandlordProfileOut;
 };
 
 export type PublicPublisherOut = {
@@ -3970,6 +5332,8 @@ export type PurchaseOrderIn = {
   billing_cycle: string;
   /** Payment Mode */
   payment_mode: string;
+  /** Idempotency Key */
+  idempotency_key?: string;
 };
 
 export type RealNameIdCardMediaIn = {
@@ -4245,9 +5609,13 @@ export type ReferralsMeSummaryUsingGetResponses = {
 
 export type ReferralSummaryOut = {
   /** Invite Code */
-  invite_code: string;
+  invite_code: string | null;
   /** Share Link */
-  share_link: string;
+  share_link: string | null;
+  /** Allow Link */
+  allow_link: boolean;
+  /** Allow Code */
+  allow_code: boolean;
   /** Registered Count */
   registered_count: number;
   /** Pending Review Count */
@@ -4324,9 +5692,67 @@ export type RoleBindingIn = {
   role: number;
 };
 
+export type RoleManagementCapabilitiesOut = {
+  /** Role View */
+  role_view: boolean;
+  /** Role Manage */
+  role_manage: boolean;
+  /** Team Role View Ids */
+  team_role_view_ids: number[];
+  /** Team Role Manage Ids */
+  team_role_manage_ids: number[];
+};
+
+export type RoleManagementNavigationOut = {
+  /** Space Role Count */
+  space_role_count: number;
+  /** Space Assigned Member Count */
+  space_assigned_member_count: number;
+  /** Teams */
+  teams: RoleManagementTeamOut[];
+  capabilities: RoleManagementCapabilitiesOut;
+};
+
+export type RoleManagementTeamOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Role Count */
+  role_count: number;
+  /** Assigned Member Count */
+  assigned_member_count: number;
+};
+
+export type RoleMemberAssignmentIn = {
+  /** Add User Ids */
+  add_user_ids?: number[];
+  /** Remove User Ids */
+  remove_user_ids?: number[];
+};
+
+export type RoleMemberAssignmentOut = {
+  /** Assigned Member Count */
+  assigned_member_count: number;
+};
+
+export type RoleMemberOptionOut = {
+  /** Member Id */
+  member_id: number;
+  user: AccessUserOut;
+  /** Assigned */
+  assigned: boolean;
+};
+
 export type SaaSOrderOut = {
   /** Id */
   id: number;
+  /** Organization Id */
+  organization_id: number;
+  /** Organization Name */
+  organization_name: string;
+  /** Organization Slug */
+  organization_slug: string;
   /** Order No */
   order_no: string;
   /** Order Type */
@@ -4337,6 +5763,8 @@ export type SaaSOrderOut = {
   close_reason: string;
   /** Target Plan Code */
   target_plan_code: string;
+  /** Target Plan Name */
+  target_plan_name: string;
   /** Billing Cycle */
   billing_cycle: string;
   /** List Amount */
@@ -4353,10 +5781,20 @@ export type SaaSOrderOut = {
   refund_status: string;
   /** Refunded Amount */
   refunded_amount: number;
+  /** Refund Reason */
+  refund_reason: string;
+  /** Refund Proof */
+  refund_proof: string;
+  /** Refund Subscription Action */
+  refund_subscription_action: string;
+  /** Refunded At */
+  refunded_at: string | null;
   /** Created At */
   created_at: string;
   /** Payment */
   payment?: Record<string, unknown> | null;
+  /** Invoice */
+  invoice?: Record<string, unknown> | null;
 };
 
 export enum ScopeEnum {
@@ -4399,6 +5837,8 @@ export type SettingOut = {
   category: string;
   /** Is Customized */
   is_customized: boolean;
+  /** Value Source */
+  value_source: 'default' | 'organization' | 'team';
 };
 
 export type SettingsOrgKeyUsingDeleteParams = {
@@ -4540,6 +5980,35 @@ export type SettingsUserKeyUsingPutResponses = {
   200: UserSettingOut;
 };
 
+export type SettingsUserTableColumnsTableKeyUsingDeleteParams = {
+  /** 稳定的列表标识。 */
+  table_key: string;
+};
+
+export type SettingsUserTableColumnsTableKeyUsingDeleteResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, unknown>;
+};
+
+export type SettingsUserTableColumnsTableKeyUsingPutBody = Record<
+  string,
+  Record<string, unknown>
+>;
+
+export type SettingsUserTableColumnsTableKeyUsingPutParams = {
+  /** 稳定的列表标识。 */
+  table_key: string;
+};
+
+export type SettingsUserTableColumnsTableKeyUsingPutResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, TableColumnStateOut>;
+};
+
 export type SettingsUserUsingGetResponses = {
   /**
    * OK
@@ -4574,6 +6043,16 @@ export type SocialBindingsOut = {
   /** Items */
   items: SocialBindingItemOut[];
 };
+
+export enum SortEnum {
+  'latest' = 'latest',
+  'rent_asc' = 'rent_asc',
+  'rent_desc' = 'rent_desc',
+  'area_asc' = 'area_asc',
+  'area_desc' = 'area_desc',
+}
+
+export type ISortEnum = keyof typeof SortEnum;
 
 export type SplitPhoneIn = {
   /** Phone Country Code 手机号国家区号。 */
@@ -4610,6 +6089,14 @@ export enum StatusEnum2 {
 }
 
 export type IStatusEnum2 = keyof typeof StatusEnum2;
+
+export enum StatusEnum3 {
+  'active' = 'active',
+  'expired' = 'expired',
+  'revoked' = 'revoked',
+}
+
+export type IStatusEnum3 = keyof typeof StatusEnum3;
 
 export type SubscriptionsCurrentUsingGetResponses = {
   /**
@@ -4651,6 +6138,39 @@ export type SubscriptionsInvoiceRequestsUsingPostResponses = {
   201: InvoiceRequestOut;
 };
 
+export type SubscriptionsOrdersOrderNoCancelUsingPostParams = {
+  order_no: string;
+};
+
+export type SubscriptionsOrdersOrderNoCancelUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: SaaSOrderOut;
+};
+
+export type SubscriptionsOrdersOrderNoCheckoutUsingPostParams = {
+  order_no: string;
+};
+
+export type SubscriptionsOrdersOrderNoCheckoutUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: SaaSOrderOut;
+};
+
+export type SubscriptionsOrdersOrderNoRefreshPaymentUsingPostParams = {
+  order_no: string;
+};
+
+export type SubscriptionsOrdersOrderNoRefreshPaymentUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: SaaSOrderOut;
+};
+
 export type SubscriptionsOrdersOrderNoUsingGetParams = {
   order_no: string;
 };
@@ -4681,13 +6201,6 @@ export type SubscriptionsOrdersUsingPostResponses = {
   201: SaaSOrderOut;
 };
 
-export type SubscriptionsPaymentsWechatNotifyUsingPostResponses = {
-  /**
-   * OK
-   */
-  200: Record<string, unknown>;
-};
-
 export type SubscriptionsPlansUsingGetResponses = {
   /**
    * OK
@@ -4711,6 +6224,15 @@ export type SwitchListItemOut = {
   is_primary: boolean;
   /** Is Current */
   is_current: boolean;
+};
+
+export type TableColumnStateOut = {
+  /** Show */
+  show?: boolean | null;
+  /** Fixed */
+  fixed?: 'left' | 'right' | null;
+  /** Order */
+  order?: number | number | null;
 };
 
 export type TagSuggestionsOut = {
@@ -4746,6 +6268,7 @@ export type TaskAssignmentOut = {
   team_id?: number | null;
   /** Team Name */
   team_name?: string | null;
+  creator?: UserSummaryOut | null;
   assignee: UserSummaryOut;
   /** Status */
   status: string;
@@ -4767,6 +6290,17 @@ export type TaskAssignmentOut = {
   created_at: string;
   /** Updated At */
   updated_at: string;
+};
+
+export type TaskAssignmentSummaryOut = {
+  /** Pending */
+  pending: number;
+  /** In Progress */
+  in_progress: number;
+  /** Due Soon */
+  due_soon: number;
+  /** Overdue */
+  overdue: number;
 };
 
 export type TeamBindingOut = {
@@ -4795,6 +6329,15 @@ export type TeamIn = {
   business_hours?: string;
   /** Members 初始成员用户 ID 列表。 */
   members?: number[];
+};
+
+export type TeamMemberMutationOut = {
+  /** Team Id */
+  team_id: number;
+  /** User Id */
+  user_id: number;
+  /** Changed */
+  changed: boolean;
 };
 
 export type TeamOperationsAnnouncementsAnnouncementIdAcknowledgeUsingPostParams =
@@ -4953,8 +6496,25 @@ export type TeamOperationsTaskAssignmentsAssignmentIdUsingGetResponses = {
   200: TaskAssignmentOut;
 };
 
+export type TeamOperationsTaskAssignmentsSummaryUsingGetParams = {
+  team_id?: number | null;
+  priority?: string | null;
+  keyword?: string | null;
+};
+
+export type TeamOperationsTaskAssignmentsSummaryUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: TaskAssignmentSummaryOut;
+};
+
 export type TeamOperationsTaskAssignmentsUsingGetParams = {
   status?: string | null;
+  team_id?: number | null;
+  priority?: string | null;
+  keyword?: string | null;
+  due_state?: string | null;
   overdue?: boolean | null;
   page?: number;
   page_size?: number | null;
@@ -4965,6 +6525,19 @@ export type TeamOperationsTaskAssignmentsUsingGetResponses = {
    * OK
    */
   200: PagedTaskAssignmentOut;
+};
+
+export type TeamOperationsTasksSummaryUsingGetParams = {
+  team_id?: number | null;
+  priority?: string | null;
+  keyword?: string | null;
+};
+
+export type TeamOperationsTasksSummaryUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: WorkTaskSummaryOut;
 };
 
 export type TeamOperationsTasksTaskIdCancelUsingPostParams = {
@@ -4994,6 +6567,7 @@ export type TeamOperationsTasksUsingGetParams = {
   status?: string | null;
   priority?: string | null;
   keyword?: string | null;
+  due_state?: string | null;
   mine?: boolean | null;
   page?: number;
   page_size?: number | null;
@@ -5051,6 +6625,30 @@ export type TeamPatchIn = {
   members?: number[] | null;
 };
 
+export type TeamsTeamIdMembersUserIdUsingDeleteParams = {
+  team_id: number;
+  user_id: number;
+};
+
+export type TeamsTeamIdMembersUserIdUsingDeleteResponses = {
+  /**
+   * OK
+   */
+  200: TeamMemberMutationOut;
+};
+
+export type TeamsTeamIdMembersUserIdUsingPostParams = {
+  team_id: number;
+  user_id: number;
+};
+
+export type TeamsTeamIdMembersUserIdUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: TeamMemberMutationOut;
+};
+
 export type TeamsTeamIdUsingDeleteParams = {
   team_id: number;
 };
@@ -5105,6 +6703,72 @@ export type TeamsUsingPostResponses = {
   201: TeamOut;
 };
 
+export type TenantLeaseOut = {
+  /** Id */
+  id: number;
+  /** House Id */
+  house_id: number;
+  house: PublicHouseListOut;
+  organization: TenantOrganizationSummaryOut;
+  /** Source Viewing Record Id */
+  source_viewing_record_id: number | null;
+  /** Sign At */
+  sign_at: string | null;
+  /** Start Date */
+  start_date: string;
+  /** End Date */
+  end_date: string;
+  /** Monthly Rent */
+  monthly_rent: string;
+  /** Deposit */
+  deposit: string | null;
+  /** Payment Day */
+  payment_day: number;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Contract Files */
+  contract_files: Record<string, unknown>[];
+};
+
+export type TenantOrganizationSummaryOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Slug */
+  slug: string;
+};
+
+export type TenantViewingRecordIn = {
+  /** House Id */
+  house_id: number;
+  /** Scheduled At */
+  scheduled_at: string;
+  /** Notes */
+  notes?: string;
+};
+
+export type TenantViewingRecordOut = {
+  /** Id */
+  id: number;
+  /** House Id */
+  house_id: number;
+  house: PublicHouseListOut;
+  organization: TenantOrganizationSummaryOut;
+  /** Scheduled At */
+  scheduled_at: string;
+  /** Viewed At */
+  viewed_at: string | null;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Signed Lease Id */
+  signed_lease_id?: number | null;
+};
+
 export type TestNotificationIn = {
   /** User Id */
   user_id: number;
@@ -5143,6 +6807,30 @@ export type TransferOwnerIn = {
 export type UnreadCountOut = {
   /** Count */
   count: number;
+};
+
+export type UpgradeRecommendationOut = {
+  /** Reason */
+  reason: string;
+  /** Threshold Percent */
+  threshold_percent: number;
+  /** Target Plan Code */
+  target_plan_code: string;
+  /** Target Plan Name */
+  target_plan_name: string;
+  /** Triggered Resources */
+  triggered_resources: UpgradeRecommendationResourceOut[];
+};
+
+export type UpgradeRecommendationResourceOut = {
+  /** Resource */
+  resource: string;
+  /** Current */
+  current: number;
+  /** Limit */
+  limit: number;
+  /** Usage Percent */
+  usage_percent: number;
 };
 
 export type UserOut = {
@@ -5205,6 +6893,35 @@ export type UsersAuthBrowserSignupUsingPostResponses = {
    * OK
    */
   200: unknown;
+};
+
+export type UsersAuthWechatOfficialQrLoginIdCompleteUsingPostParams = {
+  login_id: string;
+};
+
+export type UsersAuthWechatOfficialQrLoginIdCompleteUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: unknown;
+};
+
+export type UsersAuthWechatOfficialQrLoginIdUsingGetParams = {
+  login_id: string;
+};
+
+export type UsersAuthWechatOfficialQrLoginIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: WechatOfficialQrStatusOut;
+};
+
+export type UsersAuthWechatOfficialQrUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: WechatOfficialQrOut;
 };
 
 export type UserSettingOut = {
@@ -5552,12 +7269,27 @@ export type VacancySyncSummaryOut = {
   preserve_special_status: number;
 };
 
+export enum Value_sourceEnum {
+  'default' = 'default',
+  'organization' = 'organization',
+  'team' = 'team',
+}
+
+export type IValue_sourceEnum = keyof typeof Value_sourceEnum;
+
 export type VersionUsingGetResponses = {
   /**
    * OK
    */
   200: unknown;
 };
+
+export enum View_scopeEnum {
+  'self' = 'self',
+  'organization' = 'organization',
+}
+
+export type IView_scopeEnum = keyof typeof View_scopeEnum;
 
 export type ViewingRecordIn = {
   /** House Id */
@@ -5762,17 +7494,6 @@ export type WalletMeWithdrawalsWithdrawalIdUsingGetResponses = {
   200: WithdrawalOut;
 };
 
-export type WalletPayoutCallbackProviderUsingPostParams = {
-  provider: string;
-};
-
-export type WalletPayoutCallbackProviderUsingPostResponses = {
-  /**
-   * OK
-   */
-  200: WithdrawalPayoutOut;
-};
-
 export type WalletSummaryOut = {
   /** Available Balance */
   available_balance: number;
@@ -5782,6 +7503,31 @@ export type WalletSummaryOut = {
   total_income: number;
   /** Total Withdrawn */
   total_withdrawn: number;
+};
+
+export type WechatOfficialQrCreateIn = {
+  /** Redirect 登录成功后的管理端路径。 */
+  redirect?: string;
+};
+
+export type WechatOfficialQrOut = {
+  /** Login Id */
+  login_id: string;
+  /** Poll Token */
+  poll_token: string;
+  /** Qr Image Url */
+  qr_image_url: string;
+  /** Expires In */
+  expires_in: number;
+  /** Poll Interval */
+  poll_interval: number;
+};
+
+export type WechatOfficialQrStatusOut = {
+  /** Status */
+  status: string;
+  /** Expires In */
+  expires_in: number;
 };
 
 export type WechatPhoneIn = {
@@ -5796,6 +7542,8 @@ export type WechatPhoneOut = {
   phone_national_number: string;
   /** Merged */
   merged: boolean;
+  /** Session Token */
+  session_token?: string | null;
 };
 
 export type WithdrawalIn = {
@@ -5861,17 +7609,6 @@ export type WithdrawalPayoutOut = {
   executed_at?: string | null;
 };
 
-export type WithdrawalRetryIn = {
-  /** Provider */
-  provider: string;
-  /** Out Trade No */
-  out_trade_no: string;
-  /** Request Payload */
-  request_payload?: Record<string, unknown>;
-  /** Idempotency Key */
-  idempotency_key: string;
-};
-
 export type WithdrawalReviewIn = {
   /** Approved */
   approved: boolean;
@@ -5879,6 +7616,44 @@ export type WithdrawalReviewIn = {
   reason?: string;
   /** Idempotency Key */
   idempotency_key: string;
+};
+
+export type WorkspaceMemberOut = {
+  /** Member Id */
+  member_id: number;
+  user: OrgUserOut;
+  /** Employee Name */
+  employee_name?: string;
+  /** Job Title */
+  job_title?: string;
+  /** Is Owner */
+  is_owner: boolean;
+  /** Teams */
+  teams: WorkspaceTeamSummaryOut[];
+  /** Has Responsibility */
+  has_responsibility: boolean;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type WorkspaceOrganizationOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Slug */
+  slug: string;
+};
+
+export type WorkspaceTeamSummaryOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Member Count */
+  member_count: number;
 };
 
 export type WorkTaskIn = {
@@ -5944,4 +7719,15 @@ export type WorkTaskOut = {
   created_at: string;
   /** Updated At */
   updated_at: string;
+};
+
+export type WorkTaskSummaryOut = {
+  /** Total */
+  total: number;
+  /** Active */
+  active: number;
+  /** Due Soon */
+  due_soon: number;
+  /** Overdue */
+  overdue: number;
 };

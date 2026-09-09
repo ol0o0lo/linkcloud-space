@@ -124,6 +124,57 @@ export async function appsSubscriptionsApiGetOrder(
   });
 }
 
+/** 取消待支付订单 POST /api/subscriptions/orders/${param0}/cancel/ */
+export async function appsSubscriptionsApiCancelOrder(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsSubscriptionsApiCancelOrderParams,
+  options?: { [key: string]: any }
+) {
+  const { order_no: param0, ...queryParams } = params;
+  return request<API.SaaSOrderOut>(
+    `/api/subscriptions/orders/${param0}/cancel/`,
+    {
+      method: "POST",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 继续待支付订单 POST /api/subscriptions/orders/${param0}/checkout/ */
+export async function appsSubscriptionsApiCheckoutOrder(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsSubscriptionsApiCheckoutOrderParams,
+  options?: { [key: string]: any }
+) {
+  const { order_no: param0, ...queryParams } = params;
+  return request<API.SaaSOrderOut>(
+    `/api/subscriptions/orders/${param0}/checkout/`,
+    {
+      method: "POST",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 主动查询支付订单状态 POST /api/subscriptions/orders/${param0}/refresh-payment/ */
+export async function appsSubscriptionsApiRefreshOrderPayment(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsSubscriptionsApiRefreshOrderPaymentParams,
+  options?: { [key: string]: any }
+) {
+  const { order_no: param0, ...queryParams } = params;
+  return request<API.SaaSOrderOut>(
+    `/api/subscriptions/orders/${param0}/refresh-payment/`,
+    {
+      method: "POST",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取可展示的套餐目录 GET /api/subscriptions/plans/ */
 export async function appsSubscriptionsApiListPlans(options?: {
   [key: string]: any;

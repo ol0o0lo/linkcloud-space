@@ -139,6 +139,69 @@ export function usersAuthBrowserSignupUsingPost({
   });
 }
 
+/** 创建公众号扫码登录二维码 POST /api/users/auth/wechat-official/qr/ */
+export function usersAuthWechatOfficialQrUsingPost({
+  body,
+  options,
+}: {
+  body: API.WechatOfficialQrCreateIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.WechatOfficialQrOut>(
+    '/api/users/auth/wechat-official/qr/',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 查询公众号扫码登录状态 GET /api/users/auth/wechat-official/qr/${param0}/ */
+export function usersAuthWechatOfficialQrLoginIdUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.UsersAuthWechatOfficialQrLoginIdUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { login_id: param0, ...queryParams } = params;
+
+  return request<API.WechatOfficialQrStatusOut>(
+    `/api/users/auth/wechat-official/qr/${param0}/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 完成公众号扫码登录 POST /api/users/auth/wechat-official/qr/${param0}/complete/ */
+export function usersAuthWechatOfficialQrLoginIdCompleteUsingPost({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.UsersAuthWechatOfficialQrLoginIdCompleteUsingPostParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { login_id: param0, ...queryParams } = params;
+
+  return request<unknown>(
+    `/api/users/auth/wechat-official/qr/${param0}/complete/`,
+    {
+      method: 'POST',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 搜索可代登录用户 供超级管理员搜索可用于 impersonate 的用户候选列表。 GET /api/users/impersonate-search/ */
 export function usersImpersonateSearchUsingGet({
   params,

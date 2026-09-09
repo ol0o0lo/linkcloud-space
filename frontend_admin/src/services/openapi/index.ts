@@ -14,6 +14,7 @@ import * as analytics from "./analytics";
 import * as appSystem from "./appSystem";
 import * as houseMatchShares from "./houseMatchShares";
 import * as mediaFiles from "./mediaFiles";
+import * as navigationAccess from "./navigationAccess";
 import * as notificationDispatches from "./notificationDispatches";
 import * as notifications from "./notifications";
 import * as organizationInvites from "./organizationInvites";
@@ -25,6 +26,7 @@ import * as organizationWorkspace from "./organizationWorkspace";
 import * as payments from "./payments";
 import * as propertyRentalLandlord from "./propertyRentalLandlord";
 import * as propertyRentalManagement from "./propertyRentalManagement";
+import * as propertyRentalTenant from "./propertyRentalTenant";
 import * as publicHouseMatchShares from "./publicHouseMatchShares";
 import * as publicHouses from "./publicHouses";
 import * as publicLandlordStore from "./publicLandlordStore";
@@ -47,6 +49,7 @@ import * as walletInternal from "./walletInternal";
 export default {
   appSystem,
   mediaFiles,
+  navigationAccess,
   accessPermissions,
   accessRoleManagement,
   accessOrganizationRoles,
@@ -81,6 +84,7 @@ export default {
   teamSettings,
   userSettings,
   propertyRentalManagement,
+  propertyRentalTenant,
   houseMatchShares,
   propertyRentalLandlord,
   publicHouses,

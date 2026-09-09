@@ -249,7 +249,7 @@ export function adminUsersUserIdStatusUsingPatch({
   });
 }
 
-/** 解绑用户微信账号 删除用户微信开放平台和小程序 social account 绑定。 DELETE /api/admin/users/${param0}/wechat/ */
+/** 解绑用户微信账号 删除用户网站应用、小程序和公众号微信 social account 绑定。 DELETE /api/admin/users/${param0}/wechat/ */
 export function adminUsersUserIdWechatUsingDelete({
   params,
   options,
@@ -688,6 +688,31 @@ export function houseContactsContactIdUsingPatch({
   });
 }
 
+/** 邀请房东绑定账号 POST /api/house/contacts/${param0}/landlord-invite/ */
+export function houseContactsContactIdLandlordInviteUsingPost({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseContactsContactIdLandlordInviteUsingPostParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { contact_id: param0, ...queryParams } = params;
+
+  return request<API.LandlordInvitationOut>(
+    `/api/house/contacts/${param0}/landlord-invite/`,
+    {
+      method: 'POST',
+      params: {
+        // delivery_method has a default value: sms
+        delivery_method: 'sms',
+        ...queryParams,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取默认楼栋 GET /api/house/default-building/ */
 export function houseDefaultBuildingUsingGet({
   options,
@@ -747,7 +772,7 @@ export function houseEstatesUsingGet({
   params: API.HouseEstatesUsingGetParams;
   options?: CustomRequestOptions_;
 }) {
-  return request<API.PagedEstateOut>('/api/house/estates/', {
+  return request<API.PagedEstateDetailOut>('/api/house/estates/', {
     method: 'GET',
     params: {
       // page has a default value: 1
@@ -869,6 +894,8 @@ export function houseHousesUsingGet({
   return request<API.PagedHouseOut>('/api/house/houses/', {
     method: 'GET',
     params: {
+      // ordering has a default value: building
+      ordering: 'building',
       // page has a default value: 1
       page: '1',
       ...params,
@@ -933,6 +960,26 @@ export function houseHousesHouseIdUsingPatch({
     },
     params: { ...queryParams },
     data: body,
+    ...(options || {}),
+  });
+}
+
+/** 获取租约收益分配申请列表 GET /api/house/lease-allocations/ */
+export function houseLeaseAllocationsUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseLeaseAllocationsUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedLeaseAllocationOut>('/api/house/lease-allocations/', {
+    method: 'GET',
+    params: {
+      // page has a default value: 1
+      page: '1',
+      ...params,
+    },
     ...(options || {}),
   });
 }
@@ -1017,6 +1064,117 @@ export function houseLeasesLeaseIdUsingPatch({
   });
 }
 
+/** 获取租约收益分配申请 GET /api/house/leases/${param0}/allocation/ */
+export function houseLeasesLeaseIdAllocationUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseLeasesLeaseIdAllocationUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { lease_id: param0, ...queryParams } = params;
+
+  return request<API.LeaseAllocationOut>(
+    `/api/house/leases/${param0}/allocation/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 审核租约收益分配申请 POST /api/house/leases/${param0}/allocation/review/ */
+export function houseLeasesLeaseIdAllocationReviewUsingPost({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseLeasesLeaseIdAllocationReviewUsingPostParams;
+  body: API.LeaseAllocationReviewIn;
+  options?: CustomRequestOptions_;
+}) {
+  const { lease_id: param0, ...queryParams } = params;
+
+  return request<API.AllocationRequestOut>(
+    `/api/house/leases/${param0}/allocation/review/`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 作废租约收益分配申请 POST /api/house/leases/${param0}/allocation/void/ */
+export function houseLeasesLeaseIdAllocationOpenApiVoidUsingPost({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseLeasesLeaseIdAllocationOpenApiVoidUsingPostParams;
+  body: API.LeaseAllocationVoidIn;
+  options?: CustomRequestOptions_;
+}) {
+  const { lease_id: param0, ...queryParams } = params;
+
+  return request<API.AllocationRequestOut>(
+    `/api/house/leases/${param0}/allocation/void/`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 登记签约并提交收益分配申请 POST /api/house/leases/deal-signing/ */
+export function houseLeasesDealSigningUsingPost({
+  body,
+  options,
+}: {
+  body: API.DealSigningWithAllocationIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.LeaseAllocationOut>('/api/house/leases/deal-signing/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 创建租约并提交收益分配申请 POST /api/house/leases/with-allocation/ */
+export function houseLeasesWithAllocationUsingPost({
+  body,
+  options,
+}: {
+  body: API.LeaseWithAllocationIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.LeaseAllocationOut>('/api/house/leases/with-allocation/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 获取员工房源职责列表 GET /api/house/staff-responsibilities/ */
 export function houseStaffResponsibilitiesUsingGet({
   params,
@@ -1035,6 +1193,27 @@ export function houseStaffResponsibilitiesUsingGet({
         page: '1',
         ...params,
       },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取员工房源职责 GET /api/house/staff-responsibilities/${param0}/ */
+export function houseStaffResponsibilitiesMemberIdUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseStaffResponsibilitiesMemberIdUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { member_id: param0, ...queryParams } = params;
+
+  return request<API.PropertyResponsibilityMemberOut>(
+    `/api/house/staff-responsibilities/${param0}/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
       ...(options || {}),
     }
   );
@@ -1062,6 +1241,27 @@ export function houseStaffResponsibilitiesMemberIdUsingPut({
       },
       params: { ...queryParams },
       data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取团队员工房源职责汇总 GET /api/house/staff-responsibilities/summary/ */
+export function houseStaffResponsibilitiesSummaryUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseStaffResponsibilitiesSummaryUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PropertyResponsibilitySummaryOut>(
+    '/api/house/staff-responsibilities/summary/',
+    {
+      method: 'GET',
+      params: {
+        ...params,
+      },
       ...(options || {}),
     }
   );

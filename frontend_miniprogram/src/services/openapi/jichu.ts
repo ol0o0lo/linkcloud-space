@@ -297,3 +297,45 @@ export function teamsTeamIdUsingPatch({
     ...(options || {}),
   });
 }
+
+/** 加入团队成员 POST /api/teams/${param0}/members/${param1}/ */
+export function teamsTeamIdMembersUserIdUsingPost({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.TeamsTeamIdMembersUserIdUsingPostParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { team_id: param0, user_id: param1, ...queryParams } = params;
+
+  return request<API.TeamMemberMutationOut>(
+    `/api/teams/${param0}/members/${param1}/`,
+    {
+      method: 'POST',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 移除团队成员 DELETE /api/teams/${param0}/members/${param1}/ */
+export function teamsTeamIdMembersUserIdUsingDelete({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.TeamsTeamIdMembersUserIdUsingDeleteParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { team_id: param0, user_id: param1, ...queryParams } = params;
+
+  return request<API.TeamMemberMutationOut>(
+    `/api/teams/${param0}/members/${param1}/`,
+    {
+      method: 'DELETE',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}

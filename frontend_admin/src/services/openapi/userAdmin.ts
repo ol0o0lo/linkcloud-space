@@ -136,7 +136,7 @@ export async function appsAccountsApiPatchUserStatus(
   });
 }
 
-/** 解绑用户微信账号 删除用户微信开放平台和小程序 social account 绑定。 DELETE /api/admin/users/${param0}/wechat/ */
+/** 解绑用户微信账号 删除用户网站应用、小程序和公众号微信 social account 绑定。 DELETE /api/admin/users/${param0}/wechat/ */
 export async function appsAccountsApiUnbindUserWechat(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.appsAccountsApiUnbindUserWechatParams,

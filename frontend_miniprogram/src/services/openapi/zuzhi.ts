@@ -150,16 +150,64 @@ export function subscriptionsOrdersOrderNoUsingGet({
   });
 }
 
-/** 微信支付回调 POST /api/subscriptions/payments/wechat/notify/ */
-export function subscriptionsPaymentsWechatNotifyUsingPost({
+/** 取消待支付订单 POST /api/subscriptions/orders/${param0}/cancel/ */
+export function subscriptionsOrdersOrderNoCancelUsingPost({
+  params,
   options,
 }: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.SubscriptionsOrdersOrderNoCancelUsingPostParams;
   options?: CustomRequestOptions_;
 }) {
-  return request<Record<string, unknown>>(
-    '/api/subscriptions/payments/wechat/notify/',
+  const { order_no: param0, ...queryParams } = params;
+
+  return request<API.SaaSOrderOut>(
+    `/api/subscriptions/orders/${param0}/cancel/`,
     {
       method: 'POST',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 继续待支付订单 POST /api/subscriptions/orders/${param0}/checkout/ */
+export function subscriptionsOrdersOrderNoCheckoutUsingPost({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.SubscriptionsOrdersOrderNoCheckoutUsingPostParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { order_no: param0, ...queryParams } = params;
+
+  return request<API.SaaSOrderOut>(
+    `/api/subscriptions/orders/${param0}/checkout/`,
+    {
+      method: 'POST',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 主动查询支付订单状态 POST /api/subscriptions/orders/${param0}/refresh-payment/ */
+export function subscriptionsOrdersOrderNoRefreshPaymentUsingPost({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.SubscriptionsOrdersOrderNoRefreshPaymentUsingPostParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { order_no: param0, ...queryParams } = params;
+
+  return request<API.SaaSOrderOut>(
+    `/api/subscriptions/orders/${param0}/refresh-payment/`,
+    {
+      method: 'POST',
+      params: { ...queryParams },
       ...(options || {}),
     }
   );

@@ -704,6 +704,10 @@ declare namespace API {
     verification_id: number;
   };
 
+  type appsAccountsApiCompleteWechatOfficialQrLoginParams = {
+    login_id: string;
+  };
+
   type appsAccountsApiDeleteMyAuthenticatorParams = {
     authenticator_type: string;
   };
@@ -718,6 +722,10 @@ declare namespace API {
 
   type appsAccountsApiGetUserParams = {
     user_id: number;
+  };
+
+  type appsAccountsApiGetWechatOfficialQrStatusParams = {
+    login_id: string;
   };
 
   type appsAccountsApiImpersonateSearchParams = {
@@ -877,6 +885,10 @@ declare namespace API {
     token: string;
   };
 
+  type appsHouseApiCancelTenantViewingRecordParams = {
+    viewing_record_id: number;
+  };
+
   type appsHouseApiCheckBuildingDeleteParams = {
     building_id: number;
   };
@@ -946,6 +958,14 @@ declare namespace API {
     team_id: number;
   };
 
+  type appsHouseApiGetTenantLeaseParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiGetTenantViewingRecordParams = {
+    viewing_record_id: number;
+  };
+
   type appsHouseApiGetViewingRecordParams = {
     record_id: number;
   };
@@ -979,6 +999,7 @@ declare namespace API {
   type appsHouseApiListBuildingsParams = {
     estate_id?: number | null;
     keyword?: string | null;
+    scope?: "all" | "mine" | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1005,6 +1026,7 @@ declare namespace API {
 
   type appsHouseApiListEstatesParams = {
     keyword?: string | null;
+    scope?: "all" | "mine" | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1098,6 +1120,16 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type appsHouseApiListTenantLeasesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiListTenantViewingRecordsParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsHouseApiListViewingRecordsParams = {
     house_id?: number | null;
     status?: string | null;
@@ -1144,6 +1176,10 @@ declare namespace API {
     lease_id: number;
   };
 
+  type appsHouseMatchApiExtendShareParams = {
+    share_id: number;
+  };
+
   type appsHouseMatchApiGetShareHouseParams = {
     share_key: string;
     house_id: number;
@@ -1157,6 +1193,15 @@ declare namespace API {
     share_key: string;
     page?: number;
     page_size?: number | null;
+  };
+
+  type appsHouseMatchApiListSharesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseMatchApiRevokeShareParams = {
+    share_id: number;
   };
 
   type appsMediaApiOssTokenParams = {
@@ -1430,6 +1475,14 @@ declare namespace API {
     order_id: number;
   };
 
+  type appsSubscriptionsApiCancelOrderParams = {
+    order_no: string;
+  };
+
+  type appsSubscriptionsApiCheckoutOrderParams = {
+    order_no: string;
+  };
+
   type appsSubscriptionsApiGetOrderParams = {
     order_no: string;
   };
@@ -1442,6 +1495,10 @@ declare namespace API {
   type appsSubscriptionsApiListOrdersParams = {
     page?: number;
     page_size?: number | null;
+  };
+
+  type appsSubscriptionsApiRefreshOrderPaymentParams = {
+    order_no: string;
   };
 
   type appsTeamOperationsApiAcceptTaskAssignmentParams = {
@@ -2337,6 +2394,36 @@ declare namespace API {
     created_at: string;
   };
 
+  type HouseMatchShareExtendIn = {
+    /** Expires At */
+    expires_at: string;
+  };
+
+  type HouseMatchShareOut = {
+    /** Id */
+    id: number;
+    /** Share Key */
+    share_key: string;
+    /** Share Url */
+    share_url: string;
+    /** Title */
+    title: string;
+    /** Mode */
+    mode: string;
+    /** Status */
+    status: "active" | "expired" | "revoked";
+    /** Expires At */
+    expires_at: string | null;
+    /** Revoked At */
+    revoked_at: string | null;
+    /** View Count */
+    view_count: number;
+    /** Last Accessed At */
+    last_accessed_at: string | null;
+    /** Created At */
+    created_at: string;
+  };
+
   type HouseOut = {
     /** Id */
     id: number;
@@ -2605,8 +2692,20 @@ declare namespace API {
   type InvoiceRequestOut = {
     /** Id */
     id: number;
+    /** Organization Id */
+    organization_id: number;
+    /** Organization Name */
+    organization_name: string;
+    /** Organization Slug */
+    organization_slug: string;
     /** Order Id */
     order_id: number;
+    /** Order No */
+    order_no: string;
+    /** Target Plan Code */
+    target_plan_code: string;
+    /** Target Plan Name */
+    target_plan_name: string;
     /** Status */
     status: string;
     /** Profile Snapshot */
@@ -3024,6 +3123,25 @@ declare namespace API {
     total_amount: string;
     /** Entry Count */
     entry_count: number;
+  };
+
+  type NavigationAccessCapabilitiesOut = {
+    /** Role Management */
+    role_management: boolean;
+    /** Organization Settings */
+    organization_settings: boolean;
+    /** Team Settings */
+    team_settings: boolean;
+    /** Subscriptions */
+    subscriptions: boolean;
+    /** Subscriptions Manage */
+    subscriptions_manage: boolean;
+    /** Analytics */
+    analytics: boolean;
+    /** Allocation */
+    allocation: boolean;
+    /** Notification Dispatches */
+    notification_dispatches: boolean;
   };
 
   type NotificationActorOut = {
@@ -3493,6 +3611,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedHouseMatchShareOut = {
+    /** Items */
+    items: HouseMatchShareOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedHouseOut = {
     /** Items */
     items: HouseOut[];
@@ -3683,6 +3812,28 @@ declare namespace API {
   type PagedTeamOut = {
     /** Items */
     items: TeamOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedTenantLeaseOut = {
+    /** Items */
+    items: TenantLeaseOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedTenantViewingRecordOut = {
+    /** Items */
+    items: TenantViewingRecordOut[];
     /** Total */
     total: number;
     /** Page */
@@ -4075,6 +4226,8 @@ declare namespace API {
     billing_cycle: string;
     /** Payment Mode */
     payment_mode: string;
+    /** Idempotency Key */
+    idempotency_key?: string;
   };
 
   type RealNameIdCardMediaIn = {
@@ -4331,9 +4484,13 @@ declare namespace API {
 
   type ReferralSummaryOut = {
     /** Invite Code */
-    invite_code: string;
+    invite_code: string | null;
     /** Share Link */
-    share_link: string;
+    share_link: string | null;
+    /** Allow Link */
+    allow_link: boolean;
+    /** Allow Code */
+    allow_code: boolean;
     /** Registered Count */
     registered_count: number;
     /** Pending Review Count */
@@ -4465,6 +4622,12 @@ declare namespace API {
   type SaaSOrderOut = {
     /** Id */
     id: number;
+    /** Organization Id */
+    organization_id: number;
+    /** Organization Name */
+    organization_name: string;
+    /** Organization Slug */
+    organization_slug: string;
     /** Order No */
     order_no: string;
     /** Order Type */
@@ -4475,6 +4638,8 @@ declare namespace API {
     close_reason: string;
     /** Target Plan Code */
     target_plan_code: string;
+    /** Target Plan Name */
+    target_plan_name: string;
     /** Billing Cycle */
     billing_cycle: string;
     /** List Amount */
@@ -4491,10 +4656,20 @@ declare namespace API {
     refund_status: string;
     /** Refunded Amount */
     refunded_amount: number;
+    /** Refund Reason */
+    refund_reason: string;
+    /** Refund Proof */
+    refund_proof: string;
+    /** Refund Subscription Action */
+    refund_subscription_action: string;
+    /** Refunded At */
+    refunded_at: string | null;
     /** Created At */
     created_at: string;
     /** Payment */
     payment?: Record<string, any> | null;
+    /** Invoice */
+    invoice?: Record<string, any> | null;
   };
 
   type SetPrimaryOut = {
@@ -4753,6 +4928,72 @@ declare namespace API {
     business_hours?: string | null;
     /** Members 新的团队成员用户 ID 列表。 */
     members?: number[] | null;
+  };
+
+  type TenantLeaseOut = {
+    /** Id */
+    id: number;
+    /** House Id */
+    house_id: number;
+    house: PublicHouseListOut;
+    organization: TenantOrganizationSummaryOut;
+    /** Source Viewing Record Id */
+    source_viewing_record_id: number | null;
+    /** Sign At */
+    sign_at: string | null;
+    /** Start Date */
+    start_date: string;
+    /** End Date */
+    end_date: string;
+    /** Monthly Rent */
+    monthly_rent: string;
+    /** Deposit */
+    deposit: string | null;
+    /** Payment Day */
+    payment_day: number;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Contract Files */
+    contract_files: Record<string, any>[];
+  };
+
+  type TenantOrganizationSummaryOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Slug */
+    slug: string;
+  };
+
+  type TenantViewingRecordIn = {
+    /** House Id */
+    house_id: number;
+    /** Scheduled At */
+    scheduled_at: string;
+    /** Notes */
+    notes?: string;
+  };
+
+  type TenantViewingRecordOut = {
+    /** Id */
+    id: number;
+    /** House Id */
+    house_id: number;
+    house: PublicHouseListOut;
+    organization: TenantOrganizationSummaryOut;
+    /** Scheduled At */
+    scheduled_at: string;
+    /** Viewed At */
+    viewed_at: string | null;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Signed Lease Id */
+    signed_lease_id?: number | null;
   };
 
   type TestNotificationIn = {
@@ -5174,6 +5415,31 @@ declare namespace API {
     total_withdrawn: number;
   };
 
+  type WechatOfficialQrCreateIn = {
+    /** Redirect 登录成功后的管理端路径。 */
+    redirect?: string;
+  };
+
+  type WechatOfficialQrOut = {
+    /** Login Id */
+    login_id: string;
+    /** Poll Token */
+    poll_token: string;
+    /** Qr Image Url */
+    qr_image_url: string;
+    /** Expires In */
+    expires_in: number;
+    /** Poll Interval */
+    poll_interval: number;
+  };
+
+  type WechatOfficialQrStatusOut = {
+    /** Status */
+    status: string;
+    /** Expires In */
+    expires_in: number;
+  };
+
   type WechatPhoneIn = {
     /** Phone Code 微信小程序获取手机号接口返回的 phone code。 */
     phone_code: string;
@@ -5186,6 +5452,8 @@ declare namespace API {
     phone_national_number: string;
     /** Merged */
     merged: boolean;
+    /** Session Token */
+    session_token?: string | null;
   };
 
   type WithdrawalIn = {

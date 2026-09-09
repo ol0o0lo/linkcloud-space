@@ -145,24 +145,3 @@ export function walletMeWithdrawalsWithdrawalIdCancelUsingPost({
     }
   );
 }
-
-/** 处理代付回调 POST /api/wallet/payout/callback/${param0}/ */
-export function walletPayoutCallbackProviderUsingPost({
-  params,
-  options,
-}: {
-  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
-  params: API.WalletPayoutCallbackProviderUsingPostParams;
-  options?: CustomRequestOptions_;
-}) {
-  const { provider: param0, ...queryParams } = params;
-
-  return request<API.WithdrawalPayoutOut>(
-    `/api/wallet/payout/callback/${param0}/`,
-    {
-      method: 'POST',
-      params: { ...queryParams },
-      ...(options || {}),
-    }
-  );
-}
