@@ -235,7 +235,7 @@ const RealNameAdminPage: React.FC = () => {
       ),
     },
     {
-      title: '实名主体',
+      title: '实名信息',
       dataIndex: 'real_name_masked',
       width: 220,
       render: (_value, record) => (
@@ -252,7 +252,11 @@ const RealNameAdminPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <Tag color={record.stage_color}>
-          {enumMapping(record.status, record.status__mapping)}
+          {enumMapping(
+            record.status,
+            record.status__mapping,
+            'accounts.real_name_status',
+          )}
         </Tag>
       ),
     },
@@ -408,6 +412,7 @@ const RealNameAdminPage: React.FC = () => {
                   value={enumMapping(
                     detailData.status,
                     detailData.status__mapping,
+                    'accounts.real_name_status',
                   )}
                 />
               ) : (

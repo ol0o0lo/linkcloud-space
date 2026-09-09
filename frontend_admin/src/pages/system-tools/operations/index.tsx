@@ -184,7 +184,7 @@ const SystemOperationsPage: React.FC = () => {
           </Form>
         </Card>
 
-        <Card title="媒体上传链路演练">
+        <Card title="媒体上传流程测试">
           <Space orientation="vertical" size={16} style={fullWidthStyle}>
             <div style={sectionStyle}>
               <Typography.Text strong>上传凭证阶段</Typography.Text>
@@ -221,7 +221,7 @@ const SystemOperationsPage: React.FC = () => {
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={4}>
-                    <Form.Item label="上传凭证作用域" name="scope">
+                    <Form.Item label="上传凭证使用范围" name="scope">
                       <Input />
                     </Form.Item>
                   </Col>
@@ -303,7 +303,7 @@ const SystemOperationsPage: React.FC = () => {
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={6}>
-                    <Form.Item label="服务端上传作用域" name="scope">
+                    <Form.Item label="服务端上传使用范围" name="scope">
                       <Input />
                     </Form.Item>
                   </Col>

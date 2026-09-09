@@ -76,7 +76,7 @@ describe('SystemOperationsPage', () => {
 
     fireEvent.change(screen.getByLabelText('资源类型'), { target: { value: 'avatar' } });
     fireEvent.change(screen.getByLabelText('文件名'), { target: { value: 'a.png' } });
-    fireEvent.change(screen.getByLabelText('上传凭证作用域'), { target: { value: 'user' } });
+    fireEvent.change(screen.getByLabelText('上传凭证使用范围'), { target: { value: 'user' } });
     fireEvent.click(screen.getByRole('button', { name: '获取上传凭证' }));
     await waitFor(() => expect(mockOssToken).toHaveBeenCalledWith({ resource_type: 'avatar', filename: 'a.png', scope: 'user' }));
     expect(await screen.findByText('最近凭证结果')).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe('SystemOperationsPage', () => {
     const uploadFile = new File(['avatar'], 'b.png', { type: 'image/png' });
     fireEvent.change(uploadInput, { target: { files: [uploadFile] } });
     fireEvent.change(screen.getByLabelText('服务端上传资源类型'), { target: { value: 'avatar' } });
-    fireEvent.change(screen.getByLabelText('服务端上传作用域'), { target: { value: 'user' } });
+    fireEvent.change(screen.getByLabelText('服务端上传使用范围'), { target: { value: 'user' } });
     fireEvent.click(screen.getByRole('button', { name: '服务端上传' }));
     await waitFor(() => expect(mockUploadFiles).toHaveBeenCalledWith({ resource_type: 'avatar', scope: 'user' }, [uploadFile]));
     expect(await screen.findByText('最近服务端上传结果')).toBeInTheDocument();

@@ -112,7 +112,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
                 message: (
                   <FormattedMessage
                     id="pages.searchTable.updateForm.ruleName.nameRules"
-                    defaultMessage="请输入规则名称！"
+                    defaultMessage="请输入规则名称"
                   />
                 ),
               },
@@ -135,7 +135,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
                 message: (
                   <FormattedMessage
                     id="pages.searchTable.updateForm.ruleDesc.descRules"
-                    defaultMessage="请输入至少五个字符的规则描述！"
+                    defaultMessage="请输入至少五个字符的规则描述"
                   />
                 ),
                 min: 5,
@@ -218,7 +218,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
                 message: (
                   <FormattedMessage
                     id="pages.searchTable.updateForm.schedulingPeriod.timeRules"
-                    defaultMessage="请选择开始时间！"
+                    defaultMessage="请选择开始时间"
                   />
                 ),
               },

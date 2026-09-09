@@ -146,7 +146,7 @@ const BaseView: React.FC = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的昵称!',
+                    message: '请输入昵称',
                   },
                 ]}
               />

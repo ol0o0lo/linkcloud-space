@@ -300,7 +300,7 @@ const WalletWithdrawalsPage: React.FC = () => {
                 setPayoutState({ withdrawal: record, mode: 'payout' });
               }}
             >
-              发起代付
+              发起打款
             </a>
           ) : null}
           {record.is_retry_needed ? (
@@ -310,13 +310,13 @@ const WalletWithdrawalsPage: React.FC = () => {
                 setPayoutState({ withdrawal: record, mode: 'retry' });
               }}
             >
-              重试代付
+              重试打款
             </a>
           ) : null}
           {!record.is_review_pending &&
           !record.is_ready_for_payout &&
           !record.is_retry_needed ? (
-            <Typography.Text type="secondary">已收口</Typography.Text>
+            <Typography.Text type="secondary">已完成</Typography.Text>
           ) : null}
         </ResponsiveActions>
       ),
@@ -333,8 +333,8 @@ const WalletWithdrawalsPage: React.FC = () => {
               showIcon
               title={
                 reconcileDiffCount > 0
-                  ? `本次对账发现 ${reconcileDiffCount} 条差异，请优先核查失败代付和状态滞留申请。`
-                  : '本次对账未发现差异，提现台账与内部状态一致。'
+                  ? `本次对账发现 ${reconcileDiffCount} 条差异，请优先核查打款失败和状态未更新的申请。`
+                  : '本次对账未发现差异，提现记录与系统状态一致。'
               }
               style={{ marginBottom: 16 }}
             />
@@ -398,8 +398,8 @@ const WalletWithdrawalsPage: React.FC = () => {
               showIcon
               title={
                 reviewState?.approved
-                  ? '通过后申请会进入待打款阶段，下一步要尽快发起代付。'
-                  : '驳回会把冻结资金退回可用余额，请确保原因能支撑后续补资料或复提。'
+                  ? '通过后申请会进入待打款阶段，下一步要尽快发起打款。'
+                  : '驳回会把冻结资金退回可用余额，请确保原因能支持后续补充材料或重新提交。'
               }
             />
             <Form form={reviewForm} layout="vertical">
@@ -418,7 +418,7 @@ const WalletWithdrawalsPage: React.FC = () => {
         </Modal>
 
         <PayoutModal
-          title={payoutState?.mode === 'retry' ? '重试代付' : '发起代付'}
+          title={payoutState?.mode === 'retry' ? '重试打款' : '发起打款'}
           open={Boolean(payoutState)}
           loading={payoutMutation.isPending || retryMutation.isPending}
           form={payoutForm}

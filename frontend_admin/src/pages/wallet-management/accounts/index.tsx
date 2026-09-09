@@ -384,7 +384,7 @@ const WalletAccountsPage: React.FC = () => {
             </div>
 
             <div style={sectionStyle}>
-              <Typography.Text strong>账户流水台账</Typography.Text>
+              <Typography.Text strong>账户流水</Typography.Text>
               <Table
                 rowKey="id"
                 loading={ledgerQuery.isLoading}

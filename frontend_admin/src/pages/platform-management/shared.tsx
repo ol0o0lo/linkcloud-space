@@ -18,7 +18,7 @@ export function personText(user: { username?: string; email?: string; first_name
   return [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || user.email || '未知用户';
 }
 
-export const StatusTag: React.FC<{ value?: string; color?: string }> = ({ value, color }) => <Tag color={color}>{value || 'unknown'}</Tag>;
+export const StatusTag: React.FC<{ value?: string; color?: string }> = ({ value, color }) => <Tag color={color}>{value || '未知状态'}</Tag>;
 
 export const IdentityText: React.FC<{ primary: string; secondary?: string }> = ({ primary, secondary }) => (
   <Space orientation="vertical" size={0}>

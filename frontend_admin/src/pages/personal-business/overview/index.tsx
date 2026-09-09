@@ -123,38 +123,38 @@ function buildWithdrawalInsight(
         ...withdrawal,
         status_label: statusLabel,
         governance_summary:
-          '资金已冻结，等待平台审核决定是否继续进入出款链路。',
+          '资金已冻结，等待平台审核；审核通过后将进入打款流程。',
       };
     case 'approved':
       return {
         ...withdrawal,
         status_label: statusLabel,
-        governance_summary: '审核已经通过，但尚未真正完成出款。',
+        governance_summary: '审核已经通过，正在等待平台打款。',
       };
     case 'paying':
       return {
         ...withdrawal,
         status_label: statusLabel,
-        governance_summary: '代付已发起，当前重点是等待回调并确认状态同步。',
+        governance_summary: '打款已发起，正在等待支付结果并确认最终状态。',
       };
     case 'failed':
       return {
         ...withdrawal,
         status_label: statusLabel,
         governance_summary:
-          '申请已经失败，先核查失败原因和余额回流，再决定是否继续操作。',
+          '申请已经失败，请查看失败原因和资金退回情况，再决定是否重新申请。',
       };
     case 'rejected':
       return {
         ...withdrawal,
         status_label: statusLabel,
-        governance_summary: '申请已被退回，后续重点是补资料和重新发起。',
+        governance_summary: '申请已被退回，后续重点是补充材料后重新发起。',
       };
     case 'cancelled':
       return {
         ...withdrawal,
         status_label: statusLabel,
-        governance_summary: '申请已由本人撤销，资金通常已回流到可用余额。',
+        governance_summary: '申请已由本人撤销，资金通常已退回可用余额。',
       };
     case 'paid':
       return {
@@ -558,7 +558,7 @@ const PersonalBusinessPage: React.FC = () => {
                       <Alert
                         type="success"
                         showIcon
-                        title="当前没有失败提现，资金推进链路相对健康。"
+                        title="当前没有失败提现，资金状态正常。"
                       />
                     )}
                   </Space>
@@ -670,12 +670,26 @@ const PersonalBusinessPage: React.FC = () => {
                           realName?.status === 'unverified' ? 'gold' : 'green'
                         }
                       >
-                        {realName ? enumMapping(realName.status, realName.status__mapping || realName.status_label) : '未知'}
+                        {realName
+                          ? enumMapping(
+                              realName.status,
+                              realName.status__mapping ||
+                                realName.status_label,
+                              'accounts.real_name_status',
+                            )
+                          : '未知'}
                       </Tag>
                     </Space>
                     <Descriptions column={twoColumnDescription} size="small">
                       <Descriptions.Item label="状态">
-                        {realName ? enumMapping(realName.status, realName.status__mapping || realName.status_label) : '-'}
+                        {realName
+                          ? enumMapping(
+                              realName.status,
+                              realName.status__mapping ||
+                                realName.status_label,
+                              'accounts.real_name_status',
+                            )
+                          : '-'}
                       </Descriptions.Item>
                       <Descriptions.Item label="姓名">
                         {realName?.real_name_masked || '-'}

@@ -103,7 +103,7 @@ const OperationModal: FC<OperationModalProps> = (props) => {
             label="产品描述"
             rules={[
               {
-                message: '请输入至少五个字符的产品描述！',
+                message: '请输入至少五个字符的产品描述',
                 min: 5,
               },
             ]}

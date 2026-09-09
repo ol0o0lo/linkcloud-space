@@ -202,7 +202,7 @@ describe('WalletWithdrawalsPage', () => {
 
     const approvedRow = screen.getByText('6').closest('tr');
     expect(approvedRow).not.toBeNull();
-    fireEvent.click(within(approvedRow!).getAllByText('发起代付').at(-1)!);
+    fireEvent.click(within(approvedRow!).getAllByText('发起打款').at(-1)!);
     fireEvent.change(screen.getByLabelText('渠道'), {
       target: { value: 'mock' },
     });
@@ -228,7 +228,7 @@ describe('WalletWithdrawalsPage', () => {
 
     const failedRow = screen.getByText('7').closest('tr');
     expect(failedRow).not.toBeNull();
-    fireEvent.click(within(failedRow!).getAllByText('重试代付').at(-1)!);
+    fireEvent.click(within(failedRow!).getAllByText('重试打款').at(-1)!);
     fireEvent.change(screen.getByLabelText('渠道'), {
       target: { value: 'mock' },
     });

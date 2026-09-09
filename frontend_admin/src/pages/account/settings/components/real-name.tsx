@@ -482,7 +482,13 @@ function getRealNameActionText(status?: string) {
 function buildRealNameDescription(
   realNameStatus?: API.RealNameVerificationOut & { status__mapping?: string },
 ) {
-  const statusMapping = realNameStatus ? enumMapping(realNameStatus.status, realNameStatus.status__mapping || realNameStatus.status_label) : '未认证';
+  const statusMapping = realNameStatus
+    ? enumMapping(
+        realNameStatus.status,
+        realNameStatus.status__mapping || realNameStatus.status_label,
+        'accounts.real_name_status',
+      )
+    : '未认证';
   if (realNameStatus?.real_name_masked) {
     return `${statusMapping} · ${realNameStatus.real_name_masked}`;
   }
