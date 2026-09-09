@@ -1,3 +1,4 @@
+import { APP_ROUTES } from '@/modules/routes'
 import { getAllPages } from '@/utils'
 
 export const LOGIN_STRATEGY_MAP = {
@@ -8,8 +9,8 @@ export const LOGIN_STRATEGY_MAP = {
 export const LOGIN_STRATEGY = LOGIN_STRATEGY_MAP.DEFAULT_NO_NEED_LOGIN
 export const isNeedLoginMode = LOGIN_STRATEGY === LOGIN_STRATEGY_MAP.DEFAULT_NEED_LOGIN
 
-export const LOGIN_PAGE = '/pages/auth/login'
-export const REGISTER_PAGE = '/pages/auth/register'
+export const LOGIN_PAGE = APP_ROUTES.login
+export const REGISTER_PAGE = APP_ROUTES.register
 
 export const LOGIN_PAGE_LIST = [LOGIN_PAGE, REGISTER_PAGE]
 
@@ -24,7 +25,5 @@ export const EXCLUDE_LOGIN_PATH_LIST = [
   ...excludeLoginPathList, // 都是以 / 开头的 path
 ]
 
-// 在小程序里面是否使用H5的登录页，默认为 false
-// 如果为 true 则复用 h5 的登录逻辑
-// TODO: 3/3 确定自己的登录页是否需要在小程序里面使用
-export const LOGIN_PAGE_ENABLE_IN_MP = false
+// 小程序与 H5 共用登录页，并提供短信验证码、邮箱密码和微信快捷登录。
+export const LOGIN_PAGE_ENABLE_IN_MP = true

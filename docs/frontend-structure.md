@@ -50,3 +50,11 @@
 - 小程序或移动端 H5 页面：放 `frontend_miniprogram/`
 
 共享的应是后端接口、权限规则和状态定义，不是前端页面实现。
+
+## 6. 小程序多模式规划
+
+`frontend_miniprogram/` 使用一个应用外壳承载租客、房东和组织管理三种业务模式；平台运营、审核和系统管理继续只放在 `frontend_admin/`。规划基线见：
+
+- [小程序三端能力矩阵](./miniprogram-capability-matrix.md)
+- [小程序上下文与 API 契约](./miniprogram-context-api-contract.md)
+- [小程序完整产品外壳与公开找房链路设计](./superpowers/specs/2026-09-05-miniprogram-product-shell-public-house-design.md)

@@ -1,127 +1,36 @@
-import type { IDoubleTokenRes } from '@/api/types/login'
-import type { CustomRequestOptions, IResponse } from '@/http/types'
-import { nextTick } from 'vue'
-import { useTokenStore } from '@/store/token'
-import { isDoubleTokenMode } from '@/utils'
-import { toLoginPage } from '@/utils/toLoginPage'
-import { ResultEnum } from './tools/enum'
+import type { CustomRequestOptions } from '@/http/types'
+import type { HttpMethod } from '@/infra/http/client'
+import type { RequestScope } from '@/infra/http/request-scope'
+import { AppError } from '@/core/errors/app-error'
+import { runtimeHttpClient } from '@/infra/http/runtime'
 
-// 刷新 token 状态管理
-let refreshing = false // 防止重复刷新 token 标识
-let taskQueue: (() => void)[] = [] // 刷新 token 请求队列
+function resolveRequestScope(options: CustomRequestOptions): RequestScope {
+  if (typeof options.requestScope === 'object')
+    return options.requestScope
+  if (options.requestScope === 'public')
+    return { kind: 'public' }
+  if (options.requestScope === 'personal')
+    return { kind: 'personal' }
+  if (options.requestScope === 'landlord' && options.landlordContactId)
+    return { kind: 'landlord', landlordContactId: options.landlordContactId }
+  if (options.requestScope === 'organization' && options.organizationSlug)
+    return { kind: 'organization', organizationSlug: options.organizationSlug }
+  throw new AppError({ kind: 'unexpected', message: '当前身份信息不完整，请重新进入后再试' })
+}
 
-export function http<T>(options: CustomRequestOptions) {
-  // 1. 返回 Promise 对象
-  return new Promise<T>((resolve, reject) => {
-    uni.request({
-      ...options,
-      dataType: 'json',
-      // #ifndef MP-WEIXIN
-      responseType: 'json',
-      // #endif
-      // 响应成功
-      success: async (res) => {
-        const responseData = res.data as IResponse<T>
-        const { code } = responseData
-
-        // 检查是否是401错误（包括HTTP状态码401或业务码401）
-        const isTokenExpired = res.statusCode === 401 || code === 401
-
-        if (isTokenExpired) {
-          const tokenStore = useTokenStore()
-          if (!isDoubleTokenMode) {
-            // 未启用双token策略，清理用户信息，跳转到登录页
-            tokenStore.logout()
-            toLoginPage()
-            return reject(res)
-          }
-
-          /* -------- 无感刷新 token ----------- */
-          const { refreshToken } = tokenStore.tokenInfo as IDoubleTokenRes || {}
-          // token 失效的，且有刷新 token 的，才放到请求队列里
-          if (refreshToken) {
-            taskQueue.push(() => {
-              resolve(http<T>(options))
-            })
-          }
-
-          // 如果有 refreshToken 且未在刷新中，发起刷新 token 请求
-          if (refreshToken && !refreshing) {
-            refreshing = true
-            try {
-              // 发起刷新 token 请求（使用 store 的 refreshToken 方法）
-              await tokenStore.refreshToken()
-              // 刷新 token 成功
-              refreshing = false
-              nextTick(() => {
-                // 关闭其他弹窗
-                uni.hideToast()
-                uni.showToast({
-                  title: 'token 刷新成功',
-                  icon: 'none',
-                })
-              })
-              // 将任务队列的所有任务重新请求
-              taskQueue.forEach(task => task())
-            }
-            catch (refreshErr) {
-              console.error('刷新 token 失败:', refreshErr)
-              refreshing = false
-              // 刷新 token 失败，跳转到登录页
-              nextTick(() => {
-                // 关闭其他弹窗
-                uni.hideToast()
-                uni.showToast({
-                  title: '登录已过期，请重新登录',
-                  icon: 'none',
-                })
-              })
-              // 清除用户信息
-              await tokenStore.logout()
-              // 跳转到登录页
-              setTimeout(() => {
-                toLoginPage()
-              }, 2000)
-            }
-            finally {
-              // 不管刷新 token 成功与否，都清空任务队列
-              taskQueue = []
-            }
-          }
-
-          return reject(res)
-        }
-
-        // 处理其他成功状态（HTTP状态码200-299）
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          // 处理业务逻辑错误
-          if (code !== ResultEnum.Success0 && code !== ResultEnum.Success200) {
-            uni.showToast({
-              icon: 'none',
-              title: responseData.msg || responseData.message || '请求错误',
-            })
-            return reject(responseData.data)
-          }
-          return resolve(responseData.data)
-        }
-
-        // 处理其他错误
-        !options.hideErrorToast
-        && uni.showToast({
-          icon: 'none',
-          title: (res.data as any).msg || '请求错误',
-        })
-        reject(res)
-      },
-      // 响应失败
-      fail(err) {
-        uni.showToast({
-          icon: 'none',
-          title: '网络错误，换个网络试试',
-        })
-        reject(err)
-      },
-    })
+export function http<T>(options: CustomRequestOptions): Promise<T> {
+  const headers = Object.fromEntries(
+    Object.entries(options.header || {}).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  )
+  return runtimeHttpClient.request<T>({
+    url: options.url,
+    method: (options.method || 'GET') as HttpMethod,
+    authRetry: options.authRetry,
+    scope: resolveRequestScope(options),
+    query: options.query,
+    body: options.data,
+    headers,
+    timeoutMs: options.timeout,
   })
 }
 
@@ -175,6 +84,20 @@ export function httpPut<T>(url: string, data?: Record<string, any>, query?: Reco
 }
 
 /**
+ * PATCH 请求
+ */
+export function httpPatch<T>(url: string, data?: Record<string, any>, query?: Record<string, any>, header?: Record<string, any>, options?: Partial<CustomRequestOptions>) {
+  return http<T>({
+    url,
+    data,
+    query,
+    method: 'PATCH',
+    header,
+    ...options,
+  })
+}
+
+/**
  * DELETE 请求（无请求体，仅 query）
  */
 export function httpDelete<T>(url: string, query?: Record<string, any>, header?: Record<string, any>, options?: Partial<CustomRequestOptions>) {
@@ -191,10 +114,12 @@ export function httpDelete<T>(url: string, query?: Record<string, any>, header?:
 http.get = httpGet
 http.post = httpPost
 http.put = httpPut
+http.patch = httpPatch
 http.delete = httpDelete
 
 // 支持与 alovaJS 类似的API调用
 http.Get = httpGet
 http.Post = httpPost
 http.Put = httpPut
+http.Patch = httpPatch
 http.Delete = httpDelete

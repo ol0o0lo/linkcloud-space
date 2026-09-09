@@ -77,8 +77,12 @@ export default defineConfig({
     'i-carbon-code',
     'i-carbon-home',
     'i-carbon-user',
-    'i-carbon-ibm-watson-language-translator',
-    'i-carbon-menu',
+    'i-carbon-building',
+    'i-carbon-favorite',
+    'i-carbon-workspace',
+    'i-carbon-dashboard',
+    'i-carbon-search',
+    'i-carbon-logo-wechat',
   ],
   rules: [
     [

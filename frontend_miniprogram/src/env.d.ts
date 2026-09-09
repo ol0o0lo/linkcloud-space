@@ -1,5 +1,4 @@
 /// <reference types="vite/client" />
-/// <reference types="vite-svg-loader" />
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
@@ -11,27 +10,32 @@ declare module '*.vue' {
 interface ImportMetaEnv {
   /** 网站标题，应用名称 */
   readonly VITE_APP_TITLE: string
-  /** 服务端口号 */
-  readonly VITE_SERVER_PORT: string
-  /** 后台接口地址 */
-  readonly VITE_SERVER_BASEURL: string
-  /** 微信小程序开发版后台接口地址，不配置则使用 VITE_SERVER_BASEURL */
-  readonly VITE_SERVER_BASEURL__WEIXIN_DEVELOP?: string
-  /** 微信小程序体验版后台接口地址，不配置则使用 VITE_SERVER_BASEURL */
-  readonly VITE_SERVER_BASEURL__WEIXIN_TRIAL?: string
-  /** 微信小程序正式版后台接口地址，不配置则使用 VITE_SERVER_BASEURL */
-  readonly VITE_SERVER_BASEURL__WEIXIN_RELEASE?: string
-  /** H5是否需要代理 */
+  /** H5 开发服务端口 */
+  readonly VITE_APP_PORT: string
+  /** H5 静态资源部署基址 */
+  readonly VITE_APP_PUBLIC_BASE: string
+  /** 微信小程序 App ID */
+  readonly VITE_WX_APPID: string
+  /** 当前默认 API 地址模式 */
+  readonly VITE_API_MODE: 'same-origin' | 'absolute'
+  /** 微信小程序 API 地址模式 */
+  readonly VITE_API_MODE__WEIXIN?: 'absolute'
+  /** H5 或默认 API 根地址 */
+  readonly VITE_API_BASE_URL: string
+  /** 微信开发版 API 根地址 */
+  readonly VITE_API_BASE_URL__WEIXIN_DEVELOP?: string
+  /** 微信体验版 API 根地址 */
+  readonly VITE_API_BASE_URL__WEIXIN_TRIAL?: string
+  /** 微信正式版 API 根地址 */
+  readonly VITE_API_BASE_URL__WEIXIN_RELEASE?: string
+  /** 兼容旧环境变量的服务端根地址 */
+  readonly VITE_SERVER_BASEURL?: string
+  /** H5 是否启用开发代理 */
   readonly VITE_APP_PROXY_ENABLE: 'true' | 'false'
-  /** H5是否需要代理，需要的话有个前缀 */
+  /** H5 开发代理前缀 */
   readonly VITE_APP_PROXY_PREFIX: string
-  /** 后端是否有统一前缀 /api */
-  readonly VITE_SERVER_HAS_API_PREFIX: 'true' | 'false'
-  /** 认证模式，'single' | 'double' ==> 单token | 双token */
-  readonly VITE_AUTH_MODE: 'single' | 'double'
-  /** 是否清除console */
-  readonly VITE_DELETE_CONSOLE: string
-  // 更多环境变量...
+  /** 生产构建是否移除调试输出 */
+  readonly VITE_DELETE_CONSOLE: 'true' | 'false'
 }
 
 interface ImportMeta {

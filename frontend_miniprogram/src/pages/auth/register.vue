@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { onLoad } from '@dcloudio/uni-app'
 import { LOGIN_PAGE } from '@/router/config'
 
 definePage({
@@ -7,28 +8,24 @@ definePage({
   },
 })
 
-function doRegister() {
-  uni.showToast({
-    title: '注册成功',
+onLoad((options) => {
+  const redirect = options?.redirect ? String(options.redirect) : ''
+  uni.redirectTo({
+    url: redirect ? `${LOGIN_PAGE}?redirect=${encodeURIComponent(redirect)}` : LOGIN_PAGE,
   })
-  // 注册成功后跳转到登录页
-  uni.navigateTo({
-    url: LOGIN_PAGE,
-  })
-}
+})
 </script>
 
 <template>
-  <view class="login">
-    <view class="text-center">
-      注册页
-    </view>
-    <button class="mt-4 w-40 text-center" @click="doRegister">
-      点击模拟注册
-    </button>
+  <view class="redirect-page">
+    正在进入登录页面…
   </view>
 </template>
 
 <style lang="scss" scoped>
-//
+.redirect-page {
+  padding: 80rpx 32rpx;
+  color: var(--app-text-muted);
+  text-align: center;
+}
 </style>

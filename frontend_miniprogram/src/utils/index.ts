@@ -3,7 +3,11 @@ import { isMpWeixin } from '@uni-helper/uni-env'
 import { pages, subPackages } from '@/pages.json'
 import { isPageTabbar } from '@/tabbar/store'
 
-export type PageInstance = Page.PageInstance<AnyObject, object> & { $page: Page.PageInstance<AnyObject, object> & { fullPath: string } }
+export type PageInstance = Page.PageInstance<AnyObject, object> & {
+  $page?: { fullPath?: string }
+  route?: string
+  options?: Record<string, string>
+}
 
 export function getLastPage() {
   // getCurrentPages() 至少有1个元素，所以不再额外判断
@@ -26,17 +30,15 @@ export function currRoute() {
       query: {},
     }
   }
-  const currRoute = lastPage.$page
-  // console.log('lastPage.$page:', currRoute)
-  // console.log('lastPage.$page.fullpath:', currRoute.fullPath)
-  // console.log('lastPage.$page.options:', currRoute.options)
-  // console.log('lastPage.options:', (lastPage as any).options)
-  // 经过多端测试，只有 fullPath 靠谱，其他都不靠谱
-  const { fullPath } = currRoute
-  // console.log(fullPath)
-  // eg: /pages/login/login?redirect=%2Fpages%2Fdemo%2Fbase%2Froute-interceptor (小程序)
-  // eg: /pages/login/login?redirect=%2Fpages%2Froute-interceptor%2Findex%3Fname%3Dfeige%26age%3D30(h5)
-  return parseUrlToObj(fullPath)
+  const fullPath = lastPage.$page?.fullPath
+  if (fullPath)
+    return parseUrlToObj(fullPath)
+
+  const route = lastPage.route || ''
+  return {
+    path: route.startsWith('/') ? route : `/${route}`,
+    query: lastPage.options || {},
+  }
 }
 
 export function ensureDecodeURIComponent(url: string) {
@@ -141,9 +143,9 @@ export function getEnvBaseUrl() {
   let baseUrl = import.meta.env.VITE_SERVER_BASEURL
 
   // # 有些同学可能需要在微信小程序里面根据 develop、trial、release 分别设置上传地址，参考代码如下。
-  const VITE_SERVER_BASEURL__WEIXIN_DEVELOP = 'https://ukw0y1.laf.run'
-  const VITE_SERVER_BASEURL__WEIXIN_TRIAL = 'https://ukw0y1.laf.run'
-  const VITE_SERVER_BASEURL__WEIXIN_RELEASE = 'https://ukw0y1.laf.run'
+  const VITE_SERVER_BASEURL__WEIXIN_DEVELOP = import.meta.env.VITE_SERVER_BASEURL__WEIXIN_DEVELOP
+  const VITE_SERVER_BASEURL__WEIXIN_TRIAL = import.meta.env.VITE_SERVER_BASEURL__WEIXIN_TRIAL
+  const VITE_SERVER_BASEURL__WEIXIN_RELEASE = import.meta.env.VITE_SERVER_BASEURL__WEIXIN_RELEASE
 
   // 微信小程序端环境区分
   if (isMpWeixin) {

@@ -4,26 +4,32 @@ import { getCurrentInstance, onMounted, onUnmounted } from 'vue'
 import { navigateToInterceptor } from '@/router/interceptor'
 import { tabbarStore } from '@/tabbar/store'
 import { permission } from '@/router/permission'
-import { flushAnalyticsEvents } from '@/services/analytics'
+import { flushAnalyticsEvents } from '@/infra/analytics/client'
+import { useAppContextStore } from '@/store/app-context-v2'
 
 const { proxy } = (getCurrentInstance() || {}) as any
 const router = proxy?.$router
 
 router && permission.install(router)
 
-onLaunch((options) => {
-  console.log('App.vue onLaunch', options)
+const appContextStore = useAppContextStore()
+
+onLaunch(() => {
+  void appContextStore.bootstrap()
 })
 onShow((options) => {
-  console.log('App.vue onShow', options)
-  // 处理直接进入页面路由的情况：如h5直接输入路由、微信小程序分享后进入等
-  // https://github.com/unibest-tech/unibest/issues/192
-  if (options?.path) {
-    navigateToInterceptor.invoke({ url: `/${options.path}`, query: options.query })
-  }
-  else {
-    navigateToInterceptor.invoke({ url: '/' })
-  }
+  void (async () => {
+    await appContextStore.bootstrap()
+    if (appContextStore.startupState === 'recoverable-error' || appContextStore.startupState === 'fatal-error') {
+      if (options?.path !== 'pages/error/startup')
+        uni.reLaunch({ url: '/pages/error/startup' })
+      return
+    }
+    navigateToInterceptor.invoke({
+      url: options?.path ? `/${options.path}` : '/pages/index/index',
+      query: options?.query,
+    })
+  })()
 })
 onHide(() => {
   console.log('App Hide')
@@ -33,7 +39,7 @@ onHide(() => {
 // #ifdef H5
 function syncTabbarWhenPageVisible() {
   if (document.visibilityState === 'visible') {
-    tabbarStore.syncCurIdxByCurrentPageAsync()
+    tabbarStore.syncCurrentPathByCurrentPageAsync()
   }
   else {
     void flushAnalyticsEvents()

@@ -12,9 +12,8 @@ import process from 'node:process'
 function _openDevTools(env = 'dev', options = {}) {
   const { wechatDevtoolsCliPath } = options
   const platform = process.platform // darwin, win32, linux
-  const { UNI_PLATFORM } = process.env //  mp-weixin, mp-alipay, mp-lark
-
-  const uniPlatformText = UNI_PLATFORM === 'mp-weixin' ? '微信小程序' : UNI_PLATFORM === 'mp-alipay' ? '支付宝小程序' : UNI_PLATFORM === 'mp-lark' ? '抖音小程序' : '小程序'
+  const { UNI_PLATFORM } = process.env
+  const uniPlatformText = '微信小程序'
 
   // 项目路径（构建输出目录），根据环境选择不同目录
   const outputDir = env === 'build' ? `dist/build/${UNI_PLATFORM}` : `dist/dev/${UNI_PLATFORM}`
@@ -32,24 +31,12 @@ function _openDevTools(env = 'dev', options = {}) {
   let command = ''
 
   if (platform === 'darwin') {
-    // macOS
-    if (UNI_PLATFORM === 'mp-weixin') {
-      const cliPath = wechatDevtoolsCliPath || '/Applications/wechatwebdevtools.app/Contents/MacOS/cli'
-      command = `"${cliPath}" -o "${projectPath}"`
-    }
-    else if (UNI_PLATFORM === 'mp-alipay') {
-      command = `/Applications/小程序开发者工具.app/Contents/MacOS/小程序开发者工具 --p "${projectPath}"`
-    }
-    else if (UNI_PLATFORM === 'mp-lark') {
-      command = `/Applications/抖音开发者工具.app/Contents/MacOS/抖音开发者工具 --p "${projectPath}"`
-    }
+    const cliPath = wechatDevtoolsCliPath || '/Applications/wechatwebdevtools.app/Contents/MacOS/cli'
+    command = `"${cliPath}" -o "${projectPath}"`
   }
   else if (platform === 'win32' || platform === 'win64') {
-    // Windows
-    if (UNI_PLATFORM === 'mp-weixin') {
-      const cliPath = wechatDevtoolsCliPath || 'C:\\Program Files (x86)\\Tencent\\微信web开发者工具\\cli.bat'
-      command = `"${cliPath}" -o "${projectPath}"`
-    }
+    const cliPath = wechatDevtoolsCliPath || 'C:\\Program Files (x86)\\Tencent\\微信web开发者工具\\cli.bat'
+    command = `"${cliPath}" -o "${projectPath}"`
   }
   else {
     // Linux 或其他系统
@@ -60,10 +47,8 @@ function _openDevTools(env = 'dev', options = {}) {
   exec(command, (error, stdout, stderr) => {
     if (error) {
       console.log(`❌ 打开${uniPlatformText}开发者工具失败:`, error.message)
-      if (UNI_PLATFORM === 'mp-weixin') {
-        console.log('💡 当前使用的微信开发者工具 CLI 命令:', command)
-        console.log('💡 如果安装位置不同，可以在 env/.env 配置 WECHAT_DEVTOOLS_CLI_PATH 为本机实际 CLI 路径')
-      }
+      console.log('💡 当前使用的微信开发者工具 CLI 命令:', command)
+      console.log('💡 如果安装位置不同，可以在 env/.env 配置 WECHAT_DEVTOOLS_CLI_PATH 为本机实际 CLI 路径')
       console.log(`💡 请确保${uniPlatformText}开发者工具服务端口已启用`)
       console.log(`💡 可以手动打开${uniPlatformText}开发者工具并导入项目:`, projectPath)
       return
@@ -98,7 +83,7 @@ export default function openDevTools(options = {}) {
   return {
     name: 'uni-devtools',
     writeBundle() {
-      if (isFirstBuild && process.env.UNI_PLATFORM?.includes('mp')) {
+      if (isFirstBuild && process.env.UNI_PLATFORM === 'mp-weixin') {
         isFirstBuild = false
         _openDevTools(env, { wechatDevtoolsCliPath })
       }

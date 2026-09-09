@@ -1,9 +1,9 @@
 import { createSSRApp } from 'vue'
 import App from './App.vue'
-import { requestInterceptor } from './http/interceptor'
 import { routeInterceptor } from './router/interceptor'
 
-import store from './store'
+import { configureHttpRuntime } from './infra/http/runtime'
+import store, { useAppContextStore, useRuntimeStore, useSessionStore } from './store'
 import '@/style/index.scss'
 import 'virtual:uno.css'
 import i18n from './locale/index'
@@ -11,8 +11,15 @@ import i18n from './locale/index'
 export function createApp() {
   const app = createSSRApp(App)
   app.use(store)
+  configureHttpRuntime({
+    getSessionToken: () => useSessionStore().sessionToken,
+    onSessionInvalidated: () => {
+      useSessionStore().clearSession()
+      useAppContextStore().resetToVisitor()
+    },
+    recoverSession: () => useRuntimeStore().recoverSession(),
+  })
   app.use(routeInterceptor)
-  app.use(requestInterceptor)
   app.use(i18n)
 
   return {

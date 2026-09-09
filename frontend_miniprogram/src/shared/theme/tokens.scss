@@ -1,0 +1,54 @@
+:root,
+page,
+.app-provider {
+  --app-color-brand: #0081ff;
+  --app-color-brand-active: #0066cc;
+  --app-color-brand-soft: #e6f4ff;
+  --app-color-success: #1f9d68;
+  --app-color-warning: #d97706;
+  --app-color-danger: #d14343;
+  --app-color-info: #2563eb;
+  --app-color-price: #e35b32;
+  --app-color-warm: #7b511f;
+  --app-border-brand-soft: rgb(0 129 255 / 12%);
+  --app-border-warm: #eadfce;
+  --app-bg-page: #f5f8fc;
+  --app-bg-card: #ffffff;
+  --app-bg-elevated: #ffffff;
+  --app-bg-elevated-translucent: rgb(255 255 255 / 96%);
+  --app-bg-subtle: #edf3fa;
+  --app-bg-brand-soft: #eaf4ff;
+  --app-bg-warm-soft: #fff8ec;
+  --app-bg-mask: rgb(15 23 42 / 45%);
+  --app-text-primary: #17233d;
+  --app-text-secondary: #58657a;
+  --app-text-muted: #7b8798;
+  --app-text-disabled: #afb9c8;
+  --app-text-on-brand: #ffffff;
+  --app-border-color: #d9e3f0;
+  --app-divider-color: #e7edf5;
+  --app-gradient-personal: linear-gradient(135deg, #0066cc, #0081ff);
+  --app-gradient-landlord: linear-gradient(135deg, #66431d, #a56c2d);
+  --app-gradient-organization: linear-gradient(135deg, #153d52, #1d6b72);
+  --app-gradient-profile: linear-gradient(135deg, #ffffff, #eef6ff);
+  --app-gradient-auth: linear-gradient(180deg, #eaf4ff 0%, #f8faff 42%, #ffffff 100%);
+  --app-gradient-warm: linear-gradient(135deg, #fff8ec, #ffffff);
+  --app-radius-sm: 8rpx;
+  --app-radius-md: 16rpx;
+  --app-radius-lg: 24rpx;
+  --app-radius-xl: 32rpx;
+  --app-page-gutter: 24rpx;
+  --app-shadow-card: 0 12rpx 36rpx rgb(23 35 61 / 6%);
+  --app-shadow-hero-personal: 0 20rpx 50rpx rgb(0 102 204 / 18%);
+  --app-shadow-hero-landlord: 0 20rpx 50rpx rgb(102 67 29 / 18%);
+  --app-shadow-hero-organization: 0 20rpx 50rpx rgb(21 61 82 / 18%);
+  --app-shadow-profile: 0 10rpx 32rpx rgb(20 76 142 / 6%);
+  --app-shadow-auth-card: 0 14rpx 44rpx rgb(25 86 155 / 8%);
+  --app-shadow-bottom-action: 0 -8rpx 28rpx rgb(24 52 94 / 8%);
+  --app-tabbar-height: 112rpx;
+}
+
+page {
+  color: var(--app-text-primary);
+  background: var(--app-bg-page);
+}
