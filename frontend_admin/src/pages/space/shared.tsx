@@ -1,10 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useModel } from '@umijs/max';
-import { Alert, Empty } from 'antd';
-import React from 'react';
+import {
+  Alert,
+  App,
+  Button,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Space,
+  Typography,
+} from 'antd';
+import React, { useState } from 'react';
 import { PageContainer } from '@/components/PageContainer';
+import {
+  getNavigationAccessCapabilities,
+  type NavigationAccessCapabilities,
+} from '@/services/manual/navigationAccess';
+import {
+  getTeamOperationsCapabilities,
+  type TeamOperationsCapabilities,
+} from '@/services/manual/teamOperations';
 import { appsBaseApiAppContext } from '@/services/openapi/appSystem';
 import {
+  appsOrganizationsApiCreateOrganization,
   appsOrganizationsApiSelectOrg,
   appsOrganizationsApiSignout,
   appsOrganizationsApiSwitchList,
@@ -45,6 +64,8 @@ export const tenantQueryKeys = {
 type TenantState = {
   organizations?: API.SwitchListItemOut[];
   selectedOrgSlug?: string;
+  teamOperationsCapabilities?: TeamOperationsCapabilities;
+  navigationCapabilities?: NavigationAccessCapabilities;
 };
 
 function updateSelectedOrgState(
@@ -139,6 +160,131 @@ export function useTenantWorkspace() {
   };
 }
 
+function getRequestErrorMessage(error: any, fallback: string) {
+  const detail =
+    error?.response?.data?.errors?.[0]?.message ||
+    error?.data?.errors?.[0]?.message;
+  return String(
+    detail ||
+      error?.response?.data?.message ||
+      error?.data?.message ||
+      error?.message ||
+      fallback,
+  );
+}
+
+const CreateOrganizationButton: React.FC<{
+  workspace: ReturnType<typeof useTenantWorkspace>;
+}> = ({ workspace }) => {
+  const { message } = App.useApp();
+  const [form] = Form.useForm<API.OrganizationCreateIn>();
+  const [open, setOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const createMutation = useMutation({
+    mutationFn: (values: API.OrganizationCreateIn) =>
+      appsOrganizationsApiCreateOrganization({
+        name: values.name.trim(),
+        slug: values.slug.trim().toLowerCase(),
+      }),
+    onSuccess: async (created) => {
+      const [organizations, teamOperationsResult, navigationResult] =
+        await Promise.all([
+          workspace.queryClient.fetchQuery({
+            queryKey: tenantQueryKeys.organizations,
+            queryFn: () => appsOrganizationsApiSwitchList(),
+          }),
+          getTeamOperationsCapabilities().catch(() => undefined),
+          getNavigationAccessCapabilities().catch(() => undefined),
+        ]);
+      const storedSlug = setSelectedOrgSlug(created.slug);
+      workspace.setInitialState((state) => ({
+        ...state,
+        organizations: organizations.map((item) => ({
+          ...item,
+          is_current: item.slug === storedSlug,
+        })),
+        selectedOrgSlug: storedSlug,
+        teamOperationsCapabilities: teamOperationsResult,
+        navigationCapabilities: navigationResult,
+      }));
+      await workspace.queryClient.invalidateQueries({ queryKey: ['tenant'] });
+      form.resetFields();
+      setErrorMessage('');
+      setOpen(false);
+      message.success(`空间「${created.name}」已创建`);
+    },
+    onError: (error) => {
+      setErrorMessage(
+        getRequestErrorMessage(error, '空间创建失败，请检查填写内容后重试。'),
+      );
+    },
+  });
+
+  return (
+    <>
+      <Button type="primary" onClick={() => setOpen(true)}>
+        创建空间
+      </Button>
+      <Modal
+        open={open}
+        title="创建空间"
+        okText="创建空间"
+        cancelText="取消"
+        confirmLoading={createMutation.isPending}
+        destroyOnHidden
+        onCancel={() => {
+          setOpen(false);
+          setErrorMessage('');
+          form.resetFields();
+        }}
+        onOk={() => void form.submit()}
+      >
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <Typography.Text type="secondary">
+            创建后你将成为空间所有者，并自动进入新空间。
+          </Typography.Text>
+          {errorMessage ? (
+            <Alert type="error" showIcon title={errorMessage} />
+          ) : null}
+          <Form
+            form={form}
+            layout="vertical"
+            preserve={false}
+            onFinish={(values) => createMutation.mutate(values)}
+          >
+            <Form.Item
+              label="空间名称"
+              name="name"
+              rules={[
+                { required: true, message: '请输入空间名称' },
+                { max: 75, message: '空间名称最多 75 个字符' },
+              ]}
+            >
+              <Input autoFocus placeholder="例如：链云深圳运营中心" />
+            </Form.Item>
+            <Form.Item
+              label="空间标识"
+              name="slug"
+              extra="用于空间切换和链接，只能包含小写字母、数字、下划线或连字符。"
+              normalize={(value) => String(value || '').toLowerCase()}
+              rules={[
+                { required: true, message: '请输入空间标识' },
+                { max: 40, message: '空间标识最多 40 个字符' },
+                {
+                  pattern: /^[a-z0-9_-]+$/,
+                  message: '仅支持小写字母、数字、下划线或连字符',
+                },
+              ]}
+            >
+              <Input placeholder="例如：linkcloud-shenzhen" />
+            </Form.Item>
+          </Form>
+        </Space>
+      </Modal>
+    </>
+  );
+};
+
 export const TenantSelectionGuard: React.FC<{
   title: React.ReactNode | false;
   extra?: React.ReactNode;
@@ -156,7 +302,9 @@ export const TenantSelectionGuard: React.FC<{
   if (workspace.organizations.length === 0) {
     return (
       <PageContainer title={title} extra={extra}>
-        <Empty description="当前用户还没有可用空间，请先加入空间或联系管理员创建空间。" />
+        <Empty description="当前用户还没有可用空间，可以创建新空间或通过邀请加入。">
+          <CreateOrganizationButton workspace={workspace} />
+        </Empty>
       </PageContainer>
     );
   }
