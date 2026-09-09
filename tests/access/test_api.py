@@ -435,6 +435,43 @@ class TestAccessTeamAPI(AccessAPITestBase):
         self.assertEqual(team_payload["assigned_member_count"], 1)
         self.assertTrue(payload["capabilities"]["role_view"])
 
+    def test_team_role_manager_can_load_role_workspace_without_member_or_team_view(self):
+        manager = User.objects.create_user(username="team-role-workspace-manager", password="secret")  # noqa: S106
+        baker.make("organizations.OrganizationMember", organization=self.org, user=manager, is_owner=False)
+        self.team.members.add(manager)
+        role_manager_group = make_access_group(
+            "team_role_workspace_manager",
+            AccessScope.TEAM,
+            [tuple(AccessPermission.TEAM_ROLE_MANAGE.split(".", 1))],
+        )
+        bind_team_role(self.team, manager, role_manager_group)
+
+        self.client.force_login(manager)
+        session = self.client.session
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
+        session.save()
+
+        workspace_response = self.client.get("/api/organization-workspace/navigation/")
+        navigation_response = self.client.get("/api/access/role-management/navigation/")
+        permissions_response = self.client.get("/api/access/permissions/")
+        roles_response = self.client.get(f"/api/access/teams/{self.team.pk}/roles/")
+        bindings_response = self.client.get(f"/api/access/teams/{self.team.pk}/bindings/")
+        members_response = self.client.get(
+            f"/api/access/role-management/roles/{role_manager_group.access_role.pk}/members/",
+            {"team_id": self.team.pk, "page": 1, "page_size": 20},
+        )
+
+        self.assertEqual(workspace_response.status_code, 403)
+        self.assertEqual(navigation_response.status_code, 200)
+        navigation = api_data(navigation_response)
+        self.assertEqual([team["id"] for team in navigation["teams"]], [self.team.pk])
+        self.assertEqual(navigation["capabilities"]["team_role_view_ids"], [])
+        self.assertEqual(navigation["capabilities"]["team_role_manage_ids"], [self.team.pk])
+        self.assertEqual(permissions_response.status_code, 200)
+        self.assertEqual(roles_response.status_code, 200)
+        self.assertEqual(bindings_response.status_code, 200)
+        self.assertEqual(members_response.status_code, 200)
+
     def test_owner_cannot_create_team_role_with_duplicate_name(self):
         first_resp = self.client.post(
             f"/api/access/teams/{self.team.pk}/roles/",

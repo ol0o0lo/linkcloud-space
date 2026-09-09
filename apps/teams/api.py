@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 from ninja import Query, Router, Status
@@ -10,6 +11,7 @@ from apps.access.permissions import require_org_permission, require_team_permiss
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_selected
 from apps.organizations.models import OrganizationMember
+from apps.organizations.schemas import MemberOut
 from apps.teams.models import Team
 from apps.teams.schemas import TeamIn, TeamMemberMutationOut, TeamOut, TeamPatchIn
 from apps.teams.services import visible_teams_for_request
@@ -71,6 +73,24 @@ def create_team(request, payload: TeamIn):
 def get_team(request, team_id: int):
     """返回当前用户有权限访问的单个团队详情。"""
     return require_team_permission(request, team_id, TeamPermission.VIEW)
+
+
+@router.get("/{team_id}/member-candidates/", response=list[MemberOut], summary="获取团队成员候选")
+@paginate(LegacyPagination)
+def list_team_member_candidates(request, team_id: int, keyword: str | None = Query(None, description="按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。")):
+    """返回目标团队所属组织中尚未加入该团队的成员。"""
+    team = require_team_permission(request, team_id, TeamPermission.MEMBER_MANAGE)
+    qs = OrganizationMember.objects.filter(organization=team.organization).exclude(user__teams=team).select_related("user")
+    if keyword:
+        qs = qs.filter(
+            Q(employee_name__icontains=keyword)
+            | Q(job_title__icontains=keyword)
+            | Q(user__first_name__icontains=keyword)
+            | Q(user__last_name__icontains=keyword)
+            | Q(user__username__icontains=keyword)
+            | Q(user__email__icontains=keyword)
+        )
+    return qs.order_by("user__first_name", "user__last_name", "user__username", "pk")
 
 
 @router.patch("/{team_id}/", response=TeamOut, summary="更新团队")

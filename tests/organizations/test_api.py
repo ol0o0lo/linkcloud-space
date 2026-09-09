@@ -358,6 +358,34 @@ class TestOrganizationMemberViewSet(OrganizationAPITestBase):
 
 
 class TestOrganizationInviteViewSet(OrganizationAPITestBase):
+    def test_invite_manager_can_search_registered_invitee(self):
+        invite_manager = User.objects.create_user(
+            username="invite-manager",
+            email="invite-manager@example.com",
+            password="secret",  # noqa: S106
+        )
+        candidate = User.objects.create_user(
+            username="invite-candidate",
+            email="invite-candidate@example.com",
+            password="secret",  # noqa: S106
+        )
+        baker.make("organizations.OrganizationMember", organization=self.org, user=invite_manager, is_owner=False)
+        group = make_access_group(
+            "invite_manager_for_search",
+            AccessScope.ORG,
+            [("organizations", "invite_manage")],
+        )
+        bind_org_role(self.org, invite_manager, group)
+        self.client.force_login(invite_manager)
+        session = self.client.session
+        session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
+        session.save()
+
+        response = self.client.get("/api/organization-members/search/", {"keyword": "invite-candidate"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(candidate.pk, {item["pk"] for item in api_data(response)})
+
     def test_list(self):
         invite = baker.make(
             "organizations.OrganizationInvite",
@@ -454,6 +482,25 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(OrganizationMember.objects.filter(organization=self.org, user=invitee).exists())
+
+    def test_accept_invite_is_idempotent_for_existing_member_and_switches_org(self):
+        invitee = User.objects.create_user(username="existing-member", email="existing-member@example.com", password="secret")  # noqa: S106
+        other_org = Organization.objects.create(name="Other", slug="other")
+        OrganizationMember.objects.create(organization=other_org, user=invitee, is_primary=True)
+        OrganizationMember.objects.create(organization=self.org, user=invitee)
+        invite = OrganizationInvite.objects.create(
+            organization=self.org,
+            sender=self.user,
+            invitee_email=invitee.email,
+        )
+
+        self.client.force_login(invitee)
+        response = self.client.post(f"/api/invite-by-key/{invite.key}/accept/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(OrganizationInvite.objects.filter(pk=invite.pk).exists())
+        switch_items = api_data(self.client.get("/api/organizations/switch-list/"))
+        self.assertTrue(next(item for item in switch_items if item["slug"] == self.org.slug)["is_current"])
 
     def test_phone_invite_rejects_a_different_phone(self):
         invitee = User.objects.create_user(

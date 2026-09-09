@@ -14,6 +14,7 @@ from apps.access.constants import (
     AnalyticsPermission,
     SettingsPermission,
     SubscriptionPermission,
+    TeamPermission,
 )
 from apps.access.models import AccessRole, OrganizationGroupBinding, TeamGroupBinding
 from apps.access.permissions import require_org_permission, require_team_permission
@@ -49,6 +50,7 @@ from apps.access.services import (
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_org_selected
 from apps.organizations.models import OrganizationMember
+from apps.teams.models import Team
 from apps.teams.services import visible_teams_for_request
 
 permissions_router = Router(tags=["权限/权限清单"])
@@ -72,21 +74,56 @@ def _teams_with_user_bindings(request, organization):
         .exclude(team_id__in=visible_team_ids)
         .select_related("team")
     )
-    return [*visible_teams, *(binding.team for binding in bound_teams)]
+    teams_by_id = {team.pk: team for team in visible_teams}
+    for binding in bound_teams:
+        teams_by_id.setdefault(binding.team_id, binding.team)
+    return sorted(teams_by_id.values(), key=lambda team: (team.name, team.pk))
+
+
+def _require_org_role_access(request, *, manage: bool):
+    organization = require_org_selected(request)
+    permission_keys = (AccessPermission.ROLE_MANAGE,) if manage else (AccessPermission.ROLE_VIEW, AccessPermission.ROLE_MANAGE)
+    if not any(has_permission(request.user, organization, permission_key) for permission_key in permission_keys):
+        raise PermissionDenied("你没有执行此操作的权限。")
+    return organization
+
+
+def _require_team_role_access(request, team_id: int, *, manage: bool):
+    organization = require_org_selected(request)
+    team = get_object_or_404(Team, pk=team_id, organization=organization)
+    permission_keys = (AccessPermission.TEAM_ROLE_MANAGE,) if manage else (AccessPermission.TEAM_ROLE_VIEW, AccessPermission.TEAM_ROLE_MANAGE)
+    if not any(has_permission(request.user, organization, permission_key, team=team) for permission_key in permission_keys):
+        raise PermissionDenied("你没有执行此操作的权限。")
+    return team
 
 
 @navigation_router.get("/", response=NavigationAccessCapabilitiesOut, summary="获取当前组织导航能力")
 def get_navigation_access_capabilities(request):
     organization = require_org_selected(request)
     teams = _teams_with_user_bindings(request, organization)
+    team_update_ids = [team.pk for team in teams if has_permission(request.user, organization, TeamPermission.UPDATE, team=team)]
+    team_member_manage_ids = [team.pk for team in teams if has_permission(request.user, organization, TeamPermission.MEMBER_MANAGE, team=team)]
+    team_role_view_ids = [team.pk for team in teams if has_permission(request.user, organization, AccessPermission.TEAM_ROLE_VIEW, team=team)]
+    team_role_manage_ids = [team.pk for team in teams if has_permission(request.user, organization, AccessPermission.TEAM_ROLE_MANAGE, team=team)]
+    team_settings_view_ids = [team.pk for team in teams if has_permission(request.user, organization, SettingsPermission.TEAM_SETTING_VIEW, team=team)]
+    team_settings_manage_ids = [team.pk for team in teams if has_permission(request.user, organization, SettingsPermission.TEAM_SETTING_MANAGE, team=team)]
 
     return {
         "role_management": has_permission(request.user, organization, AccessPermission.ROLE_VIEW)
-        or any(has_permission(request.user, organization, AccessPermission.TEAM_ROLE_VIEW, team=team) for team in teams),
+        or has_permission(request.user, organization, AccessPermission.ROLE_MANAGE)
+        or bool(team_role_view_ids)
+        or bool(team_role_manage_ids),
+        "team_update_ids": team_update_ids,
+        "team_member_manage_ids": team_member_manage_ids,
+        "team_role_view_ids": team_role_view_ids,
+        "team_role_manage_ids": team_role_manage_ids,
         "organization_settings": has_permission(request.user, organization, SettingsPermission.ORG_SETTING_VIEW),
-        "team_settings": has_permission(request.user, organization, SettingsPermission.TEAM_SETTING_VIEW)
-        or any(has_permission(request.user, organization, SettingsPermission.TEAM_SETTING_VIEW, team=team) for team in teams),
+        "organization_settings_manage": has_permission(request.user, organization, SettingsPermission.ORG_SETTING_MANAGE),
+        "team_settings": has_permission(request.user, organization, SettingsPermission.TEAM_SETTING_VIEW) or bool(team_settings_view_ids),
+        "team_settings_view_ids": team_settings_view_ids,
+        "team_settings_manage_ids": team_settings_manage_ids,
         "subscriptions": has_permission(request.user, organization, SubscriptionPermission.VIEW),
+        "subscriptions_manage": has_permission(request.user, organization, SubscriptionPermission.MANAGE),
         "analytics": has_permission(request.user, organization, AnalyticsPermission.VIEW),
         "allocation": has_permission(request.user, organization, AllocationPermission.VIEW),
         "notification_dispatches": request.user.is_superuser or organization.is_owner(request.user),
@@ -118,16 +155,14 @@ def _resolve_role_context(request, role_id: int, team_id: int | None, *, manage:
         is_active=True,
     )
     if role.scope == AccessScope.ORG:
-        permission = AccessPermission.ROLE_MANAGE if manage else AccessPermission.ROLE_VIEW
-        organization = require_org_permission(request, permission)
+        organization = _require_org_role_access(request, manage=manage)
         if role.organization_id not in (None, organization.pk) or role.team_id is not None:
             raise HttpError(404, "当前空间中不存在该角色。")
         return organization, None, role
 
     if team_id is None:
         raise HttpError(400, "团队角色必须提供 team_id。")
-    permission = AccessPermission.TEAM_ROLE_MANAGE if manage else AccessPermission.TEAM_ROLE_VIEW
-    team = require_team_permission(request, team_id, permission)
+    team = _require_team_role_access(request, team_id, manage=manage)
     if role.organization_id is not None and role.team_id != team.pk:
         raise HttpError(404, "当前团队中不存在该角色。")
     return team.organization, team, role
@@ -137,9 +172,13 @@ def _resolve_role_context(request, role_id: int, team_id: int | None, *, manage:
 def list_permissions(request):
     """返回当前系统可用于角色配置的权限点清单，前端可用于角色创建和编辑时展示权限选项。"""
     organization = require_org_selected(request)
-    can_view = has_permission(request.user, organization, AccessPermission.ROLE_VIEW)
+    can_view = has_permission(request.user, organization, AccessPermission.ROLE_VIEW) or has_permission(request.user, organization, AccessPermission.ROLE_MANAGE)
     if not can_view:
-        can_view = any(has_permission(request.user, organization, AccessPermission.TEAM_ROLE_VIEW, team=team) for team in visible_teams_for_request(request, organization))
+        can_view = any(
+            has_permission(request.user, organization, AccessPermission.TEAM_ROLE_VIEW, team=team)
+            or has_permission(request.user, organization, AccessPermission.TEAM_ROLE_MANAGE, team=team)
+            for team in _teams_with_user_bindings(request, organization)
+        )
     if not can_view:
         raise PermissionDenied("你没有查看角色权限的权限。")
     return [
@@ -164,7 +203,7 @@ def list_permissions(request):
 @org_roles_router.get("/", response=list[AccessRoleOut], summary="获取租户级角色列表")
 def list_org_roles(request):
     """返回当前组织下可用的 org 级角色，包含系统预置角色和当前组织自定义角色。"""
-    org = require_org_permission(request, AccessPermission.ROLE_VIEW)
+    org = _require_org_role_access(request, manage=False)
     return _with_assignment_count(list_available_roles(org, AccessScope.ORG), organization=org)
 
 
@@ -209,7 +248,7 @@ def delete_org_role(request, role_id: int):
 @org_bindings_router.get("/", response=list[OrganizationBindingOut], summary="获取租户级角色绑定列表")
 def list_organization_bindings(request):
     """返回当前组织内用户与 org 级角色的绑定关系，用于展示谁拥有哪些租户级权限。"""
-    org = require_org_permission(request, AccessPermission.ROLE_VIEW)
+    org = _require_org_role_access(request, manage=False)
     return list_org_role_bindings(org)
 
 
@@ -234,7 +273,7 @@ def delete_organization_binding(request, binding_id: int):
 @team_roles_router.get("/{team_id}/roles/", response=list[AccessRoleOut], summary="获取团队级角色列表")
 def list_team_roles(request, team_id: int):
     """返回当前组织可用的 team 级角色，供指定 team 的授权配置使用。"""
-    team = require_team_permission(request, team_id, AccessPermission.TEAM_ROLE_VIEW)
+    team = _require_team_role_access(request, team_id, manage=False)
     return _with_assignment_count(list_available_roles(team.organization, AccessScope.TEAM, team=team), team=team)
 
 
@@ -280,7 +319,7 @@ def delete_team_role(request, team_id: int, role_id: int):
 @team_bindings_router.get("/{team_id}/bindings/", response=list[TeamBindingOut], summary="获取团队级角色绑定列表")
 def list_team_bindings_view(request, team_id: int):
     """返回指定 team 下用户与 team 级角色的绑定关系，用于展示团队内实际授权结果。"""
-    team = require_team_permission(request, team_id, AccessPermission.TEAM_ROLE_VIEW)
+    team = _require_team_role_access(request, team_id, manage=False)
     return list_team_role_bindings(team)
 
 
@@ -305,14 +344,15 @@ def delete_team_binding(request, team_id: int, binding_id: int):
 @role_management_router.get("/navigation/", response=RoleManagementNavigationOut, summary="获取角色管理作用范围导航")
 def get_role_management_navigation(request):
     organization = require_org_selected(request)
-    teams = list(visible_teams_for_request(request, organization).order_by("name", "pk"))
+    teams = _teams_with_user_bindings(request, organization)
     visible_team_ids = [team.pk for team in teams if has_permission(request.user, organization, AccessPermission.TEAM_ROLE_VIEW, team=team)]
     manageable_team_ids = [team.pk for team in teams if has_permission(request.user, organization, AccessPermission.TEAM_ROLE_MANAGE, team=team)]
+    accessible_team_ids = list(dict.fromkeys([*visible_team_ids, *manageable_team_ids]))
     system_team_role_count = AccessRole.objects.filter(is_active=True, is_system=True, scope=AccessScope.TEAM).count()
-    custom_counts = dict(AccessRole.objects.filter(is_active=True, scope=AccessScope.TEAM, team_id__in=visible_team_ids).values_list("team_id").annotate(total=Count("pk")))
+    custom_counts = dict(AccessRole.objects.filter(is_active=True, scope=AccessScope.TEAM, team_id__in=accessible_team_ids).values_list("team_id").annotate(total=Count("pk")))
     team_assigned_counts = dict(
         TeamGroupBinding.objects.filter(
-            team_id__in=visible_team_ids,
+            team_id__in=accessible_team_ids,
             group__access_role__is_active=True,
             group__access_role__scope=AccessScope.TEAM,
         )
@@ -337,7 +377,7 @@ def get_role_management_navigation(request):
                 "assigned_member_count": team_assigned_counts.get(team.pk, 0),
             }
             for team in teams
-            if team.pk in visible_team_ids
+            if team.pk in accessible_team_ids
         ],
         "capabilities": {
             "role_view": has_permission(request.user, organization, AccessPermission.ROLE_VIEW),

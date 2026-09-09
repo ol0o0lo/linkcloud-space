@@ -200,9 +200,17 @@ class NavigationAccessAPITests(TestCase):
             api_data(response),
             {
                 "role_management": True,
+                "team_update_ids": [self.team.pk],
+                "team_member_manage_ids": [self.team.pk],
+                "team_role_view_ids": [self.team.pk],
+                "team_role_manage_ids": [self.team.pk],
                 "organization_settings": True,
+                "organization_settings_manage": True,
                 "team_settings": True,
+                "team_settings_view_ids": [self.team.pk],
+                "team_settings_manage_ids": [self.team.pk],
                 "subscriptions": True,
+                "subscriptions_manage": True,
                 "analytics": True,
                 "allocation": True,
                 "notification_dispatches": True,
@@ -221,7 +229,12 @@ class NavigationAccessAPITests(TestCase):
         team_group = make_access_group(
             "navigation-team-settings",
             AccessScope.TEAM,
-            [("settings", "team_setting_view")],
+            [
+                ("settings", "team_setting_view"),
+                ("teams", "team_update"),
+                ("teams", "team_member_manage"),
+                ("access", "team_role_view"),
+            ],
         )
         OrganizationGroupBinding.objects.create(organization=self.org, user=self.member, group=org_group)
         TeamGroupBinding.objects.create(team=self.team, user=self.member, group=team_group)
@@ -233,12 +246,36 @@ class NavigationAccessAPITests(TestCase):
         self.assertEqual(
             api_data(response),
             {
-                "role_management": False,
+                "role_management": True,
+                "team_update_ids": [self.team.pk],
+                "team_member_manage_ids": [self.team.pk],
+                "team_role_view_ids": [self.team.pk],
+                "team_role_manage_ids": [],
                 "organization_settings": False,
+                "organization_settings_manage": False,
                 "team_settings": True,
+                "team_settings_view_ids": [self.team.pk],
+                "team_settings_manage_ids": [],
                 "subscriptions": True,
+                "subscriptions_manage": False,
                 "analytics": True,
                 "allocation": False,
                 "notification_dispatches": False,
             },
         )
+
+    def test_subscription_manager_navigation_keeps_view_and_manage_capabilities_separate(self):
+        org_group = make_access_group(
+            "navigation-subscription-manager",
+            AccessScope.ORG,
+            [("subscriptions", "subscription_manage")],
+        )
+        OrganizationGroupBinding.objects.create(organization=self.org, user=self.member, group=org_group)
+        self.select_user(self.member, is_owner=False)
+
+        response = self.client.get("/api/access/navigation/")
+
+        self.assertEqual(response.status_code, 200)
+        capabilities = api_data(response)
+        self.assertFalse(capabilities["subscriptions"])
+        self.assertTrue(capabilities["subscriptions_manage"])

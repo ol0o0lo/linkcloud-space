@@ -193,9 +193,17 @@ class RoleManagementNavigationOut(Schema):
 
 class NavigationAccessCapabilitiesOut(Schema):
     role_management: bool
+    team_update_ids: list[int]
+    team_member_manage_ids: list[int]
+    team_role_view_ids: list[int]
+    team_role_manage_ids: list[int]
     organization_settings: bool
+    organization_settings_manage: bool
     team_settings: bool
+    team_settings_view_ids: list[int]
+    team_settings_manage_ids: list[int]
     subscriptions: bool
+    subscriptions_manage: bool
     analytics: bool
     allocation: bool
     notification_dispatches: bool

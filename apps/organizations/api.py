@@ -2,6 +2,7 @@ import re
 
 from django.apps import apps
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.db import models, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -13,9 +14,9 @@ from ninja.pagination import paginate
 
 from apps.access.constants import OrganizationPermission
 from apps.access.permissions import require_org_permission
-from apps.access.services import assign_org_role
+from apps.access.services import assign_org_role, has_permission
 from apps.base.ninja_pagination import LegacyPagination
-from apps.base.permissions import require_authenticated, require_org_owner
+from apps.base.permissions import require_authenticated, require_org_owner, require_org_selected
 from apps.organizations.hooks import post_create_organization, pre_create_organization
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.schemas import (
@@ -228,7 +229,9 @@ def list_members(request, keyword: str | None = Query(None, description="按员�
 @members_router.get("/search/", response=list[MemberSearchOut], summary="搜索可添加成员")
 def search_members(request, keyword: str = Query("", description="待搜索的用户关键字。")):
     """搜索尚未加入当前租户且未被邀请的可添加用户。"""
-    org = require_org_permission(request, OrganizationPermission.MEMBER_MANAGE)
+    org = require_org_selected(request)
+    if not (has_permission(request.user, org, OrganizationPermission.MEMBER_MANAGE) or has_permission(request.user, org, OrganizationPermission.INVITE_MANAGE)):
+        raise PermissionDenied("你没有搜索可邀请用户的权限。")
     user_model = apps.get_model(settings.AUTH_USER_MODEL)
     qs = user_model.objects.filter(is_active=True)
     qs = qs.exclude(pk__in=OrganizationMember.objects.filter(organization=org).values_list("user_id", flat=True))
@@ -419,25 +422,29 @@ def accept_invite_by_key(request, key: str = Path(..., description="邀请 key�
     """接受租户邀请并将当前用户加入对应租户。"""
     require_authenticated(request)
     invite = get_object_or_404(OrganizationInvite.objects.select_related("organization", "sender"), key=key)
+    organization = invite.organization
     if invite.is_expired:
         raise HttpError(410, "该邀请已过期。")
     if invite.invitee_email and invite.invitee_email.lower() != request.user.email.lower():
         raise HttpError(403, "该邀请不是发送给当前账号邮箱的。")
     if invite.invitee_phone and (not request.user.phone_verified or invite.invitee_phone != request.user.phone):
         raise HttpError(403, "该邀请不是发送给当前账号手机号的。")
-    if invite.organization.is_member(request.user):
-        raise HttpError(409, "你已经是该组织成员。")
-    is_owner = invite.is_owner and invite.organization.is_owner(invite.sender)
+    if organization.is_member(request.user):
+        invite.delete()
+        save_counts(request)
+        save_org_data(request, organization)
+        return {"success": True}
+    is_owner = invite.is_owner and organization.is_owner(invite.sender)
     with transaction.atomic():
         from apps.subscriptions.entitlements import EntitlementService
 
-        EntitlementService.check_can_add(invite.organization, "member")
-        OrganizationMember.objects.get_or_create(organization=invite.organization, user=request.user, is_owner=is_owner)
+        EntitlementService.check_can_add(organization, "member")
+        OrganizationMember.objects.get_or_create(organization=organization, user=request.user, is_owner=is_owner)
         if invite.access_role_id:
-            assign_org_role(invite.organization, request.user, invite.access_role)
+            assign_org_role(organization, request.user, invite.access_role)
         invite.delete()
     save_counts(request)
-    save_org_data(request, invite.organization)
+    save_org_data(request, organization)
     return {"success": True}
 
 

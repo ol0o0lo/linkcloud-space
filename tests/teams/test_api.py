@@ -187,6 +187,41 @@ class TestTeamAPI(TestCase):
         self.assertEqual(team.name, "Platform")
         self.assertEqual(other_team.name, "Support")
 
+    def test_team_manager_can_load_and_manage_team_without_member_view(self):
+        self.user = User.objects.create_user(username="team-manager", password="secret")  # noqa: S106
+        candidate = User.objects.create_user(username="team-candidate", password="secret")  # noqa: S106
+        baker.make("organizations.OrganizationMember", organization=self.org, user=self.user, is_owner=False)
+        baker.make("organizations.OrganizationMember", organization=self.org, user=candidate, is_owner=False)
+        team = baker.make("teams.Team", name="Engineering", organization=self.org)
+        team.members.add(self.user)
+        group = make_access_group(
+            "team_manager_without_member_view",
+            AccessScope.TEAM,
+            [
+                ("teams", "team_view"),
+                ("teams", "team_update"),
+                ("teams", "team_member_manage"),
+            ],
+        )
+        bind_team_role(team, self.user, group)
+        self._login()
+
+        workspace_response = self.client.get("/api/organization-workspace/navigation/")
+        detail_response = self.client.get(_detail_url(team.pk))
+        candidates_response = self.client.get(f"/api/teams/{team.pk}/member-candidates/", {"page": 1, "page_size": 20})
+        update_response = self.client.patch(_detail_url(team.pk), data=json.dumps({"name": "Platform"}), content_type="application/json")
+        add_response = self.client.post(f"/api/teams/{team.pk}/members/{candidate.pk}/")
+
+        self.assertEqual(workspace_response.status_code, 403)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(candidates_response.status_code, 200)
+        candidate_user_ids = [item["user"]["id"] for item in api_data(candidates_response)["items"]]
+        self.assertIn(candidate.pk, candidate_user_ids)
+        self.assertNotIn(self.user.pk, candidate_user_ids)
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(add_response.status_code, 200)
+        self.assertTrue(team.members.filter(pk=candidate.pk).exists())
+
     def test_team_finance_cannot_manage_team_members(self):
         self.user = User.objects.create_user(username="finance", password="secret")  # noqa: S106
         other_user = User.objects.create_user(username="staff", password="secret")  # noqa: S106
