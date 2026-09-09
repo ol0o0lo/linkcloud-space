@@ -12,23 +12,31 @@ import {
   postBrowserV1AccountAuthenticatorsTotp,
 } from '@/services/allauth/accountTwoFactor';
 import {
-  postBrowserV1AuthReauthenticate,
-} from '@/services/allauth/authAccount';
+  deleteBrowserV1AccountAuthenticatorsWebauthn,
+  getBrowserV1AccountAuthenticatorsWebauthn,
+  postBrowserV1AccountAuthenticatorsWebauthn,
+  putBrowserV1AccountAuthenticatorsWebauthn,
+} from '@/services/allauth/accountWebauthn';
+import { postBrowserV1AuthReauthenticate } from '@/services/allauth/authAccount';
 import { getBrowserV1Config } from '@/services/allauth/configuration';
 import {
   postBrowserPhoneChangeWithSplit,
   postBrowserPhoneVerifyWithCode,
 } from '@/services/manual/phoneAuth';
 import {
+  createWebauthnCredential,
+  reauthenticateWithWebauthn,
+} from '@/services/manual/webauthn';
+import { appsMediaApiUploadFiles } from '@/services/openapi/mediaFiles';
+import {
   appsAccountsApiDeleteMyAuthenticator,
   appsAccountsApiGetMe,
   appsAccountsApiGetSocialBindings,
   appsAccountsApiPatchUser,
 } from '@/services/openapi/userAccount';
-import { appsMediaApiUploadFiles } from '@/services/openapi/mediaFiles';
+import { ADMIN_BASE_PATH } from '@/utils/adminRouting';
 import { normalizeEmailLikeInput } from '@/utils/email';
 import { normalizeAccountPhoneParts } from '@/utils/phone';
-import { ADMIN_BASE_PATH } from '@/utils/adminRouting';
 import type {
   CurrentUser,
   SocialBindingItem,
@@ -92,33 +100,43 @@ export async function uploadAvatar(
   file: File,
 ): Promise<UploadAvatarResponse> {
   const csrfToken = await ensureCsrfToken();
-  const [media] = await appsMediaApiUploadFiles({
-    resource_type: 'avatar',
-    scope: 'user',
-  }, [file], {
-    credentials: 'include',
-    headers: {
-      'X-CSRFToken': csrfToken,
+  const [media] = await appsMediaApiUploadFiles(
+    {
+      resource_type: 'avatar',
+      scope: 'user',
     },
-  });
-  await appsAccountsApiPatchUser({ user_id: userId }, {
-    avatar: [{ media_id: media.id, media_type: 'image' }],
-  }, {
-    credentials: 'include',
-    headers: {
-      'X-CSRFToken': csrfToken,
+    [file],
+    {
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': csrfToken,
+      },
     },
-  });
+  );
+  await appsAccountsApiPatchUser(
+    { user_id: userId },
+    {
+      avatar: [{ media_id: media.id, media_type: 'image' }],
+    },
+    {
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': csrfToken,
+      },
+    },
+  );
   return {
-    avatar: [{
-      media_id: media.id,
-      resource_type: media.resource_type,
-      original_filename: media.original_filename,
-      url: media.url,
-      thumbnail: null,
-      file_size: media.file_size,
-      created_at: media.created_at,
-    }],
+    avatar: [
+      {
+        media_id: media.id,
+        resource_type: media.resource_type,
+        original_filename: media.original_filename,
+        url: media.url,
+        thumbnail: null,
+        file_size: media.file_size,
+        created_at: media.created_at,
+      },
+    ],
   };
 }
 
@@ -147,7 +165,7 @@ export async function startSocialBinding(provider: SocialBindingProvider) {
     ['csrfmiddlewaretoken', csrfToken],
     ['provider', provider],
     ['callback_url', callbackUrl],
-    ['process', 'login'],
+    ['process', 'connect'],
   ].forEach(([name, value]) => {
     const input = document.createElement('input');
     input.type = 'hidden';
@@ -187,15 +205,18 @@ export async function requestPhoneChangeCode(
 ) {
   const phoneParts = normalizeAccountPhoneParts(countryCode, nationalNumber);
   const csrfToken = await ensureCsrfToken();
-  return postBrowserPhoneChangeWithSplit({
-    phone_country_code: phoneParts.countryCode,
-    phone_national_number: phoneParts.nationalNumber,
-  }, {
-    credentials: 'include',
-    headers: {
-      'X-CSRFToken': csrfToken,
+  return postBrowserPhoneChangeWithSplit(
+    {
+      phone_country_code: phoneParts.countryCode,
+      phone_national_number: phoneParts.nationalNumber,
     },
-  } as any);
+    {
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': csrfToken,
+      },
+    } as any,
+  );
 }
 
 export async function confirmPhoneChange(code: string) {
@@ -267,7 +288,16 @@ export async function removeAccountEmail(email: string) {
   );
 }
 
-export async function listAuthenticators(): Promise<Array<{ type: string }>> {
+export type AccountAuthenticator = {
+  type: string;
+  id?: number;
+  name?: string;
+  is_passwordless?: boolean;
+  created_at?: number;
+  last_used_at?: number | null;
+};
+
+export async function listAuthenticators(): Promise<AccountAuthenticator[]> {
   const response = await getBrowserV1AccountAuthenticators(
     { client: 'browser' },
     {
@@ -275,7 +305,71 @@ export async function listAuthenticators(): Promise<Array<{ type: string }>> {
       method: 'GET',
     } as any,
   );
-  return Array.isArray(response.data) ? response.data : [];
+  return Array.isArray(response.data)
+    ? (response.data as AccountAuthenticator[])
+    : [];
+}
+
+export async function createPasskey(name: string) {
+  const options = await getBrowserV1AccountAuthenticatorsWebauthn(
+    { client: 'browser' },
+    {
+      credentials: 'include',
+      method: 'GET',
+      skipErrorHandler: true,
+    } as any,
+  );
+  const credential = await createWebauthnCredential(options);
+  const csrfToken = await ensureCsrfToken();
+  const response = await postBrowserV1AccountAuthenticatorsWebauthn(
+    { client: 'browser' },
+    { name: name.trim(), credential },
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      skipErrorHandler: true,
+    } as any,
+  );
+  return {
+    authenticator: response.data,
+    recoveryCodesGenerated: Boolean(response.meta?.recovery_codes_generated),
+  };
+}
+
+export async function renamePasskey(id: number, name: string) {
+  const csrfToken = await ensureCsrfToken();
+  const response = await putBrowserV1AccountAuthenticatorsWebauthn(
+    { client: 'browser' },
+    { id, name: name.trim() },
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      skipErrorHandler: true,
+    } as any,
+  );
+  return response.data;
+}
+
+export async function deletePasskey(id: number) {
+  const csrfToken = await ensureCsrfToken();
+  return deleteBrowserV1AccountAuthenticatorsWebauthn(
+    { client: 'browser' },
+    { authenticators: [id] },
+    {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      skipErrorHandler: true,
+    } as any,
+  );
 }
 
 export async function getTotpSetup() {
@@ -303,7 +397,7 @@ export async function getTotpSetup() {
     if (setup) {
       return setup;
     }
-    throw new Error('TOTP 初始化信息缺失');
+    throw new Error('动态验证码初始化信息缺失');
   } catch (error: any) {
     const setup = readSetupPayload(error?.response?.data || error?.data);
     if (setup) {
@@ -351,6 +445,10 @@ export async function reauthenticate(password: string) {
       'X-CSRFToken': csrfToken,
     },
   } as any);
+}
+
+export function reauthenticateWithPasskey() {
+  return reauthenticateWithWebauthn();
 }
 
 export async function deleteAuthenticator(type: string) {

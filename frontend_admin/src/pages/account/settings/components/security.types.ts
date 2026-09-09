@@ -1,4 +1,9 @@
-export type SecurityAction = 'password' | 'phone' | 'email' | 'mfa' | 'real-name';
+export type SecurityAction =
+  | 'password'
+  | 'phone'
+  | 'email'
+  | 'mfa'
+  | 'real-name';
 
 export type SecurityItem = {
   key: SecurityAction;
@@ -9,6 +14,11 @@ export type SecurityItem = {
 
 export type AuthenticatorSummary = {
   type: string;
+  id?: number;
+  name?: string;
+  is_passwordless?: boolean;
+  created_at?: number;
+  last_used_at?: number | null;
 };
 
 export type AccountEmail = {

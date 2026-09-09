@@ -8,16 +8,19 @@ import {
 import {
   addAccountEmail,
   confirmPhoneChange,
+  createPasskey,
   deleteAuthenticator,
+  deletePasskey,
   getRecoveryCodes,
   getTotpSetup,
   listAuthenticators,
   querySocialBindings,
+  renamePasskey,
   requestPhoneChangeCode,
   setPrimaryAccountEmail,
   startSocialBinding,
-  uploadAvatar,
   updatePassword,
+  uploadAvatar,
 } from './service';
 
 vi.mock('@umijs/max', () => ({
@@ -86,7 +89,7 @@ describe('account settings service', () => {
     ).toBe('github');
     expect(
       form?.querySelector('input[name="process"]')?.getAttribute('value'),
-    ).toBe('login');
+    ).toBe('connect');
     expect(
       form
         ?.querySelector('input[name="csrfmiddlewaretoken"]')
@@ -113,15 +116,89 @@ describe('account settings service', () => {
     );
   });
 
+  it('creates, renames and deletes a passkey through allauth', async () => {
+    const credentialPayload = { id: 'credential-id', type: 'public-key' };
+    Object.defineProperty(globalThis, 'PublicKeyCredential', {
+      configurable: true,
+      value: {
+        parseCreationOptionsFromJSON: vi.fn(() => ({
+          challenge: new ArrayBuffer(1),
+        })),
+      },
+    });
+    Object.defineProperty(navigator, 'credentials', {
+      configurable: true,
+      value: {
+        create: vi.fn().mockResolvedValue({ toJSON: () => credentialPayload }),
+      },
+    });
+    mockRequest
+      .mockResolvedValueOnce({
+        data: { creation_options: { challenge: 'challenge' } },
+      })
+      .mockResolvedValueOnce({
+        data: { id: 9, type: 'webauthn', name: 'MacBook' },
+        meta: { recovery_codes_generated: true },
+      })
+      .mockResolvedValueOnce({
+        data: { id: 9, type: 'webauthn', name: '办公电脑' },
+      })
+      .mockResolvedValueOnce({ status: 200 });
+
+    await expect(createPasskey('MacBook')).resolves.toEqual({
+      authenticator: { id: 9, type: 'webauthn', name: 'MacBook' },
+      recoveryCodesGenerated: true,
+    });
+    await renamePasskey(9, '办公电脑');
+    await deletePasskey(9);
+
+    expect(mockRequest).toHaveBeenNthCalledWith(
+      2,
+      '/api/allauth/browser/v1/account/authenticators/webauthn',
+      expect.objectContaining({
+        method: 'POST',
+        data: { name: 'MacBook', credential: credentialPayload },
+      }),
+    );
+    expect(mockRequest).toHaveBeenNthCalledWith(
+      3,
+      '/api/allauth/browser/v1/account/authenticators/webauthn',
+      expect.objectContaining({
+        method: 'PUT',
+        data: { id: 9, name: '办公电脑' },
+      }),
+    );
+    expect(mockRequest).toHaveBeenNthCalledWith(
+      4,
+      '/api/allauth/browser/v1/account/authenticators/webauthn',
+      expect.objectContaining({
+        method: 'DELETE',
+        data: { authenticators: [9] },
+      }),
+    );
+  });
+
   it('uploads avatar through media app then patches user avatar ref', async () => {
     mockRequest
-      .mockResolvedValueOnce([{ id: 42, url: '/media/avatar.png', resource_type: 'avatar', original_filename: 'avatar.png', file_size: 123, created_at: '2026-01-01T00:00:00Z' }])
+      .mockResolvedValueOnce([
+        {
+          id: 42,
+          url: '/media/avatar.png',
+          resource_type: 'avatar',
+          original_filename: 'avatar.png',
+          file_size: 123,
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ])
       .mockResolvedValueOnce({});
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
 
     const result = await uploadAvatar(7, file);
 
-    const [, options] = mockRequest.mock.calls[0] as unknown as [string, { data: FormData }];
+    const [, options] = mockRequest.mock.calls[0] as unknown as [
+      string,
+      { data: FormData },
+    ];
     const formData = options?.data as FormData;
     expect(mockRequest).toHaveBeenNthCalledWith(
       1,
@@ -145,15 +222,17 @@ describe('account settings service', () => {
       }),
     );
     expect(result).toEqual({
-      avatar: [{
-        media_id: 42,
-        resource_type: 'avatar',
-        original_filename: 'avatar.png',
-        url: '/media/avatar.png',
-        thumbnail: null,
-        file_size: 123,
-        created_at: '2026-01-01T00:00:00Z',
-      }],
+      avatar: [
+        {
+          media_id: 42,
+          resource_type: 'avatar',
+          original_filename: 'avatar.png',
+          url: '/media/avatar.png',
+          thumbnail: null,
+          file_size: 123,
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ],
     });
   });
 
@@ -172,7 +251,10 @@ describe('account settings service', () => {
       '/api/users/auth/browser/account/phone/',
       expect.objectContaining({
         method: 'POST',
-        data: { phone_country_code: '+86', phone_national_number: '13800138001' },
+        data: {
+          phone_country_code: '+86',
+          phone_national_number: '13800138001',
+        },
       }),
     );
     expect(mockRequest).toHaveBeenNthCalledWith(
@@ -318,10 +400,10 @@ describe('account settings service', () => {
     expect(maskEmail('next@example.com')).toBe('nex***@example.com');
     expect(
       buildMfaDescription([{ type: 'totp' }, { type: 'recovery_codes' }]),
-    ).toBe('已启用 TOTP 和恢复码');
+    ).toBe('已启用动态验证码（TOTP）和恢复码');
     expect(
       buildMfaDescription([{ type: 'webauthn' }, { type: 'webauthn' }]),
-    ).toBe('已启用 2 个 Passkey');
+    ).toBe('已启用 2 个通行密钥（Passkey）');
   });
 
   it('throws when totp setup payload is missing', async () => {

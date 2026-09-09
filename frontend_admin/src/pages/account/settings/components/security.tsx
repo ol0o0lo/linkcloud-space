@@ -60,7 +60,7 @@ const SecurityView: React.FC = () => {
       },
       {
         key: 'mfa',
-        title: 'MFA 设备',
+        title: '多因素验证（MFA）',
         description: buildMfaDescription(authenticators),
         actionText: authenticators.length ? '管理' : '绑定',
       },

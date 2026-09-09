@@ -14,6 +14,8 @@ import {
   Typography,
 } from 'antd';
 import React, { useEffect, useState } from 'react';
+import { normalizeEmailLikeInput } from '@/utils/email';
+import { getAccountPhoneValidationError } from '@/utils/phone';
 import type { CurrentUser } from '../data';
 import {
   activateTotp,
@@ -30,6 +32,7 @@ import {
   setPrimaryAccountEmail,
   updatePassword,
 } from '../service';
+import { PasskeyManager } from './passkey-manager';
 import type {
   AccountEmail,
   AuthenticatorSummary,
@@ -37,8 +40,6 @@ import type {
   TotpSetup,
 } from './security.types';
 import { getAuthenticatorLabel } from './security.utils';
-import { normalizeEmailLikeInput } from '@/utils/email';
-import { getAccountPhoneValidationError } from '@/utils/phone';
 
 const COUNTRY_CODES = [
   { value: '+86', label: '+86 (中国)' },
@@ -157,7 +158,7 @@ const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
       title="修改密码"
       onCancel={onClose}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}
@@ -265,7 +266,7 @@ const PhoneChangeModal: React.FC<PhoneChangeModalProps> = ({
       title="修改手机号"
       onCancel={onClose}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}
@@ -427,7 +428,7 @@ const EmailChangeModal: React.FC<EmailChangeModalProps> = ({
       width={660}
       onCancel={onClose}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
         <Alert
@@ -601,6 +602,9 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
   const hasRecoveryCodes = authenticators.some(
     (item) => item.type === 'recovery_codes',
   );
+  const nonPasskeyAuthenticators = authenticators.filter(
+    (item) => item.type !== 'webauthn',
+  );
   const showSetupPanel = !hasTotp || Boolean(totpSetup);
 
   const removeAuthenticatorGroup = async (type: string) => {
@@ -613,7 +617,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
       await refreshAuthenticators();
       await onSuccess();
       message.success(
-        type === 'totp' ? 'TOTP 与恢复码已移除' : 'MFA 设备已移除',
+        type === 'totp' ? '动态验证码与恢复码已移除' : '验证方式已移除',
       );
     } finally {
       setRemovingType(null);
@@ -634,7 +638,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
     setLoading(true);
     refreshAuthenticators()
       .catch((error) =>
-        setErrorMessage(getErrorMessage(error, 'MFA 状态加载失败')),
+        setErrorMessage(getErrorMessage(error, '多因素验证状态加载失败')),
       )
       .finally(() => setLoading(false));
   }, [open]);
@@ -651,17 +655,17 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
     setTotpSetup(null);
     setTotpStep(0);
     await openRecoveryCodesModal();
-    message.success('TOTP 已启用');
+    message.success('动态验证码（TOTP）已启用');
   };
 
   return (
     <Modal
       open={open}
-      title="MFA 设备"
+      title="多因素验证（MFA）"
       width={640}
       onCancel={onClose}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
         {errorMessage ? (
@@ -677,10 +681,16 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                 background: 'var(--ant-color-fill-quaternary)',
               }}
             >
-              <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
+              <Space
+                orientation="vertical"
+                size={16}
+                style={{ display: 'flex' }}
+              >
                 <div>
                   <Typography.Title level={5} style={{ margin: 0 }}>
-                    {hasTotp ? '重新配置 TOTP' : '绑定身份验证器'}
+                    {hasTotp
+                      ? '重新配置动态验证码（TOTP）'
+                      : '绑定动态验证码（TOTP）'}
                   </Typography.Title>
                   <Typography.Text type="secondary">
                     推荐使用 Google Authenticator、Microsoft Authenticator 或
@@ -703,7 +713,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                           setTotpStep(0);
                         } catch (error) {
                           setErrorMessage(
-                            getErrorMessage(error, 'TOTP 初始化失败'),
+                            getErrorMessage(error, '动态验证码初始化失败'),
                           );
                         } finally {
                           setStartingTotp(false);
@@ -711,7 +721,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                       }}
                       loading={startingTotp}
                     >
-                      开始绑定 TOTP
+                      开始绑定
                     </Button>
                   </Space>
                 ) : (
@@ -836,7 +846,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                                 setReauthVisible(true);
                               } else {
                                 setErrorMessage(
-                                  getErrorMessage(error, 'TOTP 绑定失败'),
+                                  getErrorMessage(error, '动态验证码绑定失败'),
                                 );
                               }
                             } finally {
@@ -878,7 +888,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                               type="primary"
                               loading={bindingTotp}
                             >
-                              确认绑定 TOTP
+                              确认绑定
                             </Button>
                           </div>
                         </Form>
@@ -895,12 +905,20 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
         ) : null}
         {!totpSetup ? (
           <>
-            <Typography.Text strong>已绑定的 MFA 设备</Typography.Text>
+            <PasskeyManager
+              authenticators={authenticators}
+              loading={loading}
+              onError={setErrorMessage}
+              onRecoveryCodesGenerated={openRecoveryCodesModal}
+              onRefresh={refreshAuthenticators}
+              onSuccess={onSuccess}
+            />
+            <Typography.Text strong>其他验证方式</Typography.Text>
             <List
               bordered
               loading={loading}
-              dataSource={authenticators}
-              locale={{ emptyText: '当前未启用 MFA 设备' }}
+              dataSource={nonPasskeyAuthenticators}
+              locale={{ emptyText: '当前未启用其他验证方式' }}
               renderItem={(item) => (
                 <List.Item
                   actions={
@@ -917,7 +935,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                                 await removeAuthenticatorGroup(item.type);
                               } catch (error) {
                                 setErrorMessage(
-                                  getErrorMessage(error, '移除 MFA 设备失败'),
+                                  getErrorMessage(error, '移除验证方式失败'),
                                 );
                               }
                             }}
@@ -932,12 +950,8 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                     <Typography.Text>
                       {getAuthenticatorLabel(item.type)}
                     </Typography.Text>
-                    {item.type === 'totp' ? <Tag color="blue">TOTP</Tag> : null}
                     {item.type === 'recovery_codes' ? (
                       <Tag color="green">恢复码已生成</Tag>
-                    ) : null}
-                    {item.type === 'webauthn' ? (
-                      <Tag color="gold">暂不支持在此管理</Tag>
                     ) : null}
                   </Space>
                 </List.Item>
@@ -955,13 +969,13 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
           reauthForm.resetFields();
         }}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Alert
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          title="绑定 TOTP 需要重新验证身份，请输入密码后继续"
+          title="绑定动态验证码前需要重新验证身份，请输入密码后继续"
         />
         <Form
           form={reauthForm}
@@ -979,7 +993,9 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
                   await activateTotp(pendingTotpCode);
                   await completeTotpActivation();
                 } catch (retryError) {
-                  setErrorMessage(getErrorMessage(retryError, 'TOTP 绑定失败'));
+                  setErrorMessage(
+                    getErrorMessage(retryError, '动态验证码绑定失败'),
+                  );
                 } finally {
                   setBindingTotp(false);
                   setPendingTotpCode(null);
@@ -1018,7 +1034,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
             我已保存
           </Button>,
         ]}
-        destroyOnClose
+        destroyOnHidden
       >
         <Alert
           type="warning"
@@ -1040,7 +1056,8 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
               已生成 {recoveryCodes.length} 条恢复码，请立即复制或下载保存。
             </Typography.Text>
             <Typography.Text type="secondary">
-              无法使用验证器 App 时，可用任意一条恢复码替代 6 位动态验证码，每条仅可使用一次。
+              无法使用验证器 App 时，可用任意一条恢复码替代 6
+              位动态验证码，每条仅可使用一次。
             </Typography.Text>
           </Space>
         </div>

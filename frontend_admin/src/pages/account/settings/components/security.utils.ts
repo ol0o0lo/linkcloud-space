@@ -3,11 +3,11 @@ import type { AuthenticatorSummary } from './security.types';
 export function getAuthenticatorLabel(type: string) {
   switch (type) {
     case 'totp':
-      return 'TOTP';
+      return '动态验证码（TOTP）';
     case 'recovery_codes':
       return '恢复码';
     case 'webauthn':
-      return 'Passkey';
+      return '通行密钥（Passkey）';
     default:
       return type;
   }
@@ -42,7 +42,7 @@ export function buildMfaDescription(authenticators: AuthenticatorSummary[]) {
     passkeyCount === 0 &&
     types.size === 2
   ) {
-    return '已启用 TOTP 和恢复码';
+    return '已启用动态验证码（TOTP）和恢复码';
   }
 
   if (authenticators.length === 0) {
@@ -51,13 +51,17 @@ export function buildMfaDescription(authenticators: AuthenticatorSummary[]) {
 
   const parts: string[] = [];
   if (types.has('totp')) {
-    parts.push('TOTP');
+    parts.push('动态验证码（TOTP）');
   }
   if (types.has('recovery_codes')) {
     parts.push('恢复码');
   }
   if (passkeyCount > 0) {
-    parts.push(passkeyCount > 1 ? `${passkeyCount} 个 Passkey` : 'Passkey');
+    parts.push(
+      passkeyCount > 1
+        ? `${passkeyCount} 个通行密钥（Passkey）`
+        : '通行密钥（Passkey）',
+    );
   }
 
   for (const type of types) {

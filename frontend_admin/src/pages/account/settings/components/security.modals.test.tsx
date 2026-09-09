@@ -8,12 +8,15 @@ const serviceMocks = vi.hoisted(() => ({
   activateTotp: vi.fn(),
   addAccountEmail: vi.fn(),
   confirmPhoneChange: vi.fn(),
+  createPasskey: vi.fn(),
+  deletePasskey: vi.fn(),
   deleteAuthenticator: vi.fn(),
   getTotpSetup: vi.fn(),
   getRecoveryCodes: vi.fn(),
   listAccountEmails: vi.fn(),
   listAuthenticators: vi.fn(),
   reauthenticate: vi.fn(),
+  renamePasskey: vi.fn(),
   removeAccountEmail: vi.fn(),
   requestPhoneChangeCode: vi.fn(),
   setPrimaryAccountEmail: vi.fn(),
@@ -68,7 +71,7 @@ describe('SecurityModals MFA flow', () => {
       expect(serviceMocks.listAuthenticators).toHaveBeenCalled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '开始绑定 TOTP' }));
+    fireEvent.click(screen.getByRole('button', { name: '开始绑定' }));
 
     expect(
       await screen.findByText('第 1 步：扫码或录入密钥'),
@@ -113,7 +116,7 @@ describe('SecurityModals MFA flow', () => {
       expect(serviceMocks.listAuthenticators).toHaveBeenCalled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '开始绑定 TOTP' }));
+    fireEvent.click(screen.getByRole('button', { name: '开始绑定' }));
     fireEvent.click(
       await screen.findByRole('button', { name: '我已完成添加，下一步' }),
     );
@@ -124,12 +127,10 @@ describe('SecurityModals MFA flow', () => {
         target: { value: '123456' },
       },
     );
-    fireEvent.click(screen.getByRole('button', { name: '确认绑定 TOTP' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认绑定' }));
 
     expect(await screen.findByText('身份验证')).toBeInTheDocument();
-    expect(
-      screen.getByText('绑定 TOTP 需要重新验证身份，请输入密码后继续'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('绑定动态验证码前需要重新验证身份，请输入密码后继续')).toBeInTheDocument();
   });
 
   it('shows recovery codes after totp activation succeeds', async () => {
@@ -141,7 +142,7 @@ describe('SecurityModals MFA flow', () => {
       expect(serviceMocks.listAuthenticators).toHaveBeenCalled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '开始绑定 TOTP' }));
+    fireEvent.click(screen.getByRole('button', { name: '开始绑定' }));
     fireEvent.click(
       await screen.findByRole('button', { name: '我已完成添加，下一步' }),
     );
@@ -151,15 +152,21 @@ describe('SecurityModals MFA flow', () => {
         target: { value: '123456' },
       },
     );
-    fireEvent.click(screen.getByRole('button', { name: '确认绑定 TOTP' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认绑定' }));
 
     expect(await screen.findByText('请保存恢复码')).toBeInTheDocument();
-    expect(screen.getByText('已生成 2 条恢复码，请立即复制或下载保存。')).toBeInTheDocument();
+    expect(
+      screen.getByText('已生成 2 条恢复码，请立即复制或下载保存。'),
+    ).toBeInTheDocument();
     expect(screen.getByText('rc-001')).toBeInTheDocument();
     expect(screen.getByText('rc-002')).toBeInTheDocument();
     expect(screen.queryByText('恢复码列表')).not.toBeInTheDocument();
     expect(screen.queryByText('恢复码 1')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '复制恢复码' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '下载文本' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '复制恢复码' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '下载文本' }),
+    ).toBeInTheDocument();
   });
 });
