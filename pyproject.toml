@@ -233,6 +233,9 @@ WECHAT_APP_ID = { type = "str", default = "", help_text = "微信开放平台网
 WECHAT_APP_SECRET = { type = "str", default = "", help_text = "微信开放平台网站应用 AppSecret" }
 WECHAT_MINIPROGRAM_APP_ID = { type = "str", default = "", help_text = "微信小程序 AppID" }
 WECHAT_MINIPROGRAM_APP_SECRET = { type = "str", default = "", help_text = "微信小程序 AppSecret" }
+WECHAT_OFFICIAL_ACCOUNT_APP_ID = { type = "str", default = "", help_text = "微信公众号 AppID（带参数二维码登录）" }
+WECHAT_OFFICIAL_ACCOUNT_APP_SECRET = { type = "str", default = "", help_text = "微信公众号 AppSecret" }
+WECHAT_OFFICIAL_ACCOUNT_TOKEN = { type = "str", default = "", help_text = "微信公众号服务器配置 Token" }
 
 # 微信支付渠道（收款与出款）
 PAYMENTS_WECHAT_PAY_ENABLED = { type = "bool", default = false, help_text = "启用微信收款" }

@@ -1,19 +1,29 @@
 import logging
+import time
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.test import Client as DjangoClient
+from django.utils.crypto import salted_hmac
+from django.utils.http import url_has_allowed_host_and_scheme
 
 import requests as http_requests
+from allauth.core.exceptions import SignupClosedException
+from allauth.headless.base.response import AuthenticationResponse
+from allauth.headless.constants import Client as HeadlessClient
+from allauth.headless.internal.decorators import mark_request_as_headless
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
 from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal.auth import generate_totp_secret
 from allauth.mfa.utils import is_mfa_enabled
 from allauth.socialaccount.adapter import get_adapter as get_social_adapter
+from allauth.socialaccount.internal import flows as socialaccount_flows
 from allauth.socialaccount.internal.flows.connect import validate_disconnect
 from allauth.socialaccount.models import SocialAccount, SocialApp
+from allauth.socialaccount.providers.base.constants import AuthProcess
 from allauth.usersessions.models import UserSession
 from ninja import Query, Router, Status
 from ninja.errors import HttpError
@@ -22,6 +32,21 @@ from ninja.pagination import paginate
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification, compose_phone
 from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
+from apps.accounts.providers.wechat_official_account.client import WechatOfficialAccountError, create_temporary_qr, get_user_info
+from apps.accounts.providers.wechat_official_account.provider import WechatOfficialAccountProvider
+from apps.accounts.providers.wechat_official_account.tickets import (
+    POLL_INTERVAL_SECONDS,
+    TICKET_TTL_SECONDS,
+    LoginTicketConflict,
+    LoginTicketExpired,
+    LoginTicketForbidden,
+    begin_login_completion,
+    create_login_ticket,
+    delete_login_ticket,
+    finish_login_completion,
+    get_login_status,
+    get_or_create_browser_id,
+)
 from apps.accounts.schemas import (
     AdminRealNameDecisionIn,
     AdminRealNameVerificationRowOut,
@@ -46,6 +71,9 @@ from apps.accounts.schemas import (
     UserOut,
     UserPatchIn,
     UserStatusPatchIn,
+    WechatOfficialQrCreateIn,
+    WechatOfficialQrOut,
+    WechatOfficialQrStatusOut,
     WechatPhoneIn,
     WechatPhoneOut,
 )
@@ -110,6 +138,48 @@ def _proxy_allauth_post(request, path: str, payload: dict):
     return client.post(target, data=payload, content_type="application/json", **extra)
 
 
+def _increment_rate_limit(key: str, *, limit: int) -> None:
+    if cache.add(key, 1, timeout=70):
+        count = 1
+    else:
+        try:
+            count = cache.incr(key)
+        except ValueError:
+            cache.set(key, 1, timeout=70)
+            count = 1
+    if count > limit:
+        raise HttpError(429, "微信登录二维码请求过于频繁，请稍后重试。")
+
+
+def _enforce_wechat_qr_rate_limit(request) -> None:
+    bucket = int(time.time() // 60)
+    remote_addr = request.META.get("REMOTE_ADDR", "unknown")
+    remote_identity = salted_hmac("accounts.wechat-official-ip-rate", remote_addr).hexdigest()[:24]
+    browser_id = get_or_create_browser_id(request)
+    browser_identity = salted_hmac("accounts.wechat-official-browser-rate", browser_id).hexdigest()[:24]
+    _increment_rate_limit(f"wechat_official_login:rate:ip:{remote_identity}:{bucket}", limit=30)
+    _increment_rate_limit(f"wechat_official_login:rate:browser:{browser_identity}:{bucket}", limit=10)
+
+
+def _safe_wechat_redirect(request, value: str) -> str:
+    value = (value or "").strip()
+    if not value:
+        return "/dashboard/user/login"
+    if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return value
+    return "/dashboard/user/login"
+
+
+def _raise_login_ticket_http_error(exc: Exception):
+    if isinstance(exc, LoginTicketExpired):
+        raise HttpError(410, str(exc)) from exc
+    if isinstance(exc, LoginTicketForbidden):
+        raise HttpError(403, str(exc)) from exc
+    if isinstance(exc, LoginTicketConflict):
+        raise HttpError(409, str(exc)) from exc
+    raise exc
+
+
 @users_router.post("/auth/browser/signup/", auth=None, summary="拆分手机号注册")
 def signup_with_split_phone(request, payload: SplitPhoneSignupIn):
     phone = compose_phone(payload.phone_country_code, payload.phone_national_number)
@@ -135,6 +205,74 @@ def verify_phone_with_code(request, payload: PhoneCodeVerifyIn):
 def request_login_code_with_split_phone(request, payload: SplitPhoneIn):
     phone = compose_phone(payload.phone_country_code, payload.phone_national_number)
     return _proxy_allauth_post(request, "/api/allauth/app/v1/auth/code/request", {"phone": phone})
+
+
+@users_router.post("/auth/wechat-official/qr/", auth=None, response=WechatOfficialQrOut, summary="创建公众号扫码登录二维码")
+def create_wechat_official_qr(request, payload: WechatOfficialQrCreateIn):
+    _enforce_wechat_qr_rate_limit(request)
+    ticket = create_login_ticket(request, _safe_wechat_redirect(request, payload.redirect))
+    try:
+        qr_image_url = create_temporary_qr(ticket.scene, expire_seconds=TICKET_TTL_SECONDS)
+    except WechatOfficialAccountError as exc:
+        delete_login_ticket(ticket.login_id)
+        raise HttpError(503, str(exc)) from exc
+    return {
+        "login_id": ticket.login_id,
+        "poll_token": ticket.poll_token,
+        "qr_image_url": qr_image_url,
+        "expires_in": TICKET_TTL_SECONDS,
+        "poll_interval": POLL_INTERVAL_SECONDS,
+    }
+
+
+@users_router.get("/auth/wechat-official/qr/{login_id}/", auth=None, response=WechatOfficialQrStatusOut, summary="查询公众号扫码登录状态")
+def get_wechat_official_qr_status(request, login_id: str):
+    poll_token = request.headers.get("X-WeChat-Login-Token", "")
+    if not poll_token:
+        raise HttpError(403, "缺少微信登录票据。")
+    try:
+        return get_login_status(request, login_id, poll_token)
+    except (LoginTicketExpired, LoginTicketForbidden, LoginTicketConflict) as exc:
+        _raise_login_ticket_http_error(exc)
+
+
+@users_router.post("/auth/wechat-official/qr/{login_id}/complete/", auth=None, summary="完成公众号扫码登录")
+def complete_wechat_official_qr_login(request, login_id: str):
+    mark_request_as_headless(request, HeadlessClient.BROWSER)
+    poll_token = request.headers.get("X-WeChat-Login-Token", "")
+    if not poll_token:
+        raise HttpError(403, "缺少微信登录票据。")
+    try:
+        ticket = begin_login_completion(request, login_id, poll_token)
+    except (LoginTicketExpired, LoginTicketForbidden, LoginTicketConflict) as exc:
+        _raise_login_ticket_http_error(exc)
+
+    try:
+        profile = get_user_info(str(ticket["openid"]))
+        provider = WechatOfficialAccountProvider(request=request)
+        sociallogin = provider.sociallogin_from_response(request, profile)
+        sociallogin.state = {
+            "headless": True,
+            "next": str(ticket.get("redirect_path") or "/dashboard/user/login"),
+            "process": AuthProcess.LOGIN,
+        }
+        response = socialaccount_flows.login.complete_login(request, sociallogin, raises=True)
+        authentication_response = AuthenticationResponse.from_response(request, response)
+    except WechatOfficialAccountError as exc:
+        finish_login_completion(login_id, success=False)
+        raise HttpError(503, str(exc)) from exc
+    except SignupClosedException as exc:
+        finish_login_completion(login_id, success=False)
+        raise HttpError(403, "当前未开放新用户注册。") from exc
+    except ValidationError as exc:
+        finish_login_completion(login_id, success=False)
+        raise HttpError(409, "; ".join(str(message) for message in exc.messages)) from exc
+    except Exception:
+        finish_login_completion(login_id, success=False)
+        raise
+
+    finish_login_completion(login_id, success=True)
+    return authentication_response
 
 
 @users_router.get("/me/", response=MeOut, summary="获取当前用户信息")
@@ -200,7 +338,9 @@ def get_social_bindings(request):
     """返回管理端账号绑定页需要展示的当前用户社交绑定状态。"""
     require_authenticated(request)
 
-    connected_providers = set(SocialAccount.objects.filter(user=request.user, provider__in=["github", "weixin"]).values_list("provider", flat=True))
+    connected_providers = set(
+        SocialAccount.objects.filter(user=request.user, provider__in=["github", "weixin", "wechat_official_account"]).values_list("provider", flat=True)
+    )
     return {
         "items": [
             {
@@ -211,7 +351,7 @@ def get_social_bindings(request):
             {
                 "provider": "weixin",
                 "label": "微信",
-                "connected": "weixin" in connected_providers,
+                "connected": bool({"weixin", "wechat_official_account"} & connected_providers),
             },
         ]
     }
@@ -310,6 +450,7 @@ def bind_wechat_phone(request, payload: WechatPhoneIn):
         "phone_country_code": user.phone_country_code,
         "phone_national_number": user.phone_national_number,
         "merged": merged,
+        "session_token": request.session.session_key if merged else None,
     }
 
 
@@ -473,10 +614,10 @@ def unbind_user_phone(request, user_id: int):
 
 @admin_users_router.delete("/{user_id}/wechat/", response={200: dict}, summary="解绑用户微信账号")
 def unbind_user_wechat(request, user_id: int):
-    """删除用户微信开放平台和小程序 social account 绑定。"""
+    """删除用户网站应用、小程序和公众号微信 social account 绑定。"""
     user = _get_admin_user(request, user_id)
 
-    accounts = list(SocialAccount.objects.filter(user=user, provider__in=["weixin", "wechat_miniprogram"]))
+    accounts = list(SocialAccount.objects.filter(user=user, provider__in=["weixin", "wechat_miniprogram", "wechat_official_account"]))
     try:
         for account in accounts:
             validate_disconnect(request, account)

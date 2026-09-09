@@ -1,14 +1,10 @@
-import random
-import string
-import uuid
-
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
 from allauth.socialaccount.adapter import get_adapter
 from allauth.socialaccount.providers.base import Provider, ProviderAccount
 
 from apps.accounts.providers.wechat_miniprogram.client import jscode2session
+from apps.accounts.wechat_identity import generate_wechat_username
 
 
 class WechatMiniprogramAccount(ProviderAccount):
@@ -32,17 +28,7 @@ class WechatMiniprogramProvider(Provider):
         }
 
     def extract_common_fields(self, data):
-        return {"username": self._generate_wx_username()}
-
-    def _generate_wx_username(self):
-        # 生成不冲突的微信侧默认用户名。
-        User = get_user_model()
-        for _ in range(10):
-            suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))  # noqa: S311
-            username = f"wx_{suffix}"
-            if not User.objects.filter(username=username).exists():
-                return username
-        return f"wx_{uuid.uuid4().hex[:12]}"
+        return {"username": generate_wechat_username()}
 
     def verify_token(self, request, token):
         # 用微信接口把前端传来的 code 换成登录载荷。

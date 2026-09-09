@@ -113,6 +113,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount.providers.github",
     "allauth.socialaccount.providers.weixin",
     "apps.accounts.providers.wechat_miniprogram",
+    "apps.accounts.providers.wechat_official_account",
     "storages",
     "hijack",
 ]
@@ -604,6 +605,7 @@ ACCOUNT_EMAIL_SUBJECT_PREFIX = ""
 
 # CUSTOM Django Base Site ALLAUTH settings used in the custom adapter (apps.accounts.auth_adapter)
 ACCOUNT_ADAPTER = "apps.accounts.auth_adapter.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "apps.accounts.auth_adapter.SocialAccountAdapter"
 ACCOUNT_SIGNUP_OPEN = env.bool("ACCOUNT_SIGNUP_OPEN", default=False)
 ACCOUNT_SHOW_POST_LOGIN_MESSAGE = False
 
@@ -660,6 +662,10 @@ SOCIALACCOUNT_PROVIDERS = {
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"  # GitHub email 已经过 GitHub 验证
+
+WECHAT_OFFICIAL_ACCOUNT_APP_ID = env("WECHAT_OFFICIAL_ACCOUNT_APP_ID", default="")
+WECHAT_OFFICIAL_ACCOUNT_APP_SECRET = env("WECHAT_OFFICIAL_ACCOUNT_APP_SECRET", default="")
+WECHAT_OFFICIAL_ACCOUNT_TOKEN = env("WECHAT_OFFICIAL_ACCOUNT_TOKEN", default="")
 
 # ALLAUTH MFA SETTINGS
 MFA_SUPPORTED_TYPES = ["totp", "recovery_codes", "webauthn"]

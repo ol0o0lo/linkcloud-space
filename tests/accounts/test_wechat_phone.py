@@ -17,7 +17,7 @@ from django.test import override_settings
 
 import pytest
 
-from tests.api_helpers import api_data
+from tests.api_helpers import api_data, api_error
 
 WECHAT_PHONE_SETTINGS = {
     "CACHES": {
@@ -127,6 +127,7 @@ def test_get_phone_number_raises_on_errcode(db):
 @pytest.fixture
 def client():
     from django.test import Client
+
     return Client(SERVER_NAME="localhost")
 
 
@@ -148,6 +149,7 @@ def _login_user(client, user):
 def _post_wechat_phone(client, phone_number="13800138000"):
     """辅助：mock 微信 API，POST /api/users/me/wechat-phone/。"""
     from django.core.cache import cache
+
     cache.set("wechat_miniprogram_access_token:test-miniprogram-appid", "cached_token", timeout=7000)
 
     phone_mock = _make_phone_mock(phone_number)
@@ -276,7 +278,10 @@ def test_bind_phone_rejects_inactive_verified_account(client, db):
 
     resp = _post_wechat_phone(client, "13800138000")
 
-    assert resp.status_code == 400
+    assert resp.status_code == 409
+    error = api_error(resp)
+    assert error["error"] == "ACCOUNT_MERGE_REVIEW_REQUIRED"
+    assert error["data"] == {"reason": "inactive_target"}
     user.refresh_from_db()
     inactive.refresh_from_db()
     assert user.phone is None
@@ -286,10 +291,16 @@ def test_bind_phone_rejects_inactive_verified_account(client, db):
 @override_settings(**WECHAT_PHONE_SETTINGS)
 def test_bind_phone_merges_existing_account(client, db):
     """手机号已属于 User B，迁移 SocialAccount，软删除当前 User，session 切换到 User B。"""
+    from importlib import import_module
+
+    from django.conf import settings
     from django.contrib.auth import get_user_model
 
     from allauth.socialaccount.models import SocialAccount
+    from allauth.usersessions.models import UserSession
     from model_bakery import baker
+
+    from apps.accounts.models import AccountMerge
 
     User = get_user_model()
 
@@ -305,6 +316,10 @@ def test_bind_phone_merges_existing_account(client, db):
 
     # User B：已有手机号账号
     user_b = baker.make(User, username="real_user", email="user@example.com", phone="+8613800138000", phone_verified=True)
+
+    source_session = import_module(settings.SESSION_ENGINE).SessionStore()
+    source_session.save()
+    UserSession.objects.create(user=user_a, session_key=source_session.session_key, ip="127.0.0.1", user_agent="merge-test")
 
     _login_user(client, user_a)
     resp = _post_wechat_phone(client, "13800138000")
@@ -322,9 +337,415 @@ def test_bind_phone_merges_existing_account(client, db):
     user_a.refresh_from_db()
     assert user_a.is_active is False
 
+    merge = AccountMerge.objects.get(source_user=user_a)
+    assert merge.target_user_id == user_b.pk
+    assert merge.identity_provider == "wechat_miniprogram"
+    assert merge.migration_summary["social_accounts"] == 1
+    assert not UserSession.objects.filter(user=user_a).exists()
+    assert not import_module(settings.SESSION_ENGINE).SessionStore().exists(source_session.session_key)
+
     # session 已切换到 user_b
     from django.contrib.auth import SESSION_KEY
+
     assert int(client.session[SESSION_KEY]) == user_b.pk
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_moves_safe_personal_data_and_keeps_target_profile(client, db):
+    """轻量微信账号合并时迁移安全个人数据，主账号同键数据和非空资料优先。"""
+    from django.contrib.auth import get_user_model
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.favorites.models import Favorite
+    from apps.media.constants import ResourceType
+    from apps.media.models import MediaFile
+    from apps.notifications.models import Notification, NotificationPreference
+    from apps.referrals.models import ReferralLink
+    from apps.settings.models import UserSetting
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_personal_data", email="", first_name="微信用户", last_name="", phone=None)
+    target = baker.make(User, username="canonical_user", email="user@example.com", first_name="", last_name="主账号", phone="+8613800138000", phone_verified=True)
+    baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_personal_data", extra_data={"openid": "openid_personal_data"})
+
+    baker.make(Favorite, user=target, target_type="house", target_id="1")
+    baker.make(Favorite, user=source, target_type="house", target_id="1")
+    baker.make(Favorite, user=source, target_type="house", target_id="2")
+    baker.make(UserSetting, user=target, key="theme", value="dark")
+    baker.make(UserSetting, user=source, key="theme", value="light")
+    baker.make(UserSetting, user=source, key="language", value="zh-CN")
+    baker.make(NotificationPreference, user=source, category="house", in_app=False, email=True)
+    notification = baker.make(Notification, recipient=source, title="个人通知")
+    referral_link = baker.make(ReferralLink, inviter=source, code="WXPERSONAL")
+    media = baker.make(
+        MediaFile,
+        uploader=source,
+        resource_type=ResourceType.AVATAR,
+        original_filename="avatar.png",
+        file=SimpleUploadedFile("avatar.png", b"image"),
+        file_size=5,
+    )
+
+    _login_user(client, source)
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 200, f"{resp.status_code}: {resp.content[:200]}"
+    target.refresh_from_db()
+    notification.refresh_from_db()
+    media.refresh_from_db()
+    referral_link.refresh_from_db()
+    assert target.first_name == "微信用户"
+    assert target.last_name == "主账号"
+    assert set(Favorite.objects.filter(user=target).values_list("target_id", flat=True)) == {"1", "2"}
+    assert UserSetting.objects.get(user=target, key="theme").value == "dark"
+    assert UserSetting.objects.get(user=target, key="language").value == "zh-CN"
+    assert NotificationPreference.objects.filter(user=target, category="house", in_app=False, email=True).exists()
+    assert notification.recipient_id == target.pk
+    assert media.uploader_id == target.pk
+    assert referral_link.inviter_id == target.pk
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_requires_review_when_source_has_organization(client, db):
+    """来源账号已有组织关系时必须阻断自动合并，且不部分迁移。"""
+    from django.contrib.auth import get_user_model
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.organizations.models import Organization, OrganizationMember
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_org_member", email="", phone=None)
+    target = baker.make(User, username="org_target", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    social = baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_org_member")
+    organization = baker.make(Organization, name="来源组织", slug="source-org")
+    baker.make(OrganizationMember, organization=organization, user=source)
+
+    _login_user(client, source)
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 409
+    error = api_error(resp)
+    assert error["error"] == "ACCOUNT_MERGE_REVIEW_REQUIRED"
+    assert error["data"] == {"reason": "business_identity"}
+    source.refresh_from_db()
+    social.refresh_from_db()
+    assert source.is_active is True
+    assert social.user_id == source.pk
+    assert target.is_active is True
+
+
+@pytest.mark.parametrize("wallet_owner", ["source", "target"])
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_requires_review_when_either_account_has_financial_data(client, db, wallet_owner):
+    """来源或目标任一账号有资金数据时都不自动合并。"""
+    from django.contrib.auth import get_user_model
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.wallet.models import WalletAccount
+
+    User = get_user_model()
+    source = baker.make(User, username=f"wx_financial_{wallet_owner}", email="", phone=None)
+    target = baker.make(User, username=f"financial_target_{wallet_owner}", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    social = baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid=f"openid_financial_{wallet_owner}")
+    baker.make(WalletAccount, user=source if wallet_owner == "source" else target, available_balance=100)
+
+    _login_user(client, source)
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 409
+    error = api_error(resp)
+    assert error["error"] == "ACCOUNT_MERGE_REVIEW_REQUIRED"
+    assert error["data"] == {"reason": "financial_data"}
+    source.refresh_from_db()
+    social.refresh_from_db()
+    assert source.is_active is True
+    assert social.user_id == source.pk
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_allows_empty_wallet_account(client, db):
+    """惰性创建的空钱包账户本身不阻断轻量账号合并。"""
+    from django.contrib.auth import get_user_model
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.wallet.models import WalletAccount
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_empty_wallet", email="", phone=None)
+    baker.make(User, username="empty_wallet_target", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_empty_wallet")
+    baker.make(WalletAccount, user=source)
+
+    _login_user(client, source)
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 200
+    assert api_data(resp)["merged"] is True
+
+
+@pytest.mark.parametrize(
+    ("identity_kind", "expected_reason"),
+    [
+        ("missing_wechat", "not_lightweight"),
+        ("team", "business_identity"),
+        ("contact", "business_identity"),
+        ("organization_notification", "business_identity"),
+        ("real_name", "real_name"),
+    ],
+)
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_only_accepts_lightweight_wechat_source(client, db, identity_kind, expected_reason):
+    """只有无业务身份、无实名的微信小程序轻量账号可以自动合并。"""
+    from django.contrib.auth import get_user_model
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.accounts.constants import RealNameStatus
+    from apps.house.models import Contact
+    from apps.notifications.models import Notification
+    from apps.organizations.models import Organization
+    from apps.teams.models import Team
+
+    User = get_user_model()
+    source = baker.make(User, username=f"wx_identity_{identity_kind}", email="", phone=None)
+    target = baker.make(User, username=f"identity_target_{identity_kind}", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    if identity_kind != "missing_wechat":
+        baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid=f"openid_identity_{identity_kind}")
+    if identity_kind == "team":
+        organization = baker.make(Organization, name="团队组织", slug=f"team-org-{source.pk}")
+        team = baker.make(Team, organization=organization, name="业务团队")
+        team.members.add(source)
+    elif identity_kind == "contact":
+        organization = baker.make(Organization, name="联系人组织", slug=f"contact-org-{source.pk}")
+        baker.make(Contact, organization=organization, name="微信用户", phone="13900000000", roles=[], user=source)
+    elif identity_kind == "organization_notification":
+        organization = baker.make(Organization, name="通知组织", slug=f"notification-org-{source.pk}")
+        baker.make(Notification, organization=organization, recipient=source, title="组织通知")
+    elif identity_kind == "real_name":
+        source.real_name_status = RealNameStatus.VERIFIED
+        source.save(update_fields=["real_name_status"])
+
+    _login_user(client, source)
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 409
+    error = api_error(resp)
+    assert error["error"] == "ACCOUNT_MERGE_REVIEW_REQUIRED"
+    assert error["data"] == {"reason": expected_reason}
+    source.refresh_from_db()
+    assert source.is_active is True
+    assert target.is_active is True
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_requires_review_for_subscription_order(client, db):
+    """SaaS 订单等非钱包财务记录同样阻断自动合并。"""
+    from django.contrib.auth import get_user_model
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.subscriptions.models import SaaSOrder
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_subscription_order", email="", phone=None)
+    baker.make(User, username="subscription_target", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_subscription_order")
+    baker.make(SaaSOrder, created_by=source)
+
+    _login_user(client, source)
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 409
+    error = api_error(resp)
+    assert error["error"] == "ACCOUNT_MERGE_REVIEW_REQUIRED"
+    assert error["data"] == {"reason": "financial_data"}
+
+
+@pytest.mark.parametrize("conflict_kind", ["social_account", "referral"])
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_rejects_unique_personal_data_conflicts(client, db, conflict_kind):
+    """登录身份或推荐关系冲突时不部分合并。"""
+    from django.contrib.auth import get_user_model
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.accounts.models import AccountMerge
+    from apps.referrals.models import ReferralLink
+
+    User = get_user_model()
+    source = baker.make(User, username=f"wx_conflict_{conflict_kind}", email="", phone=None)
+    target = baker.make(User, username=f"conflict_target_{conflict_kind}", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    source_social = baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid=f"openid_source_{conflict_kind}")
+    if conflict_kind == "social_account":
+        baker.make(SocialAccount, user=target, provider="wechat_miniprogram", uid="openid_target_conflict")
+        expected_reason = "login_identity_conflict"
+    else:
+        baker.make(ReferralLink, inviter=source, code="SOURCECONFLICT")
+        baker.make(ReferralLink, inviter=target, code="TARGETCONFLICT")
+        expected_reason = "referral_conflict"
+
+    _login_user(client, source)
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 409
+    assert api_error(resp)["data"] == {"reason": expected_reason}
+    source.refresh_from_db()
+    source_social.refresh_from_db()
+    assert source.is_active is True
+    assert source_social.user_id == source.pk
+    assert not AccountMerge.objects.filter(source_user=source).exists()
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_does_not_require_target_mfa_challenge(client, db):
+    """微信手机号授权已足以验证归属，目标账号开启 MFA 时仍可自动合并。"""
+    from django.contrib.auth import get_user_model
+
+    from allauth.mfa.models import Authenticator
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_mfa_target", email="", phone=None)
+    target = baker.make(User, username="mfa_target", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_mfa_target")
+    baker.make(Authenticator, user=target, type=Authenticator.Type.TOTP, data={"secret": "abc"})
+
+    _login_user(client, source)
+    resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 200
+    assert api_data(resp)["merged"] is True
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_rolls_back_all_writes_when_migration_fails(client, db):
+    """合并中任一迁移步骤异常时，用户、登录身份和个人数据全部回滚。"""
+    from django.contrib.auth import get_user_model
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.accounts.models import AccountMerge
+    from apps.favorites.models import Favorite
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_rollback", email="", phone=None)
+    baker.make(User, username="rollback_target", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    social = baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_rollback")
+    favorite = baker.make(Favorite, user=source, target_type="house", target_id="rollback-house")
+
+    def fail_after_partial_write(*, source_user, target_user):
+        Favorite.objects.filter(user=source_user).update(user=target_user)
+        raise RuntimeError("merge failed")
+
+    _login_user(client, source)
+    client.raise_request_exception = False
+    with patch("apps.accounts.services._merge_safe_personal_data", side_effect=fail_after_partial_write):
+        resp = _post_wechat_phone(client, "13800138000")
+
+    assert resp.status_code == 500
+    source.refresh_from_db()
+    social.refresh_from_db()
+    favorite.refresh_from_db()
+    assert source.is_active is True
+    assert social.user_id == source.pk
+    assert favorite.user_id == source.pk
+    assert not AccountMerge.objects.filter(source_user=source).exists()
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_bind_phone_only_creates_one_merge():
+    """同一来源账号并发绑定时只能产生一条成功合并记录。"""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.contrib.auth import get_user_model
+    from django.db import connections
+    from django.test import Client
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.accounts.models import AccountMerge
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_concurrent_merge", email="", phone=None)
+    target = baker.make(User, username="concurrent_target", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_concurrent_merge")
+    barrier = Barrier(2)
+
+    def submit_binding():
+        try:
+            thread_client = Client(SERVER_NAME="localhost")
+            thread_client.force_login(source)
+            barrier.wait()
+            return thread_client.post(
+                "/api/users/me/wechat-phone/",
+                {"phone_code": "test_phone_code"},
+                content_type="application/json",
+            ).status_code
+        finally:
+            connections.close_all()
+
+    with patch("apps.accounts.api.get_phone_number", return_value="+8613800138000"), ThreadPoolExecutor(max_workers=2) as executor:
+        statuses = sorted(executor.map(lambda _index: submit_binding(), range(2)))
+
+    assert statuses == [200, 409]
+    assert AccountMerge.objects.filter(source_user=source, target_user=target).count() == 1
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_app_session_receives_new_token_after_account_merge(db):
+    """App 使用 X-Session-Token 合并后获取指向主账号的新 token，旧 token 失效。"""
+    from django.contrib.auth import get_user_model
+    from django.test import Client
+
+    from allauth.socialaccount.models import SocialAccount
+    from allauth.usersessions.models import UserSession
+    from model_bakery import baker
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_app_merge", email="", phone=None)
+    target = baker.make(User, username="app_merge_target", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_app_merge")
+
+    login_client = Client(SERVER_NAME="localhost")
+    login_client.force_login(source)
+    old_token = login_client.session.session_key
+    UserSession.objects.create(user=source, session_key=old_token, ip="127.0.0.1", user_agent="app-merge-test")
+
+    app_client = Client(SERVER_NAME="localhost")
+    with patch("apps.accounts.api.get_phone_number", return_value="+8613800138000"):
+        resp = app_client.post(
+            "/api/users/me/wechat-phone/",
+            {"phone_code": "test_phone_code"},
+            content_type="application/json",
+            HTTP_X_SESSION_TOKEN=old_token,
+        )
+
+    assert resp.status_code == 200, resp.content
+    new_token = api_data(resp)["session_token"]
+    assert new_token
+    assert new_token != old_token
+    token_client = Client(SERVER_NAME="localhost")
+    assert token_client.get("/api/users/me/", HTTP_X_SESSION_TOKEN=old_token).status_code == 401
+    me_resp = token_client.get("/api/users/me/", HTTP_X_SESSION_TOKEN=new_token)
+    assert me_resp.status_code == 200
+    assert api_data(me_resp)["id"] == target.pk
 
 
 @override_settings(**WECHAT_PHONE_SETTINGS)
@@ -339,6 +760,7 @@ def test_wechat_phone_api_error_returns_400(client, db):
     _login_user(client, user)
 
     from django.core.cache import cache
+
     cache.set("wechat_miniprogram_access_token:test-miniprogram-appid", "cached_token", timeout=7000)
 
     error_mock = MagicMock()

@@ -149,6 +149,24 @@ class WechatPhoneOut(Schema):
     phone_country_code: str
     phone_national_number: str
     merged: bool
+    session_token: str | None = None
+
+
+class WechatOfficialQrCreateIn(Schema):
+    redirect: str = Field("", description="登录成功后的管理端路径。")
+
+
+class WechatOfficialQrOut(Schema):
+    login_id: str
+    poll_token: str
+    qr_image_url: str
+    expires_in: int
+    poll_interval: int
+
+
+class WechatOfficialQrStatusOut(Schema):
+    status: str
+    expires_in: int
 
 
 class TotpSetupOut(Schema):

@@ -8,9 +8,10 @@ from allauth.account import signals
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.account.utils import get_login_redirect_url
 from allauth.core import context
-from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 
 from apps.accounts.models import User, normalize_phone, split_phone
+from apps.accounts.wechat_identity import connect_wechat_sociallogin_by_unionid
 from apps.base.sms import send_sms
 
 
@@ -108,25 +109,10 @@ class AccountAdapter(DefaultAccountAdapter):
         pass
 
     def pre_social_login(self, request, sociallogin):
-        """按 unionid 合并微信和小程序账号。"""
-        if sociallogin.is_existing:
-            return
+        """保留旧调用入口；实际 social flow 使用 SocialAccountAdapter。"""
+        connect_wechat_sociallogin_by_unionid(request, sociallogin)
 
-        unionid = sociallogin.account.extra_data.get("unionid")
-        if not unionid:
-            return
 
-        existing = SocialAccount.objects.filter(provider="weixin", uid=unionid).first()
-
-        if not existing:
-            existing = (
-                SocialAccount.objects.filter(
-                    provider="wechat_miniprogram",
-                    extra_data__unionid=unionid,
-                )
-                .exclude(uid=sociallogin.account.uid)
-                .first()
-            )
-
-        if existing and existing.user_id:
-            sociallogin.connect(request, existing.user)
+class SocialAccountAdapter(DefaultSocialAccountAdapter):
+    def pre_social_login(self, request, sociallogin):
+        connect_wechat_sociallogin_by_unionid(request, sociallogin)

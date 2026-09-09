@@ -114,6 +114,24 @@ class User(AbstractUser):
         return {field for field, old_value in old_values.items() if getattr(self, field) != old_value}
 
 
+class AccountMerge(models.Model):
+    source_user = models.OneToOneField(User, on_delete=models.PROTECT, related_name="account_merge", verbose_name="来源账号")
+    target_user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="account_merge_targets", verbose_name="主账号")
+    reason = models.CharField(max_length=64, default="verified_phone_match", verbose_name="合并原因")
+    identity_provider = models.CharField(max_length=64, verbose_name="身份来源")
+    trigger = models.CharField(max_length=64, default="wechat_phone_binding", verbose_name="触发方式")
+    migration_summary = models.JSONField(default=dict, verbose_name="迁移摘要")
+    merged_at = models.DateTimeField(auto_now_add=True, verbose_name="合并时间")
+
+    class Meta:
+        verbose_name = "账号合并记录"
+        verbose_name_plural = "账号合并记录"
+        ordering = ("-merged_at", "-pk")
+
+    def __str__(self):
+        return f"AccountMerge<{self.source_user_id}->{self.target_user_id}>"
+
+
 def normalize_phone(phone: str | None) -> str | None:
     country_code, national_number = split_phone(phone)
     composed = compose_phone(country_code, national_number)

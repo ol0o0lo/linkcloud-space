@@ -97,13 +97,14 @@ class TestAdminUserLifecycleAPI(TestCase):
     def test_unbind_wechat_removes_wechat_social_accounts(self):
         SocialAccount.objects.create(user=self.user, provider="weixin", uid="wx-openid")
         SocialAccount.objects.create(user=self.user, provider="wechat_miniprogram", uid="mp-openid")
+        SocialAccount.objects.create(user=self.user, provider="wechat_official_account", uid="official-openid")
         SocialAccount.objects.create(user=self.user, provider="github", uid="gh-user")
 
         resp = self.client.delete(f"/api/admin/users/{self.user.pk}/wechat/")
 
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(api_data(resp), {})
-        self.assertFalse(SocialAccount.objects.filter(user=self.user, provider__in=["weixin", "wechat_miniprogram"]).exists())
+        self.assertFalse(SocialAccount.objects.filter(user=self.user, provider__in=["weixin", "wechat_miniprogram", "wechat_official_account"]).exists())
         self.assertTrue(SocialAccount.objects.filter(user=self.user, provider="github").exists())
 
     def test_unbind_wechat_honors_allauth_disconnect_validation(self):

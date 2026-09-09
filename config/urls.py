@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import URLPattern, URLResolver, include, path, re_path
 
+from apps.accounts.providers.wechat_official_account.views import official_account_callback
 from apps.base.views import DashboardSPAView, H5SPAView, RootLandingView, http_404, http_500, qr_svg
 from config.api import api as ninja_api
 
@@ -9,6 +10,7 @@ urlpatterns: list[URLResolver | URLPattern] = [
     path("", RootLandingView.as_view(), name="root-landing"),
     path("accounts/", include("allauth.socialaccount.providers.github.urls")),
     path("accounts/", include("allauth.socialaccount.providers.weixin.urls")),
+    path("wechat/official-account/callback/", official_account_callback, name="wechat-official-account-callback"),
     path("api/allauth/", include("allauth.headless.urls")),
     path("api/", ninja_api.urls),
     path("-/", include("django_alive.urls")),

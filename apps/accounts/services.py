@@ -4,14 +4,17 @@ from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from allauth.account.internal.flows.login import Login, perform_login
 from allauth.socialaccount.models import SocialAccount
+from allauth.usersessions.models import UserSession
 from ninja.errors import HttpError
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
-from apps.accounts.models import RealNameVerification, RealNameVerificationLog, normalize_phone, split_phone
+from apps.accounts.exceptions import AccountMergeReviewRequired
+from apps.accounts.models import AccountMerge, RealNameVerification, RealNameVerificationLog, normalize_phone, split_phone
 from apps.accounts.utils import (
     decrypt_identity_value,
     encrypt_identity_value,
@@ -58,6 +61,134 @@ def set_user_avatar(user, avatar_refs: list[dict], *, update_fields=None) -> Non
         _delete_media_file(media_id)
 
 
+def _merge_safe_personal_data(*, source_user, target_user) -> dict[str, int]:
+    """把轻量账号的可合并个人数据归入主账号。"""
+    from apps.favorites.models import Favorite
+    from apps.media.models import MediaFile
+    from apps.notifications.models import Notification, NotificationPreference
+    from apps.referrals.models import ReferralLink, ReferralRecord
+    from apps.settings.models import UserSetting
+
+    summary: dict[str, int] = {}
+    profile_fields = []
+    for field in ("first_name", "last_name", "avatar"):
+        if not getattr(target_user, field) and getattr(source_user, field):
+            setattr(target_user, field, getattr(source_user, field))
+            profile_fields.append(field)
+    if profile_fields:
+        target_user.save(update_fields=profile_fields)
+    summary["profile_fields"] = len(profile_fields)
+
+    moved_favorites = 0
+    for favorite in Favorite.objects.select_for_update().filter(user=source_user).order_by("pk"):
+        existing = Favorite.objects.filter(
+            user=target_user,
+            target_type=favorite.target_type,
+            target_id=favorite.target_id,
+        ).first()
+        if existing:
+            if favorite.created_at < existing.created_at:
+                Favorite.objects.filter(pk=existing.pk).update(created_at=favorite.created_at)
+            favorite.delete()
+        else:
+            favorite.user = target_user
+            favorite.save(update_fields=["user"])
+            moved_favorites += 1
+    summary["favorites"] = moved_favorites
+
+    moved_settings = 0
+    for preference in UserSetting.objects.select_for_update().filter(user=source_user).order_by("pk"):
+        if UserSetting.objects.filter(user=target_user, key=preference.key).exists():
+            preference.delete()
+        else:
+            preference.user = target_user
+            preference.save(update_fields=["user"])
+            moved_settings += 1
+    summary["settings"] = moved_settings
+
+    moved_notification_preferences = 0
+    for preference in NotificationPreference.objects.select_for_update().filter(user=source_user).order_by("pk"):
+        if NotificationPreference.objects.filter(user=target_user, category=preference.category).exists():
+            preference.delete()
+        else:
+            preference.user = target_user
+            preference.save(update_fields=["user"])
+            moved_notification_preferences += 1
+    summary["notification_preferences"] = moved_notification_preferences
+    summary["notifications"] = Notification.objects.filter(recipient=source_user, organization__isnull=True).update(recipient=target_user)
+    summary["media_files"] = MediaFile.objects.filter(uploader=source_user).update(uploader=target_user)
+    summary["referral_links"] = ReferralLink.objects.filter(inviter=source_user).update(inviter=target_user)
+    summary["sent_referrals"] = ReferralRecord.objects.filter(inviter=source_user).update(inviter=target_user)
+    summary["received_referrals"] = ReferralRecord.objects.filter(invitee=source_user).update(invitee=target_user)
+    return summary
+
+
+def _ensure_personal_data_has_no_conflicts(*, source_user, target_user) -> None:
+    from apps.referrals.models import ReferralLink, ReferralRecord
+
+    if ReferralLink.objects.filter(inviter=source_user).exists() and ReferralLink.objects.filter(inviter=target_user).exists():
+        raise AccountMergeReviewRequired("referral_conflict")
+    if ReferralRecord.objects.filter(invitee=source_user).exists() and ReferralRecord.objects.filter(invitee=target_user).exists():
+        raise AccountMergeReviewRequired("referral_conflict")
+
+
+def _ensure_lightweight_merge_source(source_user) -> None:
+    from apps.access.models import OrganizationGroupBinding, TeamGroupBinding
+    from apps.house.models import Contact, HouseMatchShare, ViewingRecord
+    from apps.notifications.models import Notification
+    from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
+    from apps.team_operations.models import AnnouncementReceipt, TaskAssignment, TeamAnnouncement, WorkTask
+
+    if not SocialAccount.objects.filter(user=source_user, provider="wechat_miniprogram").exists():
+        raise AccountMergeReviewRequired("not_lightweight")
+    if source_user.is_staff or source_user.is_superuser or source_user.user_permissions.exists() or source_user.groups.exists():
+        raise AccountMergeReviewRequired("business_identity")
+    if source_user.real_name_status != RealNameStatus.UNVERIFIED or RealNameVerification.objects.filter(user=source_user).exists():
+        raise AccountMergeReviewRequired("real_name")
+    if (
+        OrganizationMember.objects.filter(user=source_user).exists()
+        or Organization.objects.filter(created_by=source_user).exists()
+        or OrganizationInvite.objects.filter(sender=source_user).exists()
+        or OrganizationInvite.objects.filter(invitee=source_user).exists()
+        or source_user.teams.exists()
+        or OrganizationGroupBinding.objects.filter(user=source_user).exists()
+        or TeamGroupBinding.objects.filter(user=source_user).exists()
+        or Contact.objects.filter(user=source_user).exists()
+        or Notification.objects.filter(recipient=source_user, organization__isnull=False).exists()
+        or HouseMatchShare.objects.filter(consultant=source_user).exists()
+        or ViewingRecord.objects.filter(assigned_to=source_user).exists()
+        or TeamAnnouncement.objects.filter(published_by=source_user).exists()
+        or AnnouncementReceipt.objects.filter(recipient=source_user).exists()
+        or WorkTask.objects.filter(creator=source_user).exists()
+        or TaskAssignment.objects.filter(assignee=source_user).exists()
+    ):
+        raise AccountMergeReviewRequired("business_identity")
+
+
+def _has_financial_data(user) -> bool:
+    from apps.allocation.models import AccrualEntry, AllocationRequest, AllocationShare
+    from apps.subscriptions.models import InvoiceRequest, SaaSOrder
+    from apps.wallet.models import WalletAccount, WithdrawalRequest
+
+    wallets = WalletAccount.objects.filter(user=user)
+    if wallets.exclude(available_balance=0, frozen_balance=0, total_income=0, total_withdrawn=0).exists():
+        return True
+    return (
+        wallets.filter(ledgers__isnull=False).exists()
+        or WithdrawalRequest.objects.filter(user=user).exists()
+        or SaaSOrder.objects.filter(Q(created_by=user) | Q(refunded_by=user)).exists()
+        or InvoiceRequest.objects.filter(Q(created_by=user) | Q(processed_by=user)).exists()
+        or AllocationRequest.objects.filter(Q(submitted_by=user) | Q(reviewed_by=user) | Q(voided_by=user)).exists()
+        or AllocationShare.objects.filter(beneficiary_user=user).exists()
+        or AccrualEntry.objects.filter(Q(beneficiary_user=user) | Q(created_by=user)).exists()
+    )
+
+
+def _ensure_no_financial_data(*users) -> None:
+    if any(_has_financial_data(user) for user in users):
+        raise AccountMergeReviewRequired("financial_data")
+
+
 def bind_phone_to_user(request, user, phone: str):
     """绑定手机号到 user。若已有其他账号使用此手机号，执行合并。"""
     # 统一处理手机号绑定、账号合并和登录态切换。
@@ -83,14 +214,41 @@ def bind_phone_to_user(request, user, phone: str):
                 user.save(update_fields=["phone_country_code", "phone_national_number", "phone_verified"])
             return user, False
         if not existing.is_active:
-            raise ValueError("该手机号属于已停用账号。")
+            raise AccountMergeReviewRequired("inactive_target")
 
         with transaction.atomic():
-            SocialAccount.objects.filter(user=user).update(user=existing)
-            user.is_active = False
-            user.save(update_fields=["is_active"])
-        perform_login(request, Login(user=existing))
-        return existing, True
+            source_user = User.objects.select_for_update().get(pk=user.pk)
+            target_user = User.objects.select_for_update().get(pk=existing.pk)
+            if request.user.pk != source_user.pk:
+                raise AccountMergeReviewRequired("identity_changed")
+            if not source_user.is_active or AccountMerge.objects.filter(source_user=source_user).exists():
+                raise AccountMergeReviewRequired("identity_changed")
+            if not target_user.is_active or target_user.phone != phone:
+                raise AccountMergeReviewRequired("identity_changed")
+            _ensure_lightweight_merge_source(source_user)
+            _ensure_no_financial_data(source_user, target_user)
+
+            source_social_accounts = list(SocialAccount.objects.select_for_update().filter(user=source_user))
+            source_providers = {account.provider for account in source_social_accounts}
+            if SocialAccount.objects.filter(user=target_user, provider__in=source_providers).exists():
+                raise AccountMergeReviewRequired("login_identity_conflict")
+            _ensure_personal_data_has_no_conflicts(source_user=source_user, target_user=target_user)
+
+            summary = _merge_safe_personal_data(source_user=source_user, target_user=target_user)
+            summary["social_accounts"] = SocialAccount.objects.filter(user=source_user).update(user=target_user)
+            source_user.is_active = False
+            source_user.save(update_fields=["is_active"])
+            AccountMerge.objects.create(
+                source_user=source_user,
+                target_user=target_user,
+                identity_provider="wechat_miniprogram",
+                migration_summary=summary,
+            )
+
+        for user_session in list(UserSession.objects.filter(user=source_user)):
+            user_session.end()
+        perform_login(request, Login(user=target_user))
+        return target_user, True
     else:
         user.set_phone_number(phone)
         user.phone_verified = True
