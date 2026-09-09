@@ -7,6 +7,7 @@ import {
   getMapDisplayLevel,
   getMapPrimaryMetric,
   mergeEstateMapDisplayPoints,
+  sortMapItemsByMetric,
   summarizeEstateMapPoints,
 } from './map-display';
 
@@ -129,5 +130,20 @@ describe('地图计数', () => {
         renovating: 1,
       },
     });
+  });
+});
+
+describe('sortMapItemsByMetric', () => {
+  it('按当前房态数量倒序，并用名称和 ID 保持稳定顺序', () => {
+    const items = [
+      { id: 3, name: '云岸', counts: { ...counts, vacant: 2 } },
+      { id: 2, name: '滨江', counts: { ...counts, vacant: 2 } },
+      { id: 1, name: '滨江', counts: { ...counts, vacant: 2 } },
+      { id: 4, name: '花城', counts: { ...counts, vacant: 5 } },
+    ];
+
+    expect(
+      sortMapItemsByMetric(items, 'vacant').map((item) => item.id),
+    ).toEqual([4, 1, 2, 3]);
   });
 });

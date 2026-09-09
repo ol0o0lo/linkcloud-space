@@ -10,7 +10,11 @@ import React, {
 } from 'react';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import { useAmap } from '@/services/manual/amap';
-import { type BuildingMapMarkerOut, houseApi } from '@/services/manual/house';
+import {
+  type BuildingMapMarkerOut,
+  type HouseListParams,
+  houseApi,
+} from '@/services/manual/house';
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import { ADMIN_BASE_PATH, normalizeAdminPath } from '@/utils/adminRouting';
 import { settingLocation } from '../location-utils';
@@ -37,10 +41,12 @@ import { readMapSearchState, sameBounds } from './map-state';
 import {
   createBuildingClusterMarkerContent,
   createBuildingCompactMarkerContent,
-  createBuildingInfoWindowContent,
-  createBuildingLocationMarkerContent,
+  createBuildingDetailMarkerContent,
+  createBuildingGroupMarkerContent,
+  createBuildingOverviewMarkerContent,
   createEstateClusterMarkerContent,
   createEstateMapMarkerContent,
+  getBuildingGroupAreaName,
 } from './marker-content';
 
 const CHINA_CENTER: [number, number] = [104.1954, 35.8617];
@@ -48,13 +54,21 @@ const VIEWPORT_DEBOUNCE_MS = 500;
 const VIEWPORT_MAX_WAIT_MS = 1500;
 const DIRECT_MARKER_LIMIT = 80;
 const EMPTY_MARKERS: BuildingMapMarkerOut[] = [];
+type DirectMapMarker = {
+  marker: any;
+  activate: () => void;
+  html: string;
+};
+
 const RESULT_PANEL_COLLAPSED_KEY = 'property-rental-map:result-panel-collapsed';
 const RESULT_PANEL_CENTER_OFFSET_MAX = 195;
 const MAP_OVERLAY_EDGE = 12;
 const MAP_OVERLAY_GAP = 8;
 const MAP_OVERLAY_DEFAULT_CONTENT_TOP = 80;
+const BUILDING_HOUSE_PREVIEW_SIZE = 8;
 
 type MapBounds = { west: number; south: number; east: number; north: number };
+type MapViewport = { lat: number; lng: number; zoom: number };
 type ClusterPoint = {
   lnglat: [number, number];
   building: BuildingMapMarkerOut;
@@ -90,31 +104,48 @@ const PropertyRentalMapPage: React.FC = () => {
   const [focusedEstateKey, setFocusedEstateKey] = useState<
     string | undefined
   >();
+  const [selectedBuildingSnapshot, setSelectedBuildingSnapshot] = useState<
+    BuildingMapMarkerOut | undefined
+  >();
   const [locatingNearby, setLocatingNearby] = useState(false);
   const [mapOverlayContentTop, setMapOverlayContentTop] = useState(
     MAP_OVERLAY_DEFAULT_CONTENT_TOP,
   );
   const [bounds, setBounds] = useState<MapBounds>();
   const [viewport, setViewport] = useState(initialState.current.viewport);
-  const [resultPanelCollapsed, setResultPanelCollapsed] = useState(
-    () =>
-      window.innerWidth < 1000 ||
-      window.localStorage.getItem(RESULT_PANEL_COLLAPSED_KEY) === 'true',
+  const [markerLayoutZoom, setMarkerLayoutZoom] = useState(
+    initialState.current.viewport?.zoom,
   );
+  const [resultPanelCollapsed, setResultPanelCollapsed] = useState(() => {
+    const savedState = window.localStorage.getItem(RESULT_PANEL_COLLAPSED_KEY);
+    return window.innerWidth < 1000 || savedState !== 'false';
+  });
+  const boundsRef = useRef(bounds);
+  const viewportRef = useRef(viewport);
+  const estateIdRef = useRef(estateId);
+  const selectedBuildingIdRef = useRef(selectedBuildingId);
+  const mapNavigationDepthRef = useRef(0);
+  boundsRef.current = bounds;
+  viewportRef.current = viewport;
+  estateIdRef.current = estateId;
+  selectedBuildingIdRef.current = selectedBuildingId;
   const mapNode = useRef<HTMLDivElement>(null);
   const mapToolbarNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const clusterRef = useRef<any>(null);
-  const infoWindowRef = useRef<any>(null);
-  const infoWindowBuildingIdRef = useRef<number | undefined>(undefined);
+  const directMarkersRef = useRef(new Map<string, DirectMapMarker>());
   const committedKeywordRef = useRef(initialState.current.keyword);
   const debounceRef = useRef<number | undefined>(undefined);
   const maxWaitRef = useRef<number | undefined>(undefined);
   const pendingBoundsRef = useRef<MapBounds | undefined>(undefined);
   const pendingDeepLinkIdRef = useRef(initialState.current.selectedBuildingId);
-  const pendingInfoBuildingRef = useRef<BuildingMapMarkerOut | undefined>(
-    undefined,
-  );
+  const searchOriginRef = useRef<
+    { bounds?: MapBounds; viewport?: MapViewport } | undefined
+  >(undefined);
+  const estateDrillOriginRef = useRef<
+    { bounds?: MapBounds; viewport?: MapViewport } | undefined
+  >(undefined);
+  const pendingFitResultsRef = useRef(false);
   const programmaticMoveRef = useRef(false);
   const mapCompletedRef = useRef(false);
   const userMovedRef = useRef(Boolean(initialState.current.viewport));
@@ -141,7 +172,6 @@ const PropertyRentalMapPage: React.FC = () => {
 
   const cancelPendingDeepLink = useCallback(() => {
     pendingDeepLinkIdRef.current = undefined;
-    pendingInfoBuildingRef.current = undefined;
     initialState.current.selectedBuildingId = undefined;
   }, []);
 
@@ -153,12 +183,19 @@ const PropertyRentalMapPage: React.FC = () => {
     fittedInitialMarkersRef.current = false;
   }, [cancelPendingBounds]);
 
-  const closeBuildingInfo = useCallback((clearSelection = false) => {
-    const current = infoWindowRef.current;
-    infoWindowRef.current = null;
-    infoWindowBuildingIdRef.current = undefined;
-    current?.close?.();
-    if (clearSelection) setSelectedBuildingId(undefined);
+  const clearBuildingSelection = useCallback((clearSelection = false) => {
+    if (!clearSelection) return;
+    setSelectedBuildingId(undefined);
+    setSelectedBuildingSnapshot(undefined);
+  }, []);
+
+  const pushMapNavigation = useCallback(() => {
+    window.history.pushState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${window.location.search}`,
+    );
+    mapNavigationDepthRef.current += 1;
   }, []);
 
   useEffect(() => {
@@ -172,13 +209,13 @@ const PropertyRentalMapPage: React.FC = () => {
     cancelPendingDeepLink();
     resetViewportScope();
     setViewport(undefined);
-    closeBuildingInfo(true);
+    clearBuildingSelection(true);
     setFocusedBuildingId(undefined);
     setFocusedEstateKey(undefined);
     geolocationRequestedRef.current = false;
   }, [
     cancelPendingDeepLink,
-    closeBuildingInfo,
+    clearBuildingSelection,
     resetViewportScope,
     workspace.selectedOrgSlug,
   ]);
@@ -188,23 +225,44 @@ const PropertyRentalMapPage: React.FC = () => {
       const next = value.trim();
       setKeywordInput(value);
       if (next === committedKeywordRef.current && !forceGlobal) return;
+      const previous = committedKeywordRef.current;
+      if (next && !previous)
+        searchOriginRef.current = {
+          bounds: boundsRef.current,
+          viewport: viewportRef.current,
+        };
+      cancelPendingBounds();
+      if (!next && previous && searchOriginRef.current) {
+        const origin = searchOriginRef.current;
+        searchOriginRef.current = undefined;
+        pendingFitResultsRef.current = false;
+        setBounds(origin.bounds);
+        if (origin.viewport) {
+          programmaticMoveRef.current = true;
+          mapRef.current?.setZoomAndCenter(origin.viewport.zoom, [
+            origin.viewport.lng,
+            origin.viewport.lat,
+          ]);
+          setViewport(origin.viewport);
+        }
+      } else {
+        setBounds(undefined);
+        pendingFitResultsRef.current = Boolean(next);
+        userMovedRef.current = true;
+        fittedInitialMarkersRef.current = false;
+      }
       if (next !== committedKeywordRef.current) {
         committedKeywordRef.current = next;
         setKeyword(next);
       }
       cancelPendingDeepLink();
-      resetViewportScope();
-      closeBuildingInfo(true);
+      clearBuildingSelection(true);
+      setEstateId(undefined);
       setFocusedBuildingId(undefined);
       setFocusedEstateKey(undefined);
     },
-    [cancelPendingDeepLink, closeBuildingInfo, resetViewportScope],
+    [cancelPendingBounds, cancelPendingDeepLink, clearBuildingSelection],
   );
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => applyKeyword(keywordInput), 300);
-    return () => window.clearTimeout(timer);
-  }, [applyKeyword, keywordInput]);
 
   const selectedEstateQuery = useQuery({
     queryKey: ['map-selected-estate', workspace.selectedOrgSlug, estateId],
@@ -306,6 +364,26 @@ const PropertyRentalMapPage: React.FC = () => {
         ? previousData
         : undefined,
   });
+  const selectedBuildingHouses = useQuery({
+    queryKey: [
+      'building-map-houses',
+      workspace.selectedOrgSlug,
+      selectedBuildingId,
+      houseStatus,
+    ],
+    queryFn: () => {
+      if (!selectedBuildingId) throw new Error('缺少楼栋 ID');
+      return houseApi.listHouses({
+        building_id: selectedBuildingId,
+        ...(houseStatus
+          ? { status: houseStatus as HouseListParams['status'] }
+          : {}),
+        page: 1,
+        page_size: BUILDING_HOUSE_PREVIEW_SIZE,
+      });
+    },
+    enabled: Boolean(workspace.selectedOrgSlug && selectedBuildingId),
+  });
   const selectedEstate = selectedEstateQuery.data;
   const estateLocation =
     selectedEstate && selectedEstate.lat != null && selectedEstate.lng != null
@@ -402,6 +480,41 @@ const PropertyRentalMapPage: React.FC = () => {
     );
   }, [estateId, houseStatus, keyword, selectedBuildingId, viewport]);
 
+  useEffect(() => {
+    const restoreMapState = () => {
+      const restored = readMapSearchState(window.location.search);
+      committedKeywordRef.current = restored.keyword;
+      setKeywordInput(restored.keyword);
+      setKeyword(restored.keyword);
+      setEstateId(restored.estateId);
+      setHouseStatus(restored.houseStatus);
+      setSelectedBuildingId(restored.selectedBuildingId);
+      setSelectedBuildingSnapshot(undefined);
+      setFocusedBuildingId(restored.selectedBuildingId);
+      setFocusedEstateKey(
+        restored.estateId ? `estate:${restored.estateId}` : undefined,
+      );
+      pendingDeepLinkIdRef.current = restored.selectedBuildingId;
+      pendingFitResultsRef.current = false;
+      cancelPendingBounds();
+      setBounds(undefined);
+      if (restored.viewport) {
+        programmaticMoveRef.current = true;
+        mapRef.current?.setZoomAndCenter(restored.viewport.zoom, [
+          restored.viewport.lng,
+          restored.viewport.lat,
+        ]);
+        setViewport(restored.viewport);
+      }
+      mapNavigationDepthRef.current = Math.max(
+        0,
+        mapNavigationDepthRef.current - 1,
+      );
+    };
+    window.addEventListener('popstate', restoreMapState);
+    return () => window.removeEventListener('popstate', restoreMapState);
+  }, [cancelPendingBounds]);
+
   const commitPendingBounds = useCallback(() => {
     window.clearTimeout(debounceRef.current);
     window.clearTimeout(maxWaitRef.current);
@@ -425,7 +538,9 @@ const PropertyRentalMapPage: React.FC = () => {
         north: northEast.lat,
       };
       const center = map.getCenter();
-      setViewport({ lat: center.lat, lng: center.lng, zoom: map.getZoom() });
+      const zoom = map.getZoom();
+      setViewport({ lat: center.lat, lng: center.lng, zoom });
+      if (!clusterRef.current) setMarkerLayoutZoom(zoom);
       window.clearTimeout(debounceRef.current);
       if (immediate) {
         commitPendingBounds();
@@ -459,7 +574,7 @@ const PropertyRentalMapPage: React.FC = () => {
       if (!programmaticMoveRef.current) {
         if (mapCompletedRef.current && pendingDeepLinkIdRef.current) {
           cancelPendingDeepLink();
-          setSelectedBuildingId(undefined);
+          clearBuildingSelection(true);
           setFocusedBuildingId(undefined);
         }
         userMovedRef.current = true;
@@ -472,7 +587,11 @@ const PropertyRentalMapPage: React.FC = () => {
     };
     const handleMapClick = () => {
       cancelPendingDeepLink();
-      closeBuildingInfo(true);
+      if (selectedBuildingIdRef.current && mapNavigationDepthRef.current > 0) {
+        window.history.back();
+        return;
+      }
+      clearBuildingSelection(true);
       setFocusedBuildingId(undefined);
       setFocusedEstateKey(undefined);
     };
@@ -488,9 +607,9 @@ const PropertyRentalMapPage: React.FC = () => {
     mapRef.current = map;
     return () => {
       cancelPendingBounds();
-      closeBuildingInfo();
       clusterRef.current?.setMap?.(null);
       clusterRef.current = null;
+      directMarkersRef.current.clear();
       map.destroy();
       mapRef.current = null;
       mapCompletedRef.current = false;
@@ -500,10 +619,10 @@ const PropertyRentalMapPage: React.FC = () => {
     cancelPendingBounds,
     cancelPendingDeepLink,
     captureMapViewport,
-    closeBuildingInfo,
+    clearBuildingSelection,
   ]);
 
-  const moveMapTo = (lng: number, lat: number, zoom = 16) => {
+  const moveMapTo = useCallback((lng: number, lat: number, zoom = 16) => {
     if (!mapRef.current) return;
     const currentCenter = mapRef.current.getCenter?.();
     const currentZoom = Number(mapRef.current.getZoom?.());
@@ -515,7 +634,7 @@ const PropertyRentalMapPage: React.FC = () => {
     );
     mapRef.current.setZoomAndCenter(zoom, [lng, lat]);
     setViewport({ lat, lng, zoom });
-  };
+  }, []);
 
   const fitMapToCoordinates = useCallback(
     (points: Array<[number, number]>, maxZoom = 16) => {
@@ -568,33 +687,52 @@ const PropertyRentalMapPage: React.FC = () => {
     [AMap],
   );
 
-  const openBuildingInfoWindow = useCallback(
-    (building: BuildingMapMarkerOut) => {
-      if (!AMap || !mapRef.current) return;
-      closeBuildingInfo();
-      const infoWindow = new AMap.InfoWindow({
-        content: createBuildingInfoWindowContent(building, {
-          adminBasePath: ADMIN_BASE_PATH,
-          returnTo: currentReturnTo(),
-        }),
-        offset: new AMap.Pixel(0, -34),
-        closeWhenClickMap: true,
-        autoMove: true,
-      });
-      infoWindowRef.current = infoWindow;
-      infoWindowBuildingIdRef.current = building.id;
-      infoWindow.on?.('close', () => {
-        if (infoWindowRef.current !== infoWindow) return;
-        infoWindowRef.current = null;
-        infoWindowBuildingIdRef.current = undefined;
-        setSelectedBuildingId(undefined);
-      });
-      infoWindow.open(mapRef.current, [
-        Number(building.lng),
-        Number(building.lat),
-      ]);
+  const expandMapGroup = useCallback(
+    (points: Array<[number, number]>) => {
+      const map = mapRef.current;
+      const coordinates = points.filter(
+        ([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat),
+      );
+      if (!AMap || !map || !coordinates.length) return;
+      const lngs = coordinates.map(([lng]) => lng);
+      const lats = coordinates.map(([, lat]) => lat);
+      const west = Math.min(...lngs);
+      const east = Math.max(...lngs);
+      const south = Math.min(...lats);
+      const north = Math.max(...lats);
+      const currentZoom = Number(map.getZoom());
+      const maxZoom = Math.min(20, currentZoom + 2);
+      // Coincident coordinates have no fit extent; still allow a small zoom step.
+      const fit =
+        west !== east || south !== north
+          ? map.getFitZoomAndCenterByBounds(
+              new AMap.Bounds([west, south], [east, north]),
+              [80, 80, 80, 80],
+              maxZoom,
+            )
+          : undefined;
+      const fittedZoom = Number(fit?.[0]);
+      const zoom = Math.min(
+        maxZoom,
+        Math.max(
+          currentZoom + 1,
+          Number.isFinite(fittedZoom) ? fittedZoom : currentZoom + 1,
+        ),
+      );
+      const center = fit?.[1];
+      cancelPendingDeepLink();
+      clearBuildingSelection(true);
+      setFocusedBuildingId(undefined);
+      setFocusedEstateKey(undefined);
+      userMovedRef.current = true;
+      fittedInitialMarkersRef.current = true;
+      moveMapTo(
+        center?.lng ?? (west + east) / 2,
+        center?.lat ?? (south + north) / 2,
+        zoom,
+      );
     },
-    [AMap, closeBuildingInfo],
+    [AMap, cancelPendingDeepLink, clearBuildingSelection, moveMapTo],
   );
 
   useEffect(() => {
@@ -620,62 +758,121 @@ const PropertyRentalMapPage: React.FC = () => {
   useEffect(() => {
     if (!AMap || !mapRef.current) return;
     const map = mapRef.current;
-    const openedBuildingId = infoWindowBuildingIdRef.current;
-    closeBuildingInfo();
-    clusterRef.current?.setMap?.(null);
+    const previousCluster = clusterRef.current;
     clusterRef.current = null;
-    map.clearMap();
+    const activeMarkerKeys = new Set<string>();
+    const pendingMarkers: any[] = [];
+    const upsertMarker = (
+      key: string,
+      options: {
+        position: [number, number];
+        title: string;
+        anchor: string;
+        zIndex: number;
+      },
+      createContent: (activate: () => void) => HTMLDivElement,
+      activate: () => void,
+    ) => {
+      activeMarkerKeys.add(key);
+      const existing = directMarkersRef.current.get(key);
+      const entry: DirectMapMarker = existing || {
+        marker: null,
+        activate,
+        html: '',
+      };
+      entry.activate = activate;
+      const content = createContent(() => entry.activate());
+      const html = content.outerHTML;
+      if (!existing) {
+        entry.marker = new AMap.Marker({
+          ...options,
+          content,
+          bubble: false,
+          clickable: true,
+        });
+        entry.marker.on('click', () => entry.activate());
+        directMarkersRef.current.set(key, entry);
+        pendingMarkers.push(entry.marker);
+      } else {
+        entry.marker.setPosition(options.position);
+        entry.marker.setTitle(options.title);
+        entry.marker.setAnchor(options.anchor);
+        entry.marker.setzIndex(options.zIndex);
+        if (entry.html !== html) entry.marker.setContent(content);
+      }
+      entry.html = html;
+      return entry.marker;
+    };
 
     const openBuildingMarker = (
       building: BuildingMapMarkerOut,
       compact: boolean,
     ) => {
       cancelPendingDeepLink();
+      const alreadySelected = selectedBuildingIdRef.current === building.id;
+      if (!alreadySelected) pushMapNavigation();
       setFocusedEstateKey(undefined);
       setFocusedBuildingId(building.id);
       setSelectedBuildingId(building.id);
+      setSelectedBuildingSnapshot(building);
       userMovedRef.current = true;
       if (compact) {
-        pendingInfoBuildingRef.current = building;
         moveMapTo(Number(building.lng), Number(building.lat), 16);
-      } else {
-        openBuildingInfoWindow(building);
+        return;
+      }
+      if (!alreadySelected) {
+        const currentZoom = Number(map.getZoom?.() || 16);
+        moveMapTo(
+          Number(building.lng),
+          Number(building.lat),
+          Math.min(currentZoom + 1, 20),
+        );
       }
     };
 
     const drillEstatePoint = (point: EstateMapDisplayPoint) => {
+      if (point.kind === 'independent-building' && point.building) {
+        openBuildingMarker(point.building, true);
+        return;
+      }
       cancelPendingDeepLink();
-      closeBuildingInfo(true);
-      setFocusedBuildingId(point.buildingId);
+      clearBuildingSelection(true);
+      if (estateIdRef.current !== point.estateId) pushMapNavigation();
+      if (!estateIdRef.current)
+        estateDrillOriginRef.current = {
+          bounds: boundsRef.current,
+          viewport: viewportRef.current,
+        };
+      setEstateId(point.estateId);
+      setFocusedBuildingId(undefined);
       setFocusedEstateKey(point.key);
       userMovedRef.current = true;
       fittedInitialMarkersRef.current = true;
       moveMapTo(point.lng, point.lat, mapLevel === 'estate-cluster' ? 10 : 14);
     };
 
-    let instances: any[] = [];
-    let clustered = false;
-
     if (estateDisplayLevel) {
       const createEstateMarker = (point: EstateMapDisplayPoint) => {
         const metric = getMapPrimaryMetric(point.counts, houseStatus);
-        const marker = new AMap.Marker({
-          position: [point.lng, point.lat],
-          title: `${point.name} · ${metric.label} ${metric.value} 套`,
-          content: createEstateMapMarkerContent({
-            name: point.name,
-            primaryLabel: metric.label,
-            primaryValue: metric.value,
-            buildingCount: point.buildingCount,
-            selected: focusedEstateKey === point.key,
-          }),
-          anchor: 'center',
-          bubble: false,
-          clickable: true,
-          zIndex: focusedEstateKey === point.key ? 120 : 100,
-        });
-        marker.on('click', () => drillEstatePoint(point));
-        return marker;
+        return upsertMarker(
+          `estate:${point.key}`,
+          {
+            position: [point.lng, point.lat],
+            title: `${point.name} · ${metric.label} ${metric.value} 套`,
+            anchor: 'center',
+            zIndex: focusedEstateKey === point.key ? 120 : 100,
+          },
+          (onActivate) =>
+            createEstateMapMarkerContent({
+              name: point.name,
+              primaryLabel: metric.label,
+              primaryValue: metric.value,
+              buildingCount: point.buildingCount,
+              selected: focusedEstateKey === point.key,
+              onActivate,
+            }),
+          () => drillEstatePoint(point),
+        );
       };
 
       const useEstateSdkCluster =
@@ -720,47 +917,40 @@ const PropertyRentalMapPage: React.FC = () => {
           group.lat = (group.lat * group.points.length + point.lat) / nextSize;
           group.points.push(point);
         }
-        instances = markerGroups.map((group) => {
-          if (group.points.length === 1)
-            return createEstateMarker(group.points[0]);
+        markerGroups.forEach((group) => {
+          if (group.points.length === 1) {
+            createEstateMarker(group.points[0]);
+            return;
+          }
           const counts = sumMapCounts(group.points);
           const metric = getMapPrimaryMetric(counts, houseStatus);
-          const marker = new AMap.Marker({
-            position: [group.lng, group.lat],
-            title: `${group.points.length} 个项目`,
-            content: createEstateClusterMarkerContent({
-              estateCount: group.points.length,
-              buildingCount: group.points.reduce(
-                (total, point) => total + point.buildingCount,
-                0,
-              ),
-              primaryLabel: metric.label,
-              primaryValue: metric.value,
-            }),
-            anchor: 'center',
-            bubble: false,
-            clickable: true,
-            zIndex: 100,
-          });
-          marker.on('click', () => {
-            cancelPendingDeepLink();
-            closeBuildingInfo(true);
-            setFocusedBuildingId(undefined);
-            setFocusedEstateKey(undefined);
-            userMovedRef.current = true;
-            fittedInitialMarkersRef.current = true;
-            moveMapTo(
-              group.lng,
-              group.lat,
-              mapLevel === 'estate-cluster'
-                ? 10
-                : Math.min(Number(map.getZoom?.() || 10) + 2, 14),
-            );
-          });
-          return marker;
+          const activateGroup = () =>
+            expandMapGroup(group.points.map((point) => [point.lng, point.lat]));
+          upsertMarker(
+            `estate-group:${group.points
+              .map((point) => point.key)
+              .sort()
+              .join(',')}`,
+            {
+              position: [group.lng, group.lat],
+              title: `${group.points.length} 个项目`,
+              anchor: 'center',
+              zIndex: 100,
+            },
+            (onActivate) =>
+              createEstateClusterMarkerContent({
+                estateCount: group.points.length,
+                buildingCount: group.points.reduce(
+                  (total, point) => total + point.buildingCount,
+                  0,
+                ),
+                primaryLabel: metric.label,
+                primaryValue: metric.value,
+                onActivate,
+              }),
+            activateGroup,
+          );
         });
-      } else {
-        instances = estateDisplayPoints.map(createEstateMarker);
       }
 
       if (useEstateSdkCluster) {
@@ -789,6 +979,7 @@ const PropertyRentalMapPage: React.FC = () => {
                   primaryValue: metric.value,
                   buildingCount: point.buildingCount,
                   selected: focusedEstateKey === point.key,
+                  onActivate: () => drillEstatePoint(point),
                 }),
               );
               marker.setAnchor?.('center');
@@ -828,68 +1019,127 @@ const PropertyRentalMapPage: React.FC = () => {
               drillEstatePoint(clusterPoints[0].point);
               return;
             }
-            if (clusterPoints.length > 1) {
-              cancelPendingDeepLink();
-              closeBuildingInfo(true);
-              setFocusedBuildingId(undefined);
-              setFocusedEstateKey(undefined);
-              userMovedRef.current = true;
-              fittedInitialMarkersRef.current = true;
-              const position = event.lnglat || event.marker?.getPosition?.();
-              if (position)
-                map.setZoomAndCenter(
-                  Math.min(Number(map.getZoom?.() || 8) + 2, 14),
-                  position,
-                );
-            }
+            if (clusterPoints.length > 1)
+              expandMapGroup(
+                clusterPoints.map(({ point }) => [point.lng, point.lat]),
+              );
           });
           clusterRef.current = cluster;
-          clustered = true;
         } catch {
           cluster?.setMap?.(null);
           clusterRef.current = null;
+          estateDisplayPoints.forEach(createEstateMarker);
         }
       }
     } else {
       const compact = mapLevel === 'building-compact';
+      const buildingMarkerAppearance = (
+        item: BuildingMapMarkerOut,
+        compactMarker: boolean,
+        onActivate = () => openBuildingMarker(item, compactMarker),
+      ) => {
+        const metric = getMapPrimaryMetric(item.counts, houseStatus);
+        const focused = focusedBuildingId === item.id;
+        if (focused)
+          return {
+            content: createBuildingDetailMarkerContent({
+              name: item.name,
+              estateName: item.estate?.display_name || item.estate?.name,
+              address: item.address,
+              totalValue: item.counts.total,
+              primaryLabel: metric.label,
+              primaryValue: metric.value,
+              houseTotal:
+                selectedBuildingId === item.id
+                  ? selectedBuildingHouses.data?.total || 0
+                  : 0,
+              houses:
+                selectedBuildingId === item.id
+                  ? selectedBuildingHouses.data?.items || []
+                  : [],
+              houseDetailHref: (houseId) =>
+                `${ADMIN_BASE_PATH}/rental/properties/${houseId}`,
+              loading:
+                selectedBuildingId === item.id &&
+                selectedBuildingHouses.isLoading,
+              error:
+                selectedBuildingId === item.id &&
+                selectedBuildingHouses.isError,
+              onActivate,
+            }),
+            anchor: 'bottom-center',
+          };
+        if (compactMarker)
+          return {
+            content: createBuildingCompactMarkerContent({
+              name: item.name,
+              primaryLabel: metric.label,
+              primaryValue: metric.value,
+              onActivate,
+            }),
+            anchor: 'center',
+          };
+        return {
+          content: createBuildingOverviewMarkerContent({
+            name: item.name,
+            contextName: item.estate?.display_name || item.estate?.name,
+            primaryLabel: metric.label,
+            primaryValue: metric.value,
+            onActivate,
+          }),
+          anchor: 'bottom-center',
+        };
+      };
       const createBuildingMarker = (
         item: BuildingMapMarkerOut,
         compactMarker: boolean,
       ) => {
         const metric = getMapPrimaryMetric(item.counts, houseStatus);
         const focused = focusedBuildingId === item.id;
-        const marker = new AMap.Marker({
-          position: [Number(item.lng), Number(item.lat)],
-          title: `${item.name} · ${metric.label} ${metric.value} 套`,
-          ...(compactMarker
-            ? {
-                content: createBuildingCompactMarkerContent({
-                  name: item.name,
-                  primaryLabel: metric.label,
-                  primaryValue: metric.value,
-                  selected: focused,
-                }),
-                anchor: 'center',
-              }
-            : {
-                label: {
-                  content: `${metric.value} 套`,
-                  direction: 'top',
-                },
-                anchor: 'bottom-center',
-              }),
-          bubble: false,
-          clickable: true,
-          zIndex: focused ? 120 : 100,
-        });
-        marker.on('click', () => openBuildingMarker(item, compactMarker));
-        return marker;
+        return upsertMarker(
+          `building:${item.id}`,
+          {
+            position: [Number(item.lng), Number(item.lat)],
+            title: `${item.name} · ${metric.label} ${metric.value} 套`,
+            anchor: focused || !compactMarker ? 'bottom-center' : 'center',
+            zIndex: focused ? 120 : 100,
+          },
+          (onActivate) =>
+            buildingMarkerAppearance(item, compactMarker, onActivate).content,
+          () => openBuildingMarker(item, compactMarker),
+        );
       };
 
+      const zoomIntoBuildingGroup = (buildings: BuildingMapMarkerOut[]) =>
+        expandMapGroup(
+          buildings.map((building) => [
+            Number(building.lng),
+            Number(building.lat),
+          ]),
+        );
+
+      const focusedItem = locatedItems.find(
+        (item) => item.id === focusedBuildingId,
+      );
+      const groupableItems = focusedItem
+        ? locatedItems.filter((item) => item.id !== focusedItem.id)
+        : locatedItems;
+
       const useSdkCluster =
-        locatedItems.length > DIRECT_MARKER_LIMIT && AMap.MarkerCluster;
+        groupableItems.length > DIRECT_MARKER_LIMIT && AMap.MarkerCluster;
       if (!useSdkCluster) {
-        const groupThreshold = compact ? 72 : 28;
+        const currentZoom = Number(map.getZoom?.() || 16);
+        const groupThreshold = compact
+          ? 72
+          : currentZoom <= 16
+            ? 120
+            : currentZoom <= 17
+              ? 96
+              : currentZoom <= 18
+                ? 72
+                : currentZoom <= 19
+                  ? 48
+                  : 28;
         const markerGroups: Array<{
           items: BuildingMapMarkerOut[];
           x: number;
@@ -897,7 +1147,7 @@ const PropertyRentalMapPage: React.FC = () => {
           lng: number;
           lat: number;
         }> = [];
-        for (const item of locatedItems) {
+        for (const item of groupableItems) {
           const lng = Number(item.lng);
           const lat = Number(item.lat);
           const pixel = map.lngLatToContainer?.(new AMap.LngLat(lng, lat));
@@ -920,41 +1170,54 @@ const PropertyRentalMapPage: React.FC = () => {
           group.lat = (group.lat * group.items.length + lat) / nextSize;
           group.items.push(item);
         }
-        instances = markerGroups.map((group) => {
-          if (group.items.length === 1)
-            return createBuildingMarker(group.items[0], compact);
-          const marker = new AMap.Marker({
-            position: [group.lng, group.lat],
-            title: `${group.items.length} 栋楼栋`,
-            content: createBuildingClusterMarkerContent(group.items.length),
-            anchor: 'center',
-            bubble: false,
-            clickable: true,
-            zIndex: 100,
-          });
-          marker.on('click', () => {
-            cancelPendingDeepLink();
-            closeBuildingInfo(true);
-            setFocusedBuildingId(undefined);
-            setFocusedEstateKey(undefined);
-            userMovedRef.current = true;
-            fittedInitialMarkersRef.current = true;
-            moveMapTo(
-              group.lng,
-              group.lat,
-              compact ? 16 : Math.min(Number(map.getZoom?.() || 16) + 2, 20),
-            );
-          });
-          return marker;
+        markerGroups.forEach((group) => {
+          if (group.items.length === 1) {
+            createBuildingMarker(group.items[0], compact);
+            return;
+          }
+          const activateGroup = () => zoomIntoBuildingGroup(group.items);
+          const areaName = getBuildingGroupAreaName(group.items);
+          upsertMarker(
+            `building-group:${group.items
+              .map((item) => item.id)
+              .sort((a, b) => a - b)
+              .join(',')}`,
+            {
+              position: [group.lng, group.lat],
+              title: `${areaName} · ${group.items.length} 栋楼栋`,
+              anchor: compact ? 'center' : 'bottom-center',
+              zIndex: 100,
+            },
+            (onActivate) =>
+              compact
+                ? createBuildingClusterMarkerContent(
+                    group.items.length,
+                    onActivate,
+                  )
+                : createBuildingGroupMarkerContent({
+                    areaName,
+                    buildingCount: group.items.length,
+                    buildings: group.items.map((item) => {
+                      const metric = getMapPrimaryMetric(
+                        item.counts,
+                        houseStatus,
+                      );
+                      return {
+                        name: item.name,
+                        primaryLabel: metric.label,
+                        primaryValue: metric.value,
+                      };
+                    }),
+                    onActivate,
+                  }),
+            activateGroup,
+          );
         });
-      } else {
-        instances = locatedItems.map((item) =>
-          createBuildingMarker(item, compact),
-        );
+        if (focusedItem) createBuildingMarker(focusedItem, compact);
       }
 
       if (useSdkCluster) {
-        const points = locatedItems.map(
+        const points = groupableItems.map(
           (building): ClusterPoint => ({
             lnglat: [Number(building.lng), Number(building.lat)],
             building,
@@ -972,21 +1235,38 @@ const PropertyRentalMapPage: React.FC = () => {
               marker.setTitle?.(
                 `${building.name} · ${metric.label} ${metric.value} 套`,
               );
+              const appearance = buildingMarkerAppearance(building, compact);
+              marker.setContent?.(appearance.content);
+              marker.setAnchor?.(appearance.anchor);
+            },
+            renderClusterMarker: ({ marker, count, clusterData }: any) => {
+              const clusterPoints = (clusterData || []) as ClusterPoint[];
+              const buildings = clusterPoints.map((item) => item.building);
+              if (compact || !buildings.length) {
+                marker.setContent?.(createBuildingClusterMarkerContent(count));
+                marker.setAnchor?.('center');
+                return;
+              }
+              const activateGroup = () => zoomIntoBuildingGroup(buildings);
               marker.setContent?.(
-                compact
-                  ? createBuildingCompactMarkerContent({
+                createBuildingGroupMarkerContent({
+                  areaName: getBuildingGroupAreaName(buildings),
+                  buildingCount: count,
+                  buildings: buildings.map((building) => {
+                    const metric = getMapPrimaryMetric(
+                      building.counts,
+                      houseStatus,
+                    );
+                    return {
                       name: building.name,
                       primaryLabel: metric.label,
                       primaryValue: metric.value,
-                      selected: focusedBuildingId === building.id,
-                    })
-                  : createBuildingLocationMarkerContent(metric.value),
+                    };
+                  }),
+                  onActivate: activateGroup,
+                }),
               );
-              marker.setAnchor?.(compact ? 'center' : 'bottom-center');
-            },
-            renderClusterMarker: ({ marker, count }: any) => {
-              marker.setContent?.(createBuildingClusterMarkerContent(count));
-              marker.setAnchor?.('center');
+              marker.setAnchor?.('bottom-center');
             },
           });
           if (typeof cluster.on !== 'function') {
@@ -999,38 +1279,57 @@ const PropertyRentalMapPage: React.FC = () => {
               openBuildingMarker(clusterPoints[0].building, compact);
               return;
             }
-            if (clusterPoints.length > 1) {
-              cancelPendingDeepLink();
-              closeBuildingInfo(true);
-              setFocusedBuildingId(undefined);
-              userMovedRef.current = true;
-              fittedInitialMarkersRef.current = true;
-              const position = event.lnglat || event.marker?.getPosition?.();
-              if (position)
-                map.setZoomAndCenter(
-                  Math.min(Number(map.getZoom?.() || 16) + 2, 19),
-                  position,
-                );
-            }
+            if (clusterPoints.length > 1)
+              zoomIntoBuildingGroup(
+                clusterPoints.map(({ building }) => building),
+              );
           });
           clusterRef.current = cluster;
-          clustered = true;
+          if (focusedItem) createBuildingMarker(focusedItem, compact);
         } catch {
           cluster?.setMap?.(null);
           clusterRef.current = null;
+          groupableItems.forEach((item) => {
+            createBuildingMarker(item, compact);
+          });
+          if (focusedItem) createBuildingMarker(focusedItem, compact);
         }
       }
     }
 
-    if (!clustered) map.add(instances);
-
-    if (buildingDisplayLevel) {
-      const openedBuilding = locatedItems.find(
-        (item) => item.id === openedBuildingId,
-      );
-      if (openedBuilding) openBuildingInfoWindow(openedBuilding);
+    // Add replacements before removing obsolete overlays, keeping unchanged markers alive.
+    if (pendingMarkers.length) map.add(pendingMarkers);
+    previousCluster?.setMap?.(null);
+    for (const [key, entry] of directMarkersRef.current) {
+      if (activeMarkerKeys.has(key)) continue;
+      map.remove(entry.marker);
+      directMarkersRef.current.delete(key);
     }
+  }, [
+    AMap,
+    cancelPendingDeepLink,
+    clearBuildingSelection,
+    estateDisplayLevel,
+    estateDisplayPoints,
+    estateSummary,
+    expandMapGroup,
+    focusedBuildingId,
+    focusedEstateKey,
+    houseStatus,
+    locatedItems,
+    mapLevel,
+    markerLayoutZoom,
+    moveMapTo,
+    pushMapNavigation,
+    selectedBuildingHouses.data,
+    selectedBuildingHouses.isError,
+    selectedBuildingHouses.isLoading,
+    selectedBuildingId,
+  ]);
 
+  // Fitting result bounds must not rebuild markers on request start/end.
+  useEffect(() => {
+    if (!AMap || !mapRef.current) return;
     const visibleCoordinates = estateDisplayLevel
       ? estateDisplayPoints.map(
           (point) => [point.lng, point.lat] as [number, number],
@@ -1040,6 +1339,14 @@ const PropertyRentalMapPage: React.FC = () => {
         );
     if (
       visibleCoordinates.length &&
+      !mapDataFetching &&
+      pendingFitResultsRef.current
+    ) {
+      pendingFitResultsRef.current = false;
+      fitMapToCoordinates(visibleCoordinates, estateDisplayLevel ? 13 : 16);
+      fittedInitialMarkersRef.current = true;
+    } else if (
+      visibleCoordinates.length &&
       !fittedInitialMarkersRef.current &&
       !initialState.current.viewport &&
       !estateLocation &&
@@ -1047,24 +1354,22 @@ const PropertyRentalMapPage: React.FC = () => {
     ) {
       fitMapToCoordinates(visibleCoordinates, estateDisplayLevel ? 13 : 16);
       fittedInitialMarkersRef.current = true;
+    } else if (
+      !visibleCoordinates.length &&
+      !mapDataFetching &&
+      pendingFitResultsRef.current
+    ) {
+      pendingFitResultsRef.current = false;
     }
   }, [
     AMap,
-    buildingDisplayLevel,
-    cancelPendingDeepLink,
-    closeBuildingInfo,
     estateDisplayLevel,
     estateDisplayPoints,
-    estateSummary,
     estateLocation?.lat,
     estateLocation?.lng,
     fitMapToCoordinates,
-    focusedBuildingId,
-    focusedEstateKey,
-    houseStatus,
     locatedItems,
-    mapLevel,
-    openBuildingInfoWindow,
+    mapDataFetching,
   ]);
 
   useEffect(() => {
@@ -1090,34 +1395,73 @@ const PropertyRentalMapPage: React.FC = () => {
 
   const selectBuilding = (building: BuildingMapMarkerOut) => {
     cancelPendingDeepLink();
-    closeBuildingInfo(true);
+    if (selectedBuildingIdRef.current !== building.id) pushMapNavigation();
+    clearBuildingSelection(true);
     setFocusedEstateKey(undefined);
     setFocusedBuildingId(building.id);
+    setSelectedBuildingId(building.id);
+    setSelectedBuildingSnapshot(building);
     moveMapTo(Number(building.lng), Number(building.lat));
   };
 
   const selectEstatePoint = (point: EstateMapDisplayPoint) => {
+    if (point.kind === 'independent-building' && point.building) {
+      selectBuilding(point.building);
+      return;
+    }
     cancelPendingDeepLink();
-    closeBuildingInfo(true);
-    setFocusedBuildingId(point.buildingId);
+    if (estateIdRef.current !== point.estateId) pushMapNavigation();
+    clearBuildingSelection(true);
+    if (!estateId) estateDrillOriginRef.current = { bounds, viewport };
+    setEstateId(point.estateId);
+    setFocusedBuildingId(undefined);
     setFocusedEstateKey(point.key);
     userMovedRef.current = true;
     fittedInitialMarkersRef.current = true;
     moveMapTo(point.lng, point.lat, mapLevel === 'estate-cluster' ? 10 : 14);
   };
 
-  const fitVisibleResults = () => {
-    const points = estateDisplayLevel
-      ? estateDisplayPoints.map(
-          (point) => [point.lng, point.lat] as [number, number],
-        )
-      : locatedItems.map(
-          (item) => [Number(item.lng), Number(item.lat)] as [number, number],
-        );
-    if (!points.length) return;
+  const showAllResults = () => {
+    cancelPendingBounds();
+    setBounds(undefined);
+    pendingFitResultsRef.current = true;
     userMovedRef.current = true;
-    fittedInitialMarkersRef.current = true;
-    fitMapToCoordinates(points, estateDisplayLevel ? 13 : 16);
+    fittedInitialMarkersRef.current = false;
+  };
+
+  const leaveEstateDrill = () => {
+    if (mapNavigationDepthRef.current > 0) {
+      window.history.back();
+      return;
+    }
+    cancelPendingDeepLink();
+    clearBuildingSelection(true);
+    setFocusedBuildingId(undefined);
+    setFocusedEstateKey(undefined);
+    setEstateId(undefined);
+    const origin = estateDrillOriginRef.current;
+    estateDrillOriginRef.current = undefined;
+    if (!origin) return;
+    cancelPendingBounds();
+    setBounds(origin.bounds);
+    if (origin.viewport) {
+      programmaticMoveRef.current = true;
+      mapRef.current?.setZoomAndCenter(origin.viewport.zoom, [
+        origin.viewport.lng,
+        origin.viewport.lat,
+      ]);
+      setViewport(origin.viewport);
+    }
+  };
+
+  const leaveBuildingDetail = () => {
+    if (mapNavigationDepthRef.current > 0) {
+      window.history.back();
+      return;
+    }
+    cancelPendingDeepLink();
+    clearBuildingSelection(true);
+    setFocusedBuildingId(undefined);
   };
 
   const locateNearby = async () => {
@@ -1126,7 +1470,7 @@ const PropertyRentalMapPage: React.FC = () => {
     try {
       const location = await requestBrowserMapLocation(navigator.geolocation);
       cancelPendingDeepLink();
-      closeBuildingInfo(true);
+      clearBuildingSelection(true);
       setFocusedBuildingId(undefined);
       setFocusedEstateKey(undefined);
       geolocationRequestedRef.current = true;
@@ -1146,7 +1490,7 @@ const PropertyRentalMapPage: React.FC = () => {
       const next = !current;
       const map = mapRef.current;
       const mapWidth = mapNode.current?.clientWidth || 0;
-      if (map?.panBy && mapWidth) {
+      if (window.innerWidth >= 1000 && map?.panBy && mapWidth) {
         const panelWidth = Math.min(
           390,
           Math.max(320, window.innerWidth * 0.28),
@@ -1199,13 +1543,7 @@ const PropertyRentalMapPage: React.FC = () => {
 
   useEffect(() => {
     const buildingId = pendingDeepLinkIdRef.current;
-    if (
-      !buildingId ||
-      pendingInfoBuildingRef.current ||
-      !AMap ||
-      !mapRef.current
-    )
-      return;
+    if (!buildingId || !AMap || !mapRef.current) return;
     const locatedBuilding = locatedItems.find((item) => item.id === buildingId);
     if (locatedBuilding) {
       cancelPendingBounds();
@@ -1213,20 +1551,24 @@ const PropertyRentalMapPage: React.FC = () => {
       fittedInitialMarkersRef.current = true;
       setFocusedBuildingId(locatedBuilding.id);
       setFocusedEstateKey(undefined);
-      pendingInfoBuildingRef.current = locatedBuilding;
+      setSelectedBuildingId(locatedBuilding.id);
+      setSelectedBuildingSnapshot(locatedBuilding);
       moveMapTo(Number(locatedBuilding.lng), Number(locatedBuilding.lat));
+      cancelPendingDeepLink();
       return;
     }
     if (pendingDeepLinkBuilding.isError) {
       cancelPendingDeepLink();
-      closeBuildingInfo(true);
+      clearBuildingSelection(true);
+      message.warning('该楼栋暂不可用，已返回当前结果');
       return;
     }
     const detail = pendingDeepLinkBuilding.data;
     if (!detail) return;
     if (detail.lat == null || detail.lng == null) {
       cancelPendingDeepLink();
-      closeBuildingInfo(true);
+      clearBuildingSelection(true);
+      message.warning('该楼栋尚未定位，无法在地图中查看');
       return;
     }
     const building: BuildingMapMarkerOut = {
@@ -1243,38 +1585,18 @@ const PropertyRentalMapPage: React.FC = () => {
     fittedInitialMarkersRef.current = true;
     setFocusedBuildingId(building.id);
     setFocusedEstateKey(undefined);
-    pendingInfoBuildingRef.current = building;
+    setSelectedBuildingId(building.id);
+    setSelectedBuildingSnapshot(building);
     moveMapTo(Number(building.lng), Number(building.lat));
+    cancelPendingDeepLink();
   }, [
     AMap,
     cancelPendingBounds,
     cancelPendingDeepLink,
-    closeBuildingInfo,
+    clearBuildingSelection,
     locatedItems,
     pendingDeepLinkBuilding.data,
     pendingDeepLinkBuilding.isError,
-  ]);
-
-  useEffect(() => {
-    const building = pendingInfoBuildingRef.current;
-    if (
-      !building ||
-      !AMap ||
-      !mapRef.current ||
-      programmaticMoveRef.current ||
-      buildingMarkers.isFetching
-    )
-      return;
-    openBuildingInfoWindow(building);
-    pendingInfoBuildingRef.current = undefined;
-    cancelPendingDeepLink();
-  }, [
-    AMap,
-    bounds,
-    buildingMarkers.isFetching,
-    cancelPendingDeepLink,
-    openBuildingInfoWindow,
-    viewport,
   ]);
 
   useEffect(() => {
@@ -1284,23 +1606,30 @@ const PropertyRentalMapPage: React.FC = () => {
       !selectedBuildingId
     )
       return;
-    closeBuildingInfo(true);
+    clearBuildingSelection(true);
     setFocusedBuildingId(undefined);
-  }, [closeBuildingInfo, estateDisplayLevel, selectedBuildingId]);
+  }, [clearBuildingSelection, estateDisplayLevel, selectedBuildingId]);
+
+  useEffect(() => {
+    if (!selectedBuildingId) return;
+    const current = locatedItems.find((item) => item.id === selectedBuildingId);
+    if (current) setSelectedBuildingSnapshot(current);
+  }, [locatedItems, selectedBuildingId]);
 
   useEffect(() => {
     if (
       !selectedBuildingId ||
       buildingMarkers.isFetching ||
       !buildingMarkers.isSuccess ||
-      infoWindowBuildingIdRef.current === selectedBuildingId ||
       pendingDeepLinkIdRef.current === selectedBuildingId ||
       locatedItems.some((item) => item.id === selectedBuildingId)
     )
       return;
-    closeBuildingInfo(true);
+    clearBuildingSelection(true);
+    setFocusedBuildingId(undefined);
+    message.info('所选楼栋已离开当前结果范围');
   }, [
-    closeBuildingInfo,
+    clearBuildingSelection,
     buildingMarkers.isFetching,
     buildingMarkers.isSuccess,
     locatedItems,
@@ -1385,7 +1714,7 @@ const PropertyRentalMapPage: React.FC = () => {
                 onKeywordSearch={(value) => applyKeyword(value, true)}
                 onHouseStatusChange={(value) => {
                   cancelPendingDeepLink();
-                  closeBuildingInfo(true);
+                  clearBuildingSelection(true);
                   setFocusedBuildingId(undefined);
                   setFocusedEstateKey(undefined);
                   setHouseStatus(value);
@@ -1403,6 +1732,10 @@ const PropertyRentalMapPage: React.FC = () => {
                 truncated={mapResultsTruncated}
                 onSelect={selectEstatePoint}
                 onToggleCollapsed={toggleResultPanel}
+                keyword={keyword}
+                onClearKeyword={() => applyKeyword('')}
+                onShowAllStatuses={() => setHouseStatus(undefined)}
+                onShowAllResults={showAllResults}
                 topOffset={mapOverlayContentTop}
                 onRetry={() => {
                   estateMarkers.refetch();
@@ -1416,17 +1749,33 @@ const PropertyRentalMapPage: React.FC = () => {
                 unlocatedTotal={unlocated.data?.total || 0}
                 collapsed={resultPanelCollapsed}
                 selectedId={focusedBuildingId}
+                selectedBuilding={selectedBuildingSnapshot}
+                houseStatus={houseStatus}
+                contextName={
+                  selectedEstate?.display_name || selectedEstate?.name
+                }
                 loading={buildingMarkers.isLoading || unlocated.isLoading}
                 truncated={mapResultsTruncated}
                 locatedError={buildingMarkers.isError}
                 unlocatedError={unlocated.isError}
+                houses={selectedBuildingHouses.data?.items || []}
+                houseTotal={selectedBuildingHouses.data?.total || 0}
+                housesLoading={selectedBuildingHouses.isLoading}
+                housesError={selectedBuildingHouses.isError}
                 returnTo={returnTo}
                 pendingListHref={pendingListHref}
                 onSelect={selectBuilding}
+                onBack={leaveBuildingDetail}
+                onBackToAllResults={estateId ? leaveEstateDrill : undefined}
                 onToggleCollapsed={toggleResultPanel}
+                keyword={keyword}
+                onClearKeyword={() => applyKeyword('')}
+                onShowAllStatuses={() => setHouseStatus(undefined)}
+                onShowAllResults={showAllResults}
                 topOffset={mapOverlayContentTop}
                 onRetryLocated={() => buildingMarkers.refetch()}
                 onRetryUnlocated={() => unlocated.refetch()}
+                onRetryHouses={() => selectedBuildingHouses.refetch()}
               />
             ) : null}
             {!mapError ? (
@@ -1449,12 +1798,12 @@ const PropertyRentalMapPage: React.FC = () => {
                     onClick={locateNearby}
                   />
                 </Tooltip>
-                {visiblePointCount ? (
+                {bounds || visiblePointCount ? (
                   <Button
                     icon={<FullscreenOutlined />}
-                    onClick={fitVisibleResults}
+                    onClick={showAllResults}
                   >
-                    适配当前结果
+                    查看全部结果
                   </Button>
                 ) : null}
               </Space>

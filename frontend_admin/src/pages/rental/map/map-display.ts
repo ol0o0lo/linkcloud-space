@@ -157,6 +157,27 @@ export function getMapPrimaryMetric(
   return { ...metric, value: counts[metric.key] };
 }
 
+export function sortMapItemsByMetric<
+  T extends {
+    id?: number;
+    resourceId?: number;
+    name: string;
+    counts: MapCounts;
+  },
+>(items: ReadonlyArray<T>, houseStatus?: string): T[] {
+  return [...items].sort((left, right) => {
+    const metricDifference =
+      getMapPrimaryMetric(right.counts, houseStatus).value -
+      getMapPrimaryMetric(left.counts, houseStatus).value;
+    if (metricDifference) return metricDifference;
+    const nameDifference = left.name.localeCompare(right.name, 'zh-CN');
+    if (nameDifference) return nameDifference;
+    return (
+      (left.resourceId ?? left.id ?? 0) - (right.resourceId ?? right.id ?? 0)
+    );
+  });
+}
+
 export function sumMapCounts(
   items: ReadonlyArray<{ counts: MapCounts }>,
 ): MapCounts {

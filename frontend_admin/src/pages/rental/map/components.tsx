@@ -1,7 +1,13 @@
 import {
+  ArrowLeftOutlined,
+  BankOutlined,
+  EnvironmentOutlined,
+  ExportOutlined,
+  HomeOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ReloadOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import { Link } from '@umijs/max';
 import {
@@ -11,8 +17,7 @@ import {
   Card,
   Empty,
   Input,
-  List,
-  Select,
+  Segmented,
   Space,
   Spin,
   Tag,
@@ -20,23 +25,51 @@ import {
   Typography,
   theme,
 } from 'antd';
-import { type CSSProperties, useEffect, useState } from 'react';
+import {
+  type CSSProperties,
+  type FocusEvent as ReactFocusEvent,
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useState,
+} from 'react';
 import { AppIcon } from '@/components/AppIcon';
 import { AppStatusTag } from '@/components/AppStatus';
 import type {
   BuildingMapMarkerOut,
   BuildingMapUnlocatedOut,
+  HouseOut,
 } from '@/services/manual/house';
-import { HOUSE_STATUS } from '../constants';
-import { type EstateMapDisplayPoint, getMapPrimaryMetric } from './map-display';
+import { housePrimaryLayoutText, moneyText } from '../constants';
+import {
+  type EstateMapDisplayPoint,
+  getMapPrimaryMetric,
+  sortMapItemsByMetric,
+  sumMapCounts,
+} from './map-display';
 
 const MAP_RESULT_PANEL_WIDTH = 'clamp(320px, 28vw, 390px)';
 
+function useCompactMapPanel() {
+  const [compact, setCompact] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 1000,
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 999px)');
+    const update = () => setCompact(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener('change', update);
+    return () => mediaQuery.removeEventListener('change', update);
+  }, []);
+
+  return compact;
+}
+
 function useMapResultPanelStyles(top: number) {
   const { token } = theme.useToken();
+  const compact = useCompactMapPanel();
   const common: CSSProperties = {
     position: 'absolute',
-    top,
     left: 12,
     zIndex: 4,
     background: `color-mix(in srgb, ${token.colorBgElevated} 92%, transparent)`,
@@ -48,19 +81,47 @@ function useMapResultPanelStyles(top: number) {
 
   return {
     token,
+    compact,
     expanded: {
       ...common,
-      bottom: 12,
-      width: MAP_RESULT_PANEL_WIDTH,
+      ...(compact
+        ? { right: 12, bottom: 12, height: 'min(55vh, 480px)' }
+        : { top, bottom: 12, width: MAP_RESULT_PANEL_WIDTH }),
       maxWidth: 'calc(100% - 24px)',
       overflow: 'hidden',
     },
     collapsed: {
       ...common,
-      width: 40,
-      height: 40,
+      ...(compact
+        ? { right: 12, bottom: 12 }
+        : { top, minWidth: 168, maxWidth: MAP_RESULT_PANEL_WIDTH }),
+      minHeight: 44,
     },
   };
+}
+
+function taskSummaryText(
+  counts: BuildingMapMarkerOut['counts'],
+  houseStatus?: string,
+) {
+  const metric = getMapPrimaryMetric(counts, houseStatus);
+  return `${metric.label} ${metric.value} 套`;
+}
+
+function taskTitle(buildingCount: number, houseStatus?: string) {
+  const label = getMapPrimaryMetric(
+    { total: 0, vacant: 0, listed: 0, rented: 0, renovating: 0 },
+    houseStatus,
+  ).label;
+  return `${label === '房源' ? '全部房源' : `${label}房源`} · ${buildingCount} 栋`;
+}
+
+function taskPanelLabel(houseStatus?: string) {
+  const label = getMapPrimaryMetric(
+    { total: 0, vacant: 0, listed: 0, rented: 0, renovating: 0 },
+    houseStatus,
+  ).label;
+  return label === '房源' ? '全部房源' : `${label}房源`;
 }
 
 export function MapToolbar({
@@ -81,7 +142,9 @@ export function MapToolbar({
     unlocated: number;
     total: number;
     vacant: number;
+    listed: number;
     rented: number;
+    renovating: number;
   };
   updating: boolean;
   onKeywordChange: (value: string) => void;
@@ -111,94 +174,103 @@ export function MapToolbar({
       <Card
         size="small"
         styles={{ body: { padding: '10px 12px' } }}
-        style={{
-          ...floatingSurface,
-          flex: '0 1 auto',
-          width: 'fit-content',
-          maxWidth: '100%',
-          minWidth: 0,
-        }}
+        style={{ ...floatingSurface, width: '100%', minWidth: 0 }}
       >
-        <Space wrap size={8} className="w-full">
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 8,
+          }}
+        >
           <Input.Search
             allowClear
             value={keyword}
             onChange={(event) => onKeywordChange(event.target.value)}
             onSearch={onKeywordSearch}
             placeholder="搜索小区、楼栋或地址"
-            style={{ flex: '1 1 280px', minWidth: 200 }}
+            style={{ flex: '1 1 320px', minWidth: 200, maxWidth: 520 }}
           />
-          <Select
-            allowClear
-            value={houseStatus}
-            onChange={onHouseStatusChange}
-            placeholder="全部房态"
-            style={{ width: 130 }}
+          <Segmented
+            aria-label="房态筛选"
+            value={houseStatus || 'all'}
+            onChange={(value) =>
+              onHouseStatusChange(value === 'all' ? undefined : value)
+            }
             options={[
               { value: 'vacant', label: '空置' },
               { value: 'listed', label: '招租' },
-              { value: 'rented', label: '已租' },
-              { value: 'renovating', label: '装修' },
+              { value: 'all', label: '全部' },
             ]}
           />
-        </Space>
-      </Card>
-      <Card
-        size="small"
-        styles={{ body: { padding: '10px 12px' } }}
-        style={{
-          ...floatingSurface,
-          flex: '0 1 auto',
-          maxWidth: '100%',
-          marginLeft: 'auto',
-        }}
-      >
-        <Space size={[12, 6]} wrap>
-          <Typography.Text type="secondary">当前视野</Typography.Text>
-          <Typography.Text type="secondary">
-            {counts.levelLabel}{' '}
-            <Typography.Text strong>{counts.located}</Typography.Text>
-          </Typography.Text>
-          {counts.levelLabel === '楼栋' ? null : (
-            <Typography.Text type="secondary">
-              楼栋 <Typography.Text strong>{counts.buildings}</Typography.Text>
-            </Typography.Text>
-          )}
-          <Typography.Text type="secondary">
-            房源 <Typography.Text strong>{counts.total}</Typography.Text>
-          </Typography.Text>
-          <Typography.Text type="secondary">
-            空置 <Typography.Text strong>{counts.vacant}</Typography.Text>
-          </Typography.Text>
-          <Typography.Text type="secondary">
-            已租 <Typography.Text strong>{counts.rented}</Typography.Text>
-          </Typography.Text>
-          <Typography.Text type="secondary">
-            待定位任务{' '}
-            <Typography.Text strong>{counts.unlocated}</Typography.Text>
+          <Typography.Text
+            strong
+            style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
+          >
+            {getMapPrimaryMetric(counts, houseStatus).value} 套
+            {getMapPrimaryMetric(counts, houseStatus).label} ·{' '}
+            {counts.buildings} 栋
           </Typography.Text>
           {updating ? (
             <Typography.Text type="secondary">
               <ReloadOutlined spin /> 更新中
             </Typography.Text>
           ) : null}
-        </Space>
+        </div>
       </Card>
     </div>
   );
 }
 
-function CountTags({ counts }: { counts: BuildingMapMarkerOut['counts'] }) {
+function EmptyTaskState({
+  keyword,
+  houseStatus,
+  onClearKeyword,
+  onShowAllStatuses,
+  onShowAllResults,
+}: {
+  keyword?: string;
+  houseStatus?: string;
+  onClearKeyword?: () => void;
+  onShowAllStatuses?: () => void;
+  onShowAllResults?: () => void;
+}) {
+  const metric = getMapPrimaryMetric(
+    { total: 0, vacant: 0, listed: 0, rented: 0, renovating: 0 },
+    houseStatus,
+  );
+  const description = keyword
+    ? `当前组织没有符合“${keyword}”和“${metric.label}”条件的楼栋`
+    : `当前地图范围暂无${metric.label === '房源' ? '' : metric.label}楼栋`;
+
   return (
-    <Space size={[4, 4]} wrap>
-      <Tag color="blue">{counts.total} 套</Tag>
-      <AppStatusTag name="house" state={HOUSE_STATUS.VACANT}>
-        空置 {counts.vacant}
-      </AppStatusTag>
-      <AppStatusTag name="house" state={HOUSE_STATUS.RENTED}>
-        已租 {counts.rented}
-      </AppStatusTag>
-    </Space>
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        <Space orientation="vertical" size={10}>
+          <Typography.Text type="secondary">{description}</Typography.Text>
+          <Space wrap size={8}>
+            {keyword && onClearKeyword ? (
+              <Button size="small" onClick={onClearKeyword}>
+                清除搜索
+              </Button>
+            ) : null}
+            {houseStatus && onShowAllStatuses ? (
+              <Button size="small" onClick={onShowAllStatuses}>
+                查看全部房态
+              </Button>
+            ) : null}
+            {onShowAllResults ? (
+              <Button size="small" type="primary" onClick={onShowAllResults}>
+                查看全部结果
+              </Button>
+            ) : null}
+          </Space>
+        </Space>
+      }
+      style={{ padding: '36px 12px' }}
+    />
   );
 }
 
@@ -213,6 +285,10 @@ export function EstateResultPanel({
   onSelect,
   onToggleCollapsed,
   onRetry,
+  keyword,
+  onClearKeyword,
+  onShowAllStatuses,
+  onShowAllResults,
   topOffset = 12,
 }: {
   points: EstateMapDisplayPoint[];
@@ -225,6 +301,10 @@ export function EstateResultPanel({
   onSelect: (point: EstateMapDisplayPoint) => void;
   onToggleCollapsed: () => void;
   onRetry: () => void;
+  keyword?: string;
+  onClearKeyword?: () => void;
+  onShowAllStatuses?: () => void;
+  onShowAllResults?: () => void;
   topOffset?: number;
 }) {
   const {
@@ -232,6 +312,12 @@ export function EstateResultPanel({
     expanded: expandedStyle,
     token,
   } = useMapResultPanelStyles(topOffset);
+  const sortedPoints = sortMapItemsByMetric(points, houseStatus);
+  const summaryCounts = sumMapCounts(points);
+  const buildingCount = points.reduce(
+    (total, point) => total + point.buildingCount,
+    0,
+  );
 
   if (collapsed) {
     return (
@@ -246,14 +332,20 @@ export function EstateResultPanel({
         }}
         style={collapsedStyle}
       >
-        <Tooltip title="展开小区结果" placement="right">
+        <Tooltip title="展开房源结果" placement="right">
           <Button
             type="text"
             icon={<MenuUnfoldOutlined />}
-            aria-label="展开小区结果"
+            aria-label={`展开${taskPanelLabel(houseStatus)}结果`}
             onClick={onToggleCollapsed}
-            style={{ width: '100%', height: '100%' }}
-          />
+            style={{
+              width: '100%',
+              minHeight: 42,
+              justifyContent: 'flex-start',
+            }}
+          >
+            {taskSummaryText(summaryCounts, houseStatus)}
+          </Button>
         </Tooltip>
       </Card>
     );
@@ -262,13 +354,13 @@ export function EstateResultPanel({
   return (
     <Card
       size="small"
-      title={`小区结果 ${points.length}`}
+      title={taskTitle(buildingCount, houseStatus)}
       extra={
         <Button
           type="text"
           icon={<MenuFoldOutlined />}
-          aria-label="收起小区结果"
-          title="收起小区结果"
+          aria-label="收起房源结果"
+          title="收起房源结果"
           onClick={onToggleCollapsed}
         />
       }
@@ -305,14 +397,16 @@ export function EstateResultPanel({
       ) : null}
       <Spin spinning={loading}>
         {!loading && !points.length ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="当前地图范围暂无已定位小区或独立楼栋"
-            style={{ padding: '36px 12px' }}
+          <EmptyTaskState
+            keyword={keyword}
+            houseStatus={houseStatus}
+            onClearKeyword={onClearKeyword}
+            onShowAllStatuses={onShowAllStatuses}
+            onShowAllResults={onShowAllResults}
           />
         ) : (
           <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-            {points.map((point) => {
+            {sortedPoints.map((point) => {
               const metric = getMapPrimaryMetric(point.counts, houseStatus);
               const focused = focusedKey === point.key;
               return (
@@ -367,11 +461,10 @@ export function EstateResultPanel({
                         {point.address || '暂无地址'}
                       </Typography.Text>
                       <Space size={[4, 4]} wrap>
-                        <Tag color="blue">{point.buildingCount} 栋</Tag>
                         <Tag color="green">
-                          {metric.label} {metric.value}
+                          {metric.label} {metric.value} 套
                         </Tag>
-                        <Tag>已租 {point.counts.rented}</Tag>
+                        <Tag>{point.buildingCount} 栋</Tag>
                         {point.unlocatedBuildingCount ? (
                           <Tag color="orange">
                             待定位 {point.unlocatedBuildingCount}
@@ -396,16 +489,30 @@ export function BuildingResultPanel({
   unlocatedTotal,
   collapsed,
   selectedId,
+  selectedBuilding,
+  houseStatus,
+  contextName,
   loading,
   truncated,
   locatedError,
   unlocatedError,
+  houses,
+  houseTotal,
+  housesLoading,
+  housesError,
   returnTo,
   pendingListHref,
   onSelect,
+  onBack,
+  onBackToAllResults,
   onToggleCollapsed,
   onRetryLocated,
   onRetryUnlocated,
+  onRetryHouses,
+  keyword,
+  onClearKeyword,
+  onShowAllStatuses,
+  onShowAllResults,
   topOffset = 12,
 }: {
   located: BuildingMapMarkerOut[];
@@ -413,16 +520,30 @@ export function BuildingResultPanel({
   unlocatedTotal: number;
   collapsed: boolean;
   selectedId?: number;
+  selectedBuilding?: BuildingMapMarkerOut;
+  houseStatus?: string;
+  contextName?: string;
   loading: boolean;
   truncated: boolean;
   locatedError: boolean;
   unlocatedError: boolean;
+  houses: HouseOut[];
+  houseTotal: number;
+  housesLoading: boolean;
+  housesError: boolean;
   returnTo: string;
   pendingListHref: string;
   onSelect: (building: BuildingMapMarkerOut) => void;
+  onBack?: () => void;
+  onBackToAllResults?: () => void;
   onToggleCollapsed: () => void;
   onRetryLocated: () => void;
   onRetryUnlocated: () => void;
+  onRetryHouses: () => void;
+  keyword?: string;
+  onClearKeyword?: () => void;
+  onShowAllStatuses?: () => void;
+  onShowAllResults?: () => void;
   topOffset?: number;
 }) {
   const {
@@ -431,6 +552,10 @@ export function BuildingResultPanel({
     token,
   } = useMapResultPanelStyles(topOffset);
   const [showUnlocated, setShowUnlocated] = useState(false);
+  const sortedLocated = sortMapItemsByMetric(located, houseStatus);
+  const summaryCounts = sumMapCounts(located);
+  const activeBuilding =
+    selectedBuilding || located.find((item) => item.id === selectedId);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -457,14 +582,20 @@ export function BuildingResultPanel({
         }}
         style={collapsedStyle}
       >
-        <Tooltip title="展开楼栋结果" placement="right">
+        <Tooltip title="展开房源结果" placement="right">
           <Button
             type="text"
             icon={<MenuUnfoldOutlined />}
-            aria-label="展开楼栋结果"
+            aria-label={`展开${taskPanelLabel(houseStatus)}结果`}
             onClick={onToggleCollapsed}
-            style={{ width: '100%', height: '100%' }}
-          />
+            style={{
+              width: '100%',
+              minHeight: 42,
+              justifyContent: 'flex-start',
+            }}
+          >
+            {taskSummaryText(summaryCounts, houseStatus)}
+          </Button>
         </Tooltip>
       </Card>
     );
@@ -472,7 +603,31 @@ export function BuildingResultPanel({
   return (
     <Card
       size="small"
-      title={`楼栋结果 ${located.length}`}
+      title={
+        activeBuilding ? (
+          <Space size={4}>
+            <Tooltip title="返回楼栋列表">
+              <Button
+                type="text"
+                size="small"
+                icon={<ArrowLeftOutlined />}
+                aria-label="返回楼栋列表"
+                onClick={onBack}
+                style={{ marginInlineStart: -8 }}
+              />
+            </Tooltip>
+            <Typography.Title
+              id="building-task-title"
+              level={5}
+              style={{ margin: 0 }}
+            >
+              {activeBuilding.name}
+            </Typography.Title>
+          </Space>
+        ) : (
+          taskTitle(located.length, houseStatus)
+        )
+      }
       extra={
         <Space size={2}>
           {unlocatedTotal ? (
@@ -488,8 +643,8 @@ export function BuildingResultPanel({
           <Button
             type="text"
             icon={<MenuFoldOutlined />}
-            aria-label="收起楼栋结果"
-            title="收起楼栋结果"
+            aria-label="收起房源结果"
+            title="收起房源结果"
             onClick={onToggleCollapsed}
           />
         </Space>
@@ -503,149 +658,452 @@ export function BuildingResultPanel({
       }}
       style={expandedStyle}
     >
-      {unlocatedError ? (
-        <Alert
-          type="error"
-          title="待定位任务加载失败"
-          showIcon
-          action={
-            <Button size="small" onClick={onRetryUnlocated}>
-              重新加载
-            </Button>
-          }
-          style={{ margin: 12 }}
-        />
-      ) : null}
-      {showUnlocated && unlocatedTotal ? (
-        <div
-          style={{
-            padding: 12,
-            background: token.colorWarningBg,
-            borderBottom: `1px solid ${token.colorWarningBorder}`,
-          }}
-        >
-          <Typography.Text strong>
-            <Badge status="warning" /> 待定位楼栋 {unlocatedTotal}
+      {activeBuilding ? (
+        <section style={{ padding: 16 }} aria-labelledby="building-task-title">
+          <Typography.Text type="secondary" style={{ display: 'block' }}>
+            {activeBuilding.estate?.display_name ||
+              activeBuilding.estate?.name ||
+              '非小区楼栋'}{' '}
+            · 共 {activeBuilding.counts.total} 套房源
           </Typography.Text>
-          <List
-            size="small"
-            split={false}
-            dataSource={unlocated.slice(0, 5)}
-            renderItem={(item) => (
-              <List.Item
-                actions={[
-                  <Link
-                    key="locate"
-                    to={`/rental/properties/list?building_id=${item.id}&asset_tab=profile&asset_action=edit-building&return_to=${encodeURIComponent(returnTo)}`}
-                  >
-                    立即定位
-                  </Link>,
-                ]}
-              >
-                <List.Item.Meta
-                  title={item.name}
-                  description={`${item.estate?.display_name || item.estate?.name || '非小区楼栋'} · ${item.address}`}
-                />
-              </List.Item>
-            )}
-          />
-          {unlocatedTotal > 5 ? (
-            <Link to={pendingListHref}>
-              查看全部 {unlocatedTotal} 栋待定位楼栋
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
-      {locatedError ? (
-        <Alert
-          type="error"
-          title="楼栋结果加载失败"
-          showIcon
-          action={
-            <Button size="small" onClick={onRetryLocated}>
-              重新加载
-            </Button>
-          }
-          style={{ margin: 12 }}
-        />
-      ) : null}
-      {truncated ? (
-        <Alert
-          type="info"
-          showIcon
-          title="当前区域楼栋较多"
-          description="继续放大地图可查看更完整的楼栋结果。"
-          style={{ margin: 12 }}
-        />
-      ) : null}
-      <List
-        loading={loading}
-        dataSource={located}
-        locale={{
-          emptyText: (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="当前地图范围暂无已定位楼栋"
-            />
-          ),
-        }}
-        renderItem={(item) => (
-          <List.Item
-            id={`building-map-result-${item.id}`}
-            role="button"
-            tabIndex={0}
-            aria-pressed={selectedId === item.id}
-            onClick={() => onSelect(item)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                onSelect(item);
-              }
-            }}
+          <Typography.Paragraph
+            type="secondary"
+            ellipsis={{ rows: 2, expandable: false }}
+            style={{ marginBlock: '2px 0' }}
+          >
+            {activeBuilding.address || '暂无地址'}
+          </Typography.Paragraph>
+          <section
+            aria-labelledby="building-houses-title"
             style={{
-              padding: 12,
-              cursor: 'pointer',
-              background:
-                selectedId === item.id ? token.colorPrimaryBg : undefined,
-              borderLeft:
-                selectedId === item.id
-                  ? `3px solid ${token.colorPrimary}`
-                  : '3px solid transparent',
+              marginTop: 16,
+              paddingTop: 16,
+              borderTop: `1px solid ${token.colorBorderSecondary}`,
             }}
           >
-            <List.Item.Meta
-              avatar={
-                <AppIcon
-                  name="building"
-                  style={{
-                    color:
-                      selectedId === item.id
-                        ? token.colorPrimary
-                        : token.colorTextSecondary,
-                    fontSize: 18,
-                  }}
-                />
-              }
-              title={
-                <Space>
-                  <Typography.Text strong>{item.name}</Typography.Text>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                marginBottom: 10,
+              }}
+            >
+              <Typography.Text id="building-houses-title" strong>
+                房源明细
+              </Typography.Text>
+              <Space size={10}>
+                <Typography.Text type="secondary">
+                  {housesLoading ? '房源加载中' : `${houseTotal} 套`}
+                </Typography.Text>
+                <Link
+                  to={`/rental/properties/list?${new URLSearchParams({
+                    building_id: String(activeBuilding.id),
+                    ...(houseStatus ? { status: houseStatus } : {}),
+                  }).toString()}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="在新标签页打开"
+                  aria-label={`查看 ${activeBuilding.name} 的${houseStatus ? getMapPrimaryMetric(activeBuilding.counts, houseStatus).label : '全部'}房源列表`}
+                >
+                  <Space size={4}>
+                    <UnorderedListOutlined aria-hidden />
+                    <span>查看全部</span>
+                    <ExportOutlined aria-hidden style={{ fontSize: 11 }} />
+                  </Space>
+                </Link>
+              </Space>
+            </div>
+            {housesError ? (
+              <Alert
+                type="error"
+                showIcon
+                title="房源加载失败"
+                action={
+                  <Button size="small" onClick={onRetryHouses}>
+                    重新加载房源
+                  </Button>
+                }
+              />
+            ) : housesLoading ? (
+              <div
+                aria-hidden="true"
+                style={{ minHeight: 72, display: 'grid', placeItems: 'center' }}
+              >
+                <Spin size="small" />
+              </div>
+            ) : houses.length ? (
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {houses.map((house, index) => {
+                  const layout = housePrimaryLayoutText(house);
+                  return (
+                    <li
+                      key={house.id}
+                      style={{
+                        borderBottom:
+                          index < houses.length - 1
+                            ? `1px solid ${token.colorBorderSecondary}`
+                            : undefined,
+                      }}
+                    >
+                      <Link
+                        to={`/rental/properties/${house.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="在新标签页打开"
+                        aria-label={`查看房源 ${house.room_number || house.id}`}
+                        style={{
+                          display: 'block',
+                          marginInline: -8,
+                          padding: '10px 8px',
+                          borderRadius: token.borderRadiusLG,
+                          outline: 'none',
+                          color: 'inherit',
+                          textDecoration: 'none',
+                          transition:
+                            'background-color 120ms ease, box-shadow 120ms ease',
+                        }}
+                        onMouseEnter={(
+                          event: ReactMouseEvent<HTMLAnchorElement>,
+                        ) => {
+                          event.currentTarget.style.background =
+                            token.colorPrimaryBg;
+                        }}
+                        onMouseLeave={(
+                          event: ReactMouseEvent<HTMLAnchorElement>,
+                        ) => {
+                          if (document.activeElement !== event.currentTarget)
+                            event.currentTarget.style.background =
+                              'transparent';
+                        }}
+                        onFocus={(
+                          event: ReactFocusEvent<HTMLAnchorElement>,
+                        ) => {
+                          event.currentTarget.style.background =
+                            token.colorPrimaryBg;
+                          event.currentTarget.style.boxShadow = `0 0 0 2px ${token.colorPrimaryBorder}`;
+                        }}
+                        onBlur={(event: ReactFocusEvent<HTMLAnchorElement>) => {
+                          event.currentTarget.style.background = 'transparent';
+                          event.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                          }}
+                        >
+                          <Space size={4}>
+                            <HomeOutlined aria-hidden />
+                            <span style={{ fontWeight: 600 }}>
+                              {house.room_number || `房源 ${house.id}`}
+                            </span>
+                          </Space>
+                          <Space size={4}>
+                            <Typography.Text strong>
+                              {moneyText(house.asking_rent)} / 月
+                            </Typography.Text>
+                            <ExportOutlined
+                              aria-hidden
+                              style={{
+                                color: token.colorTextSecondary,
+                                fontSize: 11,
+                              }}
+                            />
+                          </Space>
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: 8,
+                            marginTop: 6,
+                          }}
+                        >
+                          <Space size={6} wrap>
+                            {house.floor != null ? (
+                              <Typography.Text type="secondary">
+                                {house.floor}层
+                              </Typography.Text>
+                            ) : null}
+                            {layout !== '-' ? (
+                              <Typography.Text type="secondary">
+                                {layout}
+                              </Typography.Text>
+                            ) : null}
+                            {house.area ? (
+                              <Typography.Text type="secondary">
+                                {house.area}㎡
+                              </Typography.Text>
+                            ) : null}
+                          </Space>
+                          <AppStatusTag name="house" state={house.status}>
+                            {house.status__mapping || house.status || '-'}
+                          </AppStatusTag>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="当前筛选下暂无房源"
+                styles={{ image: { height: 32 } }}
+              >
+                {houseStatus && onShowAllStatuses ? (
+                  <Button type="link" onClick={onShowAllStatuses}>
+                    查看全部房态
+                  </Button>
+                ) : null}
+              </Empty>
+            )}
+          </section>
+          <div
+            style={{
+              marginTop: 8,
+              paddingTop: 12,
+              borderTop: `1px solid ${token.colorBorderSecondary}`,
+            }}
+          >
+            <Space size={16} wrap>
+              <Link
+                to={`/rental/properties/buildings/${activeBuilding.id}?return_to=${encodeURIComponent(returnTo)}`}
+                target="_blank"
+                rel="noreferrer"
+                title="在新标签页打开"
+              >
+                <Space size={4}>
+                  <BankOutlined aria-hidden />
+                  <span>楼栋详情</span>
+                  <ExportOutlined aria-hidden style={{ fontSize: 11 }} />
                 </Space>
-              }
-              description={
-                <Space orientation="vertical" size={4}>
-                  <Typography.Text type="secondary">
-                    {item.estate?.display_name ||
-                      item.estate?.name ||
-                      '非小区楼栋'}{' '}
-                    · {item.address}
-                  </Typography.Text>
-                  <CountTags counts={item.counts} />
+              </Link>
+              <Link
+                to={`/rental/properties/list?building_id=${activeBuilding.id}&asset_tab=profile&asset_action=edit-building&return_to=${encodeURIComponent(returnTo)}`}
+                target="_blank"
+                rel="noreferrer"
+                title="在新标签页打开"
+              >
+                <Space size={4}>
+                  <EnvironmentOutlined aria-hidden />
+                  <span>编辑位置</span>
+                  <ExportOutlined aria-hidden style={{ fontSize: 11 }} />
                 </Space>
+              </Link>
+            </Space>
+          </div>
+        </section>
+      ) : (
+        <>
+          {contextName && onBackToAllResults ? (
+            <div
+              style={{
+                padding: '10px 12px',
+                borderBottom: `1px solid ${token.colorBorderSecondary}`,
+              }}
+            >
+              <Button
+                type="link"
+                size="small"
+                icon={<ArrowLeftOutlined />}
+                onClick={onBackToAllResults}
+                style={{ paddingInline: 0 }}
+              >
+                全部结果 / {contextName}
+              </Button>
+              <Typography.Text type="secondary" style={{ display: 'block' }}>
+                {located.length} 栋 ·{' '}
+                {taskSummaryText(summaryCounts, houseStatus)}
+              </Typography.Text>
+            </div>
+          ) : null}
+          {unlocatedError ? (
+            <Alert
+              type="error"
+              title="待定位任务加载失败"
+              showIcon
+              action={
+                <Button size="small" onClick={onRetryUnlocated}>
+                  重新加载
+                </Button>
               }
+              style={{ margin: 12 }}
             />
-          </List.Item>
-        )}
-      />
+          ) : null}
+          {showUnlocated && unlocatedTotal ? (
+            <div
+              style={{
+                padding: 12,
+                background: token.colorWarningBg,
+                borderBottom: `1px solid ${token.colorWarningBorder}`,
+              }}
+            >
+              <Typography.Text strong>
+                <Badge status="warning" /> 待定位楼栋 {unlocatedTotal}
+              </Typography.Text>
+              <ul style={{ margin: '8px 0', padding: 0, listStyle: 'none' }}>
+                {unlocated.slice(0, 5).map((item) => (
+                  <li
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      paddingBlock: 6,
+                    }}
+                  >
+                    <Space orientation="vertical" size={2} className="min-w-0">
+                      <Typography.Text strong>{item.name}</Typography.Text>
+                      <Typography.Text type="secondary" ellipsis>
+                        {item.estate?.display_name ||
+                          item.estate?.name ||
+                          '非小区楼栋'}{' '}
+                        · {item.address}
+                      </Typography.Text>
+                    </Space>
+                    <Link
+                      to={`/rental/properties/list?building_id=${item.id}&asset_tab=profile&asset_action=edit-building&return_to=${encodeURIComponent(returnTo)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="在新标签页打开"
+                    >
+                      <Space size={4}>
+                        <EnvironmentOutlined aria-hidden />
+                        <span>立即定位</span>
+                      </Space>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {unlocatedTotal > 5 ? (
+                <Link
+                  to={pendingListHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="在新标签页打开"
+                >
+                  <Space size={4}>
+                    <UnorderedListOutlined aria-hidden />
+                    <span>查看全部 {unlocatedTotal} 栋待定位楼栋</span>
+                  </Space>
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+          {locatedError ? (
+            <Alert
+              type="error"
+              title="楼栋结果加载失败"
+              showIcon
+              action={
+                <Button size="small" onClick={onRetryLocated}>
+                  重新加载
+                </Button>
+              }
+              style={{ margin: 12 }}
+            />
+          ) : null}
+          {truncated ? (
+            <Alert
+              type="info"
+              showIcon
+              title="当前区域楼栋较多"
+              description="继续放大地图可查看更完整的楼栋结果。"
+              style={{ margin: 12 }}
+            />
+          ) : null}
+          {!loading && !located.length ? (
+            <EmptyTaskState
+              keyword={keyword}
+              houseStatus={houseStatus}
+              onClearKeyword={onClearKeyword}
+              onShowAllStatuses={onShowAllStatuses}
+              onShowAllResults={onShowAllResults}
+            />
+          ) : (
+            <Spin spinning={loading}>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {sortedLocated.map((item) => {
+                  const metric = getMapPrimaryMetric(item.counts, houseStatus);
+                  return (
+                    <li key={item.id}>
+                      <button
+                        id={`building-map-result-${item.id}`}
+                        type="button"
+                        aria-pressed={selectedId === item.id}
+                        onClick={() => onSelect(item)}
+                        style={{
+                          display: 'flex',
+                          width: '100%',
+                          gap: 12,
+                          padding: 12,
+                          border: 0,
+                          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                          borderLeft:
+                            selectedId === item.id
+                              ? `3px solid ${token.colorPrimary}`
+                              : '3px solid transparent',
+                          background:
+                            selectedId === item.id
+                              ? token.colorPrimaryBg
+                              : 'transparent',
+                          color: 'inherit',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ marginTop: 3 }}>
+                          <AppIcon
+                            name="building"
+                            style={{
+                              color:
+                                selectedId === item.id
+                                  ? token.colorPrimary
+                                  : token.colorTextSecondary,
+                              fontSize: 18,
+                            }}
+                          />
+                        </span>
+                        <Space
+                          orientation="vertical"
+                          size={4}
+                          className="min-w-0 flex-1"
+                        >
+                          <Space>
+                            <Typography.Text strong>
+                              {item.name}
+                            </Typography.Text>
+                          </Space>
+                          <Typography.Text type="secondary" ellipsis>
+                            {item.estate?.display_name ||
+                              item.estate?.name ||
+                              '非小区楼栋'}{' '}
+                            · {item.address}
+                          </Typography.Text>
+                          <div>
+                            <Tag color="green">
+                              {metric.label} {metric.value} 套
+                            </Tag>
+                          </div>
+                        </Space>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Spin>
+          )}
+        </>
+      )}
     </Card>
   );
 }
