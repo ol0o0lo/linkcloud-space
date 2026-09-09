@@ -79,7 +79,36 @@ export const ResponsiveActions: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => (
   <Space size="small" wrap={false} style={{ whiteSpace: 'nowrap' }}>
-    {children}
+    {React.Children.map(children, (child) => {
+      if (
+        !React.isValidElement<React.AnchorHTMLAttributes<HTMLAnchorElement>>(
+          child,
+        ) ||
+        child.type !== 'a' ||
+        child.props.href ||
+        !child.props.onClick
+      ) {
+        return child;
+      }
+
+      const { children: label, onClick, ...props } = child.props;
+      return (
+        <Button
+          key={child.key}
+          type="link"
+          size="small"
+          className={props.className}
+          style={props.style}
+          title={props.title}
+          aria-label={props['aria-label']}
+          onClick={(event) =>
+            onClick(event as unknown as React.MouseEvent<HTMLAnchorElement>)
+          }
+        >
+          {label}
+        </Button>
+      );
+    })}
   </Space>
 );
 

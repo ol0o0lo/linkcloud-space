@@ -1,6 +1,8 @@
 import { CheckOutlined, LinkOutlined } from '@ant-design/icons';
+import { history, useAccess } from '@umijs/max';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Alert,
   Button,
   Card,
   Descriptions,
@@ -32,6 +34,7 @@ import {
   appsNotificationsApiPatchNotification,
   appsNotificationsApiUnreadCount,
 } from '@/services/openapi/notifications';
+import { SPACE_PATHS } from '@/utils/adminRouting';
 import { platformQueryKeys } from '../shared';
 
 const PAGE_SIZE = 10;
@@ -39,6 +42,11 @@ const PAGE_SIZE = 10;
 dayjs.extend(isToday);
 
 type ReadFilter = 'all' | 'unread' | 'read';
+type NotificationSearchState = {
+  detailId?: number;
+  page: number;
+  readFilter: ReadFilter;
+};
 type NotificationInsight = API.NotificationOut & {
   status_label: string;
   status_color: string;
@@ -72,11 +80,44 @@ function getFilterParam(filter: ReadFilter) {
   return undefined;
 }
 
+function positiveNumber(value: string | null) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function getNotificationSearchState(search: string): NotificationSearchState {
+  const params = new URLSearchParams(search);
+  const read = params.get('read');
+  return {
+    detailId: positiveNumber(params.get('notification_id')),
+    page: positiveNumber(params.get('page')) || 1,
+    readFilter: read === 'unread' || read === 'read' ? read : 'all',
+  };
+}
+
+function syncNotificationSearch(state: NotificationSearchState) {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('notification_id');
+  params.delete('page');
+  params.delete('read');
+  if (state.detailId) {
+    params.set('notification_id', String(state.detailId));
+  }
+  if (state.page > 1) params.set('page', String(state.page));
+  if (state.readFilter !== 'all') params.set('read', state.readFilter);
+  const nextSearch = params.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash || ''}`;
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }
+}
+
 function buildNotificationInsight(
   item: API.NotificationOut,
 ): NotificationInsight {
   const actorName = item.actor?.full_name || item.actor?.username;
-  const sourceLabel = actorName ? `来自 ${actorName}` : '系统触达';
+  const sourceLabel = actorName ? `来自 ${actorName}` : '系统通知';
   const createdAt = dayjs(item.created_at);
   const category = item.category || '';
   const categoryLabel = category.startsWith('team.task')
@@ -93,49 +134,77 @@ function buildNotificationInsight(
   if (!item.is_read) {
     return {
       ...item,
-      status_label: '待处理',
+      status_label: '未读',
       status_color: 'blue',
       status_summary: item.url
-        ? '通知仍未处理，且附带后续入口。'
-        : '通知仍未确认，当前主要作为提醒。',
+        ? '通知尚未阅读，可打开相关页面查看。'
+        : '通知尚未阅读。',
       source_label: sourceLabel,
       source_summary: actorName
-        ? '这条通知由明确用户触发，必要时可继续追溯来源。'
-        : '系统类通知主要用于平台提醒和公告。',
-      action_summary: item.url ? '可继续跳转处理' : '暂无后续跳转',
+        ? '这条通知由该用户触发。'
+        : '这条通知由系统自动发送。',
+      action_summary: item.url ? '可打开相关页面' : '无相关页面',
       category_label: categoryLabel,
       category_color: categoryColor,
       time_summary: createdAt.isToday()
-        ? `今天 ${createdAt.format('HH:mm')} 到达`
-        : `${createdAt.format('YYYY-MM-DD HH:mm')} 到达`,
+        ? `今天 ${createdAt.format('HH:mm')} 收到`
+        : `${createdAt.format('YYYY-MM-DD HH:mm')} 收到`,
     };
   }
 
   return {
     ...item,
-    status_label: '已确认',
+    status_label: '已读',
     status_color: 'default',
     status_summary: item.url
-      ? '通知已读，后续如需继续处理可从详情中的跳转入口进入。'
-      : '通知已经读过，目前主要保留为审计和回看依据。',
+      ? '通知已读，可再次打开相关页面查看。'
+      : '通知已读。',
     source_label: sourceLabel,
     source_summary: actorName
-      ? '来源清晰，后续需要时可以继续定位到具体用户。'
-      : '系统通知已经进入已读状态，可继续作为平台记录。',
-    action_summary: item.url ? '已读但可继续跳转' : '已读存档',
+      ? '这条通知由该用户触发。'
+      : '这条通知由系统自动发送。',
+    action_summary: item.url ? '可再次打开相关页面' : '无相关页面',
     category_label: categoryLabel,
     category_color: categoryColor,
     time_summary: createdAt.isToday()
-      ? `今天 ${createdAt.format('HH:mm')} 已确认`
-      : `${createdAt.format('YYYY-MM-DD HH:mm')} 已确认`,
+      ? `今天 ${createdAt.format('HH:mm')} 收到`
+      : `${createdAt.format('YYYY-MM-DD HH:mm')} 收到`,
   };
 }
 
 const NotificationsAdminPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [readFilter, setReadFilter] = useState<ReadFilter>('all');
-  const [detailId, setDetailId] = useState<number>();
+  const { canManageNotificationDispatches } = useAccess();
+  const initialSearchState = useMemo(
+    () => getNotificationSearchState(window.location.search),
+    [],
+  );
+  const [page, setPage] = useState(initialSearchState.page);
+  const [readFilter, setReadFilter] = useState<ReadFilter>(
+    initialSearchState.readFilter,
+  );
+  const [detailId, setDetailId] = useState<number | undefined>(
+    initialSearchState.detailId,
+  );
+
+  const updateSearchState = (next: Partial<NotificationSearchState>) => {
+    syncNotificationSearch({
+      detailId,
+      page,
+      readFilter,
+      ...next,
+    });
+  };
+
+  const openDetail = (id: number) => {
+    setDetailId(id);
+    updateSearchState({ detailId: id });
+  };
+
+  const closeDetail = () => {
+    setDetailId(undefined);
+    updateSearchState({ detailId: undefined });
+  };
 
   const notificationsQuery = useQuery({
     queryKey: platformQueryKeys.notifications(page, getFilterParam(readFilter)),
@@ -207,7 +276,7 @@ const NotificationsAdminPage: React.FC = () => {
       ),
     },
     {
-      title: '触达状态',
+      title: '阅读状态',
       dataIndex: 'status_label',
       width: 260,
       align: 'center',
@@ -221,7 +290,7 @@ const NotificationsAdminPage: React.FC = () => {
       ),
     },
     {
-      title: '来源与后续',
+      title: '来源与操作',
       dataIndex: 'source_label',
       width: 280,
       render: (_value, record) => (
@@ -237,7 +306,7 @@ const NotificationsAdminPage: React.FC = () => {
       ),
     },
     {
-      title: '到达时间',
+      title: '接收时间',
       dataIndex: 'created_at',
       width: 220,
       align: 'center',
@@ -257,17 +326,21 @@ const NotificationsAdminPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
-          <a
+          <Button
+            type="link"
+            size="small"
             onClick={() => {
-              setDetailId(record.id);
+              openDetail(record.id);
               if (!record.is_read) {
                 void patchMutation.mutateAsync({ id: record.id, isRead: true });
               }
             }}
           >
             详情
-          </a>
-          <a
+          </Button>
+          <Button
+            type="link"
+            size="small"
             onClick={() =>
               void patchMutation.mutateAsync({
                 id: record.id,
@@ -276,7 +349,7 @@ const NotificationsAdminPage: React.FC = () => {
             }
           >
             {record.is_read ? '标记未读' : '标记已读'}
-          </a>
+          </Button>
         </ResponsiveActions>
       ),
     },
@@ -287,7 +360,7 @@ const NotificationsAdminPage: React.FC = () => {
     : undefined;
 
   return (
-    <PageContainer title="通知管理">
+    <PageContainer title="通知中心">
       <Card
         extra={
           <AdminToolbar>
@@ -299,13 +372,19 @@ const NotificationsAdminPage: React.FC = () => {
               ]}
               value={readFilter}
               onChange={(value) => {
+                const nextReadFilter = value as ReadFilter;
                 setPage(1);
-                setReadFilter(value as ReadFilter);
+                setReadFilter(nextReadFilter);
+                updateSearchState({ page: 1, readFilter: nextReadFilter });
               }}
             />
-            <Button href="/dashboard/space/notification-dispatches">
-              查看通知分发
-            </Button>
+            {canManageNotificationDispatches ? (
+              <Button
+                onClick={() => history.push(SPACE_PATHS.notificationDispatches)}
+              >
+                查看发送记录
+              </Button>
+            ) : null}
             <Button
               type="primary"
               icon={<CheckOutlined />}
@@ -327,7 +406,22 @@ const NotificationsAdminPage: React.FC = () => {
             <div>
               <Typography.Text strong>通知列表</Typography.Text>
             </div>
-            {!notificationsQuery.isLoading && insights.length === 0 ? (
+            {notificationsQuery.isError ? (
+              <Alert
+                type="error"
+                showIcon
+                title="通知加载失败"
+                description="暂时无法取得通知列表，请检查网络后重新加载。"
+                action={
+                  <Button
+                    size="small"
+                    onClick={() => void notificationsQuery.refetch()}
+                  >
+                    重新加载
+                  </Button>
+                }
+              />
+            ) : !notificationsQuery.isLoading && insights.length === 0 ? (
               <Empty description="当前筛选下暂无通知" />
             ) : (
               <Table
@@ -340,7 +434,10 @@ const NotificationsAdminPage: React.FC = () => {
                   current: notificationsQuery.data?.page || page,
                   pageSize: notificationsQuery.data?.page_size || PAGE_SIZE,
                   total: notificationsQuery.data?.total || 0,
-                  onChange: setPage,
+                  onChange: (nextPage) => {
+                    setPage(nextPage);
+                    updateSearchState({ page: nextPage });
+                  },
                 }}
               />
             )}
@@ -351,7 +448,7 @@ const NotificationsAdminPage: React.FC = () => {
       <Drawer
         title="通知详情"
         open={Boolean(detailId)}
-        onClose={() => setDetailId(undefined)}
+        onClose={closeDetail}
         width={drawerWidthMd}
       >
         <Space direction="vertical" size={12} style={fullWidthStyle}>
@@ -359,7 +456,7 @@ const NotificationsAdminPage: React.FC = () => {
             <Descriptions.Item label="通知标题">
               {detailData?.title || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="触达状态">
+            <Descriptions.Item label="阅读状态">
               {detailData ? (
                 <Tag color={detailData.status_color}>
                   {detailData.status_label}
@@ -383,15 +480,15 @@ const NotificationsAdminPage: React.FC = () => {
             <Descriptions.Item label="来源说明">
               {detailData?.source_summary || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="后续动作">
+            <Descriptions.Item label="相关操作">
               {detailData?.action_summary || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="业务目标">
+            <Descriptions.Item label="关联对象">
               {detailData?.target_type && detailData.target_id
                 ? `${detailData.target_type} #${detailData.target_id}`
                 : '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="到达时间">
+            <Descriptions.Item label="接收时间">
               {detailData
                 ? dayjs(detailData.created_at).format('YYYY-MM-DD HH:mm')
                 : '-'}

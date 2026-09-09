@@ -59,7 +59,7 @@ describe('NotificationDispatchCreateModal', () => {
     expect(
       screen.getByText('将发送给「LAN 空间」的全部成员'),
     ).toBeInTheDocument();
-    expect(screen.queryByText('发送后可查看投递结果')).not.toBeInTheDocument();
+    expect(screen.queryByText('发送后可查看发送结果')).not.toBeInTheDocument();
   });
 
   it('为超级管理员提供全平台、指定空间和指定用户的范围', () => {

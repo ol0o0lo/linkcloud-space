@@ -363,7 +363,7 @@ describe('NotificationDispatchesPage', () => {
           dispatch_id: 1,
           management_context: 'tenant',
         });
-        expect(screen.getByText('分发详情')).toBeInTheDocument();
+        expect(screen.getByText('发送详情')).toBeInTheDocument();
         expect(screen.getByText('发送中')).toBeInTheDocument();
       });
     });

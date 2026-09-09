@@ -15,12 +15,21 @@ const {
   mockBulk,
   mockUnreadCount,
   mockGetNotification,
+  mockAccess,
+  mockHistoryPush,
 } = vi.hoisted(() => ({
   mockListNotifications: vi.fn(),
   mockPatchNotification: vi.fn(),
   mockBulk: vi.fn(),
   mockUnreadCount: vi.fn(),
   mockGetNotification: vi.fn(),
+  mockAccess: { canManageNotificationDispatches: true },
+  mockHistoryPush: vi.fn(),
+}));
+
+vi.mock('@umijs/max', () => ({
+  history: { push: mockHistoryPush },
+  useAccess: () => mockAccess,
 }));
 
 vi.mock('@/services/openapi/notifications', () => ({
@@ -51,6 +60,8 @@ describe('NotificationsAdminPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/personal-business/notifications');
+    mockAccess.canManageNotificationDispatches = true;
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -106,7 +117,10 @@ describe('NotificationsAdminPage', () => {
     const row = screen.getByText('系统通知').closest('tr');
     expect(row).not.toBeNull();
 
-    fireEvent.click(within(row!).getByText('详情'));
+    fireEvent.click(within(row!).getByRole('button', { name: '详情' }));
+    expect(new URLSearchParams(window.location.search).get('notification_id')).toBe(
+      '8',
+    );
     await waitFor(() =>
       expect(mockPatchNotification).toHaveBeenCalledWith(
         { notification_id: 8 },
@@ -130,7 +144,7 @@ describe('NotificationsAdminPage', () => {
       }),
     );
 
-    fireEvent.click(screen.getByText('未读'));
+    fireEvent.click(screen.getByTitle('未读'));
     await waitFor(() =>
       expect(mockListNotifications).toHaveBeenLastCalledWith({
         page: 1,
@@ -138,5 +152,67 @@ describe('NotificationsAdminPage', () => {
         is_read: 'false',
       }),
     );
+  });
+
+  it('加载失败时展示可重试错误而不是空状态', async () => {
+    mockListNotifications.mockRejectedValueOnce(new Error('network'));
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationsAdminPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('通知加载失败')).toBeInTheDocument();
+    expect(screen.queryByText('当前筛选下暂无通知')).not.toBeInTheDocument();
+
+    mockListNotifications.mockResolvedValueOnce({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 10,
+    });
+    fireEvent.click(screen.getByRole('button', { name: '重新加载' }));
+
+    await waitFor(() => expect(mockListNotifications).toHaveBeenCalledTimes(2));
+  });
+
+  it('没有发送通知权限时隐藏发送记录入口', async () => {
+    mockAccess.canManageNotificationDispatches = false;
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationsAdminPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('系统通知')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '查看发送记录' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('从 URL 恢复通知筛选、页码和详情', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/personal-business/notifications?page=2&read=unread&notification_id=8',
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationsAdminPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(mockListNotifications).toHaveBeenCalledWith({
+        page: 2,
+        page_size: 10,
+        is_read: 'false',
+      }),
+    );
+    expect(await screen.findByText('通知详情')).toBeInTheDocument();
+    expect(mockGetNotification).toHaveBeenCalledWith({ notification_id: 8 });
   });
 });

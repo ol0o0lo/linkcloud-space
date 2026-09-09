@@ -87,7 +87,7 @@ export function useNotificationDispatchEditor({
         payload,
       ),
     onSuccess: () => {
-      message.success('通知已提交，正在分发');
+      message.success('通知已提交，正在发送');
       onSuccess();
     },
   });

@@ -295,7 +295,7 @@ const NotificationDispatchesPage: React.FC = () => {
       ),
     },
     {
-      title: '投递结果',
+      title: '发送结果',
       dataIndex: 'target_count',
       width: 120,
       align: 'center',
@@ -304,7 +304,7 @@ const NotificationDispatchesPage: React.FC = () => {
           return <Typography.Text type="secondary">等待统计</Typography.Text>;
         }
         if (record.status === 'failed' && !record.target_count) {
-          return <Typography.Text type="danger">未完成投递</Typography.Text>;
+          return <Typography.Text type="danger">发送未完成</Typography.Text>;
         }
         return (
           <Space
@@ -362,7 +362,7 @@ const NotificationDispatchesPage: React.FC = () => {
 
   if (isTenantMode && tenantContextQuery.isLoading) {
     return (
-      <PageContainer title={isTenantMode ? '通知分发' : '平台通知广播'}>
+      <PageContainer title={isTenantMode ? '通知发送' : '平台通知广播'}>
         <Card loading />
       </PageContainer>
     );
@@ -370,12 +370,12 @@ const NotificationDispatchesPage: React.FC = () => {
 
   if (isTenantMode && !currentOrganization) {
     return (
-      <PageContainer title={isTenantMode ? '通知分发' : '平台通知广播'}>
+      <PageContainer title={isTenantMode ? '通知发送' : '平台通知广播'}>
         <Alert
           type="warning"
           showIcon
           title="请先选择空间"
-          description="选择空间后才能查看和创建该空间的通知分发。"
+          description="选择空间后才能查看和发送该空间的通知。"
         />
       </PageContainer>
     );
@@ -383,24 +383,24 @@ const NotificationDispatchesPage: React.FC = () => {
 
   if (!canManageDispatches) {
     return (
-      <PageContainer title={isTenantMode ? '通知分发' : '平台通知广播'}>
+      <PageContainer title={isTenantMode ? '通知发送' : '平台通知广播'}>
         <Alert
           type="warning"
           showIcon
-          title="仅空间所有者可以分发通知"
-          description="你仍可在通知中心查看收到的消息；如需分发通知，请联系空间所有者。"
+          title="仅空间所有者可以发送通知"
+          description="你仍可在通知中心查看收到的消息；如需发送通知，请联系空间所有者。"
         />
       </PageContainer>
     );
   }
 
   return (
-    <PageContainer title={isTenantMode ? '通知分发' : '平台通知广播'}>
+    <PageContainer title={isTenantMode ? '通知发送' : '平台通知广播'}>
       <Card>
         <ProTable<DispatchInsight>
           actionRef={tableActionRef}
           rowKey="id"
-          headerTitle="分发记录"
+          headerTitle="发送记录"
           columns={dispatchColumns}
           request={async (params: TablePageParams) => {
             const result = await appsNotificationsApiListDispatches({
@@ -452,7 +452,7 @@ const NotificationDispatchesPage: React.FC = () => {
         />
 
         <Drawer
-          title="分发详情"
+          title="发送详情"
           open={Boolean(detailId)}
           onClose={() => {
             setDetailId(undefined);
@@ -478,7 +478,7 @@ const NotificationDispatchesPage: React.FC = () => {
             <Alert
               type="error"
               showIcon
-              title="分发详情加载失败"
+              title="发送详情加载失败"
               description="请关闭后重试，或稍后刷新页面。"
             />
           ) : null}
@@ -521,7 +521,7 @@ const NotificationDispatchesPage: React.FC = () => {
                     <Typography.Text type="secondary">
                       {isDispatchActive(detailInsight.status)
                         ? '正在统计目标人数…'
-                        : '尚无投递结果'}
+                        : '尚无发送结果'}
                     </Typography.Text>
                   )}
                 </Space>
@@ -531,7 +531,7 @@ const NotificationDispatchesPage: React.FC = () => {
                 <Alert
                   type="error"
                   showIcon
-                  title="分发失败"
+                  title="发送失败"
                   description={detailQuery.data.error_message}
                 />
               ) : null}
@@ -541,7 +541,7 @@ const NotificationDispatchesPage: React.FC = () => {
                   {detailInsight.scope_label}
                 </Descriptions.Item>
                 {detailQuery.data.scope !== 'platform' ? (
-                  <Descriptions.Item label="目标 ID">
+                  <Descriptions.Item label="目标编号">
                     <div className={styles.targetTags}>
                       {(detailQuery.data.scope_ids || []).map((id) => (
                         <Tag key={id}>{id}</Tag>
