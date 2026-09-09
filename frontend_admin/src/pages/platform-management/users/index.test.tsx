@@ -283,7 +283,7 @@ describe('PlatformUsersPage', () => {
     fireEvent.click(within(userRow).getByText('设密码'));
     const passwordDialog = screen
       .getByText('设置 alice 的密码')
-      .closest('[role="dialog"]');
+      .closest('[role="dialog"]') as HTMLElement | null;
     if (!passwordDialog) {
       throw new Error('未找到设置密码弹窗');
     }
