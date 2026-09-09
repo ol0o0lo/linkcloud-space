@@ -6,8 +6,9 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.payments.constants import PaymentMode, PaymentStatus
+from apps.payments.exceptions import PaymentCallbackMismatchException, PaymentConfigurationException
 from apps.payments.models import PaymentTransaction
-from apps.payments.services import checkout_amount, create_payment, start_checkout
+from apps.payments.services import checkout_amount, create_payment, get_payment, query_payment, start_checkout
 from apps.subscriptions.constants import (
     MAX_SUBSCRIPTION_DAYS,
     MONTH_DAYS,
@@ -164,9 +165,47 @@ def _next_order_no() -> str:
     return f"S{_now():%Y%m%d%H%M%S}{secrets.token_hex(5).upper()}"
 
 
+def _notify_order_owners(order: SaaSOrder, *, title: str, body: str, event: str, provider_trade_no: str) -> None:
+    from apps.notifications.services import notify
+
+    owners = [member.user for member in order.organization.organizationmember_set.filter(is_owner=True).select_related("user")]
+    if owners:
+        notify(
+            owners,
+            title=title,
+            body=body,
+            url="/dashboard/space/subscription/orders",
+            organization=order.organization,
+            target=order,
+            category="subscription.billing",
+            data={"event": event, "order_no": order.order_no, "provider_trade_no": provider_trade_no},
+        )
+
+
 @transaction.atomic
-def create_purchase_order(*, organization, created_by, target_plan_code: str, billing_cycle: str, payment_mode: str) -> tuple[SaaSOrder, PaymentTransaction]:
+def create_purchase_order(
+    *,
+    organization,
+    created_by,
+    target_plan_code: str,
+    billing_cycle: str,
+    payment_mode: str,
+    idempotency_key: str = "",
+) -> tuple[SaaSOrder, PaymentTransaction]:
     """服务端按当前版本计算价格并生成唯一待支付订单。"""
+    from apps.organizations.models import Organization
+
+    organization = Organization.objects.select_for_update().get(pk=organization.pk)
+    idempotency_key = idempotency_key.strip()
+    if idempotency_key:
+        existing_order = SaaSOrder.objects.filter(organization=organization, idempotency_key=idempotency_key).first()
+        if existing_order is not None:
+            existing_payment = get_payment(biz_type="subscriptions.saas_order", biz_id=str(existing_order.pk))
+            if existing_payment is None:
+                raise SubscriptionRuleException("该下单请求尚未完成，请稍后重试。")
+            if existing_order.plan_snapshot.get("code") != target_plan_code or existing_order.billing_cycle != billing_cycle or existing_payment.payment_mode != payment_mode:
+                raise SubscriptionRuleException("同一幂等键不能用于不同的购买请求。")
+            return existing_order, existing_payment
     if billing_cycle not in BillingCycle.values:
         raise SubscriptionRuleException("不支持的付款周期。")
     if payment_mode not in PaymentMode.values:
@@ -189,6 +228,7 @@ def create_purchase_order(*, organization, created_by, target_plan_code: str, bi
     order = SaaSOrder.objects.create(
         organization=organization,
         order_no=_next_order_no(),
+        idempotency_key=idempotency_key,
         order_type=order_type,
         target_plan=plan,
         billing_cycle=billing_cycle,
@@ -314,6 +354,13 @@ def fulfill_saas_order_payment(*, payment: PaymentTransaction) -> None:
         payment.status = PaymentStatus.EXCEPTION
         payment.save(update_fields=["status", "updated_at"])
         audit(action="late_payment_requires_manual_refund", organization=order.organization, target=order, after={"provider_trade_no": payment.provider_trade_no})
+        _notify_order_owners(
+            order,
+            title="发现异常支付，请处理退款",
+            body=f"订单 {order.order_no} 已关闭，但微信渠道仍确认收款，请尽快核对并完成退款。",
+            event="payment_exception",
+            provider_trade_no=payment.provider_trade_no or "",
+        )
         return
     if order.status not in {OrderStatus.PENDING_PAYMENT, OrderStatus.CLOSED}:
         raise SubscriptionRuleException("当前订单不能确认支付。")
@@ -327,17 +374,82 @@ def fulfill_saas_order_payment(*, payment: PaymentTransaction) -> None:
     order.closed_at = None
     order.save(update_fields=["status", "paid_at", "close_reason", "closed_at", "updated_at"])
     audit(action="payment_succeeded", organization=order.organization, target=order, after={"provider_trade_no": payment.provider_trade_no, "subscription_id": subscription.pk})
+    _notify_order_owners(
+        order,
+        title="订阅支付成功",
+        body=f"订单 {order.order_no} 已支付成功，{order.plan_snapshot.get('name', '付费套餐')}权益已生效。",
+        event="payment_succeeded",
+        provider_trade_no=payment.provider_trade_no or "",
+    )
 
 
-@transaction.atomic
 def close_expired_orders(*, now=None) -> int:
     now = now or _now()
-    return SaaSOrder.objects.filter(status=OrderStatus.PENDING_PAYMENT, expires_at__lte=now).update(
-        status=OrderStatus.CLOSED,
-        close_reason=OrderCloseReason.TIMEOUT,
+    order_ids = list(SaaSOrder.objects.filter(status=OrderStatus.PENDING_PAYMENT, expires_at__lte=now).values_list("pk", flat=True))
+    count = 0
+    for order_id in order_ids:
+        order = SaaSOrder.objects.get(pk=order_id)
+        payment = get_payment(biz_type="subscriptions.saas_order", biz_id=str(order.pk))
+        if payment is not None and payment.status == PaymentStatus.PENDING:
+            try:
+                order, payment = reconcile_saas_order_payment(order=order, payment=payment)
+            except (PaymentConfigurationException, PaymentCallbackMismatchException):
+                continue
+        if order.status != OrderStatus.PENDING_PAYMENT:
+            continue
+        with transaction.atomic():
+            locked_order = SaaSOrder.objects.select_for_update().get(pk=order_id)
+            if locked_order.status != OrderStatus.PENDING_PAYMENT or locked_order.expires_at > now:
+                continue
+            locked_order.status = OrderStatus.CLOSED
+            locked_order.close_reason = OrderCloseReason.TIMEOUT
+            locked_order.closed_at = now
+            locked_order.save(update_fields=["status", "close_reason", "closed_at", "updated_at"])
+            from apps.subscriptions.tasks import close_saas_order_in_wechat_task
+
+            transaction.on_commit(lambda order_id=order_id: close_saas_order_in_wechat_task.delay(order_id))
+            count += 1
+    return count
+
+
+def reconcile_saas_order_payment(*, order: SaaSOrder, payment: PaymentTransaction | None = None) -> tuple[SaaSOrder, PaymentTransaction | None]:
+    payment = payment or get_payment(biz_type="subscriptions.saas_order", biz_id=str(order.pk))
+    if payment is None:
+        return order, None
+    payment = query_payment(payment)
+    order.refresh_from_db()
+    if payment.status != PaymentStatus.FAILED or order.status != OrderStatus.PENDING_PAYMENT:
+        return order, payment
+    now = _now()
+    updated = SaaSOrder.objects.filter(pk=order.pk, status=OrderStatus.PENDING_PAYMENT).update(
+        status=OrderStatus.PAYMENT_FAILED,
+        close_reason=OrderCloseReason.PROVIDER_FAILED,
         closed_at=now,
         updated_at=now,
     )
+    if updated:
+        audit(
+            action="payment_failed",
+            organization=order.organization,
+            target=order,
+            after={"payment_status": payment.status, "response_snapshot": payment.response_snapshot},
+        )
+    order.refresh_from_db()
+    return order, payment
+
+
+def reconcile_pending_saas_order_payments(*, now=None) -> int:
+    now = now or _now()
+    order_ids = list(SaaSOrder.objects.filter(status=OrderStatus.PENDING_PAYMENT, expires_at__gt=now).order_by("expires_at", "pk").values_list("pk", flat=True))
+    reconciled = 0
+    for order_id in order_ids:
+        order = SaaSOrder.objects.get(pk=order_id)
+        try:
+            reconcile_saas_order_payment(order=order)
+        except (PaymentConfigurationException, PaymentCallbackMismatchException):
+            continue
+        reconciled += 1
+    return reconciled
 
 
 @transaction.atomic
@@ -353,7 +465,9 @@ def expire_subscriptions(*, now=None) -> int:
 @transaction.atomic
 def refund_order(*, order: SaaSOrder, operator, amount: int, reason: str, proof: str, subscription_action: str) -> SaaSOrder:
     order = SaaSOrder.objects.select_for_update().get(pk=order.pk)
-    if order.status != OrderStatus.PAID:
+    payment = get_payment(biz_type="subscriptions.saas_order", biz_id=str(order.pk))
+    is_late_payment_exception = order.status == OrderStatus.CLOSED and payment is not None and payment.status == PaymentStatus.EXCEPTION
+    if order.status != OrderStatus.PAID and not is_late_payment_exception:
         raise SubscriptionRuleException("仅已支付订单可以退款。")
     if order.refund_status != RefundStatus.NONE:
         raise SubscriptionRuleException("每笔订单仅允许退款一次。")
@@ -361,6 +475,16 @@ def refund_order(*, order: SaaSOrder, operator, amount: int, reason: str, proof:
         raise SubscriptionRuleException("退款金额必须大于零且不超过实付金额。")
     if subscription_action not in RefundSubscriptionAction.values:
         raise SubscriptionRuleException("请选择退款后的订阅处理方式。")
+    if is_late_payment_exception:
+        if not proof.strip():
+            raise SubscriptionRuleException("异常支付退款必须填写退款凭证。")
+        if subscription_action != RefundSubscriptionAction.KEEP:
+            raise SubscriptionRuleException("异常支付退款必须保留当前订阅。")
+    subscription = None
+    if subscription_action == RefundSubscriptionAction.END:
+        subscription = Subscription.objects.select_for_update().filter(organization=order.organization, status__in=[SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE]).first()
+        if subscription is not None and subscription.source_order_id != order.pk:
+            raise SubscriptionRuleException("该历史订单不是当前生效订阅的来源，不能结束当前生效订阅。")
     now = _now()
     order.refund_status = RefundStatus.FULL if amount == order.payable_amount else RefundStatus.PARTIAL
     order.refunded_amount = amount
@@ -381,14 +505,21 @@ def refund_order(*, order: SaaSOrder, operator, amount: int, reason: str, proof:
             "updated_at",
         ]
     )
-    if subscription_action == RefundSubscriptionAction.END:
-        Subscription.objects.filter(organization=order.organization, status__in=[SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE]).update(
+    if subscription is not None:
+        Subscription.objects.filter(pk=subscription.pk).update(
             status=SubscriptionStatus.ENDED,
             ends_at=now,
             ended_at=now,
             updated_at=now,
         )
     audit(action="order_refunded", organization=order.organization, target=order, actor=operator, after={"amount": amount, "action": subscription_action})
+    _notify_order_owners(
+        order,
+        title="订阅订单退款已登记",
+        body=f"订单 {order.order_no} 已登记退款 {amount / 100:.2f} 元，请结合退款凭证核对实际到账情况。",
+        event="refund_registered",
+        provider_trade_no=payment.provider_trade_no if payment else "",
+    )
     return order
 
 

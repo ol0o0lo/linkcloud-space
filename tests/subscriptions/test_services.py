@@ -7,12 +7,22 @@ from django.utils import timezone
 import pytest
 from model_bakery import baker
 
+from apps.notifications.models import Notification
 from apps.payments.constants import PaymentMode, PaymentStatus
+from apps.payments.exceptions import PaymentConfigurationException
 from apps.payments.services import mark_payment_succeeded
-from apps.subscriptions.constants import BillingCycle, OrderCloseReason, OrderStatus, OrderType, SubscriptionStatus
+from apps.subscriptions.constants import BillingCycle, OrderCloseReason, OrderStatus, OrderType, RefundSubscriptionAction, SubscriptionStatus
 from apps.subscriptions.entitlements import Entitlement, EntitlementService
-from apps.subscriptions.models import Plan, PlanEntitlement, PlanPrice, Subscription
-from apps.subscriptions.services import create_purchase_order, grant_trial, initiate_wechat_payment
+from apps.subscriptions.exceptions import SubscriptionRuleException
+from apps.subscriptions.models import Plan, PlanEntitlement, PlanPrice, SaaSOrder, Subscription
+from apps.subscriptions.services import (
+    close_expired_orders,
+    create_purchase_order,
+    grant_trial,
+    initiate_wechat_payment,
+    reconcile_pending_saas_order_payments,
+    refund_order,
+)
 
 
 @pytest.fixture
@@ -91,6 +101,32 @@ def test_purchase_order_uses_test_amount_for_order_and_payment(plans):
     assert payment.amount == 1
 
 
+def test_purchase_order_reuses_same_organization_idempotency_key(plans):
+    organization = baker.make("organizations.Organization")
+    user = baker.make("accounts.User")
+
+    first_order, first_payment = create_purchase_order(
+        organization=organization,
+        created_by=user,
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+        idempotency_key="checkout-attempt-001",
+    )
+    second_order, second_payment = create_purchase_order(
+        organization=organization,
+        created_by=user,
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+        idempotency_key="checkout-attempt-001",
+    )
+
+    assert second_order.pk == first_order.pk
+    assert second_payment.pk == first_payment.pk
+    assert SaaSOrder.objects.filter(organization=organization).count() == 1
+
+
 def test_same_plan_renewal_extends_from_current_end_and_refreshes_current_entitlement(plans):
     organization = baker.make("organizations.Organization")
     starts_at = timezone.now() - timedelta(days=5)
@@ -122,6 +158,25 @@ def test_same_plan_renewal_extends_from_current_end_and_refreshes_current_entitl
     assert order.order_type == OrderType.RENEWAL
     assert subscription.ends_at == expected_start + timedelta(days=30)
     assert subscription.entitlement_snapshot["member_limit"] == 35
+
+
+def test_successful_payment_notifies_organization_owner(plans):
+    owner = baker.make("accounts.User")
+    organization = baker.make("organizations.Organization", created_by=owner)
+    baker.make("organizations.OrganizationMember", organization=organization, user=owner, is_owner=True)
+    order, payment = create_purchase_order(
+        organization=organization,
+        created_by=owner,
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+    )
+
+    mark_payment_succeeded(transaction_no=payment.transaction_no, provider_trade_no="wechat-notify-success", callback_event_id="event-notify-success")
+
+    notification = Notification.objects.get(recipient=owner, category="subscription.billing", target_object_id=order.pk)
+    assert notification.title == "订阅支付成功"
+    assert notification.data["event"] == "payment_succeeded"
 
 
 def test_upgrade_uses_remaining_period_credit_and_immediately_replaces_plan(plans):
@@ -182,6 +237,122 @@ def test_closed_order_late_payment_is_recorded_without_changing_subscription(pla
     assert payment.provider_trade_no == "wechat-late-1"
 
 
+def test_late_payment_exception_notifies_organization_owner(plans):
+    owner = baker.make("accounts.User")
+    organization = baker.make("organizations.Organization", created_by=owner)
+    baker.make("organizations.OrganizationMember", organization=organization, user=owner, is_owner=True)
+    order, payment = create_purchase_order(
+        organization=organization,
+        created_by=owner,
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+    )
+    order.status = OrderStatus.CLOSED
+    order.close_reason = OrderCloseReason.USER_CANCELLED
+    order.closed_at = timezone.now()
+    order.save(update_fields=["status", "close_reason", "closed_at", "updated_at"])
+
+    mark_payment_succeeded(transaction_no=payment.transaction_no, provider_trade_no="wechat-notify-late", callback_event_id="event-notify-late")
+
+    notification = Notification.objects.get(recipient=owner, category="subscription.billing", target_object_id=order.pk)
+    assert notification.title == "发现异常支付，请处理退款"
+    assert notification.data["event"] == "payment_exception"
+
+
+def test_late_payment_can_only_be_refunded_with_proof_and_without_ending_subscription(plans):
+    owner = baker.make("accounts.User")
+    organization = baker.make("organizations.Organization", created_by=owner)
+    baker.make("organizations.OrganizationMember", organization=organization, user=owner, is_owner=True)
+    operator = baker.make("accounts.User")
+    order, payment = create_purchase_order(
+        organization=organization,
+        created_by=operator,
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+    )
+    order.status = OrderStatus.CLOSED
+    order.close_reason = OrderCloseReason.USER_CANCELLED
+    order.closed_at = timezone.now()
+    order.save(update_fields=["status", "close_reason", "closed_at", "updated_at"])
+    mark_payment_succeeded(transaction_no=payment.transaction_no, provider_trade_no="wechat-late-refund", callback_event_id="event-late-refund")
+
+    with pytest.raises(SubscriptionRuleException, match="退款凭证"):
+        refund_order(
+            order=order,
+            operator=operator,
+            amount=order.payable_amount,
+            reason="迟到付款原路退回",
+            proof="",
+            subscription_action=RefundSubscriptionAction.KEEP,
+        )
+    with pytest.raises(SubscriptionRuleException, match="保留当前订阅"):
+        refund_order(
+            order=order,
+            operator=operator,
+            amount=order.payable_amount,
+            reason="迟到付款原路退回",
+            proof="WX-REFUND-001",
+            subscription_action=RefundSubscriptionAction.END,
+        )
+
+    result = refund_order(
+        order=order,
+        operator=operator,
+        amount=order.payable_amount,
+        reason="迟到付款原路退回",
+        proof="WX-REFUND-001",
+        subscription_action=RefundSubscriptionAction.KEEP,
+    )
+
+    assert result.refund_status == "full"
+    assert result.refund_proof == "WX-REFUND-001"
+    assert Subscription.objects.filter(organization=organization).exists() is False
+    refund_notification = Notification.objects.get(recipient=owner, data__event="refund_registered")
+    assert refund_notification.title == "订阅订单退款已登记"
+    assert refund_notification.data["order_no"] == order.order_no
+
+
+def test_refunding_historical_order_cannot_end_newer_subscription(plans):
+    organization = baker.make("organizations.Organization")
+    operator = baker.make("accounts.User")
+    historical_order = baker.make(
+        "subscriptions.SaaSOrder",
+        organization=organization,
+        target_plan=plans["professional"],
+        status=OrderStatus.PAID,
+        payable_amount=29900,
+    )
+    current_order = baker.make(
+        "subscriptions.SaaSOrder",
+        organization=organization,
+        target_plan=plans["enterprise"],
+        status=OrderStatus.PAID,
+        payable_amount=69900,
+    )
+    subscription = baker.make(
+        Subscription,
+        organization=organization,
+        source_order=current_order,
+        status=SubscriptionStatus.ACTIVE,
+        ends_at=timezone.now() + timedelta(days=30),
+    )
+
+    with pytest.raises(SubscriptionRuleException, match="当前生效订阅"):
+        refund_order(
+            order=historical_order,
+            operator=operator,
+            amount=29900,
+            reason="历史订单退款",
+            proof="WX-REFUND-002",
+            subscription_action=RefundSubscriptionAction.END,
+        )
+
+    subscription.refresh_from_db()
+    assert subscription.status == SubscriptionStatus.ACTIVE
+
+
 def test_native_payment_initialization_persists_wechat_code_url(plans):
     organization = baker.make("organizations.Organization")
     order, payment = create_purchase_order(
@@ -201,3 +372,98 @@ def test_native_payment_initialization_persists_wechat_code_url(plans):
     assert checkout["code_url"].startswith("weixin://")
     assert payment.request_snapshot["out_trade_no"] == payment.transaction_no
     assert payment.response_snapshot["code_url"].startswith("weixin://")
+
+
+def test_expired_order_waits_for_successful_wechat_query_before_closing(plans):
+    organization = baker.make("organizations.Organization")
+    order, _payment = create_purchase_order(
+        organization=organization,
+        created_by=baker.make("accounts.User"),
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+    )
+    now = timezone.now()
+    order.expires_at = now - timedelta(minutes=1)
+    order.save(update_fields=["expires_at", "updated_at"])
+
+    with (
+        patch("apps.subscriptions.services.query_payment", side_effect=PaymentConfigurationException("微信查单暂不可用"), create=True),
+        patch("apps.subscriptions.tasks.close_saas_order_in_wechat_task.delay") as close_payment_task,
+    ):
+        closed_count = close_expired_orders(now=now)
+
+    order.refresh_from_db()
+    assert closed_count == 0
+    assert order.status == OrderStatus.PENDING_PAYMENT
+    close_payment_task.assert_not_called()
+
+
+def test_expired_order_uses_wechat_failed_result_instead_of_timeout(plans):
+    organization = baker.make("organizations.Organization")
+    order, payment = create_purchase_order(
+        organization=organization,
+        created_by=baker.make("accounts.User"),
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+    )
+    now = timezone.now()
+    order.expires_at = now - timedelta(minutes=1)
+    order.save(update_fields=["expires_at", "updated_at"])
+
+    def mark_failed(current_payment):
+        current_payment.status = PaymentStatus.FAILED
+        current_payment.save(update_fields=["status", "updated_at"])
+        return current_payment
+
+    with (
+        patch("apps.subscriptions.services.query_payment", side_effect=mark_failed, create=True),
+        patch("apps.subscriptions.tasks.close_saas_order_in_wechat_task.delay") as close_payment_task,
+    ):
+        closed_count = close_expired_orders(now=now)
+
+    order.refresh_from_db()
+    assert closed_count == 0
+    assert order.status == OrderStatus.PAYMENT_FAILED
+    assert order.close_reason == OrderCloseReason.PROVIDER_FAILED
+    close_payment_task.assert_not_called()
+
+
+def test_pending_reconciliation_recovers_paid_order_without_callback(plans):
+    owner = baker.make("accounts.User")
+    organization = baker.make("organizations.Organization", created_by=owner)
+    baker.make("organizations.OrganizationMember", organization=organization, user=owner, is_owner=True)
+    order, payment = create_purchase_order(
+        organization=organization,
+        created_by=owner,
+        target_plan_code="professional",
+        billing_cycle=BillingCycle.MONTH,
+        payment_mode=PaymentMode.NATIVE,
+    )
+    client = Mock()
+    client.query_payment.return_value = {
+        "state": "SUCCESS",
+        "transaction_no": payment.transaction_no,
+        "provider_trade_no": "wx-reconciled-success",
+        "reported_amount": payment.amount,
+        "currency": "CNY",
+        "mch_id": "1900000109",
+        "app_id": "wx-native",
+        "paid_at": timezone.now(),
+        "response_snapshot": {"trade_state": "SUCCESS"},
+    }
+
+    with (
+        override_settings(PAYMENTS_WECHAT_MCH_ID="1900000109", PAYMENTS_WECHAT_NATIVE_APP_ID="wx-native"),
+        patch("apps.payments.services.build_wechat_config"),
+        patch("apps.payments.services.WechatPayClient", return_value=client),
+    ):
+        reconciled = reconcile_pending_saas_order_payments()
+
+    order.refresh_from_db()
+    payment.refresh_from_db()
+    assert reconciled == 1
+    assert order.status == OrderStatus.PAID
+    assert payment.status == PaymentStatus.SUCCEEDED
+    assert Subscription.objects.filter(organization=organization, source_order=order, status=SubscriptionStatus.ACTIVE).exists()

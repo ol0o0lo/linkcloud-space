@@ -538,6 +538,13 @@ MEDIA_REFERENCE_PROVIDERS: list[str] = [
 # here as downstream apps introduce notification subjects.
 NOTIFICATIONS_CATEGORIES: list[dict] = [
     {
+        "key": "subscription.billing",
+        "label": "订阅与支付",
+        "description": "支付结果、异常支付、订阅临期和到期等关键账务通知。",
+        "default_channels": ("in_app",),
+        "required_channels": ("in_app",),
+    },
+    {
         "key": "allocation.status",
         "label": "收益分配状态",
         "description": "分配申请审核不通过、过期或作废通知。",

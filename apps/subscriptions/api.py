@@ -29,7 +29,7 @@ from apps.subscriptions.schemas import (
     RefundIn,
     SaaSOrderOut,
 )
-from apps.subscriptions.services import cancel_purchase_order, create_purchase_order, initiate_wechat_payment, refund_order
+from apps.subscriptions.services import cancel_purchase_order, create_purchase_order, initiate_wechat_payment, reconcile_saas_order_payment, refund_order
 
 router = Router(tags=["SaaS 订阅/组织"])
 admin_router = Router(tags=["SaaS 订阅/平台管理"])
@@ -57,9 +57,19 @@ class InvoiceRequestPagination(LegacyPagination):
         return result
 
 
+class AdminInvoiceRequestPagination(LegacyPagination):
+    def paginate_queryset(self, queryset, pagination, **params) -> dict:
+        result = super().paginate_queryset(queryset, pagination, **params)
+        result["items"] = [_serialize_invoice_request(invoice_request, include_profile_snapshot=True) for invoice_request in result["items"]]
+        return result
+
+
 def _require_subscription_permission(request, permission: str):
     org = require_org_selected(request)
-    if org.is_owner(request.user) or has_permission(request.user, org, permission):
+    accepted_permissions = [permission]
+    if permission == SubscriptionPermission.VIEW:
+        accepted_permissions.append(SubscriptionPermission.MANAGE)
+    if org.is_owner(request.user) or any(has_permission(request.user, org, accepted_permission) for accepted_permission in accepted_permissions):
         return org
     raise PermissionDenied("没有订阅管理权限。")
 
@@ -67,6 +77,27 @@ def _require_subscription_permission(request, permission: str):
 def _serialize_order(order: SaaSOrder, *, payment=_PAYMENT_NOT_LOADED) -> dict:
     if payment is _PAYMENT_NOT_LOADED:
         payment = get_payment(biz_type="subscriptions.saas_order", biz_id=str(order.pk))
+    payment_data = None
+    if payment:
+        payment_data = {
+            "payment_mode": payment.payment_mode,
+            "status": payment.status,
+            "transaction_no": payment.transaction_no,
+            "provider_trade_no": payment.provider_trade_no or "",
+            "amount": payment.amount,
+            "paid_at": payment.paid_at,
+            "expires_at": payment.expires_at,
+        }
+        code_url = payment.response_snapshot.get("code_url")
+        if (
+            code_url
+            and payment.payment_mode == PaymentMode.NATIVE
+            and payment.status == "pending"
+            and order.status == OrderStatus.PENDING_PAYMENT
+            and payment.expires_at > timezone.now()
+        ):
+            payment_data["checkout"] = {"code_url": code_url}
+    invoice_request = getattr(order, "invoice_request", None)
     return {
         "id": order.pk,
         "organization_id": order.organization_id,
@@ -86,8 +117,20 @@ def _serialize_order(order: SaaSOrder, *, payment=_PAYMENT_NOT_LOADED) -> dict:
         "paid_at": order.paid_at,
         "refund_status": order.refund_status,
         "refunded_amount": order.refunded_amount,
+        "refund_reason": order.refund_reason,
+        "refund_proof": order.refund_proof,
+        "refund_subscription_action": order.refund_subscription_action,
+        "refunded_at": order.refunded_at,
         "created_at": order.created_at,
-        "payment": {"payment_mode": payment.payment_mode, "status": payment.status, "transaction_no": payment.transaction_no} if payment else None,
+        "payment": payment_data,
+        "invoice": {
+            "id": invoice_request.pk,
+            "status": invoice_request.status,
+            "invoice_number": invoice_request.invoice_number,
+            "file_url": invoice_request.file_url,
+        }
+        if invoice_request
+        else None,
     }
 
 
@@ -167,9 +210,16 @@ def create_order(request, payload: PurchaseOrderIn):
         target_plan_code=payload.target_plan_code,
         billing_cycle=payload.billing_cycle,
         payment_mode=payload.payment_mode,
+        idempotency_key=payload.idempotency_key,
     )
     data = _serialize_order(order, payment=payment)
-    if is_wechat_checkout_enabled():
+    if (
+        is_wechat_checkout_enabled()
+        and order.status == OrderStatus.PENDING_PAYMENT
+        and payment.status == "pending"
+        and payment.expires_at > timezone.now()
+        and not data["payment"].get("checkout")
+    ):
         data["payment"]["checkout"] = initiate_wechat_payment(order=order, payment=payment, user=request.user)
     return Status(201, data)
 
@@ -178,7 +228,7 @@ def create_order(request, payload: PurchaseOrderIn):
 @paginate(OrderPagination)
 def list_orders(request):
     org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
-    return SaaSOrder.objects.filter(organization=org, status=OrderStatus.PAID).order_by("-created_at", "-pk")
+    return SaaSOrder.objects.filter(organization=org).select_related("organization", "target_plan", "invoice_request").order_by("-created_at", "-pk")
 
 
 @router.get("/orders/{order_no}/", response=SaaSOrderOut, summary="轮询支付订单状态")
@@ -194,9 +244,34 @@ def cancel_order(request, order_no: str):
     return _serialize_order(cancel_purchase_order(order=order, actor=request.user))
 
 
+@router.post("/orders/{order_no}/checkout/", response=SaaSOrderOut, summary="继续待支付订单")
+def checkout_order(request, order_no: str):
+    org = _require_subscription_permission(request, SubscriptionPermission.MANAGE)
+    order = get_object_or_404(SaaSOrder, organization=org, order_no=order_no)
+    payment = get_object_or_404(PaymentTransaction, biz_type="subscriptions.saas_order", biz_id=str(order.pk))
+    if order.status != OrderStatus.PENDING_PAYMENT or payment.status != "pending" or payment.expires_at <= timezone.now():
+        raise SubscriptionRuleException("当前订单已失效，不能继续支付。")
+    data = _serialize_order(order, payment=payment)
+    if data["payment"].get("checkout"):
+        return data
+    if not is_wechat_checkout_enabled():
+        raise SubscriptionRuleException("微信支付暂未启用，请联系平台管理员。")
+    data["payment"]["checkout"] = initiate_wechat_payment(order=order, payment=payment, user=request.user)
+    return data
+
+
+@router.post("/orders/{order_no}/refresh-payment/", response=SaaSOrderOut, summary="主动查询支付订单状态")
+def refresh_order_payment(request, order_no: str):
+    org = _require_subscription_permission(request, SubscriptionPermission.MANAGE)
+    order = get_object_or_404(SaaSOrder, organization=org, order_no=order_no)
+    payment = get_object_or_404(PaymentTransaction, biz_type="subscriptions.saas_order", biz_id=str(order.pk))
+    order, payment = reconcile_saas_order_payment(order=order, payment=payment)
+    return _serialize_order(order, payment=payment)
+
+
 @router.get("/invoice-profile/", response=InvoiceProfileOut | None, summary="获取开票资料")
 def get_invoice_profile(request):
-    org = _require_subscription_permission(request, SubscriptionPermission.VIEW)
+    org = _require_subscription_permission(request, SubscriptionPermission.MANAGE)
     profile = OrganizationInvoiceProfile.objects.filter(organization=org).first()
     if profile is None:
         return None
@@ -232,7 +307,7 @@ def create_invoice_request(request, payload: InvoiceRequestIn):
     return Status(201, _serialize_invoice_request(invoice_request))
 
 
-def _serialize_invoice_request(invoice_request: InvoiceRequest) -> dict:
+def _serialize_invoice_request(invoice_request: InvoiceRequest, *, include_profile_snapshot: bool = False) -> dict:
     order = invoice_request.order
     return {
         "id": invoice_request.pk,
@@ -244,7 +319,7 @@ def _serialize_invoice_request(invoice_request: InvoiceRequest) -> dict:
         "target_plan_code": order.plan_snapshot.get("code", ""),
         "target_plan_name": order.plan_snapshot.get("name") or order.target_plan.name,
         "status": invoice_request.status,
-        "profile_snapshot": invoice_request.profile_snapshot,
+        "profile_snapshot": invoice_request.profile_snapshot if include_profile_snapshot else {},
         "invoice_number": invoice_request.invoice_number,
         "issued_at": invoice_request.issued_at,
         "file_url": invoice_request.file_url,
@@ -285,7 +360,7 @@ def admin_refund_order(request, order_id: int, payload: RefundIn):
 
 
 @admin_router.get("/invoice-requests/", response=list[InvoiceRequestOut], summary="平台查看开票申请")
-@paginate(InvoiceRequestPagination)
+@paginate(AdminInvoiceRequestPagination)
 def admin_list_invoice_requests(request):
     require_superuser(request)
     return InvoiceRequest.objects.select_related("order__organization", "order__target_plan").order_by("-created_at", "-pk")
@@ -296,7 +371,11 @@ def admin_process_invoice_request(request, invoice_request_id: int, payload: Inv
     require_superuser(request)
     if payload.status not in InvoiceStatus.values:
         raise SubscriptionRuleException("不支持的开票状态。")
-    invoice_request = get_object_or_404(InvoiceRequest, pk=invoice_request_id)
+    invoice_request = get_object_or_404(
+        InvoiceRequest.objects.select_related("created_by", "order__organization"),
+        pk=invoice_request_id,
+    )
+    previous_status = invoice_request.status
     invoice_request.status = payload.status
     invoice_request.invoice_number = payload.invoice_number
     invoice_request.file_url = payload.file_url
@@ -304,4 +383,26 @@ def admin_process_invoice_request(request, invoice_request_id: int, payload: Inv
     invoice_request.processed_by = request.user
     invoice_request.issued_at = timezone.now() if payload.status == InvoiceStatus.ISSUED else None
     invoice_request.save()
-    return _serialize_invoice_request(invoice_request)
+    if previous_status != payload.status and payload.status in {InvoiceStatus.ISSUED, InvoiceStatus.REJECTED}:
+        from apps.notifications.services import notify
+
+        recipients = {member.user_id: member.user for member in invoice_request.order.organization.organizationmember_set.filter(is_owner=True).select_related("user")}
+        if invoice_request.created_by_id:
+            recipients[invoice_request.created_by_id] = invoice_request.created_by
+        if recipients:
+            is_issued = payload.status == InvoiceStatus.ISSUED
+            notify(
+                list(recipients.values()),
+                title="订阅发票已开具" if is_issued else "订阅发票申请未通过",
+                body=(
+                    f"订单 {invoice_request.order.order_no} 的发票已开具，可前往订单中心查看。"
+                    if is_issued
+                    else f"订单 {invoice_request.order.order_no} 的发票申请未通过，请查看处理说明后重新核对资料。"
+                ),
+                url="/dashboard/space/subscription/orders",
+                organization=invoice_request.order.organization,
+                target=invoice_request,
+                category="subscription.billing",
+                data={"event": "invoice_issued" if is_issued else "invoice_rejected", "order_no": invoice_request.order.order_no},
+            )
+    return _serialize_invoice_request(invoice_request, include_profile_snapshot=True)

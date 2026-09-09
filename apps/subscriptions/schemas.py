@@ -41,6 +41,7 @@ class PurchaseOrderIn(Schema):
     target_plan_code: str = Field(..., max_length=32)
     billing_cycle: str
     payment_mode: str
+    idempotency_key: str = Field("", max_length=64)
 
 
 class SaaSOrderOut(Schema):
@@ -62,8 +63,13 @@ class SaaSOrderOut(Schema):
     paid_at: datetime | None
     refund_status: str
     refunded_amount: int
+    refund_reason: str
+    refund_proof: str
+    refund_subscription_action: str
+    refunded_at: datetime | None
     created_at: datetime
     payment: dict | None = None
+    invoice: dict | None = None
 
 
 class InvoiceProfileIn(Schema):

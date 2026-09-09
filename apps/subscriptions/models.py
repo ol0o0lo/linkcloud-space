@@ -141,6 +141,7 @@ class Subscription(CreateUpdateTimeModelMixin):
 class SaaSOrder(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="saas_orders", verbose_name="所属组织")
     order_no = models.CharField(max_length=40, unique=True, db_index=True, verbose_name="订单号")
+    idempotency_key = models.CharField(max_length=64, blank=True, default="", verbose_name="下单幂等键")
     order_type = models.CharField(max_length=24, choices=OrderType.choices, verbose_name="订单类型")
     status = models.CharField(max_length=24, choices=OrderStatus.choices, default=OrderStatus.PENDING_PAYMENT, db_index=True, verbose_name="状态")
     close_reason = models.CharField(max_length=24, choices=OrderCloseReason.choices, blank=True, default="", verbose_name="关闭原因")
@@ -169,6 +170,18 @@ class SaaSOrder(CreateUpdateTimeModelMixin):
         verbose_name = "SaaS 订单"
         verbose_name_plural = "SaaS 订单"
         ordering = ("-created_at", "-pk")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("organization", "idempotency_key"),
+                condition=~Q(idempotency_key=""),
+                name="subscriptions_order_org_idempotency_unique",
+            ),
+            models.UniqueConstraint(
+                fields=("organization",),
+                condition=Q(status=OrderStatus.PENDING_PAYMENT),
+                name="subscriptions_one_pending_order_per_org",
+            ),
+        ]
         indexes = [models.Index(fields=("organization", "status"), name="sub_order_org_status_idx")]
 
     def __str__(self):
