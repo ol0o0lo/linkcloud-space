@@ -464,7 +464,7 @@ export const OrganizationOverviewPanel: React.FC<{
         </Descriptions>
       )}
       <Typography.Paragraph type="secondary">
-        查看组织治理概况，并直接进入需要处理的成员、团队、邀请或房源分工。
+        查看空间管理概况，并直接进入需要处理的成员、团队、邀请或房源分工。
       </Typography.Paragraph>
       <div className={styles.summaryGrid}>
         {items.map((item) => (

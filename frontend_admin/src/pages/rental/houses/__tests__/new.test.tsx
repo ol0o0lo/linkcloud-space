@@ -274,7 +274,7 @@ describe('House new page', () => {
         screen.getByText('已带入楼栋，当前建档会直接挂到这栋楼下。'),
       ).toBeInTheDocument();
       expect(
-        screen.getByText('已带入房东，当前录入会沿用该出租方主体。'),
+        screen.getByText('已带入房东，当前录入将沿用该房东信息。'),
       ).toBeInTheDocument();
     });
 

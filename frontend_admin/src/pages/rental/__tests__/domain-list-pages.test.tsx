@@ -2104,7 +2104,7 @@ describe('Property rental domain list pages', () => {
       });
       fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
 
-      expect(await screen.findByText('请选择角色')).toBeInTheDocument();
+      expect(await screen.findByText('请选择身份')).toBeInTheDocument();
       expect(mockCreateContact).not.toHaveBeenCalled();
     });
 
@@ -2118,11 +2118,11 @@ describe('Property rental domain list pages', () => {
       renderPage(<ContactsPage />);
 
       expect(
-        await screen.findByRole('radiogroup', { name: '联系人角色筛选' }),
+        await screen.findByRole('radiogroup', { name: '联系人身份筛选' }),
       ).toBeInTheDocument();
       expect(screen.getByRole('radio', { name: '全部' })).toBeChecked();
       expect(
-        screen.queryByRole('radio', { name: '待补角色' }),
+        screen.queryByRole('radio', { name: '待补身份' }),
       ).not.toBeInTheDocument();
       await waitFor(() => expect(window.location.search).toBe(''));
       expect(mockListContacts).toHaveBeenCalledWith(
@@ -2407,7 +2407,7 @@ describe('Property rental domain list pages', () => {
     it('filters contacts from the toolbar search', async () => {
       renderPage(<ContactsPage />);
 
-      await screen.findByRole('radiogroup', { name: '联系人角色筛选' });
+      await screen.findByRole('radiogroup', { name: '联系人身份筛选' });
       fireEvent.change(screen.getByPlaceholderText('搜索姓名 / 手机 / 邮箱'), {
         target: { value: '王租客' },
       });
@@ -2678,7 +2678,7 @@ describe('Property rental domain list pages', () => {
       fireEvent.click(
         within(row as HTMLElement).getByRole('button', { name: '更多操作' }),
       );
-      expect(screen.getByText('补租客')).toBeInTheDocument();
+      expect(screen.getByText('关联租客')).toBeInTheDocument();
       expect(screen.getByText('标记成交')).toBeInTheDocument();
       expect(screen.getByText('取消')).toBeInTheDocument();
       expect(screen.getByText('标记爽约')).toBeInTheDocument();
@@ -3054,7 +3054,9 @@ describe('Property rental domain list pages', () => {
       fireEvent.click(await screen.findByRole('menuitem', { name: '发布' }));
 
       expect(
-        await screen.findByText('确认后房源状态将切换为招租，继续承接带看。'),
+        await screen.findByText(
+          '确认后房源状态将切换为招租，可继续接受带看预约。',
+        ),
       ).toBeInTheDocument();
       expect(mockPatchHouse).not.toHaveBeenCalled();
 
@@ -3112,7 +3114,7 @@ describe('Property rental domain list pages', () => {
       fireEvent.click(await screen.findByRole('menuitem', { name: '发布' }));
 
       expect(
-        screen.queryByText('确认后房源状态将切换为招租，继续承接带看。'),
+        screen.queryByText('确认后房源状态将切换为招租，可继续接受带看预约。'),
       ).not.toBeInTheDocument();
       expect(await screen.findByText('请先补齐：视频不足')).toBeInTheDocument();
       expect(mockPatchHouse).not.toHaveBeenCalled();
@@ -3410,7 +3412,7 @@ describe('Property rental domain list pages', () => {
       ) as HTMLElement;
       expect(row).toHaveTextContent(/未绑定租客/);
       expect(
-        within(row).queryByRole('button', { name: '补租客' }),
+        within(row).queryByRole('button', { name: '关联租客' }),
       ).not.toBeInTheDocument();
       expect(
         within(row).getByRole('button', { name: '更多操作' }),
@@ -3436,7 +3438,7 @@ describe('Property rental domain list pages', () => {
         'tr',
       ) as HTMLElement;
       fireEvent.click(within(row).getByRole('button', { name: '更多操作' }));
-      fireEvent.click(screen.getByText('补租客'));
+      fireEvent.click(screen.getByText('关联租客'));
 
       expect(
         await screen.findByText(/该成交记录尚未绑定租客联系人/),
@@ -3694,7 +3696,7 @@ describe('Property rental domain list pages', () => {
       fireEvent.click(
         within(missingContactRow).getByRole('button', { name: '更多操作' }),
       );
-      expect(screen.getByText('补租客')).toBeInTheDocument();
+      expect(screen.getByText('关联租客')).toBeInTheDocument();
       expect(
         screen.queryByRole('link', { name: '签约' }),
       ).not.toBeInTheDocument();
@@ -3756,7 +3758,7 @@ describe('Property rental domain list pages', () => {
         '/dashboard/rental/leases?source_viewing_record_id=4',
       );
       expect(
-        screen.queryByRole('button', { name: '补租客' }),
+        screen.queryByRole('button', { name: '关联租客' }),
       ).not.toBeInTheDocument();
       await waitFor(() =>
         expect(mockListViewings).toHaveBeenCalledWith(
@@ -3809,11 +3811,11 @@ describe('Property rental domain list pages', () => {
       expect(await screen.findByText('当前可签约队列为空')).toBeInTheDocument();
       expect(
         await screen.findByText(
-          '当前没有主体完整且可直接签约的成交记录，先回到待补租客补齐主体，再继续签约。',
+          '当前没有已关联租客且可直接签约的成交记录，先回到待关联租客队列关联联系人，再继续签约。',
         ),
       ).toBeInTheDocument();
       await waitFor(() => {
-        expect(screen.getByText('查看待补租客').closest('a')).toHaveAttribute(
+        expect(screen.getByText('查看待关联租客').closest('a')).toHaveAttribute(
           'href',
           '/dashboard/rental/viewings?pending_lease=true&contact_missing=true',
         );
@@ -3873,11 +3875,11 @@ describe('Property rental domain list pages', () => {
 
       expect(screen.queryByText(/当前只看/)).not.toBeInTheDocument();
       expect(
-        await screen.findByText('待补租客队列已处理完成'),
+        await screen.findByText('待关联租客队列已处理完成'),
       ).toBeInTheDocument();
       expect(
         await screen.findByText(
-          '当前筛选下已没有缺租客主体的成交记录，继续处理可签约或全部待签约队列。',
+          '当前筛选下已没有未关联租客的成交记录，继续处理可签约或全部待签约队列。',
         ),
       ).toBeInTheDocument();
       await waitFor(() => {
@@ -4103,7 +4105,7 @@ describe('Property rental domain list pages', () => {
       fireEvent.click(
         within(missingContactRow).getByRole('button', { name: '更多操作' }),
       );
-      fireEvent.click(screen.getByText('补租客'));
+      fireEvent.click(screen.getByText('关联租客'));
 
       expect(await screen.findByText('编辑带看')).toBeInTheDocument();
       expect(
@@ -4706,10 +4708,10 @@ describe('Property rental domain list pages', () => {
 
       expect(
         await screen.findByText(
-          '该成交带看未绑定租客联系人，请先回带看页补齐业务主体后再签约。',
+          '该成交带看未关联租客联系人，请先回带看页完成关联后再签约。',
         ),
       ).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: '去补租客' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: '去关联租客' })).toHaveAttribute(
         'href',
         '/dashboard/rental/viewings?pending_lease=true&contact_missing=true&edit=4',
       );

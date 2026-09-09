@@ -39,7 +39,7 @@ export const WORKBENCH_PUBLISH_FILTER_LABELS: Record<
   Exclude<PublishFilterValue, 'all'>,
   string
 > = {
-  blocked: '阻断发布',
+  blocked: '暂不可发布',
   ready: '待发布',
 };
 
@@ -47,7 +47,7 @@ export const WORKBENCH_WORKFLOW_FILTER_LABELS: Record<
   Exclude<WorkflowFilterValue, 'all'>,
   string
 > = {
-  'contact-missing': '待补租客',
+  'contact-missing': '待关联租客',
   converted: '待签约',
 };
 
@@ -148,7 +148,7 @@ export function getHouseTaskLink(record: HouseOut, rules?: unknown) {
     return { label: '处理发布问题', path: `${basePath}${nextSearch}` };
   }
   if (needsMetadata) {
-    return { label: '补资料', path: `${basePath}${nextSearch}` };
+    return { label: '补全房源资料', path: `${basePath}${nextSearch}` };
   }
   if (needsMedia) {
     return { label: '维护相册', path: `${basePath}${nextSearch}` };
@@ -193,7 +193,7 @@ export function buildPublishWorkbenchRows(
         actionPath: action.path,
         actionHint: warnings.length
           ? `允许先发布，当前仍有 ${warnings[0]}${warnings.length > 1 ? ` 等 ${warnings.length} 项提醒` : ' 提醒'}`
-          : '资料已完整，可直接发布承接带看。',
+          : '资料已完整，可直接发布并接受带看预约。',
       };
     }),
   ];
@@ -207,12 +207,12 @@ export function buildWorkflowTasks(
     ...pendingLeaseMissingContacts.map((item) => ({
       key: `viewing-${item.id}`,
       queueKey: 'contact-missing' as const,
-      queue: '成交待补主体',
-      title: `${item.customer_name} 待补租客`,
+      queue: '成交待关联租客',
+      title: `${item.customer_name} 待关联租客`,
       house: { id: item.house?.id || item.house_id, label: houseLabel(item) },
-      status: '待补租客',
-      nextStep: '先绑定租客联系人，再创建租约',
-      actionLabel: '补租客',
+      status: '待关联租客',
+      nextStep: '先关联租客联系人，再创建租约',
+      actionLabel: '关联租客',
       actionPath: `/rental/viewings?pending_lease=true&contact_missing=true&edit=${item.id}`,
     })),
     ...pendingLeaseReady.map((item) => ({
@@ -222,7 +222,7 @@ export function buildWorkflowTasks(
       title: `${item.customer_name} 待签约`,
       house: { id: item.house?.id || item.house_id, label: houseLabel(item) },
       status: '已成交待签约',
-      nextStep: '立即创建租约并同步合同资料',
+      nextStep: '立即创建租约并补充合同资料',
       actionLabel: '去签约',
       actionPath: `/rental/leases?source_viewing_record_id=${item.id}`,
     })),
@@ -239,13 +239,13 @@ export function buildSpaceRisks(input: {
       key: 'blocked-publish',
       level: 'danger' as const,
       count: input.blockedCount,
-      label: '套房源阻断发布',
+      label: '套房源暂不可发布',
     },
     {
       key: 'missing-contact',
       level: 'warning' as const,
       count: input.missingContactCount,
-      label: '条记录待补租客',
+      label: '条记录待关联租客',
     },
     {
       key: 'ready-lease',

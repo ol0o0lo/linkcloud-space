@@ -2415,7 +2415,7 @@ const HouseDetailPage: React.FC = () => {
                             if (needsViewingContactCompletion(record)) {
                               return (
                                 <a href={viewingContactFixHref(record.id)}>
-                                  补租客
+                                  关联租客
                                 </a>
                               );
                             }
@@ -2641,7 +2641,7 @@ const HouseDetailPage: React.FC = () => {
       >
         <Typography.Text>
           {publishConfirmStatus === HOUSE_STATUS.LISTED
-            ? '确认后房源状态将切换为招租，继续承接带看。'
+            ? '确认后房源状态将切换为招租，可继续接受带看预约。'
             : '确认后房源状态将切换为空置，不再对外展示。'}
         </Typography.Text>
       </Modal>

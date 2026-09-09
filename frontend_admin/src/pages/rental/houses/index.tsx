@@ -2002,7 +2002,7 @@ const HousesPage: React.FC = () => {
       >
         <Typography.Text>
           {listingConfirmStatus === HOUSE_STATUS.LISTED
-            ? '确认后房源状态将切换为招租，继续承接带看。'
+            ? '确认后房源状态将切换为招租，可继续接受带看预约。'
             : '确认后房源状态将切换为空置，不再对外展示。'}
         </Typography.Text>
       </Modal>

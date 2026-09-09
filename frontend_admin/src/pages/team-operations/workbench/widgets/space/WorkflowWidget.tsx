@@ -22,7 +22,7 @@ const dashboardHref = (path: string) => `/dashboard${path}`;
 
 const workflowStages = [
   { label: '确认成交', icon: <AuditOutlined /> },
-  { label: '补全租客资料', icon: <UserAddOutlined /> },
+  { label: '关联租客联系人', icon: <UserAddOutlined /> },
   { label: '创建租约', icon: <FileAddOutlined /> },
   { label: '完成签约', icon: <CheckCircleOutlined /> },
 ];
@@ -65,7 +65,7 @@ export function WorkflowWidget({ width }: { width: WorkbenchWidgetWidth }) {
           options={[
             { label: `全部 ${data.workflowTasks.length}`, value: 'all' },
             {
-              label: `待补租客 ${data.missingContactCount}`,
+              label: `待关联租客 ${data.missingContactCount}`,
               value: 'contact-missing',
             },
             {

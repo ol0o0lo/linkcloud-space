@@ -516,7 +516,7 @@ const StaffResponsibilitiesPage: React.FC = () => {
             title="小区范围"
             color="green"
             selectedCount={draftResponsibilities.estate_ids.length}
-            description="兜底分配，仅对未命中前两层范围的房源生效。"
+            description="默认分配，仅对未匹配前两层范围的房源生效。"
           >
             <Form.Item name="estate_ids" style={{ marginBottom: 0 }}>
               <Select

@@ -422,7 +422,7 @@ const HouseNewPage: React.FC = () => {
             <Alert
               type="info"
               showIcon
-              title="已带入房东，当前录入会沿用该出租方主体。"
+              title="已带入房东，当前录入将沿用该房东信息。"
             />
           ) : null}
           <Form.Item label="楼栋" htmlFor="building_id" required>

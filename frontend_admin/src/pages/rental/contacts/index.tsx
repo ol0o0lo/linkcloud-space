@@ -63,7 +63,7 @@ const CONTACT_STATUS_FILTER_OPTIONS: {
   label: string;
   value: ContactStatusFilter;
 }[] = [
-  { label: '在用', value: 'active' },
+  { label: '正常', value: 'active' },
   { label: '已停用', value: 'inactive' },
 ];
 
@@ -110,7 +110,7 @@ function getContactPrimaryAction(record: ContactOut) {
   }
   if (record.roles?.includes('tenant')) {
     return {
-      label: '登记带看',
+      label: '发起带看',
       path: `/rental/viewings?contact_id=${record.id}`,
     };
   }
@@ -522,7 +522,7 @@ const ContactsPage: React.FC = () => {
       },
     },
     {
-      title: '角色',
+      title: '身份',
       dataIndex: 'roles',
       width: 180,
       render: (_roles, record) => {
@@ -545,7 +545,7 @@ const ContactsPage: React.FC = () => {
             ))}
           </Space>
         ) : (
-          <Tag color="orange">待补角色</Tag>
+          <Tag color="orange">待补身份</Tag>
         );
       },
     },
@@ -714,9 +714,9 @@ const ContactsPage: React.FC = () => {
           }}
         >
           <Space size={8} wrap>
-            <Typography.Text type="secondary">角色</Typography.Text>
+            <Typography.Text type="secondary">身份</Typography.Text>
             <Segmented<ContactRoleFilter>
-              aria-label="联系人角色筛选"
+              aria-label="联系人身份筛选"
               options={CONTACT_ROLE_FILTER_OPTIONS}
               value={roleFilter}
               onChange={(value) => {
@@ -739,7 +739,7 @@ const ContactsPage: React.FC = () => {
             />
             {contacts.data ? (
               <Typography.Text type="secondary">
-                共 {contacts.data.total} 位
+                共 {contacts.data.total} 位联系人
               </Typography.Text>
             ) : null}
             <Input.Search
@@ -790,7 +790,7 @@ const ContactsPage: React.FC = () => {
             emptyText: getLoadingAwareEmptyState({
               loading: listLoading,
               loadingTitle: '联系人数据加载中',
-              loadingDescription: '正在同步房东、租客和客户主体资料。',
+              loadingDescription: '正在加载联系人资料。',
               emptyState,
             }),
           }}
@@ -948,8 +948,8 @@ const ContactsPage: React.FC = () => {
       >
         <Typography.Paragraph style={{ marginBottom: 0 }}>
           {statusContact?.is_active === false
-            ? '启用后可重新为该联系人登记房源或带看。'
-            : '停用后将不再提供登记房源或带看入口，历史业务关联仍会保留。'}
+            ? '启用后可重新为该联系人登记房源或发起带看。'
+            : '停用后将不再提供登记房源或发起带看入口，历史业务关联仍会保留。'}
         </Typography.Paragraph>
       </Modal>
       <Drawer
@@ -997,9 +997,9 @@ const ContactsPage: React.FC = () => {
             <Input />
           </Form.Item>
           <Form.Item
-            label="角色"
+            label="身份"
             name="roles"
-            rules={[{ required: true, message: '请选择角色' }]}
+            rules={[{ required: true, message: '请选择身份' }]}
           >
             <Select mode="multiple" options={roleOptions} />
           </Form.Item>

@@ -67,7 +67,7 @@ export function ContactPreviewPanel({ id, variant }: EntityPreviewPanelProps) {
               <Tag
                 color={contact.data.is_active === false ? 'default' : 'green'}
               >
-                {contact.data.is_active === false ? '停用' : '启用'}
+                {contact.data.is_active === false ? '已停用' : '正常'}
               </Tag>
             }
             leading={
@@ -94,7 +94,7 @@ export function ContactPreviewPanel({ id, variant }: EntityPreviewPanelProps) {
         <EntityPreviewCardBody>
           <EntityPreviewSection>
             <EntityPreviewFactGrid>
-              <EntityPreviewFact full label="角色" value={roleTags} />
+              <EntityPreviewFact full label="身份" value={roleTags} />
             </EntityPreviewFactGrid>
             <EntityPreviewFieldList>
               <EntityPreviewField
@@ -119,7 +119,7 @@ export function ContactPreviewPanel({ id, variant }: EntityPreviewPanelProps) {
           {contact.data.name} / {contact.data.phone}
         </Typography.Text>
         <Tag color={contact.data.is_active === false ? 'default' : 'green'}>
-          {contact.data.is_active === false ? '停用' : '启用'}
+          {contact.data.is_active === false ? '已停用' : '正常'}
         </Tag>
       </Space>
       <Descriptions
@@ -127,7 +127,7 @@ export function ContactPreviewPanel({ id, variant }: EntityPreviewPanelProps) {
         items={[
           {
             key: 'roles',
-            label: '角色',
+            label: '身份',
             children: roles.length ? (
               <Space size={[4, 4]} wrap>
                 {roles.map((role, index) => (

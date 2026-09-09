@@ -44,11 +44,11 @@ describe('AppStatus', () => {
   });
 
   it.each([
-    ['vacant', '收益中断'],
-    ['listed', '正常经营'],
-    ['rented', '经营健康'],
-    ['renovating', '待跟进'],
-    ['inactive', '已退出日常管理'],
+    ['vacant', '当前为空置状态'],
+    ['listed', '当前正在对外招租'],
+    ['rented', '当前已有生效租约'],
+    ['renovating', '当前处于装修状态'],
+    ['inactive', '当前已停用'],
   ] as const)('提供房源 %s 状态的管理说明', (state, description) => {
     expect(resolveAppStatusDefinition('house', state).description).toContain(
       description,

@@ -19,27 +19,27 @@ export const APP_STATUS_DEFINITIONS = {
   house: {
     states: {
       vacant: {
-        description: '收益中断：当前没有租约且尚未进入招租流程，需优先处理',
+        description: '当前为空置状态，尚未进入招租流程',
         icon: 'house.vacant',
         tone: 'error',
       },
       listed: {
-        description: '正常经营：房源正在对外招租',
+        description: '当前正在对外招租',
         icon: 'house.listed',
         tone: 'info',
       },
       rented: {
-        description: '经营健康：房源已出租并处于有效占用',
+        description: '当前已有生效租约',
         icon: 'house.rented',
         tone: 'success',
       },
       renovating: {
-        description: '待跟进：房源暂不可出租，需关注装修进度',
+        description: '当前处于装修状态，暂不可出租',
         icon: 'house.renovating',
         tone: 'warning',
       },
       inactive: {
-        description: '已退出日常管理和经营操作范围',
+        description: '当前已停用，不参与日常经营',
         icon: 'house.inactive',
         tone: 'disabled',
       },

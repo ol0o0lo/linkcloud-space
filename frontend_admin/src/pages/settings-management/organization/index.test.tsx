@@ -453,7 +453,7 @@ describe('OrganizationSettingsPage', () => {
     expect(screen.getByLabelText('视频最少视频数')).toBeEnabled();
     fireEvent.mouseDown(screen.getByLabelText('封面图'));
     fireEvent.click(
-      (await screen.findAllByText('阻断发布')).at(-1) as HTMLElement,
+      (await screen.findAllByText('不允许发布')).at(-1) as HTMLElement,
     );
 
     await waitFor(() =>

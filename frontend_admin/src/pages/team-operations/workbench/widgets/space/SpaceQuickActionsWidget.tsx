@@ -26,7 +26,7 @@ export function SpaceQuickActionsWidget({
     {
       key: 'viewings',
       label: '带看记录',
-      description: '处理成交后待补租客记录',
+      description: '处理成交后待关联租客的记录',
       path: '/rental/viewings',
       icon: <CalendarOutlined />,
     },

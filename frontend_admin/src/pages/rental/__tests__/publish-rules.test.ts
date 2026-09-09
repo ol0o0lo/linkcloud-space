@@ -33,7 +33,7 @@ describe('house publish rules', () => {
       video: { mode: 'off', min_count: 1 },
     });
 
-    expect(summary.blocking).toEqual(['房东主体', '租金']);
+    expect(summary.blocking).toEqual(['房东信息', '租金']);
     expect(summary.warning).toEqual(['封面图', '房源图片']);
     expect(summary.ignored).toEqual(['户型图', '视频']);
   });

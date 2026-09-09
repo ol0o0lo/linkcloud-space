@@ -67,7 +67,7 @@ const VIEWING_STATUS_ACTION_TEXT: Record<string, string> = {
   no_show: '标记爽约',
 };
 const VIEWING_MORE_ACTIONS = [
-  { key: 'contact', label: '补租客' },
+  { key: 'contact', label: '关联租客' },
   {
     key: VIEWING_STATUS.VIEWED,
     label: VIEWING_STATUS_ACTION_TEXT[VIEWING_STATUS.VIEWED],
@@ -129,9 +129,9 @@ function getViewingEmptyState(options: {
         image={Empty.PRESENTED_IMAGE_SIMPLE}
         description={
           <Space orientation="vertical" size={4}>
-            <Typography.Text strong>待补租客队列已处理完成</Typography.Text>
+            <Typography.Text strong>待关联租客队列已处理完成</Typography.Text>
             <Typography.Text type="secondary">
-              当前筛选下已没有缺租客主体的成交记录，继续处理可签约或全部待签约队列。
+              当前筛选下已没有未关联租客的成交记录，继续处理可签约或全部待签约队列。
             </Typography.Text>
           </Space>
         }
@@ -165,8 +165,8 @@ function getViewingEmptyState(options: {
             <Typography.Text strong>当前可签约队列为空</Typography.Text>
             <Typography.Text type="secondary">
               {missingContactQueueCount > 0
-                ? '当前没有主体完整且可直接签约的成交记录，先回到待补租客补齐主体，再继续签约。'
-                : '当前没有主体完整且可直接签约的成交记录，可先回到全部待签约队列继续排查。'}
+                ? '当前没有已关联租客且可直接签约的成交记录，先回到待关联租客队列关联联系人，再继续签约。'
+                : '当前没有已关联租客且可直接签约的成交记录，可先回到全部待签约队列继续排查。'}
             </Typography.Text>
           </Space>
         }
@@ -177,7 +177,7 @@ function getViewingEmptyState(options: {
               type="primary"
               href="/dashboard/rental/viewings?pending_lease=true&contact_missing=true"
             >
-              查看待补租客
+              查看待关联租客
             </Button>
           ) : null}
           {pendingLeaseCount > 0 ? (
@@ -832,7 +832,7 @@ const ViewingsPage: React.FC = () => {
               <Alert
                 type="warning"
                 showIcon
-                title="该成交记录尚未绑定租客联系人，签约前请先补齐业务主体。"
+                title="该成交记录尚未关联租客联系人，签约前请先完成关联。"
               />
             ) : null}
 
@@ -853,7 +853,7 @@ const ViewingsPage: React.FC = () => {
                         <Typography.Text strong>带看归属</Typography.Text>
                         <br />
                         <Typography.Text type="secondary">
-                          先确认客户要看的房源，以及是否已绑定到现有联系人主体。
+                          先确认客户要看的房源，以及是否已关联到现有联系人。
                         </Typography.Text>
                       </div>
                       <Form.Item

@@ -258,7 +258,7 @@ export const PublishRulesControl: React.FC<{
               aria-label={rule.label}
               value={rules[rule.key]?.mode}
               options={[
-                { value: HOUSE_PUBLISH_RULE_MODE.REQUIRED, label: '阻断发布' },
+                { value: HOUSE_PUBLISH_RULE_MODE.REQUIRED, label: '不允许发布' },
                 { value: HOUSE_PUBLISH_RULE_MODE.WARNING, label: '仅提醒' },
                 { value: HOUSE_PUBLISH_RULE_MODE.OFF, label: '不校验' },
               ]}

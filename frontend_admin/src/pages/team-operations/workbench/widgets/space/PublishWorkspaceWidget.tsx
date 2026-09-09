@@ -97,7 +97,7 @@ export function PublishWorkspaceWidget({
             options={[
               { label: `全部 ${data.publishRows.length}`, value: 'all' },
               {
-                label: `阻断发布 ${data.blockedHouseItems.length}`,
+                label: `暂不可发布 ${data.blockedHouseItems.length}`,
                 value: 'blocked',
               },
               {
@@ -114,7 +114,7 @@ export function PublishWorkspaceWidget({
             className={styles.spaceFilterAlert}
             type="info"
             showIcon
-            title={`当前只看：发布工作区：${filter === 'blocked' ? '阻断发布' : '待发布'}`}
+            title={`当前只看：发布工作区：${filter === 'blocked' ? '暂不可发布' : '待发布'}`}
             action={
               <a
                 href={dashboardHref('/rental/workbench/overview')}
@@ -159,7 +159,7 @@ export function PublishWorkspaceWidget({
                       <Tag
                         color={record.stage === 'blocked' ? 'orange' : 'green'}
                       >
-                        {record.stage === 'blocked' ? '阻断发布' : '待发布'}
+                        {record.stage === 'blocked' ? '暂不可发布' : '待发布'}
                       </Tag>
                       {record.issues.map((issue) => (
                         <Tag key={issue}>{issue}</Tag>

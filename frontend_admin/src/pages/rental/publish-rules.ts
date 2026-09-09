@@ -11,7 +11,7 @@ export type HousePublishRuleSnapshot = Record<HousePublishRuleKey, { mode: House
 export type HousePublishRulePreset = 'strict' | 'standard' | 'relaxed';
 
 export const HOUSE_PUBLISH_RULE_LABELS: Record<HousePublishRuleKey, string> = {
-  landlord: '房东主体',
+  landlord: '房东信息',
   rent: '租金',
   cover: '封面图',
   images: '房源图片',
@@ -29,12 +29,12 @@ export const HOUSE_PUBLISH_ISSUE_LABELS: Record<HousePublishRuleKey, string> = {
 };
 
 export const HOUSE_PUBLISH_RULE_ROWS: Array<{ key: HousePublishRuleKey; label: string; description: string; countLabel?: string }> = [
-  { key: 'landlord', label: HOUSE_PUBLISH_RULE_LABELS.landlord, description: '房东主体不完整时，发布和后续签约都会失去核心归属。' },
-  { key: 'rent', label: HOUSE_PUBLISH_RULE_LABELS.rent, description: '租金缺失会影响挂牌、报价和转签约，建议始终保留为核心阻断项。' },
+  { key: 'landlord', label: HOUSE_PUBLISH_RULE_LABELS.landlord, description: '房东信息不完整时，发布和后续签约都无法确认归属。' },
+  { key: 'rent', label: HOUSE_PUBLISH_RULE_LABELS.rent, description: '租金缺失会影响挂牌、报价和转签约，建议始终设为发布必填项。' },
   { key: 'cover', label: HOUSE_PUBLISH_RULE_LABELS.cover, description: '封面图决定第一屏展示，通常建议至少保留提醒。' },
   { key: 'images', label: HOUSE_PUBLISH_RULE_LABELS.images, description: '基础图片更适合做成数量校验，避免房源还没法完整呈现。', countLabel: '最少图片数' },
   { key: 'floor_plan', label: HOUSE_PUBLISH_RULE_LABELS.floor_plan, description: '户型图能显著降低沟通成本，适合按业务阶段调整。' },
-  { key: 'video', label: HOUSE_PUBLISH_RULE_LABELS.video, description: '视频适合做加分项，不适合硬性阻断全部房源。', countLabel: '最少视频数' },
+  { key: 'video', label: HOUSE_PUBLISH_RULE_LABELS.video, description: '视频适合作为加分项，不建议设为所有房源的发布必填项。', countLabel: '最少视频数' },
 ];
 
 const strictPreset: HousePublishRuleSnapshot = {
@@ -69,17 +69,17 @@ export const DEFAULT_HOUSE_PUBLISH_RULES: HousePublishRuleSnapshot = structuredC
 export const HOUSE_PUBLISH_RULE_PRESETS: Record<HousePublishRulePreset, { title: string; description: string; value: HousePublishRuleSnapshot }> = {
   strict: {
     title: '严格发布',
-    description: '适合新项目或强管控阶段，媒体资料不足也会阻断发布。',
+    description: '适合新项目或严格管理阶段，媒体资料不足时也不允许发布。',
     value: strictPreset,
   },
   standard: {
     title: '标准发布',
-    description: '默认推荐。房东和租金阻断，媒体问题主要做提醒。',
+    description: '默认推荐。房东和租金必须填写，媒体资料不足时主要提醒。',
     value: standardPreset,
   },
   relaxed: {
     title: '宽松发布',
-    description: '只保留核心业务字段阻断，媒体资料先允许上线。',
+    description: '只将核心业务字段设为必填，媒体资料可在发布后继续补充。',
     value: relaxedPreset,
   },
 };
@@ -261,13 +261,13 @@ export function getHouseIssueActionHint(
     return `可直接发布，建议继续补齐 ${warnings[0]} 等 ${warnings.length} 项提醒`;
   }
   if (blocking.includes('缺房东') && (warnings.includes('缺封面') || warnings.includes('图片不足') || warnings.includes('缺户型图'))) {
-    return '先补房东主体，其他媒体问题可作为发布提醒继续处理';
+    return '先补齐房东信息，其他媒体问题可作为发布提醒继续处理';
   }
   if (blocking.includes('缺房东') || blocking.includes('缺租金')) {
     return '先补基础资料，再回到详情执行发布检查';
   }
   if (blocking.includes('缺封面') || blocking.includes('图片不足') || blocking.includes('缺户型图') || blocking.includes('视频不足')) {
-    return '当前仍有阻断项，先维护媒体后再发布';
+    return '当前仍有必填资料未完成，请先补齐媒体资料再发布';
   }
-  return '按阻断项优先补齐后再发布';
+  return '请优先补齐发布必填资料后再发布';
 }

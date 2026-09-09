@@ -81,13 +81,13 @@ describe('space workbench model', () => {
         key: 'blocked-publish',
         level: 'danger',
         count: 6,
-        label: '套房源阻断发布',
+        label: '套房源暂不可发布',
       },
       {
         key: 'missing-contact',
         level: 'warning',
         count: 4,
-        label: '条记录待补租客',
+        label: '条记录待关联租客',
       },
       {
         key: 'ready-lease',

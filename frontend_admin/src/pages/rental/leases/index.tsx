@@ -796,13 +796,13 @@ const LeasesPage: React.FC = () => {
           <Alert
             type="warning"
             showIcon
-            title="该成交带看未绑定租客联系人，请先回带看页补齐业务主体后再签约。"
+            title="该成交带看未关联租客联系人，请先回带看页完成关联后再签约。"
             action={
               <Button
                 size="small"
                 href={`/dashboard/rental/viewings?pending_lease=true&contact_missing=true&edit=${sourceViewingRecordId}`}
               >
-                去补租客
+                去关联租客
               </Button>
             }
             style={{ marginBottom: 16 }}
@@ -952,7 +952,7 @@ const LeasesPage: React.FC = () => {
                   style={{ width: '100%' }}
                 >
                   <div>
-                    <Typography.Text strong>签约主体</Typography.Text>
+                    <Typography.Text strong>签约信息</Typography.Text>
                   </div>
                   <Row gutter={[16, 0]}>
                     <Col xs={24}>

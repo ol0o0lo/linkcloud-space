@@ -29,7 +29,7 @@ export function OperatingOverviewWidget({
     },
     {
       key: 'blocked',
-      label: '阻断发布',
+      label: '暂不可发布',
       value: data.blockedHouseItems.length,
       hint: '需要补充基础资料',
       icon: <StopOutlined />,
@@ -45,7 +45,7 @@ export function OperatingOverviewWidget({
     },
     {
       key: 'contact-missing',
-      label: '待补租客',
+      label: '待关联租客',
       value: data.missingContactCount,
       hint: '成交后资料未完整',
       icon: <UserAddOutlined />,

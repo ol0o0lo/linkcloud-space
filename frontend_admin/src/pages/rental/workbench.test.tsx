@@ -403,7 +403,7 @@ describe('Property rental workbench', () => {
 
     expect(await screen.findByText('星河湾 / 1 栋 / 101')).toBeInTheDocument();
     expect(screen.queryByText('星河湾 / 2 栋 / 103')).not.toBeInTheDocument();
-    expect(screen.getByText('李客户 待补租客')).toBeInTheDocument();
+    expect(screen.getByText('李客户 待关联租客')).toBeInTheDocument();
     expect(screen.queryByText('王租客 待补合同')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?publish=blocked');
   });
@@ -423,7 +423,7 @@ describe('Property rental workbench', () => {
     const workflowGroup = segmentedGroups[1];
 
     fireEvent.click(
-      within(publishGroup).getByText((text) => text.startsWith('阻断发布 ')),
+      within(publishGroup).getByText((text) => text.startsWith('暂不可发布 ')),
     );
     await waitFor(() =>
       expect(window.location.search).toBe('?publish=blocked'),
@@ -507,7 +507,7 @@ describe('Property rental workbench', () => {
     await screen.findByText('发布工作区');
     await waitFor(() =>
       expect(
-        screen.getByRole('radio', { name: '阻断发布 1' }),
+        screen.getByRole('radio', { name: '暂不可发布 1' }),
       ).toBeInTheDocument(),
     );
     expect(screen.queryByText('123')).not.toBeInTheDocument();
@@ -534,7 +534,7 @@ describe('Property rental workbench', () => {
       (await screen.findAllByText((text) => text.startsWith('显示 2 / 2')))
         .length,
     ).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('radio', { name: '阻断发布 1' }));
+    fireEvent.click(screen.getByRole('radio', { name: '暂不可发布 1' }));
     expect(
       (await screen.findAllByText((text) => text.startsWith('显示 1 / 2')))
         .length,

@@ -18,7 +18,7 @@ const riskPaths: Record<string, string> = {
 };
 
 const riskLevelLabels: Record<string, string> = {
-  danger: '阻断',
+  danger: '需处理',
   warning: '提醒',
   info: '关注',
 };
@@ -31,7 +31,7 @@ export function SpaceRisksWidget({ width }: { width: WorkbenchWidgetWidth }) {
     <WorkbenchWidgetFrame
       variant="risks"
       title="关键风险"
-      subtitle="优先处理影响发布与签约的阻断项"
+      subtitle="优先处理影响发布与签约的问题"
       loading={data.overviewLoading}
       error={data.overviewError}
       onRetry={data.retryOverview}
@@ -68,14 +68,14 @@ export function SpaceRisksWidget({ width }: { width: WorkbenchWidgetWidth }) {
               </span>
               <span>
                 <strong>建议处理顺序</strong>
-                <small>先解除业务阻断，再推进后续流程</small>
+                <small>先处理影响业务的问题，再推进后续流程</small>
               </span>
             </div>
             <div className={styles.spaceRiskGuideSteps}>
               <span>
                 <StopOutlined aria-hidden="true" />
                 <span>
-                  <strong>清理阻断项</strong>
+                  <strong>补齐必填资料</strong>
                   <small>优先处理无法发布的房源</small>
                 </span>
               </span>
