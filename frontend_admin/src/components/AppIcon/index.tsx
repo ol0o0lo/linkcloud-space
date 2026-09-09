@@ -101,6 +101,24 @@ export const APP_ICON_DEFINITIONS = {
   'organization-invite.expired': {
     icon: 'solar:close-circle-outline',
   },
+  'invoice-request': {
+    icon: 'solar:document-text-outline',
+  },
+  'invoice-request.pending': {
+    icon: 'solar:clock-circle-outline',
+  },
+  'invoice-request.processing': {
+    icon: 'solar:refresh-circle-outline',
+  },
+  'invoice-request.issued': {
+    icon: 'solar:verified-check-outline',
+  },
+  'invoice-request.rejected': {
+    icon: 'solar:danger-triangle-outline',
+  },
+  'invoice-request.cancelled': {
+    icon: 'solar:close-circle-outline',
+  },
   'wallet.withdrawal': {
     icon: 'solar:document-text-outline',
   },

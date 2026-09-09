@@ -116,8 +116,29 @@ describe('SubscriptionsAdminPage', () => {
           refunded_amount: 0,
           created_at: '2026-08-30T09:00:00+08:00',
         },
+        {
+          id: 12,
+          organization_id: 7,
+          organization_name: '链云测试空间',
+          organization_slug: 'linkcloud-test-space',
+          order_no: 'LC202608300002',
+          target_plan_code: 'professional',
+          target_plan_name: '专业版',
+          billing_cycle: 'month',
+          payable_amount: 29900,
+          status: 'closed',
+          close_reason: 'user_cancelled',
+          refund_status: 'none',
+          refunded_amount: 0,
+          payment: {
+            status: 'exception',
+            transaction_no: 'P202608300002',
+            provider_trade_no: 'WX-LATE-001',
+          },
+          created_at: '2026-08-30T09:30:00+08:00',
+        },
       ],
-      total: 1,
+      total: 2,
       page: 1,
       page_size: 10,
     });
@@ -223,5 +244,30 @@ describe('SubscriptionsAdminPage', () => {
       );
       expect(mockListInvoiceRequests).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('shows late-payment evidence and requires an exception refund proof', async () => {
+    renderPage();
+
+    const lateOrder = await screen.findByText('LC202608300002');
+    const row = within(
+      requireElement(lateOrder.closest('tr'), 'Expected late payment row'),
+    );
+    expect(row.getByText('异常支付')).toBeInTheDocument();
+    expect(row.getByText('用户取消')).toBeInTheDocument();
+    expect(row.getByText('WX-LATE-001')).toBeInTheDocument();
+
+    fireEvent.click(row.getByText('登记异常退款'));
+    expect(screen.getByText('异常支付只能保留当前订阅')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('退款原因'), {
+      target: { value: '迟到付款已在线下退回' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    expect(await screen.findByText('请填写退款凭证。')).toBeInTheDocument();
+    expect(mockRefundOrder).not.toHaveBeenCalledWith(
+      { order_id: 12 },
+      expect.anything(),
+    );
   });
 });

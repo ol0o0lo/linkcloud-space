@@ -5,6 +5,7 @@ export type NavigationAccessCapabilities = {
   organization_settings: boolean;
   team_settings: boolean;
   subscriptions: boolean;
+  subscriptions_manage: boolean;
   analytics: boolean;
   allocation: boolean;
   notification_dispatches: boolean;

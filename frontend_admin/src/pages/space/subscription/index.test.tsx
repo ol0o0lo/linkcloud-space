@@ -17,12 +17,19 @@ const {
   mockGetOrder,
   mockCreateOrder,
   mockCancelOrder,
+  mockAccess,
 } = vi.hoisted(() => ({
   mockCurrent: vi.fn(),
   mockPlans: vi.fn(),
   mockGetOrder: vi.fn(),
   mockCreateOrder: vi.fn(),
   mockCancelOrder: vi.fn(),
+  mockAccess: { canManageSubscriptions: true },
+}));
+
+vi.mock('@umijs/max', () => ({
+  history: { push: vi.fn() },
+  useAccess: () => mockAccess,
 }));
 
 vi.mock('../shared', () => ({
@@ -58,6 +65,7 @@ vi.mock('@/services/manual/subscriptions', () => ({
 describe('SubscriptionPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAccess.canManageSubscriptions = true;
     mockCurrent.mockResolvedValue({
       plan: { code: 'free', name: '免费版' },
       entitlement: {
@@ -157,6 +165,9 @@ describe('SubscriptionPage', () => {
     expect(screen.getByText('规模扩容')).toBeInTheDocument();
     expect(screen.getByText('批量提效')).toBeInTheDocument();
     expect(screen.getByText('权益自动生效')).toBeInTheDocument();
+    expect(screen.getByText(/所有套餐价格均为含税价/)).toBeInTheDocument();
+    expect(screen.getAllByText(/手动续费，不会自动扣款/)).not.toHaveLength(0);
+    expect(screen.getByText(/退款规则与付费服务协议/)).toBeInTheDocument();
     expect(screen.queryByText('订单记录')).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole('button', { name: /开通 专业版（月付）/ }),
@@ -167,6 +178,7 @@ describe('SubscriptionPage', () => {
         target_plan_code: 'professional',
         billing_cycle: 'month',
         payment_mode: 'native',
+        idempotency_key: expect.any(String),
       });
     });
     expect(await screen.findByAltText('微信支付二维码')).toBeInTheDocument();
@@ -198,10 +210,9 @@ describe('SubscriptionPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '取消订单' }));
     expect(
-      (await screen.findAllByText('取消当前订单？')).length,
+      (await screen.findAllByText('确定关闭？')).length,
     ).toBeGreaterThan(0);
-    const cancelButtons = screen.getAllByRole('button', { name: '取消订单' });
-    fireEvent.click(cancelButtons[cancelButtons.length - 1]);
+    fireEvent.click(screen.getByRole('button', { name: '确认关闭' }));
 
     await waitFor(() =>
       expect(mockCancelOrder.mock.calls[0]?.[0]).toBe('S001'),
@@ -286,6 +297,170 @@ describe('SubscriptionPage', () => {
     expect(screen.queryByText('升级建议')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: /推荐升级到/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('当前付费套餐临期时可续费并说明从原到期日顺延', async () => {
+    const endsAt = new Date(
+      Date.now() + 10 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    mockCurrent.mockResolvedValueOnce({
+      plan: { code: 'professional', name: '专业版' },
+      entitlement: {
+        member_limit: 30,
+        team_limit: 10,
+        house_limit: 3000,
+        ends_at: endsAt,
+      },
+      usage: { member: 8, team: 2, house: 120 },
+      subscription: {
+        kind: 'paid',
+        status: 'active',
+        billing_cycle: 'month',
+        starts_at: new Date(
+          Date.now() - 20 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
+        ends_at: endsAt,
+      },
+      recommendation: null,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionPage />
+      </QueryClientProvider>,
+    );
+
+    const renewalButton = await screen.findByRole('button', {
+      name: /续费 专业版（月付）/,
+    });
+    expect(screen.getByText(/续费后将从当前到期日顺延/)).toBeInTheDocument();
+
+    fireEvent.click(renewalButton);
+
+    await waitFor(() => {
+      expect(mockCreateOrder).toHaveBeenCalledWith({
+        target_plan_code: 'professional',
+        billing_cycle: 'month',
+        payment_mode: 'native',
+        idempotency_key: expect.any(String),
+      });
+    });
+    expect(
+      await screen.findByText(
+        '支付成功后将从当前到期日顺延，页面会自动同步套餐有效期。',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('微信扫码续费')).toBeInTheDocument();
+  });
+
+  it('当前试用套餐可直接开通正式版', async () => {
+    const endsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    mockCurrent.mockResolvedValueOnce({
+      plan: { code: 'professional', name: '专业版' },
+      entitlement: {
+        member_limit: 30,
+        team_limit: 10,
+        house_limit: 3000,
+        ends_at: endsAt,
+      },
+      usage: { member: 3, team: 1, house: 20 },
+      subscription: {
+        kind: 'trial',
+        status: 'trialing',
+        billing_cycle: 'month',
+        starts_at: new Date().toISOString(),
+        ends_at: endsAt,
+      },
+      recommendation: null,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionPage />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole('button', {
+        name: /开通正式版 专业版（月付）/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/续费后将从当前到期日顺延/),
+    ).not.toBeInTheDocument();
+  });
+
+  it('仅查看权限不展示购买和续费操作', async () => {
+    mockAccess.canManageSubscriptions = false;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('套餐与用量管理')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '续费 / 升级' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /升级至专业版/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /购买记录/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('当前付费套餐超过三十天到期时不显示临期提醒', async () => {
+    const endsAt = new Date(
+      Date.now() + 45 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    mockCurrent.mockResolvedValueOnce({
+      plan: { code: 'professional', name: '专业版' },
+      entitlement: {
+        member_limit: 30,
+        team_limit: 10,
+        house_limit: 3000,
+        ends_at: endsAt,
+      },
+      usage: { member: 8, team: 2, house: 120 },
+      subscription: {
+        kind: 'paid',
+        status: 'active',
+        billing_cycle: 'month',
+        starts_at: new Date().toISOString(),
+        ends_at: endsAt,
+      },
+      recommendation: null,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionPage />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole('button', { name: /续费 专业版（月付）/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/续费后将从当前到期日顺延/),
     ).not.toBeInTheDocument();
   });
 });

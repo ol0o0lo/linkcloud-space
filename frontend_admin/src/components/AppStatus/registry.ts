@@ -112,6 +112,35 @@ export const APP_STATUS_DEFINITIONS = {
       },
     },
   },
+  'invoice-request': {
+    states: {
+      pending: {
+        description: '开票申请已提交，等待平台处理',
+        icon: 'invoice-request.pending',
+        tone: 'warning',
+      },
+      processing: {
+        description: '平台正在处理开票申请',
+        icon: 'invoice-request.processing',
+        tone: 'info',
+      },
+      issued: {
+        description: '发票已开具，可查看或下载发票文件',
+        icon: 'invoice-request.issued',
+        tone: 'success',
+      },
+      rejected: {
+        description: '开票申请未通过，请查看平台备注',
+        icon: 'invoice-request.rejected',
+        tone: 'error',
+      },
+      cancelled: {
+        description: '开票申请已取消',
+        icon: 'invoice-request.cancelled',
+        tone: 'secondary',
+      },
+    },
+  },
   'landlord-binding': {
     states: {
       unbound: {

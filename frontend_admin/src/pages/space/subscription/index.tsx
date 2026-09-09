@@ -18,7 +18,7 @@ import {
   WechatOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { history } from '@umijs/max';
+import { history, useAccess } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -27,6 +27,7 @@ import {
   message,
   Progress,
   Segmented,
+  Space,
   Tag,
   Typography,
 } from 'antd';
@@ -132,7 +133,7 @@ const PRODUCT_CAPABILITIES = [
   },
   {
     key: 'governance',
-    title: '组织治理',
+    title: '权限与集成',
     tone: 'orange',
     icon: <ApiOutlined />,
     description:
@@ -204,8 +205,9 @@ const SUBSCRIPTION_NOTES = [
   },
   {
     key: 'billing',
-    title: '月付年付可选',
-    description: '按团队预算灵活选择付费周期，年付方案可享对应优惠。',
+    title: '含税与手动续费',
+    description:
+      '所有套餐价格均为含税价；到期前由管理员手动续费，不会自动扣款。',
     icon: <WalletOutlined />,
   },
   {
@@ -221,6 +223,13 @@ const SUBSCRIPTION_NOTES = [
     icon: <FileTextOutlined />,
   },
 ];
+
+function createCheckoutIdempotencyKey() {
+  return (
+    globalThis.crypto?.randomUUID?.() ||
+    `checkout-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  );
+}
 
 const useStyles = createStyles(({ css, token }) => ({
   page: css`
@@ -510,6 +519,21 @@ const useStyles = createStyles(({ css, token }) => ({
     font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
+  `,
+  renewalAlert: css`
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+
+    .ant-alert-action {
+      align-self: center;
+    }
+
+    @media (max-width: 575px) {
+      .ant-alert-action {
+        align-self: flex-start;
+      }
+    }
   `,
   summaryRecommendation: css`
     display: flex;
@@ -1448,6 +1472,7 @@ function subscriptionStatusMeta(subscription: CurrentSubscription | null) {
 
 const SubscriptionPage: React.FC = () => {
   const { styles, theme } = useStyles();
+  const { canManageSubscriptions } = useAccess();
   const workspace = useTenantWorkspace();
   const [billingCycle, setBillingCycle] = useState<'month' | 'year'>('month');
   const [checkoutCodeUrl, setCheckoutCodeUrl] = useState<string>();
@@ -1519,9 +1544,8 @@ const SubscriptionPage: React.FC = () => {
   const requestCancelOrder = () => {
     if (!checkoutOrderNo || cancelOrderMutation.isPending) return;
     Modal.confirm({
-      title: '取消当前订单？',
-      content: '取消后当前支付二维码将失效，如需购买请重新下单。',
-      okText: '取消订单',
+      title: '确定关闭？',
+      okText: '确认关闭',
       cancelText: '继续支付',
       okButtonProps: { danger: true },
       onOk: () => cancelOrderMutation.mutateAsync(checkoutOrderNo),
@@ -1606,6 +1630,36 @@ const SubscriptionPage: React.FC = () => {
     purchaseMutation.data?.payable_amount;
   const expiresAt = currentSubscription?.ends_at || entitlement.ends_at;
   const daysLeft = remainingDays(expiresAt);
+  const isPaidRenewal =
+    currentPlanCode !== 'free' &&
+    currentSubscription?.kind === 'paid' &&
+    currentSubscription.status === 'active';
+  const isTrialPurchase =
+    currentPlanCode !== 'free' &&
+    currentSubscription?.kind === 'trial' &&
+    currentSubscription.status === 'trialing';
+  const showRenewalReminder =
+    isPaidRenewal && daysLeft != null && daysLeft <= 30;
+  const checkoutTargetsCurrentPlan =
+    purchaseMutation.variables?.target_plan_code === currentPlanCode;
+  const checkoutAction = checkoutTargetsCurrentPlan
+    ? isPaidRenewal
+      ? 'renewal'
+      : isTrialPurchase
+        ? 'trial_purchase'
+        : 'purchase'
+    : 'purchase';
+  const focusCurrentPlanAction = () => {
+    const action = document.getElementById(
+      `subscription-plan-action-${currentPlanCode}`,
+    );
+    action?.scrollIntoView?.({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'center',
+    });
+    window.setTimeout(() => action?.focus(), 300);
+  };
   const resourceUsageItems = [
     {
       key: 'member',
@@ -1712,19 +1766,21 @@ const SubscriptionPage: React.FC = () => {
             </Typography.Paragraph>
           </div>
           <div className={styles.pageActions}>
-            <Button
-              type="primary"
-              size="large"
-              icon={<ArrowRightOutlined />}
-              iconPlacement="end"
-              onClick={() =>
-                document
-                  .getElementById('plan-catalog')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }
-            >
-              续费 / 升级
-            </Button>
+            {canManageSubscriptions ? (
+              <Button
+                type="primary"
+                size="large"
+                icon={<ArrowRightOutlined />}
+                iconPlacement="end"
+                onClick={() =>
+                  document
+                    .getElementById('plan-catalog')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+              >
+                续费 / 升级
+              </Button>
+            ) : null}
             <Button
               size="large"
               icon={<FileTextOutlined />}
@@ -1802,6 +1858,26 @@ const SubscriptionPage: React.FC = () => {
               </ul>
             </div>
           </div>
+          {showRenewalReminder && (
+            <Alert
+              className={styles.renewalAlert}
+              type="warning"
+              showIcon
+              title={
+                daysLeft === 0
+                  ? `${currentPlanName}今天到期`
+                  : `${currentPlanName}将在 ${daysLeft} 天后到期`
+              }
+              description={`当前有效期至 ${formatCompactDate(expiresAt)}，续费后将从当前到期日顺延。`}
+              action={
+                canManageSubscriptions ? (
+                  <Button type="primary" onClick={focusCurrentPlanAction}>
+                    立即续费
+                  </Button>
+                ) : undefined
+              }
+            />
+          )}
           {recommendedPlan && (
             <div className={styles.summaryRecommendation}>
               <div className={styles.summaryRecommendationMain}>
@@ -1838,23 +1914,26 @@ const SubscriptionPage: React.FC = () => {
                     /{billingCycle === 'year' ? '年' : '月'}
                   </span>
                 </div>
-                <Button
-                  type="primary"
-                  size="large"
-                  className={styles.summaryRecommendationButton}
-                  disabled={!recommendedPrice}
-                  loading={purchaseMutation.isPending}
-                  aria-label={`推荐升级 ${recommendedPlan.name}（${billingCycleLabel(billingCycle)}） ${formatAmount(recommendedAmount)}`}
-                  onClick={() =>
-                    purchaseMutation.mutate({
-                      target_plan_code: recommendedPlan.code,
-                      billing_cycle: billingCycle,
-                      payment_mode: 'native',
-                    })
-                  }
-                >
-                  升级至{recommendedPlan.name}
-                </Button>
+                {canManageSubscriptions ? (
+                  <Button
+                    type="primary"
+                    size="large"
+                    className={styles.summaryRecommendationButton}
+                    disabled={!recommendedPrice}
+                    loading={purchaseMutation.isPending}
+                    aria-label={`推荐升级 ${recommendedPlan.name}（${billingCycleLabel(billingCycle)}） ${formatAmount(recommendedAmount)}`}
+                    onClick={() =>
+                      purchaseMutation.mutate({
+                        target_plan_code: recommendedPlan.code,
+                        billing_cycle: billingCycle,
+                        payment_mode: 'native',
+                        idempotency_key: createCheckoutIdempotencyKey(),
+                      })
+                    }
+                  >
+                    升级至{recommendedPlan.name}
+                  </Button>
+                ) : null}
               </div>
             </div>
           )}
@@ -1917,14 +1996,36 @@ const SubscriptionPage: React.FC = () => {
                       const lowerPlan =
                         plan.display_order < currentPlanOrder ||
                         plan.code === 'free';
-                      const disabled = isCurrent || lowerPlan || !selectedPrice;
-                      const actionLabel = isCurrent
-                        ? '当前使用'
-                        : lowerPlan
-                          ? '不可降级'
-                          : !selectedPrice
-                            ? '暂不可用'
-                            : `升级至${plan.name}`;
+                      const currentPlanAction = isCurrent
+                        ? isPaidRenewal
+                          ? 'renewal'
+                          : isTrialPurchase
+                            ? 'trial_purchase'
+                            : null
+                        : null;
+                      const disabled =
+                        !canManageSubscriptions ||
+                        (isCurrent && !currentPlanAction) ||
+                        (!isCurrent && lowerPlan) ||
+                        !selectedPrice;
+                      const actionLabel = !canManageSubscriptions
+                        ? '仅可查看'
+                        : currentPlanAction
+                          ? currentPlanAction === 'renewal'
+                            ? `续费${plan.name}`
+                            : '开通正式版'
+                          : isCurrent
+                            ? '当前使用'
+                            : lowerPlan
+                              ? '不可降级'
+                              : !selectedPrice
+                                ? '暂不可用'
+                                : `升级至${plan.name}`;
+                      const actionAriaLabel = currentPlanAction
+                        ? currentPlanAction === 'renewal'
+                          ? `续费 ${plan.name}（${billingCycleLabel(billingCycle)}） ${formatAmount(amount)}`
+                          : `开通正式版 ${plan.name}（${billingCycleLabel(billingCycle)}） ${formatAmount(amount)}`
+                        : `开通 ${plan.name}（${billingCycleLabel(billingCycle)}） ${formatAmount(amount)}`;
                       const presentation = PLAN_PRESENTATIONS[plan.code] || {
                         icon: <ApartmentOutlined />,
                         tone: 'neutral' as const,
@@ -1972,12 +2073,7 @@ const SubscriptionPage: React.FC = () => {
                                 /{billingCycle === 'year' ? '年' : '月'}
                               </span>
                             </div>
-                            {isCurrent ? (
-                              <span
-                                className={styles.tableActionPlaceholder}
-                                aria-hidden="true"
-                              />
-                            ) : disabled ? (
+                            {disabled ? (
                               <span className={styles.tableActionStatus}>
                                 {actionLabel}
                               </span>
@@ -1997,12 +2093,19 @@ const SubscriptionPage: React.FC = () => {
                                 icon={<ArrowRightOutlined />}
                                 iconPlacement="end"
                                 loading={purchaseMutation.isPending}
-                                aria-label={`开通 ${plan.name}（${billingCycleLabel(billingCycle)}） ${formatAmount(amount)}`}
+                                id={
+                                  isCurrent
+                                    ? `subscription-plan-action-${plan.code}`
+                                    : undefined
+                                }
+                                aria-label={actionAriaLabel}
                                 onClick={() =>
                                   purchaseMutation.mutate({
                                     target_plan_code: plan.code,
                                     billing_cycle: billingCycle,
                                     payment_mode: 'native',
+                                    idempotency_key:
+                                      createCheckoutIdempotencyKey(),
                                   })
                                 }
                               >
@@ -2115,10 +2218,29 @@ const SubscriptionPage: React.FC = () => {
               </div>
             ))}
           </div>
+          <Alert
+            className="m-4 mt-0"
+            type="info"
+            showIcon
+            title="付费与售后说明"
+            description={
+              <Space orientation="vertical" size={2}>
+                <span>
+                  手动续费，不会自动扣款；支付成功后套餐权益立即生效。
+                </span>
+                <span>
+                  申请退款前请先核对订单状态，已开票订单需按平台要求处理红冲。
+                </span>
+                <span>
+                  支付即表示已阅读并同意退款规则与付费服务协议；如遇异常，请保留订单号联系平台客服。
+                </span>
+              </Space>
+            }
+          />
         </Card>
 
         <Modal
-          title="微信扫码支付"
+          title={checkoutAction === 'renewal' ? '微信扫码续费' : '微信扫码支付'}
           open={checkoutOpen}
           onCancel={requestCancelOrder}
           footer={null}
@@ -2168,7 +2290,13 @@ const SubscriptionPage: React.FC = () => {
               className={styles.checkoutNotice}
               type="info"
               showIcon
-              title="支付完成后页面会自动同步，请勿重复创建订单。"
+              title={
+                checkoutAction === 'renewal'
+                  ? '支付成功后将从当前到期日顺延，页面会自动同步套餐有效期。'
+                  : checkoutAction === 'trial_purchase'
+                    ? '支付成功后将开通正式版，页面会自动同步套餐有效期。'
+                    : '支付完成后页面会自动同步，请勿重复创建订单。'
+              }
             />
             <Button
               className={styles.checkoutAction}

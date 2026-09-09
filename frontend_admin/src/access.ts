@@ -30,6 +30,9 @@ export default function access(
     canViewTeamSettings: teamSettings,
     canViewBusinessSettings: organizationSettings || teamSettings,
     canViewSubscriptions: Boolean(navigationCapabilities?.subscriptions),
+    canManageSubscriptions: Boolean(
+      navigationCapabilities?.subscriptions_manage,
+    ),
     canViewAnalytics: Boolean(navigationCapabilities?.analytics),
     canViewAllocation: Boolean(navigationCapabilities?.allocation),
     canManageNotificationDispatches: Boolean(

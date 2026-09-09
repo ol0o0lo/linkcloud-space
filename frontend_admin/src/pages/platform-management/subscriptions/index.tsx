@@ -63,8 +63,22 @@ const refundStatusMeta: Record<string, { color: string; label: string }> = {
   full: { color: 'volcano', label: '全额退款' },
 };
 
+const paymentStatusMeta: Record<string, { color: string; label: string }> = {
+  pending: { color: 'gold', label: '待支付' },
+  succeeded: { color: 'green', label: '渠道已支付' },
+  failed: { color: 'volcano', label: '渠道失败' },
+  exception: { color: 'red', label: '异常支付' },
+};
+
+const closeReasonMeta: Record<string, string> = {
+  timeout: '支付超时',
+  superseded: '新订单替代',
+  provider_failed: '渠道失败',
+  user_cancelled: '用户取消',
+};
+
 const invoiceStatusMeta: Record<string, { color: string; label: string }> = {
-  pending: { color: 'gold', label: '待处理' },
+  pending: { color: 'gold', label: '待开票' },
   processing: { color: 'blue', label: '处理中' },
   issued: { color: 'green', label: '已开票' },
   rejected: { color: 'volcano', label: '已拒绝' },
@@ -186,13 +200,43 @@ const SubscriptionsAdminPage: React.FC = () => {
           color: 'default',
           label: record.refund_status,
         };
+        const paymentStatus = record.payment?.status
+          ? paymentStatusMeta[String(record.payment.status)]
+          : undefined;
         return (
           <Space orientation="vertical" size={4}>
             <Tag color={orderStatus.color}>{orderStatus.label}</Tag>
+            {paymentStatus ? (
+              <Tag color={paymentStatus.color}>{paymentStatus.label}</Tag>
+            ) : null}
             <Tag color={refundStatus.color}>{refundStatus.label}</Tag>
           </Space>
         );
       },
+    },
+    {
+      title: '支付详情',
+      dataIndex: 'payment_detail',
+      width: 240,
+      render: (_value, record) => (
+        <Space orientation="vertical" size={4}>
+          {record.close_reason ? (
+            <Typography.Text type="secondary">
+              {closeReasonMeta[record.close_reason] || record.close_reason}
+            </Typography.Text>
+          ) : null}
+          {record.payment?.provider_trade_no ? (
+            <Typography.Text copyable>
+              {String(record.payment.provider_trade_no)}
+            </Typography.Text>
+          ) : null}
+          {record.payment?.transaction_no ? (
+            <Typography.Text type="secondary" copyable>
+              {String(record.payment.transaction_no)}
+            </Typography.Text>
+          ) : null}
+        </Space>
+      ),
     },
     {
       title: '创建时间',
@@ -206,28 +250,32 @@ const SubscriptionsAdminPage: React.FC = () => {
       dataIndex: 'actions',
       width: 120,
       align: 'center',
-      render: (_value, record) => (
-        <ResponsiveActions>
-          {record.status === 'paid' && record.refund_status === 'none' ? (
-            <a
-              onClick={() => {
-                refundMutation.reset();
-                refundForm.setFieldsValue({
-                  amount: record.payable_amount,
-                  reason: '',
-                  proof: '',
-                  subscription_action: 'keep',
-                });
-                setRefundOrder(record);
-              }}
-            >
-              登记退款
-            </a>
-          ) : (
-            <Typography.Text type="secondary">已处置</Typography.Text>
-          )}
-        </ResponsiveActions>
-      ),
+      render: (_value, record) => {
+        const isExceptionPayment = record.payment?.status === 'exception';
+        return (
+          <ResponsiveActions>
+            {(record.status === 'paid' || isExceptionPayment) &&
+            record.refund_status === 'none' ? (
+              <a
+                onClick={() => {
+                  refundMutation.reset();
+                  refundForm.setFieldsValue({
+                    amount: record.payable_amount,
+                    reason: '',
+                    proof: '',
+                    subscription_action: 'keep',
+                  });
+                  setRefundOrder(record);
+                }}
+              >
+                {isExceptionPayment ? '登记异常退款' : '登记退款'}
+              </a>
+            ) : (
+              <Typography.Text type="secondary">已完成</Typography.Text>
+            )}
+          </ResponsiveActions>
+        );
+      },
     },
   ];
 
@@ -322,7 +370,7 @@ const SubscriptionsAdminPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer title="订阅处置">
+    <PageContainer title="订阅与订单">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
           <ProTable<AdminOrder>
@@ -381,9 +429,13 @@ const SubscriptionsAdminPage: React.FC = () => {
         confirmLoading={refundMutation.isPending}
         onCancel={() => setRefundOrder(undefined)}
         onOk={async () => {
-          const payload = await refundForm.validateFields();
-          if (refundOrder) {
-            await refundMutation.mutateAsync({ order: refundOrder, payload });
+          try {
+            const payload = await refundForm.validateFields();
+            if (refundOrder) {
+              await refundMutation.mutateAsync({ order: refundOrder, payload });
+            }
+          } catch {
+            // 表单错误由 antd 直接展示；接口错误由 mutation Alert 展示。
           }
         }}
       >
@@ -393,6 +445,14 @@ const SubscriptionsAdminPage: React.FC = () => {
               type="error"
               showIcon
               title={errorMessage(refundMutation.error)}
+            />
+          ) : null}
+          {refundOrder?.payment?.status === 'exception' ? (
+            <Alert
+              type="warning"
+              showIcon
+              title="异常支付只能保留当前订阅"
+              description="请先在线下完成退款，再填写可核对的退款凭证。"
             />
           ) : null}
           <Form form={refundForm} layout="vertical">
@@ -410,7 +470,15 @@ const SubscriptionsAdminPage: React.FC = () => {
             >
               <Input />
             </Form.Item>
-            <Form.Item label="退款凭证" name="proof">
+            <Form.Item
+              label="退款凭证"
+              name="proof"
+              rules={
+                refundOrder?.payment?.status === 'exception'
+                  ? [{ required: true, message: '请填写退款凭证。' }]
+                  : undefined
+              }
+            >
               <Input placeholder="可填写凭证编号或文件地址" />
             </Form.Item>
             <Form.Item
@@ -419,6 +487,7 @@ const SubscriptionsAdminPage: React.FC = () => {
               rules={[{ required: true, message: '请选择订阅处理方式。' }]}
             >
               <Select
+                disabled={refundOrder?.payment?.status === 'exception'}
                 options={[
                   { value: 'keep', label: '保留当前订阅' },
                   { value: 'end', label: '立即结束订阅' },
