@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.utils.dateparse import parse_datetime
 
 import requests
 from cryptography.exceptions import InvalidSignature
@@ -134,6 +135,15 @@ class WechatPayClient:
         if not result["ok"] and result["body"].get("code") not in {"ORDERNOTEXIST", "ORDERCLOSED"}:
             raise PaymentConfigurationException(result["body"].get("message", "微信关单失败。"))
 
+    def query_payment(self, payment) -> dict:
+        result = self._request_json(
+            "GET",
+            f"/v3/pay/transactions/out-trade-no/{payment.transaction_no}?mchid={self.config.mch_id}",
+        )
+        if not result["ok"]:
+            raise PaymentConfigurationException(result["body"].get("message", "微信支付订单查询失败。"))
+        return self._payment_result(result["body"])
+
     def create_payout(self, payout) -> dict:
         snapshot = payout.payee_snapshot
         openid = snapshot.get("openid", "")
@@ -190,12 +200,7 @@ class WechatPayClient:
         resource = self._callback_resource(raw_body)
         if resource.get("trade_state") != "SUCCESS":
             raise PaymentConfigurationException("微信支付回调不是成功状态。")
-        return {
-            "transaction_no": resource.get("out_trade_no", ""),
-            "provider_trade_no": resource.get("transaction_id", ""),
-            "callback_event_id": json.loads(raw_body).get("id") or resource.get("transaction_id", ""),
-            "response_snapshot": {"trade_state": resource.get("trade_state"), "trade_state_desc": resource.get("trade_state_desc", "")},
-        }
+        return self._payment_result(resource, callback_event_id=json.loads(raw_body).get("id") or resource.get("transaction_id", ""))
 
     def parse_payout_callback(self, *, raw_body: str) -> dict:
         resource = self._callback_resource(raw_body)
@@ -213,8 +218,51 @@ class WechatPayClient:
             "description": payment.description,
             "out_trade_no": payment.transaction_no,
             "notify_url": self.config.payment_notify_url,
+            "time_expire": payment.expires_at.isoformat(timespec="seconds"),
             "amount": {"total": payment.amount, "currency": "CNY"},
         }
+
+    @staticmethod
+    def _payment_result(resource: dict, *, callback_event_id: str | None = None) -> dict:
+        amount = resource.get("amount") or {}
+        if resource.get("trade_state") == "SUCCESS":
+            required_values = {
+                "out_trade_no": resource.get("out_trade_no"),
+                "transaction_id": resource.get("transaction_id"),
+                "mchid": resource.get("mchid"),
+                "appid": resource.get("appid"),
+                "success_time": resource.get("success_time"),
+                "amount.total": amount.get("total"),
+                "amount.currency": amount.get("currency"),
+            }
+            missing = [name for name, value in required_values.items() if value in {None, ""}]
+            if missing:
+                raise PaymentConfigurationException(f"微信支付成功结果关键字段不完整：{', '.join(missing)}。")
+        snapshot = {
+            "appid": resource.get("appid", ""),
+            "mchid": resource.get("mchid", ""),
+            "out_trade_no": resource.get("out_trade_no", ""),
+            "transaction_id": resource.get("transaction_id", ""),
+            "trade_state": resource.get("trade_state", ""),
+            "trade_state_desc": resource.get("trade_state_desc", ""),
+            "success_time": resource.get("success_time", ""),
+            "amount": amount,
+        }
+        result = {
+            "state": resource.get("trade_state", ""),
+            "transaction_no": resource.get("out_trade_no", ""),
+            "provider_trade_no": resource.get("transaction_id", ""),
+            "reported_amount": amount.get("total"),
+            "currency": amount.get("currency"),
+            "mch_id": resource.get("mchid"),
+            "app_id": resource.get("appid"),
+            "paid_at": parse_datetime(resource["success_time"]) if resource.get("success_time") else None,
+            "response_snapshot": snapshot,
+        }
+        if callback_event_id is not None:
+            result["callback_event_id"] = callback_event_id
+            result.pop("state")
+        return result
 
     def _callback_resource(self, raw_body: str) -> dict:
         payload = json.loads(raw_body)
@@ -233,13 +281,16 @@ class WechatPayClient:
 
     def _request_json(self, method: str, path: str, payload: dict | None = None) -> dict:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True) if payload else ""
-        response = self.session.request(
-            method=method,
-            url=f"{self.config.api_base_url.rstrip('/')}{path}",
-            data=body or None,
-            headers=self._request_headers(method=method, path=path, body=body),
-            timeout=self.config.timeout_seconds,
-        )
+        try:
+            response = self.session.request(
+                method=method,
+                url=f"{self.config.api_base_url.rstrip('/')}{path}",
+                data=body or None,
+                headers=self._request_headers(method=method, path=path, body=body),
+                timeout=self.config.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise PaymentConfigurationException("微信支付渠道暂时不可用，请稍后重试。") from exc
         try:
             response_body = response.json() if response.text else {}
         except ValueError:

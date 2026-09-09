@@ -4,8 +4,8 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.payments.constants import PaymentStatus, PayoutStatus
-from apps.payments.exceptions import PaymentCallbackConflictException, PaymentConfigurationException
+from apps.payments.constants import PaymentMode, PaymentStatus, PayoutStatus
+from apps.payments.exceptions import PaymentCallbackConflictException, PaymentCallbackMismatchException, PaymentConfigurationException
 from apps.payments.models import PaymentTransaction, PayoutTransaction
 from apps.payments.wechat import WechatPayClient, build_wechat_config
 
@@ -63,6 +63,38 @@ def start_checkout(*, payment: PaymentTransaction, openid: str = "") -> dict:
 
 def close_payment(payment: PaymentTransaction) -> None:
     WechatPayClient(build_wechat_config(purpose="payment")).close_payment(payment)
+
+
+def query_payment(payment: PaymentTransaction) -> PaymentTransaction:
+    if payment.status != PaymentStatus.PENDING:
+        return payment
+    client = WechatPayClient(build_wechat_config(purpose="payment", payment_mode=payment.payment_mode))
+    result = client.query_payment(payment)
+    if result["state"] == "SUCCESS":
+        return mark_payment_succeeded(
+            transaction_no=result["transaction_no"],
+            provider_trade_no=result["provider_trade_no"],
+            callback_event_id=f"query:{result['provider_trade_no']}",
+            reported_amount=result.get("reported_amount"),
+            currency=result.get("currency"),
+            mch_id=result.get("mch_id"),
+            app_id=result.get("app_id"),
+            paid_at=result.get("paid_at"),
+            response_snapshot=result.get("response_snapshot"),
+        )
+    if result["state"] in {"CLOSED", "REVOKED", "PAYERROR"}:
+        PaymentTransaction.objects.filter(pk=payment.pk, status=PaymentStatus.PENDING).update(
+            status=PaymentStatus.FAILED,
+            response_snapshot=result.get("response_snapshot", {}),
+            updated_at=timezone.now(),
+        )
+    elif result.get("response_snapshot"):
+        PaymentTransaction.objects.filter(pk=payment.pk, status=PaymentStatus.PENDING).update(
+            response_snapshot=result["response_snapshot"],
+            updated_at=timezone.now(),
+        )
+    payment.refresh_from_db()
+    return payment
 
 
 def create_payout(*, biz_type: str, biz_id: str, amount: int, payee_snapshot: dict, idempotency_key: str, out_trade_no: str) -> PayoutTransaction:
@@ -123,24 +155,55 @@ def query_payout(payout: PayoutTransaction) -> PayoutTransaction:
     )
 
 
-@transaction.atomic
-def mark_payment_succeeded(*, transaction_no: str, provider_trade_no: str, callback_event_id: str, response_snapshot: dict | None = None) -> PaymentTransaction:
+def mark_payment_succeeded(
+    *,
+    transaction_no: str,
+    provider_trade_no: str,
+    callback_event_id: str,
+    response_snapshot: dict | None = None,
+    reported_amount: int | None = None,
+    currency: str | None = None,
+    mch_id: str | None = None,
+    app_id: str | None = None,
+    paid_at=None,
+) -> PaymentTransaction:
     from apps.payments.signals import payment_succeeded
 
-    payment = PaymentTransaction.objects.select_for_update().get(transaction_no=transaction_no)
-    if payment.callback_event_id == callback_event_id or (payment.status == PaymentStatus.SUCCEEDED and payment.provider_trade_no == provider_trade_no):
-        return payment
-    payment.provider_trade_no = provider_trade_no
-    payment.callback_event_id = callback_event_id
-    payment.status = PaymentStatus.SUCCEEDED
-    payment.paid_at = timezone.now()
-    payment.response_snapshot = response_snapshot or {}
     try:
-        payment.save(update_fields=["provider_trade_no", "callback_event_id", "status", "paid_at", "response_snapshot", "updated_at"])
-    except IntegrityError as exc:
-        raise PaymentCallbackConflictException() from exc
-    payment_succeeded.send(sender=PaymentTransaction, payment=payment)
-    return payment
+        with transaction.atomic():
+            payment = PaymentTransaction.objects.select_for_update().get(transaction_no=transaction_no)
+            if payment.callback_event_id == callback_event_id or (payment.status == PaymentStatus.SUCCEEDED and payment.provider_trade_no == provider_trade_no):
+                return payment
+            expected_app_id = settings.PAYMENTS_WECHAT_MINIPROGRAM_APP_ID if payment.payment_mode == PaymentMode.MINIPROGRAM else settings.PAYMENTS_WECHAT_NATIVE_APP_ID
+            if reported_amount is not None and reported_amount != payment.amount:
+                raise PaymentCallbackMismatchException("微信支付金额与本地交易不一致。")
+            if currency is not None and currency != "CNY":
+                raise PaymentCallbackMismatchException("微信支付币种不是 CNY。")
+            if mch_id is not None and settings.PAYMENTS_WECHAT_MCH_ID and mch_id != settings.PAYMENTS_WECHAT_MCH_ID:
+                raise PaymentCallbackMismatchException("微信支付商户号与本地配置不一致。")
+            if app_id is not None and expected_app_id and app_id != expected_app_id:
+                raise PaymentCallbackMismatchException("微信支付 AppID 与本地配置不一致。")
+            payment.provider_trade_no = provider_trade_no
+            payment.callback_event_id = callback_event_id
+            payment.status = PaymentStatus.SUCCEEDED
+            payment.paid_at = paid_at or timezone.now()
+            payment.response_snapshot = response_snapshot or {}
+            try:
+                payment.save(update_fields=["provider_trade_no", "callback_event_id", "status", "paid_at", "response_snapshot", "updated_at"])
+            except IntegrityError as exc:
+                raise PaymentCallbackConflictException() from exc
+            payment_succeeded.send(sender=PaymentTransaction, payment=payment)
+            return payment
+    except PaymentCallbackMismatchException:
+        PaymentTransaction.objects.filter(
+            transaction_no=transaction_no,
+            status__in=[PaymentStatus.PENDING, PaymentStatus.EXCEPTION],
+        ).update(
+            status=PaymentStatus.EXCEPTION,
+            response_snapshot=response_snapshot or {},
+            updated_at=timezone.now(),
+        )
+        raise
 
 
 @transaction.atomic
