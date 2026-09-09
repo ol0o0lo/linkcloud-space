@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import BuildingDetailPage from './detail';
 
@@ -7,12 +7,18 @@ const {
   mockGetBuilding,
   mockGetBuildingMapDetail,
   mockListHouses,
+  mockToggleFavorite,
+  mockUseFavoriteState,
   mockUseTenantWorkspace,
+  mockUseToggleFavorite,
 } = vi.hoisted(() => ({
   mockGetBuilding: vi.fn(),
   mockGetBuildingMapDetail: vi.fn(),
   mockListHouses: vi.fn(),
+  mockToggleFavorite: vi.fn(),
+  mockUseFavoriteState: vi.fn(),
   mockUseTenantWorkspace: vi.fn(),
+  mockUseToggleFavorite: vi.fn(),
 }));
 
 vi.mock('@umijs/max', () => ({
@@ -37,9 +43,23 @@ vi.mock('@/services/manual/house', () => ({
   },
 }));
 
+vi.mock('@/services/manual/favoriteHooks', () => ({
+  useFavoriteState: mockUseFavoriteState,
+  useToggleFavorite: mockUseToggleFavorite,
+}));
+
 describe('BuildingDetailPage', () => {
   it('按楼栋条件分页加载房源列表', async () => {
     mockUseTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'demo' });
+    mockUseFavoriteState.mockReturnValue({
+      data: { items: [] },
+      isFavorite: false,
+      isLoading: false,
+    });
+    mockUseToggleFavorite.mockReturnValue({
+      mutate: mockToggleFavorite,
+      isPending: false,
+    });
     mockGetBuilding.mockResolvedValue({
       id: 9,
       name: '1栋',
@@ -52,7 +72,7 @@ describe('BuildingDetailPage', () => {
       counts: {
         total: 1,
         vacant: 1,
-        listed: 0,
+        listed: 1,
         rented: 0,
         renovating: 0,
       },
@@ -92,5 +112,7 @@ describe('BuildingDetailPage', () => {
       'href',
       '/dashboard/rental/properties/list?building_id=9',
     );
+    fireEvent.click(screen.getByRole('button', { name: /收藏楼栋/ }));
+    expect(mockToggleFavorite).toHaveBeenCalledWith(false);
   });
 });

@@ -1,4 +1,9 @@
-import { EditOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  EditOutlined,
+  HeartFilled,
+  HeartOutlined,
+  PlusOutlined,
+} from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@umijs/max';
 import {
@@ -7,6 +12,7 @@ import {
   Col,
   Empty,
   Image,
+  message,
   Progress,
   Row,
   Space,
@@ -18,6 +24,10 @@ import { createStyles } from 'antd-style';
 import React, { useState } from 'react';
 import { AppIcon } from '@/components/AppIcon';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
+import {
+  useFavoriteState,
+  useToggleFavorite,
+} from '@/services/manual/favoriteHooks';
 import { houseApi } from '@/services/manual/house';
 
 const PAGE_SIZE = 20;
@@ -237,6 +247,16 @@ const EstateDetailPage: React.FC = () => {
       }),
     enabled,
   });
+  const isPublicEstate = Boolean(detail.data?.counts?.listed);
+  const favoriteState = useFavoriteState('estate', estateId, {
+    enabled: enabled && isPublicEstate,
+  });
+  const toggleFavorite = useToggleFavorite('estate', estateId, {
+    onSuccess: (_result, wasFavorite) => {
+      message.success(wasFavorite ? '已取消收藏小区' : '已收藏小区');
+    },
+    onError: () => message.error('小区收藏操作失败，请稍后重试'),
+  });
 
   if (detail.isLoading) return <Card loading style={{ minHeight: 360 }} />;
   if (!detail.data) return <Empty description="未找到小区" />;
@@ -344,6 +364,29 @@ const EstateDetailPage: React.FC = () => {
                 </div>
               </div>
               <Space className={styles.bannerActions} wrap>
+                <Button
+                  icon={
+                    favoriteState.isFavorite ? (
+                      <HeartFilled />
+                    ) : (
+                      <HeartOutlined />
+                    )
+                  }
+                  loading={favoriteState.isLoading || toggleFavorite.isPending}
+                  disabled={!isPublicEstate || !favoriteState.data}
+                  title={
+                    isPublicEstate
+                      ? favoriteState.isFavorite
+                        ? '取消收藏小区'
+                        : '收藏小区'
+                      : '小区至少有一套招租房源后才可收藏'
+                  }
+                  onClick={() =>
+                    toggleFavorite.mutate(favoriteState.isFavorite)
+                  }
+                >
+                  {favoriteState.isFavorite ? '取消收藏' : '收藏小区'}
+                </Button>
                 <Button type="primary" icon={<EditOutlined />} href={editHref}>
                   编辑资料
                 </Button>

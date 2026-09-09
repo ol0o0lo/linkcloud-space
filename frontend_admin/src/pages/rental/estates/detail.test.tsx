@@ -1,15 +1,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import EstateDetailPage from './detail';
 
-const { mockGetEstate, mockListBuildings, mockUseTenantWorkspace } = vi.hoisted(
-  () => ({
-    mockGetEstate: vi.fn(),
-    mockListBuildings: vi.fn(),
-    mockUseTenantWorkspace: vi.fn(),
-  }),
-);
+const {
+  mockGetEstate,
+  mockListBuildings,
+  mockToggleFavorite,
+  mockUseFavoriteState,
+  mockUseTenantWorkspace,
+  mockUseToggleFavorite,
+} = vi.hoisted(() => ({
+  mockGetEstate: vi.fn(),
+  mockListBuildings: vi.fn(),
+  mockToggleFavorite: vi.fn(),
+  mockUseFavoriteState: vi.fn(),
+  mockUseTenantWorkspace: vi.fn(),
+  mockUseToggleFavorite: vi.fn(),
+}));
 
 vi.mock('@umijs/max', () => ({
   Link: ({
@@ -38,9 +46,23 @@ vi.mock('@/services/manual/house', () => ({
   },
 }));
 
+vi.mock('@/services/manual/favoriteHooks', () => ({
+  useFavoriteState: mockUseFavoriteState,
+  useToggleFavorite: mockUseToggleFavorite,
+}));
+
 describe('EstateDetailPage', () => {
   it('按小区条件分页加载楼栋列表', async () => {
     mockUseTenantWorkspace.mockReturnValue({ selectedOrgSlug: 'demo' });
+    mockUseFavoriteState.mockReturnValue({
+      data: { items: [] },
+      isFavorite: false,
+      isLoading: false,
+    });
+    mockUseToggleFavorite.mockReturnValue({
+      mutate: mockToggleFavorite,
+      isPending: false,
+    });
     mockGetEstate.mockResolvedValue({
       id: 7,
       name: '云岸',
@@ -114,5 +136,7 @@ describe('EstateDetailPage', () => {
       'href',
       '/dashboard/rental/properties/list?estate_id=7&asset_tab=structure&asset_action=create-building',
     );
+    fireEvent.click(screen.getByRole('button', { name: /收藏小区/ }));
+    expect(mockToggleFavorite).toHaveBeenCalledWith(false);
   });
 });

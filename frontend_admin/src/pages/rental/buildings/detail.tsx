@@ -1,4 +1,10 @@
-import { EditOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  EditOutlined,
+  HeartFilled,
+  HeartOutlined,
+  PictureOutlined,
+  PlusOutlined,
+} from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@umijs/max';
 import {
@@ -7,6 +13,7 @@ import {
   Col,
   Empty,
   Image,
+  message,
   Progress,
   Row,
   Space,
@@ -19,6 +26,10 @@ import React, { useState } from 'react';
 import { AppIcon } from '@/components/AppIcon';
 import { AppStatusTag } from '@/components/AppStatus';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
+import {
+  useFavoriteState,
+  useToggleFavorite,
+} from '@/services/manual/favoriteHooks';
 import { houseApi } from '@/services/manual/house';
 import { houseDisplayTags, moneyText } from '../constants';
 import { safeMapReturnTo } from './detail-utils';
@@ -272,6 +283,16 @@ const BuildingDetailPage: React.FC = () => {
       }),
     enabled,
   });
+  const isPublicBuilding = Boolean(detail.data?.counts?.listed);
+  const favoriteState = useFavoriteState('building', buildingId, {
+    enabled: enabled && isPublicBuilding,
+  });
+  const toggleFavorite = useToggleFavorite('building', buildingId, {
+    onSuccess: (_result, wasFavorite) => {
+      message.success(wasFavorite ? '已取消收藏楼栋' : '已收藏楼栋');
+    },
+    onError: () => message.error('楼栋收藏操作失败，请稍后重试'),
+  });
   const returnTo = safeMapReturnTo(
     new URLSearchParams(window.location.search).get('return_to'),
   );
@@ -349,6 +370,23 @@ const BuildingDetailPage: React.FC = () => {
             </div>
           </div>
           <Space wrap>
+            <Button
+              icon={
+                favoriteState.isFavorite ? <HeartFilled /> : <HeartOutlined />
+              }
+              loading={favoriteState.isLoading || toggleFavorite.isPending}
+              disabled={!isPublicBuilding || !favoriteState.data}
+              title={
+                isPublicBuilding
+                  ? favoriteState.isFavorite
+                    ? '取消收藏楼栋'
+                    : '收藏楼栋'
+                  : '楼栋至少有一套招租房源后才可收藏'
+              }
+              onClick={() => toggleFavorite.mutate(favoriteState.isFavorite)}
+            >
+              {favoriteState.isFavorite ? '取消收藏' : '收藏楼栋'}
+            </Button>
             <Button type="primary" icon={<EditOutlined />} href={editHref}>
               编辑资料
             </Button>
@@ -551,7 +589,7 @@ const BuildingDetailPage: React.FC = () => {
               total: houses.data?.total || 0,
               onChange: setPage,
             }}
-            locale={{ emptyText: '暂无房源，可登记房源' }}
+            locale={{ emptyText: '暂无房源' }}
             scroll={{ x: 'max-content' }}
             columns={[
               {
