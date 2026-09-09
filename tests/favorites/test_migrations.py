@@ -16,3 +16,12 @@ class FavoriteDataMigrationTestCase(TestCase):
         migration_apps.get_model.assert_called_once_with("favorites", "Favorite")
         Favorite.objects.filter.assert_called_once_with(is_active=False)
         inactive_favorites.delete.assert_called_once_with()
+
+    def test_legacy_favorited_at_column_receives_a_database_default(self):
+        migration = import_module("apps.favorites.migrations.0006_repair_legacy_favorited_at_default")
+
+        sql = migration.REPAIR_LEGACY_FAVORITED_AT_SQL
+
+        self.assertIn("information_schema.columns", sql)
+        self.assertIn("column_name = 'favorited_at'", sql)
+        self.assertIn("ALTER COLUMN favorited_at SET DEFAULT CURRENT_TIMESTAMP", sql)
