@@ -14,6 +14,11 @@ export type PendingMfaTrustFlowState = {
   flow: AllauthFlow;
 };
 
+export type PendingPhoneVerificationFlowState = {
+  kind: 'pending_phone_verification';
+  flow: AllauthFlow;
+};
+
 export type UnsupportedFlowState = {
   kind: 'unsupported_flow';
   flowIds: string[];
@@ -23,6 +28,7 @@ export type UnsupportedFlowState = {
 export type ParsedAllauthFlowState =
   | PendingMfaFlowState
   | PendingMfaTrustFlowState
+  | PendingPhoneVerificationFlowState
   | UnsupportedFlowState
   | null;
 
@@ -33,6 +39,7 @@ const AVAILABLE_LOGIN_FLOW_IDS = new Set([
   'provider_redirect',
   'provider_token',
   'signup',
+  'verify_phone',
 ]);
 
 export function getAllauthFlows(error: any): AllauthFlow[] {
@@ -72,6 +79,16 @@ export function parseLoginFlowState(error: any): ParsedAllauthFlowState {
     return {
       kind: 'pending_mfa_trust',
       flow: pendingMfaTrust,
+    };
+  }
+
+  const pendingPhoneVerification = flows.find(
+    (flow) => flow?.id === 'verify_phone' && flow?.is_pending,
+  );
+  if (pendingPhoneVerification) {
+    return {
+      kind: 'pending_phone_verification',
+      flow: pendingPhoneVerification,
     };
   }
 

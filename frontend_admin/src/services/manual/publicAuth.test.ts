@@ -40,6 +40,7 @@ import {
   confirmPublicLoginCode,
   requestPublicPasswordReset,
   requestPublicLoginCode,
+  requestPublicPhoneLoginCode,
   resendPublicLoginCode,
   resendPublicPhoneCode,
   resetPublicPassword,
@@ -145,6 +146,25 @@ describe('publicAuth', () => {
     );
     expect(mocks.codeResend).toHaveBeenCalledWith(
       { client: 'browser' },
+      expect.objectContaining({ skipErrorHandler: true }),
+    );
+  });
+
+  it('请求手机号登录验证码时提交 E.164 手机号', async () => {
+    mocks.codeRequest.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: { flows: [{ id: 'login_by_code', is_pending: true }] },
+      },
+    });
+
+    await expect(
+      requestPublicPhoneLoginCode('138-0013-8000'),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.codeRequest).toHaveBeenCalledWith(
+      { client: 'browser' },
+      { phone: '+8613800138000' },
       expect.objectContaining({ skipErrorHandler: true }),
     );
   });

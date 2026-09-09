@@ -6,9 +6,11 @@ const mocks = vi.hoisted(() => ({
   confirmEmail: vi.fn(),
   historyPush: vi.fn(),
   historyReplace: vi.fn(),
+  loadAuthenticatedState: vi.fn(),
   requestReset: vi.fn(),
   resendPhone: vi.fn(),
   resetPassword: vi.fn(),
+  setInitialState: vi.fn(),
   signup: vi.fn(),
   verifyPhone: vi.fn(),
 }));
@@ -24,10 +26,18 @@ vi.mock('@umijs/max', async (importOriginal) => {
       push: mocks.historyPush,
       replace: mocks.historyReplace,
     },
+    useModel: () => ({
+      initialState: { fetchUserInfo: vi.fn() },
+      setInitialState: mocks.setInitialState,
+    }),
     useParams: () => routeParams,
     useSearchParams: () => [new URLSearchParams(window.location.search)],
   };
 });
+
+vi.mock('@/services/manual/authenticatedState', () => ({
+  loadAuthenticatedState: mocks.loadAuthenticatedState,
+}));
 
 vi.mock('@/services/manual/publicAuth', async (importOriginal) => {
   const actual =
@@ -53,6 +63,10 @@ describe('公开认证闭环', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     routeParams = {};
+    mocks.loadAuthenticatedState.mockResolvedValue({
+      currentUser: { id: 1, username: 'admin' },
+      organizations: [],
+    });
     window.history.replaceState({}, '', '/user/register');
   });
 
@@ -126,6 +140,8 @@ describe('公开认证闭环', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认验证' }));
 
     await waitFor(() => expect(mocks.verifyPhone).toHaveBeenCalledWith('1234'));
+    expect(mocks.loadAuthenticatedState).toHaveBeenCalled();
+    expect(mocks.setInitialState).toHaveBeenCalled();
     expect(mocks.historyReplace).toHaveBeenCalledWith('/promotion');
 
     fireEvent.click(screen.getByRole('button', { name: '重新发送' }));

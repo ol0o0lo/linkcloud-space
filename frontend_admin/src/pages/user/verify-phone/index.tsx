@@ -1,6 +1,7 @@
-import { history, Link, useSearchParams } from '@umijs/max';
+import { history, Link, useModel, useSearchParams } from '@umijs/max';
 import { Alert, Button, Form, Input, Space, Typography } from 'antd';
-import React, { useState } from 'react';
+import React, { startTransition, useState } from 'react';
+import { loadAuthenticatedState } from '@/services/manual/authenticatedState';
 import {
   getPublicAuthErrorMessage,
   resendPublicPhoneCode,
@@ -13,6 +14,7 @@ import {
 } from '@/utils/adminRouting';
 
 const VerifyPhonePage: React.FC = () => {
+  const { initialState, setInitialState } = useModel('@@initialState');
   const [params] = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
@@ -27,6 +29,19 @@ const VerifyPhonePage: React.FC = () => {
     setError('');
     try {
       await verifyPublicPhone(code);
+      const nextState = await loadAuthenticatedState(
+        initialState?.fetchUserInfo,
+        initialState?.currentUser,
+      );
+      if (!nextState) {
+        throw new Error('手机号验证成功，但登录状态恢复失败，请重新登录。');
+      }
+      startTransition(() => {
+        setInitialState((state) => ({
+          ...state,
+          ...nextState,
+        }));
+      });
       history.replace(redirect);
     } catch (requestError) {
       setError(

@@ -1,21 +1,23 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockLogin = vi.fn();
 const mockConfirmLoginCode = vi.fn();
-const mockRequestLoginCode = vi.fn();
-const mockStartProviderLogin = vi.fn();
-const mockLoginWithPasskey = vi.fn();
+const mockRequestPhoneLoginCode = vi.fn();
 const mockAuthenticateMfaWithWebauthn = vi.fn();
 const mockTwoFactorAuthenticate = vi.fn();
 const mockTwoFactorTrust = vi.fn();
 const mockFetchUserInfo = vi.fn();
 const mockSwitchList = vi.fn();
+const mockGetNavigation = vi.fn();
+const mockGetTeamOperations = vi.fn();
 const mockSetInitialState = vi.fn();
+const mockHistoryPush = vi.fn();
 const mockHistoryReplace = vi.fn();
 const mockSuccess = vi.fn();
 const mockError = vi.fn();
+const originalWindowLocation = window.location;
 const mockFormattedMessage = ({ defaultMessage }: { defaultMessage: string }) =>
   defaultMessage;
 const authenticatedUser = {
@@ -29,6 +31,7 @@ vi.mock('@umijs/max', () => ({
   Link: ({ children, to }: any) => <a href={to}>{children}</a>,
   SelectLang: () => null,
   history: {
+    push: mockHistoryPush,
     replace: mockHistoryReplace,
   },
   useIntl: () => ({
@@ -54,10 +57,25 @@ vi.mock('antd', () => {
         },
       }),
     },
-    Button: ({ children, htmlType, onClick, ...props }: any) => (
-      <button type={htmlType || 'button'} onClick={onClick} {...props}>
+    Button: ({ children, disabled, htmlType, onClick }: any) => (
+      <button disabled={disabled} type={htmlType || 'button'} onClick={onClick}>
         {children}
       </button>
+    ),
+    Tabs: ({ activeKey, items, onChange }: any) => (
+      <div role="tablist">
+        {items.map((item: { key: string; label: string }) => (
+          <button
+            aria-selected={item.key === activeKey}
+            key={item.key}
+            role="tab"
+            type="button"
+            onClick={() => onChange(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
     ),
     Spin: ({ description }: any) => <div>{description}</div>,
   };
@@ -65,7 +83,20 @@ vi.mock('antd', () => {
 
 vi.mock('@ant-design/icons', () => ({
   LockOutlined: () => null,
+  PhoneOutlined: () => null,
+  SafetyCertificateOutlined: () => null,
   UserOutlined: () => null,
+}));
+
+vi.mock('./wechat-official-login-modal', () => ({
+  default: ({ embedded, open }: any) => {
+    if (!open) return null;
+    return embedded ? (
+      <div data-testid="wechat-embedded">打开微信扫一扫</div>
+    ) : (
+      <div role="dialog">微信扫码登录</div>
+    );
+  },
 }));
 
 vi.mock('@ant-design/pro-components', () => {
@@ -77,7 +108,7 @@ vi.mock('@ant-design/pro-components', () => {
     setValue: () => {},
   });
 
-  const LoginForm = ({ children, initialValues, onFinish }: any) => {
+  const LoginForm = ({ children, initialValues, onFinish, submitter }: any) => {
     const [values, setValues] = React.useState<
       Record<string, string | boolean>
     >(initialValues || {});
@@ -93,7 +124,7 @@ vi.mock('@ant-design/pro-components', () => {
           }}
         >
           {children}
-          <button type="submit">提交</button>
+          {submitter !== false && <button type="submit">提交</button>}
         </form>
       </FormContext.Provider>
     );
@@ -102,15 +133,18 @@ vi.mock('@ant-design/pro-components', () => {
   const ProFormText = ({ fieldProps, name, placeholder }: any) => {
     const { values, setValue } = React.useContext(FormContext);
     return (
-      <input
-        aria-label={name}
-        placeholder={placeholder}
-        value={String(values[name] || '')}
-        onChange={(event) => {
-          setValue(name, event.target.value);
-          fieldProps?.onChange?.(event);
-        }}
-      />
+      <div>
+        <input
+          aria-label={name}
+          placeholder={placeholder}
+          value={String(values[name] || '')}
+          onChange={(event) => {
+            setValue(name, event.target.value);
+            fieldProps?.onChange?.(event);
+          }}
+        />
+        {fieldProps?.suffix}
+      </div>
     );
   };
 
@@ -161,13 +195,19 @@ vi.mock('@/services/allauth/authTwoFactor', () => ({
 vi.mock('@/services/manual/publicAuth', () => ({
   confirmPublicLoginCode: mockConfirmLoginCode,
   getPublicAuthErrorMessage: (_error: unknown, fallback: string) => fallback,
-  requestPublicLoginCode: mockRequestLoginCode,
-  startPublicProviderLogin: mockStartProviderLogin,
+  requestPublicPhoneLoginCode: mockRequestPhoneLoginCode,
 }));
 
 vi.mock('@/services/manual/webauthn', () => ({
   authenticateMfaWithWebauthn: mockAuthenticateMfaWithWebauthn,
-  loginWithPasskey: mockLoginWithPasskey,
+}));
+
+vi.mock('@/services/manual/navigationAccess', () => ({
+  getNavigationAccessCapabilities: mockGetNavigation,
+}));
+
+vi.mock('@/services/manual/teamOperations', () => ({
+  getTeamOperationsCapabilities: mockGetTeamOperations,
 }));
 
 vi.mock('@/services/openapi/organizations', () => ({
@@ -196,7 +236,16 @@ describe('admin 登录 MFA 流程', () => {
         is_current: true,
       },
     ]);
+    mockGetNavigation.mockResolvedValue({ subscriptions: true });
+    mockGetTeamOperations.mockResolvedValue({ enabled: true });
     window.history.replaceState({}, '', '/user/login');
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalWindowLocation,
+    });
   });
 
   it('已有会话进入登录页时应恢复状态并直接跳转', async () => {
@@ -242,28 +291,26 @@ describe('admin 登录 MFA 流程', () => {
     );
   });
 
-  it('请求并确认邮箱登录验证码', async () => {
+  it('请求并确认手机号登录验证码', async () => {
     mockFetchUserInfo
       .mockResolvedValueOnce(undefined)
       .mockResolvedValue(authenticatedUser);
-    mockRequestLoginCode.mockResolvedValueOnce(undefined);
+    mockRequestPhoneLoginCode.mockResolvedValueOnce(undefined);
     mockConfirmLoginCode.mockResolvedValueOnce({});
 
     const { default: Login } = await import('./index');
     render(<Login />);
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: '邮箱验证码登录' }),
-    );
-    fireEvent.change(screen.getByPlaceholderText('请输入邮箱'), {
-      target: { value: 'person@example.com' },
+    fireEvent.click(await screen.findByRole('tab', { name: '手机号登录' }));
+    fireEvent.change(screen.getByPlaceholderText('请输入手机号'), {
+      target: { value: '13800138000' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '发送验证码' }));
+    fireEvent.click(screen.getByRole('button', { name: '获取验证码' }));
 
     await waitFor(() =>
-      expect(mockRequestLoginCode).toHaveBeenCalledWith('person@example.com'),
+      expect(mockRequestPhoneLoginCode).toHaveBeenCalledWith('13800138000'),
     );
-    fireEvent.change(screen.getByPlaceholderText('请输入邮箱验证码'), {
+    fireEvent.change(screen.getByPlaceholderText('请输入短信验证码'), {
       target: { value: '123456' },
     });
     fireEvent.click(screen.getByRole('button', { name: '提交' }));
@@ -277,23 +324,30 @@ describe('admin 登录 MFA 流程', () => {
     );
   });
 
-  it('可发起 GitHub 登录和通行密钥登录', async () => {
-    mockFetchUserInfo
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValue(authenticatedUser);
-    mockLoginWithPasskey.mockResolvedValueOnce({});
-
+  it('只展示微信、手机号和邮箱登录入口', async () => {
     const { default: Login } = await import('./index');
     render(<Login />);
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: '使用 GitHub 登录' }),
-    );
-    expect(mockStartProviderLogin).toHaveBeenCalledWith('github');
+    expect(
+      await screen.findByRole('tab', { name: '账号登录' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '手机号登录' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '扫码登录' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '使用 GitHub 登录' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '使用通行密钥登录' }),
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '使用通行密钥登录' }));
-    await waitFor(() => expect(mockLoginWithPasskey).toHaveBeenCalled());
-    expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
+    fireEvent.click(screen.getByRole('tab', { name: '扫码登录' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('wechat-embedded')).toHaveTextContent(
+      '打开微信扫一扫',
+    );
+    expect(
+      screen.queryByRole('button', { name: '提交' }),
+    ).not.toBeInTheDocument();
   });
 
   it('重复登录返回 409 时应按已有会话恢复并跳转', async () => {
@@ -468,6 +522,39 @@ describe('admin 登录 MFA 流程', () => {
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
   });
 
+  it('登录遇到待验证手机号时可恢复到验证页面', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/user/login?redirect=%2Fspace%2Forganization',
+    );
+    mockLogin.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: {
+          flows: [{ id: 'login' }, { id: 'verify_phone', is_pending: true }],
+        },
+      },
+    });
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
+      target: { value: '13800138000' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('密码'), {
+      target: { value: 'secret123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '提交' }));
+
+    await waitFor(() => {
+      expect(mockHistoryPush).toHaveBeenCalledWith(
+        '/user/verify-phone?redirect=%2Fspace%2Forganization',
+      );
+    });
+  });
+
   it('邮箱中的全角句号应在提交前规范化', async () => {
     mockFetchUserInfo
       .mockResolvedValueOnce(undefined)
@@ -538,6 +625,8 @@ describe('admin 登录 MFA 流程', () => {
       },
     ]);
     expect(nextState.selectedOrgSlug).toBe('lan');
+    expect(nextState.teamOperationsCapabilities).toEqual({ enabled: true });
+    expect(nextState.navigationCapabilities).toEqual({ subscriptions: true });
   });
 
   it('二步验证后返回 mfa_trust 时应继续完成登录', async () => {

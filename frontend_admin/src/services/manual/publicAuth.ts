@@ -97,11 +97,13 @@ export function confirmPublicEmail(key: string) {
   );
 }
 
-export async function requestPublicLoginCode(email: string) {
+async function requestPublicLoginCodeWithIdentifier(
+  identifier: AllauthAPI.RequestLoginCode,
+) {
   try {
     await postBrowserV1AuthCodeRequest(
       { client: 'browser' },
-      { email: normalizeEmailLikeInput(email) },
+      identifier,
       PUBLIC_AUTH_REQUEST_OPTIONS as any,
     );
   } catch (error) {
@@ -110,6 +112,19 @@ export async function requestPublicLoginCode(email: string) {
     }
     throw error;
   }
+}
+
+export function requestPublicLoginCode(email: string) {
+  return requestPublicLoginCodeWithIdentifier({
+    email: normalizeEmailLikeInput(email),
+  });
+}
+
+export function requestPublicPhoneLoginCode(phone: string) {
+  const parts = normalizeAccountPhoneParts('+86', phone);
+  return requestPublicLoginCodeWithIdentifier({
+    phone: `${parts.countryCode}${parts.nationalNumber}`,
+  });
 }
 
 export function confirmPublicLoginCode(code: string) {

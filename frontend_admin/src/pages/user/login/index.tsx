@@ -1,4 +1,9 @@
-import { LockOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  LockOutlined,
+  PhoneOutlined,
+  SafetyCertificateOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import {
   LoginForm,
   ProFormCheckbox,
@@ -13,7 +18,7 @@ import {
   useIntl,
   useModel,
 } from '@umijs/max';
-import { Alert, App, Button, Spin } from 'antd';
+import { Alert, App, Button, Spin, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { startTransition, useEffect, useRef, useState } from 'react';
 import { Footer } from '@/components';
@@ -26,28 +31,25 @@ import {
   formatUnsupportedFlowMessage,
   parseLoginFlowState,
 } from '@/services/manual/allauthFlow';
+import { loadAuthenticatedState } from '@/services/manual/authenticatedState';
 import {
   confirmPublicLoginCode,
   getPublicAuthErrorMessage,
-  requestPublicLoginCode,
-  startPublicProviderLogin,
+  requestPublicPhoneLoginCode,
 } from '@/services/manual/publicAuth';
-import {
-  authenticateMfaWithWebauthn,
-  loginWithPasskey,
-} from '@/services/manual/webauthn';
-import { appsOrganizationsApiSwitchList } from '@/services/openapi/organizations';
+import { authenticateMfaWithWebauthn } from '@/services/manual/webauthn';
 import {
   buildAuthRedirectPath,
   DEFAULT_POST_LOGIN_PATH,
   getSafeAdminRedirect,
   PASSWORD_RESET_PATH,
   REGISTER_PATH,
+  VERIFY_PHONE_PATH,
 } from '@/utils/adminRouting';
 import { normalizeEmailLikeInput } from '@/utils/email';
-import { resolveSelectedOrgSlug } from '@/utils/orgSelection';
 import Settings from '../../../../config/defaultSettings';
 import logoUrl from '../../../../public/logo.svg';
+import WechatOfficialLoginModal from './wechat-official-login-modal';
 
 type LoginFormValues = {
   email?: string;
@@ -58,7 +60,7 @@ type LoginFormValues = {
   type?: string;
 };
 
-type LoginMethod = 'password' | 'code';
+type LoginMethod = 'account' | 'phone' | 'wechat';
 
 type LoginResult = {
   status?: 'ok' | 'error';
@@ -117,23 +119,226 @@ const useStyles = createStyles(({ token }) => {
       height: 42,
       lineHeight: '42px',
       position: 'fixed',
-      right: 16,
+      top: 18,
+      right: 20,
+      zIndex: 2,
+      backgroundColor: token.colorBgContainer,
+      border: `1px solid ${token.colorBorderSecondary}`,
       borderRadius: token.borderRadius,
+      boxShadow: token.boxShadowTertiary,
       ':hover': {
         backgroundColor: token.colorBgTextHover,
       },
     },
     container: {
+      position: 'relative',
+      isolation: 'isolate',
       display: 'flex',
       flexDirection: 'column',
-      height: '100vh',
-      overflow: 'auto',
-      backgroundImage:
-        'linear-gradient(135deg, #f6f8fb 0%, #eef6f2 45%, #f8fafc 100%)',
-      backgroundSize: 'cover',
+      minHeight: '100dvh',
+      overflowX: 'hidden',
+      overflowY: 'auto',
+      backgroundColor: token.colorBgLayout,
+      backgroundImage: `radial-gradient(circle at 14% 12%, ${token.colorPrimaryBg} 0%, transparent 32%), radial-gradient(circle at 88% 86%, ${token.colorInfoBg} 0%, transparent 34%), linear-gradient(140deg, ${token.colorBgLayout} 0%, ${token.colorBgContainer} 52%, ${token.colorPrimaryBg} 150%)`,
+    },
+    backgroundPattern: {
+      position: 'fixed',
+      inset: 0,
+      zIndex: -3,
+      pointerEvents: 'none',
+      opacity: 0.46,
+      backgroundImage: `linear-gradient(${token.colorBorderSecondary} 1px, transparent 1px), linear-gradient(90deg, ${token.colorBorderSecondary} 1px, transparent 1px), radial-gradient(circle, ${token.colorPrimaryBorder} 1px, transparent 1.5px)`,
+      backgroundSize: '64px 64px, 64px 64px, 22px 22px',
+      maskImage:
+        'radial-gradient(ellipse 84% 78% at 50% 48%, rgba(0, 0, 0, 0.92), transparent 88%)',
+    },
+    backgroundAura: {
+      position: 'fixed',
+      inset: 0,
+      zIndex: -2,
+      overflow: 'hidden',
+      pointerEvents: 'none',
+      '&::before': {
+        position: 'absolute',
+        top: -220,
+        left: '8%',
+        width: 620,
+        height: 520,
+        content: '""',
+        backgroundColor: token.colorPrimaryBg,
+        borderRadius: '50%',
+        filter: 'blur(72px)',
+        opacity: 0.82,
+      },
+      '&::after': {
+        position: 'absolute',
+        right: '4%',
+        bottom: -260,
+        width: 600,
+        height: 520,
+        content: '""',
+        backgroundColor: token.colorInfoBg,
+        borderRadius: '50%',
+        filter: 'blur(82px)',
+        opacity: 0.78,
+      },
+    },
+    backgroundShape: {
+      position: 'fixed',
+      inset: 0,
+      zIndex: -1,
+      overflow: 'hidden',
+      pointerEvents: 'none',
+      '&::before': {
+        position: 'absolute',
+        top: -310,
+        left: -250,
+        width: 720,
+        height: 720,
+        content: '""',
+        border: `1px solid ${token.colorPrimaryBorder}`,
+        borderRadius: '46%',
+        boxShadow: `0 0 0 52px ${token.colorPrimaryBg}`,
+        transform: 'rotate(32deg)',
+        opacity: 0.72,
+      },
+      '&::after': {
+        position: 'absolute',
+        right: -230,
+        bottom: -280,
+        width: 650,
+        height: 650,
+        content: '""',
+        border: `1px solid ${token.colorPrimaryBorder}`,
+        borderRadius: '50%',
+        boxShadow: `0 0 0 42px ${token.colorPrimaryBg}`,
+        opacity: 0.7,
+      },
+    },
+    backgroundNetwork: {
+      position: 'fixed',
+      inset: 0,
+      zIndex: -1,
+      overflow: 'hidden',
+      pointerEvents: 'none',
+      '&::before, &::after': {
+        position: 'absolute',
+        width: 300,
+        height: 220,
+        content: '""',
+        backgroundImage: `radial-gradient(circle at 10% 32%, ${token.colorPrimary} 0 2px, transparent 3px), radial-gradient(circle at 38% 12%, ${token.colorPrimaryBorder} 0 3px, transparent 4px), radial-gradient(circle at 68% 40%, ${token.colorPrimary} 0 2px, transparent 3px), radial-gradient(circle at 88% 18%, ${token.colorInfoBorder} 0 3px, transparent 4px), radial-gradient(circle at 82% 78%, ${token.colorPrimary} 0 2px, transparent 3px), radial-gradient(circle at 28% 84%, ${token.colorPrimaryBorder} 0 3px, transparent 4px), linear-gradient(24deg, transparent 0 37%, ${token.colorPrimaryBorder} 37.4% 37.8%, transparent 38.2%), linear-gradient(-25deg, transparent 0 49%, ${token.colorBorderSecondary} 49.4% 49.8%, transparent 50.2%), linear-gradient(68deg, transparent 0 58%, ${token.colorPrimaryBorder} 58.4% 58.8%, transparent 59.2%)`,
+        maskImage:
+          'radial-gradient(ellipse at center, rgba(0, 0, 0, 1), transparent 76%)',
+        opacity: 0.6,
+      },
+      '&::before': {
+        top: '16%',
+        left: '4%',
+        transform: 'rotate(-9deg)',
+      },
+      '&::after': {
+        right: '4%',
+        bottom: '14%',
+        transform: 'rotate(171deg)',
+      },
+    },
+    loginStage: {
+      position: 'relative',
+      flex: 1,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      padding: '32px 16px 24px',
+      '&::before': {
+        position: 'absolute',
+        zIndex: -1,
+        width: 'min(78vw, 920px)',
+        aspectRatio: '1',
+        content: '""',
+        backgroundImage: `radial-gradient(circle, transparent 0 37%, ${token.colorPrimaryBg} 37.2% 37.7%, transparent 38% 55%, ${token.colorBorderSecondary} 55.2% 55.5%, transparent 55.8% 70%, ${token.colorPrimaryBg} 70.2% 70.5%, transparent 70.8%)`,
+        borderRadius: '50%',
+        opacity: 0.62,
+      },
+    },
+    loginCard: {
+      position: 'relative',
+      width: 'min(100%, 420px)',
+      padding: '56px 36px 50px',
+      backgroundColor: token.colorBgContainer,
+      border: `1px solid ${token.colorPrimaryBg}`,
+      borderRadius: token.borderRadiusLG,
+      boxShadow: token.boxShadowSecondary,
+      '&::before': {
+        position: 'absolute',
+        top: -1,
+        left: '50%',
+        width: 148,
+        height: 2,
+        content: '""',
+        backgroundImage: `linear-gradient(90deg, transparent, ${token.colorPrimary}, transparent)`,
+        transform: 'translateX(-50%)',
+      },
+      '& .ant-pro-form-login-container': {
+        padding: 0,
+      },
+      '& .ant-pro-form-login-top': {
+        marginBottom: 44,
+      },
+      '& .ant-pro-form-login-desc': {
+        marginTop: 8,
+        marginBottom: 0,
+      },
+      '& .ant-pro-form-login-main': {
+        width: '100%',
+      },
+      '& .ant-form-item': {
+        marginBottom: 24,
+      },
+      '@media (max-width: 575px)': {
+        width: '100%',
+        padding: '36px 20px 32px',
+        '& .ant-pro-form-login-top': {
+          marginBottom: 34,
+        },
+      },
+    },
+    methodTabs: {
+      width: '100%',
+      '& .ant-tabs-nav': {
+        marginBottom: 32,
+      },
+      '& .ant-tabs-tab': {
+        padding: '8px 4px 12px',
+      },
+    },
+    accountActions: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 16,
+      marginBottom: 30,
+    },
+    signupPrompt: {
+      marginTop: 8,
+      marginBottom: 32,
+      color: token.colorText,
+      textAlign: 'center',
+      '& a': {
+        marginInlineStart: 6,
+      },
+    },
+    phoneSignupPrompt: {
+      marginTop: 76,
+    },
+    codeButton: {
+      paddingInline: 0,
+      '&&:not(:disabled)': {
+        color: token.colorPrimary,
+      },
     },
     sessionLoading: {
-      height: '100%',
+      minHeight: 240,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -169,10 +374,9 @@ const LoginMessage: React.FC<{
 const Login: React.FC = () => {
   const [userLoginState, setUserLoginState] = useState<LoginResult>({});
   const [checkingSession, setCheckingSession] = useState(true);
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>('password');
-  const [loginCodeEmail, setLoginCodeEmail] = useState('');
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('account');
+  const [loginCodePhone, setLoginCodePhone] = useState('');
   const [requestingCode, setRequestingCode] = useState(false);
-  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [mfaWebauthnLoading, setMfaWebauthnLoading] = useState(false);
   const [pendingMfa, setPendingMfa] = useState<PendingMfaState>({
     active: false,
@@ -189,32 +393,19 @@ const Login: React.FC = () => {
   const { message } = App.useApp();
   const intl = useIntl();
 
-  const fetchOrganizations = async () => {
-    try {
-      return await appsOrganizationsApiSwitchList({
-        skipErrorHandler: true,
-      });
-    } catch {
-      return [];
-    }
-  };
-
   const hydrateAuthenticatedState = async () => {
-    const userInfo =
-      initialState?.currentUser || (await initialState?.fetchUserInfo?.());
-    if (!userInfo) {
+    const nextState = await loadAuthenticatedState(
+      initialState?.fetchUserInfo,
+      initialState?.currentUser,
+    );
+    if (!nextState) {
       return false;
     }
-
-    const organizations = await fetchOrganizations();
-    const selectedOrgSlug = resolveSelectedOrgSlug(organizations);
 
     startTransition(() => {
       setInitialState((s) => ({
         ...s,
-        currentUser: userInfo,
-        organizations,
-        selectedOrgSlug,
+        ...nextState,
       }));
     });
     return true;
@@ -273,6 +464,20 @@ const Login: React.FC = () => {
       return true;
     }
 
+    if (flowState?.kind === 'pending_phone_verification') {
+      const params = new URLSearchParams();
+      if (requestedRedirect) {
+        params.set(
+          'redirect',
+          getSafeAdminRedirect(requestedRedirect, DEFAULT_POST_LOGIN_PATH),
+        );
+      }
+      history.push(
+        `${VERIFY_PHONE_PATH}${params.size ? `?${params.toString()}` : ''}`,
+      );
+      return true;
+    }
+
     if (flowState?.kind === 'unsupported_flow') {
       message.error(formatUnsupportedFlowMessage(flowState.flowIds));
       return true;
@@ -283,29 +488,14 @@ const Login: React.FC = () => {
   const handleRequestLoginCode = async () => {
     setRequestingCode(true);
     try {
-      await requestPublicLoginCode(loginCodeEmail);
-      message.success('验证码已发送，请检查邮箱');
+      await requestPublicPhoneLoginCode(loginCodePhone);
+      message.success('验证码已发送，请查看手机短信');
     } catch (error) {
       message.error(
         getPublicAuthErrorMessage(error, '验证码发送失败，请重试！'),
       );
     } finally {
       setRequestingCode(false);
-    }
-  };
-
-  const handlePasskeyLogin = async () => {
-    setPasskeyLoading(true);
-    try {
-      await loginWithPasskey();
-      await finishLogin();
-    } catch (error) {
-      if (await handlePendingAuthenticationFlow(error)) return;
-      message.error(
-        getPublicAuthErrorMessage(error, '通行密钥登录失败，请重试！'),
-      );
-    } finally {
-      setPasskeyLoading(false);
     }
   };
 
@@ -370,7 +560,7 @@ const Login: React.FC = () => {
       }
     }
 
-    if (loginMethod === 'code') {
+    if (loginMethod === 'phone') {
       try {
         await confirmPublicLoginCode((values.code || '').trim());
         await finishLogin();
@@ -435,6 +625,10 @@ const Login: React.FC = () => {
 
   return (
     <div className={styles.container}>
+      <div className={styles.backgroundPattern} aria-hidden />
+      <div className={styles.backgroundAura} aria-hidden />
+      <div className={styles.backgroundShape} aria-hidden />
+      <div className={styles.backgroundNetwork} aria-hidden />
       <Helmet>
         <title>
           {intl.formatMessage({
@@ -445,12 +639,7 @@ const Login: React.FC = () => {
         </title>
       </Helmet>
       <Lang />
-      <div
-        style={{
-          flex: '1',
-          padding: '32px 0',
-        }}
-      >
+      <main className={styles.loginStage}>
         {checkingSession ? (
           <div
             className={styles.sessionLoading}
@@ -460,237 +649,270 @@ const Login: React.FC = () => {
             <Spin size="large" description="正在恢复登录状态…" />
           </div>
         ) : (
-          <LoginForm
-            contentStyle={{
-              minWidth: 280,
-              maxWidth: '75vw',
-            }}
-            logo={<img alt="logo" src={logoUrl} />}
-            title={Settings.title}
-            subTitle={intl.formatMessage({
-              id: 'pages.layouts.userLayout.title',
-            })}
-            initialValues={{
-              autoLogin: true,
-            }}
-            onFinish={async (values) => {
-              await handleSubmit(values as LoginFormValues);
-            }}
-          >
-            {status === 'error' && loginType === 'account' && (
-              <LoginMessage
-                content={intl.formatMessage({
-                  id: 'pages.login.accountLogin.errorMessage',
-                  defaultMessage: '账户或密码错误',
-                })}
-              />
-            )}
-            {pendingMfa.active ? (
-              <>
-                <Alert
-                  style={{
-                    marginBottom: 24,
-                  }}
-                  title={
-                    pendingMfa.types.length === 1 &&
-                    pendingMfa.types.includes('webauthn')
-                      ? '请使用安全密钥完成多因素认证'
-                      : '请输入身份验证器验证码或恢复码'
-                  }
-                  description={
-                    pendingMfa.types.includes('webauthn')
-                      ? '当前账号支持 WebAuthn 安全密钥；也可使用账号已启用的其他验证方式。'
-                      : pendingMfa.types.includes('recovery_codes')
-                        ? '当前账号开启了多因素认证，请输入 6 位验证码，或直接输入恢复码完成登录。'
-                        : '当前账号开启了多因素认证，请输入身份验证器当前显示的 6 位验证码完成登录。'
-                  }
-                  type="info"
-                  showIcon
-                />
-                {(!pendingMfa.types.length ||
-                  pendingMfa.types.includes('totp') ||
-                  pendingMfa.types.includes('recovery_codes')) && (
-                  <ProFormText
-                    name="code"
-                    fieldProps={{
-                      size: 'large',
-                    }}
-                    placeholder="6 位验证码或恢复码"
-                    rules={[
-                      {
-                        required: true,
-                        message: '请输入验证码或恢复码！',
+          <section className={styles.loginCard} aria-label="管理端登录">
+            <LoginForm
+              contentStyle={{
+                width: '100%',
+                minWidth: 0,
+                maxWidth: 360,
+                marginInline: 'auto',
+              }}
+              logo={<img alt="链云空间" src={logoUrl} />}
+              title={Settings.title}
+              subTitle="使用微信、手机号或邮箱登录"
+              initialValues={{
+                autoLogin: true,
+              }}
+              submitter={
+                pendingMfa.active || loginMethod !== 'wechat'
+                  ? {
+                      searchConfig: {
+                        submitText: pendingMfa.active ? '验证并登录' : '登录',
                       },
-                    ]}
+                    }
+                  : false
+              }
+              onFinish={async (values) => {
+                await handleSubmit(values as LoginFormValues);
+              }}
+            >
+              {status === 'error' &&
+                loginType === 'account' &&
+                loginMethod === 'account' && (
+                  <LoginMessage
+                    content={intl.formatMessage({
+                      id: 'pages.login.accountLogin.errorMessage',
+                      defaultMessage: '账户或密码错误',
+                    })}
                   />
                 )}
-                {pendingMfa.types.includes('webauthn') && (
-                  <Button
-                    block
-                    htmlType="button"
-                    loading={mfaWebauthnLoading}
-                    onClick={() => void handleWebauthnMfa()}
-                  >
-                    使用安全密钥验证
-                  </Button>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="mb-6 flex gap-2">
-                  <Button
-                    block
-                    htmlType="button"
-                    type={loginMethod === 'password' ? 'primary' : 'default'}
-                    onClick={() => setLoginMethod('password')}
-                  >
-                    密码登录
-                  </Button>
-                  <Button
-                    block
-                    htmlType="button"
-                    type={loginMethod === 'code' ? 'primary' : 'default'}
-                    onClick={() => setLoginMethod('code')}
-                  >
-                    邮箱验证码登录
-                  </Button>
-                </div>
-                {loginMethod === 'password' ? (
-                  <>
-                    <ProFormText
-                      name="username"
-                      fieldProps={{
-                        size: 'large',
-                        prefix: <UserOutlined />,
-                      }}
-                      placeholder={intl.formatMessage({
-                        id: 'pages.login.username.placeholder',
-                        defaultMessage: '邮箱 / 手机号',
-                      })}
-                      rules={[
-                        {
-                          required: true,
-                          message: (
-                            <FormattedMessage
-                              id="pages.login.username.required"
-                              defaultMessage="请输入邮箱或手机号!"
-                            />
-                          ),
-                        },
-                      ]}
-                    />
-                    <ProFormText.Password
-                      name="password"
-                      fieldProps={{
-                        size: 'large',
-                        prefix: <LockOutlined />,
-                      }}
-                      placeholder={intl.formatMessage({
-                        id: 'pages.login.password.placeholder',
-                        defaultMessage: '密码',
-                      })}
-                      rules={[
-                        {
-                          required: true,
-                          message: (
-                            <FormattedMessage
-                              id="pages.login.password.required"
-                              defaultMessage="请输入密码！"
-                            />
-                          ),
-                        },
-                      ]}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <ProFormText
-                      name="email"
-                      fieldProps={{
-                        size: 'large',
-                        prefix: <UserOutlined />,
-                        onChange: (event) =>
-                          setLoginCodeEmail(event.target.value),
-                      }}
-                      placeholder="请输入邮箱"
-                      rules={[
-                        { required: true, message: '请输入邮箱！' },
-                        { type: 'email', message: '请输入有效的邮箱地址！' },
-                      ]}
-                    />
+              {pendingMfa.active ? (
+                <>
+                  <Alert
+                    style={{
+                      marginBottom: 24,
+                    }}
+                    title={
+                      pendingMfa.types.length === 1 &&
+                      pendingMfa.types.includes('webauthn')
+                        ? '请使用安全密钥完成多因素认证'
+                        : '请输入身份验证器验证码或恢复码'
+                    }
+                    description={
+                      pendingMfa.types.includes('webauthn')
+                        ? '当前账号支持通行密钥登录，也可使用账号已启用的其他验证方式。'
+                        : pendingMfa.types.includes('recovery_codes')
+                          ? '当前账号开启了多因素认证，请输入 6 位验证码，或直接输入恢复码完成登录。'
+                          : '当前账号开启了多因素认证，请输入身份验证器当前显示的 6 位验证码完成登录。'
+                    }
+                    type="info"
+                    showIcon
+                  />
+                  {(!pendingMfa.types.length ||
+                    pendingMfa.types.includes('totp') ||
+                    pendingMfa.types.includes('recovery_codes')) && (
                     <ProFormText
                       name="code"
-                      fieldProps={{ size: 'large' }}
-                      placeholder="请输入邮箱验证码"
-                      rules={[{ required: true, message: '请输入验证码！' }]}
+                      fieldProps={{
+                        autoComplete: 'one-time-code',
+                        size: 'large',
+                      }}
+                      placeholder="6 位验证码或恢复码"
+                      rules={[
+                        {
+                          required: true,
+                          message: '请输入验证码或恢复码',
+                        },
+                      ]}
                     />
+                  )}
+                  {pendingMfa.types.includes('webauthn') && (
                     <Button
                       block
-                      disabled={!loginCodeEmail.trim()}
                       htmlType="button"
-                      loading={requestingCode}
-                      onClick={() => void handleRequestLoginCode()}
+                      loading={mfaWebauthnLoading}
+                      onClick={() => void handleWebauthnMfa()}
                     >
-                      发送验证码
+                      使用安全密钥验证
                     </Button>
-                  </>
-                )}
-                <div
-                  style={{
-                    marginBottom: 24,
-                  }}
-                >
-                  <ProFormCheckbox noStyle name="autoLogin">
-                    <FormattedMessage
-                      id="pages.login.rememberMe"
-                      defaultMessage="自动登录"
-                    />
-                  </ProFormCheckbox>
-                  <Link
-                    to={buildAuthRedirectPath(
-                      PASSWORD_RESET_PATH,
-                      requestedRedirect,
-                    )}
-                    style={{
-                      float: 'right',
+                  )}
+                </>
+              ) : (
+                <>
+                  <Tabs
+                    activeKey={loginMethod}
+                    centered
+                    className={styles.methodTabs}
+                    items={[
+                      { key: 'account', label: '账号登录' },
+                      { key: 'phone', label: '手机号登录' },
+                      { key: 'wechat', label: '扫码登录' },
+                    ]}
+                    onChange={(key) => {
+                      setLoginMethod(key as LoginMethod);
+                      setUserLoginState({});
                     }}
-                  >
-                    <FormattedMessage
-                      id="pages.login.forgotPassword"
-                      defaultMessage="忘记密码"
+                  />
+                  {loginMethod === 'account' && (
+                    <>
+                      <ProFormText
+                        name="username"
+                        fieldProps={{
+                          autoComplete: 'username',
+                          size: 'large',
+                          prefix: <UserOutlined />,
+                        }}
+                        placeholder={intl.formatMessage({
+                          id: 'pages.login.username.placeholder',
+                          defaultMessage: '邮箱 / 手机号',
+                        })}
+                        rules={[
+                          {
+                            required: true,
+                            message: (
+                              <FormattedMessage
+                                id="pages.login.username.required"
+                                defaultMessage="请输入邮箱或手机号"
+                              />
+                            ),
+                          },
+                        ]}
+                      />
+                      <ProFormText.Password
+                        name="password"
+                        fieldProps={{
+                          autoComplete: 'current-password',
+                          size: 'large',
+                          prefix: <LockOutlined />,
+                        }}
+                        placeholder={intl.formatMessage({
+                          id: 'pages.login.password.placeholder',
+                          defaultMessage: '密码',
+                        })}
+                        rules={[
+                          {
+                            required: true,
+                            message: (
+                              <FormattedMessage
+                                id="pages.login.password.required"
+                                defaultMessage="请输入密码"
+                              />
+                            ),
+                          },
+                        ]}
+                      />
+                    </>
+                  )}
+                  {loginMethod === 'phone' && (
+                    <>
+                      <ProFormText
+                        name="phone"
+                        fieldProps={{
+                          autoComplete: 'tel',
+                          inputMode: 'tel',
+                          size: 'large',
+                          prefix: (
+                            <span className="flex items-center gap-2">
+                              <span className="border-e pe-2">+86</span>
+                              <PhoneOutlined />
+                            </span>
+                          ),
+                          onChange: (event) =>
+                            setLoginCodePhone(event.target.value),
+                        }}
+                        placeholder="请输入手机号"
+                        rules={[
+                          { required: true, message: '请输入手机号' },
+                          {
+                            pattern: /^1\d{10}$/,
+                            message: '请输入有效的 11 位手机号',
+                          },
+                        ]}
+                      />
+                      <ProFormText
+                        name="code"
+                        fieldProps={{
+                          autoComplete: 'one-time-code',
+                          inputMode: 'numeric',
+                          prefix: <SafetyCertificateOutlined />,
+                          size: 'large',
+                          suffix: (
+                            <Button
+                              className={styles.codeButton}
+                              disabled={
+                                !/^1\d{10}$/.test(loginCodePhone.trim())
+                              }
+                              htmlType="button"
+                              loading={requestingCode}
+                              size="small"
+                              type="link"
+                              onClick={() => void handleRequestLoginCode()}
+                            >
+                              获取验证码
+                            </Button>
+                          ),
+                        }}
+                        placeholder="请输入短信验证码"
+                        rules={[{ required: true, message: '请输入验证码' }]}
+                      />
+                    </>
+                  )}
+                  {loginMethod === 'wechat' && (
+                    <WechatOfficialLoginModal
+                      embedded
+                      open
+                      redirectPath={getPostLoginRedirectUrl()}
+                      onAuthenticated={finishLogin}
+                      onCancel={() => undefined}
+                      onPendingAuthentication={handlePendingAuthenticationFlow}
                     />
-                  </Link>
-                </div>
-                <div className="mb-4 flex gap-2">
-                  <Button
-                    block
-                    htmlType="button"
-                    loading={passkeyLoading}
-                    onClick={() => void handlePasskeyLogin()}
-                  >
-                    使用通行密钥登录
-                  </Button>
-                  <Button
-                    block
-                    htmlType="button"
-                    onClick={() => void startPublicProviderLogin('github')}
-                  >
-                    使用 GitHub 登录
-                  </Button>
-                </div>
-                <div className="text-center">
-                  还没有账号？
-                  <Link
-                    to={buildAuthRedirectPath(REGISTER_PATH, requestedRedirect)}
-                  >
-                    注册账号
-                  </Link>
-                </div>
-              </>
-            )}
-          </LoginForm>
+                  )}
+                  {loginMethod === 'account' && (
+                    <div className={styles.accountActions}>
+                      <ProFormCheckbox noStyle name="autoLogin">
+                        <FormattedMessage
+                          id="pages.login.rememberMe"
+                          defaultMessage="自动登录"
+                        />
+                      </ProFormCheckbox>
+                      <Link
+                        to={buildAuthRedirectPath(
+                          PASSWORD_RESET_PATH,
+                          requestedRedirect,
+                        )}
+                      >
+                        <FormattedMessage
+                          id="pages.login.forgotPassword"
+                          defaultMessage="忘记密码"
+                        />
+                      </Link>
+                    </div>
+                  )}
+                  {loginMethod !== 'wechat' && (
+                    <div
+                      className={
+                        loginMethod === 'phone'
+                          ? `${styles.signupPrompt} ${styles.phoneSignupPrompt}`
+                          : styles.signupPrompt
+                      }
+                    >
+                      还没有账号？
+                      <Link
+                        to={buildAuthRedirectPath(
+                          REGISTER_PATH,
+                          requestedRedirect,
+                        )}
+                      >
+                        注册账号
+                      </Link>
+                    </div>
+                  )}
+                </>
+              )}
+            </LoginForm>
+          </section>
         )}
-      </div>
+      </main>
       <Footer />
     </div>
   );
