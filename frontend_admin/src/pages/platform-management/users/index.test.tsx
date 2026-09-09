@@ -47,27 +47,35 @@ vi.mock('@ant-design/pro-components', () => ({
     headerTitle,
     options,
     pagination,
+    params,
     request,
     search,
     toolBarRender,
   }: any) => {
     const [data, setData] = React.useState<any[]>([]);
-    const [keyword, setKeyword] = React.useState('');
-    const pageSize = pagination?.defaultPageSize || 10;
+    const pageSize = pagination?.pageSize || pagination?.defaultPageSize || 10;
+    const current = pagination?.current || 1;
 
-    const load = async (params: Record<string, unknown>) => {
-      const result = await request?.(params);
+    const load = async (requestParams: Record<string, unknown>) => {
+      const result = await request?.(requestParams);
       setData(result?.data || []);
     };
 
     React.useEffect(() => {
       if (actionRef) {
         actionRef.current = {
-          reload: () => void load({ current: 1, pageSize }),
+          reload: () => void load({ current, pageSize, ...params }),
         };
       }
-      void load({ current: 1, pageSize });
-    }, []);
+      void load({ current, pageSize, ...params });
+    }, [
+      current,
+      pageSize,
+      params?.keyword,
+      params?.phone,
+      params?.real_name_status,
+      params?.role,
+    ]);
 
     const tableColumns = columns.filter((column: any) => !column.hideInTable);
     const searchColumns =
@@ -85,23 +93,15 @@ vi.mock('@ant-design/pro-components', () => ({
             placeholder={column.fieldProps?.placeholder}
           />
         ))}
-        {options?.search ? (
-          <input
-            placeholder={options.search.placeholder}
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                void load({
-                  current: 1,
-                  pageSize,
-                  [options.search.name]: keyword,
-                });
-              }
-            }}
-          />
-        ) : null}
         {toolBarRender ? <div>{toolBarRender()}</div> : null}
+        {pagination?.onChange ? (
+          <button
+            type="button"
+            onClick={() => pagination.onChange(current + 1, pageSize)}
+          >
+            下一页
+          </button>
+        ) : null}
         <table>
           <thead>
             <tr>
@@ -158,6 +158,7 @@ describe('PlatformUsersPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/platform-management/users');
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -268,21 +269,24 @@ describe('PlatformUsersPage', () => {
     );
 
     fireEvent.click(within(userRow).getByRole('button', { name: '更多操作' }));
-    fireEvent.click(screen.getByText('强退'));
+    fireEvent.click(screen.getByText('强制退出登录'));
     await waitFor(() =>
       expect(mockForceLogout).toHaveBeenCalledWith({ user_id: 7 }),
     );
 
     fireEvent.click(within(userRow).getByRole('button', { name: '更多操作' }));
-    fireEvent.click(screen.getByText('重置 MFA'));
+    fireEvent.click(screen.getByText('重置多因素验证'));
     await waitFor(() =>
       expect(mockResetMfa).toHaveBeenCalledWith({ user_id: 7 }),
     );
 
     fireEvent.click(within(userRow).getByText('设密码'));
-    const passwordDialog = screen.getByRole('dialog', {
-      name: '设置 alice 的密码',
-    });
+    const passwordDialog = screen
+      .getByText('设置 alice 的密码')
+      .closest('[role="dialog"]');
+    if (!passwordDialog) {
+      throw new Error('未找到设置密码弹窗');
+    }
     fireEvent.change(within(passwordDialog).getByLabelText('新密码'), {
       target: { value: 'NewPass123' },
     });
@@ -332,5 +336,85 @@ describe('PlatformUsersPage', () => {
         expect.objectContaining({ page: 1, page_size: 10, keyword: 'alice' }),
       ),
     );
+    expect(new URLSearchParams(window.location.search).get('keyword')).toBe(
+      'alice',
+    );
+  });
+
+  it('从 URL 恢复用户筛选和页码并继续同步分页', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/platform-management/users?page=2&keyword=alice&phone=13800138000&real_name_status=rejected&role=staff',
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PlatformUsersPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(mockListUsers).toHaveBeenCalledWith({
+        page: 2,
+        page_size: 10,
+        keyword: 'alice',
+        username: undefined,
+        phone: '13800138000',
+        real_name_status: 'rejected',
+        role: 'staff',
+      }),
+    );
+
+    expect(screen.getByPlaceholderText('按用户名、邮箱搜索')).toHaveValue(
+      'alice',
+    );
+    expect(screen.getByPlaceholderText('按手机号搜索')).toHaveValue(
+      '13800138000',
+    );
+    expect(screen.getByRole('combobox', { name: '实名状态' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '用户角色' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get('page')).toBe('3'),
+    );
+  });
+
+  it('筛选栏完整可见且手机号筛选会写入 URL', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PlatformUsersPage />
+      </QueryClientProvider>,
+    );
+
+    const phoneSearch = screen.getByPlaceholderText('按手机号搜索');
+    fireEvent.change(phoneSearch, { target: { value: '13800138000' } });
+    fireEvent.keyDown(phoneSearch, { key: 'Enter', code: 'Enter' });
+
+    await waitFor(() => {
+      expect(mockListUsers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ phone: '13800138000' }),
+      );
+      expect(new URLSearchParams(window.location.search).get('phone')).toBe(
+        '13800138000',
+      );
+    });
+    expect(screen.getByRole('combobox', { name: '实名状态' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '用户角色' })).toBeInTheDocument();
+  });
+
+  it('空头像使用文字占位而不是渲染空 src', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PlatformUsersPage />
+      </QueryClientProvider>,
+    );
+
+    const bobRow = (await screen.findByText('bob')).closest('tr');
+    if (!bobRow) {
+      throw new Error('未找到 bob 用户行');
+    }
+    expect(bobRow.querySelector('img')).not.toBeInTheDocument();
   });
 });

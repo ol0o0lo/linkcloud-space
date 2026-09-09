@@ -13,6 +13,7 @@ import {
   Input,
   Modal,
   Row,
+  Select,
   Space,
   Switch,
   Tag,
@@ -22,9 +23,12 @@ import {
 import React, {useRef, useState} from 'react';
 import {PageContainer} from '@/components/PageContainer';
 import {
+  AdminToolbar,
   adminTableScroll,
   fullWidthStyle,
   ResponsiveActions,
+  toolbarControlStyle,
+  toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
 import {enumMapping, enumSelectOptions, useEnums} from '@/services/manual/enums';
 import {
@@ -67,8 +71,58 @@ type UserSearchParams = {
   role?: string;
 };
 
+type UserListSearchState = {
+  keyword: string;
+  page: number;
+  phone: string;
+  realNameStatus?: string;
+  role?: string;
+};
+
+const USER_PAGE_SIZE = 10;
+
 const trimParam = (value: unknown) =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+const positiveNumber = (value: string | null) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+function getUserListSearchState(search: string): UserListSearchState {
+  const params = new URLSearchParams(search);
+  return {
+    page: positiveNumber(params.get('page')) || 1,
+    keyword: trimParam(params.get('keyword')) || '',
+    phone: trimParam(params.get('phone')) || '',
+    realNameStatus: trimParam(params.get('real_name_status')),
+    role: trimParam(params.get('role')),
+  };
+}
+
+function syncUserListSearch(state: UserListSearchState) {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('page');
+  params.delete('keyword');
+  params.delete('phone');
+  params.delete('real_name_status');
+  params.delete('role');
+
+  if (state.page > 1) params.set('page', String(state.page));
+  if (state.keyword) params.set('keyword', state.keyword);
+  if (state.phone) params.set('phone', state.phone);
+  if (state.realNameStatus) {
+    params.set('real_name_status', state.realNameStatus);
+  }
+  if (state.role) params.set('role', state.role);
+
+  const nextSearch = params.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash || ''}`;
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }
+}
 
 function buildUserInsight(user: AdminUserWithMapping): UserInsight {
   const phoneLabel = user.phone_national_number
@@ -125,6 +179,19 @@ function buildUserInsight(user: AdminUserWithMapping): UserInsight {
 }
 
 const PlatformUsersPage: React.FC = () => {
+  const initialSearchState = React.useMemo(
+    () => getUserListSearchState(window.location.search),
+    [],
+  );
+  const [page, setPage] = useState(initialSearchState.page);
+  const [keyword, setKeyword] = useState(initialSearchState.keyword);
+  const [keywordDraft, setKeywordDraft] = useState(initialSearchState.keyword);
+  const [phone, setPhone] = useState(initialSearchState.phone);
+  const [phoneDraft, setPhoneDraft] = useState(initialSearchState.phone);
+  const [realNameStatus, setRealNameStatus] = useState<string | undefined>(
+    initialSearchState.realNameStatus,
+  );
+  const [role, setRole] = useState<string | undefined>(initialSearchState.role);
   const [editingUser, setEditingUser] = useState<AdminUserWithMapping | null>(null);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [passwordUser, setPasswordUser] = useState<AdminUserWithMapping | null>(
@@ -137,6 +204,46 @@ const PlatformUsersPage: React.FC = () => {
   const [passwordForm] = Form.useForm<API.AdminUserPasswordIn>();
   const [modal, modalContextHolder] = Modal.useModal();
   const userEnums = useEnums(['accounts.real_name_status', 'accounts.admin_user_role', 'accounts.phone_country_code']);
+
+  const updateSearchState = (next: Partial<UserListSearchState>) => {
+    syncUserListSearch({
+      ...getUserListSearchState(window.location.search),
+      ...next,
+    });
+  };
+
+  const applyKeyword = (value: string) => {
+    const nextKeyword = trimParam(value) || '';
+    setPage(1);
+    setKeyword(nextKeyword);
+    setKeywordDraft(nextKeyword);
+    updateSearchState({ page: 1, keyword: nextKeyword });
+  };
+
+  const applyPhone = (value: string) => {
+    const nextPhone = trimParam(value) || '';
+    setPage(1);
+    setPhone(nextPhone);
+    setPhoneDraft(nextPhone);
+    updateSearchState({ page: 1, phone: nextPhone });
+  };
+
+  const resetFilters = () => {
+    setPage(1);
+    setKeyword('');
+    setKeywordDraft('');
+    setPhone('');
+    setPhoneDraft('');
+    setRealNameStatus(undefined);
+    setRole(undefined);
+    syncUserListSearch({
+      page: 1,
+      keyword: '',
+      phone: '',
+      realNameStatus: undefined,
+      role: undefined,
+    });
+  };
 
   const saveUserMutation = useMutation({
     mutationFn: (values: API.AdminUserCreateIn & API.AdminUserPatchIn) => {
@@ -257,8 +364,8 @@ const PlatformUsersPage: React.FC = () => {
       items.push({key: 'unbind_phone', label: '解绑手机'});
     }
     items.push({key: 'unbind_wechat', label: '解绑微信'});
-    items.push({key: 'force_logout', label: '强退'});
-    items.push({key: 'reset_mfa', label: '重置 MFA'});
+    items.push({key: 'force_logout', label: '强制退出登录'});
+    items.push({key: 'reset_mfa', label: '重置多因素验证'});
     return items;
   };
 
@@ -308,7 +415,7 @@ const PlatformUsersPage: React.FC = () => {
       search: false,
       render: (_value, record) => (
         <Space>
-          <Avatar src={record.avatar_url}>{record.username?.slice(0, 1).toUpperCase()}</Avatar>
+          <Avatar src={record.avatar_url || undefined}>{record.username?.slice(0, 1).toUpperCase()}</Avatar>
           <IdentityText primary={record.username} secondary={record.email}/>
         </Space>
       ),
@@ -331,7 +438,13 @@ const PlatformUsersPage: React.FC = () => {
       search: false,
       ellipsis: true,
       render: (_value, record) => {
-        const realNameText = record.real_name_masked || enumMapping(record.real_name_status, record.real_name_status__mapping);
+        const realNameText =
+          record.real_name_masked ||
+          enumMapping(
+            record.real_name_status,
+            record.real_name_status__mapping,
+            'accounts.real_name_status',
+          );
         if (!record.real_name_masked && record.real_name_status === 'unverified') {
           return <Typography.Text type="secondary">{realNameText}</Typography.Text>;
         }
@@ -430,21 +543,90 @@ const PlatformUsersPage: React.FC = () => {
               success: true,
             };
           }}
+          params={{
+            keyword: trimParam(keyword),
+            phone: trimParam(phone),
+            real_name_status: realNameStatus,
+            role,
+          }}
           search={false}
           options={{
             density: true,
             reload: false,
-            search: {name: 'keyword', placeholder: '按用户名、邮箱搜索'},
             setting: true,
           }}
           toolBarRender={() => [
-            <Button key="create" type="primary" onClick={openCreate}>
-              新建用户
-            </Button>,
+            <AdminToolbar key="filters">
+              <Input.Search
+                aria-label="关键词"
+                allowClear
+                placeholder="按用户名、邮箱搜索"
+                style={toolbarControlStyle}
+                value={keywordDraft}
+                onChange={(event) => setKeywordDraft(event.target.value)}
+                onSearch={applyKeyword}
+              />
+              <Input.Search
+                aria-label="手机号"
+                allowClear
+                placeholder="按手机号搜索"
+                style={toolbarControlStyle}
+                value={phoneDraft}
+                onChange={(event) => setPhoneDraft(event.target.value)}
+                onSearch={applyPhone}
+              />
+              <Select
+                aria-label="实名状态"
+                allowClear
+                placeholder="实名状态"
+                style={toolbarShortSelectStyle}
+                value={realNameStatus}
+                options={enumSelectOptions(
+                  userEnums.data,
+                  'accounts.real_name_status',
+                )}
+                onChange={(nextStatus) => {
+                  setPage(1);
+                  setRealNameStatus(nextStatus);
+                  updateSearchState({
+                    page: 1,
+                    realNameStatus: nextStatus,
+                  });
+                }}
+              />
+              <Select
+                aria-label="用户角色"
+                allowClear
+                placeholder="用户角色"
+                style={toolbarShortSelectStyle}
+                value={role}
+                options={enumSelectOptions(
+                  userEnums.data,
+                  'accounts.admin_user_role',
+                )}
+                onChange={(nextRole) => {
+                  setPage(1);
+                  setRole(nextRole);
+                  updateSearchState({ page: 1, role: nextRole });
+                }}
+              />
+              <Button onClick={resetFilters}>重置</Button>
+              <Button type="primary" onClick={openCreate}>
+                新建用户
+              </Button>
+            </AdminToolbar>,
           ]}
           ghost
           scroll={adminTableScroll}
-          pagination={{defaultPageSize: 10}}
+          pagination={{
+            current: page,
+            pageSize: USER_PAGE_SIZE,
+            showSizeChanger: false,
+            onChange: (nextPage) => {
+              setPage(nextPage);
+              updateSearchState({ page: nextPage });
+            },
+          }}
         />
 
         {modalContextHolder}
