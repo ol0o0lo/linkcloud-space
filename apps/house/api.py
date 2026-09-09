@@ -105,6 +105,9 @@ from apps.house.schemas import (
     PublicHouseListOut,
     PublicLandlordProfileOut,
     TagSuggestionsOut,
+    TenantLeaseOut,
+    TenantViewingRecordIn,
+    TenantViewingRecordOut,
     VacancySyncIn,
     VacancySyncOut,
     ViewingRecordIn,
@@ -133,11 +136,13 @@ from apps.house.services import (
     set_default_building,
     sort_houses_for_building,
 )
+from apps.house.tenant_services import TenantContactConflict, get_or_bind_tenant_contact
 from apps.house.vacancy_sync import apply_vacancy_sync, build_vacancy_sync_plan
 from apps.organizations.models import OrganizationMember
 
 router = Router(tags=["房源/管理"])
 landlord_router = Router(tags=["房源/房东"])
+tenant_router = Router(tags=["房源/租客"])
 public_router = Router(tags=["房源/公开"])
 public_landlord_router = Router(tags=["房源/房东公开店铺"])
 
@@ -249,6 +254,78 @@ def get_public_house_filters(request):
 @public_router.get("/{house_id}/", response=PublicHouseDetailOut, auth=None, summary="获取公开房源详情")
 def get_public_house(request, house_id: int):
     return get_object_or_404(get_public_houses_queryset(), pk=house_id)
+
+
+def _tenant_viewing_records_qs(user):
+    signed_lease_qs = Lease.objects.filter(source_viewing_record_id=OuterRef("pk")).order_by("id")
+    return (
+        ViewingRecord.objects.filter(contact__user=user)
+        .select_related("organization", "house__building__estate", "house__building__organization")
+        .annotate(signed_lease_id=Subquery(signed_lease_qs.values("id")[:1]))
+    )
+
+
+@tenant_router.get("/viewing-records/", response=list[TenantViewingRecordOut], summary="获取租客个人带看记录")
+@paginate(LegacyPagination)
+def list_tenant_viewing_records(request):
+    require_authenticated(request)
+    return _tenant_viewing_records_qs(request.user).order_by("-scheduled_at", "-id")
+
+
+@tenant_router.get("/viewing-records/{viewing_record_id}/", response=TenantViewingRecordOut, summary="获取租客个人带看详情")
+def get_tenant_viewing_record(request, viewing_record_id: int):
+    require_authenticated(request)
+    return get_object_or_404(_tenant_viewing_records_qs(request.user), pk=viewing_record_id)
+
+
+@tenant_router.post("/viewing-records/{viewing_record_id}/cancel/", response=TenantViewingRecordOut, summary="取消租客个人带看预约")
+def cancel_tenant_viewing_record(request, viewing_record_id: int):
+    require_authenticated(request)
+    record = get_object_or_404(_tenant_viewing_records_qs(request.user), pk=viewing_record_id)
+    if record.status != ViewingRecordStatus.SCHEDULED:
+        raise HttpError(409, "只有已预约的带看可以取消。")
+    record.status = ViewingRecordStatus.CANCELED
+    record.save(update_fields=["status", "updated_at"])
+    return record
+
+
+def _tenant_leases_qs(user):
+    return Lease.objects.filter(tenant__user=user).select_related("organization", "house__building__estate", "house__building__organization")
+
+
+@tenant_router.get("/leases/", response=list[TenantLeaseOut], summary="获取租客个人租约")
+@paginate(LegacyPagination)
+def list_tenant_leases(request):
+    require_authenticated(request)
+    return _tenant_leases_qs(request.user).order_by("-start_date", "-id")
+
+
+@tenant_router.get("/leases/{lease_id}/", response=TenantLeaseOut, summary="获取租客个人租约详情")
+def get_tenant_lease(request, lease_id: int):
+    require_authenticated(request)
+    return get_object_or_404(_tenant_leases_qs(request.user), pk=lease_id)
+
+
+@tenant_router.post("/viewing-records/", response={201: TenantViewingRecordOut}, summary="租客预约看房")
+def create_tenant_viewing_record(request, payload: TenantViewingRecordIn):
+    require_authenticated(request)
+    if not request.user.phone_verified or not request.user.phone:
+        raise PermissionDenied("预约看房前请先验证手机号。")
+    house = get_object_or_404(get_public_houses_queryset(), pk=payload.house_id)
+    try:
+        contact = get_or_bind_tenant_contact(organization=house.building.organization, user=request.user)
+    except TenantContactConflict as exc:
+        raise HttpError(409, str(exc)) from exc
+    record = ViewingRecord.objects.create(
+        organization=house.building.organization,
+        house=house,
+        contact=contact,
+        customer_name=contact.name,
+        customer_phone=request.user.phone,
+        scheduled_at=payload.scheduled_at,
+        notes=payload.notes,
+    )
+    return Status(201, record)
 
 
 @router.get("/tag-suggestions/", response=TagSuggestionsOut, summary="获取房源与楼栋标签快捷候选")

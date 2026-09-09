@@ -24,6 +24,7 @@ from apps.house.api import landlord_router as house_landlord_router
 from apps.house.api import public_landlord_router as house_public_landlord_router
 from apps.house.api import public_router as house_public_router
 from apps.house.api import router as house_router
+from apps.house.api import tenant_router as house_tenant_router
 from apps.house.match_api import public_router as house_match_public_router
 from apps.house.match_api import router as house_match_router
 from apps.media.api import router as media_router
@@ -104,6 +105,7 @@ api.add_router("/settings/org/", settings_org_router)
 api.add_router("/settings/teams/", settings_team_router)
 api.add_router("/settings/user/", settings_user_router)
 api.add_router("/house/", house_router)
+api.add_router("/house/tenant/", house_tenant_router)
 api.add_router("/house-match-shares/", house_match_router)
 api.add_router("/house/landlord/", house_landlord_router)
 api.add_router("/public/houses/", house_public_router)

@@ -889,6 +889,65 @@ class PublicHouseFiltersOut(Schema):
     tags: list[str]
 
 
+class TenantViewingRecordIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    house_id: int
+    scheduled_at: datetime
+    notes: str = Field(default="", max_length=1000)
+
+
+class TenantOrganizationSummaryOut(Schema):
+    id: int
+    name: str
+    slug: str
+
+
+class TenantViewingRecordOut(Schema):
+    id: int
+    house_id: int
+    house: PublicHouseListOut
+    organization: TenantOrganizationSummaryOut
+    scheduled_at: datetime
+    viewed_at: datetime | None
+    status: str
+    status__mapping: str
+    signed_lease_id: int | None = None
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return ViewingRecordStatus.get_choice_label(obj.status)
+
+    @staticmethod
+    def resolve_signed_lease_id(obj):
+        return obj.converted_leases.order_by("id").values_list("id", flat=True).first()
+
+
+class TenantLeaseOut(Schema):
+    id: int
+    house_id: int
+    house: PublicHouseListOut
+    organization: TenantOrganizationSummaryOut
+    source_viewing_record_id: int | None
+    sign_at: datetime | None
+    start_date: date
+    end_date: date
+    monthly_rent: Decimal
+    deposit: Decimal | None
+    payment_day: int
+    status: str
+    status__mapping: str
+    contract_files: list[dict[str, Any]]
+
+    @staticmethod
+    def resolve_status__mapping(obj):
+        return LeaseStatus.get_choice_label(obj.status)
+
+    @staticmethod
+    def resolve_contract_files(obj):
+        return obj.contract_files_resolved
+
+
 class ViewingRecordIn(Schema):
     model_config = ConfigDict(extra="forbid")
 
