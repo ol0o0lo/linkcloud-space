@@ -11,7 +11,7 @@ from apps.notifications.models import Notification
 from apps.payments.constants import PaymentMode, PaymentStatus
 from apps.payments.exceptions import PaymentConfigurationException
 from apps.payments.services import mark_payment_succeeded
-from apps.subscriptions.constants import BillingCycle, OrderCloseReason, OrderStatus, OrderType, RefundSubscriptionAction, SubscriptionStatus
+from apps.subscriptions.constants import BillingCycle, OrderCloseReason, OrderStatus, OrderType, PurchaseMode, RefundSubscriptionAction, SubscriptionStatus
 from apps.subscriptions.entitlements import Entitlement, EntitlementService
 from apps.subscriptions.exceptions import SubscriptionRuleException
 from apps.subscriptions.models import Plan, PlanEntitlement, PlanPrice, SaaSOrder, Subscription
@@ -99,6 +99,20 @@ def test_purchase_order_uses_test_amount_for_order_and_payment(plans):
 
     assert order.payable_amount == 1
     assert payment.amount == 1
+
+
+def test_sales_assisted_plan_cannot_create_self_service_order(plans):
+    plans["enterprise"].purchase_mode = PurchaseMode.SALES_ASSISTED
+    plans["enterprise"].save(update_fields=["purchase_mode"])
+
+    with pytest.raises(SubscriptionRuleException, match="销售顾问"):
+        create_purchase_order(
+            organization=baker.make("organizations.Organization"),
+            created_by=baker.make("accounts.User"),
+            target_plan_code="enterprise",
+            billing_cycle=BillingCycle.MONTH,
+            payment_mode=PaymentMode.NATIVE,
+        )
 
 
 def test_purchase_order_reuses_same_organization_idempotency_key(plans):

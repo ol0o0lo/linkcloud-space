@@ -21,12 +21,15 @@ dependencies = [
     "psycopg2-binary~=2.9",
     "python-json-logger~=4.1",
     "redis~=7.1", # needed for celery
+    "markdown~=3.10",
+    "nh3~=0.3",
     "wechatpayv3~=2.0",
     "whitenoise~=6.7",
     "alibabacloud-dysmsapi20170525>=2.0.0",
     "alibabacloud-sts20150401>=1.0.0",
     "tencentcloud-sdk-python-sms>=3.0.0",
     "phonenumbers>=9.0.37",
+    "openai>=1.109,<2",
 ]
 
 [dependency-groups]
@@ -78,7 +81,7 @@ unsupported-operator = "ignore"
 django_settings_module = "config.settings.test_runner"
 
 [tool.pytest.ini_options]
-addopts = "--nomigrations --ds config.settings.test_runner --cov-config=config/coverage.ini --ignore=e2e"
+addopts = "--ds config.settings.test_runner --cov-config=config/coverage.ini --ignore=e2e --nomigrations"
 testpaths = ["tests"]
 
 # Python warnings documentation: https://docs.python.org/3/library/warnings.html
@@ -223,6 +226,21 @@ ACCOUNT_SIGNUP_OPEN = { type = "bool", default = false, help_text = "Allow new a
 # Amap (高德地图)
 AMAP_JSAPI_KEY = { type = "str", default = "", help_text = "Amap JSAPI key for map rendering" }
 AMAP_SECURITY_JS_CODE = { type = "str", default = "", help_text = "Amap JSAPI security code (required for JSAPI 2.0)" }
+AMAP_WEB_SERVICE_KEY = { type = "str", default = "", help_text = "Amap Web Service key for server-side place search" }
+
+# AI Foundation
+AI_ENABLED = { type = "bool", default = false, help_text = "Enable outbound AI provider calls" }
+AI_MAX_INPUT_CHARS = { type = "int", default = 100000, help_text = "Maximum total characters accepted by one AI invocation" }
+AI_MAX_OUTPUT_TOKENS = { type = "int", default = 4096, help_text = "Platform-wide maximum output tokens per AI invocation" }
+AI_MAX_CONVERSATION_MESSAGES = { type = "int", default = 40, help_text = "Maximum recent conversation messages sent to a provider" }
+AI_TEMPORARY_RETENTION_HOURS = { type = "int", default = 24, help_text = "Hours to retain temporary AI payloads" }
+AI_STREAM_TIMEOUT_SECONDS = { type = "int", default = 120, help_text = "Maximum streaming duration" }
+AI_CHAT_PROMPT_KEY = { type = "str", default = "general.chat", help_text = "Prompt key for controlled chat API" }
+HOUSE_AI_INSIGHT_CACHE_HOURS = { type = "int", default = 24, help_text = "Hours to reuse one shared house AI insight" }
+OPENAI_API_KEY = { type = "str", default = "", help_text = "OpenAI API key referenced by AIProviderConfig" }
+DASHSCOPE_API_KEY = { type = "str", default = "", help_text = "Alibaba Bailian API key referenced by AIProviderConfig" }
+DEEPSEEK_API_KEY = { type = "str", default = "", help_text = "DeepSeek API key referenced by AIProviderConfig" }
+ARK_API_KEY = { type = "str", default = "", help_text = "Volcengine Ark API key referenced by AIProviderConfig" }
 
 # GitHub OAuth
 GITHUB_CLIENT_ID = { type = "str", default = "", help_text = "GitHub OAuth App client ID" }
@@ -233,6 +251,10 @@ WECHAT_APP_ID = { type = "str", default = "", help_text = "微信开放平台网
 WECHAT_APP_SECRET = { type = "str", default = "", help_text = "微信开放平台网站应用 AppSecret" }
 WECHAT_MINIPROGRAM_APP_ID = { type = "str", default = "", help_text = "微信小程序 AppID" }
 WECHAT_MINIPROGRAM_APP_SECRET = { type = "str", default = "", help_text = "微信小程序 AppSecret" }
+WECHAT_MINIPROGRAM_PC_LOGIN_ENV_VERSION = { type = "str", default = "release", help_text = "电脑扫码登录小程序码版本：develop、trial 或 release" }
+WECHAT_MINIPROGRAM_PC_LOGIN_CHECK_PATH = { type = "bool", default = true, help_text = "生成电脑扫码登录小程序码时是否校验页面已发布" }
+WECHAT_MINIPROGRAM_URL_LINK_ENABLED = { type = "bool", default = true, help_text = "邀请链接是否使用微信小程序 URL Link" }
+WECHAT_MINIPROGRAM_URL_LINK_ENV_VERSION = { type = "str", default = "release", help_text = "邀请 URL Link 打开的小程序版本：develop、trial 或 release" }
 WECHAT_OFFICIAL_ACCOUNT_APP_ID = { type = "str", default = "", help_text = "微信公众号 AppID（带参数二维码登录）" }
 WECHAT_OFFICIAL_ACCOUNT_APP_SECRET = { type = "str", default = "", help_text = "微信公众号 AppSecret" }
 WECHAT_OFFICIAL_ACCOUNT_TOKEN = { type = "str", default = "", help_text = "微信公众号服务器配置 Token" }

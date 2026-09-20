@@ -1,12 +1,16 @@
 from datetime import date, datetime
 from decimal import Decimal
+from math import isfinite
 from typing import Any, Literal
 
+from django.utils import timezone
+
 from ninja import Schema
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from apps.allocation.schemas import AllocationRequestOut
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
+from apps.house.geo.coordinates import serialize_point
 from apps.media.schemas import ResolvedMediaRefOut
 from apps.organizations.schemas import OrgUserOut
 
@@ -43,6 +47,40 @@ class TagSuggestionsOut(Schema):
     tags: list[str]
 
 
+class GeoPointIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    longitude: float
+    latitude: float
+    coordinate_system: Literal["gcj02"]
+
+    @field_validator("longitude")
+    @classmethod
+    def validate_longitude(cls, value: float) -> float:
+        if not isfinite(value) or not -180 <= value <= 180:
+            raise ValueError("经度必须在 -180 到 180 之间")
+        return value
+
+    @field_validator("latitude")
+    @classmethod
+    def validate_latitude(cls, value: float) -> float:
+        if not isfinite(value) or not -90 <= value <= 90:
+            raise ValueError("纬度必须在 -90 到 90 之间")
+        return value
+
+
+class GeoPointOut(Schema):
+    longitude: float
+    latitude: float
+    coordinate_system: Literal["gcj02"] = "gcj02"
+
+
+def resolve_gcj02_location(obj):
+    if isinstance(obj, dict):
+        return obj.get("location")
+    return serialize_point(obj.location)
+
+
 class EstateIn(Schema):
     name: str
     display_name: str
@@ -52,9 +90,9 @@ class EstateIn(Schema):
     province: str
     city: str
     district: str
+    subdistrict: str = ""
     address: str = ""
-    lat: Decimal | None = None
-    lng: Decimal | None = None
+    location: GeoPointIn | None = None
     images: list[dict[str, Any]] = Field(default_factory=list)
     description: str = ""
 
@@ -68,9 +106,9 @@ class EstatePatchIn(Schema):
     province: str | None = None
     city: str | None = None
     district: str | None = None
+    subdistrict: str | None = None
     address: str | None = None
-    lat: Decimal | None = None
-    lng: Decimal | None = None
+    location: GeoPointIn | None = None
     images: list[dict[str, Any]] | None = None
     description: str | None = None
 
@@ -79,19 +117,24 @@ class EstateOut(Schema):
     id: int
     name: str
     display_name: str
+    developer: str | None
+    built_year: int | None
     property_type: str
     property_type__mapping: str
     province: str
     city: str
     district: str
+    subdistrict: str
     address: str
-    lat: Decimal | None
-    lng: Decimal | None
+    location: GeoPointOut | None
     images: list[dict[str, Any]]
+    description: str
 
     @staticmethod
     def resolve_property_type__mapping(obj):
         return EstatePropertyType.get_choice_label(obj.property_type)
+
+    resolve_location = staticmethod(resolve_gcj02_location)
 
     @staticmethod
     def resolve_images(obj):
@@ -126,8 +169,7 @@ class BuildingIn(Schema):
     under_floors: int | None = None
     year_built: int | None = None
     elevator: bool = False
-    lat: Decimal | None = None
-    lng: Decimal | None = None
+    location: GeoPointIn | None = None
     address: str = ""
     images: list[dict[str, Any]] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
@@ -140,8 +182,7 @@ class BuildingPatchIn(Schema):
     under_floors: int | None = None
     year_built: int | None = None
     elevator: bool | None = None
-    lat: Decimal | None = None
-    lng: Decimal | None = None
+    location: GeoPointIn | None = None
     address: str | None = None
     images: list[dict[str, Any]] | None = None
     tags: list[str] | None = None
@@ -160,8 +201,9 @@ class BuildingSummaryOut(Schema):
     estate: EstateSummaryOut | None
     elevator: bool
     address: str
-    lat: Decimal | None
-    lng: Decimal | None
+    location: GeoPointOut | None
+
+    resolve_location = staticmethod(resolve_gcj02_location)
 
 
 def building_display_label(building) -> str:
@@ -208,8 +250,7 @@ class BuildingOut(Schema):
     under_floors: int | None
     year_built: int | None
     elevator: bool
-    lat: Decimal | None
-    lng: Decimal | None
+    location: GeoPointOut | None
     address: str
     images: list[dict[str, Any]]
     tags: list[str]
@@ -219,6 +260,8 @@ class BuildingOut(Schema):
         if isinstance(obj, dict):
             return obj.get("images", [])
         return obj.images_resolved
+
+    resolve_location = staticmethod(resolve_gcj02_location)
 
 
 class BuildingInventoryOut(BuildingOut):
@@ -258,13 +301,14 @@ class BuildingMapMarkerOut(Schema):
     estate: EstateSummaryOut | None
     name: str
     address: str
-    lat: Decimal
-    lng: Decimal
+    location: GeoPointOut
     counts: BuildingMapCountsOut
 
     @staticmethod
     def resolve_counts(obj):
         return {name: getattr(obj, name) for name in ("total", "vacant", "listed", "rented", "renovating")}
+
+    resolve_location = staticmethod(resolve_gcj02_location)
 
 
 class EstateMapMarkerOut(Schema):
@@ -272,8 +316,7 @@ class EstateMapMarkerOut(Schema):
     name: str
     display_name: str
     address: str
-    lat: Decimal
-    lng: Decimal
+    location: GeoPointOut
     location_source: Literal["estate", "building_centroid"]
     building_count: int
     located_building_count: int
@@ -281,12 +324,8 @@ class EstateMapMarkerOut(Schema):
     counts: BuildingMapCountsOut
 
     @staticmethod
-    def resolve_lat(obj):
-        return obj.map_lat
-
-    @staticmethod
-    def resolve_lng(obj):
-        return obj.map_lng
+    def resolve_location(obj):
+        return serialize_point(obj.map_location)
 
     @staticmethod
     def resolve_counts(obj):
@@ -754,6 +793,57 @@ class HouseOut(Schema):
         return getattr(obj, "inspection_max_age_days", None)
 
 
+class HouseAIInsightFactOut(Schema):
+    id: str
+    label: str
+    value: str
+
+
+class HouseAIInsightMissingFieldOut(Schema):
+    key: str
+    label: str
+
+
+class HouseAIInsightTextOut(Schema):
+    text: str
+    fact_ids: list[str]
+
+
+class HouseAIInsightSignalOut(Schema):
+    label: str
+    value: str
+    tone: Literal["positive", "neutral", "caution"]
+    fact_ids: list[str]
+
+
+class HouseAIInsightAppealPointOut(HouseAIInsightTextOut):
+    pass
+
+
+class HouseAIInsightViewingQuestionOut(Schema):
+    text: str
+    fact_ids: list[str]
+    missing_field_keys: list[str]
+
+
+class HouseAIInsightContentOut(Schema):
+    schema_version: int
+    conclusion: HouseAIInsightTextOut
+    signals: list[HouseAIInsightSignalOut]
+    appeal_points: list[HouseAIInsightAppealPointOut]
+    viewing_questions: list[HouseAIInsightViewingQuestionOut]
+    missing_fields: list[HouseAIInsightMissingFieldOut]
+    facts: list[HouseAIInsightFactOut]
+
+
+class HouseAIInsightOut(Schema):
+    state: Literal["not_generated", "fresh", "expired"]
+    insight: HouseAIInsightContentOut | None
+    generated_at: datetime | None
+    expires_at: datetime | None
+    source_changed: bool
+
+
 class PublicPublisherOut(Schema):
     slug: str
     name: str
@@ -781,6 +871,7 @@ class PublicEstateOut(Schema):
     province: str
     city: str
     district: str
+    subdistrict: str
     address: str
 
 
@@ -788,9 +879,10 @@ class PublicBuildingOut(Schema):
     id: int
     name: str
     address: str
-    lat: Decimal | None
-    lng: Decimal | None
+    location: GeoPointOut | None
     estate: PublicEstateOut | None
+
+    resolve_location = staticmethod(resolve_gcj02_location)
 
 
 class FavoriteBuildingTargetOut(PublicBuildingOut):
@@ -810,8 +902,7 @@ class FavoriteBuildingTargetOut(PublicBuildingOut):
 
 
 class FavoriteEstateTargetOut(PublicEstateOut):
-    lat: Decimal | None
-    lng: Decimal | None
+    location: GeoPointOut | None
     images: list[ResolvedMediaRefOut]
     description: str
     publisher: PublicPublisherOut
@@ -824,6 +915,13 @@ class FavoriteEstateTargetOut(PublicEstateOut):
     def resolve_publisher(obj):
         return obj.organization
 
+    resolve_location = staticmethod(resolve_gcj02_location)
+
+
+class NearestMetroStationOut(Schema):
+    name: str
+    line_names: list[str]
+
 
 class PublicHouseListOut(Schema):
     id: int
@@ -831,6 +929,7 @@ class PublicHouseListOut(Schema):
     floor: int | None
     area: Decimal | None
     asking_rent: Decimal | None
+    deposit_amount: Decimal | None
     bedrooms: int | None
     living_rooms: int | None
     bathrooms: int | None
@@ -846,6 +945,8 @@ class PublicHouseListOut(Schema):
     building: PublicBuildingOut
     publisher: PublicPublisherOut
     updated_at: datetime
+    distance_m: int | None = None
+    nearest_metro_station: NearestMetroStationOut | None = None
 
     @staticmethod
     def resolve_orientation__mapping(obj):
@@ -863,10 +964,27 @@ class PublicHouseListOut(Schema):
     def resolve_publisher(obj):
         return obj.building.organization
 
+    @staticmethod
+    def resolve_distance_m(obj):
+        distance = getattr(obj, "distance", None)
+        if distance is None:
+            return None
+        meters = distance.m if hasattr(distance, "m") else float(distance)
+        return round(meters)
+
+    @staticmethod
+    def resolve_nearest_metro_station(obj):
+        name = getattr(obj, "nearest_metro_station_name", "")
+        if not name:
+            return None
+        return {
+            "name": name,
+            "line_names": getattr(obj, "nearest_metro_line_names", []),
+        }
+
 
 class PublicHouseDetailOut(PublicHouseListOut):
     interior_area: Decimal | None
-    deposit_amount: Decimal | None
     kitchens: int | None
     balconies: int | None
     videos: list[ResolvedMediaRefOut]
@@ -889,12 +1007,87 @@ class PublicHouseFiltersOut(Schema):
     tags: list[str]
 
 
+class PublicHouseRegionSubdistrictOut(Schema):
+    subdistrict: str
+    house_count: int
+
+
+class PublicHouseRegionDistrictOut(Schema):
+    district: str
+    house_count: int
+    subdistricts: list[PublicHouseRegionSubdistrictOut]
+
+
+class PublicHouseRegionCityOut(Schema):
+    city: str
+    house_count: int
+    districts: list[PublicHouseRegionDistrictOut]
+
+
+class PublicHouseRegionProvinceOut(Schema):
+    province: str
+    house_count: int
+    cities: list[PublicHouseRegionCityOut]
+
+
+class PublicHouseRegionsOut(Schema):
+    items: list[PublicHouseRegionProvinceOut]
+
+
+class PublicHouseLocatedRegionOut(Schema):
+    province: str
+    city: str
+    district: str
+
+
+PublicHouseMapLevel = Literal["city", "district", "estate", "building"]
+
+
+class PublicHouseMapMarkerOut(Schema):
+    key: str
+    level: PublicHouseMapLevel
+    name: str
+    address: str
+    location: GeoPointOut
+    house_count: int
+    child_count: int
+    min_rent: Decimal | None
+    target_zoom: int
+    city: str = ""
+    district: str = ""
+    estate_id: int | None = None
+    building_id: int | None = None
+
+
+class PublicHouseMapOut(Schema):
+    level: PublicHouseMapLevel
+    zoom: int
+    visible_house_count: int
+    marker_count: int
+    unlocated_house_count: int
+    truncated: bool
+    items: list[PublicHouseMapMarkerOut]
+
+
 class TenantViewingRecordIn(Schema):
     model_config = ConfigDict(extra="forbid")
 
     house_id: int
     scheduled_at: datetime
     notes: str = Field(default="", max_length=1000)
+
+
+class TenantContactRequestIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    house_id: int
+    channels: list[Literal["phone", "wechat"]] = Field(min_length=1, max_length=2)
+    phone: str = Field(default="", max_length=32)
+    wechat: str = Field(default="", max_length=64)
+
+
+class TenantContactRequestOut(Schema):
+    notification_id: int
 
 
 class TenantOrganizationSummaryOut(Schema):
@@ -958,6 +1151,13 @@ class ViewingRecordIn(Schema):
     scheduled_at: datetime
     assigned_to_id: int | None = None
     notes: str = ""
+
+    @field_validator("scheduled_at")
+    @classmethod
+    def validate_scheduled_at(cls, value: datetime) -> datetime:
+        if value <= timezone.now():
+            raise ValueError("预约时间必须晚于当前时间")
+        return value
 
 
 class ViewingRecordPatchIn(Schema):

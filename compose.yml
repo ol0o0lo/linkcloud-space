@@ -4,7 +4,7 @@ services:
 
   db:
     container_name: db
-    image: postgres:17
+    image: postgis/postgis:17-3.6-alpine
     init: true
     volumes:
       - postgres_data:/var/lib/postgresql/data/
@@ -100,7 +100,7 @@ services:
       - .:/srv/app:cached
 
     ports:
-      - "127.0.0.1:18000:8000"
+      - "0.0.0.0:18000:8000"
       - "127.0.0.1:5678:5678"  # debugpy port for VS Code/LazyVim debugging
 
     depends_on:

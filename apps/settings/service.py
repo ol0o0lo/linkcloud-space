@@ -24,6 +24,8 @@ DEFAULT_WIDGET_BY_VALUE_TYPE = {
 SETTING_SCOPE_ORGANIZATION = "organization"
 SETTING_SCOPE_TEAM = "team"
 LEASE_ALLOCATION_RULE_SETTING_KEY = "property_rental.lease_allocation_rule"
+AI_ALLOWED_CAPABILITIES_SETTING_KEY = "ai.allowed_capabilities"
+AI_CAPABILITIES = {"chat", "text_generation", "structured_extract", "long_text", "vision"}
 
 SETTING_VALUE_SOURCE_DEFAULT = "default"
 SETTING_VALUE_SOURCE_ORGANIZATION = "organization"
@@ -116,6 +118,11 @@ def validate_lease_allocation_rule_value(key: str, value) -> None:
 def validate_setting_value(key: str, value) -> None:
     validate_location_setting_value(key, value)
     validate_lease_allocation_rule_value(key, value)
+    if key == AI_ALLOWED_CAPABILITIES_SETTING_KEY:
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            raise ValidationError({"value": "AI 能力必须是字符串列表。"})
+        if len(value) != len(set(value)) or set(value) - AI_CAPABILITIES:
+            raise ValidationError({"value": "AI 能力列表包含重复项或未知能力。"})
 
 
 def validate_inspection_max_age_days_setting_value(key: str, value) -> None:

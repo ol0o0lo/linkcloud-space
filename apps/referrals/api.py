@@ -1,6 +1,9 @@
+from datetime import datetime
+
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
-from ninja import Router
+from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
@@ -61,9 +64,36 @@ def patch_referral_config(request, payload: ReferralRuleConfigPatchIn):
 
 @admin_router.get("/records/", response=list[ReferralRecordOut], summary="获取裂变邀请记录列表")
 @paginate(LegacyPagination)
-def admin_referral_records(request):
+def admin_referral_records(
+    request,
+    keyword: str | None = Query(None),
+    status: str | None = Query(None),
+    created_from: datetime | None = Query(None),
+    created_to: datetime | None = Query(None),
+):
     require_superuser(request)
-    return ReferralRecord.objects.select_related("invitee").order_by("-created_at", "-pk")
+    qs = ReferralRecord.objects.select_related("inviter", "invitee")
+    if keyword:
+        user_fields = (
+            Q(inviter__username__icontains=keyword)
+            | Q(inviter__first_name__icontains=keyword)
+            | Q(inviter__last_name__icontains=keyword)
+            | Q(inviter__email__icontains=keyword)
+            | Q(invitee__username__icontains=keyword)
+            | Q(invitee__first_name__icontains=keyword)
+            | Q(invitee__last_name__icontains=keyword)
+            | Q(invitee__email__icontains=keyword)
+        )
+        if keyword.isdigit():
+            user_fields |= Q(inviter_id=int(keyword)) | Q(invitee_id=int(keyword))
+        qs = qs.filter(user_fields)
+    if status:
+        qs = qs.filter(status=status)
+    if created_from:
+        qs = qs.filter(created_at__gte=created_from)
+    if created_to:
+        qs = qs.filter(created_at__lt=created_to)
+    return qs.order_by("-created_at", "-pk")
 
 
 @admin_router.post("/records/{record_id}/review/", response=ReferralRecordOut, summary="审核裂变奖励")

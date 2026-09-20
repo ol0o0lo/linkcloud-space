@@ -79,6 +79,7 @@ if env.bool("USE_DOCKER", default=False) is True:
 # Application definition
 
 INSTALLED_APPS = [
+    "django.contrib.gis",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -93,6 +94,7 @@ INSTALLED_APPS = [
     "apps.teams",
     "apps.access",
     "apps.allocation",
+    "apps.metro",
     "apps.house",
     "apps.favorites",
     "apps.analytics",
@@ -100,9 +102,11 @@ INSTALLED_APPS = [
     "apps.wallet",
     "apps.subscriptions",
     "apps.referrals",
+    "apps.miniprogram_home",
     "apps.notifications",
     "apps.team_operations",
     "apps.settings",
+    "apps.ai",
     "maintenance_mode",
     "allauth",
     "allauth.account",
@@ -168,6 +172,7 @@ DB_SSL_REQUIRED = env.bool("DB_SSL_REQUIRED", default=not DEBUG)
 # Database
 # See https://github.com/jacobian/dj-database-url for more examples
 DATABASES = {"default": env.dj_db_url("DATABASE_URL", default="postgres://postgres@postgres/postgres", ssl_require=DB_SSL_REQUIRED)}
+DATABASES["default"]["ENGINE"] = "django.contrib.gis.db.backends.postgis"
 
 # Custom User Model
 # https://docs.djangoproject.com/en/4.2/topics/auth/customizing/#substituting-a-custom-user-model
@@ -344,6 +349,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.house.tasks.expire_lease_allocation_requests_task",
         "schedule": crontab(minute="*/5"),
     },
+    "purge-expired-ai-payloads": {
+        "task": "apps.ai.tasks.purge_expired_ai_payloads_task",
+        "schedule": crontab(hour=3, minute=30),
+    },
 }
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
@@ -358,6 +367,21 @@ SITE_URL = f"{SITE_SCHEME}://{SITE_DOMAIN}"
 # Amap (高德地图)
 AMAP_JSAPI_KEY = env("AMAP_JSAPI_KEY", default="")
 AMAP_SECURITY_JS_CODE = env("AMAP_SECURITY_JS_CODE", default="")
+AMAP_WEB_SERVICE_KEY = env("AMAP_WEB_SERVICE_KEY", default="")
+
+# 通用 AI 底座。供应商密钥由 AIProviderConfig 引用环境变量，不进入数据库。
+AI_ENABLED = env.bool("AI_ENABLED", default=False)
+AI_MAX_INPUT_CHARS = env.int("AI_MAX_INPUT_CHARS", default=100_000)
+AI_MAX_OUTPUT_TOKENS = env.int("AI_MAX_OUTPUT_TOKENS", default=4096)
+AI_MAX_CONVERSATION_MESSAGES = env.int("AI_MAX_CONVERSATION_MESSAGES", default=40)
+AI_TEMPORARY_RETENTION_HOURS = env.int("AI_TEMPORARY_RETENTION_HOURS", default=24)
+AI_STREAM_TIMEOUT_SECONDS = env.int("AI_STREAM_TIMEOUT_SECONDS", default=120)
+AI_CHAT_PROMPT_KEY = env("AI_CHAT_PROMPT_KEY", default="general.chat")
+HOUSE_AI_INSIGHT_CACHE_HOURS = env.int("HOUSE_AI_INSIGHT_CACHE_HOURS", default=24)
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+DASHSCOPE_API_KEY = env("DASHSCOPE_API_KEY", default="")
+DEEPSEEK_API_KEY = env("DEEPSEEK_API_KEY", default="")
+ARK_API_KEY = env("ARK_API_KEY", default="")
 
 # 通用行为分析。目标定义负责把事件安全地归属到组织；客户端不能直接指定 organization。
 ANALYTICS_TARGETS = {
@@ -457,6 +481,51 @@ ANALYTICS_EVENTS = [
         "property_keys": ("page", "campaign"),
     },
     {
+        "key": "house.ai_insight.loaded",
+        "label": "房源 AI 洞察组件加载",
+        "target_types": ("house",),
+        "allow_anonymous": False,
+        "client_collectible": False,
+        "deduplicate_seconds": 1800,
+        "property_keys": ("page", "state", "source_changed"),
+    },
+    {
+        "key": "house.ai_insight.generate_requested",
+        "label": "请求生成房源 AI 洞察",
+        "target_types": ("house",),
+        "allow_anonymous": False,
+        "client_collectible": False,
+        "deduplicate_seconds": 5,
+        "property_keys": ("page",),
+    },
+    {
+        "key": "house.ai_insight.generated",
+        "label": "生成房源 AI 洞察",
+        "target_types": ("house",),
+        "allow_anonymous": False,
+        "client_collectible": False,
+        "deduplicate_seconds": 5,
+        "property_keys": ("page",),
+    },
+    {
+        "key": "house.ai_insight.cache_hit",
+        "label": "复用房源 AI 洞察缓存",
+        "target_types": ("house",),
+        "allow_anonymous": False,
+        "client_collectible": False,
+        "deduplicate_seconds": 60,
+        "property_keys": ("page",),
+    },
+    {
+        "key": "house.ai_insight.failed",
+        "label": "房源 AI 洞察生成失败",
+        "target_types": ("house",),
+        "allow_anonymous": False,
+        "client_collectible": False,
+        "deduplicate_seconds": 5,
+        "property_keys": ("page", "error_code"),
+    },
+    {
         "key": "viewing.requested",
         "label": "预约带看",
         "target_types": ("house", "viewing_record"),
@@ -488,6 +557,7 @@ DEFAULT_PAGE_SIZE = 50
 # rows whose GenericForeignKey targets them. Add producer-app models as needed.
 NOTIFICATIONS_TARGET_MODELS: list[str] = [
     "allocation.AllocationRequest",
+    "house.House",
     "team_operations.TeamAnnouncement",
     "team_operations.TaskAssignment",
 ]
@@ -537,6 +607,13 @@ MEDIA_REFERENCE_PROVIDERS: list[str] = [
 # `required_channels` cannot be disabled through user preferences. Add entries
 # here as downstream apps introduce notification subjects.
 NOTIFICATIONS_CATEGORIES: list[dict] = [
+    {
+        "key": "house.contact",
+        "label": "房源预约联系",
+        "description": "租客发送手机号或微信号，请你主动联系。",
+        "default_channels": ("in_app",),
+        "required_channels": ("in_app",),
+    },
     {
         "key": "subscription.billing",
         "label": "订阅与支付",
@@ -673,6 +750,10 @@ SOCIALACCOUNT_EMAIL_VERIFICATION = "none"  # GitHub email 已经过 GitHub 验�
 WECHAT_OFFICIAL_ACCOUNT_APP_ID = env("WECHAT_OFFICIAL_ACCOUNT_APP_ID", default="")
 WECHAT_OFFICIAL_ACCOUNT_APP_SECRET = env("WECHAT_OFFICIAL_ACCOUNT_APP_SECRET", default="")
 WECHAT_OFFICIAL_ACCOUNT_TOKEN = env("WECHAT_OFFICIAL_ACCOUNT_TOKEN", default="")
+WECHAT_MINIPROGRAM_PC_LOGIN_ENV_VERSION = env("WECHAT_MINIPROGRAM_PC_LOGIN_ENV_VERSION", default="release")
+WECHAT_MINIPROGRAM_PC_LOGIN_CHECK_PATH = env.bool("WECHAT_MINIPROGRAM_PC_LOGIN_CHECK_PATH", default=True)
+WECHAT_MINIPROGRAM_URL_LINK_ENABLED = env.bool("WECHAT_MINIPROGRAM_URL_LINK_ENABLED", default=True)
+WECHAT_MINIPROGRAM_URL_LINK_ENV_VERSION = env("WECHAT_MINIPROGRAM_URL_LINK_ENV_VERSION", default="release")
 
 # ALLAUTH MFA SETTINGS
 MFA_SUPPORTED_TYPES = ["totp", "recovery_codes", "webauthn"]
@@ -792,6 +873,10 @@ LOGGING = {
             "level": log_level,
             "handlers": ["console"],
         },
+        # AI SDK debug logs may include prompt and response bodies.
+        "openai": {"level": "WARNING", "handlers": ["console"], "propagate": False},
+        "httpx": {"level": "WARNING", "handlers": ["console"], "propagate": False},
+        "httpcore": {"level": "WARNING", "handlers": ["console"], "propagate": False},
     },
 }
 

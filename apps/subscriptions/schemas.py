@@ -8,6 +8,7 @@ class PlanOut(Schema):
     code: str
     name: str
     description: str
+    purchase_mode: str
     display_order: int
     is_active: bool
     prices: list[dict]
@@ -35,6 +36,66 @@ class CurrentSubscriptionOut(Schema):
     usage: dict
     subscription: dict | None
     recommendation: UpgradeRecommendationOut | None
+
+
+class OnboardingTaskOut(Schema):
+    key: str
+    title: str
+    description: str
+    completed: bool
+    completed_at: datetime | None = None
+    deadline_at: datetime | None = None
+    action: str
+
+
+class OnboardingProgressOut(Schema):
+    completed_count: int
+    total_count: int
+    completion_percent: int
+    activated: bool
+    trial_ends_at: datetime | None = None
+    trial_days_remaining: int | None = None
+    tasks: list[OnboardingTaskOut]
+
+
+class SalesLeadCreateIn(Schema):
+    contact_name: str = Field(..., min_length=1, max_length=64)
+    contact_phone: str = Field(..., min_length=6, max_length=32)
+    company_name: str = Field("", max_length=128)
+    city_name: str = Field("", max_length=64)
+    team_size: str = Field("", max_length=32)
+    house_scale: str = Field("", max_length=32)
+    needs: str = Field("", max_length=2000)
+    source: str = Field("miniprogram", max_length=32)
+
+
+class SalesLeadOut(Schema):
+    id: int
+    user_id: int | None
+    organization_id: int | None
+    organization_name: str
+    contact_name: str
+    contact_phone: str
+    company_name: str
+    city_name: str
+    team_size: str
+    house_scale: str
+    needs: str
+    source: str
+    status: str
+    admin_note: str
+    assigned_to_id: int | None
+    assigned_to_name: str
+    last_contacted_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SalesLeadPatchIn(Schema):
+    status: str | None = None
+    admin_note: str | None = Field(None, max_length=4000)
+    assigned_to_id: int | None = None
+    last_contacted_at: datetime | None = None
 
 
 class PurchaseOrderIn(Schema):

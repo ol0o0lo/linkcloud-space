@@ -1,7 +1,10 @@
 import json
+from datetime import timedelta
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 from django.test import TestCase
+from django.utils import timezone
 
 from allauth.socialaccount.models import SocialAccount
 from model_bakery import baker
@@ -210,6 +213,55 @@ class WalletAdminAPITests(TestCase):
         self.assertEqual(item["email"], "wallet-user@example.com")
         self.assertEqual(item["phone_label"], "+8613800138000")
         self.assertEqual(item["real_name_label"], "张*")
+
+    def test_admin_lists_support_keyword_status_and_created_range_filters(self):
+        self.user.username = "wallet-filter-user"
+        self.user.email = "wallet-filter@example.com"
+        self.user.save(update_fields=["username", "email"])
+        apply_wallet_credit(
+            user=self.user,
+            amount=2000,
+            entry_type="promotion_reward",
+            biz_type="promotion.reward",
+            biz_id="reward-admin-filter",
+            idempotency_key="reward-admin-filter",
+        )
+        wallet = self.user.wallet_account
+        matching = baker.make(
+            "wallet.WithdrawalRequest",
+            user=self.user,
+            wallet=wallet,
+            status=WithdrawalStatus.PENDING_REVIEW,
+        )
+        other_user = baker.make(User, username="other-wallet-user")
+        other_wallet = baker.make("wallet.WalletAccount", user=other_user)
+        baker.make(
+            "wallet.WithdrawalRequest",
+            user=other_user,
+            wallet=other_wallet,
+            status=WithdrawalStatus.PAID,
+        )
+        now = timezone.now()
+        time_filters = {
+            "created_from": (now - timedelta(days=1)).isoformat(),
+            "created_to": (now + timedelta(days=1)).isoformat(),
+        }
+
+        accounts_response = self.client.get(f"/api/admin/wallet/accounts/?{urlencode({**time_filters, 'keyword': 'wallet-filter@example.com'})}")
+        withdrawals_response = self.client.get(
+            f"/api/admin/wallet/withdrawals/?{urlencode({**time_filters, 'keyword': 'wallet-filter-user', 'status': WithdrawalStatus.PENDING_REVIEW})}"
+        )
+
+        self.assertEqual(accounts_response.status_code, 200)
+        self.assertEqual(
+            [item["user_id"] for item in api_data(accounts_response)["items"]],
+            [self.user.pk],
+        )
+        self.assertEqual(withdrawals_response.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in api_data(withdrawals_response)["items"]],
+            [matching.pk],
+        )
 
     def test_admin_can_adjust_wallet_balance(self):
         resp = self.client.post(

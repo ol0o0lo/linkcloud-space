@@ -9,6 +9,31 @@ class BillingCycle(StrChoices):
     YEAR = "year", "年付"
 
 
+class PurchaseMode(StrChoices):
+    SELF_SERVICE = "self_service", "自助购买"
+    SALES_ASSISTED = "sales_assisted", "联系销售"
+
+
+class SaaSBusinessType(StrChoices):
+    INDIVIDUAL = "individual", "独立中介"
+    STORE = "store", "中介门店"
+
+
+class SaaSTeamSizeBand(StrChoices):
+    ONE = "1", "1 人"
+    TWO_TO_TEN = "2_10", "2～10 人"
+    ELEVEN_TO_FIFTY = "11_50", "11～50 人"
+    FIFTY_PLUS = "51_plus", "51 人以上"
+
+
+class SalesLeadStatus(StrChoices):
+    NEW = "new", "待联系"
+    CONTACTING = "contacting", "跟进中"
+    QUALIFIED = "qualified", "已确认需求"
+    WON = "won", "已成交"
+    LOST = "lost", "已流失"
+
+
 class SubscriptionKind(StrChoices):
     TRIAL = "trial", "试用"
     PAID = "paid", "付费"

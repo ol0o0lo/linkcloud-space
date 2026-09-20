@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -12,7 +13,7 @@ from apps.accounts.models import User
 from apps.notifications.models import Notification
 from apps.subscriptions.api import _serialize_order
 from apps.subscriptions.constants import BillingCycle, InvoiceStatus, OrderCloseReason, OrderStatus, PaymentMode
-from apps.subscriptions.models import InvoiceRequest, OrganizationInvoiceProfile, Plan, PlanEntitlement, PlanPrice, SaaSOrder, SubscriptionAuditLog
+from apps.subscriptions.models import InvoiceRequest, OrganizationInvoiceProfile, Plan, PlanEntitlement, PlanPrice, SaaSOrder, SubscriptionAuditLog, SubscriptionSalesLead
 from tests.access.helpers import bind_org_role, make_access_group
 from tests.api_helpers import api_data
 
@@ -59,6 +60,23 @@ class SubscriptionAPITest(TestCase):
         self.assertEqual(data["entitlement"]["member_limit"], 3)
         self.assertIsNone(data["recommendation"])
 
+    def test_public_catalog_does_not_require_login(self):
+        self.client.logout()
+
+        response = self.client.get("/api/public/saas/plans/")
+
+        self.assertEqual(response.status_code, 200)
+        catalog = api_data(response)
+        self.assertTrue(catalog)
+        self.assertIn("purchase_mode", catalog[0])
+
+    def test_owner_can_read_empty_onboarding_progress(self):
+        response = self.client.get("/api/subscriptions/onboarding-progress/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        self.assertEqual(payload["completed_count"], 0)
+        self.assertEqual(payload["total_count"], 3)
     def test_view_only_member_can_see_invoice_progress_but_not_sensitive_profile(self):
         member = User.objects.create_user(username="subscription-viewer", password="secret")  # noqa: S106
         baker.make("organizations.OrganizationMember", organization=self.organization, user=member, is_owner=False)
@@ -401,6 +419,29 @@ class SubscriptionAPITest(TestCase):
         self.assertEqual(api_data(response)["payable_amount"], 1)
 
 
+class PublicSalesLeadAPITest(TestCase):
+    def test_anonymous_user_can_submit_enterprise_requirement(self):
+        response = self.client.post(
+            "/api/public/saas/sales-leads/",
+            data=json.dumps(
+                {
+                    "contact_name": "张经理",
+                    "contact_phone": "13800138000",
+                    "company_name": "向阳房产",
+                    "team_size": "51_plus",
+                    "house_scale": "3000_plus",
+                    "needs": "需要多门店权限和数据接口",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        lead = SubscriptionSalesLead.objects.get()
+        self.assertEqual(lead.status, "new")
+        self.assertEqual(lead.company_name, "向阳房产")
+
+
 class SubscriptionAdminAPITest(TestCase):
     def setUp(self):
         self.admin = baker.make(User, is_superuser=True, is_staff=True)
@@ -452,6 +493,46 @@ class SubscriptionAdminAPITest(TestCase):
         self.assertEqual(item["target_plan_code"], "professional")
         self.assertEqual(item["target_plan_name"], "专业版")
         self.assertEqual(item["profile_snapshot"]["title"], "链云测试科技有限公司")
+
+    def test_admin_lists_support_keyword_status_and_created_range_filters(self):
+        other_organization = baker.make(
+            "organizations.Organization",
+            name="其他空间",
+            slug="other-space",
+        )
+        other_order = baker.make(
+            "subscriptions.SaaSOrder",
+            organization=other_organization,
+            target_plan=self.plan,
+            order_no="OTHER-ORDER-001",
+            status=OrderStatus.CLOSED,
+        )
+        InvoiceRequest.objects.create(
+            order=other_order,
+            profile_snapshot={"title": "其他公司"},
+            status=InvoiceStatus.REJECTED,
+        )
+        now = timezone.now()
+        time_filters = {
+            "created_from": (now - timedelta(days=1)).isoformat(),
+            "created_to": (now + timedelta(days=1)).isoformat(),
+        }
+
+        order_response = self.client.get(
+            f"/api/admin/subscriptions/orders/?{urlencode({**time_filters, 'keyword': 'linkcloud-test', 'status': OrderStatus.PAID, 'refund_status': 'none'})}"
+        )
+        invoice_response = self.client.get(f"/api/admin/subscriptions/invoice-requests/?{urlencode({**time_filters, 'keyword': '链云测试科技', 'status': InvoiceStatus.PENDING})}")
+
+        self.assertEqual(order_response.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in api_data(order_response)["items"]],
+            [self.order.pk],
+        )
+        self.assertEqual(invoice_response.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in api_data(invoice_response)["items"]],
+            [self.invoice_request.pk],
+        )
 
     def test_invoice_result_notifies_requester(self):
         response = self.client.patch(

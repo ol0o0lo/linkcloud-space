@@ -3,6 +3,7 @@ from typing import Any
 
 from apps.favorites.registry import FavoriteDisplayFact, FavoriteTargetDisplay, get_target_adapter, register_target_adapter
 from apps.favorites.targets import IntegerFavoriteTargetAdapter
+from apps.house.formatters import format_house_layout
 from apps.house.schemas import FavoriteBuildingTargetOut, FavoriteEstateTargetOut, PublicHouseListOut
 from apps.house.services import get_public_buildings_queryset, get_public_estates_queryset, get_public_houses_queryset
 
@@ -23,13 +24,7 @@ def _format_number(value: Any) -> str:
 
 
 def _house_layout(serialized_target: dict[str, Any]) -> str:
-    bedrooms = serialized_target.get("bedrooms")
-    living_rooms = serialized_target.get("living_rooms")
-    if bedrooms == 1 and living_rooms == 0:
-        return "单间"
-    if bedrooms is None and living_rooms is None:
-        return ""
-    return f"{bedrooms or 0}室{living_rooms or 0}厅"
+    return format_house_layout(serialized_target.get("bedrooms"), serialized_target.get("living_rooms"))
 
 
 class HouseFavoriteTargetAdapter(IntegerFavoriteTargetAdapter):

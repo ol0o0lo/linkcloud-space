@@ -13,6 +13,7 @@ from apps.access.api import role_management_router as access_role_management_rou
 from apps.access.api import team_bindings_router as access_team_bindings_router
 from apps.access.api import team_roles_router as access_team_roles_router
 from apps.accounts.api import admin_real_name_router, admin_users_router, real_name_router, users_router
+from apps.ai.api import router as ai_router
 from apps.allocation.api import router as allocation_router
 from apps.analytics.api import router as analytics_router
 from apps.base.api import router as base_router
@@ -28,6 +29,9 @@ from apps.house.api import tenant_router as house_tenant_router
 from apps.house.match_api import public_router as house_match_public_router
 from apps.house.match_api import router as house_match_router
 from apps.media.api import router as media_router
+from apps.metro.api import public_router as metro_public_router
+from apps.miniprogram_home.api import admin_router as miniprogram_home_admin_router
+from apps.miniprogram_home.api import public_router as miniprogram_home_public_router
 from apps.notifications.api import dispatches_router as notification_dispatches_router
 from apps.notifications.api import router as notifications_router
 from apps.organizations.api import (
@@ -51,6 +55,7 @@ from apps.settings.api import org_router as settings_org_router
 from apps.settings.api import team_router as settings_team_router
 from apps.settings.api import user_router as settings_user_router
 from apps.subscriptions.api import admin_router as subscriptions_admin_router
+from apps.subscriptions.api import public_router as subscriptions_public_router
 from apps.subscriptions.api import router as subscriptions_router
 from apps.team_operations.api import router as team_operations_router
 from apps.teams.api import router as teams_router
@@ -70,6 +75,8 @@ register_error_handlers(api)
 
 api.add_router("/", base_router)
 api.add_router("/media/", media_router)
+api.add_router("/admin/miniprogram-home/", miniprogram_home_admin_router)
+api.add_router("/public/miniprogram/", miniprogram_home_public_router)
 api.add_router("/access/navigation/", access_navigation_router)
 api.add_router("/access/permissions/", access_permissions_router)
 api.add_router("/access/role-management/", access_role_management_router)
@@ -83,6 +90,7 @@ api.add_router("/notification-dispatches/", notification_dispatches_router)
 api.add_router("/notifications/", notifications_router)
 api.add_router("/team-operations/", team_operations_router)
 api.add_router("/analytics/", analytics_router)
+api.add_router("/ai/", ai_router)
 api.add_router("/allocation/", allocation_router)
 api.add_router("/organization-members/", org_members_router)
 api.add_router("/organization-workspace/", organization_workspace_router)
@@ -99,6 +107,7 @@ api.add_router("/internal/wallet/", wallet_internal_router)
 api.add_router("/payments/", payments_router)
 api.add_router("/subscriptions/", subscriptions_router)
 api.add_router("/admin/subscriptions/", subscriptions_admin_router)
+api.add_router("/public/saas/", subscriptions_public_router)
 api.add_router("/referrals/", referrals_router)
 api.add_router("/admin/referrals/", referrals_admin_router)
 api.add_router("/settings/org/", settings_org_router)
@@ -109,6 +118,7 @@ api.add_router("/house/tenant/", house_tenant_router)
 api.add_router("/house-match-shares/", house_match_router)
 api.add_router("/house/landlord/", house_landlord_router)
 api.add_router("/public/houses/", house_public_router)
+api.add_router("/public/metro/", metro_public_router)
 api.add_router("/public/house-match-shares/", house_match_public_router)
 api.add_router("/public/landlords/", house_public_landlord_router)
 api.add_router("/users/me/favorite/", favorites_router)

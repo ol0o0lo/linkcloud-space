@@ -19,6 +19,7 @@ from apps.subscriptions.constants import (
     OrderCloseReason,
     OrderStatus,
     OrderType,
+    PurchaseMode,
     RefundStatus,
     RefundSubscriptionAction,
     SubscriptionKind,
@@ -37,7 +38,7 @@ def _duration_for(cycle: str) -> timedelta:
 
 
 def _snapshot_plan(plan: Plan) -> dict:
-    return {"code": plan.code, "name": plan.name, "display_order": plan.display_order}
+    return {"code": plan.code, "name": plan.name, "display_order": plan.display_order, "purchase_mode": plan.purchase_mode}
 
 
 def _snapshot_price(price: PlanPrice) -> dict:
@@ -113,6 +114,8 @@ def _current_sale_versions(*, plan_code: str, billing_cycle: str) -> tuple[Plan,
     plan = Plan.objects.filter(code=plan_code, is_active=True).first()
     if plan is None or plan.code == "free":
         raise SubscriptionRuleException("该套餐当前不可购买。")
+    if plan.purchase_mode != PurchaseMode.SELF_SERVICE:
+        raise SubscriptionRuleException("该套餐需要由销售顾问评估后开通，请先提交企业需求。")
     price = PlanPrice.objects.filter(plan=plan, billing_cycle=billing_cycle, is_current=True).first()
     entitlement = PlanEntitlement.objects.filter(plan=plan, is_current=True).first()
     if price is None or entitlement is None:

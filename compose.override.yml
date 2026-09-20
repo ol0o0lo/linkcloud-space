@@ -2,6 +2,12 @@
 # 此文件被 docker compose 自动加载，仅用于开发环境
 # 生产部署时不使用此文件
 services:
+  db:
+    image: linkcloud-space:postgres-postgis
+    build:
+      context: .
+      dockerfile: config/docker/Dockerfile.db
+
   redis:
     ports:
       - "127.0.0.1:6380:6379"

@@ -34,6 +34,7 @@ RESOURCE_TYPE_RULES = {
     ResourceType.HOUSE_IMAGE: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
     ResourceType.HOUSE_VIDEO: {"scopes": {MediaScope.ORG}, "extensions": VIDEO_EXTENSIONS},
     ResourceType.LEASE_CONTRACT: {"scopes": {MediaScope.ORG}, "extensions": CONTRACT_EXTENSIONS},
+    ResourceType.MINIPROGRAM_HOME_IMAGE: {"scopes": {MediaScope.USER}, "extensions": IMAGE_EXTENSIONS},
 }
 MEDIA_DERIVED_REF_FIELDS = {
     "created_at",

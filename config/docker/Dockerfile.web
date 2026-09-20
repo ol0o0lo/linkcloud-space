@@ -37,15 +37,21 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=linkcloud-space-uv \
 # ------------------------------------------------------------
 FROM python:3.14-slim-bookworm AS base
 
-RUN --mount=type=cache,target=/var/cache/apt,id=linkcloud-space-apt \
-    --mount=type=cache,target=/var/lib/apt,id=linkcloud-space-apt \
-    apt update \
-    && apt install -yqq --no-install-recommends locales mime-support libjpeg-dev zlib1g-dev \
+ARG DEBIAN_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian
+ARG DEBIAN_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
+
+RUN --mount=type=cache,target=/var/cache/apt,id=linkcloud-space-apt-cache,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=linkcloud-space-apt-lists,sharing=locked \
+    sed -i \
+        -e "s|http://deb.debian.org/debian-security|${DEBIAN_SECURITY_MIRROR}|g" \
+        -e "s|http://deb.debian.org/debian|${DEBIAN_MIRROR}|g" \
+        /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -yqq --no-install-recommends binutils gdal-bin libgdal-dev libgeos-dev libproj-dev locales mime-support libjpeg-dev zlib1g-dev \
     && echo "LC_ALL=en_US.UTF-8" >> /etc/environment \
     && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
     && echo "LANG=en_US.UTF-8" > /etc/locale.conf \
     && locale-gen en_US.UTF-8 \
-    && rm -rf /var/lib/apt/lists/* \
     && echo "\nsource /opt/venv/bin/activate" >> /root/.bashrc
 
 ENV VIRTUAL_ENV=/opt/venv

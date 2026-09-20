@@ -14,6 +14,7 @@ from model_bakery import baker
 from apps.accounts.models import User
 from apps.house import services as house_services
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
+from apps.house.geo.coordinates import make_wgs84_point
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.house.schemas import ContactIn, ContactPatchIn, HouseIn, LeaseIn, ViewingRecordIn
 from apps.media.constants import MediaType, ResourceType
@@ -432,6 +433,20 @@ class HouseApiTestCase(TestCase):
         self.estate.refresh_from_db()
         self.assertEqual(self.estate.address, "")
 
+    def test_estate_detail_includes_mobile_editable_fields(self):
+        self.estate.developer = "链云置业"
+        self.estate.built_year = 2021
+        self.estate.description = "近地铁的成熟社区"
+        self.estate.save(update_fields=["developer", "built_year", "description"])
+
+        response = self.client.get(f"/api/house/estates/{self.estate.pk}/")
+        payload = api_data(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["developer"], "链云置业")
+        self.assertEqual(payload["built_year"], 2021)
+        self.assertEqual(payload["description"], "近地铁的成熟社区")
+
     def test_house_input_schema_does_not_expose_lifecycle_or_internal_fields_on_create(self):
         self.assertNotIn("status", HouseIn.model_fields)
         self.assertNotIn("publish_status", HouseIn.model_fields)
@@ -737,9 +752,7 @@ class HouseApiTestCase(TestCase):
         from config.api import api
 
         schema = api.get_openapi_schema(path_prefix="/api")
-        parameters = {
-            parameter["name"]: parameter for parameter in schema["paths"]["/api/house/houses/"]["get"]["parameters"]
-        }
+        parameters = {parameter["name"]: parameter for parameter in schema["paths"]["/api/house/houses/"]["get"]["parameters"]}
         house_out = schema["components"]["schemas"]["HouseOut"]
         house_patch = schema["components"]["schemas"]["HousePatchIn"]
 
@@ -754,9 +767,7 @@ class HouseApiTestCase(TestCase):
             ["vacant", "listed", "rented", "renovating", "inactive"],
         )
         self.assertIn("confirm_current", house_patch["properties"])
-        self.assertTrue(
-            {"updated_at", "inspection_reasons", "inspection_due_at", "inspection_max_age_days"}.issubset(house_out["required"])
-        )
+        self.assertTrue({"updated_at", "inspection_reasons", "inspection_due_at", "inspection_max_age_days"}.issubset(house_out["required"]))
 
     def test_admin_list_responses_include_display_labels(self):
         self.building.elevator = True
@@ -891,6 +902,42 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["contact"]["id"], tenant.pk)
         self.assertEqual(self.client.get(f"/api/house/viewing-records/{other_viewing.pk}/").status_code, 404)
 
+    def test_create_viewing_requires_future_schedule_but_patch_keeps_history_editable(self):
+        house = House.objects.create(building=self.building, room_number="1803")
+        past_time = timezone.now() - timedelta(hours=1)
+        self.client.raise_request_exception = False
+
+        create_response = self.client.post(
+            "/api/house/viewing-records/",
+            data=json.dumps(
+                {
+                    "house_id": house.pk,
+                    "customer_name": "过期预约",
+                    "customer_phone": "13900139003",
+                    "scheduled_at": past_time.isoformat(),
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(create_response.status_code, 400)
+        self.assertFalse(ViewingRecord.objects.filter(house=house, customer_phone="13900139003").exists())
+
+        viewing = ViewingRecord.objects.create(
+            organization=self.org,
+            house=house,
+            customer_name="历史带看",
+            customer_phone="13900139004",
+            scheduled_at=timezone.now() + timedelta(hours=1),
+        )
+        patch_response = self.client.patch(
+            f"/api/house/viewing-records/{viewing.pk}/",
+            data=json.dumps({"scheduled_at": past_time.isoformat()}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(patch_response.status_code, 200)
+
     def test_list_buildings_searches_keyword_fields(self):
         Building.objects.create(organization=self.org, estate=self.estate, name="2栋", address="科技园 2 栋", floors=18)
         other_estate = Estate.objects.create(
@@ -949,7 +996,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(estate_item["counts"], expected_counts)
 
     def test_building_map_detail_orders_active_houses_by_floor_and_natural_room_number(self):
-        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.building.tags = ["近地铁", "成熟配套"]
         self.building.save()
         House.objects.create(building=self.building, room_number="10", floor=1)
@@ -968,13 +1015,13 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["counts"], {"total": 4, "vacant": 4, "listed": 0, "rented": 0, "renovating": 0})
 
     def test_building_map_filters_markers_by_house_status_but_keeps_full_active_counts(self):
-        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.building.save()
         House.objects.create(building=self.building, room_number="101", status=HouseStatus.VACANT)
         House.objects.create(building=self.building, room_number="102", status=HouseStatus.LISTED)
         House.objects.create(building=self.building, room_number="103", status=HouseStatus.RENTED)
 
-        response = self.client.get("/api/house/building-map/?house_status=vacant&page=1&page_size=50")
+        response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&house_status=vacant&page=1&page_size=50")
 
         self.assertEqual(response.status_code, 200)
         item = api_data(response)["items"][0]
@@ -982,8 +1029,8 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(item["counts"], {"total": 3, "vacant": 1, "listed": 1, "rented": 1, "renovating": 0})
 
     def test_building_map_returns_all_located_buildings(self):
-        initial_unlocated_count = Building.objects.filter(organization=self.org).filter(Q(lat__isnull=True) | Q(lng__isnull=True)).count()
-        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        initial_unlocated_count = Building.objects.filter(organization=self.org, location__isnull=True).count()
+        self.building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.building.save()
         second = Building.objects.create(
             organization=self.org,
@@ -991,19 +1038,18 @@ class HouseApiTestCase(TestCase):
             name="2栋",
             address="科技园 2 栋",
             floors=8,
-            lat=Decimal("22.534000"),
-            lng=Decimal("113.931000"),
+            location=make_wgs84_point(113.931, 22.534, "gcj02"),
         )
         Building.objects.create(organization=self.org, estate=self.estate, name="待定位楼栋", address="科技园待定位楼栋", floors=8)
 
-        response = self.client.get("/api/house/building-map/?page=1&page_size=50")
+        response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&page=1&page_size=50")
         unlocated_response = self.client.get("/api/house/building-map-unlocated-count/")
 
         self.assertEqual({item["id"] for item in api_data(response)["items"]}, {self.building.pk, second.pk})
         self.assertEqual(api_data(unlocated_response), {"count": initial_unlocated_count})
 
     def test_building_map_includes_estate_and_standalone_buildings(self):
-        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.building.save()
         standalone = Building.objects.create(
             organization=self.org,
@@ -1011,11 +1057,10 @@ class HouseApiTestCase(TestCase):
             name="独立公寓",
             address="滨海路 20 号",
             floors=8,
-            lat=Decimal("22.540000"),
-            lng=Decimal("113.940000"),
+            location=make_wgs84_point(113.94, 22.54, "gcj02"),
         )
 
-        response = self.client.get("/api/house/building-map/?page=1&page_size=50")
+        response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&page=1&page_size=50")
 
         self.assertEqual({item["id"] for item in api_data(response)["items"]}, {self.building.pk, standalone.pk})
 
@@ -1043,18 +1088,18 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["items"][0]["counts"], {"total": 2, "vacant": 1, "listed": 0, "rented": 1, "renovating": 0})
 
     def test_building_map_applies_keyword_bounds_and_organization_isolation(self):
-        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.building.address = "园区内部道路 1 号"
         self.building.save()
         self.estate.address = "滨海大道 88 号"
         self.estate.save()
         _other_org, other_house, _other_landlord, _other_tenant = self.make_other_org_house()
-        other_house.building.lat, other_house.building.lng = Decimal("22.533500"), Decimal("113.930500")
+        other_house.building.location = make_wgs84_point(113.9305, 22.5335, "gcj02")
         other_house.building.save()
 
-        keyword_response = self.client.get("/api/house/building-map/?keyword=滨海大道&page=1&page_size=50")
-        bounds_response = self.client.get("/api/house/building-map/?west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50")
-        invalid_bounds_response = self.client.get("/api/house/building-map/?west=114&south=22&east=113&north=23")
+        keyword_response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&keyword=滨海大道&page=1&page_size=50")
+        bounds_response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50")
+        invalid_bounds_response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&west=114&south=22&east=113&north=23")
         other_detail_response = self.client.get(f"/api/house/building-map/{other_house.building_id}/")
 
         self.assertEqual([item["id"] for item in api_data(keyword_response)["items"]], [self.building.pk])
@@ -1063,9 +1108,9 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(other_detail_response.status_code, 404)
 
     def test_estate_map_prefers_estate_location_and_aggregates_all_eligible_buildings(self):
-        self.estate.lat, self.estate.lng = Decimal("22.533000"), Decimal("113.930000")
+        self.estate.location = make_wgs84_point(113.93, 22.533, "gcj02")
         self.estate.save()
-        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930100")
+        self.building.location = make_wgs84_point(113.9301, 22.5331, "gcj02")
         self.building.save()
         unlocated = Building.objects.create(organization=self.org, estate=self.estate, name="2栋", address="科技园 2 栋", floors=18)
         third = Building.objects.create(
@@ -1074,28 +1119,27 @@ class HouseApiTestCase(TestCase):
             name="3栋",
             address="科技园 3 栋",
             floors=16,
-            lat=Decimal("22.533300"),
-            lng=Decimal("113.930300"),
+            location=make_wgs84_point(113.9303, 22.5333, "gcj02"),
         )
         House.objects.create(building=self.building, room_number="101", status=HouseStatus.LISTED)
         House.objects.create(building=unlocated, room_number="201", status=HouseStatus.RENTED)
         House.objects.create(building=third, room_number="301", status=HouseStatus.RENOVATING)
 
-        response = self.client.get("/api/house/estate-map/?page=1&page_size=50")
+        response = self.client.get("/api/house/estate-map/?coordinate_system=gcj02&page=1&page_size=50")
 
         self.assertEqual(response.status_code, 200)
         item = api_data(response)["items"][0]
         self.assertEqual(item["id"], self.estate.pk)
         self.assertEqual(item["location_source"], "estate")
-        self.assertEqual(Decimal(item["lat"]), Decimal("22.533000"))
-        self.assertEqual(Decimal(item["lng"]), Decimal("113.930000"))
+        self.assertEqual(Decimal(str(item["location"]["latitude"])), Decimal("22.533"))
+        self.assertEqual(Decimal(str(item["location"]["longitude"])), Decimal("113.93"))
         self.assertEqual(item["building_count"], 3)
         self.assertEqual(item["located_building_count"], 2)
         self.assertEqual(item["unlocated_building_count"], 1)
         self.assertEqual(item["counts"], {"total": 3, "vacant": 0, "listed": 1, "rented": 1, "renovating": 1})
 
     def test_estate_map_falls_back_to_unweighted_located_building_centroid(self):
-        self.building.lat, self.building.lng = Decimal("22.530000"), Decimal("113.930000")
+        self.building.location = make_wgs84_point(113.93, 22.53, "gcj02")
         self.building.save()
         second = Building.objects.create(
             organization=self.org,
@@ -1103,8 +1147,7 @@ class HouseApiTestCase(TestCase):
             name="2栋",
             address="科技园 2 栋",
             floors=18,
-            lat=Decimal("22.550000"),
-            lng=Decimal("113.950000"),
+            location=make_wgs84_point(113.95, 22.55, "gcj02"),
         )
         House.objects.create(building=self.building, room_number="101")
         for room_number in ("201", "202", "203", "204"):
@@ -1120,19 +1163,19 @@ class HouseApiTestCase(TestCase):
         )
         Building.objects.create(organization=self.org, estate=unlocated_estate, name="1栋", address="待定位路 1 栋", floors=8)
 
-        response = self.client.get("/api/house/estate-map/?page=1&page_size=50")
+        response = self.client.get("/api/house/estate-map/?coordinate_system=gcj02&page=1&page_size=50")
 
         self.assertEqual(response.status_code, 200)
         payload = api_data(response)
         self.assertEqual([item["id"] for item in payload["items"]], [self.estate.pk])
         item = payload["items"][0]
         self.assertEqual(item["location_source"], "building_centroid")
-        self.assertEqual(Decimal(item["lat"]), Decimal("22.540000"))
-        self.assertEqual(Decimal(item["lng"]), Decimal("113.940000"))
+        self.assertAlmostEqual(float(item["location"]["latitude"]), 22.54, places=5)
+        self.assertAlmostEqual(float(item["location"]["longitude"]), 113.94, places=5)
         self.assertEqual(item["counts"]["total"], 5)
 
     def test_estate_map_applies_child_keyword_status_bounds_and_organization_isolation(self):
-        self.estate.lat, self.estate.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.estate.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.estate.save()
         House.objects.create(building=self.building, room_number="101", status=HouseStatus.VACANT)
         House.objects.create(building=self.building, room_number="102", status=HouseStatus.RENTED)
@@ -1145,17 +1188,16 @@ class HouseApiTestCase(TestCase):
             city="深圳",
             district="南山",
             address="后海",
-            lat=Decimal("22.600000"),
-            lng=Decimal("114.000000"),
+            location=make_wgs84_point(114.0, 22.6, "gcj02"),
         )
         other_building = Building.objects.create(organization=self.org, estate=other_estate, name="2栋", address="后海 2 栋", floors=16)
         House.objects.create(building=other_building, room_number="201", status=HouseStatus.VACANT)
         _other_org, other_house, _other_landlord, _other_tenant = self.make_other_org_house()
-        other_house.building.estate.lat, other_house.building.estate.lng = Decimal("22.533100"), Decimal("113.930400")
+        other_house.building.estate.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         other_house.building.estate.save()
 
-        response = self.client.get("/api/house/estate-map/?keyword=1栋&house_status=vacant&west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50")
-        invalid_bounds_response = self.client.get("/api/house/estate-map/?west=114&south=22&east=113&north=23")
+        response = self.client.get("/api/house/estate-map/?coordinate_system=gcj02&keyword=1栋&house_status=vacant&west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50")
+        invalid_bounds_response = self.client.get("/api/house/estate-map/?coordinate_system=gcj02&west=114&south=22&east=113&north=23")
 
         self.assertEqual(response.status_code, 200)
         payload = api_data(response)
@@ -1164,7 +1206,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(invalid_bounds_response.status_code, 422)
 
     def test_building_map_standalone_only_excludes_estate_buildings(self):
-        self.building.lat, self.building.lng = Decimal("22.533100"), Decimal("113.930400")
+        self.building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.building.save()
         standalone = Building.objects.create(
             organization=self.org,
@@ -1172,8 +1214,7 @@ class HouseApiTestCase(TestCase):
             name="海滨公寓",
             address="海滨路 20 号",
             floors=8,
-            lat=Decimal("22.540000"),
-            lng=Decimal("113.940000"),
+            location=make_wgs84_point(113.94, 22.54, "gcj02"),
         )
         other_org = baker.make("organizations.Organization", name="其他独立楼栋组织", slug="other-standalone-org")
         Building.objects.create(
@@ -1182,11 +1223,10 @@ class HouseApiTestCase(TestCase):
             name="异租户公寓",
             address="异地路 1 号",
             floors=6,
-            lat=Decimal("22.540000"),
-            lng=Decimal("113.940000"),
+            location=make_wgs84_point(113.94, 22.54, "gcj02"),
         )
 
-        response = self.client.get("/api/house/building-map/?standalone_only=true&page=1&page_size=50")
+        response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&standalone_only=true&page=1&page_size=50")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual([item["id"] for item in api_data(response)["items"]], [standalone.pk])
@@ -1661,6 +1701,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual([item["id"] for item in payload["items"]], [matched.pk])
 
     def test_inactive_contacts_cannot_be_used_for_new_business(self):
+        future_schedule = (timezone.now() + timedelta(days=30)).isoformat()
         inactive_landlord = Contact.objects.create(
             organization=self.org,
             name="停用房东",
@@ -1703,7 +1744,7 @@ class HouseApiTestCase(TestCase):
                     "contact_id": inactive_tenant.pk,
                     "customer_name": inactive_tenant.name,
                     "customer_phone": inactive_tenant.phone,
-                    "scheduled_at": "2026-07-01T11:00:00+08:00",
+                    "scheduled_at": future_schedule,
                 }
             ),
             content_type="application/json",
@@ -1730,6 +1771,7 @@ class HouseApiTestCase(TestCase):
         self.assertFalse(Lease.objects.filter(organization=self.org, tenant=inactive_tenant).exists())
 
     def test_create_viewing_record_requires_tenant_role(self):
+        future_schedule = (timezone.now() + timedelta(days=30)).isoformat()
         landlord = Contact.objects.create(
             organization=self.org,
             name="仅房东角色",
@@ -1747,7 +1789,7 @@ class HouseApiTestCase(TestCase):
                     "contact_id": landlord.pk,
                     "customer_name": landlord.name,
                     "customer_phone": landlord.phone,
-                    "scheduled_at": "2026-07-01T11:00:00+08:00",
+                    "scheduled_at": future_schedule,
                 }
             ),
             content_type="application/json",
@@ -1812,6 +1854,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(lease_response.status_code, 200)
 
     def test_create_viewing_record_rejects_cross_org_house_and_contact_at_api_boundary(self):
+        future_schedule = (timezone.now() + timedelta(days=30)).isoformat()
         _other_org, other_house, _other_landlord, other_tenant = self.make_other_org_house()
         self.client.raise_request_exception = False
 
@@ -1822,7 +1865,7 @@ class HouseApiTestCase(TestCase):
                     "house_id": other_house.pk,
                     "customer_name": "王五",
                     "customer_phone": "13600136000",
-                    "scheduled_at": "2026-07-01T10:00:00+08:00",
+                    "scheduled_at": future_schedule,
                 }
             ),
             content_type="application/json",
@@ -1838,7 +1881,7 @@ class HouseApiTestCase(TestCase):
                     "contact_id": other_tenant.pk,
                     "customer_name": "赵六",
                     "customer_phone": "13700137000",
-                    "scheduled_at": "2026-07-01T11:00:00+08:00",
+                    "scheduled_at": future_schedule,
                 }
             ),
             content_type="application/json",
@@ -1848,6 +1891,7 @@ class HouseApiTestCase(TestCase):
         self.assertFalse(ViewingRecord.objects.filter(organization=self.org).exists())
 
     def test_create_viewing_record_rejects_assignee_outside_current_org(self):
+        future_schedule = (timezone.now() + timedelta(days=30)).isoformat()
         outsider = User.objects.create_user(username="viewing-outsider", password="secret")  # noqa: S106
         house = House.objects.create(building=self.building, room_number="1506")
         self.client.raise_request_exception = False
@@ -1859,7 +1903,7 @@ class HouseApiTestCase(TestCase):
                     "house_id": house.pk,
                     "customer_name": "钱七",
                     "customer_phone": "13500135000",
-                    "scheduled_at": "2026-07-01T12:00:00+08:00",
+                    "scheduled_at": future_schedule,
                     "assigned_to_id": outsider.pk,
                 }
             ),
@@ -1876,6 +1920,7 @@ class HouseApiTestCase(TestCase):
         self.assertNotIn("extra", ViewingRecordIn.model_fields)
 
     def test_create_viewing_record_rejects_lifecycle_payload_and_starts_scheduled(self):
+        future_schedule = (timezone.now() + timedelta(days=30)).isoformat()
         house = House.objects.create(building=self.building, room_number="1506A")
         self.client.raise_request_exception = False
 
@@ -1886,9 +1931,9 @@ class HouseApiTestCase(TestCase):
                     "house_id": house.pk,
                     "customer_name": "钱七",
                     "customer_phone": "13500135000",
-                    "scheduled_at": "2026-07-01T12:00:00+08:00",
+                    "scheduled_at": future_schedule,
                     "status": ViewingRecordStatus.VIEWED,
-                    "viewed_at": "2026-07-01T13:00:00+08:00",
+                    "viewed_at": future_schedule,
                     "is_active": False,
                     "extra": {"source": "api"},
                 }
@@ -1905,7 +1950,7 @@ class HouseApiTestCase(TestCase):
                     "house_id": house.pk,
                     "customer_name": "钱七",
                     "customer_phone": "13500135000",
-                    "scheduled_at": "2026-07-01T12:00:00+08:00",
+                    "scheduled_at": future_schedule,
                 }
             ),
             content_type="application/json",

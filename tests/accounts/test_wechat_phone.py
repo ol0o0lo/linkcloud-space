@@ -59,6 +59,137 @@ def _make_phone_mock(phone_number="13800138000", country_code="86"):
     return mock
 
 
+def _make_url_link_mock(url_link="https://wxaurl.cn/example"):
+    mock = MagicMock()
+    mock.json.return_value = {"errcode": 0, "errmsg": "ok", "url_link": url_link}
+    mock.raise_for_status = MagicMock()
+    return mock
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_create_url_link_sends_expiring_invitation_target(db):
+    from django.core.cache import cache
+
+    from allauth.socialaccount.models import SocialApp
+
+    from apps.accounts.providers.wechat_miniprogram.client import create_url_link
+
+    cache.set("wechat_miniprogram_access_token:test-miniprogram-appid", "cached-token", timeout=7000)
+    app = SocialApp(provider="wechat_miniprogram", client_id="test-miniprogram-appid", secret="test-miniprogram-secret")
+
+    with patch("apps.accounts.providers.wechat_miniprogram.client.requests.post", return_value=_make_url_link_mock()) as mock_post:
+        result = create_url_link(
+            app,
+            path="pages/invitations/index",
+            query="kind=organization&key=abc123",
+            expire_time=1_800_000_000,
+            env_version="trial",
+        )
+
+    assert result == "https://wxaurl.cn/example"
+    mock_post.assert_called_once_with(
+        "https://api.weixin.qq.com/wxa/generate_urllink",
+        params={"access_token": "cached-token"},
+        json={
+            "path": "pages/invitations/index",
+            "query": "kind=organization&key=abc123",
+            "expire_type": 0,
+            "expire_time": 1_800_000_000,
+            "env_version": "trial",
+        },
+        timeout=10,
+    )
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_create_url_link_rejects_invalid_environment(db):
+    from allauth.socialaccount.models import SocialApp
+
+    from apps.accounts.providers.wechat_miniprogram.client import create_url_link
+
+    app = SocialApp(provider="wechat_miniprogram", client_id="test-miniprogram-appid", secret="test-miniprogram-secret")
+
+    with pytest.raises(ValueError, match="develop、trial 或 release"):
+        create_url_link(app, path="pages/invitations/index", query="kind=landlord&token=abc", expire_time=1_800_000_000, env_version="invalid")
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_create_url_link_raises_on_wechat_business_error(db):
+    from django.core.cache import cache
+
+    from allauth.socialaccount.models import SocialApp
+
+    from apps.accounts.providers.wechat_miniprogram.client import create_url_link
+
+    cache.set("wechat_miniprogram_access_token:test-miniprogram-appid", "cached-token", timeout=7000)
+    app = SocialApp(provider="wechat_miniprogram", client_id="test-miniprogram-appid", secret="test-miniprogram-secret")
+    error_response = MagicMock()
+    error_response.json.return_value = {"errcode": 40002, "errmsg": "invalid grant_type"}
+    error_response.raise_for_status = MagicMock()
+
+    with patch("apps.accounts.providers.wechat_miniprogram.client.requests.post", return_value=error_response), pytest.raises(ValueError, match="生成小程序 URL Link 失败"):
+        create_url_link(app, path="pages/invitations/index", query="kind=landlord&token=abc", expire_time=1_800_000_000)
+
+
+@override_settings(
+    **WECHAT_PHONE_SETTINGS,
+    WECHAT_MINIPROGRAM_URL_LINK_ENABLED=True,
+    WECHAT_MINIPROGRAM_URL_LINK_ENV_VERSION="develop",
+)
+def test_build_invitation_url_link_uses_whitelisted_kind_and_credential(db):
+    from datetime import UTC, datetime
+
+    from apps.accounts.providers.wechat_miniprogram.links import build_invitation_action_url
+
+    expires_at = datetime(2027, 1, 1, tzinfo=UTC)
+    with patch("apps.accounts.providers.wechat_miniprogram.links.create_url_link", return_value="https://wxaurl.cn/invite") as create_link:
+        result = build_invitation_action_url(
+            kind="organization",
+            credential="secret-key",
+            expires_at=expires_at,
+            legacy_url="https://example.com/dashboard/invitations/secret-key",
+        )
+
+    assert result == "https://wxaurl.cn/invite"
+    create_link.assert_called_once()
+    call = create_link.call_args.kwargs
+    assert call["path"] == "pages/invitations/index"
+    assert call["query"] == "kind=organization&key=secret-key"
+    assert call["expire_time"] == int(expires_at.timestamp())
+    assert call["env_version"] == "develop"
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS, WECHAT_MINIPROGRAM_URL_LINK_ENABLED=False)
+def test_build_invitation_url_link_uses_legacy_url_only_when_feature_is_disabled(db):
+    from datetime import UTC, datetime
+
+    from apps.accounts.providers.wechat_miniprogram.links import build_invitation_action_url
+
+    result = build_invitation_action_url(
+        kind="landlord",
+        credential="secret-token",
+        expires_at=datetime(2027, 1, 1, tzinfo=UTC),
+        legacy_url="https://example.com/dashboard/landlord-invitations/secret-token",
+    )
+
+    assert result == "https://example.com/dashboard/landlord-invitations/secret-token"
+
+
+@override_settings(**WECHAT_PHONE_SETTINGS, WECHAT_MINIPROGRAM_URL_LINK_ENABLED=True)
+def test_build_invitation_url_link_rejects_unknown_kind(db):
+    from datetime import UTC, datetime
+
+    from apps.accounts.providers.wechat_miniprogram.links import build_invitation_action_url
+
+    with pytest.raises(ValueError, match="邀请类型"):
+        build_invitation_action_url(
+            kind="unknown",
+            credential="secret-token",
+            expires_at=datetime(2027, 1, 1, tzinfo=UTC),
+            legacy_url="https://example.com/fallback",
+        )
+
+
 @override_settings(**WECHAT_PHONE_SETTINGS)
 def test_access_token_cached_on_second_call(db):
     """access_token 首次调用请求微信 API，第二次从 cache 读取。"""

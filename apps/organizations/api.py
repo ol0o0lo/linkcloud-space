@@ -1,4 +1,5 @@
 import re
+import secrets
 
 from django.apps import apps
 from django.conf import settings
@@ -7,6 +8,7 @@ from django.db import models, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.text import slugify
 
 from ninja import Path, Query, Router, Status
 from ninja.errors import HttpError
@@ -15,6 +17,13 @@ from ninja.pagination import paginate
 from apps.access.constants import OrganizationPermission
 from apps.access.permissions import require_org_permission
 from apps.access.services import assign_org_role, has_permission
+from apps.base.invitation_exceptions import (
+    InvitationExpiredException,
+    InvitationPhoneVerificationRequiredException,
+    InvitationRecipientMismatchException,
+    InvitationUnavailableException,
+)
+from apps.base.invitation_receipts import get_invitation_receipt, save_invitation_receipt
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_owner, require_org_selected
 from apps.organizations.hooks import post_create_organization, pre_create_organization
@@ -42,6 +51,9 @@ from apps.organizations.schemas import (
     TransferOwnerIn,
 )
 from apps.organizations.session import remove_org, save_counts, save_org_data
+from apps.subscriptions.constants import SaaSBusinessType, SaaSTeamSizeBand
+from apps.subscriptions.exceptions import SubscriptionRuleException
+from apps.subscriptions.models import OrganizationSaaSProfile, Subscription
 from apps.teams.models import Team
 
 orgs_router = Router(tags=["租户/基础"])
@@ -61,12 +73,42 @@ def create_organization(request, payload: OrganizationCreateIn):
     """创建一个新租户，并将当前用户设置为租户 owner 与 primary 成员。"""
     require_authenticated(request)
     pre_create_organization(request)
+    if payload.business_type not in SaaSBusinessType.values:
+        raise SubscriptionRuleException("不支持的经营类型。")
+    if payload.team_size_band not in SaaSTeamSizeBand.values:
+        raise SubscriptionRuleException("不支持的团队规模。")
+    requested_slug = slugify((payload.slug or "").strip())
+    if requested_slug:
+        organization_slug = requested_slug
+    else:
+        organization_slug = f"workspace-{request.user.pk}-{secrets.token_hex(3)}"
+        while Organization.objects.filter(slug=organization_slug).exists():
+            organization_slug = f"workspace-{request.user.pk}-{secrets.token_hex(3)}"
     with transaction.atomic():
-        org = Organization.objects.create(name=payload.name, slug=payload.slug, created_by=request.user)
+        org = Organization(name=payload.name.strip(), slug=organization_slug, created_by=request.user)
+        org.full_clean()
+        org.save()
         OrganizationMember.objects.create(organization=org, user=request.user, is_owner=True, is_primary=True)
+        OrganizationSaaSProfile.objects.create(
+            organization=org,
+            business_type=payload.business_type,
+            city_code=payload.city_code.strip(),
+            city_name=payload.city_name.strip(),
+            team_size_band=payload.team_size_band,
+            source=payload.source.strip() or "miniprogram",
+        )
         post_create_organization(request, org)
     save_org_data(request, org)
-    return Status(201, {"id": org.pk, "name": org.name, "slug": org.slug})
+    subscription = Subscription.objects.filter(organization=org).first()
+    trial = None
+    if subscription and subscription.kind == "trial":
+        trial = {
+            "granted": True,
+            "plan_code": subscription.plan_snapshot.get("code", "professional"),
+            "plan_name": subscription.plan_snapshot.get("name", "专业版"),
+            "ends_at": subscription.ends_at,
+        }
+    return Status(201, {"id": org.pk, "name": org.name, "slug": org.slug, "trial": trial})
 
 
 def _selected_owner_org(request, slug: str) -> Organization:
@@ -408,6 +450,8 @@ def get_invite_by_key(request, key: str = Path(..., description="邀请 key。")
     invite = get_object_or_404(OrganizationInvite.objects.select_related("organization", "sender"), key=key)
     is_already_member = bool(request.user.is_authenticated and invite.organization.is_member(request.user))
     return {
+        "organization_id": invite.organization_id,
+        "organization_slug": invite.organization.slug,
         "organization_name": invite.organization.name,
         "sender_name": invite.sender.get_full_name() or invite.sender.email,
         "invitee_email": invite.invitee_email or "",
@@ -421,16 +465,28 @@ def get_invite_by_key(request, key: str = Path(..., description="邀请 key。")
 def accept_invite_by_key(request, key: str = Path(..., description="邀请 key。")):
     """接受租户邀请并将当前用户加入对应租户。"""
     require_authenticated(request)
-    invite = get_object_or_404(OrganizationInvite.objects.select_related("organization", "sender"), key=key)
+    receipt = get_invitation_receipt("organization", key, request.user.pk)
+    if receipt:
+        organization = Organization.objects.filter(pk=receipt.get("organization_id"), organizationmember__user=request.user).first()
+        if organization is not None:
+            save_counts(request)
+            save_org_data(request, organization)
+        return {"success": True}
+    invite = OrganizationInvite.objects.select_related("organization", "sender").filter(key=key).first()
+    if invite is None:
+        raise InvitationUnavailableException()
     organization = invite.organization
     if invite.is_expired:
-        raise HttpError(410, "该邀请已过期。")
+        raise InvitationExpiredException()
     if invite.invitee_email and invite.invitee_email.lower() != request.user.email.lower():
-        raise HttpError(403, "该邀请不是发送给当前账号邮箱的。")
-    if invite.invitee_phone and (not request.user.phone_verified or invite.invitee_phone != request.user.phone):
-        raise HttpError(403, "该邀请不是发送给当前账号手机号的。")
+        raise InvitationRecipientMismatchException("该邀请不是发送给当前账号邮箱的。")
+    if invite.invitee_phone and (not request.user.phone_verified or not request.user.phone):
+        raise InvitationPhoneVerificationRequiredException()
+    if invite.invitee_phone and invite.invitee_phone != request.user.phone:
+        raise InvitationRecipientMismatchException("该邀请不是发送给当前账号手机号的。")
     if organization.is_member(request.user):
         invite.delete()
+        save_invitation_receipt("organization", key, request.user.pk, {"organization_id": organization.pk, "organization_slug": organization.slug})
         save_counts(request)
         save_org_data(request, organization)
         return {"success": True}
@@ -443,6 +499,7 @@ def accept_invite_by_key(request, key: str = Path(..., description="邀请 key�
         if invite.access_role_id:
             assign_org_role(organization, request.user, invite.access_role)
         invite.delete()
+    save_invitation_receipt("organization", key, request.user.pk, {"organization_id": organization.pk, "organization_slug": organization.slug})
     save_counts(request)
     save_org_data(request, organization)
     return {"success": True}
@@ -454,8 +511,10 @@ def decline_invite_by_key(request, key: str = Path(..., description="邀请 key�
     require_authenticated(request)
     invite = get_object_or_404(OrganizationInvite.objects, key=key)
     if invite.invitee_email and invite.invitee_email.lower() != request.user.email.lower():
-        raise HttpError(403, "该邀请不是发送给当前账号邮箱的。")
-    if invite.invitee_phone and (not request.user.phone_verified or invite.invitee_phone != request.user.phone):
-        raise HttpError(403, "该邀请不是发送给当前账号手机号的。")
+        raise InvitationRecipientMismatchException("该邀请不是发送给当前账号邮箱的。")
+    if invite.invitee_phone and (not request.user.phone_verified or not request.user.phone):
+        raise InvitationPhoneVerificationRequiredException()
+    if invite.invitee_phone and invite.invitee_phone != request.user.phone:
+        raise InvitationRecipientMismatchException("该邀请不是发送给当前账号手机号的。")
     invite.delete()
     return {"success": True}

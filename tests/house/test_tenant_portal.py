@@ -9,7 +9,10 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.house.constants import ContactRole, EstatePropertyType, HouseStatus, LeaseStatus, ViewingRecordStatus
-from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
+from apps.house.models import Building, Contact, Estate, House, Lease, PropertyResponsibility, ViewingRecord
+from apps.notifications.models import Notification
+from apps.organizations.models import OrganizationMember
+from apps.settings.models import UserSetting
 from tests.api_helpers import api_data
 
 
@@ -86,6 +89,96 @@ class TenantPortalApiTestCase(TestCase):
         self.assertNotIn("notes", payload)
         self.assertNotIn("extra", payload)
 
+    def test_tenant_can_send_contact_details_to_responsible_agent(self):
+        agent = User.objects.create_user(username="responsible-agent", password="secret")  # noqa: S106
+        member = OrganizationMember.objects.create(organization=self.organization, user=agent)
+        PropertyResponsibility.objects.create(organization=self.organization, member=member, landlord=self.house.landlord)
+
+        response = self.client.post(
+            "/api/house/tenant/contact/",
+            data=json.dumps(
+                {
+                    "house_id": self.house.pk,
+                    "channels": ["phone", "wechat"],
+                    "phone": "138 0013 8001",
+                    "wechat": " lan-home ",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        notification = Notification.objects.get(pk=api_data(response)["notification_id"])
+        self.assertEqual(notification.recipient, agent)
+        self.assertEqual(notification.organization, self.organization)
+        self.assertEqual(notification.actor, self.user)
+        self.assertEqual(notification.target, self.house)
+        self.assertEqual(
+            notification.data,
+            {
+                "house_id": self.house.pk,
+                "channels": ["phone", "wechat"],
+                "phone": "+8613800138001",
+                "wechat": "lan-home",
+            },
+        )
+        self.assertEqual(
+            UserSetting.objects.get(user=self.user, key="internal.house.contact.v1").value,
+            {
+                "channels": ["phone", "wechat"],
+                "phone": "+8613800138001",
+                "wechat": "lan-home",
+            },
+        )
+
+        repeated = self.client.post(
+            "/api/house/tenant/contact/",
+            data=json.dumps({"house_id": self.house.pk, "channels": ["wechat"], "wechat": "lan-home"}),
+            content_type="application/json",
+        )
+        self.assertEqual(repeated.status_code, 201)
+        self.assertEqual(Notification.objects.filter(category="house.contact", target_object_id=self.house.pk).count(), 2)
+        self.assertEqual(
+            UserSetting.objects.get(user=self.user, key="internal.house.contact.v1").value,
+            {
+                "channels": ["wechat"],
+                "phone": "+8613800138001",
+                "wechat": "lan-home",
+            },
+        )
+
+    def test_contact_request_uses_bound_phone_and_falls_back_to_owner(self):
+        owner = User.objects.create_user(username="organization-owner", password="secret")  # noqa: S106
+        OrganizationMember.objects.create(organization=self.organization, user=owner, is_owner=True)
+
+        response = self.client.post(
+            "/api/house/tenant/contact/",
+            data=json.dumps({"house_id": self.house.pk, "channels": ["phone"]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        notification = Notification.objects.get(pk=api_data(response)["notification_id"])
+        self.assertEqual(notification.recipient, owner)
+        self.assertEqual(notification.data["phone"], "+8613800138001")
+
+    def test_contact_request_requires_complete_contact_and_available_agent(self):
+        invalid = self.client.post(
+            "/api/house/tenant/contact/",
+            data=json.dumps({"house_id": self.house.pk, "channels": ["wechat"]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(invalid.status_code, 422)
+        unavailable = self.client.post(
+            "/api/house/tenant/contact/",
+            data=json.dumps({"house_id": self.house.pk, "channels": ["phone"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(unavailable.status_code, 409)
+        self.assertFalse(Notification.objects.exists())
+        self.assertFalse(UserSetting.objects.filter(user=self.user, key="internal.house.contact.v1").exists())
+
     def test_personal_viewing_list_crosses_orgs_and_excludes_other_users(self):
         second_organization = baker.make("organizations.Organization", name="乙中介", slug="tenant-org-b")
         second_house = self.make_house(second_organization, room_number="202")
@@ -148,6 +241,40 @@ class TenantPortalApiTestCase(TestCase):
         self.assertNotIn("notes", items[1])
         self.assertNotIn("extra", items[1])
         self.assertNotIn("assigned_to_id", items[1])
+
+    def test_personal_viewing_list_filters_current_and_history_scopes(self):
+        contact = Contact.objects.create(
+            organization=self.organization,
+            name="当前租客",
+            phone=self.user.phone,
+            roles=[ContactRole.TENANT],
+            user=self.user,
+        )
+        current = ViewingRecord.objects.create(
+            organization=self.organization,
+            house=self.house,
+            contact=contact,
+            customer_name=contact.name,
+            customer_phone=contact.phone,
+            scheduled_at=timezone.now() + timedelta(days=1),
+        )
+        history = ViewingRecord.objects.create(
+            organization=self.organization,
+            house=self.house,
+            contact=contact,
+            customer_name=contact.name,
+            customer_phone=contact.phone,
+            scheduled_at=timezone.now() - timedelta(days=1),
+            status=ViewingRecordStatus.CANCELED,
+        )
+
+        current_response = self.client.get("/api/house/tenant/viewing-records/", {"scope": "current", "page": 1, "page_size": 20})
+        history_response = self.client.get("/api/house/tenant/viewing-records/", {"scope": "history", "page": 1, "page_size": 20})
+
+        self.assertEqual(current_response.status_code, 200)
+        self.assertEqual(history_response.status_code, 200)
+        self.assertEqual([item["id"] for item in api_data(current_response)["items"]], [current.pk])
+        self.assertEqual([item["id"] for item in api_data(history_response)["items"]], [history.pk])
 
     def test_personal_viewing_detail_returns_safe_projection(self):
         contact = Contact.objects.create(

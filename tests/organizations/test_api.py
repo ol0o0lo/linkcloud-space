@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.conf import settings
 from django.contrib.auth import user_logged_in
 from django.core import mail
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from model_bakery import baker
@@ -17,8 +17,16 @@ from apps.media.constants import ResourceType
 from apps.media.models import MediaFile
 from apps.organizations.models import Organization, OrganizationInvite, OrganizationMember
 from apps.organizations.signals import user_logged_in_receiver
+from apps.subscriptions.models import OrganizationSaaSProfile
 from tests.access.helpers import bind_org_role, make_access_group
-from tests.api_helpers import api_data
+from tests.api_helpers import api_data, api_error
+
+INVITATION_TEST_CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "organization-invitation-receipts",
+    }
+}
 
 
 class OrganizationAPITestBase(TestCase):
@@ -56,6 +64,31 @@ class TestOrganizationViewSet(OrganizationAPITestBase):
         new_org = Organization.objects.get(slug="new-co")
         self.assertTrue(new_org.is_owner(self.user))
         self.assertEqual(new_org.created_by, self.user)
+
+    def test_create_generates_slug_and_saves_saas_profile(self):
+        self._login()
+
+        resp = self.client.post(
+            "/api/organizations/",
+            data=json.dumps(
+                {
+                    "name": "向阳房产门店",
+                    "business_type": "store",
+                    "city_name": "杭州",
+                    "team_size_band": "11_50",
+                    "source": "miniprogram",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        payload = api_data(resp)
+        self.assertTrue(payload["slug"].startswith(f"workspace-{self.user.pk}-"))
+        profile = OrganizationSaaSProfile.objects.get(organization_id=payload["id"])
+        self.assertEqual(profile.city_name, "杭州")
+        self.assertEqual(profile.team_size_band, "11_50")
+        self.assertIn("trial", payload)
 
     def test_switch_list(self):
         other = baker.make("organizations.Organization", name="Other Co")
@@ -463,6 +496,44 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
             invite.expired_in_days,
         )
 
+    @override_settings(WECHAT_MINIPROGRAM_URL_LINK_ENABLED=True)
+    @patch("apps.organizations.models.build_invitation_action_url", return_value="https://wxaurl.cn/org-invite")
+    @patch("apps.organizations.models.send_invitation_sms")
+    def test_phone_invite_sends_miniprogram_url_link_when_enabled(self, send_invitation_sms, build_action_url):
+        self._login()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/organization-invites/",
+                data=json.dumps({"invitee_phone": "+8613800138000"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        invite = OrganizationInvite.objects.get(organization=self.org)
+        build_action_url.assert_called_once()
+        self.assertEqual(build_action_url.call_args.kwargs["kind"], "organization")
+        self.assertEqual(build_action_url.call_args.kwargs["credential"], invite.key)
+        send_invitation_sms.assert_called_once_with("+8613800138000", "https://wxaurl.cn/org-invite", invite.expired_in_days)
+
+    @override_settings(WECHAT_MINIPROGRAM_URL_LINK_ENABLED=True)
+    @patch("apps.organizations.models.build_invitation_action_url", return_value="https://wxaurl.cn/org-email-invite")
+    def test_email_invite_uses_miniprogram_url_link_when_enabled(self, build_action_url):
+        self._login()
+        mail.outbox = []
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/organization-invites/",
+                data=json.dumps({"invitee_email": "guest@example.com"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("https://wxaurl.cn/org-email-invite", mail.outbox[0].body)
+        build_action_url.assert_called_once()
+
     def test_phone_invite_accepts_matching_verified_phone(self):
         invitee = User.objects.create_user(
             username="phone-guest",
@@ -501,6 +572,30 @@ class TestOrganizationInviteViewSet(OrganizationAPITestBase):
         self.assertFalse(OrganizationInvite.objects.filter(pk=invite.pk).exists())
         switch_items = api_data(self.client.get("/api/organizations/switch-list/"))
         self.assertTrue(next(item for item in switch_items if item["slug"] == self.org.slug)["is_current"])
+
+    @override_settings(CACHES=INVITATION_TEST_CACHES)
+    def test_accept_invite_is_idempotent_after_token_is_consumed(self):
+        invitee = User.objects.create_user(username="receipt-member", email="receipt@example.com", password="secret")  # noqa: S106
+        invite = OrganizationInvite.objects.create(organization=self.org, sender=self.user, invitee_email=invitee.email)
+        self.client.force_login(invitee)
+
+        first = self.client.post(f"/api/invite-by-key/{invite.key}/accept/")
+        second = self.client.post(f"/api/invite-by-key/{invite.key}/accept/")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(api_data(second)["success"])
+        self.assertEqual(OrganizationMember.objects.filter(organization=self.org, user=invitee).count(), 1)
+
+    def test_phone_invite_reports_stable_phone_verification_error(self):
+        invitee = User.objects.create_user(username="unverified-phone-invitee", password="secret")  # noqa: S106
+        invite = OrganizationInvite.objects.create(organization=self.org, sender=self.user, invitee_phone="+8613800138000")
+        self.client.force_login(invitee)
+
+        response = self.client.post(f"/api/invite-by-key/{invite.key}/accept/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(api_error(response)["error"], "invitation.phone_verification_required")
 
     def test_phone_invite_rejects_a_different_phone(self):
         invitee = User.objects.create_user(

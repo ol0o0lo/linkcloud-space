@@ -26,6 +26,10 @@ project_slug := 'linkcloud-space'
 @miniprogram_build:
     cd frontend_miniprogram && pnpm build:mp-weixin
 
+# Start mini program frontend dev server for WeChat
+@miniprogram_dev_h5:
+    cd frontend_miniprogram && pnpm dev:h5
+
 # Build mini program H5 assets and collect them into Django static files
 @miniprogram_build_h5:
     just build_h5

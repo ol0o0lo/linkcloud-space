@@ -323,6 +323,34 @@ class TestUploadAPI:
         assert resp.status_code == 201
         assert len(api_data(resp)) == 2
 
+    @patch("apps.media.services.default_storage")
+    def test_miniprogram_home_image_uses_user_scope(self, mock_storage):
+        mock_storage.save.return_value = "uploads/users/1/home.png"
+        file = SimpleUploadedFile("home.png", b"fakecontent", content_type="image/png")
+
+        resp = self.client.post(
+            UPLOAD_URL,
+            {"files": [file], "resource_type": ResourceType.MINIPROGRAM_HOME_IMAGE, "scope": "user"},
+            format="multipart",
+        )
+
+        assert resp.status_code == 201
+        assert api_data(resp)[0]["resource_type"] == ResourceType.MINIPROGRAM_HOME_IMAGE
+
+    def test_miniprogram_home_image_rejects_org_scope(self):
+        org = Organization.objects.create(name="Home Content Org", slug="home-content-org")
+        OrganizationMember.objects.create(organization=org, user=self.user, is_owner=True)
+        set_session_org(self.client, org, is_owner=True)
+        file = SimpleUploadedFile("home.png", b"fakecontent", content_type="image/png")
+
+        resp = self.client.post(
+            UPLOAD_URL,
+            {"files": [file], "resource_type": ResourceType.MINIPROGRAM_HOME_IMAGE, "scope": "org"},
+            format="multipart",
+        )
+
+        assert resp.status_code == 400
+
     def test_invalid_resource_type_returns_422(self):
         file = SimpleUploadedFile("photo.png", b"fakecontent", content_type="image/png")
         resp = self.client.post(UPLOAD_URL, {"files": [file], "resource_type": "bad_type"}, format="multipart")

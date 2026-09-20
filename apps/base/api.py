@@ -1,7 +1,11 @@
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import dateformat
 from django.utils.timezone import now
 
+import requests
 from ninja import Router, Schema
 from ninja.errors import HttpError
 
@@ -58,6 +62,96 @@ class AppContextOut(Schema):
     amapSecurityJsCode: str = ""
 
 
+class NearbyPoiItemOut(Schema):
+    id: str
+    name: str
+    address: str
+    distance: int
+
+
+class NearbyPoisOut(Schema):
+    bus: list[NearbyPoiItemOut]
+    subway: list[NearbyPoiItemOut]
+    education: list[NearbyPoiItemOut]
+    medical: list[NearbyPoiItemOut]
+
+
+AMAP_NEARBY_POI_TYPE_CODES = {
+    "bus": "150700",
+    "subway": "150500",
+    "education": "140000",
+    "medical": "090000",
+}
+AMAP_NEARBY_POI_TYPE_PREFIXES = {
+    "1507": "bus",
+    "1505": "subway",
+    "14": "education",
+    "09": "medical",
+}
+AMAP_NEARBY_POI_CACHE_SECONDS = 30 * 24 * 60 * 60
+
+
+def _get_nearby_pois(lat: Decimal, lng: Decimal):
+    normalized_lat = f"{lat:.6f}"
+    normalized_lng = f"{lng:.6f}"
+    cache_key = f"nearby-pois:v2:{normalized_lng}:{normalized_lat}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    key = settings.AMAP_WEB_SERVICE_KEY
+    if not key:
+        raise HttpError(503, "高德周边服务未配置")
+
+    # ponytail: 单次混合类型查询只能从总榜前 25 条分组；只在实际缺类时再拆成多请求。
+    try:
+        response = requests.get(
+            "https://restapi.amap.com/v3/place/around",
+            params={
+                "key": key,
+                "location": f"{normalized_lng},{normalized_lat}",
+                "types": "|".join(AMAP_NEARBY_POI_TYPE_CODES.values()),
+                "radius": 2000,
+                "offset": 25,
+                "page": 1,
+                "extensions": "base",
+            },
+            timeout=5,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as exc:
+        raise HttpError(502, "高德周边服务暂不可用") from exc
+
+    if not isinstance(payload, dict) or payload.get("status") != "1":
+        raise HttpError(502, "高德周边服务暂不可用")
+
+    pois = {category: [] for category in AMAP_NEARBY_POI_TYPE_CODES}
+    for index, poi in enumerate(payload.get("pois") or []):
+        if not isinstance(poi, dict) or not str(poi.get("name") or "").strip():
+            continue
+        typecode = str(poi.get("typecode") or "")
+        category = next((value for prefix, value in AMAP_NEARBY_POI_TYPE_PREFIXES.items() if typecode.startswith(prefix)), None)
+        if category is None or len(pois[category]) >= 4:
+            continue
+        try:
+            distance = max(0, round(float(poi.get("distance") or 0)))
+        except (TypeError, ValueError):
+            distance = 0
+        address = "".join(value.strip() for field in ("pname", "cityname", "adname", "address") if isinstance((value := poi.get(field)), str) and value.strip())
+        pois[category].append(
+            {
+                "id": str(poi.get("id") or f"{category}-{index}"),
+                "name": str(poi["name"]).strip(),
+                "address": address or "暂无详细地址",
+                "distance": distance,
+            }
+        )
+
+    cache.set(cache_key, pois, timeout=AMAP_NEARBY_POI_CACHE_SECONDS)
+    return pois
+
+
 def _get_app_version() -> str:
     return "unknown"
 
@@ -66,6 +160,13 @@ def _get_app_version() -> str:
 def get_version(request):
     """返回当前前端构建版本标识，用于客户端版本展示与调试。"""
     return {"version": _get_app_version()}
+
+
+@router.get("/nearby-pois/", auth=None, response=NearbyPoisOut, summary="获取坐标周边设施")
+def list_nearby_pois(request, lat: Decimal, lng: Decimal):
+    if not Decimal("-90") <= lat <= Decimal("90") or not Decimal("-180") <= lng <= Decimal("180"):
+        raise HttpError(422, "经纬度无效")
+    return _get_nearby_pois(lat, lng)
 
 
 @router.get("/enums/", auth=None, summary="获取后端枚举映射")

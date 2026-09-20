@@ -1,7 +1,10 @@
+from datetime import datetime
+
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
-from ninja import Router, Status
+from ninja import Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
 
@@ -95,9 +98,24 @@ def create_adjustment(request, payload: WalletAdjustmentIn):
 
 @admin_router.get("/accounts/", response=list[WalletAccountAdminOut], summary="获取钱包账户列表")
 @paginate(LegacyPagination)
-def list_wallet_accounts(request):
+def list_wallet_accounts(
+    request,
+    keyword: str | None = Query(None),
+    created_from: datetime | None = Query(None),
+    created_to: datetime | None = Query(None),
+):
     require_superuser(request)
-    return WalletAccount.objects.select_related("user").order_by("-created_at", "-pk")
+    qs = WalletAccount.objects.select_related("user")
+    if keyword:
+        user_fields = Q(user__username__icontains=keyword) | Q(user__first_name__icontains=keyword) | Q(user__last_name__icontains=keyword) | Q(user__email__icontains=keyword)
+        if keyword.isdigit():
+            user_fields |= Q(user_id=int(keyword))
+        qs = qs.filter(user_fields)
+    if created_from:
+        qs = qs.filter(created_at__gte=created_from)
+    if created_to:
+        qs = qs.filter(created_at__lt=created_to)
+    return qs.order_by("-created_at", "-pk")
 
 
 @admin_router.get("/accounts/{user_id}/ledger/", response=list[WalletLedgerOut], summary="获取指定用户钱包流水")
@@ -110,9 +128,27 @@ def admin_wallet_ledger(request, user_id: int):
 
 @admin_router.get("/withdrawals/", response=list[WithdrawalOut], summary="获取提现申请列表")
 @paginate(LegacyPagination)
-def admin_withdrawals(request):
+def admin_withdrawals(
+    request,
+    keyword: str | None = Query(None),
+    status: str | None = Query(None),
+    created_from: datetime | None = Query(None),
+    created_to: datetime | None = Query(None),
+):
     require_superuser(request)
-    return WithdrawalRequest.objects.select_related("user", "wallet").order_by("-created_at", "-pk")
+    qs = WithdrawalRequest.objects.select_related("user", "wallet")
+    if keyword:
+        user_fields = Q(user__username__icontains=keyword) | Q(user__first_name__icontains=keyword) | Q(user__last_name__icontains=keyword) | Q(user__email__icontains=keyword)
+        if keyword.isdigit():
+            user_fields |= Q(user_id=int(keyword))
+        qs = qs.filter(user_fields)
+    if status:
+        qs = qs.filter(status=status)
+    if created_from:
+        qs = qs.filter(created_at__gte=created_from)
+    if created_to:
+        qs = qs.filter(created_at__lt=created_to)
+    return qs.order_by("-created_at", "-pk")
 
 
 @admin_router.post("/withdrawals/{withdrawal_id}/review/", response=WithdrawalOut, summary="审核提现申请")

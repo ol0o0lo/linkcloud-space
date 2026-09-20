@@ -11,8 +11,12 @@ from apps.subscriptions.constants import (
     OrderCloseReason,
     OrderStatus,
     OrderType,
+    PurchaseMode,
     RefundStatus,
     RefundSubscriptionAction,
+    SaaSBusinessType,
+    SaaSTeamSizeBand,
+    SalesLeadStatus,
     SubscriptionKind,
     SubscriptionStatus,
 )
@@ -24,6 +28,7 @@ class Plan(BaseModelMixin):
     code = models.SlugField(max_length=32, unique=True, verbose_name="编码")
     name = models.CharField(max_length=64, verbose_name="套餐名称")
     description = models.TextField(blank=True, default="", verbose_name="描述")
+    purchase_mode = models.CharField(max_length=24, choices=PurchaseMode.choices, default=PurchaseMode.SELF_SERVICE, verbose_name="购买方式")
     display_order = models.PositiveIntegerField(default=0, verbose_name="显示顺序")
     is_active = models.BooleanField(default=True, verbose_name="是否启用")
 
@@ -108,6 +113,74 @@ class SubscriptionSettings(CreateUpdateTimeModelMixin):
         db_table = "subscriptions_settings"
         verbose_name = "订阅全局设置"
         verbose_name_plural = "订阅全局设置"
+
+
+class OrganizationSaaSProfile(CreateUpdateTimeModelMixin):
+    """组织首次入驻时采集的轻量经营画像。"""
+
+    organization = models.OneToOneField(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="saas_profile",
+        verbose_name="所属组织",
+    )
+    business_type = models.CharField(max_length=24, choices=SaaSBusinessType.choices, default=SaaSBusinessType.STORE, verbose_name="经营类型")
+    city_code = models.CharField(max_length=32, blank=True, default="", verbose_name="城市编码")
+    city_name = models.CharField(max_length=64, blank=True, default="", verbose_name="城市名称")
+    team_size_band = models.CharField(max_length=24, choices=SaaSTeamSizeBand.choices, default=SaaSTeamSizeBand.TWO_TO_TEN, verbose_name="团队规模")
+    source = models.CharField(max_length=32, blank=True, default="miniprogram", verbose_name="来源")
+
+    class Meta:
+        db_table = "subscriptions_organization_saas_profile"
+        verbose_name = "组织 SaaS 经营画像"
+        verbose_name_plural = "组织 SaaS 经营画像"
+
+
+class SubscriptionSalesLead(CreateUpdateTimeModelMixin):
+    """需要销售协助的企业版线索。"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="subscription_sales_leads",
+        verbose_name="提交用户",
+    )
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="subscription_sales_leads",
+        verbose_name="所属组织",
+    )
+    contact_name = models.CharField(max_length=64, verbose_name="联系人")
+    contact_phone = models.CharField(max_length=32, db_index=True, verbose_name="联系电话")
+    company_name = models.CharField(max_length=128, blank=True, default="", verbose_name="公司或门店名称")
+    city_name = models.CharField(max_length=64, blank=True, default="", verbose_name="所在城市")
+    team_size = models.CharField(max_length=32, blank=True, default="", verbose_name="团队规模")
+    house_scale = models.CharField(max_length=32, blank=True, default="", verbose_name="房源规模")
+    needs = models.TextField(blank=True, default="", verbose_name="需求说明")
+    source = models.CharField(max_length=32, blank=True, default="miniprogram", verbose_name="来源")
+    status = models.CharField(max_length=24, choices=SalesLeadStatus.choices, default=SalesLeadStatus.NEW, db_index=True, verbose_name="跟进状态")
+    admin_note = models.TextField(blank=True, default="", verbose_name="跟进备注")
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_subscription_sales_leads",
+        verbose_name="跟进人",
+    )
+    last_contacted_at = models.DateTimeField(null=True, blank=True, verbose_name="最近联系时间")
+
+    class Meta:
+        db_table = "subscriptions_sales_lead"
+        verbose_name = "SaaS 销售线索"
+        verbose_name_plural = "SaaS 销售线索"
+        ordering = ("-created_at", "-pk")
+        indexes = [models.Index(fields=("status", "created_at"), name="sub_lead_status_created_idx")]
 
 
 class Subscription(CreateUpdateTimeModelMixin):

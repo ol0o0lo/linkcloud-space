@@ -4,16 +4,18 @@ from typing import Literal
 from uuid import UUID
 
 from django.conf import settings
+from django.contrib.gis.db.models import GeometryField
+from django.contrib.gis.db.models.aggregates import Collect
+from django.contrib.gis.db.models.functions import Centroid
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import (
-    Avg,
     BooleanField,
     Case,
     CharField,
     Count,
     DateTimeField,
-    DecimalField,
     Exists,
     ExpressionWrapper,
     F,
@@ -28,11 +30,12 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Cast, Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
+import requests
 from ninja import Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
@@ -40,12 +43,23 @@ from ninja.pagination import paginate
 from apps.access.constants import AllocationPermission, OrganizationPermission, TeamPermission
 from apps.access.permissions import require_org_permission, require_team_permission
 from apps.access.services import has_permission
+from apps.ai.services import AIErrorCode, AIExecutionError
 from apps.allocation.schemas import AllocationRequestOut
+from apps.base.invitation_exceptions import (
+    InvitationBindingConflictException,
+    InvitationPhoneVerificationRequiredException,
+    InvitationRecipientMismatchException,
+    InvitationUnavailableException,
+)
+from apps.base.invitation_receipts import get_invitation_receipt, save_invitation_receipt
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_selected
 from apps.base.sms import send_invitation_sms
+from apps.house.ai_insights import HouseAIInsightBusyError, HouseAIInsightInsufficientDataError, generate_house_ai_insight, get_house_ai_insight
 from apps.house.allocation_services import create_lease_with_allocation, get_lease_allocation, review_lease_allocation, void_lease_allocation
 from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus, ViewingRecordStatus
+from apps.house.geo.coordinates import convert_viewport_to_wgs84, make_wgs84_point, serialize_point
+from apps.house.geo.queries import NamedGeoOrigin, apply_nearby_house_filter, filter_by_viewport
 from apps.house.landlord_invitations import (
     LANDLORD_INVITATION_VALID_DAYS,
     LandlordInvitationCacheError,
@@ -80,6 +94,7 @@ from apps.house.schemas import (
     EstateMapMarkerOut,
     EstateOut,
     EstatePatchIn,
+    HouseAIInsightOut,
     HouseIn,
     HouseInspectionReason,
     HouseOut,
@@ -103,8 +118,13 @@ from apps.house.schemas import (
     PublicHouseDetailOut,
     PublicHouseFiltersOut,
     PublicHouseListOut,
+    PublicHouseLocatedRegionOut,
+    PublicHouseMapOut,
+    PublicHouseRegionsOut,
     PublicLandlordProfileOut,
     TagSuggestionsOut,
+    TenantContactRequestIn,
+    TenantContactRequestOut,
     TenantLeaseOut,
     TenantViewingRecordIn,
     TenantViewingRecordOut,
@@ -116,6 +136,7 @@ from apps.house.schemas import (
 )
 from apps.house.services import (
     apply_public_house_filters,
+    build_public_house_regions,
     building_map_counts,
     delete_building,
     delete_estate,
@@ -136,8 +157,15 @@ from apps.house.services import (
     set_default_building,
     sort_houses_for_building,
 )
-from apps.house.tenant_services import TenantContactConflict, get_or_bind_tenant_contact
+from apps.house.tenant_services import (
+    TenantContactConflict,
+    TenantContactRecipientUnavailable,
+    TenantContactValidationError,
+    get_or_bind_tenant_contact,
+    send_tenant_contact_request,
+)
 from apps.house.vacancy_sync import apply_vacancy_sync, build_vacancy_sync_plan
+from apps.metro.models import MetroLineStation, MetroStation
 from apps.organizations.models import OrganizationMember
 
 router = Router(tags=["房源/管理"])
@@ -145,6 +173,31 @@ landlord_router = Router(tags=["房源/房东"])
 tenant_router = Router(tags=["房源/租客"])
 public_router = Router(tags=["房源/公开"])
 public_landlord_router = Router(tags=["房源/房东公开店铺"])
+
+AI_INSIGHT_ERROR_STATUS = {
+    AIErrorCode.INVALID_REQUEST: 400,
+    AIErrorCode.PERMISSION_DENIED: 403,
+    AIErrorCode.CONTENT_REJECTED: 422,
+    AIErrorCode.STRUCTURED_OUTPUT_INVALID: 422,
+    AIErrorCode.CAPABILITY_UNAVAILABLE: 503,
+    AIErrorCode.PROVIDER_AUTH_ERROR: 503,
+    AIErrorCode.RATE_LIMITED: 503,
+    AIErrorCode.TIMEOUT: 504,
+    AIErrorCode.PROVIDER_UNAVAILABLE: 503,
+    AIErrorCode.STREAM_INTERRUPTED: 502,
+    AIErrorCode.INTERNAL_ERROR: 500,
+}
+
+
+def _house_ai_call(function, **kwargs):
+    try:
+        return function(**kwargs)
+    except HouseAIInsightBusyError as exc:
+        raise HttpError(409, str(exc)) from exc
+    except HouseAIInsightInsufficientDataError as exc:
+        raise HttpError(422, str(exc)) from exc
+    except AIExecutionError as exc:
+        raise HttpError(AI_INSIGHT_ERROR_STATUS.get(exc.code, 500), exc.safe_message) from exc
 
 
 def _get_public_landlord_contact(public_key: UUID):
@@ -196,6 +249,9 @@ def list_public_houses(
     province: str | None = Query(None),
     city: str | None = Query(None),
     district: str | None = Query(None),
+    subdistrict: str | None = Query(None),
+    estate_id: int | None = Query(None),
+    building_id: int | None = Query(None),
     min_rent: Decimal | None = Query(None),
     max_rent: Decimal | None = Query(None),
     min_area: Decimal | None = Query(None),
@@ -206,14 +262,34 @@ def list_public_houses(
     has_elevator_access: bool | None = Query(None),
     tags: list[str] | None = Query(None),
     publisher_slug: str | None = Query(None),
-    sort: Literal["latest", "rent_asc", "rent_desc", "area_asc", "area_desc"] = Query("latest"),
+    metro_stations: list[str] | None = Query(None),
+    longitude: Decimal | None = Query(None),
+    latitude: Decimal | None = Query(None),
+    radius_m: int = Query(1000),
+    coordinate_system: Literal["gcj02"] | None = Query(None),
+    sort: Literal["latest", "rent_asc", "rent_desc", "area_asc", "area_desc", "distance_asc"] = Query("latest"),
 ):
+    if radius_m not in ALLOWED_PUBLIC_HOUSE_RADIUS_M:
+        raise HttpError(422, "范围只支持 500、1000、1500、2000 米")
+    metro_origins = _resolve_metro_origins(city=city, metro_stations=metro_stations)
+    if metro_origins and (longitude is not None or latitude is not None):
+        raise HttpError(422, "当前位置与地铁站不能同时作为搜索中心")
+    origin = _resolve_nearby_origin(
+        longitude=longitude,
+        latitude=latitude,
+        radius_m=radius_m,
+        coordinate_system=coordinate_system,
+        require_for_distance=sort == "distance_asc" and not metro_origins,
+    )
     return apply_public_house_filters(
         get_public_houses_queryset(),
         keyword=keyword,
         province=province,
         city=city,
         district=district,
+        subdistrict=subdistrict,
+        estate_id=estate_id,
+        building_id=building_id,
         min_rent=min_rent,
         max_rent=max_rent,
         min_area=min_area,
@@ -224,8 +300,335 @@ def list_public_houses(
         has_elevator_access=has_elevator_access,
         tags=tags,
         publisher_slug=publisher_slug,
+        origin=origin,
+        radius_m=radius_m,
+        metro_origins=metro_origins,
         sort=sort,
     )
+
+
+PUBLIC_HOUSE_MAP_MAX_MARKERS = 200
+ALLOWED_PUBLIC_HOUSE_RADIUS_M = {500, 1000, 1500, 2000}
+PUBLIC_HOUSE_METRO_STATION_LIMIT = 5
+PUBLIC_HOUSE_REGIONS_CACHE_KEY = "public-house-regions:v2"
+PUBLIC_HOUSE_REGIONS_CACHE_SECONDS = 5 * 60
+PUBLIC_HOUSE_REGION_RESOLVE_CACHE_SECONDS = 30 * 24 * 60 * 60
+
+
+def _unique_names(values: list[str] | None) -> list[str]:
+    return list(dict.fromkeys(value.strip() for value in values or [] if value.strip()))
+
+
+def _resolve_metro_origins(*, city: str | None, metro_stations: list[str] | None) -> list[NamedGeoOrigin]:
+    names = _unique_names(metro_stations)
+    if not names:
+        return []
+    if not city:
+        raise HttpError(422, "选择地铁站时必须提供完整城市名称")
+    if len(names) > PUBLIC_HOUSE_METRO_STATION_LIMIT:
+        raise HttpError(422, "最多选择 5 个地铁站")
+
+    active_links = MetroLineStation.objects.filter(is_active=True, line__is_active=True).select_related("line")
+    stations = list(
+        MetroStation.objects.filter(
+            city__name=city,
+            city__imported_at__isnull=False,
+            name__in=names,
+            is_active=True,
+            line_links__is_active=True,
+            line_links__line__is_active=True,
+        )
+        .prefetch_related(Prefetch("line_links", queryset=active_links))
+        .distinct()
+    )
+    stations_by_name = {station.name: station for station in stations}
+    unknown = [name for name in names if name not in stations_by_name]
+    if unknown:
+        raise HttpError(422, f"地铁站不存在或已停用：{'、'.join(unknown)}")
+
+    return [
+        NamedGeoOrigin(
+            name=name,
+            location=stations_by_name[name].location,
+            line_names=tuple(sorted({link.line.name for link in stations_by_name[name].line_links.all()})),
+        )
+        for name in names
+    ]
+
+
+def _resolve_nearby_origin(
+    *,
+    longitude: Decimal | None,
+    latitude: Decimal | None,
+    radius_m: int,
+    coordinate_system: Literal["gcj02"] | None,
+    require_for_distance: bool = False,
+):
+    if longitude is None and latitude is None:
+        if require_for_distance:
+            raise HttpError(422, "按距离排序时必须提供当前位置")
+        return None
+    if longitude is None or latitude is None:
+        raise HttpError(422, "经度和纬度必须同时提供")
+    if coordinate_system != "gcj02":
+        raise HttpError(422, "提供当前位置时必须指定 coordinate_system=gcj02")
+    if not 100 <= radius_m <= 50000:
+        raise HttpError(422, "附近范围必须在 100 到 50000 米之间")
+    try:
+        return make_wgs84_point(float(longitude), float(latitude), coordinate_system)
+    except ValueError as exc:
+        raise HttpError(422, str(exc)) from exc
+
+
+def _public_house_map_level(zoom: int) -> Literal["city", "district", "estate", "building"]:
+    if zoom <= 7:
+        return "city"
+    if zoom <= 10:
+        return "district"
+    if zoom <= 14:
+        return "estate"
+    return "building"
+
+
+def _public_house_map_coordinates(qs, level: Literal["city", "district", "estate", "building"]):
+    geometry_field = GeometryField(srid=4326)
+    building_geometry = Cast("building__location", output_field=geometry_field)
+    if level != "estate":
+        return qs.annotate(map_geometry=building_geometry)
+    return qs.annotate(
+        map_geometry=Case(
+            When(building__estate__location__isnull=False, then=Cast("building__estate__location", output_field=geometry_field)),
+            default=building_geometry,
+            output_field=geometry_field,
+        )
+    )
+
+
+def _public_house_map_rows(qs, level: Literal["city", "district", "estate", "building"]):
+    common_annotations = {
+        "map_location": Centroid(Collect("map_geometry")),
+        "house_count": Count("id", distinct=True),
+        "min_rent": Min("asking_rent"),
+    }
+    if level == "city":
+        return (
+            qs.exclude(building__estate__city="")
+            .values("building__estate__province", "building__estate__city")
+            .annotate(child_count=Count("building__estate__district", distinct=True), **common_annotations)
+            .order_by("-house_count", "building__estate__city")
+        )
+    if level == "district":
+        return (
+            qs.exclude(building__estate__district="")
+            .values("building__estate__province", "building__estate__city", "building__estate__district")
+            .annotate(child_count=Count("building__estate_id", distinct=True), **common_annotations)
+            .order_by("-house_count", "building__estate__district")
+        )
+    if level == "estate":
+        return (
+            qs.filter(building__estate_id__isnull=False)
+            .values(
+                "building__estate_id",
+                "building__estate__display_name",
+                "building__estate__name",
+                "building__estate__address",
+                "building__estate__city",
+                "building__estate__district",
+            )
+            .annotate(child_count=Count("building_id", distinct=True), **common_annotations)
+            .order_by("-house_count", "building__estate__display_name", "building__estate__name")
+        )
+    return (
+        qs.filter(building__location__isnull=False)
+        .values(
+            "building_id",
+            "building__estate_id",
+            "building__name",
+            "building__address",
+            "building__estate__city",
+            "building__estate__district",
+        )
+        .annotate(child_count=Count("id", distinct=True), **common_annotations)
+        .order_by("-house_count", "building__name")
+    )
+
+
+def _serialize_public_house_map_marker(row, level: Literal["city", "district", "estate", "building"]):
+    city = row.get("building__estate__city") or ""
+    district = row.get("building__estate__district") or ""
+    if level == "city":
+        name = city
+        address = row.get("building__estate__province") or ""
+        key = f"city:{address}:{city}"
+        target_zoom = 9
+    elif level == "district":
+        name = district
+        address = " · ".join(part for part in (city, district) if part)
+        key = f"district:{city}:{district}"
+        target_zoom = 12
+    elif level == "estate":
+        name = row.get("building__estate__display_name") or row.get("building__estate__name") or "未命名小区"
+        address = row.get("building__estate__address") or ""
+        key = f"estate:{row['building__estate_id']}"
+        target_zoom = 15
+    else:
+        name = row.get("building__name") or "未命名楼栋"
+        address = row.get("building__address") or ""
+        key = f"building:{row['building_id']}"
+        target_zoom = 17
+    return {
+        "key": key,
+        "level": level,
+        "name": name,
+        "address": address,
+        "location": serialize_point(row["map_location"]),
+        "house_count": row["house_count"],
+        "child_count": row["child_count"],
+        "min_rent": row["min_rent"],
+        "target_zoom": target_zoom,
+        "city": city,
+        "district": district,
+        "estate_id": row.get("building__estate_id"),
+        "building_id": row.get("building_id"),
+    }
+
+
+@public_router.get("/map/", response=PublicHouseMapOut, auth=None, summary="按地图视野获取公开房源聚合标点")
+def list_public_house_map(
+    request,
+    zoom: int = Query(8),
+    west: Decimal | None = Query(None),
+    south: Decimal | None = Query(None),
+    east: Decimal | None = Query(None),
+    north: Decimal | None = Query(None),
+    keyword: str | None = Query(None),
+    province: str | None = Query(None),
+    city: str | None = Query(None),
+    district: str | None = Query(None),
+    subdistrict: str | None = Query(None),
+    longitude: Decimal | None = Query(None),
+    latitude: Decimal | None = Query(None),
+    radius_m: int = Query(3000),
+    coordinate_system: Literal["gcj02"] = Query(...),
+):
+    if zoom < 3 or zoom > 20:
+        raise HttpError(422, "地图缩放级别无效")
+    _validate_map_bounds(west=west, south=south, east=east, north=north)
+
+    origin = _resolve_nearby_origin(
+        longitude=longitude,
+        latitude=latitude,
+        radius_m=radius_m,
+        coordinate_system=coordinate_system,
+    )
+    filtered = apply_public_house_filters(
+        get_public_houses_queryset(),
+        keyword=keyword,
+        province=province,
+        city=city,
+        district=district,
+        subdistrict=subdistrict,
+        sort="rent_asc",
+    ).order_by()
+    level = _public_house_map_level(zoom)
+    unlocated_house_count = filtered.filter(building__location__isnull=True).count()
+    located = filtered.filter(building__location__isnull=False)
+    if origin is not None:
+        located = apply_nearby_house_filter(located, origin, radius_m)
+    if west is not None:
+        try:
+            viewport = convert_viewport_to_wgs84(float(west), float(south), float(east), float(north), coordinate_system)
+        except ValueError as exc:
+            raise HttpError(422, str(exc)) from exc
+        located = filter_by_viewport(located, "building__location", viewport)
+
+    visible_house_count = located.count()
+    coordinates = _public_house_map_coordinates(located, level)
+    rows = list(_public_house_map_rows(coordinates, level)[: PUBLIC_HOUSE_MAP_MAX_MARKERS + 1])
+    truncated = len(rows) > PUBLIC_HOUSE_MAP_MAX_MARKERS
+    items = [_serialize_public_house_map_marker(row, level) for row in rows[:PUBLIC_HOUSE_MAP_MAX_MARKERS]]
+    return {
+        "level": level,
+        "zoom": zoom,
+        "visible_house_count": visible_house_count,
+        "marker_count": len(items),
+        "unlocated_house_count": unlocated_house_count,
+        "truncated": truncated,
+        "items": items,
+    }
+
+
+@public_router.get("/regions/", response=PublicHouseRegionsOut, auth=None, summary="获取公开房源地区目录")
+def get_public_house_regions(request):
+    cached = cache.get(PUBLIC_HOUSE_REGIONS_CACHE_KEY)
+    if cached is not None:
+        return cached
+    result = build_public_house_regions(get_public_houses_queryset())
+    cache.set(PUBLIC_HOUSE_REGIONS_CACHE_KEY, result, timeout=PUBLIC_HOUSE_REGIONS_CACHE_SECONDS)
+    return result
+
+
+def _amap_region_component(value) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return next((item.strip() for item in value if isinstance(item, str) and item.strip()), "")
+    return ""
+
+
+@public_router.get("/regions/resolve/", response=PublicHouseLocatedRegionOut, auth=None, summary="根据坐标解析所在地区")
+def resolve_public_house_region(
+    request,
+    latitude: Decimal,
+    longitude: Decimal,
+    coordinate_system: Literal["gcj02"] = Query("gcj02"),
+):
+    if coordinate_system != "gcj02":
+        raise HttpError(422, "定位坐标必须使用 coordinate_system=gcj02")
+    if not Decimal("-90") <= latitude <= Decimal("90") or not Decimal("-180") <= longitude <= Decimal("180"):
+        raise HttpError(422, "经纬度无效")
+
+    normalized_latitude = f"{latitude:.6f}"
+    normalized_longitude = f"{longitude:.6f}"
+    cache_key = f"public-house-region-resolve:v1:{normalized_longitude}:{normalized_latitude}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    key = settings.AMAP_WEB_SERVICE_KEY
+    if not key:
+        raise HttpError(503, "高德逆地理编码服务未配置")
+    try:
+        response = requests.get(
+            "https://restapi.amap.com/v3/geocode/regeo",
+            params={
+                "key": key,
+                "location": f"{normalized_longitude},{normalized_latitude}",
+                "extensions": "base",
+                "radius": 1000,
+            },
+            timeout=5,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as exc:
+        raise HttpError(502, "高德逆地理编码服务暂不可用") from exc
+
+    if not isinstance(payload, dict) or payload.get("status") != "1":
+        raise HttpError(502, "高德逆地理编码服务暂不可用")
+    regeocode = payload.get("regeocode")
+    address_component = regeocode.get("addressComponent") if isinstance(regeocode, dict) else None
+    if not isinstance(address_component, dict):
+        raise HttpError(502, "高德逆地理编码结果无效")
+
+    province = _amap_region_component(address_component.get("province"))
+    city = _amap_region_component(address_component.get("city")) or province
+    district = _amap_region_component(address_component.get("district"))
+    if not province or not city:
+        raise HttpError(502, "高德逆地理编码结果无效")
+    result = {"province": province, "city": city, "district": district}
+    cache.set(cache_key, result, timeout=PUBLIC_HOUSE_REGION_RESOLVE_CACHE_SECONDS)
+    return result
 
 
 @public_router.get("/filters/", response=PublicHouseFiltersOut, auth=None, summary="获取公开房源筛选项")
@@ -267,9 +670,33 @@ def _tenant_viewing_records_qs(user):
 
 @tenant_router.get("/viewing-records/", response=list[TenantViewingRecordOut], summary="获取租客个人带看记录")
 @paginate(LegacyPagination)
-def list_tenant_viewing_records(request):
+def list_tenant_viewing_records(request, scope: Literal["current", "history"] | None = Query(None)):
     require_authenticated(request)
-    return _tenant_viewing_records_qs(request.user).order_by("-scheduled_at", "-id")
+    qs = _tenant_viewing_records_qs(request.user)
+    if scope == "current":
+        qs = qs.filter(status=ViewingRecordStatus.SCHEDULED)
+    elif scope == "history":
+        qs = qs.exclude(status=ViewingRecordStatus.SCHEDULED)
+    return qs.order_by("-scheduled_at", "-id")
+
+
+@tenant_router.post("/contact/", response={201: TenantContactRequestOut}, summary="租客发送预约联系方式")
+def create_tenant_contact_request(request, payload: TenantContactRequestIn):
+    require_authenticated(request)
+    house = get_object_or_404(get_public_houses_queryset(), pk=payload.house_id)
+    try:
+        notification = send_tenant_contact_request(
+            house=house,
+            user=request.user,
+            channels=payload.channels,
+            phone=payload.phone,
+            wechat=payload.wechat,
+        )
+    except TenantContactValidationError as exc:
+        raise HttpError(422, str(exc)) from exc
+    except TenantContactRecipientUnavailable as exc:
+        raise HttpError(409, str(exc)) from exc
+    return Status(201, {"notification_id": notification.pk})
 
 
 @tenant_router.get("/viewing-records/{viewing_record_id}/", response=TenantViewingRecordOut, summary="获取租客个人带看详情")
@@ -375,8 +802,21 @@ def _houses_in_scope(org, user, scope: HouseScope | None):
     return qs
 
 
+def _location_from_payload(value):
+    if value is None:
+        return None
+    return make_wgs84_point(value["longitude"], value["latitude"], value["coordinate_system"])
+
+
+def _payload_model_data(payload, *, exclude_unset: bool = False):
+    data = payload.model_dump(exclude_unset=exclude_unset)
+    if "location" in data:
+        data["location"] = _location_from_payload(data["location"])
+    return data
+
+
 def _patch(obj, payload):
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    for field, value in _payload_model_data(payload, exclude_unset=True).items():
         setattr(obj, field, value)
     obj.save()
     return obj
@@ -580,7 +1020,7 @@ def list_estates(request, keyword: str | None = Query(None), scope: HouseScope |
 @router.post("/estates/", response={201: EstateOut}, summary="创建项目片区")
 def create_estate(request, payload: EstateIn):
     org = require_org_selected(request)
-    estate = Estate.objects.create(organization=org, **payload.model_dump())
+    estate = Estate.objects.create(organization=org, **_payload_model_data(payload))
     return Status(201, estate)
 
 
@@ -635,7 +1075,7 @@ def list_buildings(
 @router.post("/buildings/", response={201: BuildingOut}, summary="创建楼栋")
 def create_building(request, payload: BuildingIn):
     org = require_org_selected(request)
-    data = payload.model_dump()
+    data = _payload_model_data(payload)
     estate_id = data.pop("estate_id")
     estate = get_object_or_404(Estate, pk=estate_id, organization=org) if estate_id is not None else None
     building = Building.objects.create(organization=org, estate=estate, **data)
@@ -656,7 +1096,7 @@ def check_building_delete(request, building_id: int):
 @router.patch("/buildings/{building_id}/", response=BuildingOut, summary="更新楼栋")
 def patch_building(request, building_id: int, payload: BuildingPatchIn):
     building = get_building(request, building_id)
-    data = payload.model_dump(exclude_unset=True)
+    data = _payload_model_data(payload, exclude_unset=True)
     if "estate_id" in data:
         estate_id = data.pop("estate_id")
         building.estate = get_object_or_404(Estate, pk=estate_id, organization=building.organization) if estate_id is not None else None
@@ -703,7 +1143,7 @@ def put_default_building(request, payload: DefaultBuildingIn):
 
 def _building_map_queryset(org, *, house_status: str | None, located: bool = True):
     qs = Building.objects.filter(organization=org).select_related("estate")
-    qs = qs.filter(lat__isnull=False, lng__isnull=False) if located else qs.filter(Q(lat__isnull=True) | Q(lng__isnull=True))
+    qs = qs.filter(location__isnull=False) if located else qs.filter(location__isnull=True)
     if house_status:
         qs = qs.filter(Exists(House.objects.filter(building_id=OuterRef("pk"), status=house_status)))
     return qs.annotate(
@@ -746,8 +1186,9 @@ def _validate_map_bounds(*, west: Decimal | None, south: Decimal | None, east: D
 def _estate_map_queryset(org, *, keyword: str | None, estate_id: int | None, house_status: str | None):
     eligible_buildings = Building.objects.filter(organization=org, estate_id=OuterRef("pk"))
 
-    located_buildings = eligible_buildings.filter(lat__isnull=False, lng__isnull=False)
-    building_centroid = located_buildings.values("estate_id").annotate(avg_lat=Avg("lat"), avg_lng=Avg("lng"))
+    geometry_field = GeometryField(srid=4326)
+    located_buildings = eligible_buildings.filter(location__isnull=False)
+    building_centroid = located_buildings.order_by().values("estate_id").annotate(point=Centroid(Collect(Cast("location", output_field=geometry_field)))).values("point")
 
     qs = Estate.objects.filter(organization=org).filter(Exists(eligible_buildings))
     if estate_id is not None:
@@ -765,36 +1206,30 @@ def _estate_map_queryset(org, *, keyword: str | None, estate_id: int | None, hou
 
     eligible_building_filter = Q(buildings__pk__isnull=False)
     active_houses = eligible_building_filter & Q(buildings__houses__status__in=HOUSE_ACTIVE_STATUSES)
-    coordinate_field = DecimalField(max_digits=10, decimal_places=6)
     qs = qs.annotate(
-        map_lat=Case(
-            When(lat__isnull=False, lng__isnull=False, then=F("lat")),
-            default=Subquery(building_centroid.values("avg_lat")[:1], output_field=coordinate_field),
-            output_field=coordinate_field,
-        ),
-        map_lng=Case(
-            When(lat__isnull=False, lng__isnull=False, then=F("lng")),
-            default=Subquery(building_centroid.values("avg_lng")[:1], output_field=coordinate_field),
-            output_field=coordinate_field,
+        map_location=Case(
+            When(location__isnull=False, then=Cast("location", output_field=geometry_field)),
+            default=Subquery(building_centroid[:1], output_field=geometry_field),
+            output_field=geometry_field,
         ),
         location_source=Case(
-            When(lat__isnull=False, lng__isnull=False, then=Value("estate")),
+            When(location__isnull=False, then=Value("estate")),
             default=Value("building_centroid"),
             output_field=CharField(),
         ),
         building_count=Count("buildings", filter=eligible_building_filter, distinct=True),
         located_building_count=Count(
             "buildings",
-            filter=eligible_building_filter & Q(buildings__lat__isnull=False, buildings__lng__isnull=False),
+            filter=eligible_building_filter & Q(buildings__location__isnull=False),
             distinct=True,
         ),
         unlocated_building_count=Count(
             "buildings",
-            filter=eligible_building_filter & (Q(buildings__lat__isnull=True) | Q(buildings__lng__isnull=True)),
+            filter=eligible_building_filter & Q(buildings__location__isnull=True),
             distinct=True,
         ),
         **_map_count_annotations("buildings__houses", active_houses),
-    ).filter(map_lat__isnull=False, map_lng__isnull=False)
+    ).filter(map_location__isnull=False)
     return qs
 
 
@@ -809,12 +1244,14 @@ def list_estate_map(
     south: Decimal | None = Query(None),
     east: Decimal | None = Query(None),
     north: Decimal | None = Query(None),
+    coordinate_system: Literal["gcj02"] = Query(...),
 ):
     _validate_map_bounds(west=west, south=south, east=east, north=north)
     org = require_org_selected(request)
     qs = _estate_map_queryset(org, keyword=keyword, estate_id=estate_id, house_status=house_status)
     if west is not None:
-        qs = qs.filter(map_lng__gte=west, map_lng__lte=east, map_lat__gte=south, map_lat__lte=north)
+        viewport = convert_viewport_to_wgs84(float(west), float(south), float(east), float(north), coordinate_system)
+        qs = filter_by_viewport(qs, "map_location", viewport)
     return qs.order_by("display_name", "id")
 
 
@@ -830,6 +1267,7 @@ def list_building_map(
     south: Decimal | None = Query(None),
     east: Decimal | None = Query(None),
     north: Decimal | None = Query(None),
+    coordinate_system: Literal["gcj02"] = Query(...),
 ):
     _validate_map_bounds(west=west, south=south, east=east, north=north)
 
@@ -839,7 +1277,8 @@ def list_building_map(
     if standalone_only:
         qs = qs.filter(estate__isnull=True)
     if west is not None:
-        qs = qs.filter(lng__gte=west, lng__lte=east, lat__gte=south, lat__lte=north)
+        viewport = convert_viewport_to_wgs84(float(west), float(south), float(east), float(north), coordinate_system)
+        qs = filter_by_viewport(qs, "location", viewport)
     return qs.order_by("name", "id")
 
 
@@ -859,7 +1298,7 @@ def list_building_map_unlocated(
 @router.get("/building-map-unlocated-count/", response=BuildingMapUnlocatedCountOut, summary="获取待定位楼栋数量")
 def get_building_map_unlocated_count(request):
     org = require_org_selected(request)
-    return {"count": Building.objects.filter(organization=org).filter(Q(lat__isnull=True) | Q(lng__isnull=True)).count()}
+    return {"count": Building.objects.filter(organization=org, location__isnull=True).count()}
 
 
 @router.get("/building-map/{building_id}/", response=BuildingMapDetailOut, summary="获取楼栋房源地图详情")
@@ -876,8 +1315,7 @@ def get_building_map_detail(request, building_id: int):
         "under_floors": building.under_floors,
         "year_built": building.year_built,
         "elevator": building.elevator,
-        "lat": building.lat,
-        "lng": building.lng,
+        "location": serialize_point(building.location),
         "address": building.address,
         "images": building.images_resolved,
         "tags": building.tags,
@@ -963,14 +1401,17 @@ def invite_landlord_contact(request, contact_id: int, delivery_method: Literal["
     except LandlordInvitationCacheError as err:
         raise HttpError(503, str(err)) from err
 
-    action_url = invitation_action_url(invitation["token"])
+    expires_at = invitation_expires_at(invitation)
+    if expires_at is None:
+        raise HttpError(503, "房东邀请失效时间无效。")
+    action_url = invitation_action_url(invitation["token"], expires_at)
     if delivery_method == "sms":
         send_invitation_sms(invitation["phone"], action_url, LANDLORD_INVITATION_VALID_DAYS)
     return {
         "organization_name": org.name,
         "contact_name": contact.name,
         "invitee_phone_masked": mask_phone(invitation["phone"]),
-        "expires_at": invitation_expires_at(invitation),
+        "expires_at": expires_at,
         "action_url": action_url,
     }
 
@@ -1057,6 +1498,20 @@ def create_house(request, payload: HouseIn):
 def get_house(request, house_id: int):
     org = require_org_selected(request)
     return _get_house_in_org(house_id, org)
+
+
+@router.get("/houses/{house_id}/ai-insight/", response=HouseAIInsightOut, summary="获取房源 AI 洞察")
+def get_house_ai_insight_endpoint(request, house_id: int):
+    org = require_org_selected(request)
+    house = _get_house_in_org(house_id, org)
+    return _house_ai_call(get_house_ai_insight, actor=request.user, organization=org, house=house)
+
+
+@router.post("/houses/{house_id}/ai-insight/generate/", response=HouseAIInsightOut, summary="生成房源 AI 洞察")
+def generate_house_ai_insight_endpoint(request, house_id: int):
+    org = require_org_selected(request)
+    house = _get_house_in_org(house_id, org)
+    return _house_ai_call(generate_house_ai_insight, actor=request.user, organization=org, house=house)
 
 
 @router.patch("/houses/{house_id}/", response=HouseOut, summary="更新房源")
@@ -1421,12 +1876,15 @@ def get_landlord_invite(request, token: str):
 @landlord_router.post("/invites/{token}/accept/", response=LandlordInvitationAcceptOut, summary="接受房东邀请")
 def accept_landlord_invite(request, token: str):
     require_authenticated(request)
+    receipt = get_invitation_receipt("landlord", token, request.user.pk)
+    if receipt:
+        return receipt
     try:
         invitation = get_landlord_invitation(token)
     except LandlordInvitationCacheError as err:
         raise HttpError(503, str(err)) from err
     if invitation is None:
-        raise HttpError(404, "邀请无效或已过期。")
+        raise InvitationUnavailableException()
 
     with transaction.atomic():
         contact = get_object_or_404(
@@ -1438,17 +1896,17 @@ def accept_landlord_invite(request, token: str):
         if ContactRole.LANDLORD not in (contact.roles or []):
             raise Http404
         if contact.user_id and contact.user_id != request.user.pk:
-            raise HttpError(409, "该房东联系人已绑定其他账号。")
+            raise InvitationBindingConflictException("该房东联系人已绑定其他账号。")
         if not contact.user_id:
             if not request.user.phone_verified or not request.user.phone:
-                raise HttpError(403, "请先验证受邀手机号。")
+                raise InvitationPhoneVerificationRequiredException()
             try:
                 user_phone = normalize_invitation_phone(request.user.phone)
                 contact_phone = normalize_invitation_phone(contact.phone)
             except ValueError as err:
-                raise HttpError(403, "当前账号手机号与房东联系人手机号不一致。") from err
+                raise InvitationRecipientMismatchException("当前账号手机号与房东联系人手机号不一致。") from err
             if user_phone != contact_phone or user_phone != invitation["phone"]:
-                raise HttpError(403, "当前账号手机号与房东联系人手机号不一致。")
+                raise InvitationRecipientMismatchException("当前账号手机号与房东联系人手机号不一致。")
             contact.user = request.user
         contact.ensure_public_key()
         contact.save(update_fields=["user", "public_key", "updated_at"])
@@ -1458,6 +1916,7 @@ def accept_landlord_invite(request, token: str):
             "organization_name": contact.organization.name,
             "public_key": str(contact.public_key),
         }
+        save_invitation_receipt("landlord", token, request.user.pk, result)
         transaction.on_commit(lambda: consume_landlord_invitation(invitation))
     return result
 

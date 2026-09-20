@@ -1,9 +1,11 @@
 import logging
 import time
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.test import Client as DjangoClient
@@ -31,16 +33,18 @@ from ninja.pagination import paginate
 
 from apps.accounts.constants import RealNameLogAction, RealNameProvider, RealNameSource, RealNameStatus
 from apps.accounts.models import RealNameVerification, compose_phone
-from apps.accounts.providers.wechat_miniprogram.client import get_phone_number
+from apps.accounts.providers.wechat_miniprogram.client import create_unlimited_qr as create_miniprogram_login_qr
+from apps.accounts.providers.wechat_miniprogram.client import get_phone_number, jscode2session
 from apps.accounts.providers.wechat_official_account.client import WechatOfficialAccountError, create_temporary_qr, get_user_info
 from apps.accounts.providers.wechat_official_account.provider import WechatOfficialAccountProvider
-from apps.accounts.providers.wechat_official_account.tickets import (
+from apps.accounts.providers.wechat_pc_login.tickets import (
     POLL_INTERVAL_SECONDS,
     TICKET_TTL_SECONDS,
     LoginTicketConflict,
     LoginTicketExpired,
     LoginTicketForbidden,
     begin_login_completion,
+    confirm_login_identity,
     create_login_ticket,
     delete_login_ticket,
     finish_login_completion,
@@ -71,6 +75,9 @@ from apps.accounts.schemas import (
     UserOut,
     UserPatchIn,
     UserStatusPatchIn,
+    WechatMiniprogramConnectIn,
+    WechatMiniprogramConnectOut,
+    WechatMiniprogramPcLoginConfirmIn,
     WechatOfficialQrCreateIn,
     WechatOfficialQrOut,
     WechatOfficialQrStatusOut,
@@ -86,12 +93,16 @@ from apps.accounts.services import (
     set_user_avatar,
     submit_real_name_verification,
 )
+from apps.accounts.wechat_identity import WECHAT_SOCIAL_PROVIDERS
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_superuser
 from apps.media.models import MediaFile
 from apps.media.services import extract_media_ids
 
 logger = logging.getLogger(__name__)
+
+WECHAT_OFFICIAL_PROVIDER_ID = "wechat_official_account"
+WECHAT_MINIPROGRAM_PROVIDER_ID = "wechat_miniprogram"
 
 users_router = Router(tags=["用户/账户"])
 admin_users_router = Router(tags=["用户/管理"])
@@ -161,6 +172,15 @@ def _enforce_wechat_qr_rate_limit(request) -> None:
     _increment_rate_limit(f"wechat_official_login:rate:browser:{browser_identity}:{bucket}", limit=10)
 
 
+def _enforce_wechat_pc_confirm_rate_limit(request, scene: str) -> None:
+    bucket = int(time.time() // 60)
+    remote_addr = request.META.get("REMOTE_ADDR", "unknown")
+    remote_identity = salted_hmac("accounts.wechat-pc-confirm-ip-rate", remote_addr).hexdigest()[:24]
+    scene_identity = salted_hmac("accounts.wechat-pc-confirm-scene-rate", scene).hexdigest()[:24]
+    _increment_rate_limit(f"wechat_pc_login:confirm:ip:{remote_identity}:{bucket}", limit=30)
+    _increment_rate_limit(f"wechat_pc_login:confirm:scene:{scene_identity}:{bucket}", limit=5)
+
+
 def _safe_wechat_redirect(request, value: str) -> str:
     value = (value or "").strip()
     if not value:
@@ -210,7 +230,7 @@ def request_login_code_with_split_phone(request, payload: SplitPhoneIn):
 @users_router.post("/auth/wechat-official/qr/", auth=None, response=WechatOfficialQrOut, summary="创建公众号扫码登录二维码")
 def create_wechat_official_qr(request, payload: WechatOfficialQrCreateIn):
     _enforce_wechat_qr_rate_limit(request)
-    ticket = create_login_ticket(request, _safe_wechat_redirect(request, payload.redirect))
+    ticket = create_login_ticket(request, _safe_wechat_redirect(request, payload.redirect), provider=WECHAT_OFFICIAL_PROVIDER_ID)
     try:
         qr_image_url = create_temporary_qr(ticket.scene, expire_seconds=TICKET_TTL_SECONDS)
     except WechatOfficialAccountError as exc:
@@ -231,7 +251,7 @@ def get_wechat_official_qr_status(request, login_id: str):
     if not poll_token:
         raise HttpError(403, "缺少微信登录票据。")
     try:
-        return get_login_status(request, login_id, poll_token)
+        return get_login_status(request, login_id, poll_token, provider=WECHAT_OFFICIAL_PROVIDER_ID)
     except (LoginTicketExpired, LoginTicketForbidden, LoginTicketConflict) as exc:
         _raise_login_ticket_http_error(exc)
 
@@ -243,7 +263,7 @@ def complete_wechat_official_qr_login(request, login_id: str):
     if not poll_token:
         raise HttpError(403, "缺少微信登录票据。")
     try:
-        ticket = begin_login_completion(request, login_id, poll_token)
+        ticket = begin_login_completion(request, login_id, poll_token, provider=WECHAT_OFFICIAL_PROVIDER_ID)
     except (LoginTicketExpired, LoginTicketForbidden, LoginTicketConflict) as exc:
         _raise_login_ticket_http_error(exc)
 
@@ -261,6 +281,93 @@ def complete_wechat_official_qr_login(request, login_id: str):
     except WechatOfficialAccountError as exc:
         finish_login_completion(login_id, success=False)
         raise HttpError(503, str(exc)) from exc
+    except SignupClosedException as exc:
+        finish_login_completion(login_id, success=False)
+        raise HttpError(403, "当前未开放新用户注册。") from exc
+    except ValidationError as exc:
+        finish_login_completion(login_id, success=False)
+        raise HttpError(409, "; ".join(str(message) for message in exc.messages)) from exc
+    except Exception:
+        finish_login_completion(login_id, success=False)
+        raise
+
+    finish_login_completion(login_id, success=True)
+    return authentication_response
+
+
+@users_router.post("/auth/wechat-miniprogram/qr/", auth=None, response=WechatOfficialQrOut, summary="创建小程序码电脑登录二维码")
+def create_wechat_miniprogram_qr(request, payload: WechatOfficialQrCreateIn):
+    _enforce_wechat_qr_rate_limit(request)
+    ticket = create_login_ticket(request, _safe_wechat_redirect(request, payload.redirect), provider=WECHAT_MINIPROGRAM_PROVIDER_ID)
+    try:
+        provider = get_social_adapter().get_provider(request, WECHAT_MINIPROGRAM_PROVIDER_ID)
+        qr_image_url = create_miniprogram_login_qr(
+            provider.app,
+            ticket.scene,
+            page="pages/auth/pc-login",
+            env_version=getattr(settings, "WECHAT_MINIPROGRAM_PC_LOGIN_ENV_VERSION", "release"),
+            check_path=getattr(settings, "WECHAT_MINIPROGRAM_PC_LOGIN_CHECK_PATH", True),
+        )
+    except (ValueError, http_requests.RequestException) as exc:
+        delete_login_ticket(ticket.login_id)
+        raise HttpError(503, str(exc)) from exc
+    return {
+        "login_id": ticket.login_id,
+        "poll_token": ticket.poll_token,
+        "qr_image_url": qr_image_url,
+        "expires_in": TICKET_TTL_SECONDS,
+        "poll_interval": POLL_INTERVAL_SECONDS,
+    }
+
+
+@users_router.get("/auth/wechat-miniprogram/qr/{login_id}/", auth=None, response=WechatOfficialQrStatusOut, summary="查询小程序码电脑登录状态")
+def get_wechat_miniprogram_qr_status(request, login_id: str):
+    poll_token = request.headers.get("X-WeChat-Login-Token", "")
+    if not poll_token:
+        raise HttpError(403, "缺少微信登录票据。")
+    try:
+        return get_login_status(request, login_id, poll_token, provider=WECHAT_MINIPROGRAM_PROVIDER_ID)
+    except (LoginTicketExpired, LoginTicketForbidden, LoginTicketConflict) as exc:
+        _raise_login_ticket_http_error(exc)
+
+
+@users_router.post("/auth/wechat-miniprogram/pc-login/confirm/", auth=None, summary="确认小程序码电脑登录")
+def confirm_wechat_miniprogram_pc_login(request, payload: WechatMiniprogramPcLoginConfirmIn):
+    _enforce_wechat_pc_confirm_rate_limit(request, payload.scene)
+    try:
+        provider = get_social_adapter().get_provider(request, WECHAT_MINIPROGRAM_PROVIDER_ID)
+        identity_data = jscode2session(provider.app, payload.code)
+        confirm_login_identity(payload.scene, provider=WECHAT_MINIPROGRAM_PROVIDER_ID, identity_data=identity_data)
+    except (LoginTicketExpired, LoginTicketForbidden, LoginTicketConflict) as exc:
+        _raise_login_ticket_http_error(exc)
+    except http_requests.RequestException as exc:
+        raise HttpError(503, "微信登录服务暂时不可用，请重试。") from exc
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    return {"status": "confirmed"}
+
+
+@users_router.post("/auth/wechat-miniprogram/qr/{login_id}/complete/", auth=None, summary="完成小程序码电脑登录")
+def complete_wechat_miniprogram_qr_login(request, login_id: str):
+    mark_request_as_headless(request, HeadlessClient.BROWSER)
+    poll_token = request.headers.get("X-WeChat-Login-Token", "")
+    if not poll_token:
+        raise HttpError(403, "缺少微信登录票据。")
+    try:
+        ticket = begin_login_completion(request, login_id, poll_token, provider=WECHAT_MINIPROGRAM_PROVIDER_ID)
+    except (LoginTicketExpired, LoginTicketForbidden, LoginTicketConflict) as exc:
+        _raise_login_ticket_http_error(exc)
+
+    try:
+        provider = get_social_adapter().get_provider(request, WECHAT_MINIPROGRAM_PROVIDER_ID)
+        sociallogin = provider.sociallogin_from_response(request, dict(ticket.get("identity_data") or {}))
+        sociallogin.state = {
+            "headless": True,
+            "next": str(ticket.get("redirect_path") or "/dashboard/user/login"),
+            "process": AuthProcess.LOGIN,
+        }
+        response = socialaccount_flows.login.complete_login(request, sociallogin, raises=True)
+        authentication_response = AuthenticationResponse.from_response(request, response)
     except SignupClosedException as exc:
         finish_login_completion(login_id, success=False)
         raise HttpError(403, "当前未开放新用户注册。") from exc
@@ -338,9 +445,7 @@ def get_social_bindings(request):
     """返回管理端账号绑定页需要展示的当前用户社交绑定状态。"""
     require_authenticated(request)
 
-    connected_providers = set(
-        SocialAccount.objects.filter(user=request.user, provider__in=["github", "weixin", "wechat_official_account"]).values_list("provider", flat=True)
-    )
+    connected_providers = set(SocialAccount.objects.filter(user=request.user, provider__in=["github", "weixin", "wechat_official_account"]).values_list("provider", flat=True))
     return {
         "items": [
             {
@@ -452,6 +557,64 @@ def bind_wechat_phone(request, payload: WechatPhoneIn):
         "merged": merged,
         "session_token": request.session.session_key if merged else None,
     }
+
+
+@users_router.post("/me/wechat-miniprogram/", response=WechatMiniprogramConnectOut, summary="绑定当前微信小程序身份")
+def connect_wechat_miniprogram(request, payload: WechatMiniprogramConnectIn):
+    """将 wx.login 对应的小程序身份安全连接到当前登录账号。"""
+    require_authenticated(request)
+
+    try:
+        provider = get_social_adapter().get_provider(request, WECHAT_MINIPROGRAM_PROVIDER_ID)
+        identity_data = jscode2session(provider.app, payload.code)
+    except http_requests.RequestException as exc:
+        raise HttpError(503, "微信登录服务暂时不可用，请重试。") from exc
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+
+    openid = str(identity_data.get("openid") or "").strip()
+    unionid = str(identity_data.get("unionid") or "").strip()
+    if not openid:
+        raise HttpError(400, "微信未返回有效的小程序身份。")
+
+    safe_extra_data = {"openid": openid}
+    if unionid:
+        safe_extra_data["unionid"] = unionid
+
+    try:
+        with transaction.atomic():
+            User = get_user_model()
+            user = User.objects.select_for_update().get(pk=request.user.pk)
+            account = SocialAccount.objects.select_for_update().filter(provider=WECHAT_MINIPROGRAM_PROVIDER_ID, uid=openid).first()
+            if account:
+                if account.user_id != user.pk:
+                    raise HttpError(409, "该微信小程序身份已绑定其他账号。")
+                next_extra_data = {**(account.extra_data or {}), **safe_extra_data}
+                if next_extra_data != account.extra_data:
+                    account.extra_data = next_extra_data
+                    account.save(update_fields=["extra_data"])
+                return {"connected": True}
+
+            if SocialAccount.objects.select_for_update().filter(user=user, provider=WECHAT_MINIPROGRAM_PROVIDER_ID).exists():
+                raise HttpError(409, "当前账号已绑定其他微信小程序身份。")
+
+            if unionid:
+                unionid_accounts = SocialAccount.objects.select_for_update().filter(provider__in=WECHAT_SOCIAL_PROVIDERS).filter(
+                    Q(extra_data__unionid=unionid) | Q(provider="weixin", uid=unionid)
+                )
+                if unionid_accounts.exclude(user=user).exists():
+                    raise HttpError(409, "该微信身份已绑定其他账号。")
+
+            SocialAccount.objects.create(
+                user=user,
+                provider=WECHAT_MINIPROGRAM_PROVIDER_ID,
+                uid=openid,
+                extra_data=safe_extra_data,
+            )
+    except IntegrityError as exc:
+        raise HttpError(409, "微信身份绑定冲突，请刷新后重试。") from exc
+
+    return {"connected": True}
 
 
 @users_router.get("/me/mfa/totp-setup/", response=TotpSetupOut, summary="获取 TOTP 初始化信息")

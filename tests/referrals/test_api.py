@@ -1,6 +1,9 @@
 import json
+from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.test import TestCase
+from django.utils import timezone
 
 from model_bakery import baker
 
@@ -90,3 +93,36 @@ class ReferralAdminAPITests(TestCase):
         self.assertEqual(data["status__mapping"], ReferralRecordStatus.get_choice_label(data["status"]))
         record.refresh_from_db()
         self.assertEqual(record.status, ReferralRecordStatus.REWARD_ISSUED)
+
+    def test_admin_records_support_keyword_status_and_created_range_filters(self):
+        matching_inviter = baker.make(User, username="matching-inviter")
+        matching_invitee = baker.make(User, username="matching-invitee")
+        matching = baker.make(
+            "referrals.ReferralRecord",
+            inviter=matching_inviter,
+            invitee=matching_invitee,
+            status=ReferralRecordStatus.PENDING_REVIEW,
+        )
+        baker.make(
+            "referrals.ReferralRecord",
+            inviter=baker.make(User, username="other-inviter"),
+            invitee=baker.make(User, username="other-invitee"),
+            status=ReferralRecordStatus.REGISTERED,
+        )
+        now = timezone.now()
+        query = urlencode(
+            {
+                "keyword": "matching-inviter",
+                "status": ReferralRecordStatus.PENDING_REVIEW,
+                "created_from": (now - timedelta(days=1)).isoformat(),
+                "created_to": (now + timedelta(days=1)).isoformat(),
+            }
+        )
+
+        response = self.client.get(f"/api/admin/referrals/records/?{query}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in api_data(response)["items"]],
+            [matching.pk],
+        )

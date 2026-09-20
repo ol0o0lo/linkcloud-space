@@ -3,12 +3,14 @@ from django.contrib import admin
 from apps.subscriptions.models import (
     InvoiceRequest,
     OrganizationInvoiceProfile,
+    OrganizationSaaSProfile,
     Plan,
     PlanEntitlement,
     PlanPrice,
     SaaSOrder,
     Subscription,
     SubscriptionAuditLog,
+    SubscriptionSalesLead,
     SubscriptionSettings,
 )
 
@@ -51,6 +53,21 @@ class SubscriptionSettingsAdmin(NoPhysicalDeleteAdmin):
 
     def has_add_permission(self, request):
         return not SubscriptionSettings.objects.exists()
+
+
+@admin.register(OrganizationSaaSProfile)
+class OrganizationSaaSProfileAdmin(NoPhysicalDeleteAdmin):
+    list_display = ("organization", "business_type", "city_name", "team_size_band", "source", "updated_at")
+    list_filter = ("business_type", "team_size_band", "source")
+    search_fields = ("organization__name", "organization__slug", "city_name")
+
+
+@admin.register(SubscriptionSalesLead)
+class SubscriptionSalesLeadAdmin(NoPhysicalDeleteAdmin):
+    list_display = ("contact_name", "contact_phone", "company_name", "organization", "team_size", "status", "assigned_to", "created_at")
+    list_filter = ("status", "source", "team_size")
+    search_fields = ("contact_name", "contact_phone", "company_name", "organization__name")
+    readonly_fields = ("user", "organization", "created_at", "updated_at")
 
 
 @admin.register(Subscription)

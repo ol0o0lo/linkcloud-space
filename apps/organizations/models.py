@@ -14,6 +14,7 @@ from phonenumbers.phonenumberutil import NumberParseException
 
 from apps.access.constants import AccessScope
 from apps.accounts.models import normalize_phone
+from apps.accounts.providers.wechat_miniprogram.links import build_invitation_action_url
 from apps.base.sms import send_invitation_cancellation_sms, send_invitation_sms
 from apps.media.constants import MediaType, ResourceType
 from apps.media.fields import MediaRefsField
@@ -174,6 +175,14 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
     def accept_invite_url(self):
         return f"/dashboard/invitations/{self.key}"
 
+    def action_url(self) -> str:
+        return build_invitation_action_url(
+            kind="organization",
+            credential=self.key,
+            expires_at=self.created_at + timedelta(days=self.expired_in_days),
+            legacy_url=f"{settings.SITE_URL}{self.accept_invite_url}",
+        )
+
     def clean(self):
         if self.invitee and not self.invitee_email and not self.invitee_phone:
             if not self.invitee.email:
@@ -264,23 +273,24 @@ class OrganizationInvite(OrganizationRoleMixin, CreateUpdateTimeModelMixin):
             context=context,
         )
 
-    def _send_sms_invitation(self):
+    def _send_sms_invitation(self, action_url: str):
         send_invitation_sms(
             self.invitee_phone,
-            f"{settings.SITE_URL}{self.accept_invite_url}",
+            action_url,
             self.expired_in_days,
         )
 
     def send_invite(self):
+        action_url = self.action_url()
         if self.invitee_phone:
-            self._send_sms_invitation()
+            self._send_sms_invitation(action_url)
             return
         self._send_email(
             subject=f"Invite from {self.sender.get_full_name()}",
             template_name="invitation",
             context={
                 "invite": self,
-                "action_url": f"{settings.SITE_URL}{self.accept_invite_url}",
+                "action_url": action_url,
                 "num_days": self.expired_in_days,
             },
         )

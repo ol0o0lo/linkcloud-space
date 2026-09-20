@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
+from math import isfinite
 
 from django.conf import settings
+from django.contrib.gis.db import models
+from django.contrib.gis.geos import Point
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
@@ -39,17 +41,21 @@ def merge_tags(*tag_groups: list[str] | None) -> list[str]:
     return merged
 
 
-def validate_coordinates(*, address: str, lat: Decimal | None, lng: Decimal | None, address_required: bool) -> None:
+def validate_location(*, address: str, location: Point | None, address_required: bool) -> None:
     if address_required and not address:
         raise ValidationError({"address": "楼栋地址不能为空。"})
-    if (lat is None) != (lng is None):
-        raise ValidationError({"lng" if lat is not None else "lat": "纬度和经度必须同时填写。"})
-    if lat is not None and not Decimal("-90") <= lat <= Decimal("90"):
-        raise ValidationError({"lat": "纬度必须在 -90 到 90 之间。"})
-    if lng is not None and not Decimal("-180") <= lng <= Decimal("180"):
-        raise ValidationError({"lng": "经度必须在 -180 到 180 之间。"})
-    if lat is not None and not address:
+    if location is None:
+        return
+    if not address:
         raise ValidationError({"address": "保存坐标时必须填写地址。"})
+    if location.geom_type != "Point":
+        raise ValidationError({"location": "地理位置必须是点坐标。"})
+    if location.srid != 4326:
+        raise ValidationError({"location": "地理位置必须使用 WGS84（SRID 4326）。"})
+    if not isfinite(location.x) or not -180 <= location.x <= 180:
+        raise ValidationError({"location": "经度必须在 -180 到 180 之间。"})
+    if not isfinite(location.y) or not -90 <= location.y <= 90:
+        raise ValidationError({"location": "纬度必须在 -90 到 90 之间。"})
 
 
 class Estate(CreateUpdateTimeModelMixin):
@@ -62,9 +68,9 @@ class Estate(CreateUpdateTimeModelMixin):
     province = models.CharField(max_length=64, verbose_name="省份")
     city = models.CharField(max_length=64, verbose_name="城市")
     district = models.CharField(max_length=64, verbose_name="区县")
+    subdistrict = models.CharField(max_length=64, blank=True, default="", verbose_name="街道/板块")
     address = models.CharField(max_length=255, blank=True, default="", verbose_name="地址")
-    lat = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="项目/小区级展示点定位", verbose_name="纬度")
-    lng = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="项目/小区级展示点定位", verbose_name="经度")
+    location = models.PointField(srid=4326, geography=True, spatial_index=True, blank=True, null=True, help_text="项目/小区级展示点定位", verbose_name="地理位置")
     images = MediaRefsField(
         blank=True,
         default=list,
@@ -87,7 +93,7 @@ class Estate(CreateUpdateTimeModelMixin):
 
     def clean(self):
         super().clean()
-        validate_coordinates(address=self.address, lat=self.lat, lng=self.lng, address_required=False)
+        validate_location(address=self.address, location=self.location, address_required=False)
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -102,8 +108,7 @@ class Building(CreateUpdateTimeModelMixin):
     under_floors = models.PositiveIntegerField(blank=True, null=True, verbose_name="地下楼层数")
     year_built = models.PositiveIntegerField(blank=True, null=True, verbose_name="建成年份")
     elevator = models.BooleanField(default=False, verbose_name="是否有电梯")
-    lat = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="楼栋级精确导航定位", verbose_name="纬度")
-    lng = models.DecimalField(max_digits=10, decimal_places=6, blank=True, null=True, help_text="楼栋级精确导航定位", verbose_name="经度")
+    location = models.PointField(srid=4326, geography=True, spatial_index=True, blank=True, null=True, help_text="楼栋级精确导航定位", verbose_name="地理位置")
     address = models.CharField(max_length=255, blank=True, verbose_name="地址")
     images = MediaRefsField(
         blank=True,
@@ -134,7 +139,7 @@ class Building(CreateUpdateTimeModelMixin):
             raise ValidationError({"tags": "楼栋标签必须是列表。"})
         if self.estate_id and self.organization_id and self.estate.organization_id != self.organization_id:
             raise ValidationError({"organization": "楼栋组织必须与项目片区组织一致。"})
-        validate_coordinates(address=self.address, lat=self.lat, lng=self.lng, address_required=True)
+        validate_location(address=self.address, location=self.location, address_required=True)
 
         duplicates = type(self).objects.exclude(pk=self.pk)
         if self.estate_id and self.name and duplicates.filter(estate_id=self.estate_id, name=self.name).exists():
@@ -342,6 +347,33 @@ class House(CreateUpdateTimeModelMixin):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class HouseAIInsight(CreateUpdateTimeModelMixin):
+    house = models.OneToOneField(House, on_delete=models.CASCADE, related_name="ai_insight", verbose_name="房源")
+    invocation = models.ForeignKey(
+        "ai.AIInvocation",
+        on_delete=models.SET_NULL,
+        related_name="house_insights",
+        null=True,
+        blank=True,
+        verbose_name="AI 调用记录",
+    )
+    schema_version = models.PositiveSmallIntegerField(default=1, verbose_name="结构版本")
+    content = models.JSONField(default=dict, verbose_name="洞察内容")
+    source_facts = models.JSONField(default=list, verbose_name="公开事实快照")
+    missing_fields = models.JSONField(default=list, verbose_name="缺失字段快照")
+    source_snapshot_hash = models.CharField(max_length=64, verbose_name="公开资料快照哈希")
+    generated_at = models.DateTimeField(verbose_name="生成时间")
+    expires_at = models.DateTimeField(db_index=True, verbose_name="过期时间")
+
+    class Meta:
+        verbose_name = "房源 AI 洞察"
+        verbose_name_plural = "房源 AI 洞察"
+        ordering = ["-generated_at", "-pk"]
+
+    def __str__(self):
+        return f"{self.house} AI 洞察"
 
 
 class HouseMatchShare(BaseModelMixin):

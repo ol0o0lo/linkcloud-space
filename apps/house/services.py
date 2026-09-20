@@ -11,6 +11,7 @@ from django.http import Http404
 
 from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus, LeaseStatus
 from apps.house.exceptions import ResourceInUseException
+from apps.house.geo.queries import annotate_house_distance, apply_named_origins_house_filter, apply_nearby_house_filter
 from apps.settings.constants import ValueType
 
 DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
@@ -125,12 +126,76 @@ def get_public_houses_queryset():
     )
 
 
+def _normalize_public_house_region_name(value) -> str:
+    if not isinstance(value, str):
+        return ""
+    normalized = value.strip()
+    return "" if not normalized or normalized == "默认" else normalized
+
+
+def build_public_house_regions(qs) -> dict[str, list[dict]]:
+    """从公开房源聚合省、市、区、街道/板块目录，并归并历史数据中的首尾空格。"""
+    provinces: dict[str, dict] = {}
+    rows = (
+        qs.order_by()
+        .values(
+            "building__estate__province",
+            "building__estate__city",
+            "building__estate__district",
+            "building__estate__subdistrict",
+        )
+        .annotate(house_count=Count("id"))
+    )
+    for row in rows:
+        province = _normalize_public_house_region_name(row["building__estate__province"])
+        city = _normalize_public_house_region_name(row["building__estate__city"])
+        district = _normalize_public_house_region_name(row["building__estate__district"])
+        subdistrict = _normalize_public_house_region_name(row["building__estate__subdistrict"])
+        if not province or not city:
+            continue
+
+        house_count = row["house_count"]
+        province_item = provinces.setdefault(province, {"house_count": 0, "cities": {}})
+        province_item["house_count"] += house_count
+        city_item = province_item["cities"].setdefault(city, {"house_count": 0, "districts": {}})
+        city_item["house_count"] += house_count
+        if district:
+            district_item = city_item["districts"].setdefault(district, {"house_count": 0, "subdistricts": {}})
+            district_item["house_count"] += house_count
+            if subdistrict:
+                district_item["subdistricts"][subdistrict] = district_item["subdistricts"].get(subdistrict, 0) + house_count
+
+    items = []
+    for province, province_item in sorted(provinces.items()):
+        cities = []
+        for city, city_item in sorted(province_item["cities"].items()):
+            cities.append(
+                {
+                    "city": city,
+                    "house_count": city_item["house_count"],
+                    "districts": [
+                        {
+                            "district": district,
+                            "house_count": district_item["house_count"],
+                            "subdistricts": [
+                                {"subdistrict": subdistrict, "house_count": house_count} for subdistrict, house_count in sorted(district_item["subdistricts"].items())
+                            ],
+                        }
+                        for district, district_item in sorted(city_item["districts"].items())
+                    ],
+                }
+            )
+        items.append({"province": province, "house_count": province_item["house_count"], "cities": cities})
+    return {"items": items}
+
+
 PUBLIC_HOUSE_SORTS = {
     "latest": ("-updated_at", "-pk"),
     "rent_asc": (F("asking_rent").asc(nulls_last=True), "-pk"),
     "rent_desc": (F("asking_rent").desc(nulls_last=True), "-pk"),
     "area_asc": (F("area").asc(nulls_last=True), "-pk"),
     "area_desc": (F("area").desc(nulls_last=True), "-pk"),
+    "distance_asc": ("distance", "pk"),
 }
 
 
@@ -141,6 +206,9 @@ def apply_public_house_filters(
     province=None,
     city=None,
     district=None,
+    subdistrict=None,
+    estate_id=None,
+    building_id=None,
     min_rent=None,
     max_rent=None,
     min_area=None,
@@ -151,6 +219,9 @@ def apply_public_house_filters(
     has_elevator_access=None,
     tags=None,
     publisher_slug=None,
+    origin=None,
+    radius_m=1000,
+    metro_origins=None,
     sort="latest",
 ):
     """应用公开房源筛选和排序，供全局检索与动态配房共用。"""
@@ -162,6 +233,7 @@ def apply_public_house_filters(
             | Q(building__address__icontains=keyword)
             | Q(building__estate__name__icontains=keyword)
             | Q(building__estate__display_name__icontains=keyword)
+            | Q(building__estate__subdistrict__icontains=keyword)
             | Q(building__organization__name__icontains=keyword)
         )
     if province:
@@ -170,6 +242,12 @@ def apply_public_house_filters(
         qs = qs.filter(building__estate__city__iexact=city)
     if district:
         qs = qs.filter(building__estate__district__iexact=district)
+    if subdistrict:
+        qs = qs.filter(building__estate__subdistrict__iexact=subdistrict)
+    if estate_id is not None:
+        qs = qs.filter(building__estate_id=estate_id)
+    if building_id is not None:
+        qs = qs.filter(building_id=building_id)
     if min_rent is not None:
         qs = qs.filter(asking_rent__gte=min_rent)
     if max_rent is not None:
@@ -190,6 +268,11 @@ def apply_public_house_filters(
         qs = qs.filter(Q(tags__contains=[tag]) | Q(building__tags__contains=[tag]))
     if publisher_slug:
         qs = qs.filter(building__organization__slug=publisher_slug)
+    if origin is not None:
+        qs = apply_nearby_house_filter(qs, origin, radius_m)
+        qs = annotate_house_distance(qs, origin)
+    elif metro_origins:
+        qs = apply_named_origins_house_filter(qs, metro_origins, radius_m)
     return qs.order_by(*PUBLIC_HOUSE_SORTS[sort])
 
 

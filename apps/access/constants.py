@@ -12,6 +12,7 @@ PERMISSION_MODULES = {
     "subscriptions": ("subscription", "套餐与订阅"),
     "analytics": ("analytics", "数据与报表"),
     "team_operations": ("team_operations", "团队协作"),
+    "ai": ("ai", "AI 能力"),
 }
 
 
@@ -87,6 +88,14 @@ class TeamOperationsPermission(StrChoices):
     TASK_MANAGE = "team_operations.task_manage", "管理日常任务"
 
 
+class AIPermission(StrChoices):
+    USE = "ai.use", "使用 AI 能力"
+    VIEW_OWN_HISTORY = "ai.view_own_history", "查看本人 AI 历史"
+    VIEW_ORG_AUDIT = "ai.view_org_audit", "查看组织 AI 审计"
+    MANAGE_PROMPTS = "ai.manage_prompts", "管理 AI Prompt"
+    MANAGE_MODELS = "ai.manage_models", "管理 AI 模型"
+
+
 ALL_PERMISSION_ENUMS = (
     AccessPermission,
     OrganizationPermission,
@@ -97,6 +106,7 @@ ALL_PERMISSION_ENUMS = (
     SubscriptionPermission,
     AnalyticsPermission,
     TeamOperationsPermission,
+    AIPermission,
 )
 
 # 全量权限 key，供系统角色（如 org_admin）直接复用。

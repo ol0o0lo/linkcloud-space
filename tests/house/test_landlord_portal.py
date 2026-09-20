@@ -120,6 +120,20 @@ class LandlordPortalApiTestCase(TestCase):
         self.assertIn("/dashboard/landlord-invitations/", payload["action_url"])
         send_sms.assert_not_called()
 
+    @override_settings(WECHAT_MINIPROGRAM_URL_LINK_ENABLED=True)
+    @patch("apps.house.landlord_invitations.build_invitation_action_url", return_value="https://wxaurl.cn/landlord-invite")
+    def test_manual_invitation_returns_miniprogram_url_link_when_enabled(self, build_action_url):
+        contact = self.make_contact()
+
+        with patch("apps.house.api.send_invitation_sms") as send_sms:
+            response = self.client.post(f"/api/house/contacts/{contact.pk}/landlord-invite/?delivery_method=manual")
+
+        self.assertEqual(response.status_code, 200)
+        payload = api_data(response)
+        self.assertEqual(payload["action_url"], "https://wxaurl.cn/landlord-invite")
+        self.assertEqual(build_action_url.call_args.kwargs["kind"], "landlord")
+        send_sms.assert_not_called()
+
     def test_invitation_rejects_unknown_delivery_method(self):
         contact = self.make_contact()
 
@@ -154,6 +168,31 @@ class LandlordPortalApiTestCase(TestCase):
         self.assertEqual(contact.user, landlord)
         self.assertIsNotNone(contact.public_key)
         self.assertEqual(api_data(first)["public_key"], str(contact.public_key))
+
+    def test_matching_verified_phone_accept_is_idempotent_after_token_is_consumed(self):
+        contact = self.make_contact()
+        token, _ = self.create_invitation(contact)
+        landlord = self.make_verified_user()
+        self.client.force_login(landlord)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            first = self.client.post(f"/api/house/landlord/invites/{token}/accept/")
+        second = self.client.post(f"/api/house/landlord/invites/{token}/accept/")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(api_data(second), api_data(first))
+
+    def test_landlord_invite_reports_stable_phone_verification_error(self):
+        contact = self.make_contact()
+        token, _ = self.create_invitation(contact)
+        user = User.objects.create_user(username="unverified-error", password="secret")  # noqa: S106
+        self.client.force_login(user)
+
+        response = self.client.post(f"/api/house/landlord/invites/{token}/accept/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(api_error(response)["error"], "invitation.phone_verification_required")
 
     def test_accept_rejects_unverified_mismatched_invalid_and_already_bound_invites(self):
         contact = self.make_contact()

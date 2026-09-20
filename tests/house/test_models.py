@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.contrib.gis.geos import Point
 from django.db import transaction
 from django.db.models import ProtectedError
 from django.test import TestCase
@@ -11,6 +12,7 @@ from model_bakery import baker
 from apps.accounts.models import User
 from apps.accounts.services import bind_phone_to_user
 from apps.house.constants import ContactRole, EstatePropertyType, HouseStatus, LeaseStatus, ViewingRecordStatus
+from apps.house.geo.coordinates import make_wgs84_point, serialize_point
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
 from apps.house.services import get_landlord_houses, get_landlord_leases
 from apps.media.constants import MediaType, ResourceType
@@ -47,8 +49,7 @@ class HouseDomainTestCase(TestCase):
             "city": "深圳市",
             "district": "南山区",
             "address": "科技园路 1 号",
-            "lat": Decimal("22.533000"),
-            "lng": Decimal("113.930000"),
+            "location": make_wgs84_point(113.93, 22.533, "gcj02"),
         }
         data.update(kwargs)
         return Estate.objects.create(**data)
@@ -61,8 +62,7 @@ class HouseDomainTestCase(TestCase):
             "name": "1 栋",
             "floors": 32,
             "under_floors": 2,
-            "lat": Decimal("22.533100"),
-            "lng": Decimal("113.930100"),
+            "location": make_wgs84_point(113.9301, 22.5331, "gcj02"),
             "address": "云岸花园 1 栋",
         }
         data.update(kwargs)
@@ -104,17 +104,16 @@ class HouseDomainTestCase(TestCase):
 
 class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
     def test_estate_allows_empty_location_but_rejects_coordinates_without_address(self):
-        estate = self.make_estate(address="", lat=None, lng=None)
+        estate = self.make_estate(address="", location=None)
 
         estate.full_clean()
-        estate.lat = Decimal("22.533100")
-        estate.lng = Decimal("113.930400")
+        estate.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         with self.assertRaises(ValidationError) as context:
             estate.full_clean()
 
         self.assertIn("address", context.exception.message_dict)
 
-    def test_building_requires_address_and_complete_valid_coordinate_pair(self):
+    def test_building_requires_address_and_valid_wgs84_point(self):
         building = Building(
             organization=self.org,
             estate=self.make_estate(),
@@ -128,12 +127,12 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         self.assertIn("address", context.exception.message_dict)
 
         building.address = "科技路 1 号"
-        building.lat = Decimal("22.533100")
+        building.location = Point(113.9304, 22.5331, srid=3857)
         with self.assertRaises(ValidationError) as context:
             building.full_clean()
-        self.assertIn("lng", context.exception.message_dict)
+        self.assertIn("location", context.exception.message_dict)
 
-        building.lng = Decimal("113.930400")
+        building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         building.full_clean()
 
     def test_standalone_building_can_be_saved_and_normalizes_identity_fields(self):
@@ -208,8 +207,8 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         house = self.make_house(building=building)
 
         self.assertEqual(house.organization, self.org)
-        self.assertEqual(building.lat, Decimal("22.533100"))
-        self.assertEqual(estate.lat, Decimal("22.533000"))
+        self.assertEqual(serialize_point(building.location)["latitude"], 22.5331)
+        self.assertEqual(serialize_point(estate.location)["latitude"], 22.533)
         with self.assertRaises(ProtectedError):
             estate.delete()
         with self.assertRaises(ProtectedError):
@@ -225,7 +224,7 @@ class TestSpaceHierarchyAndContacts(HouseDomainTestCase):
         self.assertEqual(context.exception.message_dict["organization"], ["楼栋组织必须与项目片区组织一致。"])
 
     def test_estate_address_can_be_left_blank_for_governance_follow_up(self):
-        estate = self.make_estate(name="待补地址项目", display_name="待补地址项目", address="", lat=None, lng=None)
+        estate = self.make_estate(name="待补地址项目", display_name="待补地址项目", address="", location=None)
 
         estate.refresh_from_db()
         self.assertEqual(estate.address, "")

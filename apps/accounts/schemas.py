@@ -152,6 +152,19 @@ class WechatPhoneOut(Schema):
     session_token: str | None = None
 
 
+class WechatMiniprogramConnectIn(Schema):
+    code: str = Field(..., min_length=1, description="wx.login 返回的一次性 code。")
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def normalize_code(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class WechatMiniprogramConnectOut(Schema):
+    connected: bool
+
+
 class WechatOfficialQrCreateIn(Schema):
     redirect: str = Field("", description="登录成功后的管理端路径。")
 
@@ -167,6 +180,16 @@ class WechatOfficialQrOut(Schema):
 class WechatOfficialQrStatusOut(Schema):
     status: str
     expires_in: int
+
+
+class WechatMiniprogramPcLoginConfirmIn(Schema):
+    scene: str = Field(..., min_length=1, max_length=32, description="电脑端小程序码携带的临时场景值。")
+    code: str = Field(..., min_length=1, description="wx.login 返回的一次性 code。")
+
+    @field_validator("scene", "code", mode="before")
+    @classmethod
+    def normalize_values(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 
 class TotpSetupOut(Schema):

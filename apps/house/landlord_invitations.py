@@ -13,6 +13,7 @@ from phonenumbers.phonenumberutil import NumberParseException
 from redis.exceptions import RedisError
 
 from apps.accounts.models import normalize_phone
+from apps.accounts.providers.wechat_miniprogram.links import build_invitation_action_url
 
 LANDLORD_INVITATION_TTL_SECONDS = 7 * 24 * 60 * 60
 LANDLORD_INVITATION_VALID_DAYS = LANDLORD_INVITATION_TTL_SECONDS // (24 * 60 * 60)
@@ -116,8 +117,13 @@ def consume_landlord_invitation(payload: dict[str, Any]) -> None:
         return
 
 
-def invitation_action_url(token: str) -> str:
-    return f"{settings.SITE_URL}/dashboard/landlord-invitations/{token}"
+def invitation_action_url(token: str, expires_at: datetime) -> str:
+    return build_invitation_action_url(
+        kind="landlord",
+        credential=token,
+        expires_at=expires_at,
+        legacy_url=f"{settings.SITE_URL}/dashboard/landlord-invitations/{token}",
+    )
 
 
 def invitation_expires_at(payload: dict[str, Any]) -> datetime | None:

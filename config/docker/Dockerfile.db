@@ -1,0 +1,10 @@
+FROM postgres:17
+
+# postgres:17 官方镜像同时支持 amd64/arm64。直接安装 PGDG 仓库中与
+# PostgreSQL 17 匹配的 PostGIS 包，避免依赖仅发布 amd64 的 postgis/postgis 镜像。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        postgresql-$PG_MAJOR-postgis-3 \
+        postgresql-$PG_MAJOR-postgis-3-scripts \
+    && rm -rf /var/lib/apt/lists/*

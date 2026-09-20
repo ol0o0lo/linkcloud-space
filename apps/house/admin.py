@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.db.models import ProtectedError
 
-from apps.house.models import Building, Contact, Estate, House, HouseFavorite, Lease, LeaseAllocation, PropertyResponsibility, ViewingRecord
+from apps.house.models import Building, Contact, Estate, House, HouseAIInsight, HouseFavorite, Lease, LeaseAllocation, PropertyResponsibility, ViewingRecord
 
 
 class ProtectedDeleteMessageMixin:
@@ -21,7 +21,7 @@ class EstateAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
 
 @admin.register(Building)
 class BuildingAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
-    list_display = ("name", "estate", "floors", "elevator", "lat", "lng")
+    list_display = ("name", "estate", "floors", "elevator", "location")
     list_filter = ("organization", "estate")
     search_fields = ("name", "estate__name", "address")
 
@@ -38,6 +38,36 @@ class HouseAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
         ("媒体", {"fields": ("images", "videos")}),
         ("描述", {"fields": ("tags", "public_description", "internal_notes", "extra")}),
     )
+
+
+@admin.register(HouseAIInsight)
+class HouseAIInsightAdmin(admin.ModelAdmin):
+    list_display = ("house", "generated_at", "expires_at", "schema_version", "invocation")
+    list_filter = ("schema_version", "generated_at", "expires_at")
+    search_fields = ("house__room_number", "house__building__name", "house__building__estate__name")
+    raw_id_fields = ("house", "invocation")
+    readonly_fields = (
+        "house",
+        "invocation",
+        "schema_version",
+        "content",
+        "source_facts",
+        "missing_fields",
+        "source_snapshot_hash",
+        "generated_at",
+        "expires_at",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(HouseFavorite)

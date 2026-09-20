@@ -8,13 +8,19 @@ from apps.media.schemas import MediaRefIn, ResolvedMediaRefOut
 
 class OrganizationCreateIn(Schema):
     name: str = Field(..., description="租户名称。")
-    slug: str = Field(..., description="租户 slug，用于切换与公开链接。")
+    slug: str | None = Field(None, description="租户 slug；留空时由系统自动生成。")
+    business_type: str = Field("store", description="经营类型：individual 或 store。")
+    city_code: str = Field("", max_length=32, description="城市编码。")
+    city_name: str = Field("", max_length=64, description="城市名称。")
+    team_size_band: str = Field("2_10", description="团队规模区间。")
+    source: str = Field("miniprogram", max_length=32, description="入驻来源。")
 
 
 class OrganizationCreateOut(Schema):
     id: int
     name: str
     slug: str
+    trial: dict | None = None
 
 
 class OrganizationOut(Schema):
@@ -182,6 +188,8 @@ class InviteIn(Schema):
 class PublicInviteOut(Schema):
     """Invite payload for unauthenticated lookup at /api/invite-by-key/{key}/."""
 
+    organization_id: int
+    organization_slug: str
     organization_name: str
     sender_name: str
     invitee_email: str = ""
