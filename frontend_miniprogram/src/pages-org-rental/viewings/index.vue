@@ -1,134 +1,212 @@
 <script setup lang="ts">
-import type { ViewingRecordOut } from '@/features/organization-rental/service'
-import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
-import { ref } from 'vue'
-import { formatOrganizationDateTime, formatOrganizationHouseTitle, getOrganizationViewingStatusTone } from '@/domain/organization-rental'
-import { listOrganizationViewings } from '@/features/organization-rental/service'
-import { getOrganizationViewingDetailRoute } from '@/modules/routes'
-import AppListState from '@/shared/components/AppListState.vue'
+import type { ViewingRecordOut } from '@/pages-org-rental/api/organization-rental'
+import { onLoad } from '@dcloudio/uni-app'
+import { computed, ref } from 'vue'
+import OrganizationViewingCard from '@/pages-org-rental/viewings/components/OrganizationViewingCard.vue'
+import { listOrganizationViewings } from '@/pages-org-rental/api/organization-rental'
+import { getOrganizationViewingDetailRoute, getOrganizationViewingFormRoute } from '@/modules/routes'
+import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '带看管理', enablePullDownRefresh: true } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '带看管理', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
-const items = ref<ViewingRecordOut[]>([])
 const keyword = ref('')
-const page = ref(1)
-const pageSize = 15
-const loading = ref(false)
-const finished = ref(false)
-const loadError = ref('')
-let requestId = 0
+const statusFilter = ref<'all' | 'scheduled' | 'viewed'>('all')
+const houseId = ref<number>()
+const hasFilters = computed(() => Boolean(keyword.value.trim() || statusFilter.value !== 'all'))
+const weekDays = computed(() => {
+  const today = new Date()
+  const mondayOffset = (today.getDay() + 6) % 7
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(today)
+    date.setDate(today.getDate() - mondayOffset + index)
+    return { label: `周${['一', '二', '三', '四', '五'][index]}`, day: date.getDate(), active: date.toDateString() === today.toDateString() }
+  })
+})
+const todayLabel = computed(() => new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' }))
+onLoad((options) => {
+  const id = Number(options?.house_id)
+  houseId.value = Number.isInteger(id) && id > 0 ? id : undefined
+})
+const list = usePagedPage<ViewingRecordOut>({
+  pageSize: 15,
+  loader: ({ page, pageSize }) => listOrganizationViewings(appContextStore.organizationSlug, page, pageSize, { keyword: keyword.value.trim() || undefined, house_id: houseId.value, status: statusFilter.value === 'all' ? undefined : statusFilter.value }),
+})
 
-async function loadViewings(reset = false) {
-  if (!reset && loading.value)
-    return
-  if (!reset && finished.value)
-    return
-  const currentRequestId = reset ? ++requestId : requestId
-  const targetPage = reset ? 1 : page.value
-  if (reset) {
-    page.value = 1
-    finished.value = false
-  }
-  loading.value = true
-  loadError.value = ''
-  try {
-    const result = await listOrganizationViewings(appContextStore.organizationSlug, targetPage, pageSize, { keyword: keyword.value.trim() || undefined })
-    if (currentRequestId !== requestId)
-      return
-    items.value = reset ? result.items : [...items.value, ...result.items]
-    finished.value = items.value.length >= result.total || result.items.length < pageSize
-    if (!finished.value)
-      page.value = targetPage + 1
-  }
-  catch {
-    if (currentRequestId === requestId)
-      loadError.value = '带看记录加载失败，请稍后重试'
-  }
-  finally {
-    if (currentRequestId === requestId) {
-      loading.value = false
-      uni.stopPullDownRefresh()
-    }
-  }
+function changeStatus(status: 'all' | 'scheduled' | 'viewed') {
+  statusFilter.value = status
+  void list.refresh()
 }
 
 function openDetail(id: number) {
   uni.navigateTo({ url: getOrganizationViewingDetailRoute(id) })
 }
 
-onShow(() => void loadViewings(true))
-onPullDownRefresh(() => loadViewings(true))
-onReachBottom(() => void loadViewings())
+function createViewing() {
+  uni.navigateTo({ url: getOrganizationViewingFormRoute(houseId.value) })
+}
+
+function handleEmptyAction() {
+  if (!hasFilters.value) {
+    createViewing()
+    return
+  }
+  keyword.value = ''
+  statusFilter.value = 'all'
+  void list.refresh()
+}
 </script>
 
 <template>
-  <view class="list-page">
-    <wd-search v-model="keyword" placeholder="搜索客户、手机号或房源" hide-cancel @search="loadViewings(true)" @clear="loadViewings(true)" />
-    <view v-if="items.length" class="card-list">
-      <view v-for="item in items" :key="item.id" class="record-card" @click="openDetail(item.id)">
-        <view class="card-topline">
-          <view class="record-title">
-            {{ formatOrganizationHouseTitle(item.house) }}
-          </view><wd-tag :type="getOrganizationViewingStatusTone(item.status)" variant="light" size="small">
-            {{ item.status__mapping }}
-          </wd-tag>
-        </view>
-        <view class="customer">
-          {{ item.customer_name }} · {{ item.customer_phone }}
-        </view>
-        <view class="card-footer">
-          <text>{{ formatOrganizationDateTime(item.scheduled_at) }}</text><text>查看详情</text>
+  <AppPage variant="list">
+    <template #navigation>
+      <AppCustomNavigation title="带看排期" back scroll-mode="sticky">
+        <template #action>
+          <button class="navigation-action" @click="createViewing">
+            新增
+          </button>
+        </template>
+      </AppCustomNavigation>
+    </template>
+    <view class="week-card">
+      <view class="week-card__top">
+        <strong>本周排期</strong><text>共 {{ list.total.value }} 场</text>
+      </view>
+      <view class="week-row">
+        <view v-for="day in weekDays" :key="day.label" :class="{ active: day.active }">
+          <text>{{ day.label }}</text><strong>{{ day.day }}</strong>
         </view>
       </view>
     </view>
-    <AppListState :loading="loading" :has-items="Boolean(items.length)" :finished="finished" :error-message="loadError" loading-text="正在加载带看…" empty-text="当前组织暂无带看记录" finished-text="没有更多带看了" @retry="loadViewings(true)" />
-  </view>
+    <view class="viewing-tabs">
+      <view v-for="item in ([['all', '全部'], ['scheduled', '待带看'], ['viewed', '已完成']] as const)" :key="item[0]" :class="{ active: statusFilter === item[0] }" @click="changeStatus(item[0])">
+        {{ item[1] }}
+      </view>
+    </view>
+    <AppListToolbar
+      v-model:keyword="keyword"
+      search-placeholder="搜索客户、手机号或房源"
+      @search="list.refresh"
+      @clear="list.refresh"
+    />
+    <view class="day-heading">
+      今天 · {{ todayLabel }} · 共 {{ list.total.value }} 场
+    </view>
+    <view class="mt-2.5">
+      <AppPagedList
+        :items="list.items.value"
+        :loading="list.loading.value"
+        :refreshing="list.refreshing.value"
+        :loading-more="list.loadingMore.value"
+        :finished="list.finished.value"
+        :error="list.error.value"
+        loading-text="正在加载带看…"
+        :empty-text="hasFilters ? '没有符合条件的带看记录' : '当前还没有带看安排'"
+        :empty-description="hasFilters ? '试试清空搜索内容或切换到全部状态。' : '新增带看后，可在这里跟进预约、到访和完成状态。'"
+        empty-icon="no-result"
+        :empty-action-text="hasFilters ? '清除筛选' : '新增带看'"
+        finished-text="没有更多带看了"
+        @retry="list.refresh"
+        @empty-action="handleEmptyAction"
+      >
+        <template #item="{ item }">
+          <OrganizationViewingCard :viewing="item" @click="openDetail(item.id)" />
+        </template>
+      </AppPagedList>
+    </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
-.list-page {
-  min-height: 100vh;
-  padding: 16rpx 24rpx 56rpx;
-  background: var(--app-bg-page);
+.navigation-action {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--app-color-brand);
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 56rpx;
+  background: transparent;
 }
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  margin-top: 20rpx;
+.navigation-action::after {
+  border: 0;
 }
-.record-card {
-  padding: 28rpx;
-  border-radius: 24rpx;
+.week-card {
+  margin-top: 44rpx;
+  padding: 30rpx 32rpx;
+  border-radius: 32rpx;
   background: var(--app-bg-card);
 }
-.card-topline,
-.card-footer {
+.week-card__top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16rpx;
 }
-.record-title {
-  min-width: 0;
-  flex: 1;
+.week-card__top strong {
   color: var(--app-text-primary);
-  font-size: 29rpx;
-  font-weight: 650;
+  font-size: 28rpx;
 }
-.customer {
-  margin-top: 14rpx;
+.week-card__top text {
+  color: var(--app-color-brand);
+  font-size: 23rpx;
+}
+.week-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10rpx;
+  margin-top: 26rpx;
+}
+.week-row > view {
+  display: flex;
+  height: 92rpx;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  border-radius: 22rpx;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
+  background: var(--app-bg-subtle);
 }
-.card-footer {
-  margin-top: 22rpx;
-  color: var(--app-text-muted);
+.week-row > view.active {
+  color: var(--app-color-brand);
+  background: var(--app-bg-brand-soft);
+}
+.week-row text {
+  font-size: 20rpx;
+}
+.week-row strong {
+  font-size: 23rpx;
+}
+.viewing-tabs {
+  display: flex;
+  gap: 14rpx;
+  margin: 28rpx 0 20rpx;
+}
+.viewing-tabs view {
+  min-width: 120rpx;
+  padding: 14rpx 20rpx;
+  border: 1rpx solid var(--app-border-color);
+  border-radius: 18rpx;
+  color: var(--app-text-secondary);
   font-size: 22rpx;
+  text-align: center;
+  background: var(--app-bg-card);
 }
-.card-footer text:last-child {
-  color: var(--app-color-primary);
+.viewing-tabs view.active {
+  border-color: var(--app-color-brand);
+  color: #fff;
+  background: var(--app-color-brand);
+}
+.day-heading {
+  margin: 28rpx 4rpx 12rpx;
+  color: var(--app-text-primary);
+  font-size: 28rpx;
+  font-weight: 700;
 }
 </style>

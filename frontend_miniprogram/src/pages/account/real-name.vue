@@ -4,11 +4,14 @@ import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import { getRealNameAction, getRealNameStatusLabel, getRealNameTone } from '@/domain/personal-account'
 import { getRealNameLogs, getRealNameStatus, retryRealName, submitRealName, uploadRealNameIdCard } from '@/features/account/service'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppNotice from '@/components/app/AppNotice.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppPage from '@/components/app/AppPage.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '实名认证' } })
+definePage({ style: { navigationBarTitleText: '实名认证', navigationStyle: 'custom' } })
 
 type IdCardSide = 'front' | 'back'
 interface IdCardSelection {
@@ -146,87 +149,104 @@ onShow(() => void loadRealName())
 </script>
 
 <template>
-  <view class="account-page">
-    <AppLoading v-if="loading && !status" text="正在加载实名认证状态…" />
-    <AppErrorView v-else-if="loadError && !status" :message="loadError" @retry="loadRealName" />
-    <template v-else-if="status">
-      <view class="status-card">
-        <view class="status-topline">
-          <view>
-            <view class="status-title">
-              实名认证
-            </view>
-            <view class="status-copy">
-              {{ status.real_name_masked || '尚未提交实名资料' }}
-            </view>
-          </view>
-          <wd-tag :type="statusTone" variant="light">
-            {{ getRealNameStatusLabel(status.status, status.status__mapping || status.status_label) }}
-          </wd-tag>
-        </view>
-        <view v-if="status.id_number_masked" class="status-meta">
-          证件：{{ status.id_number_masked }}
-        </view>
-        <view v-if="status.failure_reason || status.review_note" class="status-reason">
-          {{ status.failure_reason || status.review_note }}
-        </view>
-      </view>
-
-      <view v-if="action" class="form-card">
-        <wd-input v-model="realName" label="真实姓名" clearable placeholder="请输入真实姓名" />
-        <wd-input v-model="idNumber" label="身份证号" type="idcard" clearable placeholder="请输入身份证号" />
-        <view class="upload-grid">
-          <view v-for="side in (['front', 'back'] as const)" :key="side" class="upload-card" @click="uploadSide(side)">
-            <image v-if="selectionFor(side)?.url" class="id-card-image" :src="selectionFor(side)?.url" mode="aspectFill" />
-            <view v-else class="upload-placeholder">
-              <view class="i-carbon-cloud-upload upload-icon" /><text>{{ sideLabel(side) }}</text>
-            </view>
-            <wd-button size="mini" variant="plain" :loading="uploadingSide === side">
-              {{ selectionFor(side) ? '重新上传' : '选择图片' }}
-            </wd-button>
-          </view>
-        </view>
-        <wd-button block size="large" :loading="submitting" @click="submit">
-          {{ action === 'retry' ? '重新提交' : '提交实名' }}
-        </wd-button>
-      </view>
-
-      <view v-else-if="status.id_card_media?.length" class="preview-card">
-        <view class="section-title">
-          证件资料
-        </view>
-        <view class="upload-grid">
-          <view v-for="item in status.id_card_media" :key="`${item.side}-${item.media_id}`" class="upload-card readonly">
-            <image class="id-card-image" :src="item.thumbnail || item.url || ''" mode="aspectFill" />
-            <text>{{ sideLabel(item.side) }}</text>
-          </view>
-        </view>
-      </view>
-
-      <view class="section-title">
-        认证记录
-      </view>
-      <view v-if="logs.length" class="log-list">
-        <view v-for="(item, index) in logs" :key="`${item.created_at}-${index}`" class="log-card">
-          <view class="log-topline">
-            <strong>{{ item.action__mapping || item.action_label }}</strong><text>{{ formatDateTime(item.created_at) }}</text>
-          </view>
-          <view v-if="item.note" class="log-note">
-            {{ item.note }}
-          </view>
-        </view>
-      </view>
-      <view v-else class="empty-card">
-        暂无认证记录
-      </view>
+  <AppPage variant="form" gutter="none">
+    <template #navigation>
+      <AppCustomNavigation title="实名认证" back scroll-mode="sticky" />
     </template>
-  </view>
+    <view class="account-page">
+      <AppLoading v-if="loading && !status" text="正在加载实名认证状态…" />
+      <AppErrorView v-else-if="loadError && !status" :message="loadError" @retry="loadRealName" />
+      <template v-else-if="status">
+        <view class="status-card" :class="`status-card--${statusTone}`">
+          <view class="status-topline">
+            <view>
+              <view class="status-title">
+                认证状态
+              </view>
+              <view class="status-copy">
+                {{ status.real_name_masked || '尚未提交实名资料' }}
+              </view>
+            </view>
+            <wd-tag :type="statusTone" variant="light">
+              {{ getRealNameStatusLabel(status.status, status.status__mapping || status.status_label) }}
+            </wd-tag>
+          </view>
+          <view v-if="status.id_number_masked" class="status-meta">
+            证件：{{ status.id_number_masked }}
+          </view>
+          <view v-if="status.failure_reason || status.review_note" class="status-reason">
+            {{ status.failure_reason || status.review_note }}
+          </view>
+        </view>
+
+        <view v-if="action" class="form-card">
+          <wd-input v-model="realName" label="真实姓名" clearable placeholder="请输入真实姓名" />
+          <wd-input v-model="idNumber" label="身份证号" type="idcard" clearable placeholder="请输入身份证号" />
+          <view class="section-title section-title--inside">
+            身份证照片
+          </view>
+          <view class="upload-grid">
+            <view v-for="side in (['front', 'back'] as const)" :key="side" class="upload-card" @click="uploadSide(side)">
+              <image v-if="selectionFor(side)?.url" class="id-card-image" :src="selectionFor(side)?.url" mode="aspectFill" />
+              <view v-else class="upload-placeholder">
+                <view class="i-carbon-cloud-upload upload-icon" /><text>{{ sideLabel(side) }}</text>
+              </view>
+              <wd-button size="mini" variant="plain" :loading="uploadingSide === side">
+                {{ selectionFor(side) ? '重新上传' : '选择图片' }}
+              </wd-button>
+            </view>
+          </view>
+          <wd-button block size="large" :loading="submitting" @click="submit">
+            {{ action === 'retry' ? '重新提交' : '提交实名认证' }}
+          </wd-button>
+        </view>
+
+        <AppNotice
+          v-if="action"
+          class="prerequisite-notice"
+          :tone="appContextStore.user?.phone_verified ? 'success' : 'warning'"
+          :title="appContextStore.user?.phone_verified ? '可以提交实名资料' : '请先验证手机号'"
+          :description="appContextStore.user?.phone_verified ? '手机号已验证，填写并上传证件资料后即可提交。' : '未验证手机号时无法提交实名资料，请先在账户设置中完成验证。'"
+          compact
+        />
+
+        <view v-else-if="status.id_card_media?.length" class="preview-card">
+          <view class="section-title">
+            证件资料
+          </view>
+          <view class="upload-grid">
+            <view v-for="item in status.id_card_media" :key="`${item.side}-${item.media_id}`" class="upload-card readonly">
+              <image class="id-card-image" :src="item.thumbnail || item.url || ''" mode="aspectFill" />
+              <text>{{ sideLabel(item.side) }}</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="section-title">
+          认证记录
+        </view>
+        <view v-if="logs.length" class="log-list">
+          <view v-for="(item, index) in logs" :key="`${item.created_at}-${index}`" class="log-card">
+            <view class="log-topline">
+              <strong>{{ item.action__mapping || item.action_label }}</strong><text>{{ formatDateTime(item.created_at) }}</text>
+            </view>
+            <view v-if="item.note" class="log-note">
+              {{ item.note }}
+            </view>
+          </view>
+        </view>
+        <view v-else class="empty-card">
+          暂无认证记录
+        </view>
+      </template>
+    </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
 .account-page {
   min-height: 100vh;
-  padding: 24rpx 24rpx 56rpx;
+  padding: 40rpx 40rpx 72rpx;
   background: var(--app-bg-page);
   box-sizing: border-box;
 }
@@ -236,8 +256,24 @@ onShow(() => void loadRealName())
 .log-card,
 .empty-card {
   padding: 28rpx;
-  border-radius: 24rpx;
+  border-radius: 32rpx;
   background: var(--app-bg-card);
+}
+.status-card {
+  border: 1rpx solid var(--app-border-brand-soft);
+  background: var(--app-bg-brand-soft);
+}
+.status-card--warning {
+  border-color: #f1d49c;
+  background: #fff8eb;
+}
+.status-card--success {
+  border-color: #bfe5d6;
+  background: #ecf9f3;
+}
+.status-card--danger {
+  border-color: #f1c7c7;
+  background: #fff1f1;
 }
 .status-topline,
 .log-topline {
@@ -274,7 +310,19 @@ onShow(() => void loadRealName())
 }
 .form-card,
 .preview-card {
-  margin-top: 22rpx;
+  margin-top: 28rpx;
+}
+.form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 22rpx;
+}
+:deep(.form-card .wd-input) {
+  min-height: 104rpx;
+  padding: 12rpx 22rpx;
+  border: 1rpx solid var(--app-border-color);
+  border-radius: 24rpx;
+  box-sizing: border-box;
 }
 .upload-grid {
   display: grid;
@@ -318,6 +366,14 @@ onShow(() => void loadRealName())
   color: var(--app-text-secondary);
   font-size: 25rpx;
   font-weight: 600;
+}
+.section-title--inside {
+  margin: 10rpx 0 0;
+  color: var(--app-text-primary);
+  font-size: 27rpx;
+}
+.prerequisite-notice {
+  margin-top: 28rpx;
 }
 .log-list {
   display: flex;

@@ -25,5 +25,5 @@ export const EXCLUDE_LOGIN_PATH_LIST = [
   ...excludeLoginPathList, // 都是以 / 开头的 path
 ]
 
-// 小程序与 H5 共用登录页，并提供短信验证码、邮箱密码和微信快捷登录。
+// 小程序与 H5 共用登录页，并提供短信验证码、手机号密码和微信快捷登录。
 export const LOGIN_PAGE_ENABLE_IN_MP = true

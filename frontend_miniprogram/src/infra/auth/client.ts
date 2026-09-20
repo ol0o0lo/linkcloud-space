@@ -1,6 +1,6 @@
 import type { AllauthResponse } from '@/domain/auth'
 import { getAllauthErrorMessage } from '@/domain/auth'
-import { getHttpSessionToken, runtimeHttpClient } from '@/infra/http/runtime'
+import { runtimeHttpClient } from '@/infra/http/runtime'
 import { AppError } from '@/core/errors/app-error'
 import { platform } from '@/platform'
 
@@ -21,10 +21,6 @@ interface AuthRequestOptions {
   data?: Record<string, unknown>
   sessionToken?: string
   acceptedStatusCodes?: number[]
-}
-
-function currentAuthRequest<TUser = Record<string, unknown>>(path: string, options: Omit<AuthRequestOptions, 'sessionToken'> = {}) {
-  return authRequest<TUser>(path, { ...options, sessionToken: getHttpSessionToken() })
 }
 
 async function authRequest<TUser = Record<string, unknown>>(path: string, options: AuthRequestOptions = {}): Promise<AllauthResponse<TUser>> {
@@ -54,6 +50,10 @@ export interface AllauthUser {
   display?: string
 }
 
+export interface WechatMiniprogramConnection {
+  connected: boolean
+}
+
 export function getAuthSession(sessionToken: string) {
   return authRequest<AllauthUser>('/api/allauth/app/v1/auth/session', { sessionToken })
 }
@@ -62,10 +62,13 @@ export function logoutAuthSession(sessionToken: string) {
   return authRequest('/api/allauth/app/v1/auth/session', { method: 'DELETE', sessionToken })
 }
 
-export function loginWithEmail(email: string, password: string) {
+export function loginWithPhonePassword(phoneCountryCode: string, phoneNationalNumber: string, password: string) {
   return authRequest<AllauthUser>('/api/allauth/app/v1/auth/login', {
     method: 'POST',
-    data: { email, password },
+    data: {
+      phone: `${phoneCountryCode.trim()}${phoneNationalNumber.trim()}`,
+      password,
+    },
     acceptedStatusCodes: [200, 401],
   })
 }
@@ -105,70 +108,20 @@ export function confirmPhoneLoginCode(code: string, sessionToken: string) {
   })
 }
 
-export function authenticateMfaCode(code: string, sessionToken: string) {
-  return authRequest<AllauthUser>('/api/allauth/app/v1/auth/2fa/authenticate', {
-    method: 'POST',
-    data: { code },
-    sessionToken,
-  })
-}
-
-export function listAccountAuthenticators() {
-  return currentAuthRequest('/api/allauth/app/v1/account/authenticators')
-}
-
-export function getAccountTotpStatus() {
-  return currentAuthRequest('/api/allauth/app/v1/account/authenticators/totp', { acceptedStatusCodes: [200, 404] })
-}
-
-export function activateAccountTotp(code: string) {
-  return currentAuthRequest('/api/allauth/app/v1/account/authenticators/totp', { method: 'POST', data: { code } })
-}
-
-export function getAccountRecoveryCodes() {
-  return currentAuthRequest('/api/allauth/app/v1/account/authenticators/recovery-codes')
-}
-
-export function reauthenticateAccount(password: string) {
-  return currentAuthRequest('/api/allauth/app/v1/auth/reauthenticate', { method: 'POST', data: { password } })
-}
-
-export function getAccountWebauthnCreationOptions() {
-  return currentAuthRequest('/api/allauth/app/v1/account/authenticators/webauthn')
-}
-
-export function addAccountWebauthn(name: string, credential: Record<string, unknown>) {
-  return currentAuthRequest('/api/allauth/app/v1/account/authenticators/webauthn', { method: 'POST', data: { name, credential } })
-}
-
-export function updateAccountWebauthn(id: number, name: string) {
-  return currentAuthRequest('/api/allauth/app/v1/account/authenticators/webauthn', { method: 'PUT', data: { id, name } })
-}
-
-export function removeAccountWebauthn(authenticators: number[]) {
-  return currentAuthRequest('/api/allauth/app/v1/account/authenticators/webauthn', { method: 'DELETE', data: { authenticators } })
-}
-
-export function getMfaWebauthnRequestOptions(sessionToken: string) {
-  return authRequest('/api/allauth/app/v1/auth/webauthn/authenticate', { sessionToken })
-}
-
-export function submitMfaWebauthnCredential(credential: Record<string, unknown>, sessionToken: string) {
-  return authRequest<AllauthUser>('/api/allauth/app/v1/auth/webauthn/authenticate', { method: 'POST', data: { credential }, sessionToken })
-}
-
-export function getReauthWebauthnRequestOptions() {
-  return currentAuthRequest('/api/allauth/app/v1/auth/webauthn/reauthenticate')
-}
-
-export function submitReauthWebauthnCredential(credential: Record<string, unknown>) {
-  return currentAuthRequest('/api/allauth/app/v1/auth/webauthn/reauthenticate', { method: 'POST', data: { credential } })
-}
-
 export function getWechatLoginCode(): Promise<string> {
   return platform.auth.getLoginCredential().then((result) => {
     if ('reason' in result)
       throw new AppError({ kind: 'business', message: result.reason })
     return result.value
+  })
+}
+
+export function connectCurrentWechatMiniprogram(code: string) {
+  return runtimeHttpClient.request<WechatMiniprogramConnection, { code: string }>({
+    url: '/api/users/me/wechat-miniprogram/',
+    method: 'POST',
+    authRetry: 'never',
+    scope: { kind: 'personal' },
+    body: { code },
   })
 }

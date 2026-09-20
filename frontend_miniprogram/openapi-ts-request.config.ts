@@ -7,6 +7,15 @@ export default defineConfig([
     serversPath: './src/services/openapi',
     requestLibPath: `import request from '@/http/vue-query';\n import { CustomRequestOptions_ } from '@/http/types';`,
     requestOptionsType: 'CustomRequestOptions_',
+    hook: {
+      afterOpenApiDataInited(openAPIData) {
+        for (const path of Object.keys(openAPIData.paths || {})) {
+          if (/\/mfa\//i.test(path) || /\/reset-mfa\//i.test(path))
+            delete openAPIData.paths[path]
+        }
+        return openAPIData
+      },
+    },
     isGenReactQuery: false,
     reactQueryMode: 'vue',
     isGenJavaScript: false,

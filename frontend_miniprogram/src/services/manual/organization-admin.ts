@@ -26,7 +26,7 @@ import type {
 import type { TenantDispatchScope } from '@/domain/organization-admin'
 import { organizationAdminRequestOptions } from '@/domain/organization-admin'
 import { httpGet } from '@/http/http'
-import { collectAllPages } from '@/shared/pagination/collectAllPages'
+import { collectAllPages } from '@/utils/pagination/collectAllPages'
 import { accessNavigationUsingGet } from '@/services/openapi/daohangnengli'
 import {
   organizationMembersMemberIdUsingDelete,

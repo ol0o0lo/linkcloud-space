@@ -24,12 +24,14 @@ import {
   removeOrganizationTeamRole,
   removeOrganizationTeamRoleBinding,
 } from '@/features/organization-admin/service'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
-import { createLatestRequestGuard } from '@/shared/composables/useAsyncTask'
+import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import { createLatestRequestGuard } from '@/hooks/useAsyncTask'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '角色与授权' } })
+definePage({ style: { navigationBarTitleText: '角色与授权', navigationStyle: 'custom' } })
 
 type Binding = OrganizationBindingOut | TeamBindingOut
 
@@ -300,6 +302,7 @@ onUnload(closeRoleMembers)
 
 <template>
   <view class="page-shell">
+    <AppCustomNavigation title="角色与授权" back scroll-mode="sticky" />
     <wd-toast />
     <AppLoading v-if="loading" text="正在加载角色与授权…" />
     <AppErrorView v-else-if="loadError" title="角色与授权加载失败" :message="loadError" @retry="loadRoles" />
@@ -346,58 +349,60 @@ onUnload(closeRoleMembers)
         </view>
       </view>
     </template>
-    <wd-popup v-model="editorVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 32rpx 26rpx;">
-      <view class="popup-title">
-        {{ editingRole ? '编辑角色' : '新建角色' }}
-      </view>
-      <wd-input v-model="roleName" label="角色名称" clearable />
-      <wd-input v-model="roleDescription" label="用途说明" clearable />
-      <scroll-view scroll-y class="permission-list">
+    <AppBottomSheet v-model:visible="editorVisible" :title="editingRole ? '编辑角色' : '新建角色'" height="tall">
+      <view class="flex flex-col gap-2">
+        <wd-input v-model="roleName" label="角色名称" clearable />
+        <wd-input v-model="roleDescription" label="用途说明" clearable />
         <wd-checkbox-group v-model="permissionKeys" shape="square">
           <wd-checkbox v-for="permission in permissions" :key="permission.key" :name="permission.key">
             {{ permission.name }}
           </wd-checkbox>
         </wd-checkbox-group>
-      </scroll-view>
-      <view class="permission-tip">
-        当前可分配 {{ permissions.length }} 项权限
       </view>
-      <wd-button block :loading="saving" :disabled="saving" @click="saveRole">
-        保存角色
-      </wd-button>
-    </wd-popup>
-    <wd-popup v-model="bindingVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 32rpx 26rpx;">
-      <view class="popup-title">
-        新增角色授权
-      </view>
+      <template #footer>
+        <view class="w-full flex items-center gap-2">
+          <view class="min-w-0 flex-1 text-xs text-content-muted">
+            当前可分配 {{ permissions.length }} 项权限
+          </view>
+          <wd-button :loading="saving" :disabled="saving" @click="saveRole">
+            保存角色
+          </wd-button>
+        </view>
+      </template>
+    </AppBottomSheet>
+    <AppBottomSheet v-model:visible="bindingVisible" title="新增角色授权" height="compact">
       <wd-cell title="角色" :value="selectedBindingRole?.name || '请选择角色'" is-link @click="bindingRolePickerVisible = true" />
       <wd-cell title="成员" :value="selectedBindingMember ? (((selectedBindingMember.user.first_name || '') + (selectedBindingMember.user.last_name || '')) || selectedBindingMember.user.username) : '请先选择角色'" :is-link="Boolean(selectedBindingRole)" @click="selectedBindingRole && (bindingMemberPickerVisible = true)" />
-      <wd-button block :loading="saving" :disabled="saving" @click="saveBinding">
-        保存授权
-      </wd-button>
-    </wd-popup>
+      <template #footer>
+        <wd-button block :loading="saving" :disabled="saving" @click="saveBinding">
+          保存授权
+        </wd-button>
+      </template>
+    </AppBottomSheet>
     <wd-picker v-model="bindingRoleSelection" v-model:visible="bindingRolePickerVisible" :columns="bindingRoleOptions" title="选择角色" @confirm="selectBindingRole" />
     <wd-picker v-model="bindingMemberSelection" v-model:visible="bindingMemberPickerVisible" :columns="bindingMemberOptions" title="选择成员" />
     <wd-picker v-model="scopeSelection" v-model:visible="scopePickerVisible" :columns="roleScopeOptions" title="选择角色适用范围" @confirm="switchRoleScope" />
-    <wd-popup v-model="membersVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 32rpx 26rpx; max-height: 80vh; overflow: auto;" @close="closeRoleMembers">
-      <view class="popup-title">
-        {{ selectedRole?.name }}的成员
+    <AppBottomSheet v-model:visible="membersVisible" :title="`${selectedRole?.name || ''}的成员`" height="tall" @close="closeRoleMembers">
+      <view class="flex flex-col gap-1.5">
+        <view v-for="item in roleMembers" :key="item.member_id" class="member-row">
+          <view><strong>{{ ((item.user.first_name || '') + (item.user.last_name || '')) || item.user.username }}</strong><text>{{ item.user.email || item.user.username }}</text></view><wd-button size="small" :type="item.assigned ? 'danger' : 'primary'" :variant="item.assigned ? 'plain' : 'base'" :loading="submitting === item.user.id" :disabled="submitting !== null || !canManage" @click="toggleRoleMember(item)">
+            {{ item.assigned ? '移出' : '加入' }}
+          </wd-button>
+        </view>
       </view>
-      <view v-for="item in roleMembers" :key="item.member_id" class="member-row">
-        <view><strong>{{ ((item.user.first_name || '') + (item.user.last_name || '')) || item.user.username }}</strong><text>{{ item.user.email || item.user.username }}</text></view><wd-button size="small" :type="item.assigned ? 'danger' : 'primary'" :variant="item.assigned ? 'plain' : 'base'" :loading="submitting === item.user.id" :disabled="submitting !== null || !canManage" @click="toggleRoleMember(item)">
-          {{ item.assigned ? '移出' : '加入' }}
-        </wd-button>
-      </view>
-    </wd-popup>
+    </AppBottomSheet>
   </view>
 </template>
 
 <style scoped lang="scss">
 .page-shell {
   min-height: 100vh;
-  padding: 24rpx 24rpx 56rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
   box-sizing: border-box;
+}
+.page-shell :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 24rpx;
 }
 .scope-card,
 .record-card,
@@ -460,23 +465,7 @@ onUnload(closeRoleMembers)
 .action-row {
   flex-direction: column;
 }
-.popup-title {
-  margin-bottom: 18rpx;
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
-}
-.permission-tip {
-  margin: 16rpx 0;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.permission-list {
-  max-height: 420rpx;
-  margin-bottom: 18rpx;
-}
 .member-row {
-  margin-top: 12rpx;
   background: var(--app-bg-page);
 }
 </style>

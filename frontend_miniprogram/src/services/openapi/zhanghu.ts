@@ -139,6 +139,90 @@ export function usersAuthBrowserSignupUsingPost({
   });
 }
 
+/** 确认小程序码电脑登录 POST /api/users/auth/wechat-miniprogram/pc-login/confirm/ */
+export function usersAuthWechatMiniprogramPcLoginConfirmUsingPost({
+  body,
+  options,
+}: {
+  body: API.WechatMiniprogramPcLoginConfirmIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<unknown>(
+    '/api/users/auth/wechat-miniprogram/pc-login/confirm/',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 创建小程序码电脑登录二维码 POST /api/users/auth/wechat-miniprogram/qr/ */
+export function usersAuthWechatMiniprogramQrUsingPost({
+  body,
+  options,
+}: {
+  body: API.WechatOfficialQrCreateIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.WechatOfficialQrOut>(
+    '/api/users/auth/wechat-miniprogram/qr/',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 查询小程序码电脑登录状态 GET /api/users/auth/wechat-miniprogram/qr/${param0}/ */
+export function usersAuthWechatMiniprogramQrLoginIdUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.UsersAuthWechatMiniprogramQrLoginIdUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { login_id: param0, ...queryParams } = params;
+
+  return request<API.WechatOfficialQrStatusOut>(
+    `/api/users/auth/wechat-miniprogram/qr/${param0}/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 完成小程序码电脑登录 POST /api/users/auth/wechat-miniprogram/qr/${param0}/complete/ */
+export function usersAuthWechatMiniprogramQrLoginIdCompleteUsingPost({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.UsersAuthWechatMiniprogramQrLoginIdCompleteUsingPostParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { login_id: param0, ...queryParams } = params;
+
+  return request<unknown>(
+    `/api/users/auth/wechat-miniprogram/qr/${param0}/complete/`,
+    {
+      method: 'POST',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 创建公众号扫码登录二维码 POST /api/users/auth/wechat-official/qr/ */
 export function usersAuthWechatOfficialQrUsingPost({
   body,
@@ -227,39 +311,6 @@ export function usersMeUsingGet({
   options?: CustomRequestOptions_;
 }) {
   return request<API.MeOut>('/api/users/me/', {
-    method: 'GET',
-    ...(options || {}),
-  });
-}
-
-/** 删除当前用户的 MFA 认证器 删除当前登录用户指定类型的 MFA 认证器。 DELETE /api/users/me/mfa/authenticators/${param0}/ */
-export function usersMeMfaAuthenticatorsAuthenticatorTypeUsingDelete({
-  params,
-  options,
-}: {
-  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
-  params: API.UsersMeMfaAuthenticatorsAuthenticatorTypeUsingDeleteParams;
-  options?: CustomRequestOptions_;
-}) {
-  const { authenticator_type: param0, ...queryParams } = params;
-
-  return request<Record<string, unknown>>(
-    `/api/users/me/mfa/authenticators/${param0}/`,
-    {
-      method: 'DELETE',
-      params: { ...queryParams },
-      ...(options || {}),
-    }
-  );
-}
-
-/** 获取 TOTP 初始化信息 返回当前用户可用于初始化 TOTP 的密钥和 otpauth URL。 GET /api/users/me/mfa/totp-setup/ */
-export function usersMeMfaTotpSetupUsingGet({
-  options,
-}: {
-  options?: CustomRequestOptions_;
-}) {
-  return request<API.TotpSetupOut>('/api/users/me/mfa/totp-setup/', {
     method: 'GET',
     ...(options || {}),
   });

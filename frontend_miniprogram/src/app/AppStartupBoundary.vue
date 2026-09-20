@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
 import { shouldBypassStartupBoundary } from '@/modules/routes'
 import { useRuntimeStore } from '@/store/runtime'
 import { currRoute } from '@/utils'

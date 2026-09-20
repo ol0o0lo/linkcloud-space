@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { useAsyncTask } from '../src/shared/composables/useAsyncTask.ts'
-import { usePagedQuery } from '../src/shared/composables/usePagedQuery.ts'
+import { useAsyncTask } from '../src/hooks/useAsyncTask.ts'
+import { usePagedQuery } from '../src/hooks/usePagedQuery.ts'
 
 function deferred<T>() {
   let resolve: (value: T) => void = () => undefined

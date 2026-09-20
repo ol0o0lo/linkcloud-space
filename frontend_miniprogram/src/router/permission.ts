@@ -1,8 +1,8 @@
 import { findModuleByRoute, isPublicRoute } from '@/modules/registry'
-import { APP_ROUTES, isProtectedAccountRoute, normalizeAppRoutePath } from '@/modules/routes'
+import { APP_ROUTES, getLoginRoute, isProtectedAccountRoute, isProtectedMessageRoute, normalizeAppRoutePath } from '@/modules/routes'
 import { useAppContextStore } from '@/store/app-context-v2'
 import { tabbarStore } from '@/tabbar/store'
-import { isTabbarShellRoute, isVisibleTabbarRoute } from '@/tabbar/config'
+import { isAvailableTabbarShellRoute, isTabbarShellRoute } from '@/tabbar/config'
 
 const shellRoutes: readonly string[] = [APP_ROUTES.login, APP_ROUTES.register, APP_ROUTES.startupError, APP_ROUTES.forbidden, APP_ROUTES.notFound]
 
@@ -13,19 +13,19 @@ export function resolveRouteAccess(path: string) {
     return { allowed: true, redirect: '' }
 
   if (isTabbarShellRoute(path)) {
-    return isVisibleTabbarRoute(appContextStore.navigationMode, path)
+    return isAvailableTabbarShellRoute(appContextStore.navigationMode, path)
       ? { allowed: true, redirect: '' }
       : { allowed: false, redirect: APP_ROUTES.forbidden }
   }
 
-  if (isProtectedAccountRoute(path) && !appContextStore.authenticated)
-    return { allowed: false, redirect: `${APP_ROUTES.login}?redirect=${encodeURIComponent(path)}` }
+  if ((isProtectedAccountRoute(path) || isProtectedMessageRoute(path)) && !appContextStore.authenticated)
+    return { allowed: false, redirect: getLoginRoute(path) }
 
   const module = findModuleByRoute(path)
   if (!module)
     return { allowed: false, redirect: APP_ROUTES.notFound }
   if (module.requiresAuth && !appContextStore.authenticated)
-    return { allowed: false, redirect: `${APP_ROUTES.login}?redirect=${encodeURIComponent(path)}` }
+    return { allowed: false, redirect: getLoginRoute(path) }
   if (!appContextStore.visibleModules.some(item => item.key === module.key))
     return { allowed: false, redirect: APP_ROUTES.forbidden }
   return { allowed: true, redirect: '' }

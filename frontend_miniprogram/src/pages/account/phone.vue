@@ -7,8 +7,10 @@ import { APP_ROUTES } from '@/modules/routes'
 import { useAppContextStore } from '@/store/app-context-v2'
 import { useSessionStore } from '@/store/session'
 import { isPageTabbar } from '@/tabbar/store'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppPage from '@/components/app/AppPage.vue'
 
-definePage({ style: { navigationBarTitleText: '验证手机号' } })
+definePage({ style: { navigationBarTitleText: '验证手机号', navigationStyle: 'custom' } })
 
 const sessionStore = useSessionStore()
 const appContextStore = useAppContextStore()
@@ -114,51 +116,62 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="phone-page">
-    <view class="phone-card">
-      <view class="phone-icon i-carbon-phone" />
-      <view class="phone-title">
-        验证手机号后继续
-      </view>
-      <view class="phone-copy">
-        预约看房会使用已验证手机号建立或匹配当前组织的租客联系人。
+  <AppPage variant="form" gutter="none">
+    <template #navigation>
+      <AppCustomNavigation title="验证手机号" back scroll-mode="sticky" />
+    </template>
+    <view class="phone-page">
+      <view class="phone-hero">
+        <view class="phone-icon i-carbon-phone" />
+        <view class="phone-title">
+          继续预约看房
+        </view>
+        <view class="phone-copy">
+          完成手机号验证后，将用于建立或匹配当前组织的租客联系人。
+        </view>
       </view>
 
       <!-- #ifdef MP-WEIXIN -->
       <wd-button block size="large" open-type="getPhoneNumber" :loading="loading" @getphonenumber="bindWechatPhone">
         使用微信手机号
       </wd-button>
+      <view class="phone-divider">
+        或使用短信验证码
+      </view>
       <!-- #endif -->
 
-      <!-- #ifndef MP-WEIXIN -->
       <view class="phone-form">
         <wd-input v-model="phoneCountryCode" label="区号" readonly />
         <wd-input v-model="phoneNationalNumber" label="手机号" type="number" clearable placeholder="请输入手机号" />
         <wd-input v-if="codeSent" v-model="code" label="验证码" type="number" clearable placeholder="请输入短信验证码" />
-        <wd-button block size="large" :loading="loading || sending" @click="verifyCode">
-          {{ codeSent ? '确认验证' : '发送验证码' }}
-        </wd-button>
         <view v-if="codeSent" class="resend" @click="sendCode">
           重新发送验证码
         </view>
+        <wd-button block size="large" :loading="loading || sending" @click="verifyCode">
+          {{ codeSent ? '验证并继续' : '获取验证码' }}
+        </wd-button>
       </view>
-      <!-- #endif -->
     </view>
-  </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
 .phone-page {
-  min-height: 100vh;
-  padding: 56rpx 28rpx;
+  min-height: inherit;
+  padding: 48rpx 40rpx 28rpx;
   box-sizing: border-box;
   background: var(--app-bg-page);
 }
-.phone-card {
-  padding: 44rpx 32rpx;
-  border-radius: 28rpx;
+.phone-hero {
+  display: flex;
+  min-height: 320rpx;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32rpx;
+  border-radius: 40rpx;
+  box-sizing: border-box;
   background: var(--app-bg-card);
-  box-shadow: var(--app-shadow-card);
 }
 .phone-icon {
   color: var(--app-color-brand);
@@ -167,19 +180,35 @@ onLoad((options) => {
 .phone-title {
   margin-top: 24rpx;
   color: var(--app-text-primary);
-  font-size: 38rpx;
+  font-size: 34rpx;
   font-weight: 700;
 }
 .phone-copy {
-  margin: 16rpx 0 36rpx;
+  margin-top: 12rpx;
   color: var(--app-text-muted);
-  font-size: 25rpx;
+  font-size: 22rpx;
+  text-align: center;
   line-height: 1.7;
 }
 .phone-form {
   display: flex;
   flex-direction: column;
-  gap: 22rpx;
+  gap: 28rpx;
+  margin-top: 32rpx;
+}
+.phone-divider {
+  margin-top: 48rpx;
+  color: var(--app-text-muted);
+  font-size: 22rpx;
+  text-align: center;
+}
+:deep(.phone-form .wd-input) {
+  min-height: 112rpx;
+  padding: 16rpx 28rpx;
+  border: 1rpx solid var(--app-border-color);
+  border-radius: 28rpx;
+  box-sizing: border-box;
+  background: var(--app-bg-card);
 }
 .resend {
   color: var(--app-color-primary);

@@ -1,0 +1,124 @@
+.detail-card {
+  box-sizing: border-box;
+  margin: 10px 12px 0;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid var(--house-line, #e7ecf2);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
+  margin-bottom: 8px;
+  color: #182538;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.detail-meta {
+  color: #78869a;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.detail-text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  color: #006bcc;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.5;
+  background: transparent;
+
+  &::after {
+    border: 0;
+  }
+}
+
+.detail-action-icon {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #52647b;
+  font-size: 10px;
+  line-height: 15px;
+  background: transparent;
+
+  &::after {
+    border: 0;
+  }
+}
+
+.detail-action-icon__glyph {
+  font-size: 20px;
+}
+
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  --wot-button-height-medium: 44px;
+  --wot-button-font-size-medium: 13px;
+  --wot-button-radius-main: 10px;
+  --wot-button-primary-bg: #0081ff;
+  --wot-button-primary-color: #344c68;
+  --wot-button-primary-plain-border: #d8e2ee;
+}
+
+.detail-action-primary {
+  min-width: 0;
+  flex: 1;
+}
+.detail-action-secondary {
+  width: 117px;
+  flex: none;
+}
+
+.detail-page-end {
+  padding: 26px 12px 22px;
+  color: #78869a;
+  font-size: 10px;
+  line-height: 19px;
+  text-align: center;
+}
+
+.detail-sheet-cancel {
+  width: 100%;
+  min-height: 44px;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 1px solid #e7ecf2;
+  border-radius: 10px;
+  color: #526177;
+  font-size: 13px;
+  line-height: 42px;
+  background: #f8fafc;
+}
+.detail-sheet-cancel::after {
+  border: 0;
+}
+
+.detail-value {
+  font-weight: 600;
+}

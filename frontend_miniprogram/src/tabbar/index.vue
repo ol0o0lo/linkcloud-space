@@ -10,6 +10,12 @@ defineOptions({
 // #endif
 
 const activePath = computed(() => tabbarStore.currentPath || tabbarList.value[0]?.pagePath || '')
+const tabbarStyle = [
+  '--wot-tabbar-height: var(--app-tabbar-height)',
+  '--wot-tabbar-bg: var(--app-tabbar-background)',
+  '--wot-tabbar-item-title-font-size: var(--app-tabbar-title-size)',
+  '--wot-tabbar-item-title-line-height: var(--app-tabbar-title-line-height)',
+].join(';')
 
 function handleChange({ value }: { value: string | number }) {
   const url = String(value)
@@ -33,10 +39,12 @@ onLoad(() => {
 <template>
   <wd-tabbar
     :model-value="activePath"
-    bordered safe-area-inset-bottom placeholder fixed
+    bordered safe-area-inset-bottom fixed
+    custom-class="app-role-tabbar"
+    :custom-style="tabbarStyle"
     :z-index="1000"
     active-color="var(--app-color-brand)"
-    inactive-color="var(--app-text-secondary)"
+    inactive-color="var(--app-tabbar-inactive-color)"
     @change="handleChange"
   >
     <wd-tabbar-item
@@ -47,9 +55,31 @@ onLoad(() => {
       :value="typeof item.badge === 'number' ? item.badge : undefined"
       :is-dot="item.badge === 'dot'"
     >
-      <template #icon>
-        <view :class="item.icon" class="text-22px" />
+      <template #icon="{ active }">
+        <view
+          class="app-role-tabbar__icon"
+          :class="[item.icon, { 'app-role-tabbar__icon--active': active }]"
+        />
       </template>
     </wd-tabbar-item>
   </wd-tabbar>
 </template>
+
+<style scoped lang="scss">
+.app-role-tabbar__icon {
+  width: 1em;
+  height: 1em;
+  color: var(--app-tabbar-inactive-color);
+  font-size: var(--app-tabbar-icon-size);
+  line-height: 1;
+  transition: color 160ms ease;
+}
+
+.app-role-tabbar__icon--active {
+  color: var(--app-color-brand);
+}
+
+:deep(.app-role-tabbar .wd-tabbar-item__body) {
+  gap: 2rpx;
+}
+</style>

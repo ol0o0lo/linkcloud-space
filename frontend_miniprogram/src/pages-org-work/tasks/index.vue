@@ -15,12 +15,18 @@ import {
   listOrganizationWorkTeams,
 } from '@/features/organization-work/service'
 import { getOrganizationTaskDetailRoute } from '@/modules/routes'
-import AppListState from '@/shared/components/AppListState.vue'
-import { createLatestRequestGuard, useAsyncTask } from '@/shared/composables/useAsyncTask'
-import { usePagedQuery } from '@/shared/composables/usePagedQuery'
+import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
+import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import { createLatestRequestGuard, useAsyncTask } from '@/hooks/useAsyncTask'
+import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '团队任务', enablePullDownRefresh: true } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '团队任务', enablePullDownRefresh: true } })
 
 interface SegmentedOption { value: string | number }
 interface PickerConfirmEvent { value: Array<string | number> }
@@ -64,30 +70,62 @@ const taskDueAtLabel = computed(() => taskDueAt.value === null ? '不设置' : n
 const statusOptions = computed(() => scope.value === 'mine'
   ? [{ label: '全部', value: '' }, { label: '待接受', value: 'pending' }, { label: '进行中', value: 'in_progress' }, { label: '已完成', value: 'completed' }]
   : [{ label: '全部', value: '' }, { label: '进行中', value: 'active' }, { label: '已完成', value: 'completed' }, { label: '已取消', value: 'cancelled' }])
-const assignmentQuery = usePagedQuery<TaskAssignmentOut>(({ page, pageSize }) => listOrganizationTaskAssignments(appContextStore.organizationSlug, page, pageSize, {
-  status: status.value || undefined,
-  keyword: keyword.value.trim() || undefined,
-}), { pageSize: 15 })
-const teamTaskQuery = usePagedQuery<WorkTaskOut>(({ page, pageSize }) => listOrganizationWorkTasks(appContextStore.organizationSlug, page, pageSize, {
-  status: status.value || undefined,
-  keyword: keyword.value.trim() || undefined,
-}), { pageSize: 15 })
+const assignmentPage = usePagedPage<TaskAssignmentOut>({
+  loader: ({ page, pageSize }) => listOrganizationTaskAssignments(appContextStore.organizationSlug, page, pageSize, {
+    status: status.value || undefined,
+    keyword: keyword.value.trim() || undefined,
+  }),
+  pageSize: 15,
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
+const teamTaskPage = usePagedPage<WorkTaskOut>({
+  loader: ({ page, pageSize }) => listOrganizationWorkTasks(appContextStore.organizationSlug, page, pageSize, {
+    status: status.value || undefined,
+    keyword: keyword.value.trim() || undefined,
+  }),
+  pageSize: 15,
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
 
-const activeQuery = computed(() => scope.value === 'mine' ? assignmentQuery : teamTaskQuery)
+const activePage = computed(() => scope.value === 'mine' ? assignmentPage : teamTaskPage)
+const hasTaskFilters = computed(() => Boolean(status.value || keyword.value.trim()))
+const mineEmptyTitle = computed(() => hasTaskFilters.value ? '当前筛选下没有我的任务' : '暂无待处理任务')
+const mineEmptyDescription = computed(() => hasTaskFilters.value
+  ? '可以清除搜索和状态筛选，查看其他任务。'
+  : '新任务分配给你后会显示在这里。')
+const teamEmptyTitle = computed(() => hasTaskFilters.value ? '当前筛选下没有团队任务' : '还没有团队任务')
+const teamEmptyDescription = computed(() => hasTaskFilters.value
+  ? '可以清除搜索和状态筛选，查看全部团队任务。'
+  : canManageTasks.value
+    ? '创建任务并分配执行人，方便团队持续跟进。'
+    : '团队创建任务后会显示在这里。')
 
 async function refreshList() {
-  try {
-    await activeQuery.value.refresh()
+  await activePage.value.refresh()
+}
+
+async function clearTaskFilters() {
+  keyword.value = ''
+  status.value = ''
+  await refreshList()
+}
+
+async function handleTeamEmptyAction() {
+  if (hasTaskFilters.value) {
+    await clearTaskFilters()
+    return
   }
-  catch { /* 错误由分页状态展示 */ }
-  finally { uni.stopPullDownRefresh() }
+  await openCreate()
 }
 
 async function loadMore() {
-  try {
-    await activeQuery.value.loadMore()
-  }
-  catch { /* 错误由分页状态展示 */ }
+  await activePage.value.loadMore()
 }
 
 async function loadCapabilities() {
@@ -239,211 +277,177 @@ onReachBottom(() => void loadMore())
 </script>
 
 <template>
-  <view class="tasks-page">
+  <AppPage variant="list">
+    <template #navigation>
+      <AppCustomNavigation title="团队任务" back scroll-mode="sticky" />
+    </template>
     <wd-toast />
-    <view class="toolbar-card">
-      <view class="toolbar-line">
-        <wd-segmented :value="scope" :options="scopeOptions" @change="changeScope">
+    <AppListToolbar v-model:keyword="keyword" card search-placeholder="搜索任务标题或描述" @search="refreshList" @clear="refreshList">
+      <template #before>
+        <view class="flex items-center gap-2">
+          <wd-segmented class="min-w-0 flex-1" :value="scope" :options="scopeOptions" @change="changeScope">
+            <template #label="{ option }">
+              {{ option.label }}
+            </template>
+          </wd-segmented>
+          <wd-button v-if="canManageTasks" size="small" @click="openCreate">
+            创建任务
+          </wd-button>
+        </view>
+      </template>
+      <template #filters>
+        <wd-segmented :value="status" :options="statusOptions" theme="outline" @change="changeStatus">
           <template #label="{ option }">
             {{ option.label }}
           </template>
         </wd-segmented>
-        <wd-button v-if="canManageTasks" size="small" @click="openCreate">
+      </template>
+    </AppListToolbar>
+
+    <view class="mt-2.5">
+      <AppPagedList
+        v-if="scope === 'mine'"
+        :items="assignmentPage.items.value"
+        item-key="id"
+        :loading="assignmentPage.loading.value"
+        :refreshing="assignmentPage.refreshing.value"
+        :loading-more="assignmentPage.loadingMore.value"
+        :finished="assignmentPage.finished.value"
+        :error="assignmentPage.error.value"
+        loading-text="正在加载任务…"
+        :empty-text="mineEmptyTitle"
+        :empty-description="mineEmptyDescription"
+        empty-icon="no-content"
+        :empty-action-text="hasTaskFilters ? '清除筛选' : ''"
+        finished-text="没有更多任务了"
+        @empty-action="clearTaskFilters"
+        @retry="refreshList"
+      >
+        <template #item="{ item }">
+          <AppRecordCard clickable @click="openAssignment(item)">
+            <template #title>
+              {{ item.task_title }}
+            </template>
+            <template #status>
+              <wd-tag :type="getAssignmentStatusTone(item.status)" variant="light" size="small">
+                {{ item.status__mapping }}
+              </wd-tag>
+            </template>
+            <text class="description text-xs text-content-secondary">{{ item.task_description || '任务未填写补充说明' }}</text>
+            <view class="mt-2 flex items-center gap-2 text-xs text-content-muted">
+              <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
+                {{ item.priority__mapping }}
+              </wd-tag><wd-tag v-if="item.is_overdue" type="danger" variant="light" size="small">
+                已逾期
+              </wd-tag>
+            </view>
+            <template #meta>
+              <view class="app-row-between text-2xs">
+                <text>{{ item.team_name || '全组织' }}</text><text>截止 {{ formatOrganizationWorkDateTime(item.due_at) }}</text>
+              </view>
+            </template>
+          </AppRecordCard>
+        </template>
+      </AppPagedList>
+      <AppPagedList
+        v-else
+        :items="teamTaskPage.items.value"
+        item-key="id"
+        :loading="teamTaskPage.loading.value"
+        :refreshing="teamTaskPage.refreshing.value"
+        :loading-more="teamTaskPage.loadingMore.value"
+        :finished="teamTaskPage.finished.value"
+        :error="teamTaskPage.error.value"
+        loading-text="正在加载任务…"
+        :empty-text="teamEmptyTitle"
+        :empty-description="teamEmptyDescription"
+        empty-icon="no-content"
+        :empty-action-text="hasTaskFilters ? '清除筛选' : canManageTasks ? '创建任务' : ''"
+        finished-text="没有更多任务了"
+        @empty-action="handleTeamEmptyAction"
+        @retry="refreshList"
+      >
+        <template #item="{ item }">
+          <AppRecordCard clickable @click="openTask(item)">
+            <template #title>
+              {{ item.title }}
+            </template>
+            <template #status>
+              <wd-tag :type="getTaskStatusTone(item.status)" variant="light" size="small">
+                {{ item.status__mapping }}
+              </wd-tag>
+            </template>
+            <text class="description text-xs text-content-secondary">{{ item.description || '任务未填写补充说明' }}</text>
+            <view class="mt-2 flex items-center gap-2 text-xs text-content-muted">
+              <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
+                {{ item.priority__mapping }}
+              </wd-tag><text>{{ item.assignments?.length || 0 }} 位执行人</text>
+            </view>
+            <template #meta>
+              <view class="app-row-between text-2xs">
+                <text>{{ item.team_name || '全组织' }}</text><text>截止 {{ formatOrganizationWorkDateTime(item.due_at) }}</text>
+              </view>
+            </template>
+            <template v-if="getTaskActions(item).includes('cancel')" #actions>
+              <wd-button size="small" type="danger" variant="plain" :disabled="cancellingTaskId !== null" :loading="cancellingTaskId === item.id" @click.stop="cancelTask(item)">
+                取消任务
+              </wd-button>
+            </template>
+          </AppRecordCard>
+        </template>
+      </AppPagedList>
+    </view>
+
+    <AppBottomSheet v-model:visible="createVisible" title="创建团队任务" height="tall">
+      <view class="flex flex-col gap-2">
+        <wd-cell title="任务范围" :value="selectedCreateScopeLabel" is-link @click="createScopePickerVisible = true" />
+        <wd-picker v-model="selectedCreateScope" v-model:visible="createScopePickerVisible" :columns="createScopeOptions" title="选择任务范围" @confirm="changeCreateScope" />
+        <wd-input v-model="taskTitle" label="任务标题" placeholder="请输入任务标题" :maxlength="120" clearable />
+        <wd-textarea v-model="taskDescription" placeholder="补充任务目标与交付要求" :maxlength="1000" show-word-limit />
+        <wd-cell title="截止时间" :value="taskDueAtLabel" is-link @click="openTaskDueAtPicker" />
+        <wd-button v-if="taskDueAt !== null" size="small" variant="plain" @click="taskDueAt = null">
+          清除截止时间
+        </wd-button>
+        <wd-radio-group v-model="taskPriority" type="button" custom-class="priority-picker">
+          <wd-radio value="normal">
+            普通
+          </wd-radio><wd-radio value="high">
+            重要
+          </wd-radio><wd-radio value="urgent">
+            紧急
+          </wd-radio>
+        </wd-radio-group>
+        <view class="mt-2.5 text-xs text-content-primary font-semibold">
+          执行人{{ selectedAssigneeIds.length ? `（已选 ${selectedAssigneeIds.length} 人）` : '' }}
+        </view>
+        <view class="assignee-list">
+          <wd-checkbox-group v-model="selectedAssigneeIds" shape="square">
+            <wd-checkbox v-for="candidate in candidates" :key="candidate.id" :name="candidate.id" :disabled="candidatesLoading">
+              {{ formatOrganizationWorkUser(candidate) }}
+            </wd-checkbox>
+          </wd-checkbox-group>
+        </view>
+        <view v-if="selectedCreateScopeOption && !candidatesLoading && !candidates.length" class="mb-2.5 mt-1.5 text-xs text-content-muted">
+          所选任务范围没有可选执行人
+        </view>
+      </view>
+      <template #footer>
+        <wd-button block :loading="creating" :disabled="candidatesLoading" @click="submitTask">
           创建任务
         </wd-button>
-      </view>
-      <wd-search v-model="keyword" placeholder="搜索任务标题或描述" hide-cancel @search="refreshList" @clear="refreshList" />
-      <wd-segmented :value="status" :options="statusOptions" theme="outline" @change="changeStatus">
-        <template #label="{ option }">
-          {{ option.label }}
-        </template>
-      </wd-segmented>
-    </view>
-
-    <view v-if="scope === 'mine' && assignmentQuery.items.value.length" class="card-list">
-      <view v-for="item in assignmentQuery.items.value" :key="item.id" class="record-card" @click="openAssignment(item)">
-        <view class="card-topline">
-          <strong>{{ item.task_title }}</strong><wd-tag :type="getAssignmentStatusTone(item.status)" variant="light" size="small">
-            {{ item.status__mapping }}
-          </wd-tag>
-        </view>
-        <text class="description">{{ item.task_description || '任务未填写补充说明' }}</text>
-        <view class="tag-row">
-          <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
-            {{ item.priority__mapping }}
-          </wd-tag><wd-tag v-if="item.is_overdue" type="danger" variant="light" size="small">
-            已逾期
-          </wd-tag>
-        </view>
-        <view class="record-meta">
-          <text>{{ item.team_name || '全组织' }}</text><text>截止 {{ formatOrganizationWorkDateTime(item.due_at) }}</text>
-        </view>
-      </view>
-    </view>
-    <view v-else-if="scope === 'team' && teamTaskQuery.items.value.length" class="card-list">
-      <view v-for="item in teamTaskQuery.items.value" :key="item.id" class="record-card" @click="openTask(item)">
-        <view class="card-topline">
-          <strong>{{ item.title }}</strong><wd-tag :type="getTaskStatusTone(item.status)" variant="light" size="small">
-            {{ item.status__mapping }}
-          </wd-tag>
-        </view>
-        <text class="description">{{ item.description || '任务未填写补充说明' }}</text>
-        <view class="tag-row">
-          <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
-            {{ item.priority__mapping }}
-          </wd-tag><text>{{ item.assignments?.length || 0 }} 位执行人</text>
-        </view>
-        <view class="record-meta">
-          <text>{{ item.team_name || '全组织' }}</text><text>截止 {{ formatOrganizationWorkDateTime(item.due_at) }}</text>
-        </view>
-        <view v-if="getTaskActions(item).includes('cancel')" class="card-action">
-          <wd-button size="small" type="danger" variant="plain" :disabled="cancellingTaskId !== null" :loading="cancellingTaskId === item.id" @click.stop="cancelTask(item)">
-            取消任务
-          </wd-button>
-        </view>
-      </view>
-    </view>
-    <AppListState
-      :loading="activeQuery.loading.value"
-      :has-items="Boolean(activeQuery.items.value.length)"
-      :finished="activeQuery.finished.value"
-      :error-message="activeQuery.error.value?.message || ''"
-      loading-text="正在加载任务…"
-      empty-text="当前筛选下没有任务"
-      finished-text="没有更多任务了"
-      @retry="refreshList"
-    />
-
-    <wd-popup v-model="createVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 34rpx 28rpx 28rpx; max-height: 84vh; overflow: auto;">
-      <view class="popup-title">
-        创建团队任务
-      </view>
-      <wd-cell title="任务范围" :value="selectedCreateScopeLabel" is-link @click="createScopePickerVisible = true" />
-      <wd-picker v-model="selectedCreateScope" v-model:visible="createScopePickerVisible" :columns="createScopeOptions" title="选择任务范围" @confirm="changeCreateScope" />
-      <wd-input v-model="taskTitle" label="任务标题" placeholder="请输入任务标题" :maxlength="120" clearable />
-      <wd-textarea v-model="taskDescription" placeholder="补充任务目标与交付要求" :maxlength="1000" show-word-limit />
-      <wd-cell title="截止时间" :value="taskDueAtLabel" is-link @click="openTaskDueAtPicker" />
-      <wd-button v-if="taskDueAt !== null" size="small" variant="plain" @click="taskDueAt = null">
-        清除截止时间
-      </wd-button>
-      <wd-radio-group v-model="taskPriority" type="button" custom-class="priority-picker">
-        <wd-radio value="normal">
-          普通
-        </wd-radio><wd-radio value="high">
-          重要
-        </wd-radio><wd-radio value="urgent">
-          紧急
-        </wd-radio>
-      </wd-radio-group>
-      <view class="field-label">
-        执行人{{ selectedAssigneeIds.length ? `（已选 ${selectedAssigneeIds.length} 人）` : '' }}
-      </view>
-      <view class="assignee-list">
-        <wd-checkbox-group v-model="selectedAssigneeIds" shape="square">
-          <wd-checkbox v-for="candidate in candidates" :key="candidate.id" :name="candidate.id" :disabled="candidatesLoading">
-            {{ formatOrganizationWorkUser(candidate) }}
-          </wd-checkbox>
-        </wd-checkbox-group>
-      </view>
-      <view v-if="selectedCreateScopeOption && !candidatesLoading && !candidates.length" class="scope-tip">
-        所选任务范围没有可选执行人
-      </view>
-      <wd-button block :loading="creating" :disabled="candidatesLoading" @click="submitTask">
-        创建任务
-      </wd-button>
-    </wd-popup>
+      </template>
+    </AppBottomSheet>
     <wd-datetime-picker v-model="taskDueAtPickerValue" v-model:visible="taskDueAtPickerVisible" type="datetime" title="选择截止时间" @confirm="changeTaskDueAt" />
-  </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
-.tasks-page {
-  min-height: 100vh;
-  padding: 20rpx 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
-.toolbar-card {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  padding: 20rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.toolbar-line,
-.card-topline,
-.record-meta,
-.tag-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-.toolbar-line :deep(.wd-segmented) {
-  flex: 1;
-}
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  margin-top: 22rpx;
-}
-.record-card {
-  padding: 28rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-  box-shadow: var(--app-shadow-card);
-}
-.card-topline strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 29rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .description {
   display: -webkit-box;
   overflow: hidden;
-  margin-top: 14rpx;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
   line-height: 1.6;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-.tag-row {
-  justify-content: flex-start;
-  margin-top: 16rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.record-meta {
-  margin-top: 18rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.card-action {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 20rpx;
-}
-.popup-title {
-  color: var(--app-text-primary);
-  font-size: 34rpx;
-  font-weight: 700;
-}
-.scope-tip {
-  margin: 10rpx 0 20rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.field-label {
-  margin-top: 22rpx;
-  color: var(--app-text-primary);
-  font-size: 25rpx;
-  font-weight: 650;
 }
 .priority-picker {
   margin: 22rpx 0;

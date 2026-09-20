@@ -6,11 +6,16 @@ import { computed, ref } from 'vue'
 import { canManageTeam } from '@/domain/organization-admin'
 import { createOrganizationAdminTeam, getOrganizationAdminNavigation, listOrganizationAdminTeams, removeOrganizationAdminTeam } from '@/features/organization-admin/service'
 import { getOrganizationAdminTeamDetailRoute } from '@/modules/routes'
-import AppListState from '@/shared/components/AppListState.vue'
-import { usePagedQuery } from '@/shared/composables/usePagedQuery'
+import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
+import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '团队管理', enablePullDownRefresh: true } })
+definePage({ style: { navigationBarTitleText: '团队管理', navigationStyle: 'custom', enablePullDownRefresh: true } })
 
 const toast = useToast()
 const appContextStore = useAppContextStore()
@@ -23,16 +28,24 @@ const teamWechat = ref('')
 const creating = ref(false)
 const deleting = ref<number | null>(null)
 const canCreate = computed(() => navigation.value?.capabilities.team_create === true)
+const hasSearch = computed(() => Boolean(keyword.value.trim()))
 
-const teamQuery = usePagedQuery<TeamOut>(({ page, pageSize }) => listOrganizationAdminTeams(appContextStore.organizationSlug, page, pageSize, {
-  keyword: keyword.value.trim() || undefined,
-}), { pageSize: 15 })
+const teamPage = usePagedPage<TeamOut>({
+  loader: ({ page, pageSize }) => listOrganizationAdminTeams(appContextStore.organizationSlug, page, pageSize, {
+    keyword: keyword.value.trim() || undefined,
+  }),
+  pageSize: 15,
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
 
 async function refreshList() {
   try {
     const [nextNavigation] = await Promise.all([
       getOrganizationAdminNavigation(appContextStore.organizationSlug),
-      teamQuery.refresh(),
+      teamPage.refresh(),
     ])
     navigation.value = nextNavigation
   }
@@ -42,7 +55,7 @@ async function refreshList() {
 
 async function loadMore() {
   try {
-    await teamQuery.loadMore()
+    await teamPage.loadMore()
   }
   catch { /* 错误由分页状态展示 */ }
 }
@@ -91,100 +104,74 @@ function openTeam(item: TeamOut) {
   uni.navigateTo({ url: getOrganizationAdminTeamDetailRoute(item.id) })
 }
 
+function handleEmptyAction() {
+  if (hasSearch.value) {
+    keyword.value = ''
+    void refreshList()
+    return
+  }
+  if (canCreate.value)
+    createVisible.value = true
+}
+
 onShow(() => void refreshList())
 onPullDownRefresh(refreshList)
 onReachBottom(() => void loadMore())
 </script>
 
 <template>
-  <view class="page-shell">
+  <AppPage variant="list">
+    <template #navigation>
+      <AppCustomNavigation title="团队管理" back scroll-mode="sticky" />
+    </template>
     <wd-toast />
-    <view class="toolbar">
-      <wd-search v-model="keyword" placeholder="搜索团队名称" hide-cancel @search="refreshList" @clear="refreshList" />
-      <wd-button v-if="canCreate" size="small" @click="createVisible = true">
-        创建团队
-      </wd-button>
+    <AppListToolbar v-model:keyword="keyword" card search-placeholder="搜索团队名称" :action-text="canCreate ? '创建团队' : ''" @search="refreshList" @clear="refreshList" @action="createVisible = true" />
+    <view class="mt-2.5">
+      <AppPagedList
+        :items="teamPage.items.value"
+        item-key="id"
+        :loading="teamPage.loading.value"
+        :refreshing="teamPage.refreshing.value"
+        :loading-more="teamPage.loadingMore.value"
+        :finished="teamPage.finished.value"
+        :error="teamPage.error.value"
+        loading-text="正在加载团队…"
+        :empty-text="hasSearch ? '没有找到相关团队' : '当前组织还没有团队'"
+        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : canCreate ? '创建团队后，可以按团队组织成员和业务协作。' : '当前账号没有创建团队的权限。'"
+        empty-icon="no-result"
+        :empty-action-text="hasSearch ? '清除搜索' : canCreate ? '创建团队' : ''"
+        finished-text="没有更多团队了"
+        @retry="refreshList"
+        @empty-action="handleEmptyAction"
+      >
+        <template #item="{ item }">
+          <AppRecordCard clickable @click="openTeam(item)">
+            <template #title>
+              {{ item.name }}
+            </template>
+            <template #description>
+              {{ item.member_details.length }} 名成员 · {{ item.phone || item.wechat || '未填写联系方式' }}
+            </template>
+            <template v-if="navigation && canManageTeam(navigation.capabilities, item.id, 'delete')" #actions>
+              <wd-button type="danger" variant="plain" size="small" :loading="deleting === item.id" :disabled="deleting !== null" @click="deleteTeam(item)">
+                删除
+              </wd-button>
+            </template>
+          </AppRecordCard>
+        </template>
+      </AppPagedList>
     </view>
-    <view v-if="teamQuery.items.value.length" class="card-list">
-      <view v-for="item in teamQuery.items.value" :key="item.id" class="record-card">
-        <view class="record-main" @click="openTeam(item)">
-          <strong>{{ item.name }}</strong>
-          <text>{{ item.member_details.length }} 名成员 · {{ item.phone || item.wechat || '未填写联系方式' }}</text>
-        </view>
-        <wd-button v-if="navigation && canManageTeam(navigation.capabilities, item.id, 'delete')" type="danger" variant="plain" size="small" :loading="deleting === item.id" :disabled="deleting !== null" @click="deleteTeam(item)">
-          删除
+    <AppBottomSheet v-model:visible="createVisible" title="创建团队" height="compact">
+      <view class="flex flex-col gap-1.5">
+        <wd-input v-model="teamName" label="团队名称" placeholder="请输入团队名称" clearable />
+        <wd-input v-model="teamPhone" label="联系电话" placeholder="可选" clearable />
+        <wd-input v-model="teamWechat" label="客服微信" placeholder="可选" clearable />
+      </view>
+      <template #footer>
+        <wd-button block :loading="creating" :disabled="creating" @click="submitTeam">
+          创建团队
         </wd-button>
-      </view>
-    </view>
-    <AppListState :loading="teamQuery.loading.value" :has-items="Boolean(teamQuery.items.value.length)" :finished="teamQuery.finished.value" :error-message="teamQuery.error.value?.message || ''" loading-text="正在加载团队…" empty-text="当前组织暂无团队" finished-text="没有更多团队了" @retry="refreshList" />
-    <wd-popup v-model="createVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 34rpx 28rpx;">
-      <view class="popup-title">
-        创建团队
-      </view>
-      <wd-input v-model="teamName" label="团队名称" placeholder="请输入团队名称" clearable />
-      <wd-input v-model="teamPhone" label="联系电话" placeholder="可选" clearable />
-      <wd-input v-model="teamWechat" label="客服微信" placeholder="可选" clearable />
-      <wd-button block :loading="creating" :disabled="creating" @click="submitTeam">
-        创建团队
-      </wd-button>
-    </wd-popup>
-  </view>
+      </template>
+    </AppBottomSheet>
+  </AppPage>
 </template>
-
-<style scoped lang="scss">
-.page-shell {
-  min-height: 100vh;
-  padding: 20rpx 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
-.toolbar,
-.record-card {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-}
-.toolbar {
-  padding: 14rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-.toolbar :deep(.wd-search) {
-  min-width: 0;
-  flex: 1;
-}
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-top: 20rpx;
-}
-.record-card {
-  padding: 26rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-.record-main {
-  min-width: 0;
-  flex: 1;
-}
-.record-main strong,
-.record-main text {
-  display: block;
-}
-.record-main strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-}
-.record-main text {
-  margin-top: 8rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.popup-title {
-  margin-bottom: 20rpx;
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
-}
-</style>

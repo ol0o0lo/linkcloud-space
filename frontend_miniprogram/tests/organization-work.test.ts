@@ -134,9 +134,9 @@ test('截止时间使用本地年月日构造并严格拒绝不存在的日期',
 })
 
 test('分页收集器遍历全部页面并按业务键稳定去重', async () => {
-  const collectorPath = join(sourceRoot, 'shared/pagination/collectAllPages.ts')
-  assert.equal(existsSync(collectorPath), true, 'shared/pagination/collectAllPages.ts 应存在')
-  const { collectAllPages } = await import('../src/shared/pagination/collectAllPages.ts')
+  const collectorPath = join(sourceRoot, 'utils/pagination/collectAllPages.ts')
+  assert.equal(existsSync(collectorPath), true, 'utils/pagination/collectAllPages.ts 应存在')
+  const { collectAllPages } = await import('../src/utils/pagination/collectAllPages.ts')
   const calls: Array<{ page: number, pageSize: number }> = []
   const items = await collectAllPages(async ({ page, pageSize }) => {
     calls.push({ page, pageSize })
@@ -150,7 +150,7 @@ test('分页收集器遍历全部页面并按业务键稳定去重', async () =>
 })
 
 test('候选人请求只应用最后范围且旧请求结束不关闭新请求 loading', async () => {
-  const { useAsyncTask } = await import('../src/shared/composables/useAsyncTask.ts')
+  const { useAsyncTask } = await import('../src/hooks/useAsyncTask.ts')
   let resolveFirst: (value: number[]) => void = () => undefined
   let resolveSecond: (value: number[]) => void = () => undefined
   const first = new Promise<number[]>((resolve) => {
@@ -176,7 +176,7 @@ test('候选人请求只应用最后范围且旧请求结束不关闭新请求 l
 
 test('候选人并发失败只提示最后范围且保留其状态', async () => {
   const { AppError } = await import('../src/core/errors/app-error.ts')
-  const { createLatestRequestGuard, useAsyncTask } = await import('../src/shared/composables/useAsyncTask.ts')
+  const { createLatestRequestGuard, useAsyncTask } = await import('../src/hooks/useAsyncTask.ts')
   let rejectFirst: (reason?: unknown) => void = () => undefined
   let rejectSecond: (reason?: unknown) => void = () => undefined
   const first = new Promise<number[]>((_resolve, reject) => {
@@ -342,21 +342,27 @@ test('任务与公告列表支持刷新分页，reset 查询可抢占旧请求',
     const source = readFileSync(path, 'utf8')
     assert.match(source, /onPullDownRefresh/)
     assert.match(source, /onReachBottom/)
-    assert.match(source, /usePagedQuery/)
+    assert.match(source, /usePagedPage/)
+    assert.match(source, /AppPagedList/)
     assert.match(source, /\.refresh\(\)/)
     assert.match(source, /\.loadMore\(\)/)
   }
 })
 
-test('分页查询的新 refresh 可抢占未完成的旧请求，旧响应不会覆盖新查询', async () => {
-  const { usePagedQuery } = await import('../src/shared/composables/usePagedQuery.ts')
+test('分页页面的新 refresh 可抢占未完成的旧请求，旧响应不会覆盖新查询', async () => {
+  const { usePagedPage } = await import('../src/hooks/usePagedPage.ts')
   const pending: Array<{
     page: number
     resolve: (value: { items: number[], total: number, page: number, page_size: number }) => void
   }> = []
-  const query = usePagedQuery<number>(({ page, pageSize }) => new Promise((resolve) => {
-    pending.push({ page, resolve: value => resolve({ ...value, page_size: pageSize }) })
-  }))
+  const query = usePagedPage<number>({
+    loader: ({ page, pageSize }) => new Promise((resolve) => {
+      pending.push({ page, resolve: value => resolve({ ...value, page_size: pageSize }) })
+    }),
+    refreshOnShow: false,
+    pullDownRefresh: false,
+    reachBottom: false,
+  })
 
   const older = query.refresh()
   await Promise.resolve()
@@ -371,6 +377,43 @@ test('分页查询的新 refresh 可抢占未完成的旧请求，旧响应不�
 
   assert.deepEqual(query.items.value, [2])
   assert.equal(query.loading.value, false)
+})
+
+test('分页页面刷新可中断追加加载状态并忽略旧分页响应', async () => {
+  const { usePagedPage } = await import('../src/hooks/usePagedPage.ts')
+  const pending: Array<{
+    page: number
+    resolve: (value: { items: number[], total: number, page: number, page_size: number }) => void
+  }> = []
+  const query = usePagedPage<number>({
+    loader: ({ page, pageSize }) => new Promise((resolve) => {
+      pending.push({ page, resolve: value => resolve({ ...value, page_size: pageSize }) })
+    }),
+    refreshOnShow: false,
+    pullDownRefresh: false,
+    reachBottom: false,
+  })
+
+  const initial = query.refresh()
+  await Promise.resolve()
+  pending[0].resolve({ items: [1], total: 3, page: 1, page_size: 20 })
+  await initial
+
+  const olderLoadMore = query.loadMore()
+  await Promise.resolve()
+  assert.equal(query.loadingMore.value, true)
+
+  const newerRefresh = query.refresh()
+  await Promise.resolve()
+  assert.equal(query.loadingMore.value, false)
+  pending[2].resolve({ items: [3], total: 1, page: 1, page_size: 20 })
+  await newerRefresh
+  pending[1].resolve({ items: [2], total: 3, page: 2, page_size: 20 })
+  await olderLoadMore
+
+  assert.deepEqual(query.items.value, [3])
+  assert.equal(query.loadingMore.value, false)
+  assert.equal(query.refreshing.value, false)
 })
 
 test('详情页只暴露后端允许的动作并提供提交锁与结果填写', () => {

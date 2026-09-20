@@ -26,8 +26,13 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '')
 }
 
+function isDevelopmentHttpUrl(value: string): boolean {
+  return /^http:\/\/(?:localhost|127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(?::\d+)?(?:\/|$)/.test(value)
+}
+
 function getWeixinBaseUrl(input: AppConfigInput): string {
-  const suffix = (input.weixinEnvVersion || 'develop').toUpperCase()
+  const envVersion = input.buildMode === 'development' ? 'develop' : input.weixinEnvVersion || 'develop'
+  const suffix = envVersion.toUpperCase()
   return input.env[`VITE_API_BASE_URL__WEIXIN_${suffix}`]
     || input.env[`VITE_SERVER_BASEURL__WEIXIN_${suffix}`]
     || input.env.VITE_API_BASE_URL
@@ -53,7 +58,7 @@ export function parseAppConfig(input: AppConfigInput): AppConfig {
     throw new Error('H5 同源 API 地址必须使用根路径')
 
   if (input.platform === 'mp-weixin') {
-    const allowLocalHttp = input.buildMode === 'development' && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/.test(baseUrl)
+    const allowLocalHttp = input.buildMode === 'development' && isDevelopmentHttpUrl(baseUrl)
     if (apiMode !== 'absolute' || (!baseUrl.startsWith('https://') && !allowLocalHttp))
       throw new Error('微信小程序生产环境必须配置绝对 HTTPS API 地址')
   }

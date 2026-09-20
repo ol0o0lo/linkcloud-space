@@ -6,12 +6,13 @@ import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, ref } from 'vue'
 import { formatOrganizationWorkDateTime, formatOrganizationWorkUser, getAnnouncementActions, getAnnouncementStatusTone, shouldShowAnnouncementAcknowledgement } from '@/domain/organization-work'
 import { acknowledgeOrganizationAnnouncement, getOrganizationAnnouncement, publishOrganizationAnnouncement, withdrawOrganizationAnnouncement } from '@/features/organization-work/service'
-import AppBottomAction from '@/shared/components/AppBottomAction.vue'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppDetailPage from '@/components/app/AppDetailPage.vue'
+import AppStatusTag from '@/components/app/AppStatusTag.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '公告详情' } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '公告详情' } })
 
 const actionLabels: Record<OrganizationAnnouncementAction, string> = { acknowledge: '确认已阅', publish: '发布公告', withdraw: '撤回公告' }
 const toast = useToast()
@@ -89,26 +90,38 @@ onUnload(stopNowTimer)
 </script>
 
 <template>
-  <view class="detail-page">
-    <wd-toast />
-    <AppLoading v-if="loading" text="正在加载公告…" />
-    <AppErrorView v-else-if="loadError" title="公告详情加载失败" :message="loadError" @retry="loadAnnouncement" />
-    <template v-else-if="announcement">
-      <view class="article-card">
-        <view class="tag-row">
-          <wd-tag :type="getAnnouncementStatusTone(announcement.status)" variant="light">
-            {{ announcement.status__mapping }}
-          </wd-tag><wd-tag v-if="shouldShowAnnouncementAcknowledgement(announcement, now)" :type="announcement.is_acknowledged ? 'success' : 'warning'" variant="light">
-            {{ announcement.is_acknowledged ? '已确认' : '待确认' }}
-          </wd-tag>
+  <AppDetailPage
+    :loading="loading"
+    :error="loadError"
+    loading-text="正在加载公告…"
+    error-title="公告详情加载失败"
+    :show-actions="actions.length > 0"
+    @retry="loadAnnouncement"
+  >
+    <template #navigation>
+      <AppCustomNavigation title="公告详情" back scroll-mode="sticky" />
+    </template>
+    <template #feedback>
+      <wd-toast />
+    </template>
+
+    <template v-if="announcement">
+      <view class="mx-app-gutter app-card-plain p-4">
+        <view class="flex items-center gap-1.5">
+          <AppStatusTag :text="announcement.status__mapping" :tone="getAnnouncementStatusTone(announcement.status)" />
+          <AppStatusTag
+            v-if="shouldShowAnnouncementAcknowledgement(announcement, now)"
+            :text="announcement.is_acknowledged ? '已确认' : '待确认'"
+            :tone="announcement.is_acknowledged ? 'success' : 'warning'"
+          />
         </view>
-        <view class="article-title">
+        <view class="mt-2.5 text-lg text-content-primary font-bold leading-snug">
           {{ announcement.title }}
         </view>
-        <view class="article-meta">
+        <view class="mt-1.5 text-xs text-content-muted">
           {{ announcement.team_name || '全组织' }} · {{ formatOrganizationWorkDateTime(announcement.published_at || announcement.created_at) }}
         </view>
-        <text class="article-body">{{ announcement.body }}</text>
+        <text class="mt-3.5 block whitespace-pre-wrap text-sm text-content-secondary leading-relaxed">{{ announcement.body }}</text>
       </view>
       <wd-cell-group title="公告信息" insert>
         <wd-cell title="发布人" :value="formatOrganizationWorkUser(announcement.published_by)" />
@@ -116,57 +129,16 @@ onUnload(stopNowTimer)
         <wd-cell v-if="announcement.can_manage && announcement.require_acknowledgement" title="确认进度" :value="`${announcement.acknowledged_count || 0}/${announcement.recipient_count || 0}`" />
         <wd-cell title="有效期至" :value="formatOrganizationWorkDateTime(announcement.expires_at)" />
       </wd-cell-group>
-      <AppBottomAction v-if="actions.length">
-        <view class="action-row">
+    </template>
+
+    <template #actions>
+      <view class="w-full flex flex-wrap justify-end gap-1.5">
+        <template v-if="announcement">
           <wd-button v-for="action in actions" :key="action" size="small" :type="action === 'withdraw' ? 'danger' : 'primary'" :variant="action === 'acknowledge' ? 'base' : 'plain'" :loading="submitting === action" :disabled="submitting !== null" @click="runAction(action)">
             {{ actionLabels[action] }}
           </wd-button>
-        </view>
-      </AppBottomAction>
+        </template>
+      </view>
     </template>
-  </view>
+  </AppDetailPage>
 </template>
-
-<style scoped lang="scss">
-.detail-page {
-  min-height: 100vh;
-  padding: 24rpx 0 160rpx;
-  background: var(--app-bg-page);
-}
-.article-card {
-  margin: 0 24rpx 24rpx;
-  padding: 32rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.tag-row,
-.action-row {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-}
-.article-title {
-  margin-top: 22rpx;
-  color: var(--app-text-primary);
-  font-size: 37rpx;
-  font-weight: 700;
-  line-height: 1.4;
-}
-.article-meta {
-  margin-top: 13rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.article-body {
-  display: block;
-  margin-top: 30rpx;
-  color: var(--app-text-secondary);
-  font-size: 27rpx;
-  line-height: 1.85;
-  white-space: pre-wrap;
-}
-.action-row {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-</style>

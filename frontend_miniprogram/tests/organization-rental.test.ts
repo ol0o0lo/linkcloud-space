@@ -5,11 +5,14 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  buildOrganizationBuildingPayload,
   buildOrganizationContactPayload,
+  buildOrganizationEstatePayload,
   buildOrganizationHouseCreatePayload,
   buildOrganizationHousePatchPayload,
   buildOrganizationLeasePatchPayload,
   buildOrganizationScope,
+  buildOrganizationViewingCreatePayload,
   canOpenOrganizationCapability,
   formatOrganizationHouseTitle,
   getAllocationRuleSourceLabel,
@@ -23,16 +26,19 @@ import {
   getVacancyLineStatusLabel,
   getViewingActions,
   isUniActionCanceled,
-} from '../src/domain/organization-rental.ts'
+} from '../src/pages-org-rental/domain/organization-rental.ts'
 import {
   APP_ROUTES,
   getOrganizationAllocationDetailRoute,
+  getOrganizationBuildingFormRoute,
+  getOrganizationEstateFormRoute,
   getOrganizationHouseDetailRoute,
   getOrganizationHouseFormRoute,
   getOrganizationLeaseDetailRoute,
   getOrganizationLeaseFormRoute,
   getOrganizationSigningRoute,
   getOrganizationViewingDetailRoute,
+  getOrganizationViewingFormRoute,
 } from '../src/modules/routes.ts'
 
 const testsDirectory = dirname(fileURLToPath(import.meta.url))
@@ -178,6 +184,73 @@ test('房源创建与编辑提交值沿用管理端的数字、标签和媒体�
   })
 })
 
+test('小区和楼栋写入只提交移动端可维护字段并归一化空值', () => {
+  assert.deepEqual(buildOrganizationEstatePayload({
+    name: ' 云岸 ',
+    display_name: ' 云岸花园 ',
+    developer: ' ',
+    built_year: '',
+    property_type: 'residential',
+    province: ' 广东 ',
+    city: ' 深圳 ',
+    district: ' 南山 ',
+    subdistrict: ' 科技园 ',
+    address: ' 科技园 ',
+    description: ' 成熟社区 ',
+  }), {
+    name: '云岸',
+    display_name: '云岸花园',
+    developer: null,
+    built_year: null,
+    property_type: 'residential',
+    province: '广东',
+    city: '深圳',
+    district: '南山',
+    subdistrict: '科技园',
+    address: '科技园',
+    description: '成熟社区',
+  })
+  assert.deepEqual(buildOrganizationBuildingPayload({
+    estate_id: null,
+    name: ' 独立公寓 ',
+    floors: '18',
+    under_floors: '',
+    year_built: null,
+    elevator: true,
+    address: ' 海滨路 20 号 ',
+    tags: ' 近地铁，精装,近地铁 ',
+  }), {
+    estate_id: null,
+    name: '独立公寓',
+    floors: 18,
+    under_floors: null,
+    year_built: null,
+    elevator: true,
+    address: '海滨路 20 号',
+    tags: ['近地铁', '精装'],
+  })
+})
+
+test('主动带看提交清理客户资料并输出标准 ISO 时间', () => {
+  assert.deepEqual(buildOrganizationViewingCreatePayload({
+    house_id: 12,
+    contact_id: null,
+    customer_name: ' 李女士 ',
+    customer_phone: ' 13900139000 ',
+    scheduled_at: 1893456000000,
+    assigned_to_id: null,
+    notes: ' 提前联系 ',
+  }), {
+    house_id: 12,
+    contact_id: null,
+    customer_name: '李女士',
+    customer_phone: '13900139000',
+    scheduled_at: '2030-01-01T00:00:00.000Z',
+    assigned_to_id: null,
+    notes: '提前联系',
+  })
+})
+
 test('联系人写入统一清理文本并保留多角色与启停状态', () => {
   assert.deepEqual(buildOrganizationContactPayload({
     name: ' 张三 ',
@@ -249,11 +322,14 @@ test('组织经营分包声明全部真实路由和详情路由构造器', () =>
   assert.equal(APP_ROUTES.organizationHouses, '/pages-org-rental/houses/index')
   assert.equal(APP_ROUTES.organizationHouseForm, '/pages-org-rental/houses/form')
   assert.equal(APP_ROUTES.organizationEstates, '/pages-org-rental/estates/index')
+  assert.equal(APP_ROUTES.organizationEstateForm, '/pages-org-rental/estates/form')
   assert.equal(APP_ROUTES.organizationBuildings, '/pages-org-rental/buildings/index')
+  assert.equal(APP_ROUTES.organizationBuildingForm, '/pages-org-rental/buildings/form')
   assert.equal(APP_ROUTES.organizationMap, '/pages-org-rental/map/index')
   assert.equal(APP_ROUTES.organizationVacancySync, '/pages-org-rental/vacancy-sync/index')
   assert.equal(APP_ROUTES.organizationContacts, '/pages-org-rental/contacts/index')
   assert.equal(APP_ROUTES.organizationViewings, '/pages-org-rental/viewings/index')
+  assert.equal(APP_ROUTES.organizationViewingForm, '/pages-org-rental/viewings/form')
   assert.equal(APP_ROUTES.organizationLeases, '/pages-org-rental/leases/index')
   assert.equal(APP_ROUTES.organizationLeaseForm, '/pages-org-rental/leases/form')
   assert.equal(APP_ROUTES.organizationSigning, '/pages-org-rental/signing/index')
@@ -263,25 +339,34 @@ test('组织经营分包声明全部真实路由和详情路由构造器', () =>
   assert.equal(getOrganizationHouseDetailRoute(12), '/pages-org-rental/houses/detail?id=12')
   assert.equal(getOrganizationHouseFormRoute(), '/pages-org-rental/houses/form')
   assert.equal(getOrganizationHouseFormRoute(12), '/pages-org-rental/houses/form?id=12')
+  assert.equal(getOrganizationEstateFormRoute(), '/pages-org-rental/estates/form')
+  assert.equal(getOrganizationEstateFormRoute(8), '/pages-org-rental/estates/form?id=8')
+  assert.equal(getOrganizationBuildingFormRoute(), '/pages-org-rental/buildings/form')
+  assert.equal(getOrganizationBuildingFormRoute(9), '/pages-org-rental/buildings/form?id=9')
   assert.equal(getOrganizationViewingDetailRoute(13), '/pages-org-rental/viewings/detail?id=13')
+  assert.equal(getOrganizationViewingFormRoute(), '/pages-org-rental/viewings/form')
+  assert.equal(getOrganizationViewingFormRoute(12), '/pages-org-rental/viewings/form?houseId=12')
   assert.equal(getOrganizationLeaseDetailRoute(14), '/pages-org-rental/leases/detail?id=14')
   assert.equal(getOrganizationLeaseFormRoute(14), '/pages-org-rental/leases/form?id=14')
   assert.equal(getOrganizationAllocationDetailRoute(18), '/pages-org-rental/allocation/detail?id=18')
   assert.equal(getOrganizationSigningRoute(15), '/pages-org-rental/signing/index?viewingId=15')
 })
 
-test('组织经营页面齐全、无占位文案，并遵守 page 到 feature 到 manual 的边界', () => {
+test('组织经营页面齐全、无占位文案，并遵守 page 到分包 API 再到内部 client 的边界', () => {
   const pagePaths = [
     'pages-org-rental/index.vue',
     'pages-org-rental/houses/index.vue',
     'pages-org-rental/houses/detail.vue',
     'pages-org-rental/houses/form.vue',
     'pages-org-rental/estates/index.vue',
+    'pages-org-rental/estates/form.vue',
     'pages-org-rental/buildings/index.vue',
+    'pages-org-rental/buildings/form.vue',
     'pages-org-rental/map/index.vue',
     'pages-org-rental/vacancy-sync/index.vue',
     'pages-org-rental/contacts/index.vue',
     'pages-org-rental/viewings/index.vue',
+    'pages-org-rental/viewings/form.vue',
     'pages-org-rental/viewings/detail.vue',
     'pages-org-rental/leases/index.vue',
     'pages-org-rental/leases/detail.vue',
@@ -291,8 +376,8 @@ test('组织经营页面齐全、无占位文案，并遵守 page 到 feature �
     'pages-org-rental/allocation/detail.vue',
     'pages-org-rental/analytics/index.vue',
   ]
-  const featurePath = join(sourceRoot, 'features/organization-rental/service.ts')
-  const manualPath = join(sourceRoot, 'services/manual/organization-rental.ts')
+  const apiPath = join(sourceRoot, 'pages-org-rental/api/organization-rental.ts')
+  const clientPath = join(sourceRoot, 'pages-org-rental/api/client.ts')
 
   for (const relativePath of pagePaths) {
     const path = join(sourceRoot, relativePath)
@@ -303,22 +388,62 @@ test('组织经营页面齐全、无占位文案，并遵守 page 到 feature �
     assert.equal(/敬请期待|归入分包|占位/.test(source), false, `${relativePath} 不得包含占位文案`)
   }
 
-  assert.equal(existsSync(featurePath), true)
-  assert.equal(existsSync(manualPath), true)
-  const featureSource = readFileSync(featurePath, 'utf8')
-  const manualSource = readFileSync(manualPath, 'utf8')
-  assert.equal(featureSource.includes('@/services/openapi'), false)
-  assert.equal(featureSource.includes('@/services/manual/organization-rental'), true)
-  assert.equal(manualSource.includes('@/services/openapi/guanli'), true)
-  assert.equal(manualSource.includes('@/services/openapi/shouyifenpei'), true)
-  assert.equal(manualSource.includes('@/services/openapi/jingyingfenxi'), true)
-  assert.equal(manualSource.includes('pingtaiguanli'), false)
-  assert.equal(manualSource.includes('buildOrganizationScope'), true)
+  assert.equal(existsSync(apiPath), true)
+  assert.equal(existsSync(clientPath), true)
+  const apiSource = readFileSync(apiPath, 'utf8')
+  const clientSource = readFileSync(clientPath, 'utf8')
+  assert.equal(apiSource.includes('@/services/openapi'), false)
+  assert.equal(apiSource.includes('./client'), true)
+  assert.equal(clientSource.includes('@/services/openapi/guanli'), true)
+  assert.equal(clientSource.includes('@/services/openapi/shouyifenpei'), true)
+  assert.equal(clientSource.includes('@/services/openapi/jingyingfenxi'), true)
+  assert.equal(clientSource.includes('pingtaiguanli'), false)
+  assert.equal(clientSource.includes('buildOrganizationScope'), true)
 })
 
-test('组织经营写入页面只经 feature 调用真实 CRUD、生命周期和审核接口', () => {
-  const featureSource = readFileSync(join(sourceRoot, 'features/organization-rental/service.ts'), 'utf8')
-  const manualSource = readFileSync(join(sourceRoot, 'services/manual/organization-rental.ts'), 'utf8')
+test('小区、楼栋和主动带看页面形成新增编辑闭环且不暴露删除能力', () => {
+  const apiSource = readFileSync(join(sourceRoot, 'pages-org-rental/api/organization-rental.ts'), 'utf8')
+  const clientSource = readFileSync(join(sourceRoot, 'pages-org-rental/api/client.ts'), 'utf8')
+  const estateListSource = readFileSync(join(sourceRoot, 'pages-org-rental/estates/index.vue'), 'utf8')
+  const buildingListSource = readFileSync(join(sourceRoot, 'pages-org-rental/buildings/index.vue'), 'utf8')
+  const viewingListSource = readFileSync(join(sourceRoot, 'pages-org-rental/viewings/index.vue'), 'utf8')
+  const houseDetailSource = readFileSync(join(sourceRoot, 'pages-org-rental/houses/detail.vue'), 'utf8')
+  const estateFormSource = readFileSync(join(sourceRoot, 'pages-org-rental/estates/form.vue'), 'utf8')
+  const buildingFormSource = readFileSync(join(sourceRoot, 'pages-org-rental/buildings/form.vue'), 'utf8')
+  const viewingFormSource = readFileSync(join(sourceRoot, 'pages-org-rental/viewings/form.vue'), 'utf8')
+
+  for (const functionName of [
+    'getOrganizationEstate',
+    'createOrganizationEstate',
+    'patchOrganizationEstate',
+    'getOrganizationBuilding',
+    'createOrganizationBuilding',
+    'patchOrganizationBuilding',
+    'createOrganizationViewing',
+  ])
+    assert.match(apiSource, new RegExp(`function ${functionName}`), functionName)
+
+  assert.match(clientSource, /houseEstatesEstateIdUsingGet/)
+  assert.match(clientSource, /houseEstatesUsingPost/)
+  assert.match(clientSource, /houseEstatesEstateIdUsingPatch/)
+  assert.match(clientSource, /houseBuildingsBuildingIdUsingGet/)
+  assert.match(clientSource, /houseBuildingsUsingPost/)
+  assert.match(clientSource, /houseBuildingsBuildingIdUsingPatch/)
+  assert.match(clientSource, /houseViewingRecordsUsingPost/)
+  assert.match(estateListSource, /getOrganizationEstateFormRoute/)
+  assert.match(buildingListSource, /getOrganizationBuildingFormRoute/)
+  assert.match(viewingListSource, /getOrganizationViewingFormRoute/)
+  assert.match(houseDetailSource, /getOrganizationViewingFormRoute\(house\.value\.id\)/)
+  assert.match(estateFormSource, /buildOrganizationEstatePayload/)
+  assert.match(buildingFormSource, /buildOrganizationBuildingPayload/)
+  assert.match(viewingFormSource, /buildOrganizationViewingCreatePayload/)
+  assert.doesNotMatch(`${estateFormSource}\n${buildingFormSource}\n${viewingFormSource}`, /remove|delete|删除/i)
+  assert.doesNotMatch(`${estateFormSource}\n${buildingFormSource}`, /\b(?:images|lat|lng)\b/)
+})
+
+test('组织经营写入页面只经分包 API 调用真实 CRUD、生命周期和审核接口', () => {
+  const apiSource = readFileSync(join(sourceRoot, 'pages-org-rental/api/organization-rental.ts'), 'utf8')
+  const clientSource = readFileSync(join(sourceRoot, 'pages-org-rental/api/client.ts'), 'utf8')
   const houseFormSource = readFileSync(join(sourceRoot, 'pages-org-rental/houses/form.vue'), 'utf8')
   const contactSource = readFileSync(join(sourceRoot, 'pages-org-rental/contacts/index.vue'), 'utf8')
   const leaseFormSource = readFileSync(join(sourceRoot, 'pages-org-rental/leases/form.vue'), 'utf8')
@@ -335,16 +460,16 @@ test('组织经营写入页面只经 feature 调用真实 CRUD、生命周期和
     'reviewOrganizationAllocation',
     'voidOrganizationAllocation',
   ]) {
-    assert.match(featureSource, new RegExp(`function ${functionName}`), functionName)
+    assert.match(apiSource, new RegExp(`function ${functionName}`), functionName)
   }
-  assert.match(manualSource, /houseHousesUsingPost/)
-  assert.match(manualSource, /houseHousesHouseIdUsingPatch/)
-  assert.match(manualSource, /houseContactsUsingPost/)
-  assert.match(manualSource, /houseContactsContactIdUsingPatch/)
-  assert.match(manualSource, /houseLeasesLeaseIdUsingPatch/)
-  assert.match(manualSource, /allocationRequestsAllocationRequestIdUsingGet/)
-  assert.match(manualSource, /houseLeasesLeaseIdAllocationReviewUsingPost/)
-  assert.match(manualSource, /houseLeasesLeaseIdAllocationOpenApiVoidUsingPost/)
+  assert.match(clientSource, /houseHousesUsingPost/)
+  assert.match(clientSource, /houseHousesHouseIdUsingPatch/)
+  assert.match(clientSource, /houseContactsUsingPost/)
+  assert.match(clientSource, /houseContactsContactIdUsingPatch/)
+  assert.match(clientSource, /houseLeasesLeaseIdUsingPatch/)
+  assert.match(clientSource, /allocationRequestsAllocationRequestIdUsingGet/)
+  assert.match(clientSource, /houseLeasesLeaseIdAllocationReviewUsingPost/)
+  assert.match(clientSource, /houseLeasesLeaseIdAllocationOpenApiVoidUsingPost/)
   assert.match(houseFormSource, /buildOrganizationHouseCreatePayload/)
   assert.match(houseFormSource, /buildOrganizationHousePatchPayload/)
   assert.match(contactSource, /buildOrganizationContactPayload/)
@@ -366,7 +491,7 @@ test('签约表单和带看详情使用真实收益提交能力，不把导航�
 
 test('房表同步支持歧义楼栋覆盖、错误行忽略和预览失效保护', () => {
   const pageSource = readFileSync(join(sourceRoot, 'pages-org-rental/vacancy-sync/index.vue'), 'utf8')
-  const featureSource = readFileSync(join(sourceRoot, 'features/organization-rental/service.ts'), 'utf8')
+  const apiSource = readFileSync(join(sourceRoot, 'pages-org-rental/api/organization-rental.ts'), 'utf8')
 
   assert.match(pageSource, /result\.blocks/)
   assert.match(pageSource, /building_match\.candidates/)
@@ -374,7 +499,7 @@ test('房表同步支持歧义楼栋覆盖、错误行忽略和预览失效保�
   assert.match(pageSource, /ignored_lines/)
   assert.match(pageSource, /previewStale/)
   assert.match(pageSource, /invalidatePreview/)
-  assert.match(featureSource, /payload: VacancySyncIn/)
+  assert.match(apiSource, /payload: VacancySyncIn/)
 })
 
 test('pages.json 中每个分包 root 只声明一次', () => {
@@ -386,23 +511,27 @@ test('pages.json 中每个分包 root 只声明一次', () => {
 
 test('分页列表刷新失败后重试仍按第一页替换，避免旧数据重复追加', () => {
   const retryLoaders: Record<string, string> = {
-    'pages-org-rental/houses/index.vue': 'loadHouses',
-    'pages-org-rental/estates/index.vue': 'loadEstates',
-    'pages-org-rental/buildings/index.vue': 'loadBuildings',
-    'pages-org-rental/contacts/index.vue': 'loadContacts',
-    'pages-org-rental/viewings/index.vue': 'loadViewings',
-    'pages-org-rental/leases/index.vue': 'loadLeases',
-    'pages-org-rental/allocation/index.vue': 'loadAllocation',
+    'pages-org-rental/houses/index.vue': 'list.refresh',
+    'pages-org-rental/estates/index.vue': 'list.refresh',
+    'pages-org-rental/buildings/index.vue': 'list.refresh',
+    'pages-org-rental/contacts/index.vue': 'contactPage.refresh',
+    'pages-org-rental/viewings/index.vue': 'list.refresh',
+    'pages-org-rental/leases/index.vue': 'list.refresh',
   }
 
   for (const [relativePath, loader] of Object.entries(retryLoaders)) {
     const source = readFileSync(join(sourceRoot, relativePath), 'utf8')
-    assert.match(source, new RegExp(`@retry="${loader}\\(true\\)"`), relativePath)
+    const retryExpression = loader.replace('.', '\\.')
+    assert.match(source, new RegExp(`@retry="${retryExpression}"`), relativePath)
   }
+
+  const allocationSource = readFileSync(join(sourceRoot, 'pages-org-rental/allocation/index.vue'), 'utf8')
+  assert.match(allocationSource, /@retry="totalPage\.refresh"/)
+  assert.match(allocationSource, /@retry="requestPage\.refresh"/)
 })
 
 test('房表预览失效比较覆盖完整输入且忽略数组顺序', async () => {
-  const domain = await import('../src/domain/organization-rental.ts')
+  const domain = await import('../src/pages-org-rental/domain/organization-rental.ts')
   const previewInput = {
     raw_text: '一号楼\n101单间1200',
     building_overrides: [
@@ -449,11 +578,11 @@ test('地图按平台渲染，小程序使用原生地图而 H5 展示真实坐�
 })
 
 test('默认业务日期按本地年月日生成，不使用 UTC 字符串切片', async () => {
-  const domain = await import('../src/domain/organization-rental.ts')
+  const domain = await import('../src/pages-org-rental/domain/organization-rental.ts')
   assert.equal(domain.formatOrganizationLocalDate(new Date(2026, 8, 6, 0, 5)), '2026-09-06')
   assert.equal(domain.formatOrganizationLocalDate(new Date(2026, 0, 2, 23, 59)), '2026-01-02')
 
-  const domainSource = readFileSync(join(sourceRoot, 'domain/organization-rental.ts'), 'utf8')
+  const domainSource = readFileSync(join(sourceRoot, 'pages-org-rental/domain/organization-rental.ts'), 'utf8')
   const helperSource = domainSource.slice(domainSource.indexOf('function formatOrganizationLocalDate'), domainSource.indexOf('function formatOrganizationLocalDate') + 500)
   assert.doesNotMatch(helperSource, /toISOString/)
   for (const relativePath of ['pages-org-rental/signing/index.vue', 'pages-org-rental/analytics/index.vue']) {
@@ -464,7 +593,7 @@ test('默认业务日期按本地年月日生成，不使用 UTC 字符串切片
 })
 
 test('可搜索分页列表允许新 reset 抢占旧请求且只应用最后一次结果', () => {
-  const listPages = [
+  const componentizedListPages = [
     'pages-org-rental/houses/index.vue',
     'pages-org-rental/estates/index.vue',
     'pages-org-rental/buildings/index.vue',
@@ -472,14 +601,17 @@ test('可搜索分页列表允许新 reset 抢占旧请求且只应用最后一�
     'pages-org-rental/viewings/index.vue',
     'pages-org-rental/leases/index.vue',
   ]
-  for (const relativePath of listPages) {
+  for (const relativePath of componentizedListPages) {
     const source = readFileSync(join(sourceRoot, relativePath), 'utf8')
-    assert.match(source, /let requestId = 0/, relativePath)
-    assert.match(source, /if \(!reset && loading\.value\)/, relativePath)
-    assert.match(source, /const currentRequestId = reset \? \+\+requestId : requestId/, relativePath)
-    assert.match(source, /if \(currentRequestId !== requestId\)/, relativePath)
-    assert.match(source, /if \(currentRequestId === requestId\)/, relativePath)
+    assert.match(source, /usePagedPage/, relativePath)
+    assert.match(source, /AppPagedList/, relativePath)
   }
+
+  const pagedPageSource = readFileSync(join(sourceRoot, 'hooks/usePagedPage.ts'), 'utf8')
+  assert.match(pagedPageSource, /let generation = 0/)
+  assert.match(pagedPageSource, /const currentGeneration = \+\+generation/)
+  assert.match(pagedPageSource, /if \(currentGeneration !== generation\)/)
+  assert.match(pagedPageSource, /if \(currentGeneration === generation\)/)
 })
 
 test('带看状态更新使用全局提交锁阻止并发动作', () => {

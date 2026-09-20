@@ -13,12 +13,14 @@ import {
   getOrganizationWorkTask,
   rejectOrganizationTaskAssignment,
 } from '@/features/organization-work/service'
-import AppBottomAction from '@/shared/components/AppBottomAction.vue'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppDetailPage from '@/components/app/AppDetailPage.vue'
+import AppSection from '@/components/app/AppSection.vue'
+import AppStatusTag from '@/components/app/AppStatusTag.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '任务详情' } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '任务详情' } })
 
 const actionLabels: Record<OrganizationAssignmentAction | OrganizationTaskAction, string> = { accept: '接受任务', complete: '完成任务', reject: '拒绝任务', cancel: '取消任务' }
 const toast = useToast()
@@ -93,23 +95,31 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="detail-page">
-    <wd-toast />
-    <AppLoading v-if="loading" text="正在加载任务详情…" />
-    <AppErrorView v-else-if="loadError" title="任务详情加载失败" :message="loadError" @retry="loadDetail" />
-    <template v-else-if="assignment">
-      <view class="hero-card">
-        <view class="tag-row">
-          <wd-tag :type="getAssignmentStatusTone(assignment.status)" variant="light">
-            {{ assignment.status__mapping }}
-          </wd-tag><wd-tag :type="getPriorityTone(assignment.priority)" variant="light">
-            {{ assignment.priority__mapping }}
-          </wd-tag>
+  <AppDetailPage
+    :loading="loading"
+    :error="loadError"
+    loading-text="正在加载任务详情…"
+    error-title="任务详情加载失败"
+    :show-actions="assignmentActions.length > 0 || taskActions.includes('cancel')"
+    @retry="loadDetail"
+  >
+    <template #navigation>
+      <AppCustomNavigation title="任务详情" back scroll-mode="sticky" />
+    </template>
+    <template #feedback>
+      <wd-toast />
+    </template>
+
+    <template v-if="assignment">
+      <view class="mx-app-gutter app-card-plain p-3.5">
+        <view class="flex items-center gap-1.5">
+          <AppStatusTag :text="assignment.status__mapping" :tone="getAssignmentStatusTone(assignment.status)" />
+          <AppStatusTag :text="assignment.priority__mapping" :tone="getPriorityTone(assignment.priority)" />
         </view>
-        <view class="detail-title">
+        <view class="mt-2.5 text-lg text-content-primary font-bold">
           {{ assignment.task_title }}
         </view>
-        <text class="description">{{ assignment.task_description || '任务未填写补充说明' }}</text>
+        <text class="mt-1.5 block whitespace-pre-wrap text-xs text-content-secondary leading-relaxed">{{ assignment.task_description || '任务未填写补充说明' }}</text>
       </view>
       <wd-cell-group title="任务信息" insert>
         <wd-cell title="任务范围" :value="assignment.team_name || '全组织'" />
@@ -118,34 +128,21 @@ onLoad((options) => {
         <wd-cell title="截止时间" :value="formatOrganizationWorkDateTime(assignment.due_at)" :label="assignment.is_overdue ? '当前任务已逾期' : ''" />
         <wd-cell title="处理结果" :label="assignment.result || '尚未填写处理结果'" />
       </wd-cell-group>
-      <view v-if="assignmentActions.includes('complete') || assignmentActions.includes('reject')" class="result-card">
-        <view class="field-label">
-          处理结果
-        </view>
+      <AppSection v-if="assignmentActions.includes('complete') || assignmentActions.includes('reject')" class="mx-app-gutter" title="处理结果">
         <wd-textarea v-model="result" placeholder="可填写完成说明或拒绝原因" :maxlength="1000" show-word-limit />
-      </view>
-      <AppBottomAction v-if="assignmentActions.length">
-        <view class="action-row">
-          <wd-button v-for="action in assignmentActions" :key="action" size="small" :type="action === 'reject' ? 'danger' : 'primary'" :variant="action === 'accept' ? 'base' : 'plain'" :loading="submitting === action" :disabled="submitting !== null" @click="runAssignmentAction(action)">
-            {{ actionLabels[action] }}
-          </wd-button>
-        </view>
-      </AppBottomAction>
+      </AppSection>
     </template>
 
     <template v-else-if="task">
-      <view class="hero-card">
-        <view class="tag-row">
-          <wd-tag :type="getTaskStatusTone(task.status)" variant="light">
-            {{ task.status__mapping }}
-          </wd-tag><wd-tag :type="getPriorityTone(task.priority)" variant="light">
-            {{ task.priority__mapping }}
-          </wd-tag>
+      <view class="mx-app-gutter app-card-plain p-3.5">
+        <view class="flex items-center gap-1.5">
+          <AppStatusTag :text="task.status__mapping" :tone="getTaskStatusTone(task.status)" />
+          <AppStatusTag :text="task.priority__mapping" :tone="getPriorityTone(task.priority)" />
         </view>
-        <view class="detail-title">
+        <view class="mt-2.5 text-lg text-content-primary font-bold">
           {{ task.title }}
         </view>
-        <text class="description">{{ task.description || '任务未填写补充说明' }}</text>
+        <text class="mt-1.5 block whitespace-pre-wrap text-xs text-content-secondary leading-relaxed">{{ task.description || '任务未填写补充说明' }}</text>
       </view>
       <wd-cell-group title="任务信息" insert>
         <wd-cell title="任务范围" :value="task.team_name || '全组织'" />
@@ -153,92 +150,32 @@ onLoad((options) => {
         <wd-cell title="截止时间" :value="formatOrganizationWorkDateTime(task.due_at)" />
         <wd-cell title="创建时间" :value="formatOrganizationWorkDateTime(task.created_at)" />
       </wd-cell-group>
-      <view class="assignment-section">
-        <view class="section-title">
-          执行情况
+      <AppSection class="mx-app-gutter" title="执行情况">
+        <view v-for="item in task.assignments || []" :key="item.id" class="mb-1.5 flex items-center justify-between gap-1.5 rounded-app-md bg-surface-page p-3 last:mb-0">
+          <view class="min-w-0 flex-1">
+            <view class="text-sm text-content-primary font-semibold">
+              {{ formatOrganizationWorkUser(item.assignee) }}
+            </view>
+            <view class="mt-1 text-xs text-content-muted">
+              {{ item.result || '尚未填写处理结果' }}
+            </view>
+          </view>
+          <AppStatusTag :text="item.status__mapping" :tone="getAssignmentStatusTone(item.status)" />
         </view>
-        <view v-for="item in task.assignments || []" :key="item.id" class="assignment-card">
-          <view><strong>{{ formatOrganizationWorkUser(item.assignee) }}</strong><text>{{ item.result || '尚未填写处理结果' }}</text></view>
-          <wd-tag :type="getAssignmentStatusTone(item.status)" variant="light" size="small">
-            {{ item.status__mapping }}
-          </wd-tag>
-        </view>
+      </AppSection>
+    </template>
+
+    <template #actions>
+      <view v-if="assignment" class="w-full flex flex-wrap justify-end gap-1.5">
+        <wd-button v-for="action in assignmentActions" :key="action" size="small" :type="action === 'reject' ? 'danger' : 'primary'" :variant="action === 'accept' ? 'base' : 'plain'" :loading="submitting === action" :disabled="submitting !== null" @click="runAssignmentAction(action)">
+          {{ actionLabels[action] }}
+        </wd-button>
       </view>
-      <AppBottomAction v-if="taskActions.includes('cancel')">
+      <view v-else-if="task" class="w-full">
         <wd-button type="danger" variant="plain" :loading="submitting === 'cancel'" :disabled="submitting !== null" @click="cancelTask">
           取消任务
         </wd-button>
-      </AppBottomAction>
+      </view>
     </template>
-  </view>
+  </AppDetailPage>
 </template>
-
-<style scoped lang="scss">
-.detail-page {
-  min-height: 100vh;
-  padding: 24rpx 0 160rpx;
-  background: var(--app-bg-page);
-}
-.hero-card,
-.result-card {
-  margin: 0 24rpx 24rpx;
-  padding: 30rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.tag-row,
-.action-row,
-.assignment-card {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-}
-.detail-title {
-  margin-top: 20rpx;
-  color: var(--app-text-primary);
-  font-size: 35rpx;
-  font-weight: 700;
-}
-.description {
-  display: block;
-  margin-top: 14rpx;
-  color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.7;
-  white-space: pre-wrap;
-}
-.field-label,
-.section-title {
-  margin-bottom: 16rpx;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  font-weight: 650;
-}
-.action-row {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.assignment-section {
-  margin: 28rpx 24rpx;
-}
-.assignment-card {
-  justify-content: space-between;
-  margin-bottom: 14rpx;
-  padding: 24rpx;
-  border-radius: 20rpx;
-  background: var(--app-bg-card);
-}
-.assignment-card strong,
-.assignment-card text {
-  display: block;
-}
-.assignment-card strong {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
-}
-.assignment-card text {
-  margin-top: 7rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-</style>

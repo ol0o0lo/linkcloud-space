@@ -1,147 +1,207 @@
 <script setup lang="ts">
-import type { LeaseOut } from '@/features/organization-rental/service'
-import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
-import { ref } from 'vue'
-import { formatOrganizationHouseTitle, formatOrganizationMoney, getOrganizationLeaseStatusTone } from '@/domain/organization-rental'
-import { listOrganizationLeases } from '@/features/organization-rental/service'
-import { getOrganizationLeaseDetailRoute } from '@/modules/routes'
-import AppListState from '@/shared/components/AppListState.vue'
+import type { LeaseOut } from '@/pages-org-rental/api/organization-rental'
+import { onLoad } from '@dcloudio/uni-app'
+import { computed, reactive, ref } from 'vue'
+import OrganizationLeaseCard from '@/pages-org-rental/leases/components/OrganizationLeaseCard.vue'
+import { listOrganizationLeases } from '@/pages-org-rental/api/organization-rental'
+import { APP_ROUTES, getOrganizationLeaseDetailRoute } from '@/modules/routes'
+import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '组织租约', enablePullDownRefresh: true } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '组织租约', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
-const items = ref<LeaseOut[]>([])
 const keyword = ref('')
-const page = ref(1)
-const pageSize = 15
-const loading = ref(false)
-const finished = ref(false)
-const loadError = ref('')
-let requestId = 0
-
-async function loadLeases(reset = false) {
-  if (!reset && loading.value)
-    return
-  if (!reset && finished.value)
-    return
-  const currentRequestId = reset ? ++requestId : requestId
-  const targetPage = reset ? 1 : page.value
-  if (reset) {
-    page.value = 1
-    finished.value = false
-  }
-  loading.value = true
-  loadError.value = ''
-  try {
-    const result = await listOrganizationLeases(appContextStore.organizationSlug, targetPage, pageSize, { keyword: keyword.value.trim() || undefined })
-    if (currentRequestId !== requestId)
-      return
-    items.value = reset ? result.items : [...items.value, ...result.items]
-    finished.value = items.value.length >= result.total || result.items.length < pageSize
-    if (!finished.value)
-      page.value = targetPage + 1
-  }
-  catch {
-    if (currentRequestId === requestId)
-      loadError.value = '组织租约加载失败，请稍后重试'
-  }
-  finally {
-    if (currentRequestId === requestId) {
-      loading.value = false
-      uni.stopPullDownRefresh()
+const statusFilter = ref<'all' | 'pending' | 'active' | 'expired'>('all')
+const hasFilters = computed(() => Boolean(keyword.value.trim() || statusFilter.value !== 'all'))
+const summaryCounts = reactive({ pending: 0, active: 0 })
+const houseId = ref<number>()
+onLoad((options) => {
+  const id = Number(options?.house_id)
+  houseId.value = Number.isInteger(id) && id > 0 ? id : undefined
+})
+const list = usePagedPage<LeaseOut>({
+  pageSize: 15,
+  loader: async ({ page, pageSize }) => {
+    const result = await listOrganizationLeases(appContextStore.organizationSlug, page, pageSize, { keyword: keyword.value.trim() || undefined, house_id: houseId.value, status: statusFilter.value === 'all' ? undefined : statusFilter.value })
+    if (page === 1) {
+      const [pending, active] = await Promise.all([
+        listOrganizationLeases(appContextStore.organizationSlug, 1, 1, { status: 'pending' }),
+        listOrganizationLeases(appContextStore.organizationSlug, 1, 1, { status: 'active' }),
+      ])
+      summaryCounts.pending = pending.total
+      summaryCounts.active = active.total
     }
-  }
+    return result
+  },
+})
+
+function changeStatus(status: 'all' | 'pending' | 'active' | 'expired') {
+  statusFilter.value = status
+  void list.refresh()
+}
+
+function openTasks() {
+  uni.navigateTo({ url: APP_ROUTES.organizationTasks })
+}
+
+function createLease() {
+  uni.navigateTo({ url: APP_ROUTES.organizationSigning })
 }
 
 function openDetail(id: number) {
   uni.navigateTo({ url: getOrganizationLeaseDetailRoute(id) })
 }
 
-onShow(() => void loadLeases(true))
-onPullDownRefresh(() => loadLeases(true))
-onReachBottom(() => void loadLeases())
+function handleEmptyAction() {
+  if (!hasFilters.value) {
+    createLease()
+    return
+  }
+  keyword.value = ''
+  statusFilter.value = 'all'
+  void list.refresh()
+}
 </script>
 
 <template>
-  <view class="list-page">
-    <wd-search v-model="keyword" placeholder="搜索租客或房源" hide-cancel @search="loadLeases(true)" @clear="loadLeases(true)" />
-    <view v-if="items.length" class="card-list">
-      <view v-for="item in items" :key="item.id" class="record-card" @click="openDetail(item.id)">
-        <view class="card-topline">
-          <view class="record-title">
-            {{ formatOrganizationHouseTitle(item.house) }}
-          </view><wd-tag :type="getOrganizationLeaseStatusTone(item.status)" variant="light" size="small">
-            {{ item.status__mapping }}
-          </wd-tag>
-        </view>
-        <view class="tenant">
-          {{ item.tenant.name }} · {{ item.tenant.phone }}
-        </view>
-        <view class="rent">
-          {{ formatOrganizationMoney(item.monthly_rent) }}<text>/月</text>
-        </view>
-        <view class="card-footer">
-          <text>{{ item.start_date }} 至 {{ item.end_date }}</text><text>查看详情</text>
-        </view>
+  <AppPage variant="list">
+    <template #navigation>
+      <AppCustomNavigation title="租约与任务" back scroll-mode="sticky">
+        <template #action>
+          <button class="navigation-action" @click="createLease">
+            新建
+          </button>
+        </template>
+      </AppCustomNavigation>
+    </template>
+    <view class="module-tabs">
+      <view class="active">
+        租约
+      </view><view @click="openTasks">
+        我的任务
+      </view><view @click="openTasks">
+        团队任务
       </view>
     </view>
-    <AppListState :loading="loading" :has-items="Boolean(items.length)" :finished="finished" :error-message="loadError" loading-text="正在加载租约…" empty-text="当前组织暂无租约" finished-text="没有更多租约了" @retry="loadLeases(true)" />
-  </view>
+    <view class="lease-summary">
+      <view><text>待生效</text><strong>{{ summaryCounts.pending }} 份</strong><view /></view><view><text>履约中</text><strong>{{ summaryCounts.active }} 份</strong><view /></view>
+    </view>
+    <view class="status-tabs">
+      <view v-for="item in ([['all', '全部'], ['pending', '待生效'], ['active', '履约中'], ['expired', '已到期']] as const)" :key="item[0]" :class="{ active: statusFilter === item[0] }" @click="changeStatus(item[0])">
+        {{ item[1] }}
+      </view>
+    </view>
+    <AppListToolbar
+      v-model:keyword="keyword"
+      search-placeholder="搜索租客或房源"
+      @search="list.refresh"
+      @clear="list.refresh"
+    />
+    <view class="mt-2.5">
+      <AppPagedList
+        :items="list.items.value"
+        :loading="list.loading.value"
+        :refreshing="list.refreshing.value"
+        :loading-more="list.loadingMore.value"
+        :finished="list.finished.value"
+        :error="list.error.value"
+        loading-text="正在加载租约…"
+        :empty-text="hasFilters ? '没有符合条件的租约' : '当前组织还没有租约'"
+        :empty-description="hasFilters ? '试试清空搜索内容或切换到全部状态。' : '完成登记签约后，可在这里跟进租约状态和履约信息。'"
+        empty-icon="no-result"
+        :empty-action-text="hasFilters ? '清除筛选' : '登记签约'"
+        finished-text="没有更多租约了"
+        @retry="list.refresh"
+        @empty-action="handleEmptyAction"
+      >
+        <template #item="{ item }">
+          <OrganizationLeaseCard :lease="item" @click="openDetail(item.id)" />
+        </template>
+      </AppPagedList>
+    </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
-.list-page {
-  min-height: 100vh;
-  padding: 16rpx 24rpx 56rpx;
-  background: var(--app-bg-page);
+.navigation-action {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--app-color-brand);
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 56rpx;
+  background: transparent;
 }
-.card-list {
+.navigation-action::after {
+  border: 0;
+}
+.module-tabs,
+.status-tabs {
   display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  margin-top: 20rpx;
+  gap: 14rpx;
 }
-.record-card {
-  padding: 28rpx;
-  border-radius: 24rpx;
+.module-tabs {
+  margin-top: 84rpx;
+}
+.module-tabs view,
+.status-tabs view {
+  min-width: 124rpx;
+  padding: 14rpx 20rpx;
+  border: 1rpx solid var(--app-border-color);
+  border-radius: 18rpx;
+  color: var(--app-text-secondary);
+  font-size: 22rpx;
+  text-align: center;
   background: var(--app-bg-card);
 }
-.card-topline,
-.card-footer {
+.module-tabs view.active,
+.status-tabs view.active {
+  border-color: var(--app-color-brand);
+  color: #fff;
+  background: var(--app-color-brand);
+}
+.lease-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20rpx;
+  margin-top: 30rpx;
+}
+.lease-summary > view {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
+  min-height: 128rpx;
+  padding: 24rpx;
+  flex-direction: column;
+  gap: 8rpx;
+  border-radius: 28rpx;
+  box-sizing: border-box;
+  background: var(--app-bg-card);
 }
-.record-title {
-  min-width: 0;
-  flex: 1;
-  color: var(--app-text-primary);
-  font-size: 29rpx;
-  font-weight: 650;
-}
-.tenant,
-.card-footer {
-  margin-top: 10rpx;
+.lease-summary text {
   color: var(--app-text-muted);
   font-size: 22rpx;
 }
-.rent {
-  margin-top: 20rpx;
-  color: var(--app-color-price);
-  font-size: 36rpx;
-  font-weight: 700;
+.lease-summary strong {
+  color: var(--app-text-primary);
+  font-size: 32rpx;
 }
-.rent text {
-  margin-left: 4rpx;
-  font-size: 22rpx;
-  font-weight: 400;
+.lease-summary > view > view {
+  position: absolute;
+  bottom: 0;
+  left: 24rpx;
+  width: 56rpx;
+  height: 7rpx;
+  border-radius: 999rpx;
+  background: var(--app-color-brand);
 }
-.card-footer {
-  margin-top: 18rpx;
-}
-.card-footer text:last-child {
-  color: var(--app-color-primary);
+.status-tabs {
+  margin: 28rpx 0 20rpx;
 }
 </style>

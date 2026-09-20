@@ -5,11 +5,13 @@ import { ref } from 'vue'
 import { formatTenantHouseTitle, getTenantLeaseStatusTone } from '@/domain/tenant-rental'
 import { getLandlordLease } from '@/features/landlord/service'
 import { APP_ROUTES } from '@/modules/routes'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppPage from '@/components/app/AppPage.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '房东租约详情' } })
+definePage({ style: { navigationBarTitleText: '租约详情', navigationStyle: 'custom' } })
 
 const appContextStore = useAppContextStore()
 const leaseId = ref(0)
@@ -54,40 +56,45 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="detail-page">
-    <AppLoading v-if="loading" text="正在加载租约…" />
-    <AppErrorView v-else-if="loadError" title="租约加载失败" :message="loadError" @retry="loadLease" />
-    <template v-else-if="lease">
-      <view class="hero-card">
-        <wd-tag :type="getTenantLeaseStatusTone(lease.status)" variant="light">
-          {{ lease.status__mapping }}
-        </wd-tag>
-        <view class="title">
-          {{ formatTenantHouseTitle(lease.house) }}
-        </view>
-        <view class="rent">
-          ¥{{ lease.monthly_rent }} / 月
-        </view>
-      </view>
-      <wd-cell-group title="租赁信息" insert>
-        <wd-cell title="租客" :value="lease.tenant.name" />
-        <wd-cell title="联系电话" :value="lease.tenant.phone" />
-        <wd-cell title="租期" :value="`${lease.start_date} 至 ${lease.end_date}`" />
-        <wd-cell title="押金" :value="lease.deposit ? `¥${lease.deposit}` : '未登记'" />
-        <wd-cell title="付款日" :value="`每月 ${lease.payment_day} 日`" />
-        <wd-cell title="合同文件" :value="lease.contract_files.length ? `${lease.contract_files.length} 份` : '未上传'" />
-      </wd-cell-group>
-      <wd-cell-group title="相关内容" insert>
-        <wd-cell title="房源详情" is-link @click="openHouse" />
-      </wd-cell-group>
+  <AppPage variant="detail" gutter="none">
+    <template #navigation>
+      <AppCustomNavigation title="租约详情" back scroll-mode="sticky" />
     </template>
-  </view>
+    <view class="detail-page">
+      <AppLoading v-if="loading" text="正在加载租约…" />
+      <AppErrorView v-else-if="loadError" title="租约加载失败" :message="loadError" @retry="loadLease" />
+      <template v-else-if="lease">
+        <view class="hero-card">
+          <wd-tag :type="getTenantLeaseStatusTone(lease.status)" variant="light">
+            {{ lease.status__mapping }}
+          </wd-tag>
+          <view class="title">
+            {{ formatTenantHouseTitle(lease.house) }}
+          </view>
+          <view class="rent">
+            ¥{{ lease.monthly_rent }} / 月
+          </view>
+        </view>
+        <wd-cell-group title="租赁信息" insert>
+          <wd-cell title="租客" :value="lease.tenant.name" />
+          <wd-cell title="联系电话" :value="lease.tenant.phone" />
+          <wd-cell title="租期" :value="`${lease.start_date} 至 ${lease.end_date}`" />
+          <wd-cell title="押金" :value="lease.deposit ? `¥${lease.deposit}` : '未登记'" />
+          <wd-cell title="付款日" :value="`每月 ${lease.payment_day} 日`" />
+          <wd-cell title="合同文件" :value="lease.contract_files.length ? `${lease.contract_files.length} 份` : '未上传'" />
+        </wd-cell-group>
+        <wd-cell-group title="相关内容" insert>
+          <wd-cell title="房源详情" is-link @click="openHouse" />
+        </wd-cell-group>
+      </template>
+    </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
 .detail-page {
   min-height: 100vh;
-  padding: 24rpx 0 56rpx;
+  padding: 40rpx 0 72rpx;
   background: var(--app-bg-page);
 }
 .hero-card {

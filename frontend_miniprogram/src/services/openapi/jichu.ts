@@ -298,6 +298,31 @@ export function teamsTeamIdUsingPatch({
   });
 }
 
+/** 获取团队成员候选 返回目标团队所属组织中尚未加入该团队的成员。 GET /api/teams/${param0}/member-candidates/ */
+export function teamsTeamIdMemberCandidatesUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.TeamsTeamIdMemberCandidatesUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { team_id: param0, ...queryParams } = params;
+
+  return request<API.PagedMemberOut>(
+    `/api/teams/${param0}/member-candidates/`,
+    {
+      method: 'GET',
+      params: {
+        // page has a default value: 1
+        page: '1',
+        ...queryParams,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 加入团队成员 POST /api/teams/${param0}/members/${param1}/ */
 export function teamsTeamIdMembersUserIdUsingPost({
   params,

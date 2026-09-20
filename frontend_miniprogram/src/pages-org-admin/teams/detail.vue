@@ -5,11 +5,15 @@ import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, ref } from 'vue'
 import { addOrganizationAdminTeamMember, getOrganizationAdminNavigationCapabilities, getOrganizationAdminTeam, listAllOrganizationTeamMemberCandidates, patchOrganizationAdminTeam, removeOrganizationAdminTeamMember } from '@/features/organization-admin/service'
 import { APP_ROUTES } from '@/modules/routes'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
+import AppEmpty from '@/components/app/AppEmpty.vue'
+import AppEntityPickerOption from '@/components/app/AppEntityPickerOption.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '团队详情' } })
+definePage({ style: { navigationBarTitleText: '团队详情', navigationStyle: 'custom' } })
 
 const toast = useToast()
 const appContextStore = useAppContextStore()
@@ -134,6 +138,7 @@ onLoad((options) => {
 
 <template>
   <view class="page-shell">
+    <AppCustomNavigation title="团队详情" back scroll-mode="sticky" />
     <wd-toast />
     <AppLoading v-if="loading" text="正在加载团队详情…" />
     <AppErrorView v-else-if="loadError" title="团队详情加载失败" :message="loadError" @retry="loadTeam" />
@@ -168,29 +173,38 @@ onLoad((options) => {
         <view><strong>团队设置</strong><text>维护当前团队业务设置</text></view><view class="i-carbon-chevron-right" />
       </view>
     </template>
-    <wd-popup v-model="memberVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 32rpx 26rpx; max-height: 78vh; overflow: auto;">
-      <view class="popup-title">
-        添加团队成员
+    <AppBottomSheet v-model:visible="memberVisible" title="添加团队成员" height="tall">
+      <view class="flex flex-col gap-1.5">
+        <view v-for="candidate in availableMembers" :key="candidate.pk" class="rounded-app-md bg-surface-page p-2.5">
+          <AppEntityPickerOption :title="candidate.employee_name || candidate.user.username" :description="candidate.job_title || candidate.user.email">
+            <template #trailing>
+              <wd-button size="small" :loading="submitting === candidate.user.id" :disabled="submitting !== null" @click="addMember(candidate)">
+                加入
+              </wd-button>
+            </template>
+          </AppEntityPickerOption>
+        </view>
+        <AppEmpty
+          v-if="!availableMembers.length"
+          title="没有可加入的组织成员"
+          description="当前组织成员都已在团队中，或没有可管理的成员。"
+          icon="no-result"
+          compact
+        />
       </view>
-      <view v-for="candidate in availableMembers" :key="candidate.pk" class="member-card candidate">
-        <view><strong>{{ candidate.employee_name || candidate.user.username }}</strong><text>{{ candidate.job_title || candidate.user.email }}</text></view>
-        <wd-button size="small" :loading="submitting === candidate.user.id" :disabled="submitting !== null" @click="addMember(candidate)">
-          加入
-        </wd-button>
-      </view>
-      <view v-if="!availableMembers.length" class="empty-tip">
-        没有可加入的组织成员
-      </view>
-    </wd-popup>
+    </AppBottomSheet>
   </view>
 </template>
 
 <style scoped lang="scss">
 .page-shell {
   min-height: 100vh;
-  padding: 24rpx 24rpx 56rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
   box-sizing: border-box;
+}
+.page-shell :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 24rpx;
 }
 .form-card,
 .member-card,
@@ -246,20 +260,5 @@ onLoad((options) => {
 }
 .link-card {
   margin-top: 16rpx;
-}
-.candidate {
-  margin-top: 12rpx;
-  background: var(--app-bg-page);
-}
-.popup-title {
-  margin-bottom: 16rpx;
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
-}
-.empty-tip {
-  padding: 36rpx;
-  color: var(--app-text-muted);
-  text-align: center;
 }
 </style>

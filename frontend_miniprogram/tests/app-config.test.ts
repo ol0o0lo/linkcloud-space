@@ -56,6 +56,17 @@ test('微信本地开发允许 HTTP 地址但仍拒绝空配置', () => {
     weixinEnvVersion: 'develop',
   }).api.baseUrl, 'http://localhost:18000')
 
+  assert.equal(parseAppConfig({
+    platform: 'mp-weixin',
+    buildMode: 'development',
+    env: {
+      VITE_APP_TITLE: '链云空间',
+      VITE_API_MODE: 'absolute',
+      VITE_API_BASE_URL__WEIXIN_DEVELOP: 'http://192.168.3.154:18000',
+    },
+    weixinEnvVersion: 'develop',
+  }).api.baseUrl, 'http://192.168.3.154:18000')
+
   assert.throws(() => parseAppConfig({
     platform: 'mp-weixin',
     buildMode: 'development',
@@ -65,6 +76,19 @@ test('微信本地开发允许 HTTP 地址但仍拒绝空配置', () => {
     },
     weixinEnvVersion: 'develop',
   }), /API 地址未配置/)
+})
+
+test('微信开发构建在真机预览环境仍使用开发地址', () => {
+  const env = {
+    VITE_APP_TITLE: '链云空间',
+    VITE_API_MODE: 'same-origin',
+    VITE_API_MODE__WEIXIN: 'absolute',
+    VITE_API_BASE_URL: '/fg-api',
+    VITE_API_BASE_URL__WEIXIN_DEVELOP: 'http://192.168.10.14:18000',
+  }
+
+  assert.equal(parseAppConfig({ platform: 'mp-weixin', buildMode: 'development', env, weixinEnvVersion: 'trial' }).api.baseUrl, 'http://192.168.10.14:18000')
+  assert.equal(parseAppConfig({ platform: 'mp-weixin', buildMode: 'development', env, weixinEnvVersion: 'release' }).api.baseUrl, 'http://192.168.10.14:18000')
 })
 
 test('同一份环境文件可以分别声明 H5 与微信地址模式', () => {

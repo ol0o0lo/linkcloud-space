@@ -34,7 +34,7 @@ import {
   teamOperationsTasksUsingGet,
   teamOperationsTasksUsingPost,
 } from '@/services/openapi/tuanduiyunying'
-import { collectAllPages } from '@/shared/pagination/collectAllPages'
+import { collectAllPages } from '@/utils/pagination/collectAllPages'
 
 export type {
   AnnouncementIn,

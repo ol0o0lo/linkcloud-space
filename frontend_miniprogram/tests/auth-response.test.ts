@@ -5,7 +5,6 @@ import {
   getAllauthErrorMessage,
   getAllauthSessionToken,
   getAllauthUser,
-  getPendingMfaTypes,
   isInvalidAllauthSessionStatus,
 } from '../src/domain/auth.ts'
 
@@ -30,16 +29,4 @@ test('allauth 缺失或已失效会话都按可恢复的未登录状态处理', 
   assert.equal(isInvalidAllauthSessionStatus(401), true)
   assert.equal(isInvalidAllauthSessionStatus(410), true)
   assert.equal(isInvalidAllauthSessionStatus(500), false)
-})
-
-test('登录响应识别待完成的 TOTP、恢复码和 WebAuthn 二次验证', () => {
-  assert.deepEqual(getPendingMfaTypes({
-    data: {
-      flows: [
-        { id: 'login' },
-        { id: 'mfa_authenticate', is_pending: true, types: ['totp', 'recovery_codes', 'webauthn'] },
-      ],
-    },
-  }), ['totp', 'recovery_codes', 'webauthn'])
-  assert.deepEqual(getPendingMfaTypes({ data: { flows: [{ id: 'mfa_authenticate', types: ['totp'] }] } }), [])
 })

@@ -15,12 +15,14 @@ import {
   updateOrganizationAdminSetting,
   updateOrganizationTeamSetting,
 } from '@/features/organization-admin/service'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
-import { createLatestRequestGuard } from '@/shared/composables/useAsyncTask'
+import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import { createLatestRequestGuard } from '@/hooks/useAsyncTask'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '组织设置' } })
+definePage({ style: { navigationBarTitleText: '组织设置', navigationStyle: 'custom' } })
 
 const toast = useToast()
 const appContextStore = useAppContextStore()
@@ -274,6 +276,7 @@ onLoad((options) => {
 
 <template>
   <view class="page-shell">
+    <AppCustomNavigation title="组织设置" back scroll-mode="sticky" />
     <wd-toast />
     <AppLoading v-if="loading" text="正在加载设置…" />
     <AppErrorView v-else-if="loadError" title="设置加载失败" :message="loadError" @retry="loadSettings" />
@@ -281,7 +284,7 @@ onLoad((options) => {
       <scroll-view v-if="capabilities" scroll-x class="scope-strip">
         <view class="scope-row">
           <view v-if="capabilities?.organization_settings" class="scope-pill" :class="[{ active: !teamId }]" @click="switchScope(0)">
-            组织设置
+            组织级
           </view>
           <view v-for="team in visibleTeams" :key="team.id" class="scope-pill" :class="[{ active: teamId === team.id }]" @click="switchScope(team.id)">
             {{ team.name }}
@@ -289,7 +292,7 @@ onLoad((options) => {
         </view>
       </scroll-view>
       <view class="scope-title">
-        {{ currentTeam?.name || appContextStore.currentOrganization?.name || '当前组织' }} · {{ isTeamScope ? '团队设置' : '组织设置' }}
+        {{ currentTeam?.name || appContextStore.currentOrganization?.name || '当前组织' }} · {{ isTeamScope ? '仅当前团队生效' : '全组织生效' }}
       </view>
       <view class="card-list">
         <view v-for="setting in settings" :key="setting.key" class="setting-card" @click="editSetting(setting)">
@@ -311,66 +314,67 @@ onLoad((options) => {
         当前范围没有可见设置项
       </view>
     </template>
-    <wd-popup v-model="editorVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 32rpx 26rpx;">
-      <view class="popup-title">
-        {{ editingSetting?.label }}
-      </view>
-      <template v-if="editingSetting?.key === 'property_rental.publish_rules'">
-        <view v-for="row in publishRuleRows" :key="row.key" class="special-row">
-          <text>{{ row.label }}</text>
-          <wd-radio-group v-model="publishRulesDraft[row.key].mode" type="button" direction="horizontal">
-            <wd-radio value="required">
-              不允许发布
-            </wd-radio><wd-radio value="warn">
-              仅提醒
-            </wd-radio><wd-radio value="off">
-              不检查
+    <AppBottomSheet v-model:visible="editorVisible" :title="editingSetting?.label || '编辑设置'" height="tall">
+      <view>
+        <template v-if="editingSetting?.key === 'property_rental.publish_rules'">
+          <view v-for="row in publishRuleRows" :key="row.key" class="special-row">
+            <text>{{ row.label }}</text>
+            <wd-radio-group v-model="publishRulesDraft[row.key].mode" type="button" direction="horizontal">
+              <wd-radio value="required">
+                不允许发布
+              </wd-radio><wd-radio value="warn">
+                仅提醒
+              </wd-radio><wd-radio value="off">
+                不检查
+              </wd-radio>
+            </wd-radio-group>
+            <wd-input-number v-if="row.count" v-model="publishRulesDraft[row.key].min_count" :min="0" />
+          </view>
+        </template>
+        <template v-else-if="editingSetting?.key === 'property_rental.lease_allocation_rule'">
+          <wd-radio-group v-model="leaseAllocationMethod" type="button" direction="horizontal">
+            <wd-radio value="percentage">
+              按月租比例
+            </wd-radio><wd-radio value="fixed">
+              固定金额
             </wd-radio>
           </wd-radio-group>
-          <wd-input-number v-if="row.count" v-model="publishRulesDraft[row.key].min_count" :min="0" />
-        </view>
-      </template>
-      <template v-else-if="editingSetting?.key === 'property_rental.lease_allocation_rule'">
-        <wd-radio-group v-model="leaseAllocationMethod" type="button" direction="horizontal">
-          <wd-radio value="percentage">
-            按月租比例
-          </wd-radio><wd-radio value="fixed">
-            固定金额
-          </wd-radio>
-        </wd-radio-group>
-        <view class="special-row">
-          <text>{{ leaseAllocationMethod === 'percentage' ? '员工收益比例（%）' : '每笔固定收益（元）' }}</text>
-          <wd-input-number v-model="leaseAllocationAmount" :min="0.01" :max="leaseAllocationMethod === 'percentage' ? 100 : Number.MAX_SAFE_INTEGER" :step="0.01" :precision="2" />
-        </view>
-      </template>
-      <template v-else-if="editingSetting?.widget === 'switch'">
-        <wd-switch v-model="editingSwitchValue" />
-      </template>
-      <template v-else-if="editingSetting?.widget === 'input_number'">
-        <wd-input-number v-model="editingNumberValue" :min="numberUi?.min ?? 0" :max="numberUi?.max ?? Number.MAX_SAFE_INTEGER" :step="numberUi?.step ?? 1" />
-        <text v-if="numberUi?.unit" class="value-tip">
-          单位：{{ numberUi.unit }}
-        </text>
-      </template>
-      <template v-else-if="editingSetting?.widget === 'select'">
-        <wd-cell :title="editingSetting.label" :value="selectedOptionLabel" is-link @click="selectPickerVisible = true" />
-      </template>
-      <template v-else-if="editingSetting?.widget === 'location_picker'">
-        <view class="location-card">
-          <text>{{ locationValue?.address || '尚未选择位置' }}</text>
-          <text v-if="locationValue">{{ locationValue.lat }}, {{ locationValue.lng }}</text>
-        </view>
-        <wd-button variant="plain" block @click="chooseLocation">
-          选择地图位置
+          <view class="special-row">
+            <text>{{ leaseAllocationMethod === 'percentage' ? '员工收益比例（%）' : '每笔固定收益（元）' }}</text>
+            <wd-input-number v-model="leaseAllocationAmount" :min="0.01" :max="leaseAllocationMethod === 'percentage' ? 100 : Number.MAX_SAFE_INTEGER" :step="0.01" :precision="2" />
+          </view>
+        </template>
+        <template v-else-if="editingSetting?.widget === 'switch'">
+          <wd-switch v-model="editingSwitchValue" />
+        </template>
+        <template v-else-if="editingSetting?.widget === 'input_number'">
+          <wd-input-number v-model="editingNumberValue" :min="numberUi?.min ?? 0" :max="numberUi?.max ?? Number.MAX_SAFE_INTEGER" :step="numberUi?.step ?? 1" />
+          <text v-if="numberUi?.unit" class="value-tip">
+            单位：{{ numberUi.unit }}
+          </text>
+        </template>
+        <template v-else-if="editingSetting?.widget === 'select'">
+          <wd-cell :title="editingSetting.label" :value="selectedOptionLabel" is-link @click="selectPickerVisible = true" />
+        </template>
+        <template v-else-if="editingSetting?.widget === 'location_picker'">
+          <view class="location-card">
+            <text>{{ locationValue?.address || '尚未选择位置' }}</text>
+            <text v-if="locationValue">{{ locationValue.lat }}, {{ locationValue.lng }}</text>
+          </view>
+          <wd-button variant="plain" block @click="chooseLocation">
+            选择地图位置
+          </wd-button>
+        </template>
+        <wd-input v-else-if="editingSetting?.widget === 'input' || editingSetting?.widget === 'password'" v-model="editingTextValue" :label="editingSetting.label" :show-password="editingSetting.widget === 'password'" />
+        <wd-textarea v-else-if="editingSetting?.widget === 'tags'" v-model="editingTextValue" placeholder="请输入常用标签，多个标签用逗号分隔" :maxlength="1000" />
+        <wd-textarea v-else v-model="editingTextValue" placeholder="请输入设置值" :maxlength="5000" />
+      </view>
+      <template #footer>
+        <wd-button block :loading="saving" :disabled="saving" @click="saveSetting">
+          保存设置
         </wd-button>
       </template>
-      <wd-input v-else-if="editingSetting?.widget === 'input' || editingSetting?.widget === 'password'" v-model="editingTextValue" :label="editingSetting.label" :show-password="editingSetting.widget === 'password'" />
-      <wd-textarea v-else-if="editingSetting?.widget === 'tags'" v-model="editingTextValue" placeholder="请输入常用标签，多个标签用逗号分隔" :maxlength="1000" />
-      <wd-textarea v-else v-model="editingTextValue" placeholder="请输入设置值" :maxlength="5000" />
-      <wd-button block :loading="saving" :disabled="saving" @click="saveSetting">
-        保存设置
-      </wd-button>
-    </wd-popup>
+    </AppBottomSheet>
     <wd-picker v-model="editingSelectValue" v-model:visible="selectPickerVisible" :columns="settingOptions" title="选择设置值" />
   </view>
 </template>
@@ -378,9 +382,12 @@ onLoad((options) => {
 <style scoped lang="scss">
 .page-shell {
   min-height: 100vh;
-  padding: 20rpx 24rpx 56rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
   box-sizing: border-box;
+}
+.page-shell :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 20rpx;
 }
 .scope-strip {
   width: 100%;
@@ -453,11 +460,6 @@ onLoad((options) => {
   color: var(--app-text-muted);
   text-align: center;
   background: var(--app-bg-card);
-}
-.popup-title {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
 }
 .value-tip {
   margin-bottom: 18rpx;

@@ -1,6 +1,6 @@
 // 测试用的 iconfont，可生效
 // @import './iconfont.css';
-@use '../shared/theme/tokens.scss';
+@use './theme/tokens.scss';
 
 .test {
   // 可以通过 @apply 多个样式封装整体样式
@@ -17,6 +17,25 @@ page {
 
   // 修改按钮背景色
   // --wot-button-primary-bg-color: green;
+}
+
+.app-touchable {
+  transform: translateZ(0);
+  transition:
+    transform var(--app-motion-duration-fast) var(--app-motion-ease-out),
+    opacity var(--app-motion-duration-fast) ease,
+    box-shadow var(--app-motion-duration-base) ease;
+}
+
+.app-touchable--pressed {
+  opacity: 0.76;
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-touchable {
+    transition: none;
+  }
 }
 
 /*

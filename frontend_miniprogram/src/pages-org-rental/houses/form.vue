@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import type { BuildingInventoryOut, ContactOut, HouseOut } from '@/features/organization-rental/service'
-import type { OrganizationHouseWriteInput } from '@/domain/organization-rental'
+import type { BuildingInventoryOut, ContactOut, HouseOut } from '@/pages-org-rental/api/organization-rental'
+import type { OrganizationHouseWriteInput } from '@/pages-org-rental/domain/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, reactive, ref } from 'vue'
-import { buildOrganizationHouseCreatePayload, buildOrganizationHousePatchPayload } from '@/domain/organization-rental'
-import { createOrganizationHouse, getOrganizationHouse, listOrganizationBuildings, listOrganizationContacts, patchOrganizationHouse, uploadOrganizationHouseImages } from '@/features/organization-rental/service'
+import { buildOrganizationHouseCreatePayload, buildOrganizationHousePatchPayload } from '@/pages-org-rental/domain/organization-rental'
+import { createOrganizationHouse, getOrganizationHouse, listOrganizationBuildings, listOrganizationContacts, patchOrganizationHouse, uploadOrganizationHouseImages } from '@/pages-org-rental/api/organization-rental'
 import { getOrganizationHouseDetailRoute } from '@/modules/routes'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppEntityPickerOption from '@/components/app/AppEntityPickerOption.vue'
+import AppEntityPickerSheet from '@/pages-org-rental/components/AppEntityPickerSheet.vue'
+import AppFormPage from '@/pages-org-rental/components/AppFormPage.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '房源资料' } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '房源资料' } })
 
 interface PickerConfirmEvent { value: Array<string | number> }
 type HouseMediaRef = Record<string, unknown> & { media_id: number, media_type?: 'image' | 'video' }
@@ -229,209 +232,139 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="form-page">
-    <wd-toast />
-    <AppLoading v-if="loading" text="正在加载房源资料…" />
-    <AppErrorView v-else-if="loadError" title="房源资料不可用" :message="loadError" @retry="loadPage" />
-    <template v-else>
-      <wd-cell-group title="归属与基础" insert>
-        <wd-cell title="楼栋" :value="buildingLabel" is-link @click="buildingVisible = true" />
-        <wd-cell title="房东" :value="landlordLabel" is-link @click="landlordVisible = true" />
-        <wd-input v-model="form.room_number" label="房号" placeholder="请输入房号" clearable />
-        <wd-input v-model="form.floor" label="楼层" type="number" placeholder="例如 12" clearable />
-      </wd-cell-group>
-
-      <wd-cell-group title="面积与租金" insert>
-        <wd-input v-model="form.area" label="建筑面积" type="digit" placeholder="平方米" clearable />
-        <wd-input v-model="form.interior_area" label="套内面积" type="digit" placeholder="平方米" clearable />
-        <wd-input v-model="form.asking_rent" label="挂牌租金" type="digit" placeholder="元/月" clearable />
-        <wd-input v-model="form.deposit_amount" label="押金" type="digit" placeholder="元" clearable />
-      </wd-cell-group>
-
-      <wd-cell-group title="户型资料" insert>
-        <wd-input v-model="form.bedrooms" label="卧室" type="number" placeholder="0" clearable />
-        <wd-input v-model="form.living_rooms" label="客厅" type="number" placeholder="0" clearable />
-        <wd-input v-model="form.bathrooms" label="卫生间" type="number" placeholder="0" clearable />
-        <wd-input v-model="form.kitchens" label="厨房" type="number" placeholder="0" clearable />
-        <wd-input v-model="form.balconies" label="阳台" type="number" placeholder="0" clearable />
-        <wd-cell title="朝向" :value="orientationLabel" is-link @click="orientationVisible = true" />
-        <wd-cell title="装修" :value="decorationLabel" is-link @click="decorationVisible = true" />
-        <wd-cell title="可使用电梯" center>
-          <wd-switch v-model="form.has_elevator_access" size="20px" />
-        </wd-cell>
-      </wd-cell-group>
-
-      <view class="media-card">
-        <view class="section-head">
-          <view><strong>房源图片</strong><text>{{ imageItems.length }}/9 张</text></view>
-          <wd-button size="small" variant="plain" :loading="uploading" @click="addImages">
-            上传图片
-          </wd-button>
-        </view>
-        <view v-if="imageItems.length" class="image-grid">
-          <view v-for="(item, index) in imageItems" :key="item.media_id" class="image-item">
-            <image :src="mediaUrl(item)" mode="aspectFill" />
-            <view class="image-remove" @click="removeImage(index)">
-              移除
-            </view>
-          </view>
-        </view>
-        <view v-else class="empty-media">
-          尚未上传房源图片
-        </view>
-        <view v-if="form.videos?.length" class="existing-video-tip">
-          已保留 {{ form.videos.length }} 个现有视频
-        </view>
-      </view>
-
-      <wd-cell-group title="展示与备注" insert>
-        <wd-input v-model="form.tags" label="标签" placeholder="用逗号分隔" clearable />
-        <wd-cell title="公开描述" layout="vertical">
-          <wd-textarea v-model="form.public_description" placeholder="面向租客展示的房源介绍" :maxlength="3000" show-word-limit />
-        </wd-cell>
-        <wd-cell v-if="houseId" title="内部备注" layout="vertical">
-          <wd-textarea v-model="form.internal_notes" placeholder="仅组织成员可见" :maxlength="3000" show-word-limit />
-        </wd-cell>
-      </wd-cell-group>
-
-      <view class="submit-bar">
-        <wd-button block size="large" :loading="saving" :disabled="saving" @click="submit">
-          {{ houseId ? '保存房源资料' : '创建房源' }}
-        </wd-button>
-      </view>
+  <AppFormPage
+    :loading="loading"
+    :error="loadError"
+    loading-text="正在加载房源资料…"
+    error-title="房源资料不可用"
+    :submitting="saving"
+    :submit-disabled="saving"
+    :submit-text="houseId ? '保存房源资料' : '创建房源'"
+    @retry="loadPage"
+    @submit="submit"
+  >
+    <template #navigation>
+      <AppCustomNavigation title="房源资料" back scroll-mode="sticky" />
+    </template>
+    <template #feedback>
+      <wd-toast />
     </template>
 
-    <wd-popup v-model="buildingVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 28rpx; max-height: 78vh; overflow: auto;">
-      <view class="popup-title">
-        选择楼栋
-      </view>
-      <wd-search v-model="buildingKeyword" placeholder="搜索小区、项目或楼栋" hide-cancel @search="loadBuildings" @clear="loadBuildings" />
-      <view v-if="buildingLoading" class="popup-state">
-        正在加载楼栋…
-      </view>
-      <view v-for="item in buildings" :key="item.id" class="candidate-row" @click="selectBuilding(item)">
-        <strong>{{ item.name }}</strong><text>{{ item.estate?.display_name || item.estate?.name || item.address || '非小区楼栋' }}</text>
-      </view>
-      <view v-if="!buildingLoading && !buildings.length" class="popup-state">
-        未找到楼栋，请先在管理端或楼栋模块建档
-      </view>
-    </wd-popup>
+    <wd-cell-group title="归属与基础" insert>
+      <wd-cell title="楼栋" :value="buildingLabel" is-link @click="buildingVisible = true" />
+      <wd-cell title="房东" :value="landlordLabel" is-link @click="landlordVisible = true" />
+      <wd-input v-model="form.room_number" label="房号" placeholder="请输入房号" clearable />
+      <wd-input v-model="form.floor" label="楼层" type="number" placeholder="例如 12" clearable />
+    </wd-cell-group>
 
-    <wd-popup v-model="landlordVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 28rpx; max-height: 78vh; overflow: auto;">
-      <view class="popup-title">
-        选择房东
-      </view>
-      <wd-search v-model="landlordKeyword" placeholder="搜索房东姓名或手机号" hide-cancel @search="loadLandlords" @clear="loadLandlords" />
-      <view class="candidate-row" @click="selectLandlord(null)">
-        <strong>不关联房东</strong><text>可创建后再补齐</text>
-      </view>
-      <view v-for="item in landlords" :key="item.id" class="candidate-row" @click="selectLandlord(item)">
-        <strong>{{ item.name }}</strong><text>{{ item.phone }}</text>
-      </view>
-      <view v-if="landlordLoading" class="popup-state">
-        正在加载房东联系人…
-      </view>
-    </wd-popup>
+    <wd-cell-group title="面积与租金" insert>
+      <wd-input v-model="form.area" label="建筑面积" type="digit" placeholder="平方米" clearable />
+      <wd-input v-model="form.interior_area" label="套内面积" type="digit" placeholder="平方米" clearable />
+      <wd-input v-model="form.asking_rent" label="挂牌租金" type="digit" placeholder="元/月" clearable />
+      <wd-input v-model="form.deposit_amount" label="押金" type="digit" placeholder="元" clearable />
+    </wd-cell-group>
 
-    <wd-picker v-model="orientationSelection" v-model:visible="orientationVisible" :columns="orientationOptions" title="选择朝向" @confirm="changeOrientation" />
-    <wd-picker v-model="decorationSelection" v-model:visible="decorationVisible" :columns="decorationOptions" title="选择装修情况" @confirm="changeDecoration" />
-  </view>
+    <wd-cell-group title="户型资料" insert>
+      <wd-input v-model="form.bedrooms" label="卧室" type="number" placeholder="0" clearable />
+      <wd-input v-model="form.living_rooms" label="客厅" type="number" placeholder="0" clearable />
+      <wd-input v-model="form.bathrooms" label="卫生间" type="number" placeholder="0" clearable />
+      <wd-input v-model="form.kitchens" label="厨房" type="number" placeholder="0" clearable />
+      <wd-input v-model="form.balconies" label="阳台" type="number" placeholder="0" clearable />
+      <wd-cell title="朝向" :value="orientationLabel" is-link @click="orientationVisible = true" />
+      <wd-cell title="装修" :value="decorationLabel" is-link @click="decorationVisible = true" />
+      <wd-cell title="可使用电梯" center>
+        <wd-switch v-model="form.has_elevator_access" size="20px" />
+      </wd-cell>
+    </wd-cell-group>
+
+    <view class="mx-app-gutter app-card-plain p-3.5">
+      <view class="app-row-between">
+        <view>
+          <view class="text-sm text-content-primary font-semibold">
+            房源图片
+          </view>
+          <view class="mt-1 text-xs text-content-muted">
+            {{ imageItems.length }}/9 张
+          </view>
+        </view>
+        <wd-button size="small" variant="plain" :loading="uploading" @click="addImages">
+          上传图片
+        </wd-button>
+      </view>
+      <view v-if="imageItems.length" class="grid grid-cols-3 mt-3 gap-1.5">
+        <view v-for="(item, index) in imageItems" :key="item.media_id" class="overflow-hidden rounded-app-md bg-surface-subtle">
+          <image class="block h-24 w-full" :src="mediaUrl(item)" mode="aspectFill" />
+          <view class="app-touchable py-1.5 text-center text-2xs text-app-danger" @click="removeImage(index)">
+            移除
+          </view>
+        </view>
+      </view>
+      <view v-else class="mt-3 text-xs text-content-muted">
+        尚未上传房源图片
+      </view>
+      <view v-if="form.videos?.length" class="mt-3 text-xs text-content-muted">
+        已保留 {{ form.videos.length }} 个现有视频
+      </view>
+    </view>
+
+    <wd-cell-group title="展示与备注" insert>
+      <wd-input v-model="form.tags" label="标签" placeholder="用逗号分隔" clearable />
+      <wd-cell title="公开描述" layout="vertical">
+        <wd-textarea v-model="form.public_description" placeholder="面向租客展示的房源介绍" :maxlength="3000" show-word-limit />
+      </wd-cell>
+      <wd-cell v-if="houseId" title="内部备注" layout="vertical">
+        <wd-textarea v-model="form.internal_notes" placeholder="仅组织成员可见" :maxlength="3000" show-word-limit />
+      </wd-cell>
+    </wd-cell-group>
+
+    <template #overlay>
+      <AppEntityPickerSheet
+        v-model:visible="buildingVisible"
+        v-model:keyword="buildingKeyword"
+        title="选择楼栋"
+        search-placeholder="搜索小区、项目或楼栋"
+        :items="buildings"
+        item-key="id"
+        :selected="form.building_id ? [form.building_id] : []"
+        :loading="buildingLoading"
+        empty-text="未找到楼栋，请先在管理端或楼栋模块建档"
+        @search="loadBuildings"
+        @select="selectBuilding"
+      >
+        <template #item="{ item, selected }">
+          <AppEntityPickerOption
+            :title="item.name"
+            :description="item.estate?.display_name || item.estate?.name || item.address || '非小区楼栋'"
+            :selected="selected"
+          />
+        </template>
+      </AppEntityPickerSheet>
+
+      <AppEntityPickerSheet
+        v-model:visible="landlordVisible"
+        v-model:keyword="landlordKeyword"
+        title="选择房东"
+        search-placeholder="搜索房东姓名或手机号"
+        :items="landlords"
+        item-key="id"
+        :selected="form.landlord_id ? [form.landlord_id] : []"
+        :loading="landlordLoading"
+        empty-text="未找到有效房东联系人"
+        @search="loadLandlords"
+        @select="selectLandlord"
+      >
+        <template #before-list>
+          <view class="app-touchable border-0 border-b border-app-divider border-solid py-2.5" @click="selectLandlord(null)">
+            <AppEntityPickerOption title="不关联房东" description="可创建后再补齐" :selected="form.landlord_id == null" />
+          </view>
+        </template>
+        <template #item="{ item, selected }">
+          <AppEntityPickerOption :title="item.name" :description="item.phone" :selected="selected" />
+        </template>
+      </AppEntityPickerSheet>
+
+      <wd-picker v-model="orientationSelection" v-model:visible="orientationVisible" :columns="orientationOptions" title="选择朝向" @confirm="changeOrientation" />
+      <wd-picker v-model="decorationSelection" v-model:visible="decorationVisible" :columns="decorationOptions" title="选择装修情况" @confirm="changeDecoration" />
+    </template>
+  </AppFormPage>
 </template>
-
-<style scoped lang="scss">
-.form-page {
-  min-height: 100vh;
-  padding: 24rpx 0 150rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
-.form-page :deep(.wd-cell-group) {
-  margin-bottom: 22rpx;
-}
-.media-card {
-  margin: 0 24rpx 22rpx;
-  padding: 28rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.section-head,
-.candidate-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-.section-head strong,
-.section-head text,
-.candidate-row strong,
-.candidate-row text {
-  display: block;
-}
-.section-head strong,
-.candidate-row strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-}
-.section-head text,
-.candidate-row text,
-.empty-media,
-.existing-video-tip,
-.popup-state {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.image-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14rpx;
-  margin-top: 24rpx;
-}
-.image-item {
-  overflow: hidden;
-  border-radius: 16rpx;
-  background: var(--app-bg-subtle);
-}
-.image-item image {
-  display: block;
-  width: 100%;
-  height: 180rpx;
-}
-.image-remove {
-  padding: 10rpx;
-  color: var(--app-color-danger);
-  font-size: 21rpx;
-  text-align: center;
-}
-.empty-media,
-.existing-video-tip {
-  margin-top: 24rpx;
-}
-.submit-bar {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 10;
-  padding: 18rpx 24rpx calc(18rpx + env(safe-area-inset-bottom));
-  background: var(--app-bg-card);
-  box-shadow: 0 -8rpx 28rpx rgb(15 23 42 / 8%);
-}
-.popup-title {
-  margin-bottom: 18rpx;
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
-}
-.candidate-row {
-  padding: 24rpx 6rpx;
-  border-bottom: 1px solid var(--app-divider-color);
-}
-.candidate-row text {
-  max-width: 55%;
-  text-align: right;
-}
-.popup-state {
-  padding: 32rpx 6rpx;
-  text-align: center;
-}
-</style>

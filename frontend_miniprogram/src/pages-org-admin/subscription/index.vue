@@ -18,11 +18,15 @@ import {
   refreshOrganizationSubscriptionPayment,
   updateOrganizationInvoiceProfile,
 } from '@/features/organization-admin/service'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import { connectCurrentWechatMiniprogram, getWechatLoginCode } from '@/infra/auth/client'
+import { APP_ROUTES } from '@/modules/routes'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '订阅与发票' } })
+definePage({ style: { navigationBarTitleText: '订阅与发票', navigationStyle: 'custom' } })
 
 interface PaymentSnapshot {
   payment_mode?: string
@@ -65,14 +69,35 @@ const invoiceOrderId = ref<number | null>(null)
 const nativeCodeUrl = ref('')
 const paymentMode = computed(() => resolveSubscriptionPaymentMode(runtimePlatform))
 const currentPlanName = computed(() => String((current.value?.plan as Record<string, unknown> | undefined)?.name || '当前套餐'))
+const currentSubscription = computed(() => current.value?.subscription as Record<string, unknown> | null | undefined)
+const currentEntitlement = computed(() => current.value?.entitlement as Record<string, unknown> | undefined)
+const currentUsage = computed(() => current.value?.usage as Record<string, number> | undefined)
+const trialDaysRemaining = computed(() => {
+  if (currentSubscription.value?.kind !== 'trial' || typeof currentSubscription.value.ends_at !== 'string')
+    return null
+  return Math.max(0, Math.ceil((new Date(currentSubscription.value.ends_at).getTime() - Date.now()) / 86400000))
+})
 const canManageSubscription = computed(() => appContextStore.capabilities.subscriptions_manage === true)
 const invoiceableOrders = computed(() => orders.value.filter(order => order.status === 'paid' && order.refund_status === 'none' && !order.invoice))
 const selectedInvoiceOrder = computed(() => invoiceableOrders.value.find(order => order.id === invoiceOrderId.value) || null)
 
 function planPrices(plan: PlanOut): PlanPrice[] {
-  return plan.prices
+  const prices = plan.prices
     .map(price => price as Partial<PlanPrice>)
     .filter((price): price is PlanPrice => typeof price.billing_cycle === 'string' && typeof price.amount === 'number')
+  return planPurchaseMode(plan) === 'sales_assisted' ? prices.slice(0, 1) : prices
+}
+
+function planPurchaseMode(plan: PlanOut) {
+  return String((plan as PlanOut & { purchase_mode?: string }).purchase_mode || 'self_service')
+}
+
+function planEntitlement(plan: PlanOut) {
+  return (plan.entitlement || {}) as Record<string, unknown>
+}
+
+function formatQuota(value: unknown, unit: string) {
+  return value === null ? `不限${unit}` : `${Number(value || 0)}${unit}`
 }
 
 function formatMoney(amountInCents: number) {
@@ -140,13 +165,34 @@ async function requestPayment(order: SaaSOrderOut) {
   await requestWechatMiniprogramPayment(paymentRequest.options)
 }
 
+async function ensureWechatPaymentIdentity() {
+  if (paymentMode.value !== 'miniprogram')
+    return
+  const code = await getWechatLoginCode()
+  await connectCurrentWechatMiniprogram(code)
+}
+
 async function purchasePlan(plan: PlanOut, price: PlanPrice) {
   if (submitting.value || !canManageSubscription.value)
     return
+  if (plan.code === 'free')
+    return
+  if (planPurchaseMode(plan) === 'sales_assisted') {
+    uni.navigateTo({ url: APP_ROUTES.saasEnterprise })
+    return
+  }
   const confirmation = await uni.showModal({ title: '购买套餐', content: `将创建“${plan.name}”${formatBillingCycle(price.billing_cycle)} ¥${formatMoney(price.amount)} 支付订单，确定继续吗？`, confirmText: '创建订单' })
   if (!confirmation.confirm)
     return
   submitting.value = true
+  try {
+    await ensureWechatPaymentIdentity()
+  }
+  catch (error) {
+    toast.error(error instanceof Error ? error.message : '微信身份绑定失败，请重试')
+    submitting.value = false
+    return
+  }
   const intent = getSubscriptionPurchaseIntent(purchaseIntent, {
     organizationSlug: appContextStore.organizationSlug,
     planCode: plan.code,
@@ -174,6 +220,10 @@ async function purchasePlan(plan: PlanOut, price: PlanPrice) {
   try {
     await requestPayment(order)
     toast.success(paymentMode.value === 'native' ? '订单已创建，请扫码支付' : '支付请求已发起')
+    if (paymentMode.value === 'miniprogram') {
+      uni.navigateTo({ url: `${APP_ROUTES.saasPaymentSuccess}?orderNo=${encodeURIComponent(order.order_no)}&organizationSlug=${encodeURIComponent(appContextStore.organizationSlug)}` })
+      return
+    }
     await loadSubscription()
   }
   catch (error) {
@@ -193,9 +243,12 @@ async function continuePayment(order: SaaSOrderOut) {
   }
   payingOrderNo.value = order.order_no
   try {
+    await ensureWechatPaymentIdentity()
     const checkoutOrder = paymentSnapshot(order).checkout ? order : await checkoutOrganizationSubscriptionOrder(appContextStore.organizationSlug, order.order_no)
     await requestPayment(checkoutOrder)
     toast.success(paymentMode.value === 'native' ? '请扫码完成支付' : '支付请求已发起')
+    if (paymentMode.value === 'miniprogram')
+      uni.navigateTo({ url: `${APP_ROUTES.saasPaymentSuccess}?orderNo=${encodeURIComponent(order.order_no)}&organizationSlug=${encodeURIComponent(appContextStore.organizationSlug)}` })
   }
   catch (error) { toast.error(error instanceof Error ? error.message : '继续支付失败') }
   finally { payingOrderNo.value = '' }
@@ -233,6 +286,10 @@ async function cancelOrder(order: SaaSOrderOut) {
 async function saveInvoiceProfile() {
   if (submitting.value || !canManageSubscription.value || !invoiceTitle.value.trim() || !recipientEmail.value.trim())
     return
+  if (invoiceType.value === 'company' && !taxNumber.value.trim()) {
+    toast.warning('企业发票必须填写税号')
+    return
+  }
   submitting.value = true
   try {
     invoiceProfile.value = await updateOrganizationInvoiceProfile(appContextStore.organizationSlug, {
@@ -250,6 +307,26 @@ async function saveInvoiceProfile() {
   }
   catch (error) { toast.error(error instanceof Error ? error.message : '开票资料保存失败') }
   finally { submitting.value = false }
+}
+
+function openInvoiceFile(url: string) {
+  uni.showLoading({ title: '正在打开' })
+  uni.downloadFile({
+    url,
+    success: (result) => {
+      if (result.statusCode !== 200) {
+        uni.setClipboardData({ data: url })
+        toast.warning('文件下载失败，地址已复制')
+        return
+      }
+      uni.openDocument({ filePath: result.tempFilePath, showMenu: true, fail: () => uni.setClipboardData({ data: url }) })
+    },
+    fail: () => {
+      uni.setClipboardData({ data: url })
+      toast.warning('文件地址已复制，请在浏览器打开')
+    },
+    complete: () => uni.hideLoading(),
+  })
 }
 
 async function requestInvoice() {
@@ -274,12 +351,20 @@ onShow(() => void loadSubscription())
 
 <template>
   <view class="page-shell">
+    <AppCustomNavigation title="订阅与发票" back scroll-mode="sticky" />
     <wd-toast />
     <AppLoading v-if="loading" text="正在加载订阅信息…" />
     <AppErrorView v-else-if="loadError" title="订阅信息加载失败" :message="loadError" @retry="loadSubscription" />
     <template v-else>
       <view class="hero-card">
-        <text>当前套餐</text><strong>{{ currentPlanName }}</strong><text>支付方式：{{ paymentMode === 'miniprogram' ? '微信小程序支付' : '微信扫码支付' }}</text>
+        <text>当前套餐</text><strong>{{ currentPlanName }}</strong>
+        <text v-if="trialDaysRemaining !== null">专业版试用还剩 {{ trialDaysRemaining }} 天</text>
+        <text v-else>支付方式：{{ paymentMode === 'miniprogram' ? '微信小程序支付' : '微信扫码支付' }}</text>
+        <view v-if="currentUsage" class="usage-row">
+          <text>成员 {{ currentUsage.member || 0 }}/{{ currentEntitlement?.member_limit ?? '不限' }}</text>
+          <text>团队 {{ currentUsage.team || 0 }}/{{ currentEntitlement?.team_limit ?? '不限' }}</text>
+          <text>房源 {{ currentUsage.house || 0 }}/{{ currentEntitlement?.house_limit ?? '不限' }}</text>
+        </view>
       </view>
       <view class="section-heading">
         可用套餐
@@ -288,11 +373,16 @@ onShow(() => void loadSubscription())
         <view v-for="plan in plans" :key="plan.code" class="record-card">
           <view class="record-main">
             <strong>{{ plan.name }}</strong><text>{{ plan.description }}</text>
+            <view v-if="plan.entitlement" class="quota-row">
+              <text>{{ formatQuota(planEntitlement(plan).member_limit, '人') }}</text>
+              <text>{{ formatQuota(planEntitlement(plan).team_limit, '个团队') }}</text>
+              <text>{{ formatQuota(planEntitlement(plan).house_limit, '套房源') }}</text>
+            </view>
             <view class="price-list">
               <view v-for="price in planPrices(plan)" :key="price.billing_cycle" class="price-row">
-                <text>¥{{ formatMoney(price.amount) }} / {{ formatBillingCycle(price.billing_cycle) }}{{ price.display_note ? ` · ${price.display_note}` : '' }}</text>
-                <wd-button v-if="canManageSubscription" size="small" :loading="submitting" :disabled="submitting" @click="purchasePlan(plan, price)">
-                  购买此周期
+                <text>{{ planPurchaseMode(plan) === 'sales_assisted' ? '按需报价' : `¥${formatMoney(price.amount)} / ${formatBillingCycle(price.billing_cycle)}` }}{{ price.display_note ? ` · ${price.display_note}` : '' }}</text>
+                <wd-button v-if="canManageSubscription && plan.code !== 'free'" size="small" :loading="submitting" :disabled="submitting" @click="purchasePlan(plan, price)">
+                  {{ planPurchaseMode(plan) === 'sales_assisted' ? '联系销售' : '购买此周期' }}
                 </wd-button>
               </view>
             </view>
@@ -356,53 +446,55 @@ onShow(() => void loadSubscription())
               </wd-tag>
             </view>
             <text>订单号：{{ invoiceRequest.order_no }}{{ invoiceRequest.invoice_number ? ` · 发票号 ${invoiceRequest.invoice_number}` : '' }}</text>
-            <text v-if="invoiceRequest.file_url" class="file-url" selectable>
-              {{ invoiceRequest.file_url }}
-            </text>
+            <text v-if="invoiceRequest.admin_note" class="invoice-note">处理说明：{{ invoiceRequest.admin_note }}</text>
+            <wd-button v-if="invoiceRequest.file_url" size="small" variant="plain" @click="openInvoiceFile(invoiceRequest.file_url)">
+              查看电子发票
+            </wd-button>
           </view>
         </view>
       </view>
     </template>
-    <wd-popup v-model="invoiceVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 32rpx 26rpx;">
-      <view class="popup-title">
-        开票资料
+    <AppBottomSheet v-model:visible="invoiceVisible" title="开票资料" height="tall">
+      <view class="flex flex-col gap-1.5">
+        <wd-radio-group v-model="invoiceType" type="button" direction="horizontal">
+          <wd-radio value="personal">
+            个人
+          </wd-radio><wd-radio value="company">
+            企业
+          </wd-radio>
+        </wd-radio-group>
+        <wd-input v-model="invoiceTitle" label="发票抬头" />
+        <template v-if="invoiceType === 'company'">
+          <wd-input v-model="taxNumber" label="税号" />
+          <wd-input v-model="registeredAddress" label="注册地址" />
+          <wd-input v-model="registeredPhone" label="注册电话" />
+          <wd-input v-model="bankName" label="开户银行" />
+          <wd-input v-model="bankAccount" label="银行账号" />
+        </template>
+        <wd-input v-model="recipientEmail" label="接收邮箱" />
       </view>
-      <wd-radio-group v-model="invoiceType" type="button" direction="horizontal">
-        <wd-radio value="personal">
-          个人
-        </wd-radio><wd-radio value="company">
-          企业
-        </wd-radio>
-      </wd-radio-group>
-      <wd-input v-model="invoiceTitle" label="发票抬头" />
-      <template v-if="invoiceType === 'company'">
-        <wd-input v-model="taxNumber" label="税号" />
-        <wd-input v-model="registeredAddress" label="注册地址" />
-        <wd-input v-model="registeredPhone" label="注册电话" />
-        <wd-input v-model="bankName" label="开户银行" />
-        <wd-input v-model="bankAccount" label="银行账号" />
+      <template #footer>
+        <wd-button block :loading="submitting" :disabled="submitting" @click="saveInvoiceProfile">
+          保存开票资料
+        </wd-button>
       </template>
-      <wd-input v-model="recipientEmail" label="接收邮箱" />
-      <wd-button block :loading="submitting" :disabled="submitting" @click="saveInvoiceProfile">
-        保存开票资料
-      </wd-button>
-    </wd-popup>
-    <wd-popup :model-value="Boolean(nativeCodeUrl)" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 32rpx 26rpx;" @close="nativeCodeUrl = ''">
-      <view class="popup-title">
-        微信扫码支付
-      </view>
+    </AppBottomSheet>
+    <AppBottomSheet :visible="Boolean(nativeCodeUrl)" title="微信扫码支付" :scrollable="false" @update:visible="!$event && (nativeCodeUrl = '')">
       <image class="payment-qr" :src="`/qr/?data=${encodeURIComponent(nativeCodeUrl)}`" mode="aspectFit" />
       <text class="payment-tip">请使用微信扫描二维码完成支付，支付后返回刷新订单状态。</text>
-    </wd-popup>
+    </AppBottomSheet>
   </view>
 </template>
 
 <style scoped lang="scss">
 .page-shell {
   min-height: 100vh;
-  padding: 24rpx 24rpx 56rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
   box-sizing: border-box;
+}
+.page-shell :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 24rpx;
 }
 .hero-card {
   display: flex;
@@ -419,6 +511,17 @@ onShow(() => void loadSubscription())
 .hero-card text {
   font-size: 22rpx;
   opacity: 0.82;
+}
+.usage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 10rpx;
+}
+.usage-row text {
+  padding: 7rpx 12rpx;
+  border-radius: 999rpx;
+  background: rgb(255 255 255 / 14%);
 }
 .section-heading {
   margin: 28rpx 6rpx 14rpx;
@@ -479,6 +582,17 @@ onShow(() => void loadSubscription())
 .price-list {
   margin-top: 14rpx;
 }
+.quota-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 12rpx;
+}
+.quota-row text {
+  padding: 6rpx 10rpx;
+  border-radius: 999rpx;
+  background: var(--app-bg-subtle);
+}
 .price-row {
   display: flex;
   align-items: center;
@@ -492,7 +606,8 @@ onShow(() => void loadSubscription())
   font-size: 23rpx;
 }
 .empty-tip,
-.file-url {
+.file-url,
+.invoice-note {
   display: block;
   margin: 12rpx 0;
   color: var(--app-text-muted);
@@ -502,12 +617,6 @@ onShow(() => void loadSubscription())
 .invoice-card > view:first-child {
   justify-content: space-between;
   margin-bottom: 18rpx;
-}
-.popup-title {
-  margin-bottom: 18rpx;
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
 }
 .payment-qr {
   display: block;

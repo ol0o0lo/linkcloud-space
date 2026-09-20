@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import type { AnalyticsOverviewOut, AnalyticsTrendPointOut } from '@/features/organization-rental/service'
+import type { AnalyticsOverviewOut, AnalyticsTrendPointOut } from '@/pages-org-rental/api/organization-rental'
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
-import { canOpenOrganizationCapability, formatOrganizationLocalDate } from '@/domain/organization-rental'
-import { getOrganizationAnalyticsOverview, getOrganizationAnalyticsTrends } from '@/features/organization-rental/service'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import { canOpenOrganizationCapability, formatOrganizationLocalDate } from '@/pages-org-rental/domain/organization-rental'
+import { getOrganizationAnalyticsOverview, getOrganizationAnalyticsTrends } from '@/pages-org-rental/api/organization-rental'
+import AppEmpty from '@/components/app/AppEmpty.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppDashboardSkeleton from '@/components/app/AppDashboardSkeleton.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '经营分析', enablePullDownRefresh: true } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '经营分析', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
 const defaultEndDate = new Date()
@@ -53,6 +56,7 @@ onPullDownRefresh(loadAnalytics)
 
 <template>
   <view class="analytics-page">
+    <AppCustomNavigation title="经营分析" back scroll-mode="sticky" />
     <AppErrorView v-if="!allowed" title="无查看权限" message="当前账号无权查看经营分析" :retryable="false" />
     <template v-else>
       <view class="filter-card">
@@ -62,7 +66,7 @@ onPullDownRefresh(loadAnalytics)
           查询
         </wd-button>
       </view>
-      <AppLoading v-if="loading" text="正在加载经营分析…" />
+      <AppDashboardSkeleton v-if="loading" :metric-count="3" compact />
       <AppErrorView v-else-if="loadError" title="分析加载失败" :message="loadError" @retry="loadAnalytics" />
       <template v-else-if="overview">
         <view class="overview-card">
@@ -86,7 +90,13 @@ onPullDownRefresh(loadAnalytics)
               </view>
             </view>
           </view>
-          <wd-empty v-else icon="chart" tip="所选日期内暂无经营事件" />
+          <AppEmpty
+            v-else
+            title="所选日期内暂无经营事件"
+            description="调整开始和结束日期后重新查询，或等待新的经营事件产生。"
+            icon="no-content"
+            compact
+          />
         </view>
         <view v-if="trends.length" class="section">
           <view class="section-title">
@@ -106,12 +116,16 @@ onPullDownRefresh(loadAnalytics)
 <style scoped lang="scss">
 .analytics-page {
   min-height: 100vh;
-  padding: 24rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
+}
+.analytics-page :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 24rpx;
 }
 .filter-card {
   padding: 12rpx 24rpx 26rpx;
-  border-radius: 22rpx;
+  border: 1rpx solid var(--app-border-card);
+  border-radius: var(--app-radius-lg);
   background: var(--app-bg-card);
 }
 .overview-card {
@@ -159,7 +173,8 @@ onPullDownRefresh(loadAnalytics)
   justify-content: space-between;
   gap: 18rpx;
   padding: 24rpx;
-  border-radius: 20rpx;
+  border: 1rpx solid var(--app-border-card);
+  border-radius: var(--app-radius-md);
   background: var(--app-bg-card);
 }
 .metric-name {

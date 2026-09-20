@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onHide, onLaunch, onShow } from '@dcloudio/uni-app'
-import { getCurrentInstance, onMounted, onUnmounted } from 'vue'
+import { getCurrentInstance, onMounted, onUnmounted, watch } from 'vue'
+import { syncNotificationTabbarBadge } from '@/features/notifications/tabbar-badge'
 import { navigateToInterceptor } from '@/router/interceptor'
 import { tabbarStore } from '@/tabbar/store'
 import { permission } from '@/router/permission'
@@ -14,6 +15,20 @@ router && permission.install(router)
 
 const appContextStore = useAppContextStore()
 
+function syncMessagesBadge() {
+  return syncNotificationTabbarBadge({
+    mode: appContextStore.navigationMode,
+    organizationSlug: appContextStore.currentOrganization?.slug,
+    landlordContactId: appContextStore.currentLandlordRelationship?.contact_id,
+  })
+}
+
+watch(
+  () => [appContextStore.authenticated, appContextStore.navigationMode, appContextStore.organizationSlug, appContextStore.landlordContactId] as const,
+  () => void syncMessagesBadge(),
+  { immediate: true },
+)
+
 onLaunch(() => {
   void appContextStore.bootstrap()
 })
@@ -25,6 +40,7 @@ onShow((options) => {
         uni.reLaunch({ url: '/pages/error/startup' })
       return
     }
+    void syncMessagesBadge()
     navigateToInterceptor.invoke({
       url: options?.path ? `/${options.path}` : '/pages/index/index',
       query: options?.query,

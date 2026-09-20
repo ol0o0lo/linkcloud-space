@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { BuildingInventoryOut, ContactOut, EstateDetailOut, PropertyResponsibilityMemberOut } from '@/features/organization-admin/service'
-import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { ref } from 'vue'
 import { isEmptyResponsibilitySelection } from '@/domain/organization-admin'
@@ -11,11 +10,16 @@ import {
   listOrganizationResponsibilities,
   replaceOrganizationResponsibility,
 } from '@/features/organization-admin/service'
-import AppListState from '@/shared/components/AppListState.vue'
-import { usePagedQuery } from '@/shared/composables/usePagedQuery'
+import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
+import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '房源职责', enablePullDownRefresh: true } })
+definePage({ style: { navigationBarTitleText: '房源职责', navigationStyle: 'custom', enablePullDownRefresh: true } })
 
 const toast = useToast()
 const appContextStore = useAppContextStore()
@@ -30,23 +34,16 @@ const buildingIds = ref<number[]>([])
 const estateIds = ref<number[]>([])
 const saving = ref(false)
 
-const responsibilityQuery = usePagedQuery<PropertyResponsibilityMemberOut>(({ page, pageSize }) => listOrganizationResponsibilities(appContextStore.organizationSlug, page, pageSize, {
-  keyword: keyword.value.trim() || undefined,
-}), { pageSize: 15 })
+const responsibilityPage = usePagedPage<PropertyResponsibilityMemberOut>({
+  loader: ({ page, pageSize }) => listOrganizationResponsibilities(appContextStore.organizationSlug, page, pageSize, {
+    keyword: keyword.value.trim() || undefined,
+  }),
+  pageSize: 15,
+  keyOf: item => item.member_id,
+})
 
 async function refreshList() {
-  try {
-    await responsibilityQuery.refresh()
-  }
-  catch { /* 错误由分页状态展示 */ }
-  finally { uni.stopPullDownRefresh() }
-}
-
-async function loadMore() {
-  try {
-    await responsibilityQuery.loadMore()
-  }
-  catch { /* 错误由分页状态展示 */ }
+  await responsibilityPage.refresh()
 }
 
 function toggleId(collection: number[], id: number) {
@@ -98,135 +95,78 @@ async function saveResponsibility() {
   catch (error) { toast.error(error instanceof Error ? error.message : '房源职责保存失败') }
   finally { saving.value = false }
 }
-
-onShow(() => void refreshList())
-onPullDownRefresh(refreshList)
-onReachBottom(() => void loadMore())
 </script>
 
 <template>
-  <view class="page-shell">
+  <AppPage variant="list">
+    <template #navigation>
+      <AppCustomNavigation title="房源职责" back scroll-mode="sticky" />
+    </template>
     <wd-toast />
-    <wd-search v-model="keyword" placeholder="搜索员工姓名、账号或职位" hide-cancel @search="refreshList" @clear="refreshList" />
-    <view v-if="responsibilityQuery.items.value.length" class="card-list">
-      <view v-for="item in responsibilityQuery.items.value" :key="item.member_id" class="record-card" @click="openEditor(item)">
-        <view class="record-main">
-          <strong>{{ ((item.user.first_name || '') + (item.user.last_name || '')) || item.user.username }}</strong><text>{{ item.landlords.length }} 位房东 · {{ item.buildings.length }} 栋楼 · {{ item.estates.length }} 个小区</text>
-        </view>
-        <view class="count">
-          {{ item.responsible_house_count }} 套
-        </view>
-      </view>
+    <AppListToolbar v-model:keyword="keyword" card search-placeholder="搜索员工姓名、账号或职位" @search="refreshList" @clear="refreshList" />
+    <view class="mt-2.5">
+      <AppPagedList
+        :items="responsibilityPage.items.value"
+        item-key="member_id"
+        :loading="responsibilityPage.loading.value"
+        :refreshing="responsibilityPage.refreshing.value"
+        :loading-more="responsibilityPage.loadingMore.value"
+        :finished="responsibilityPage.finished.value"
+        :error="responsibilityPage.error.value"
+        loading-text="正在加载房源职责…"
+        empty-text="当前没有可配置职责的成员"
+        finished-text="没有更多成员了"
+        @retry="refreshList"
+      >
+        <template #item="{ item }">
+          <AppRecordCard clickable @click="openEditor(item)">
+            <template #title>
+              {{ ((item.user.first_name || '') + (item.user.last_name || '')) || item.user.username }}
+            </template>
+            <template #status>
+              <view class="text-xs text-app-brand font-semibold">
+                {{ item.responsible_house_count }} 套
+              </view>
+            </template>
+            <template #description>
+              {{ item.landlords.length }} 位房东 · {{ item.buildings.length }} 栋楼 · {{ item.estates.length }} 个小区
+            </template>
+          </AppRecordCard>
+        </template>
+      </AppPagedList>
     </view>
-    <AppListState :loading="responsibilityQuery.loading.value" :has-items="Boolean(responsibilityQuery.items.value.length)" :finished="responsibilityQuery.finished.value" :error-message="responsibilityQuery.error.value?.message || ''" loading-text="正在加载房源职责…" empty-text="当前没有可配置职责的成员" finished-text="没有更多成员了" @retry="refreshList" />
-    <wd-popup v-model="editorVisible" position="bottom" round closable safe-area-inset-bottom custom-style="padding: 32rpx 26rpx; max-height: 84vh; overflow: auto;">
-      <view class="popup-title">
-        配置房源职责
-      </view>
-      <view class="group-title">
-        负责房东
-      </view>
-      <view class="option-grid">
-        <view v-for="item in landlords" :key="item.id" class="option" :class="[{ selected: landlordIds.includes(item.id) }]" @click="toggleId(landlordIds, item.id)">
-          {{ item.name }}
+    <AppBottomSheet v-model:visible="editorVisible" title="配置房源职责" height="tall">
+      <view>
+        <view class="mb-1.5 mt-3 text-xs text-content-primary font-semibold">
+          负责房东
+        </view>
+        <view class="flex flex-wrap gap-1.5">
+          <view v-for="item in landlords" :key="item.id" class="app-touchable border border-app-border rounded-full border-solid px-2 py-1.5 text-xs" :class="landlordIds.includes(item.id) ? 'border-app-brand bg-surface-brand-soft text-app-brand' : 'text-content-secondary'" @click="toggleId(landlordIds, item.id)">
+            {{ item.name }}
+          </view>
+        </view>
+        <view class="mb-1.5 mt-3 text-xs text-content-primary font-semibold">
+          负责楼栋
+        </view>
+        <view class="flex flex-wrap gap-1.5">
+          <view v-for="item in buildings" :key="item.id" class="app-touchable border border-app-border rounded-full border-solid px-2 py-1.5 text-xs" :class="buildingIds.includes(item.id) ? 'border-app-brand bg-surface-brand-soft text-app-brand' : 'text-content-secondary'" @click="toggleId(buildingIds, item.id)">
+            {{ item.estate?.display_name || item.estate?.name || '' }} {{ item.name }}
+          </view>
+        </view>
+        <view class="mb-1.5 mt-3 text-xs text-content-primary font-semibold">
+          负责小区
+        </view>
+        <view class="flex flex-wrap gap-1.5">
+          <view v-for="item in estates" :key="item.id" class="app-touchable border border-app-border rounded-full border-solid px-2 py-1.5 text-xs" :class="estateIds.includes(item.id) ? 'border-app-brand bg-surface-brand-soft text-app-brand' : 'text-content-secondary'" @click="toggleId(estateIds, item.id)">
+            {{ item.display_name || item.name }}
+          </view>
         </view>
       </view>
-      <view class="group-title">
-        负责楼栋
-      </view>
-      <view class="option-grid">
-        <view v-for="item in buildings" :key="item.id" class="option" :class="[{ selected: buildingIds.includes(item.id) }]" @click="toggleId(buildingIds, item.id)">
-          {{ item.estate?.display_name || item.estate?.name || '' }} {{ item.name }}
-        </view>
-      </view>
-      <view class="group-title">
-        负责小区
-      </view>
-      <view class="option-grid">
-        <view v-for="item in estates" :key="item.id" class="option" :class="[{ selected: estateIds.includes(item.id) }]" @click="toggleId(estateIds, item.id)">
-          {{ item.display_name || item.name }}
-        </view>
-      </view>
-      <wd-button block :loading="saving" :disabled="saving" @click="saveResponsibility">
-        保存职责范围
-      </wd-button>
-    </wd-popup>
-  </view>
+      <template #footer>
+        <wd-button block :loading="saving" :disabled="saving" @click="saveResponsibility">
+          保存职责范围
+        </wd-button>
+      </template>
+    </AppBottomSheet>
+  </AppPage>
 </template>
-
-<style scoped lang="scss">
-.page-shell {
-  min-height: 100vh;
-  padding: 20rpx 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-top: 20rpx;
-}
-.record-card {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  padding: 26rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-.record-main {
-  min-width: 0;
-  flex: 1;
-}
-.record-main strong,
-.record-main text {
-  display: block;
-}
-.record-main strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-}
-.record-main text {
-  margin-top: 7rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.count {
-  color: var(--app-color-primary);
-  font-size: 25rpx;
-  font-weight: 650;
-}
-.popup-title {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
-}
-.group-title {
-  margin: 24rpx 0 12rpx;
-  color: var(--app-text-primary);
-  font-size: 25rpx;
-  font-weight: 650;
-}
-.option-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-.option {
-  padding: 13rpx 18rpx;
-  border: 1px solid var(--app-border-color);
-  border-radius: 999rpx;
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-}
-.option.selected {
-  border-color: var(--app-color-primary);
-  color: var(--app-color-primary);
-  background: var(--app-color-primary-light);
-}
-.option-grid + :deep(.wd-button),
-.popup-title + :deep(.wd-button) {
-  margin-top: 28rpx;
-}
-</style>

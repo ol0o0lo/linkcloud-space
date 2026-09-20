@@ -1,4 +1,5 @@
-import type { TenantViewingRecordIn } from '@/services/openapi/types'
+import type { PagedTenantViewingRecordOut, TenantViewingRecordIn } from '@/services/openapi/types'
+import { httpGet, httpPost } from '@/http/http'
 import {
   houseTenantLeasesLeaseIdUsingGet,
   houseTenantLeasesUsingGet,
@@ -13,7 +14,58 @@ export type { PagedTenantLeaseOut, PagedTenantViewingRecordOut, TenantLeaseOut, 
 const personalRequestOptions = { requestScope: { kind: 'personal' as const } }
 const personalReadRequestOptions = { ...personalRequestOptions, authRetry: 'safe' as const }
 
-export function requestTenantViewings(page: number, pageSize: number) {
+export type TenantViewingScope = 'current' | 'history'
+export type TenantContactChannel = 'phone' | 'wechat'
+
+export interface TenantContactPreference {
+  channels: TenantContactChannel[]
+  phone: string
+  wechat: string
+}
+
+export interface TenantContactRequestIn extends TenantContactPreference {
+  house_id: number
+}
+
+export interface TenantContactRequestOut {
+  notification_id: number
+}
+
+export interface UserSettingOut {
+  key: string
+  value: unknown
+}
+
+const TENANT_CONTACT_SETTING_KEY = 'internal.house.contact.v1'
+
+export function requestTenantContactPreference() {
+  return httpGet<UserSettingOut>(
+    `/api/settings/user/${TENANT_CONTACT_SETTING_KEY}/`,
+    undefined,
+    undefined,
+    personalReadRequestOptions,
+  )
+}
+
+export function createTenantContactRequest(payload: TenantContactRequestIn) {
+  return httpPost<TenantContactRequestOut>(
+    '/api/house/tenant/contact/',
+    payload,
+    undefined,
+    undefined,
+    personalRequestOptions,
+  )
+}
+
+export function requestTenantViewings(page: number, pageSize: number, scope?: TenantViewingScope) {
+  if (scope) {
+    return httpGet<PagedTenantViewingRecordOut>(
+      '/api/house/tenant/viewing-records/',
+      { page, page_size: pageSize, scope },
+      undefined,
+      personalReadRequestOptions,
+    )
+  }
   return houseTenantViewingRecordsUsingGet({
     params: { page, page_size: pageSize },
     options: personalReadRequestOptions,

@@ -2,19 +2,30 @@
 import type { FavoriteOut } from '@/features/favorites/service'
 import type { LeaseOut } from '@/features/landlord/service'
 import type { AnnouncementOut, DailyDashboardOut } from '@/features/organization-work/service'
-import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
+import type { TenantViewingRecordOut } from '@/features/tenant-rental/service'
+import { onPageScroll, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
+import { buildFavoriteHouseCardModel } from '@/domain/house-card'
 import { formatOrganizationWorkDateTime, getAssignmentStatusTone, getPriorityTone, shouldShowAnnouncementAcknowledgement } from '@/domain/organization-work'
-import { formatTenantHouseTitle, getTenantLeaseStatusTone } from '@/domain/tenant-rental'
+import { formatTenantHouseTitle, getTenantLeaseStatusTone, getTenantViewingStatusTone } from '@/domain/tenant-rental'
 import { listHouseFavorites, unfavoriteHouse } from '@/features/favorites/service'
 import { listLandlordLeases } from '@/features/landlord/service'
 import { getDailyOrganizationWorkDashboard, listOrganizationAnnouncements } from '@/features/organization-work/service'
-import { APP_ROUTES, getHouseDetailRoute, getOrganizationAnnouncementDetailRoute, getOrganizationTaskDetailRoute } from '@/modules/routes'
+import { cancelScheduledTenantViewing, listCurrentTenantViewings, listHistoricalTenantViewings } from '@/features/tenant-rental/service'
+import { APP_ROUTES, getHouseDetailRoute, getOrganizationAnnouncementDetailRoute, getOrganizationTaskDetailRoute, getTenantViewingDetailRoute } from '@/modules/routes'
 import { useAppContextStore } from '@/store/app-context-v2'
 import { getTabbarItems } from '@/tabbar/config'
-import AppListState from '@/shared/components/AppListState.vue'
-import AppCustomNavigation from '@/shared/components/AppCustomNavigation.vue'
-import AppPage from '@/shared/components/AppPage.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppHouseCardSkeleton from '@/components/app/AppHouseCardSkeleton.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppNotice from '@/components/app/AppNotice.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import HouseCard from '@/components/house/HouseCard.vue'
+import { useNavigationScrollState } from '@/hooks/useNavigationScrollState'
+import { usePagedPage } from '@/hooks/usePagedPage'
 
 definePage({
   style: {
@@ -24,53 +35,99 @@ definePage({
   },
 })
 
-const items = ref<FavoriteOut[]>([])
 const appContextStore = useAppContextStore()
+const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState()
+onPageScroll(handleNavigationScroll)
 const currentMode = computed(() => appContextStore.navigationMode)
-const tabbarTitle = computed(() => getTabbarItems(currentMode.value).find(item => item.slot === 'activity')?.text || '动态')
-const page = ref(1)
+const tabbarTitle = computed(() => {
+  const visibleTitle = getTabbarItems(currentMode.value).find(item => item.slot === 'activity')?.text
+  if (visibleTitle)
+    return visibleTitle
+  if (currentMode.value === 'personal')
+    return '我的找房'
+  if (currentMode.value === 'landlord')
+    return '租约'
+  return '动态'
+})
 const pageSize = 12
-const loading = ref(false)
-const finished = ref(false)
-const loadError = ref('')
-const landlordLeases = ref<LeaseOut[]>([])
-const landlordLeasePage = ref(1)
-const landlordLeaseLoading = ref(false)
-const landlordLeaseFinished = ref(false)
-const landlordLeaseError = ref('')
 const organizationDashboard = ref<DailyDashboardOut | null>(null)
 const organizationAnnouncements = ref<AnnouncementOut[]>([])
 const organizationLoading = ref(false)
 const organizationError = ref('')
+const activePersonalTab = ref<'favorites' | 'viewings'>('favorites')
+const removingFavoriteIds = ref<Set<number>>(new Set())
+const cancelingViewingId = ref<number | null>(null)
+const historyExpanded = ref(false)
 let organizationLoadId = 0
 
-async function loadFavorites(reset = false) {
-  if (loading.value || (!reset && finished.value))
-    return
-  if (reset) {
-    page.value = 1
-    finished.value = false
-  }
-  loadError.value = ''
-  loading.value = true
-  try {
-    const result = await listHouseFavorites(page.value, pageSize)
-    items.value = reset ? result.items : [...items.value, ...result.items]
-    finished.value = items.value.length >= result.total || result.items.length < pageSize
-    if (!finished.value)
-      page.value += 1
-  }
-  catch {
-    loadError.value = '收藏加载失败，请稍后重试'
-  }
-  finally {
-    loading.value = false
-    uni.stopPullDownRefresh()
-  }
-}
+const favoritePage = usePagedPage<FavoriteOut>({
+  loader: ({ page, pageSize: targetPageSize }) => listHouseFavorites(page, targetPageSize),
+  pageSize,
+  enabled: () => currentMode.value === 'personal',
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
+
+const currentViewingPage = usePagedPage<TenantViewingRecordOut>({
+  loader: async () => {
+    const items = await listCurrentTenantViewings()
+    return { items, total: items.length, page: 1, page_size: Math.max(items.length, 1) }
+  },
+  pageSize,
+  enabled: () => currentMode.value === 'personal',
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
+
+const historicalViewingPage = usePagedPage<TenantViewingRecordOut>({
+  loader: ({ page, pageSize: targetPageSize }) => listHistoricalTenantViewings(page, targetPageSize),
+  pageSize,
+  enabled: () => currentMode.value === 'personal' && historyExpanded.value,
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
+
+const currentViewings = computed(() => {
+  const now = Date.now()
+  return [...currentViewingPage.items.value]
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.scheduled_at)
+      const rightTime = Date.parse(right.scheduled_at)
+      const leftPast = leftTime < now
+      const rightPast = rightTime < now
+      if (leftPast !== rightPast)
+        return leftPast ? 1 : -1
+      return leftPast ? rightTime - leftTime : leftTime - rightTime
+    })
+})
+
+const historicalViewings = computed(() => [...historicalViewingPage.items.value]
+  .sort((left, right) => Date.parse(right.scheduled_at) - Date.parse(left.scheduled_at)))
+
+const landlordLeasePage = usePagedPage<LeaseOut>({
+  loader: ({ page, pageSize: targetPageSize }) => listLandlordLeases(appContextStore.currentLandlordRelationship!.contact_id, page, targetPageSize),
+  pageSize,
+  enabled: () => currentMode.value === 'landlord' && Boolean(appContextStore.currentLandlordRelationship?.contact_id),
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
 
 function retryFavorites() {
-  void loadFavorites(items.value.length === 0)
+  void favoritePage.refresh()
+}
+
+const unavailableFavoriteCount = computed(() => favoritePage.items.value.filter(item => !item.available).length)
+
+function goFindHouse() {
+  uni.navigateTo({ url: APP_ROUTES.publicHouseSearch })
 }
 
 function openFavorite(item: FavoriteOut) {
@@ -81,49 +138,99 @@ function openFavorite(item: FavoriteOut) {
   uni.navigateTo({ url: getHouseDetailRoute(Number(item.target_id)) })
 }
 
+function isRemovingFavorite(item: FavoriteOut) {
+  return removingFavoriteIds.value.has(Number(item.target_id))
+}
+
 async function removeFavorite(item: FavoriteOut) {
+  const houseId = Number(item.target_id)
+  if (removingFavoriteIds.value.has(houseId))
+    return
+
+  removingFavoriteIds.value = new Set(removingFavoriteIds.value).add(houseId)
   try {
-    await unfavoriteHouse(Number(item.target_id))
-    items.value = items.value.filter(current => current.id !== item.id)
+    await unfavoriteHouse(houseId)
+    favoritePage.remove(item)
     uni.showToast({ title: '已取消收藏', icon: 'success' })
   }
   catch {
     uni.showToast({ title: '取消失败，请稍后重试', icon: 'none' })
   }
+  finally {
+    const next = new Set(removingFavoriteIds.value)
+    next.delete(houseId)
+    removingFavoriteIds.value = next
+  }
 }
 
-function openTenantViewings() {
-  uni.navigateTo({ url: APP_ROUTES.tenantViewings })
+function openTenantViewing(viewingRecordId: number) {
+  uni.navigateTo({ url: getTenantViewingDetailRoute(viewingRecordId) })
 }
 
-function openTenantLeases() {
-  uni.navigateTo({ url: APP_ROUTES.tenantLeases })
+function formatViewingDateTime(value: string | null) {
+  if (!value)
+    return '--'
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+function isPastScheduledViewing(item: TenantViewingRecordOut) {
+  return item.status === 'scheduled' && Date.parse(item.scheduled_at) < Date.now()
+}
+
+function toggleHistory() {
+  historyExpanded.value = !historyExpanded.value
+  if (historyExpanded.value && !historicalViewingPage.loaded.value)
+    void historicalViewingPage.refresh()
+}
+
+function handlePersonalTabChange({ name }: { name: number | string }) {
+  if (name === 'viewings' && !currentViewingPage.loaded.value)
+    void currentViewingPage.refresh()
+}
+
+async function cancelViewing(item: TenantViewingRecordOut) {
+  const confirmation = await uni.showModal({ title: '取消预约', content: '取消后由中介端同步看到该状态，确定继续吗？', confirmText: '确认取消' })
+  if (!confirmation.confirm)
+    return
+
+  cancelingViewingId.value = item.id
+  try {
+    const updated = await cancelScheduledTenantViewing(item.id)
+    currentViewingPage.remove(item)
+    if (historicalViewingPage.loaded.value)
+      historicalViewingPage.upsert(updated)
+    uni.showToast({ title: '预约已取消', icon: 'success' })
+  }
+  catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '取消失败，请稍后重试', icon: 'none' })
+  }
+  finally {
+    cancelingViewingId.value = null
+  }
+}
+
+async function refreshPersonalPage() {
+  if (activePersonalTab.value === 'viewings') {
+    await currentViewingPage.refresh()
+    if (historyExpanded.value)
+      await historicalViewingPage.refresh()
+  }
+  else {
+    await favoritePage.refresh()
+  }
+}
+
+function loadMorePersonalPage() {
+  if (activePersonalTab.value === 'viewings') {
+    if (historyExpanded.value)
+      return historicalViewingPage.loadMore()
+    return currentViewingPage.loadMore()
+  }
+  return favoritePage.loadMore()
 }
 
 async function loadLandlordLeases(reset = false) {
-  const contactId = appContextStore.currentLandlordRelationship?.contact_id
-  if (!contactId || landlordLeaseLoading.value || (!reset && landlordLeaseFinished.value))
-    return
-  if (reset) {
-    landlordLeasePage.value = 1
-    landlordLeaseFinished.value = false
-  }
-  landlordLeaseLoading.value = true
-  landlordLeaseError.value = ''
-  try {
-    const result = await listLandlordLeases(contactId, landlordLeasePage.value, pageSize)
-    landlordLeases.value = reset ? result.items : [...landlordLeases.value, ...result.items]
-    landlordLeaseFinished.value = landlordLeases.value.length >= result.total || result.items.length < pageSize
-    if (!landlordLeaseFinished.value)
-      landlordLeasePage.value += 1
-  }
-  catch {
-    landlordLeaseError.value = '房东租约加载失败，请稍后重试'
-  }
-  finally {
-    landlordLeaseLoading.value = false
-    uni.stopPullDownRefresh()
-  }
+  await (reset ? landlordLeasePage.refresh() : landlordLeasePage.loadMore())
 }
 
 function openLandlordLease(leaseId: number) {
@@ -171,7 +278,7 @@ async function loadOrganizationTasks() {
 onShow(() => {
   uni.setNavigationBarTitle({ title: tabbarTitle.value })
   if (currentMode.value === 'personal')
-    void loadFavorites(true)
+    void refreshPersonalPage()
   else if (currentMode.value === 'landlord')
     void loadLandlordLeases(true)
   else if (currentMode.value === 'organization')
@@ -179,7 +286,7 @@ onShow(() => {
 })
 onPullDownRefresh(() => {
   if (currentMode.value === 'personal')
-    return loadFavorites(true)
+    return refreshPersonalPage()
   if (currentMode.value === 'landlord')
     return loadLandlordLeases(true)
   if (currentMode.value === 'organization')
@@ -188,79 +295,197 @@ onPullDownRefresh(() => {
 })
 onReachBottom(() => {
   if (currentMode.value === 'personal')
-    void loadFavorites()
+    void loadMorePersonalPage()
   else if (currentMode.value === 'landlord')
     void loadLandlordLeases()
 })
 </script>
 
 <template>
-  <AppPage class="favorites-page" tabbar>
+  <AppPage class="favorites-page" tabbar ai-background>
     <template #navigation>
-      <AppCustomNavigation :title="tabbarTitle" />
+      <AppCustomNavigation title="" scroll-mode="fade" :scrolled="navigationScrolled" content-opacity-mode="fade-in" :scroll-progress="navigationProgress" />
     </template>
     <template v-if="currentMode === 'personal'">
-      <view class="page-heading">
-        <view class="page-title">
-          我的找房
-        </view>
-        <view class="page-subtitle">
-          管理收藏、预约带看进度和本人租约
-        </view>
-      </view>
+      <view class="personal-tabs-shell">
+        <wd-tabs v-model="activePersonalTab" custom-class="personal-tabs" line-theme="text" :line-height="3" @change="handlePersonalTabChange">
+          <wd-tab name="favorites" title="我的收藏" :lazy="false">
+            <view class="personal-tab-panel">
+              <view class="personal-tab-summary">
+                共 {{ favoritePage.total.value }} 套收藏房源
+              </view>
+              <AppPagedList
+                :items="favoritePage.items.value"
+                item-key="id"
+                :loading="favoritePage.loading.value"
+                :refreshing="favoritePage.refreshing.value"
+                :loading-more="favoritePage.loadingMore.value"
+                :finished="favoritePage.finished.value"
+                :error="favoritePage.error.value"
+                loading-text="正在加载收藏…"
+                empty-text="还没有收藏房源"
+                empty-description="看到喜欢的房源时点一下收藏，之后可以从这里快速找到。"
+                empty-icon="no-collection"
+                empty-action-text="去找房"
+                finished-text="没有更多收藏了"
+                @retry="retryFavorites"
+                @empty-action="goFindHouse"
+              >
+                <template #loading>
+                  <AppHouseCardSkeleton />
+                </template>
+                <template #item="{ item }">
+                  <HouseCard
+                    :card="buildFavoriteHouseCardModel(item)"
+                    favorite-visible
+                    favorited
+                    :favorite-loading="isRemovingFavorite(item)"
+                    :disabled="!item.available"
+                    @click="openFavorite(item)"
+                    @favorite="removeFavorite(item)"
+                  />
+                </template>
+              </AppPagedList>
+              <AppNotice
+                v-if="unavailableFavoriteCount"
+                class="favorite-notice"
+                tone="warning"
+                title="下架房源说明"
+                :description="`当前列表有 ${unavailableFavoriteCount} 套房源已下架，收藏记录仍会保留；你可以直接取消收藏。`"
+                compact
+              />
+            </view>
+          </wd-tab>
 
-      <view class="business-actions">
-        <view class="business-action" @click="openTenantViewings">
-          <view class="business-icon i-carbon-calendar" />
-          <view><strong>我的预约</strong><text>查看带看进度、取消待进行预约</text></view>
-          <view class="i-carbon-chevron-right" />
-        </view>
-        <view class="business-action" @click="openTenantLeases">
-          <view class="business-icon i-carbon-document" />
-          <view><strong>我的租约</strong><text>查看租期、租金和合同资料</text></view>
-          <view class="i-carbon-chevron-right" />
-        </view>
-      </view>
+          <wd-tab name="viewings" title="我的预约">
+            <view class="personal-tab-panel">
+              <AppLoading v-if="currentViewingPage.loading.value && !currentViewingPage.items.value.length" text="正在加载当前预约…" />
+              <AppErrorView v-else-if="currentViewingPage.error.value && !currentViewingPage.items.value.length" :error="currentViewingPage.error.value" @retry="currentViewingPage.refresh" />
+              <template v-else>
+                <view class="viewing-section-heading">
+                  <view>
+                    <strong>当前预约</strong>
+                    <text>优先展示仍在生效的看房安排</text>
+                  </view>
+                  <view v-if="currentViewings.length" class="viewing-section-count">
+                    {{ currentViewings.length }} 条
+                  </view>
+                </view>
 
-      <view class="section-title">
-        收藏房源
-      </view>
+                <view v-if="currentViewings.length" class="app-stack-list">
+                  <AppRecordCard v-for="item in currentViewings" :key="item.id" clickable variant="prominent" @click="openTenantViewing(item.id)">
+                    <template #title>
+                      {{ formatTenantHouseTitle(item.house) }}
+                    </template>
+                    <template #status>
+                      <wd-tag :type="getTenantViewingStatusTone(item.status)" variant="light" size="small">
+                        {{ item.status__mapping }}
+                      </wd-tag>
+                    </template>
+                    <template #description>
+                      {{ item.organization.name }}
+                    </template>
+                    <view class="app-row-between text-xs text-content-muted">
+                      <text>预约时间</text>
+                      <strong class="text-content-secondary font-medium">{{ formatViewingDateTime(item.scheduled_at) }}</strong>
+                    </view>
+                    <view v-if="isPastScheduledViewing(item)" class="viewing-overdue">
+                      <view class="i-carbon-warning-alt" /><text>预约时间已过，等待状态更新</text>
+                    </view>
+                    <template #footer>
+                      <text class="text-xs text-app-brand">查看详情</text>
+                    </template>
+                    <template #actions>
+                      <wd-button
+                        size="mini"
+                        type="danger"
+                        variant="plain"
+                        :loading="cancelingViewingId === item.id"
+                        @click.stop="cancelViewing(item)"
+                      >
+                        取消预约
+                      </wd-button>
+                    </template>
+                  </AppRecordCard>
+                </view>
+                <view v-else class="viewing-current-empty">
+                  <view class="viewing-current-empty__icon i-carbon-calendar" />
+                  <view class="viewing-current-empty__copy">
+                    <strong>暂无生效预约</strong>
+                    <text>发现心仪房源后，可以直接预约看房</text>
+                  </view>
+                  <view class="viewing-current-empty__action app-touchable" hover-class="app-touchable--pressed" @click="goFindHouse">
+                    <text>去找房</text>
+                    <view class="i-carbon-chevron-right" />
+                  </view>
+                </view>
 
-      <view v-if="items.length" class="favorite-list">
-        <view v-for="item in items" :key="item.id" class="favorite-card" :class="{ unavailable: !item.available }" @click="openFavorite(item)">
-          <image v-if="item.display?.cover_url" class="favorite-cover" :src="item.display.cover_url" mode="aspectFill" />
-          <view v-else class="favorite-cover favorite-cover--empty">
-            暂无图片
-          </view>
-          <view class="favorite-content">
-            <view class="favorite-title">
-              {{ item.display?.title || `房源 ${item.target_id}` }}
+                <view class="viewing-history">
+                  <view class="viewing-history-toggle app-touchable" hover-class="app-touchable--pressed" @click="toggleHistory">
+                    <view class="viewing-history-copy">
+                      <view class="viewing-history-icon i-carbon-time" />
+                      <text>历史预约</text>
+                      <text v-if="historyExpanded && historicalViewingPage.loaded.value" class="viewing-history-count">{{ historicalViewingPage.total.value }} 条</text>
+                    </view>
+                    <view class="viewing-history-action">
+                      <text v-if="!historyExpanded">查看</text>
+                      <text v-else-if="historicalViewingPage.loading.value && !historicalViewingPage.loaded.value">加载中</text>
+                      <text v-else>收起</text>
+                      <view :class="historyExpanded ? 'i-carbon-chevron-up' : 'i-carbon-chevron-down'" />
+                    </view>
+                  </view>
+
+                  <AppPagedList
+                    v-if="historyExpanded"
+                    class="viewing-history-list"
+                    :items="historicalViewings"
+                    item-key="id"
+                    :loading="historicalViewingPage.loading.value"
+                    :refreshing="historicalViewingPage.refreshing.value"
+                    :loading-more="historicalViewingPage.loadingMore.value"
+                    :finished="historicalViewingPage.finished.value"
+                    :error="historicalViewingPage.error.value"
+                    loading-text="正在加载历史预约…"
+                    empty-text="暂无历史预约"
+                    empty-description="完成、取消或状态结束的预约会显示在这里。"
+                    empty-icon="no-content"
+                    empty-compact
+                    finished-text="没有更多历史预约了"
+                    @retry="historicalViewingPage.refresh"
+                  >
+                    <template #item="{ item }">
+                      <AppRecordCard clickable variant="compact" @click="openTenantViewing(item.id)">
+                        <template #title>
+                          {{ formatTenantHouseTitle(item.house) }}
+                        </template>
+                        <template #status>
+                          <wd-tag :type="getTenantViewingStatusTone(item.status)" variant="light" size="small">
+                            {{ item.status__mapping }}
+                          </wd-tag>
+                        </template>
+                        <template #description>
+                          {{ item.organization.name }}
+                        </template>
+                        <view class="app-row-between text-xs text-content-muted">
+                          <text>预约时间</text>
+                          <strong class="text-content-secondary font-medium">{{ formatViewingDateTime(item.scheduled_at) }}</strong>
+                        </view>
+                        <view v-if="item.viewed_at" class="mt-3 app-row-between text-xs text-content-muted">
+                          <text>实际带看</text>
+                          <strong class="text-content-secondary font-medium">{{ formatViewingDateTime(item.viewed_at) }}</strong>
+                        </view>
+                        <template #footer>
+                          <text class="text-xs text-app-brand">查看详情</text>
+                        </template>
+                      </AppRecordCard>
+                    </template>
+                  </AppPagedList>
+                </view>
+              </template>
             </view>
-            <view class="favorite-subtitle">
-              {{ item.available ? (item.display?.subtitle || '查看房源详情') : '房源已下架' }}
-            </view>
-            <view v-if="item.display?.facts?.length" class="favorite-facts">
-              <text v-for="fact in item.display.facts.slice(0, 2)" :key="fact.label">{{ fact.value }}</text>
-            </view>
-            <view class="favorite-actions">
-              <text>{{ new Date(item.created_at).toLocaleDateString() }} 收藏</text>
-              <wd-button size="mini" variant="text" type="danger" @click.stop="removeFavorite(item)">
-                取消收藏
-              </wd-button>
-            </view>
-          </view>
-        </view>
+          </wd-tab>
+        </wd-tabs>
       </view>
-      <AppListState
-        :loading="loading"
-        :has-items="Boolean(items.length)"
-        :finished="finished"
-        :error-message="loadError"
-        loading-text="正在加载收藏…"
-        empty-text="还没有收藏房源，去找房看看吧"
-        finished-text="没有更多收藏了"
-        @retry="retryFavorites"
-      />
     </template>
 
     <template v-else-if="currentMode === 'landlord'">
@@ -272,32 +497,36 @@ onReachBottom(() => {
           {{ appContextStore.currentLandlordRelationship?.organization_name }} · {{ appContextStore.currentLandlordRelationship?.contact_name }}
         </view>
       </view>
-      <view v-if="landlordLeases.length" class="landlord-lease-list">
-        <view v-for="item in landlordLeases" :key="item.id" class="landlord-lease-card" @click="openLandlordLease(item.id)">
-          <view class="landlord-lease-topline">
-            <strong>{{ formatTenantHouseTitle(item.house) }}</strong>
-            <wd-tag :type="getTenantLeaseStatusTone(item.status)" variant="light" size="small">
-              {{ item.status__mapping }}
-            </wd-tag>
-          </view>
-          <view class="landlord-rent">
-            ¥{{ item.monthly_rent }} / 月
-          </view>
-          <view class="landlord-term">
-            {{ item.start_date }} 至 {{ item.end_date }}
-          </view>
-        </view>
-      </view>
-      <AppListState
-        :loading="landlordLeaseLoading"
-        :has-items="Boolean(landlordLeases.length)"
-        :finished="landlordLeaseFinished"
-        :error-message="landlordLeaseError"
+      <AppPagedList
+        :items="landlordLeasePage.items.value"
+        item-key="id"
+        :loading="landlordLeasePage.loading.value"
+        :refreshing="landlordLeasePage.refreshing.value"
+        :loading-more="landlordLeasePage.loadingMore.value"
+        :finished="landlordLeasePage.finished.value"
+        :error="landlordLeasePage.error.value"
         loading-text="正在加载关联租约…"
         empty-text="当前房东关系下暂无租约"
         finished-text="没有更多租约了"
-        @retry="loadLandlordLeases(landlordLeases.length === 0)"
-      />
+        @retry="landlordLeasePage.refresh"
+      >
+        <template #item="{ item }">
+          <view class="landlord-lease-card" @click="openLandlordLease(item.id)">
+            <view class="landlord-lease-topline">
+              <strong>{{ formatTenantHouseTitle(item.house) }}</strong>
+              <wd-tag :type="getTenantLeaseStatusTone(item.status)" variant="light" size="small">
+                {{ item.status__mapping }}
+              </wd-tag>
+            </view>
+            <view class="landlord-rent">
+              ¥{{ item.monthly_rent }} / 月
+            </view>
+            <view class="landlord-term">
+              {{ item.start_date }} 至 {{ item.end_date }}
+            </view>
+          </view>
+        </template>
+      </AppPagedList>
     </template>
 
     <template v-else-if="currentMode === 'organization'">
@@ -324,13 +553,17 @@ onReachBottom(() => {
         </view>
       </view>
 
-      <view v-if="organizationError && !organizationDashboard" class="scope-notice scope-notice--error">
-        <text>{{ organizationError }}</text>
-        <wd-button size="small" variant="text" @click="loadOrganizationTasks">
-          重新加载
-        </wd-button>
-      </view>
-      <view v-else-if="organizationLoading && !organizationDashboard" class="scope-notice">
+      <AppNotice
+        v-if="organizationError && !organizationDashboard"
+        class="scope-notice"
+        tone="danger"
+        title="待办摘要加载失败"
+        :description="organizationError"
+        action-text="重新加载"
+        compact
+        @action="loadOrganizationTasks"
+      />
+      <view v-else-if="organizationLoading && !organizationDashboard" class="scope-loading">
         正在加载本人任务与公告…
       </view>
 
@@ -401,110 +634,173 @@ onReachBottom(() => {
   color: var(--app-text-muted);
   font-size: 25rpx;
 }
-.business-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-bottom: 32rpx;
+.personal-tabs-shell {
+  --wot-tabs-nav-bg: transparent;
+  --wot-tabs-nav-item-font-size: 30rpx;
+  --wot-tabs-nav-item-padding: 20rpx 24rpx;
+  --wot-tabs-nav-line-bg: var(--app-color-brand);
+
+  background: transparent;
 }
-.business-action {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-  padding: 26rpx;
-  border-radius: 22rpx;
+.personal-tabs-shell :deep(.personal-tabs),
+.personal-tabs-shell :deep(.personal-tabs .wd-tabs__nav),
+.personal-tabs-shell :deep(.personal-tabs .wd-tabs__nav--wrap),
+.personal-tabs-shell :deep(.personal-tabs .wd-tabs__container),
+.personal-tabs-shell :deep(.personal-tabs .wd-tabs__body),
+.personal-tabs-shell :deep(.personal-tabs .wd-tab),
+.personal-tabs-shell :deep(.personal-tabs .wd-tab__body) {
+  background: transparent;
+}
+.personal-tab-panel {
+  padding-top: 24rpx;
+}
+.personal-tab-summary {
+  margin: 0 4rpx 18rpx;
   color: var(--app-text-muted);
-  background: var(--app-bg-card);
+  font-size: 22rpx;
 }
-.business-action > view:nth-child(2) {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 8rpx;
-}
-.business-action strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-}
-.business-action text {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.business-icon {
-  color: var(--app-color-brand);
-  font-size: 44rpx;
-}
-.section-title {
-  margin-bottom: 18rpx;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 650;
-}
-.favorite-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-.favorite-card {
-  display: flex;
-  gap: 22rpx;
-  padding: 22rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-  box-shadow: var(--app-shadow-card);
-}
-.favorite-card.unavailable {
-  opacity: 0.66;
-}
-.favorite-cover {
-  flex: 0 0 210rpx;
-  width: 210rpx;
-  height: 170rpx;
-  border-radius: 18rpx;
-  background: var(--app-bg-subtle);
-}
-.favorite-cover--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.favorite-content {
-  min-width: 0;
-  flex: 1;
-}
-.favorite-title {
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 29rpx;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.favorite-subtitle {
-  margin-top: 10rpx;
-  overflow: hidden;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.favorite-facts {
-  display: flex;
-  gap: 18rpx;
-  margin-top: 16rpx;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-}
-.favorite-actions {
+.viewing-section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 18rpx;
+  gap: 24rpx;
+  margin: 0 4rpx 20rpx;
+}
+.viewing-section-heading > view:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.viewing-section-heading strong {
+  color: var(--app-text-primary);
+  font-size: 30rpx;
+  font-weight: 700;
+}
+.viewing-section-heading text {
   color: var(--app-text-muted);
+  font-size: 22rpx;
+}
+.viewing-section-count {
+  flex: 0 0 auto;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: var(--app-color-brand-active);
   font-size: 21rpx;
+  font-weight: 600;
+  background: var(--app-bg-brand-soft);
+}
+.viewing-overdue {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-top: 18rpx;
+  padding: 14rpx 16rpx;
+  border-radius: 16rpx;
+  color: var(--app-color-warning);
+  font-size: 21rpx;
+  background: var(--app-bg-warm-soft);
+}
+.viewing-current-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+  padding: 22rpx 24rpx 20rpx;
+  border: 1rpx solid var(--app-border-brand-soft);
+  border-radius: 22rpx;
+  text-align: center;
+  background: linear-gradient(145deg, rgb(255 255 255 / 82%), rgb(234 244 255 / 72%));
+  box-shadow: 0 10rpx 30rpx rgb(58 102 163 / 6%);
+}
+.viewing-current-empty__icon {
+  display: flex;
+  width: 52rpx;
+  height: 52rpx;
+  flex: 0 0 52rpx;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rpx;
+  border: 1rpx solid var(--app-border-brand-soft);
+  border-radius: 16rpx;
+  color: var(--app-color-brand) !important;
+  font-size: 26rpx;
+  background: var(--app-color-brand-soft);
+}
+.viewing-current-empty__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6rpx;
+  align-items: center;
+}
+.viewing-current-empty strong {
+  color: var(--app-text-primary);
+  font-size: 24rpx;
+}
+.viewing-current-empty__copy text {
+  color: var(--app-text-muted);
+  font-size: 20rpx;
+  line-height: 1.45;
+}
+.viewing-current-empty__action {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4rpx;
+  margin-top: 4rpx;
+  padding: 8rpx 18rpx;
+  border: 1rpx solid var(--app-border-brand-soft);
+  border-radius: 999rpx;
+  color: var(--app-color-brand-active);
+  font-size: 21rpx;
+  font-weight: 600;
+  background: rgb(255 255 255 / 72%);
+}
+.viewing-history {
+  margin-top: 24rpx;
+  border-top: 1rpx solid var(--app-border-card);
+}
+.viewing-history-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 22rpx 4rpx 8rpx;
+  color: var(--app-text-muted);
+}
+.viewing-history-icon {
+  flex: 0 0 auto;
+  font-size: 24rpx;
+}
+.viewing-history-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 10rpx;
+}
+.viewing-history-copy > text {
+  color: var(--app-text-muted);
+  font-size: 23rpx;
+}
+.viewing-history-copy .viewing-history-count {
+  color: var(--app-text-disabled);
+  font-size: 20rpx;
+}
+.viewing-history-action {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6rpx;
+  color: var(--app-text-disabled);
+  font-size: 21rpx;
+}
+.viewing-history-list {
+  margin-top: 14rpx;
+}
+.favorite-notice {
+  margin-top: 32rpx;
 }
 .mode-card {
   display: flex;
@@ -647,21 +943,17 @@ onReachBottom(() => {
   text-align: center;
   background: var(--app-bg-card);
 }
-.scope-notice {
+.scope-notice,
+.scope-loading {
   margin-top: 24rpx;
+}
+.scope-loading {
   padding: 26rpx;
   border-radius: 20rpx;
   color: var(--app-text-secondary);
   font-size: 24rpx;
   line-height: 1.7;
   background: var(--app-bg-brand-soft);
-}
-.scope-notice--error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  color: var(--app-color-danger);
 }
 .landlord-lease-list {
   display: flex;

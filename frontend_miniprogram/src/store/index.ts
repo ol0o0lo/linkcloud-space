@@ -7,6 +7,7 @@ setActivePinia(store)
 export default store
 
 export * from './app-context-v2'
+export * from './public-house-region'
 export * from './runtime'
 export * from './session'
 export * from './workspace'

@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import type { AllocationCapabilitiesOut, ViewingRecordOut } from '@/features/organization-rental/service'
+import type { AllocationCapabilitiesOut, HouseOut, ViewingRecordOut } from '@/pages-org-rental/api/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
-import { formatOrganizationHouseTitle, formatOrganizationLocalDate } from '@/domain/organization-rental'
-import { getAllocationCapabilities, getOrganizationViewing, registerOrganizationDeal } from '@/features/organization-rental/service'
+import { formatOrganizationLocalDate } from '@/pages-org-rental/domain/organization-rental'
+import { getAllocationCapabilities, getOrganizationHouse, getOrganizationViewing, registerOrganizationDeal } from '@/pages-org-rental/api/organization-rental'
 import { getOrganizationLeaseDetailRoute } from '@/modules/routes'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import HouseCard from '@/components/house/HouseCard.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '登记签约' } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '登记签约' } })
 
 const appContextStore = useAppContextStore()
 const allocationCapabilities = ref<AllocationCapabilitiesOut | null>(null)
 const sourceViewing = ref<ViewingRecordOut | null>(null)
+const selectedHouse = ref<HouseOut | null>(null)
 const viewingId = ref(0)
 const loading = ref(false)
 const loadError = ref('')
@@ -31,6 +35,7 @@ const deposit = ref('')
 const paymentDay = ref('1')
 const notes = ref('')
 const allowed = computed(() => allocationCapabilities.value?.submit === true)
+const previewHouse = computed(() => selectedHouse.value || sourceViewing.value?.house || null)
 
 function applyViewing(viewing: ViewingRecordOut) {
   if (viewing.status !== 'converted')
@@ -52,6 +57,10 @@ async function loadSigningContext() {
     allocationCapabilities.value = capabilities
     if (viewing)
       applyViewing(viewing)
+    const resolvedHouseId = viewing?.house_id || Number(houseId.value)
+    selectedHouse.value = resolvedHouseId
+      ? await getOrganizationHouse(appContextStore.organizationSlug, resolvedHouseId).catch(() => null)
+      : null
   }
   catch (error) { loadError.value = error instanceof Error ? error.message : '成交带看加载失败' }
   finally { loading.value = false }
@@ -93,24 +102,24 @@ async function submit() {
 
 onLoad((options) => {
   viewingId.value = Number(options?.viewingId || 0)
+  houseId.value = String(Number(options?.houseId || 0) || '')
   void loadSigningContext()
 })
 </script>
 
 <template>
   <view class="signing-page">
+    <AppCustomNavigation title="登记签约" back scroll-mode="sticky" />
     <AppLoading v-if="loading" text="正在核验签约权限…" />
     <AppErrorView v-else-if="loadError" title="签约信息不可用" :message="loadError" @retry="loadSigningContext" />
     <AppErrorView v-else-if="!allowed" title="无登记权限" message="当前账号可以查看收益模块，但没有提交签约收益申请的权限" :retryable="false" />
     <view v-else class="form-card">
-      <view v-if="sourceViewing" class="source-card">
+      <view v-if="previewHouse" class="source-card">
         <view class="source-label">
-          来源带看
+          {{ sourceViewing ? '来源带看房源' : '签约房源' }}
         </view>
-        <view class="source-title">
-          {{ formatOrganizationHouseTitle(sourceViewing.house) }}
-        </view>
-        <view class="source-customer">
+        <HouseCard class="source-house" :house="previewHouse" variant="compact" />
+        <view v-if="sourceViewing" class="source-customer">
           {{ sourceViewing.customer_name }} · {{ sourceViewing.customer_phone }}
         </view>
       </view>
@@ -135,8 +144,11 @@ onLoad((options) => {
 <style scoped lang="scss">
 .signing-page {
   min-height: 100vh;
-  padding: 24rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
+}
+.signing-page :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 24rpx;
 }
 .form-card {
   overflow: hidden;
@@ -146,7 +158,7 @@ onLoad((options) => {
 }
 .source-card {
   margin: 12rpx 0 20rpx;
-  padding: 24rpx;
+  padding: 20rpx;
   border-radius: 18rpx;
   background: var(--app-bg-subtle);
 }
@@ -155,11 +167,8 @@ onLoad((options) => {
   color: var(--app-text-muted);
   font-size: 22rpx;
 }
-.source-title {
-  margin-top: 8rpx;
-  color: var(--app-text-primary);
-  font-size: 29rpx;
-  font-weight: 650;
+.source-house {
+  margin-top: 14rpx;
 }
 .source-customer {
   margin-top: 8rpx;

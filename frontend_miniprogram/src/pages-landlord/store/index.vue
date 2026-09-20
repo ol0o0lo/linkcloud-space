@@ -1,52 +1,36 @@
 <script setup lang="ts">
 import type { PublicHouseListOut, PublicLandlordProfileOut } from '@/features/landlord/service'
-import { onLoad, onReachBottom, onShareAppMessage } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import { ref } from 'vue'
-import HouseCard from '@/features/houses/components/HouseCard.vue'
+import HouseCard from '@/components/house/HouseCard.vue'
 import { getPublicLandlordStore, listPublicLandlordHouses } from '@/features/landlord/service'
 import { APP_ROUTES, getHouseDetailRoute } from '@/modules/routes'
-import AppListState from '@/shared/components/AppListState.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '房东公开店铺' } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '房东公开店铺' } })
 
 const appContextStore = useAppContextStore()
 const publicKey = ref('')
 const profile = ref<PublicLandlordProfileOut | null>(null)
-const houses = ref<PublicHouseListOut[]>([])
-const page = ref(1)
-const pageSize = 12
-const loading = ref(false)
-const finished = ref(false)
-const loadError = ref('')
-
-async function loadStore(reset = false) {
-  if (!publicKey.value || loading.value || (!reset && finished.value))
-    return
-  if (reset) {
-    page.value = 1
-    finished.value = false
-  }
-  loading.value = true
-  loadError.value = ''
-  try {
+const storePage = usePagedPage<PublicHouseListOut>({
+  loader: async ({ page, pageSize }) => {
     const [nextProfile, result] = await Promise.all([
       profile.value ? Promise.resolve(profile.value) : getPublicLandlordStore(publicKey.value),
-      listPublicLandlordHouses(publicKey.value, page.value, pageSize),
+      listPublicLandlordHouses(publicKey.value, page, pageSize),
     ])
     profile.value = nextProfile
-    houses.value = reset ? result.items : [...houses.value, ...result.items]
-    finished.value = houses.value.length >= result.total || result.items.length < pageSize
-    if (!finished.value)
-      page.value += 1
-  }
-  catch {
-    loadError.value = '公开店铺不存在或暂时无法加载'
-  }
-  finally {
-    loading.value = false
-  }
-}
+    return result
+  },
+  pageSize: 12,
+  enabled: () => Boolean(publicKey.value),
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  keyOf: item => item.id,
+})
 
 function openHouse(houseId: number) {
   uni.navigateTo({ url: getHouseDetailRoute(houseId) })
@@ -54,9 +38,8 @@ function openHouse(houseId: number) {
 
 onLoad((options) => {
   publicKey.value = String(options?.key || appContextStore.currentLandlordRelationship?.public_key || '')
-  void loadStore(true)
+  void storePage.refresh()
 })
-onReachBottom(() => void loadStore())
 onShareAppMessage(() => ({
   title: profile.value ? `${profile.value.name}的公开房源` : '房东公开店铺',
   path: `${APP_ROUTES.landlordStore}?key=${encodeURIComponent(publicKey.value)}`,
@@ -65,6 +48,7 @@ onShareAppMessage(() => ({
 
 <template>
   <view class="store-page">
+    <AppCustomNavigation title="房东公开店铺" back scroll-mode="sticky" />
     <view v-if="profile" class="profile-card">
       <image v-if="profile.avatar?.[0]" class="avatar" :src="profile.avatar[0].thumbnail || profile.avatar[0].url || ''" mode="aspectFill" />
       <view v-else class="avatar avatar--empty">
@@ -85,27 +69,34 @@ onShareAppMessage(() => ({
         分享
       </wd-button>
     </view>
-    <view v-if="houses.length" class="house-list">
-      <HouseCard v-for="house in houses" :key="house.id" :house="house" @click="openHouse(house.id)" />
-    </view>
-    <AppListState
-      :loading="loading"
-      :has-items="Boolean(houses.length)"
-      :finished="finished"
-      :error-message="loadError"
+    <AppPagedList
+      :items="storePage.items.value"
+      item-key="id"
+      :loading="storePage.loading.value"
+      :refreshing="storePage.refreshing.value"
+      :loading-more="storePage.loadingMore.value"
+      :finished="storePage.finished.value"
+      :error="storePage.error.value"
       loading-text="正在加载公开房源…"
       empty-text="该房东暂时没有公开房源"
       finished-text="没有更多房源了"
-      @retry="loadStore(houses.length === 0)"
-    />
+      @retry="storePage.refresh"
+    >
+      <template #item="{ item }">
+        <HouseCard :house="item" @click="openHouse(item.id)" />
+      </template>
+    </AppPagedList>
   </view>
 </template>
 
 <style scoped lang="scss">
 .store-page {
   min-height: 100vh;
-  padding: 28rpx 24rpx 56rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
+}
+.store-page :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 28rpx;
 }
 .profile-card {
   display: flex;
@@ -144,10 +135,5 @@ onShareAppMessage(() => ({
   margin-top: 8rpx;
   color: var(--app-text-muted);
   font-size: 22rpx;
-}
-.house-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
 }
 </style>

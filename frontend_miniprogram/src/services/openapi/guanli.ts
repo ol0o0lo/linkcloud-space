@@ -5,6 +5,265 @@ import { CustomRequestOptions_ } from '@/http/types';
 
 import * as API from './types';
 
+/** 获取小程序首页 Banner GET /api/admin/miniprogram-home/banners/ */
+export function adminMiniprogramHomeBannersUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeBannersUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedMiniProgramHomeBannerAdminOut>(
+    '/api/admin/miniprogram-home/banners/',
+    {
+      method: 'GET',
+      params: {
+        // page has a default value: 1
+        page: '1',
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 创建小程序首页 Banner POST /api/admin/miniprogram-home/banners/ */
+export function adminMiniprogramHomeBannersUsingPost({
+  body,
+  options,
+}: {
+  body: API.MiniProgramHomeBannerCreateIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.MiniProgramHomeBannerAdminOut>(
+    '/api/admin/miniprogram-home/banners/',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取小程序首页 Banner 详情 GET /api/admin/miniprogram-home/banners/${param0}/ */
+export function adminMiniprogramHomeBannersBannerIdUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeBannersBannerIdUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { banner_id: param0, ...queryParams } = params;
+
+  return request<API.MiniProgramHomeBannerAdminOut>(
+    `/api/admin/miniprogram-home/banners/${param0}/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 更新小程序首页 Banner PATCH /api/admin/miniprogram-home/banners/${param0}/ */
+export function adminMiniprogramHomeBannersBannerIdUsingPatch({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeBannersBannerIdUsingPatchParams;
+  body: API.MiniProgramHomeBannerPatchIn;
+  options?: CustomRequestOptions_;
+}) {
+  const { banner_id: param0, ...queryParams } = params;
+
+  return request<API.MiniProgramHomeBannerAdminOut>(
+    `/api/admin/miniprogram-home/banners/${param0}/`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取小程序首页专题和指南 GET /api/admin/miniprogram-home/entries/ */
+export function adminMiniprogramHomeEntriesUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeEntriesUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedMiniProgramHomeEntryAdminOut>(
+    '/api/admin/miniprogram-home/entries/',
+    {
+      method: 'GET',
+      params: {
+        // page has a default value: 1
+        page: '1',
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 创建小程序首页专题或指南 POST /api/admin/miniprogram-home/entries/ */
+export function adminMiniprogramHomeEntriesUsingPost({
+  body,
+  options,
+}: {
+  body: API.MiniProgramHomeEntryCreateIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.MiniProgramHomeEntryAdminOut>(
+    '/api/admin/miniprogram-home/entries/',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取小程序首页专题或指南详情 GET /api/admin/miniprogram-home/entries/${param0}/ */
+export function adminMiniprogramHomeEntriesEntryIdUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeEntriesEntryIdUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { entry_id: param0, ...queryParams } = params;
+
+  return request<API.MiniProgramHomeEntryAdminOut>(
+    `/api/admin/miniprogram-home/entries/${param0}/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 更新小程序首页专题或指南 PATCH /api/admin/miniprogram-home/entries/${param0}/ */
+export function adminMiniprogramHomeEntriesEntryIdUsingPatch({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeEntriesEntryIdUsingPatchParams;
+  body: API.MiniProgramHomeEntryPatchIn;
+  options?: CustomRequestOptions_;
+}) {
+  const { entry_id: param0, ...queryParams } = params;
+
+  return request<API.MiniProgramHomeEntryAdminOut>(
+    `/api/admin/miniprogram-home/entries/${param0}/`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取专题已选房源 GET /api/admin/miniprogram-home/entries/${param0}/houses/ */
+export function adminMiniprogramHomeEntriesEntryIdHousesUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeEntriesEntryIdHousesUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { entry_id: param0, ...queryParams } = params;
+
+  return request<API.PagedMiniProgramHomeEntryHouseAdminOut>(
+    `/api/admin/miniprogram-home/entries/${param0}/houses/`,
+    {
+      method: 'GET',
+      params: {
+        // page has a default value: 1
+        page: '1',
+        ...queryParams,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 保存专题房源 PUT /api/admin/miniprogram-home/entries/${param0}/houses/ */
+export function adminMiniprogramHomeEntriesEntryIdHousesUsingPut({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeEntriesEntryIdHousesUsingPutParams;
+  body: API.MiniProgramHomeEntryHousesPutIn;
+  options?: CustomRequestOptions_;
+}) {
+  const { entry_id: param0, ...queryParams } = params;
+
+  return request<API.MiniProgramHomeEntryHouseAdminOut[]>(
+    `/api/admin/miniprogram-home/entries/${param0}/houses/`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 获取小程序首页专题候选房源 GET /api/admin/miniprogram-home/house-candidates/ */
+export function adminMiniprogramHomeHouseCandidatesUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminMiniprogramHomeHouseCandidatesUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedMiniProgramHomeHouseAdminOut>(
+    '/api/admin/miniprogram-home/house-candidates/',
+    {
+      method: 'GET',
+      params: {
+        // page has a default value: 1
+        page: '1',
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取当前裂变规则配置 GET /api/admin/referrals/config/ */
 export function adminReferralsConfigUsingGet({
   options,
@@ -178,24 +437,6 @@ export function adminUsersUserIdPhoneUsingDelete({
 
   return request<Record<string, unknown>>(`/api/admin/users/${param0}/phone/`, {
     method: 'DELETE',
-    params: { ...queryParams },
-    ...(options || {}),
-  });
-}
-
-/** 重置用户 MFA 删除用户已配置的 allauth MFA authenticators。 POST /api/admin/users/${param0}/reset-mfa/ */
-export function adminUsersUserIdResetMfaUsingPost({
-  params,
-  options,
-}: {
-  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
-  params: API.AdminUsersUserIdResetMfaUsingPostParams;
-  options?: CustomRequestOptions_;
-}) {
-  const { user_id: param0, ...queryParams } = params;
-
-  return request<API.ResetMfaOut>(`/api/admin/users/${param0}/reset-mfa/`, {
-    method: 'POST',
     params: { ...queryParams },
     ...(options || {}),
   });
@@ -962,6 +1203,48 @@ export function houseHousesHouseIdUsingPatch({
     data: body,
     ...(options || {}),
   });
+}
+
+/** 获取房源 AI 洞察 GET /api/house/houses/${param0}/ai-insight/ */
+export function houseHousesHouseIdAiInsightUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseHousesHouseIdAiInsightUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { house_id: param0, ...queryParams } = params;
+
+  return request<API.HouseAIInsightOut>(
+    `/api/house/houses/${param0}/ai-insight/`,
+    {
+      method: 'GET',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 生成房源 AI 洞察 POST /api/house/houses/${param0}/ai-insight/generate/ */
+export function houseHousesHouseIdAiInsightGenerateUsingPost({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseHousesHouseIdAiInsightGenerateUsingPostParams;
+  options?: CustomRequestOptions_;
+}) {
+  const { house_id: param0, ...queryParams } = params;
+
+  return request<API.HouseAIInsightOut>(
+    `/api/house/houses/${param0}/ai-insight/generate/`,
+    {
+      method: 'POST',
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
 }
 
 /** 获取租约收益分配申请列表 GET /api/house/lease-allocations/ */

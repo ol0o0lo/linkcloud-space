@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import type { BuildingMapMarkerOut, EstateMapMarkerOut } from '@/features/organization-rental/service'
+import type { BuildingMapMarkerOut, EstateMapMarkerOut } from '@/pages-org-rental/api/organization-rental'
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
-import { getOrganizationUnlocatedBuildingCount, listOrganizationBuildingMap, listOrganizationEstateMap } from '@/features/organization-rental/service'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import { getOrganizationUnlocatedBuildingCount, listOrganizationBuildingMap, listOrganizationEstateMap } from '@/pages-org-rental/api/organization-rental'
+import { APP_ROUTES } from '@/modules/routes'
+import AppEmpty from '@/components/app/AppEmpty.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '房源地图', enablePullDownRefresh: true } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '房源地图', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
 const estates = ref<EstateMapMarkerOut[]>([])
@@ -19,8 +23,8 @@ const loadError = ref('')
 const markers = computed(() => [
   ...estates.value.map(item => ({
     id: item.id,
-    latitude: Number(item.lat),
-    longitude: Number(item.lng),
+    latitude: Number(item.location.latitude),
+    longitude: Number(item.location.longitude),
     title: `${item.display_name || item.name} · ${item.counts.vacant} 套空置`,
     iconPath: '/static/tabbar/home.png',
     width: 28,
@@ -28,8 +32,8 @@ const markers = computed(() => [
   })),
   ...buildings.value.map(item => ({
     id: 1000000 + item.id,
-    latitude: Number(item.lat),
-    longitude: Number(item.lng),
+    latitude: Number(item.location.latitude),
+    longitude: Number(item.location.longitude),
     title: `${item.name} · ${item.counts.total} 套`,
     iconPath: '/static/tabbar/home.png',
     width: 24,
@@ -42,24 +46,28 @@ const coordinateItems = computed(() => [
     key: `estate-${item.id}`,
     name: item.display_name || item.name,
     address: item.address || '地址未登记',
-    lat: item.lat,
-    lng: item.lng,
+    lat: item.location.latitude,
+    lng: item.location.longitude,
     summary: `${item.building_count} 栋 · ${item.counts.total} 套 · ${item.counts.vacant} 套空置`,
   })),
   ...buildings.value.map(item => ({
     key: `building-${item.id}`,
     name: item.name,
     address: item.address || item.estate?.display_name || item.estate?.name || '地址未登记',
-    lat: item.lat,
-    lng: item.lng,
+    lat: item.location.latitude,
+    lng: item.location.longitude,
     summary: `${item.counts.total} 套 · ${item.counts.vacant} 套空置`,
   })),
 ])
 
 const center = computed(() => markers.value[0] || { latitude: 31.2304, longitude: 121.4737 })
 
-function copyCoordinates(lat: string, lng: string) {
+function copyCoordinates(lat: string | number, lng: string | number) {
   uni.setClipboardData({ data: `${lat},${lng}` })
+}
+
+function openBuildings() {
+  uni.navigateTo({ url: APP_ROUTES.organizationBuildings })
 }
 
 async function loadMap() {
@@ -114,6 +122,7 @@ onPullDownRefresh(loadMap)
 
 <template>
   <view class="map-page">
+    <AppCustomNavigation title="房源地图" back scroll-mode="sticky" />
     <AppLoading v-if="loading" text="正在加载地图标点…" />
     <AppErrorView v-else-if="loadError" title="地图加载失败" :message="loadError" @retry="loadMap" />
     <template v-else>
@@ -127,7 +136,14 @@ onPullDownRefresh(loadMap)
         :scale="12"
         show-location
       />
-      <wd-empty v-else icon="location" tip="当前组织还没有已定位的小区或楼栋" />
+      <AppEmpty
+        v-else
+        title="还没有可显示的位置"
+        description="先为小区或楼栋补充坐标，地图才能展示房源分布。"
+        icon="no-content"
+        action-text="维护楼栋位置"
+        @action="openBuildings"
+      />
       <!-- #endif -->
       <!-- #ifdef H5 -->
       <view v-if="coordinateItems.length" class="coordinate-list">
@@ -154,7 +170,14 @@ onPullDownRefresh(loadMap)
           </wd-button>
         </view>
       </view>
-      <wd-empty v-else icon="location" tip="当前组织还没有已定位的小区或楼栋" />
+      <AppEmpty
+        v-else
+        title="还没有可显示的位置"
+        description="先为小区或楼栋补充坐标，才能查看位置列表。"
+        icon="no-content"
+        action-text="维护楼栋位置"
+        @action="openBuildings"
+      />
       <!-- #endif -->
       <view class="summary-card">
         <view><strong>{{ estates.length }}</strong><text>小区标点</text></view>
@@ -181,8 +204,11 @@ onPullDownRefresh(loadMap)
 <style scoped lang="scss">
 .map-page {
   min-height: 100vh;
-  padding: 24rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
+}
+.map-page :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 24rpx;
 }
 .map-view {
   width: 100%;

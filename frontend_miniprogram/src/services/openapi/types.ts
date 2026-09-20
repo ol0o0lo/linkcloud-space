@@ -299,6 +299,128 @@ export enum ActionEnum {
 
 export type IActionEnum = keyof typeof ActionEnum;
 
+export type AdminMiniprogramHomeBannersBannerIdUsingGetParams = {
+  banner_id: number;
+};
+
+export type AdminMiniprogramHomeBannersBannerIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: MiniProgramHomeBannerAdminOut;
+};
+
+export type AdminMiniprogramHomeBannersBannerIdUsingPatchParams = {
+  banner_id: number;
+};
+
+export type AdminMiniprogramHomeBannersBannerIdUsingPatchResponses = {
+  /**
+   * OK
+   */
+  200: MiniProgramHomeBannerAdminOut;
+};
+
+export type AdminMiniprogramHomeBannersUsingGetParams = {
+  keyword?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AdminMiniprogramHomeBannersUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMiniProgramHomeBannerAdminOut;
+};
+
+export type AdminMiniprogramHomeBannersUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: MiniProgramHomeBannerAdminOut;
+};
+
+export type AdminMiniprogramHomeEntriesEntryIdHousesUsingGetParams = {
+  entry_id: number;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AdminMiniprogramHomeEntriesEntryIdHousesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMiniProgramHomeEntryHouseAdminOut;
+};
+
+export type AdminMiniprogramHomeEntriesEntryIdHousesUsingPutParams = {
+  entry_id: number;
+};
+
+export type AdminMiniprogramHomeEntriesEntryIdHousesUsingPutResponses = {
+  /**
+   * OK
+   */
+  200: MiniProgramHomeEntryHouseAdminOut[];
+};
+
+export type AdminMiniprogramHomeEntriesEntryIdUsingGetParams = {
+  entry_id: number;
+};
+
+export type AdminMiniprogramHomeEntriesEntryIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: MiniProgramHomeEntryAdminOut;
+};
+
+export type AdminMiniprogramHomeEntriesEntryIdUsingPatchParams = {
+  entry_id: number;
+};
+
+export type AdminMiniprogramHomeEntriesEntryIdUsingPatchResponses = {
+  /**
+   * OK
+   */
+  200: MiniProgramHomeEntryAdminOut;
+};
+
+export type AdminMiniprogramHomeEntriesUsingGetParams = {
+  kind?: string | null;
+  keyword?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AdminMiniprogramHomeEntriesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMiniProgramHomeEntryAdminOut;
+};
+
+export type AdminMiniprogramHomeEntriesUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: MiniProgramHomeEntryAdminOut;
+};
+
+export type AdminMiniprogramHomeHouseCandidatesUsingGetParams = {
+  keyword?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AdminMiniprogramHomeHouseCandidatesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMiniProgramHomeHouseAdminOut;
+};
+
 export type AdminRealNameDecisionIn = {
   /** Note 审核备注或驳回原因。 */
   note?: string;
@@ -453,6 +575,10 @@ export type AdminReferralsRecordsRecordIdReviewUsingPostResponses = {
 };
 
 export type AdminReferralsRecordsUsingGetParams = {
+  keyword?: string | null;
+  status?: string | null;
+  created_from?: string | null;
+  created_to?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -478,6 +604,11 @@ export type AdminSubscriptionsInvoiceRequestsInvoiceRequestIdUsingPatchResponses
   };
 
 export type AdminSubscriptionsInvoiceRequestsUsingGetParams = {
+  organization_id?: number | null;
+  keyword?: string | null;
+  status?: string | null;
+  created_from?: string | null;
+  created_to?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -502,6 +633,11 @@ export type AdminSubscriptionsOrdersOrderIdRefundUsingPostResponses = {
 
 export type AdminSubscriptionsOrdersUsingGetParams = {
   organization_id?: number | null;
+  keyword?: string | null;
+  status?: string | null;
+  refund_status?: string | null;
+  created_from?: string | null;
+  created_to?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -633,17 +769,6 @@ export type AdminUsersUserIdPhoneUsingDeleteResponses = {
   200: Record<string, unknown>;
 };
 
-export type AdminUsersUserIdResetMfaUsingPostParams = {
-  user_id: number;
-};
-
-export type AdminUsersUserIdResetMfaUsingPostResponses = {
-  /**
-   * OK
-   */
-  200: ResetMfaOut;
-};
-
 export type AdminUsersUserIdSetPasswordUsingPostParams = {
   user_id: number;
 };
@@ -731,6 +856,9 @@ export type AdminWalletAccountsUserIdLedgerUsingGetResponses = {
 };
 
 export type AdminWalletAccountsUsingGetParams = {
+  keyword?: string | null;
+  created_from?: string | null;
+  created_to?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -750,6 +878,10 @@ export type AdminWalletAdjustmentsUsingPostResponses = {
 };
 
 export type AdminWalletWithdrawalsUsingGetParams = {
+  keyword?: string | null;
+  status?: string | null;
+  created_from?: string | null;
+  created_to?: string | null;
   page?: number;
   page_size?: number | null;
 };
@@ -781,6 +913,61 @@ export type AdminWalletWithdrawalsWithdrawalIdReviewUsingPostResponses = {
    * OK
    */
   200: WithdrawalOut;
+};
+
+export type AiConversationsConversationIdMessagesStreamUsingPostParams = {
+  conversation_id: number;
+};
+
+export type AiConversationsConversationIdMessagesStreamUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: unknown;
+};
+
+export type AiConversationsConversationIdMessagesUsingGetParams = {
+  conversation_id: number;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AiConversationsConversationIdMessagesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMessageOut;
+};
+
+export type AiConversationsConversationIdMessagesUsingPostParams = {
+  conversation_id: number;
+};
+
+export type AiConversationsConversationIdMessagesUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: MessageGenerationOut;
+};
+
+export type AiConversationsUsingGetParams = {
+  scope?: 'personal' | 'organization';
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AiConversationsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedConversationOut;
+};
+
+export type AiConversationsUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: ConversationOut;
 };
 
 export type AllocationBeneficiariesUsingGetParams = {
@@ -1348,10 +1535,7 @@ export type BuildingIn = {
   year_built?: number | null;
   /** Elevator */
   elevator?: boolean;
-  /** Lat */
-  lat?: number | string | null;
-  /** Lng */
-  lng?: number | string | null;
+  location?: GeoPointIn | null;
   /** Address */
   address?: string;
   /** Images */
@@ -1376,10 +1560,7 @@ export type BuildingInventoryOut = {
   year_built: number | null;
   /** Elevator */
   elevator: boolean;
-  /** Lat */
-  lat: string | null;
-  /** Lng */
-  lng: string | null;
+  location: GeoPointOut | null;
   /** Address */
   address: string;
   /** Images */
@@ -1418,10 +1599,7 @@ export type BuildingMapDetailOut = {
   year_built: number | null;
   /** Elevator */
   elevator: boolean;
-  /** Lat */
-  lat: string | null;
-  /** Lng */
-  lng: string | null;
+  location: GeoPointOut | null;
   /** Address */
   address: string;
   /** Images */
@@ -1458,10 +1636,7 @@ export type BuildingMapMarkerOut = {
   name: string;
   /** Address */
   address: string;
-  /** Lat */
-  lat: string;
-  /** Lng */
-  lng: string;
+  location: GeoPointOut;
   counts: BuildingMapCountsOut;
 };
 
@@ -1497,10 +1672,7 @@ export type BuildingOut = {
   year_built: number | null;
   /** Elevator */
   elevator: boolean;
-  /** Lat */
-  lat: string | null;
-  /** Lng */
-  lng: string | null;
+  location: GeoPointOut | null;
   /** Address */
   address: string;
   /** Images */
@@ -1522,10 +1694,7 @@ export type BuildingPatchIn = {
   year_built?: number | null;
   /** Elevator */
   elevator?: boolean | null;
-  /** Lat */
-  lat?: number | string | null;
-  /** Lng */
-  lng?: number | string | null;
+  location?: GeoPointIn | null;
   /** Address */
   address?: string | null;
   /** Images */
@@ -1546,10 +1715,7 @@ export type BuildingSummaryOut = {
   elevator: boolean;
   /** Address */
   address: string;
-  /** Lat */
-  lat: string | null;
-  /** Lng */
-  lng: string | null;
+  location: GeoPointOut | null;
 };
 
 export type BulkActionIn = {
@@ -1632,6 +1798,28 @@ export type ContactSummaryOut = {
   name: string;
   /** Phone */
   phone: string;
+};
+
+export type ConversationCreateIn = {
+  /** Scope */
+  scope?: 'personal' | 'organization';
+};
+
+export type ConversationOut = {
+  /** Id */
+  id: number;
+  /** Organization Id */
+  organization_id: number | null;
+  /** Capability */
+  capability: string;
+  /** Title */
+  title: string;
+  /** Status */
+  status: string;
+  /** Last Message At */
+  last_message_at: string | null;
+  /** Created At */
+  created_at: string;
 };
 
 export type CurrentSubscriptionOut = {
@@ -1780,6 +1968,10 @@ export type EstateDetailOut = {
   name: string;
   /** Display Name */
   display_name: string;
+  /** Developer */
+  developer: string | null;
+  /** Built Year */
+  built_year: number | null;
   /** Property Type */
   property_type: string;
   /** Property Type  Mapping */
@@ -1792,12 +1984,11 @@ export type EstateDetailOut = {
   district: string;
   /** Address */
   address: string;
-  /** Lat */
-  lat: string | null;
-  /** Lng */
-  lng: string | null;
+  location: GeoPointOut | null;
   /** Images */
   images: Record<string, unknown>[];
+  /** Description */
+  description: string;
   /** Building Count */
   building_count: number;
   counts: InventoryCountsOut;
@@ -1822,10 +2013,7 @@ export type EstateIn = {
   district: string;
   /** Address */
   address?: string;
-  /** Lat */
-  lat?: number | string | null;
-  /** Lng */
-  lng?: number | string | null;
+  location?: GeoPointIn | null;
   /** Images */
   images?: Record<string, unknown>[];
   /** Description */
@@ -1841,10 +2029,7 @@ export type EstateMapMarkerOut = {
   display_name: string;
   /** Address */
   address: string;
-  /** Lat */
-  lat: string;
-  /** Lng */
-  lng: string;
+  location: GeoPointOut;
   /** Location Source */
   location_source: 'estate' | 'building_centroid';
   /** Building Count */
@@ -1863,6 +2048,10 @@ export type EstateOut = {
   name: string;
   /** Display Name */
   display_name: string;
+  /** Developer */
+  developer: string | null;
+  /** Built Year */
+  built_year: number | null;
   /** Property Type */
   property_type: string;
   /** Property Type  Mapping */
@@ -1875,12 +2064,11 @@ export type EstateOut = {
   district: string;
   /** Address */
   address: string;
-  /** Lat */
-  lat: string | null;
-  /** Lng */
-  lng: string | null;
+  location: GeoPointOut | null;
   /** Images */
   images: Record<string, unknown>[];
+  /** Description */
+  description: string;
 };
 
 export type EstatePatchIn = {
@@ -1902,10 +2090,7 @@ export type EstatePatchIn = {
   district?: string | null;
   /** Address */
   address?: string | null;
-  /** Lat */
-  lat?: number | string | null;
-  /** Lng */
-  lng?: number | string | null;
+  location?: GeoPointIn | null;
   /** Images */
   images?: Record<string, unknown>[] | null;
   /** Description */
@@ -1975,6 +2160,102 @@ export type ForceLogoutOut = {
   deleted_sessions: number;
 };
 
+export type GeoPointIn = {
+  /** Longitude */
+  longitude: number;
+  /** Latitude */
+  latitude: number;
+  /** Coordinate System */
+  coordinate_system: string;
+};
+
+export type GeoPointOut = {
+  /** Longitude */
+  longitude: number;
+  /** Latitude */
+  latitude: number;
+  /** Coordinate System */
+  coordinate_system?: string;
+};
+
+export type HouseAIInsightAppealPointOut = {
+  /** Text */
+  text: string;
+  /** Fact Ids */
+  fact_ids: string[];
+};
+
+export type HouseAIInsightContentOut = {
+  /** Schema Version */
+  schema_version: number;
+  conclusion: HouseAIInsightTextOut;
+  /** Signals */
+  signals: HouseAIInsightSignalOut[];
+  /** Appeal Points */
+  appeal_points: HouseAIInsightAppealPointOut[];
+  /** Viewing Questions */
+  viewing_questions: HouseAIInsightViewingQuestionOut[];
+  /** Missing Fields */
+  missing_fields: HouseAIInsightMissingFieldOut[];
+  /** Facts */
+  facts: HouseAIInsightFactOut[];
+};
+
+export type HouseAIInsightFactOut = {
+  /** Id */
+  id: string;
+  /** Label */
+  label: string;
+  /** Value */
+  value: string;
+};
+
+export type HouseAIInsightMissingFieldOut = {
+  /** Key */
+  key: string;
+  /** Label */
+  label: string;
+};
+
+export type HouseAIInsightOut = {
+  /** State */
+  state: 'not_generated' | 'fresh' | 'expired';
+  insight: HouseAIInsightContentOut | null;
+  /** Generated At */
+  generated_at: string | null;
+  /** Expires At */
+  expires_at: string | null;
+  /** Source Changed */
+  source_changed: boolean;
+};
+
+export type HouseAIInsightSignalOut = {
+  /** Label */
+  label: string;
+  /** Value */
+  value: string;
+  /** Tone */
+  tone: 'positive' | 'neutral' | 'caution';
+  /** Fact Ids */
+  fact_ids: string[];
+};
+
+export type HouseAIInsightTextOut = {
+  /** Text */
+  text: string;
+  /** Fact Ids */
+  fact_ids: string[];
+};
+
+export type HouseAIInsightViewingQuestionOut = {
+  /** Text */
+  text: string;
+  /** Fact Ids */
+  fact_ids: string[];
+  /** Missing Field Keys */
+  missing_field_keys: string[];
+};
+
 export type HouseBuildingMapBuildingIdUsingGetParams = {
   building_id: number;
 };
@@ -2017,6 +2298,7 @@ export type HouseBuildingMapUsingGetParams = {
   south?: number | string | null;
   east?: number | string | null;
   north?: number | string | null;
+  coordinate_system: string;
   page?: number;
   page_size?: number | null;
 };
@@ -2172,6 +2454,7 @@ export type HouseEstateMapUsingGetParams = {
   south?: number | string | null;
   east?: number | string | null;
   north?: number | string | null;
+  coordinate_system: string;
   page?: number;
   page_size?: number | null;
 };
@@ -2246,6 +2529,28 @@ export type HouseEstatesUsingPostResponses = {
    * Created
    */
   201: EstateOut;
+};
+
+export type HouseHousesHouseIdAiInsightGenerateUsingPostParams = {
+  house_id: number;
+};
+
+export type HouseHousesHouseIdAiInsightGenerateUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: HouseAIInsightOut;
+};
+
+export type HouseHousesHouseIdAiInsightUsingGetParams = {
+  house_id: number;
+};
+
+export type HouseHousesHouseIdAiInsightUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: HouseAIInsightOut;
 };
 
 export type HouseHousesHouseIdUsingGetParams = {
@@ -3422,6 +3727,24 @@ export type LeaseWithAllocationIn = {
   beneficiary_user_ids: number[];
 };
 
+export enum LevelEnum {
+  'city' = 'city',
+  'district' = 'district',
+  'estate' = 'estate',
+  'building' = 'building',
+}
+
+export type ILevelEnum = keyof typeof LevelEnum;
+
+export enum LevelEnum2 {
+  'city' = 'city',
+  'district' = 'district',
+  'estate' = 'estate',
+  'building' = 'building',
+}
+
+export type ILevelEnum2 = keyof typeof LevelEnum2;
+
 export enum Location_sourceEnum {
   'estate' = 'estate',
   'building_centroid' = 'building_centroid',
@@ -3635,6 +3958,331 @@ export type MeOut = {
   unread_count?: number;
 };
 
+export type MessageCreateIn = {
+  /** Content */
+  content: string;
+  /** Idempotency Key */
+  idempotency_key: string;
+};
+
+export type MessageGenerationOut = {
+  /** Invocation Id */
+  invocation_id: number;
+  message: MessageOut;
+};
+
+export type MessageOut = {
+  /** Id */
+  id: number;
+  /** Role */
+  role: string;
+  /** Content */
+  content: string;
+  /** Content Json */
+  content_json: Record<string, unknown> | unknown[] | null;
+  /** Invocation Id */
+  invocation_id: number | null;
+  /** Created At */
+  created_at: string;
+};
+
+export type MiniProgramHomeBannerAdminOut = {
+  /** Id */
+  id: number;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Description */
+  description: string;
+  /** Button Text */
+  button_text: string;
+  /** Image */
+  image: ResolvedMediaRefOut[];
+  /** Tone */
+  tone: string;
+  /** Action Type */
+  action_type: string;
+  /** Action Type  Mapping */
+  action_type__mapping: string;
+  /** Entry Id */
+  entry_id: number | null;
+  /** Entry Title */
+  entry_title: string | null;
+  /** Sort Order */
+  sort_order: number;
+  /** Is Enabled */
+  is_enabled: boolean;
+  /** Starts At */
+  starts_at: string | null;
+  /** Ends At */
+  ends_at: string | null;
+  /** Display Status */
+  display_status: string;
+  /** Display Status  Mapping */
+  display_status__mapping: string;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type MiniProgramHomeBannerCreateIn = {
+  /** Eyebrow */
+  eyebrow?: string;
+  /** Title */
+  title: string;
+  /** Description */
+  description: string;
+  /** Button Text */
+  button_text?: string;
+  /** Image */
+  image?: Record<string, unknown>[];
+  /** Tone */
+  tone: string;
+  /** Action Type */
+  action_type: string;
+  /** Entry Id */
+  entry_id?: number | null;
+  /** Sort Order */
+  sort_order?: number;
+  /** Is Enabled */
+  is_enabled?: boolean;
+  /** Starts At */
+  starts_at?: string | null;
+  /** Ends At */
+  ends_at?: string | null;
+};
+
+export type MiniProgramHomeBannerPatchIn = {
+  /** Eyebrow */
+  eyebrow?: string | null;
+  /** Title */
+  title?: string | null;
+  /** Description */
+  description?: string | null;
+  /** Button Text */
+  button_text?: string | null;
+  /** Image */
+  image?: Record<string, unknown>[] | null;
+  /** Tone */
+  tone?: string | null;
+  /** Action Type */
+  action_type?: string | null;
+  /** Entry Id */
+  entry_id?: number | null;
+  /** Sort Order */
+  sort_order?: number | null;
+  /** Is Enabled */
+  is_enabled?: boolean | null;
+  /** Starts At */
+  starts_at?: string | null;
+  /** Ends At */
+  ends_at?: string | null;
+};
+
+export type MiniProgramHomeBannerPublicOut = {
+  /** Id */
+  id: number;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Description */
+  description: string;
+  /** Button Text */
+  button_text: string;
+  /** Image */
+  image: ResolvedMediaRefOut[];
+  /** Tone */
+  tone: string;
+  /** Action Type */
+  action_type: string;
+  /** Entry Slug */
+  entry_slug: string | null;
+};
+
+export type MiniProgramHomeEntryAdminOut = {
+  /** Id */
+  id: number;
+  /** Kind */
+  kind: string;
+  /** Kind  Mapping */
+  kind__mapping: string;
+  /** Slug */
+  slug: string;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Summary */
+  summary: string;
+  /** Cover Image */
+  cover_image: ResolvedMediaRefOut[];
+  /** Body Markdown */
+  body_markdown: string;
+  /** Tone */
+  tone: string;
+  /** Sort Order */
+  sort_order: number;
+  /** Is Enabled */
+  is_enabled: boolean;
+  /** Starts At */
+  starts_at: string | null;
+  /** Ends At */
+  ends_at: string | null;
+  /** Display Status */
+  display_status: string;
+  /** Display Status  Mapping */
+  display_status__mapping: string;
+  /** House Count */
+  house_count: number;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type MiniProgramHomeEntryCreateIn = {
+  /** Kind */
+  kind: string;
+  /** Eyebrow */
+  eyebrow?: string;
+  /** Title */
+  title: string;
+  /** Summary */
+  summary: string;
+  /** Cover Image */
+  cover_image?: Record<string, unknown>[];
+  /** Body Markdown */
+  body_markdown?: string;
+  /** Tone */
+  tone: string;
+  /** Sort Order */
+  sort_order?: number;
+  /** Is Enabled */
+  is_enabled?: boolean;
+  /** Starts At */
+  starts_at?: string | null;
+  /** Ends At */
+  ends_at?: string | null;
+};
+
+export type MiniProgramHomeEntryDetailOut = {
+  /** Slug */
+  slug: string;
+  /** Kind */
+  kind: string;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Summary */
+  summary: string;
+  /** Cover Image */
+  cover_image: ResolvedMediaRefOut[];
+  /** Tone */
+  tone: string;
+  /** Body Html */
+  body_html: string;
+};
+
+export type MiniProgramHomeEntryHouseAdminOut = {
+  house: MiniProgramHomeHouseAdminOut;
+  /** Sort Order */
+  sort_order: number;
+  /** Recommendation Reason */
+  recommendation_reason: string;
+};
+
+export type MiniProgramHomeEntryHouseItemIn = {
+  /** House Id */
+  house_id: number;
+  /** Recommendation Reason */
+  recommendation_reason?: string;
+};
+
+export type MiniProgramHomeEntryHousePublicOut = {
+  house: PublicHouseListOut;
+  /** Recommendation Reason */
+  recommendation_reason: string;
+};
+
+export type MiniProgramHomeEntryHousesPutIn = {
+  /** Items */
+  items: MiniProgramHomeEntryHouseItemIn[];
+};
+
+export type MiniProgramHomeEntryPatchIn = {
+  /** Kind */
+  kind?: string | null;
+  /** Eyebrow */
+  eyebrow?: string | null;
+  /** Title */
+  title?: string | null;
+  /** Summary */
+  summary?: string | null;
+  /** Cover Image */
+  cover_image?: Record<string, unknown>[] | null;
+  /** Body Markdown */
+  body_markdown?: string | null;
+  /** Tone */
+  tone?: string | null;
+  /** Sort Order */
+  sort_order?: number | null;
+  /** Is Enabled */
+  is_enabled?: boolean | null;
+  /** Starts At */
+  starts_at?: string | null;
+  /** Ends At */
+  ends_at?: string | null;
+};
+
+export type MiniProgramHomeEntrySummaryOut = {
+  /** Slug */
+  slug: string;
+  /** Kind */
+  kind: string;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Summary */
+  summary: string;
+  /** Cover Image */
+  cover_image: ResolvedMediaRefOut[];
+  /** Tone */
+  tone: string;
+};
+
+export type MiniProgramHomeHouseAdminOut = {
+  /** Id */
+  id: number;
+  /** Display Name */
+  display_name: string;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Layout */
+  layout: string;
+  /** Area */
+  area: string | null;
+  /** Asking Rent */
+  asking_rent: string | null;
+  /** Images */
+  images: ResolvedMediaRefOut[];
+};
+
+export type MiniProgramHomeOut = {
+  /** Banners */
+  banners: MiniProgramHomeBannerPublicOut[];
+  /** Topics */
+  topics: MiniProgramHomeEntrySummaryOut[];
+  /** Guides */
+  guides: MiniProgramHomeEntrySummaryOut[];
+};
+
 export enum ModeEnum {
   'preview' = 'preview',
   'apply' = 'apply',
@@ -3680,10 +4328,24 @@ export type MonthlyAccrualTotalOut = {
 export type NavigationAccessCapabilitiesOut = {
   /** Role Management */
   role_management: boolean;
+  /** Team Update Ids */
+  team_update_ids: number[];
+  /** Team Member Manage Ids */
+  team_member_manage_ids: number[];
+  /** Team Role View Ids */
+  team_role_view_ids: number[];
+  /** Team Role Manage Ids */
+  team_role_manage_ids: number[];
   /** Organization Settings */
   organization_settings: boolean;
+  /** Organization Settings Manage */
+  organization_settings_manage: boolean;
   /** Team Settings */
   team_settings: boolean;
+  /** Team Settings View Ids */
+  team_settings_view_ids: number[];
+  /** Team Settings Manage Ids */
+  team_settings_manage_ids: number[];
   /** Subscriptions */
   subscriptions: boolean;
   /** Subscriptions Manage */
@@ -3694,6 +4356,47 @@ export type NavigationAccessCapabilitiesOut = {
   allocation: boolean;
   /** Notification Dispatches */
   notification_dispatches: boolean;
+};
+
+export type NearbyPoiItemOut = {
+  /** Id */
+  id: string;
+  /** Name */
+  name: string;
+  /** Address */
+  address: string;
+  /** Distance */
+  distance: number;
+};
+
+export type NearbyPoisOut = {
+  /** Bus */
+  bus: NearbyPoiItemOut[];
+  /** Subway */
+  subway: NearbyPoiItemOut[];
+  /** Education */
+  education: NearbyPoiItemOut[];
+  /** Medical */
+  medical: NearbyPoiItemOut[];
+};
+
+export type NearbyPoisUsingGetParams = {
+  lat: number | string;
+  lng: number | string;
+};
+
+export type NearbyPoisUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: NearbyPoisOut;
+};
+
+export type NearestMetroStationOut = {
+  /** Name */
+  name: string;
+  /** Line Names */
+  line_names: string[];
 };
 
 export type NotificationActorOut = {
@@ -4553,6 +5256,17 @@ export type PagedContactOut = {
   page_size: number;
 };
 
+export type PagedConversationOut = {
+  /** Items */
+  items: ConversationOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedEstateDetailOut = {
   /** Items */
   items: EstateDetailOut[];
@@ -4666,6 +5380,83 @@ export type PagedLeaseOut = {
 export type PagedMemberOut = {
   /** Items */
   items: MemberOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMessageOut = {
+  /** Items */
+  items: MessageOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMiniProgramHomeBannerAdminOut = {
+  /** Items */
+  items: MiniProgramHomeBannerAdminOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMiniProgramHomeEntryAdminOut = {
+  /** Items */
+  items: MiniProgramHomeEntryAdminOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMiniProgramHomeEntryHouseAdminOut = {
+  /** Items */
+  items: MiniProgramHomeEntryHouseAdminOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMiniProgramHomeEntryHousePublicOut = {
+  /** Items */
+  items: MiniProgramHomeEntryHousePublicOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMiniProgramHomeEntrySummaryOut = {
+  /** Items */
+  items: MiniProgramHomeEntrySummaryOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMiniProgramHomeHouseAdminOut = {
+  /** Items */
+  items: MiniProgramHomeHouseAdminOut[];
   /** Total */
   total: number;
   /** Page */
@@ -5015,10 +5806,7 @@ export type PublicBuildingOut = {
   name: string;
   /** Address */
   address: string;
-  /** Lat */
-  lat: string | null;
-  /** Lng */
-  lng: string | null;
+  location: GeoPointOut | null;
   estate: PublicEstateOut | null;
 };
 
@@ -5050,6 +5838,8 @@ export type PublicHouseDetailOut = {
   area: string | null;
   /** Asking Rent */
   asking_rent: string | null;
+  /** Deposit Amount */
+  deposit_amount: string | null;
   /** Bedrooms */
   bedrooms: number | null;
   /** Living Rooms */
@@ -5078,10 +5868,11 @@ export type PublicHouseDetailOut = {
   publisher: PublicPublisherOut;
   /** Updated At */
   updated_at: string;
+  /** Distance M */
+  distance_m?: number | null;
+  nearest_metro_station?: NearestMetroStationOut | null;
   /** Interior Area */
   interior_area: string | null;
-  /** Deposit Amount */
-  deposit_amount: string | null;
   /** Kitchens */
   kitchens: number | null;
   /** Balconies */
@@ -5124,6 +5915,8 @@ export type PublicHouseListOut = {
   area: string | null;
   /** Asking Rent */
   asking_rent: string | null;
+  /** Deposit Amount */
+  deposit_amount: string | null;
   /** Bedrooms */
   bedrooms: number | null;
   /** Living Rooms */
@@ -5152,6 +5945,63 @@ export type PublicHouseListOut = {
   publisher: PublicPublisherOut;
   /** Updated At */
   updated_at: string;
+  /** Distance M */
+  distance_m?: number | null;
+  nearest_metro_station?: NearestMetroStationOut | null;
+};
+
+export type PublicHouseLocatedRegionOut = {
+  /** Province */
+  province: string;
+  /** City */
+  city: string;
+  /** District */
+  district: string;
+};
+
+export type PublicHouseMapMarkerOut = {
+  /** Key */
+  key: string;
+  /** Level */
+  level: 'city' | 'district' | 'estate' | 'building';
+  /** Name */
+  name: string;
+  /** Address */
+  address: string;
+  location: GeoPointOut;
+  /** House Count */
+  house_count: number;
+  /** Child Count */
+  child_count: number;
+  /** Min Rent */
+  min_rent: string | null;
+  /** Target Zoom */
+  target_zoom: number;
+  /** City */
+  city?: string;
+  /** District */
+  district?: string;
+  /** Estate Id */
+  estate_id?: number | null;
+  /** Building Id */
+  building_id?: number | null;
+};
+
+export type PublicHouseMapOut = {
+  /** Level */
+  level: 'city' | 'district' | 'estate' | 'building';
+  /** Zoom */
+  zoom: number;
+  /** Visible House Count */
+  visible_house_count: number;
+  /** Marker Count */
+  marker_count: number;
+  /** Unlocated House Count */
+  unlocated_house_count: number;
+  /** Truncated */
+  truncated: boolean;
+  /** Items */
+  items: PublicHouseMapMarkerOut[];
 };
 
 export type PublicHouseMatchShareOut = {
@@ -5204,6 +6054,36 @@ export type PublicHouseMatchSharesShareKeyUsingGetResponses = {
   200: PublicHouseMatchShareOut;
 };
 
+export type PublicHouseRegionCityOut = {
+  /** City */
+  city: string;
+  /** House Count */
+  house_count: number;
+  /** Districts */
+  districts: PublicHouseRegionDistrictOut[];
+};
+
+export type PublicHouseRegionDistrictOut = {
+  /** District */
+  district: string;
+  /** House Count */
+  house_count: number;
+};
+
+export type PublicHouseRegionProvinceOut = {
+  /** Province */
+  province: string;
+  /** House Count */
+  house_count: number;
+  /** Cities */
+  cities: PublicHouseRegionCityOut[];
+};
+
+export type PublicHouseRegionsOut = {
+  /** Items */
+  items: PublicHouseRegionProvinceOut[];
+};
+
 export type PublicHousesFiltersUsingGetResponses = {
   /**
    * OK
@@ -5222,11 +6102,56 @@ export type PublicHousesHouseIdUsingGetResponses = {
   200: PublicHouseDetailOut;
 };
 
+export type PublicHousesMapUsingGetParams = {
+  zoom?: number;
+  west?: number | string | null;
+  south?: number | string | null;
+  east?: number | string | null;
+  north?: number | string | null;
+  keyword?: string | null;
+  province?: string | null;
+  city?: string | null;
+  district?: string | null;
+  longitude?: number | string | null;
+  latitude?: number | string | null;
+  radius_m?: number;
+  coordinate_system: string;
+};
+
+export type PublicHousesMapUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseMapOut;
+};
+
+export type PublicHousesRegionsResolveUsingGetParams = {
+  latitude: number | string;
+  longitude: number | string;
+  coordinate_system?: string;
+};
+
+export type PublicHousesRegionsResolveUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseLocatedRegionOut;
+};
+
+export type PublicHousesRegionsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseRegionsOut;
+};
+
 export type PublicHousesUsingGetParams = {
   keyword?: string | null;
   province?: string | null;
   city?: string | null;
   district?: string | null;
+  estate_id?: number | null;
+  building_id?: number | null;
   min_rent?: number | string | null;
   max_rent?: number | string | null;
   min_area?: number | string | null;
@@ -5237,7 +6162,18 @@ export type PublicHousesUsingGetParams = {
   has_elevator_access?: boolean | null;
   tags?: string[] | null;
   publisher_slug?: string | null;
-  sort?: 'latest' | 'rent_asc' | 'rent_desc' | 'area_asc' | 'area_desc';
+  metro_stations?: string[] | null;
+  longitude?: number | string | null;
+  latitude?: number | string | null;
+  radius_m?: number;
+  coordinate_system?: string | null;
+  sort?:
+    | 'latest'
+    | 'rent_asc'
+    | 'rent_desc'
+    | 'area_asc'
+    | 'area_desc'
+    | 'distance_asc';
   page?: number;
   page_size?: number | null;
 };
@@ -5250,6 +6186,10 @@ export type PublicHousesUsingGetResponses = {
 };
 
 export type PublicInviteOut = {
+  /** Organization Id */
+  organization_id: number;
+  /** Organization Slug */
+  organization_slug: string;
   /** Organization Name */
   organization_name: string;
   /** Sender Name */
@@ -5312,6 +6252,100 @@ export type PublicLandlordsPublicKeyUsingGetResponses = {
    * OK
    */
   200: PublicLandlordProfileOut;
+};
+
+export type PublicMetroCitiesCityNameUsingGetParams = {
+  city_name: string;
+};
+
+export type PublicMetroCitiesCityNameUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicMetroCityDetailOut;
+};
+
+export type PublicMetroCitiesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicMetroCitySummaryOut[];
+};
+
+export type PublicMetroCityDetailOut = {
+  /** Name */
+  name: string;
+  /** Province */
+  province: string;
+  /** Data Version */
+  data_version: string;
+  /** Lines */
+  lines: PublicMetroLineOut[];
+};
+
+export type PublicMetroCitySummaryOut = {
+  /** Name */
+  name: string;
+  /** Province */
+  province: string;
+};
+
+export type PublicMetroLineOut = {
+  /** Name */
+  name: string;
+  /** Color */
+  color: string;
+  /** Stations */
+  stations: PublicMetroStationOut[];
+};
+
+export type PublicMetroStationOut = {
+  /** Name */
+  name: string;
+};
+
+export type PublicMiniprogramHomeEntriesSlugHousesUsingGetParams = {
+  slug: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type PublicMiniprogramHomeEntriesSlugHousesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMiniProgramHomeEntryHousePublicOut;
+};
+
+export type PublicMiniprogramHomeEntriesSlugUsingGetParams = {
+  slug: string;
+};
+
+export type PublicMiniprogramHomeEntriesSlugUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: MiniProgramHomeEntryDetailOut;
+};
+
+export type PublicMiniprogramHomeEntriesUsingGetParams = {
+  kind: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type PublicMiniprogramHomeEntriesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMiniProgramHomeEntrySummaryOut;
+};
+
+export type PublicMiniprogramHomeUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: MiniProgramHomeOut;
 };
 
 export type PublicPublisherOut = {
@@ -5663,11 +6697,6 @@ export type RelatedResourceTargetOut = {
   query: Record<string, number | string>;
 };
 
-export type ResetMfaOut = {
-  /** Deleted Authenticators */
-  deleted_authenticators: number;
-};
-
 export type ResolvedMediaRefOut = {
   /** Media Id */
   media_id: number;
@@ -5805,6 +6834,13 @@ export enum ScopeEnum {
 }
 
 export type IScopeEnum = keyof typeof ScopeEnum;
+
+export enum ScopeEnum2 {
+  'personal' = 'personal',
+  'organization' = 'organization',
+}
+
+export type IScopeEnum2 = keyof typeof ScopeEnum2;
 
 export type SetPrimaryOut = {
   /** Success */
@@ -6071,6 +7107,14 @@ export type SplitPhoneSignupIn = {
   /** Password 密码。 */
   password: string;
 };
+
+export enum StateEnum {
+  'not_generated' = 'not_generated',
+  'fresh' = 'fresh',
+  'expired' = 'expired',
+}
+
+export type IStateEnum = keyof typeof StateEnum;
 
 export enum StatusEnum {
   'matched' = 'matched',
@@ -6625,6 +7669,21 @@ export type TeamPatchIn = {
   members?: number[] | null;
 };
 
+export type TeamsTeamIdMemberCandidatesUsingGetParams = {
+  team_id: number;
+  /** 按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。 */
+  keyword?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type TeamsTeamIdMemberCandidatesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMemberOut;
+};
+
 export type TeamsTeamIdMembersUserIdUsingDeleteParams = {
   team_id: number;
   user_id: number;
@@ -6792,12 +7851,13 @@ export type TestNotificationsUsingPostResponses = {
   200: unknown;
 };
 
-export type TotpSetupOut = {
-  /** Secret */
-  secret: string;
-  /** Totp Url */
-  totp_url: string;
-};
+export enum ToneEnum {
+  'positive' = 'positive',
+  'neutral' = 'neutral',
+  'caution' = 'caution',
+}
+
+export type IToneEnum = keyof typeof ToneEnum;
 
 export type TransferOwnerIn = {
   /** User 新的 owner 用户 ID，必须已经是当前租户成员。 */
@@ -6895,6 +7955,42 @@ export type UsersAuthBrowserSignupUsingPostResponses = {
   200: unknown;
 };
 
+export type UsersAuthWechatMiniprogramPcLoginConfirmUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: unknown;
+};
+
+export type UsersAuthWechatMiniprogramQrLoginIdCompleteUsingPostParams = {
+  login_id: string;
+};
+
+export type UsersAuthWechatMiniprogramQrLoginIdCompleteUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: unknown;
+};
+
+export type UsersAuthWechatMiniprogramQrLoginIdUsingGetParams = {
+  login_id: string;
+};
+
+export type UsersAuthWechatMiniprogramQrLoginIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: WechatOfficialQrStatusOut;
+};
+
+export type UsersAuthWechatMiniprogramQrUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: WechatOfficialQrOut;
+};
+
 export type UsersAuthWechatOfficialQrLoginIdCompleteUsingPostParams = {
   login_id: string;
 };
@@ -6990,24 +8086,6 @@ export type UsersMeFavoriteUsingPutResponses = {
    * Created
    */
   201: FavoriteOut;
-};
-
-export type UsersMeMfaAuthenticatorsAuthenticatorTypeUsingDeleteParams = {
-  authenticator_type: string;
-};
-
-export type UsersMeMfaAuthenticatorsAuthenticatorTypeUsingDeleteResponses = {
-  /**
-   * OK
-   */
-  200: Record<string, unknown>;
-};
-
-export type UsersMeMfaTotpSetupUsingGetResponses = {
-  /**
-   * OK
-   */
-  200: TotpSetupOut;
 };
 
 export type UsersMeRealNameLogsUsingGetResponses = {
@@ -7503,6 +8581,13 @@ export type WalletSummaryOut = {
   total_income: number;
   /** Total Withdrawn */
   total_withdrawn: number;
+};
+
+export type WechatMiniprogramPcLoginConfirmIn = {
+  /** Scene 电脑端小程序码携带的临时场景值。 */
+  scene: string;
+  /** Code wx.login 返回的一次性 code。 */
+  code: string;
 };
 
 export type WechatOfficialQrCreateIn = {

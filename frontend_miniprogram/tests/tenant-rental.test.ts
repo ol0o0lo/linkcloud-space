@@ -40,9 +40,32 @@ test('租客业务统一显示小区、楼栋和房号', () => {
   }), '独栋公寓 202')
 })
 
-test('预约弹层高于页面固定操作栏且日期选择器可继续置顶', () => {
+test('房源详情使用当前页预约联系弹层并优先一键发送', () => {
   const source = readFileSync(path.join(projectRoot, 'src/pages-housing/detail/index.vue'), 'utf8')
+  const bottomSheetSource = readFileSync(path.join(projectRoot, 'src/components/app/AppBottomSheet.vue'), 'utf8')
 
-  assert.match(source, /<wd-popup[^>]*:z-index="1200"[^>]*root-portal/)
-  assert.match(source, /<wd-datetime-picker[^>]*:z-index="1300"[^>]*root-portal/)
+  assert.match(source, /<AppBottomSheet[^>]*:z-index="1200"/)
+  assert.match(bottomSheetSource, /<wd-popup[\s\S]*root-portal/)
+  assert.match(source, /一键发送给中介/)
+  assert.match(source, /修改联系方式/)
+  assert.match(source, /<wd-checkbox-group/)
+  assert.match(source, /<wd-input[^>]*type="tel"/)
+  assert.doesNotMatch(source, /wd-datetime-picker/)
+})
+
+test('中介在消息详情中可以查看租客发送的手机号和微信号', () => {
+  const source = readFileSync(path.join(projectRoot, 'src/pages/messages/detail.vue'), 'utf8')
+
+  assert.match(source, /notification\.category === 'house\.contact'/)
+  assert.match(source, /手机号/)
+  assert.match(source, /微信号/)
+})
+
+test('预约详情使用三段步骤条直接展示带看进度', () => {
+  const source = readFileSync(path.join(projectRoot, 'src/pages-personal-rental/viewings/detail.vue'), 'utf8')
+
+  assert.match(source, /<wd-steps[^>]*:active="viewingProgressActive"[^>]*align-center[^>]*dot/)
+  assert.match(source, /<wd-step title="已预约"/)
+  assert.match(source, /<wd-step title="待带看"/)
+  assert.match(source, /<wd-step title="已完成"/)
 })

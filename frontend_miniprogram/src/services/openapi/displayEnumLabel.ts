@@ -31,6 +31,24 @@ export function displayHouseStatusEnum(field: API.HouseStatus) {
   }[field];
 }
 
+export function displayLevelEnum(field: API.LevelEnum) {
+  return {
+    city: 'city',
+    district: 'district',
+    estate: 'estate',
+    building: 'building',
+  }[field];
+}
+
+export function displayLevelEnum2(field: API.LevelEnum2) {
+  return {
+    city: 'city',
+    district: 'district',
+    estate: 'estate',
+    building: 'building',
+  }[field];
+}
+
 export function displayLocationSourceEnum(field: API.Location_sourceEnum) {
   return { estate: 'estate', building_centroid: 'building_centroid' }[field];
 }
@@ -60,6 +78,10 @@ export function displayScopeEnum(field: API.ScopeEnum) {
   }[field];
 }
 
+export function displayScopeEnum2(field: API.ScopeEnum2) {
+  return { personal: 'personal', organization: 'organization' }[field];
+}
+
 export function displaySideEnum(field: API.SideEnum) {
   return { front: 'front', back: 'back' }[field];
 }
@@ -78,6 +100,12 @@ export function displaySortEnum(field: API.SortEnum) {
   }[field];
 }
 
+export function displayStateEnum(field: API.StateEnum) {
+  return { not_generated: 'not_generated', fresh: 'fresh', expired: 'expired' }[
+    field
+  ];
+}
+
 export function displayStatusEnum(field: API.StatusEnum) {
   return {
     matched: 'matched',
@@ -94,6 +122,12 @@ export function displayStatusEnum2(field: API.StatusEnum2) {
 
 export function displayStatusEnum3(field: API.StatusEnum3) {
   return { active: 'active', expired: 'expired', revoked: 'revoked' }[field];
+}
+
+export function displayToneEnum(field: API.ToneEnum) {
+  return { positive: 'positive', neutral: 'neutral', caution: 'caution' }[
+    field
+  ];
 }
 
 export function displayValueSourceEnum(field: API.Value_sourceEnum) {

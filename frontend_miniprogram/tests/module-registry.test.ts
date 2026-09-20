@@ -7,12 +7,14 @@ import { appModules, findModuleByRoute, getDefaultRouteForMode, isPublicRoute } 
 import {
   APP_ROUTES,
   getHouseDetailRoute,
+  getLoginRoute,
   getTenantLeaseDetailRoute,
   getTenantViewingDetailRoute,
+  isProtectedMessageRoute,
   normalizeAppRoutePath,
   shouldBypassStartupBoundary,
 } from '../src/modules/routes.ts'
-import { getTabbarItems, tabbarShellItems } from '../src/tabbar/config.ts'
+import { getTabbarItems, isAvailableTabbarShellRoute, isVisibleTabbarRoute, tabbarShellItems } from '../src/tabbar/config.ts'
 import {
   buildSubpackageRoute,
   getProductSubpackageRoutePrefixes,
@@ -23,11 +25,13 @@ import {
 } from '../src/modules/subpackages.ts'
 import { filterVisibleModules } from '../src/domain/navigation.ts'
 
-test('游客导航只包含已建成的公开入口', () => {
+test('游客和租客通过首页进入独立找房页，不在 TabBar 展示找房', () => {
   assert.deepEqual(
     filterVisibleModules(appModules, { mode: 'visitor', authenticated: false, capabilities: {} }).map(item => item.key),
-    ['home', 'houses', 'me'],
+    ['home', 'houses', 'messages', 'me'],
   )
+  assert.deepEqual(getTabbarItems('visitor').map(item => item.text), ['首页', '消息', '我的'])
+  assert.deepEqual(getTabbarItems('personal').map(item => item.text), ['首页', '我的找房', '消息', '我的'])
 })
 
 test('个人模式补充我的找房入口', () => {
@@ -37,20 +41,20 @@ test('个人模式补充我的找房入口', () => {
   )
 })
 
-test('房东模式开放概览、房源、租约和房东业务分包', () => {
+test('房东模式开放首页、房源、消息和房东业务分包，租约作为二级页面保留', () => {
   assert.deepEqual(
     filterVisibleModules(appModules, { mode: 'landlord', authenticated: true, capabilities: {} }).map(item => item.key),
     ['home', 'houses', 'favorites', 'landlord', 'messages', 'me'],
   )
-  assert.deepEqual(getTabbarItems('landlord').map(item => item.text), ['概览', '房源', '租约', '消息', '我的'])
+  assert.deepEqual(getTabbarItems('landlord').map(item => item.text), ['首页', '房源', '消息', '我的'])
 })
 
-test('中介模式开放工作台、业务、待办、消息和组织管理分包', () => {
+test('中介模式开放首页、工作台、待办、消息和组织管理分包', () => {
   assert.deepEqual(
     filterVisibleModules(appModules, { mode: 'organization', authenticated: true, capabilities: {} }).map(item => item.key),
     ['home', 'houses', 'favorites', 'organization-rental', 'organization-work', 'organization-admin', 'messages', 'me'],
   )
-  assert.deepEqual(getTabbarItems('organization').map(item => item.text), ['工作台', '业务', '待办', '消息', '我的'])
+  assert.deepEqual(getTabbarItems('organization').map(item => item.text), ['首页', '工作台', '待办', '消息', '我的'])
 })
 
 test('各模式有稳定首页且公开房源深链不继承组织模式', () => {
@@ -63,17 +67,64 @@ test('各模式有稳定首页且公开房源深链不继承组织模式', () =>
   assert.equal(isPublicRoute('/pages/favorites/index'), false)
 })
 
+test('登录入口统一构建并保留登录后的返回地址', () => {
+  assert.equal(getLoginRoute(), APP_ROUTES.login)
+  assert.equal(getLoginRoute(APP_ROUTES.messages), `${APP_ROUTES.login}?redirect=%2Fpages%2Fmessages%2Findex`)
+  assert.equal(getLoginRoute('/pages-housing/detail/index?id=42&from=share'), `${APP_ROUTES.login}?redirect=%2Fpages-housing%2Fdetail%2Findex%3Fid%3D42%26from%3Dshare`)
+})
+
+test('消息页和我的页共用未登录提示组件', () => {
+  const messagesSource = readFileSync(resolve(process.cwd(), 'src/pages/messages/index.vue'), 'utf8')
+  const meSource = readFileSync(resolve(process.cwd(), 'src/pages/me/me.vue'), 'utf8')
+  const guideSource = readFileSync(resolve(process.cwd(), 'src/components/app/AppLoginGuide.vue'), 'utf8')
+
+  assert.match(messagesSource, /<AppLoginGuide/)
+  assert.match(meSource, /<AppLoginGuide/)
+  assert.match(guideSource, /getLoginRoute\(props\.redirect\)/)
+  assert.match(guideSource, /<wd-button block/)
+})
+
 test('构建清单固定五个主包槽位，运行时只展示已启用模块', () => {
   assert.equal(tabbarShellItems.length, 5)
-  assert.deepEqual(getTabbarItems('personal').map(item => item.text), ['首页', '找房', '我的找房', '消息', '我的'])
-  assert.deepEqual(getTabbarItems('landlord').map(item => item.text), ['概览', '房源', '租约', '消息', '我的'])
-  assert.deepEqual(getTabbarItems('organization').map(item => item.text), ['工作台', '业务', '待办', '消息', '我的'])
+  assert.deepEqual(getTabbarItems('personal').map(item => item.text), ['首页', '我的找房', '消息', '我的'])
+  assert.deepEqual(getTabbarItems('landlord').map(item => item.text), ['首页', '房源', '消息', '我的'])
+  assert.deepEqual(getTabbarItems('organization').map(item => item.text), ['首页', '工作台', '待办', '消息', '我的'])
   const shellPaths = new Set(tabbarShellItems.map(item => item.pagePath))
   assert.ok((['personal', 'landlord', 'organization'] as const).every(mode => getTabbarItems(mode).every(item => shellPaths.has(item.pagePath))))
 })
 
+test('公开找房使用独立页面，业务壳页只在房东和组织模式显示', () => {
+  assert.equal(APP_ROUTES.publicHouseSearch, '/pages-housing/search/index')
+  assert.equal(isVisibleTabbarRoute('visitor', APP_ROUTES.houses), false)
+  assert.equal(isVisibleTabbarRoute('personal', APP_ROUTES.houses), false)
+  assert.equal(isVisibleTabbarRoute('landlord', APP_ROUTES.houses), true)
+  assert.equal(isVisibleTabbarRoute('organization', APP_ROUTES.houses), true)
+
+  const businessSource = readFileSync(resolve(process.cwd(), 'src/pages/houses/index.vue'), 'utf8')
+  const favoritesSource = readFileSync(resolve(process.cwd(), 'src/pages/favorites/index.vue'), 'utf8')
+  const viewingsSource = readFileSync(resolve(process.cwd(), 'src/pages-personal-rental/viewings/index.vue'), 'utf8')
+  const publicDetailSource = readFileSync(resolve(process.cwd(), 'src/pages-housing/detail/index.vue'), 'utf8')
+
+  assert.match(businessSource, /getPublicHouseSearchRoute/)
+  assert.match(businessSource, /uni\.redirectTo\(/)
+  assert.match(favoritesSource, /uni\.navigateTo\(\{ url: APP_ROUTES\.publicHouseSearch \}\)/)
+  assert.match(viewingsSource, /uni\.navigateTo\(\{ url: APP_ROUTES\.publicHouseSearch \}\)/)
+  assert.match(publicDetailSource, /:fallback-url="APP_ROUTES\.publicHouseSearch"/)
+  assert.doesNotMatch(favoritesSource, /uni\.switchTab\(\{ url: APP_ROUTES\.houses \}\)/)
+  assert.doesNotMatch(viewingsSource, /uni\.switchTab\(\{ url: APP_ROUTES\.houses \}\)/)
+})
+
+test('我的找房只在个人模式显示，其他模式仍可按权限作为二级入口访问', () => {
+  assert.equal(isVisibleTabbarRoute('personal', APP_ROUTES.favorites), true)
+  assert.equal(isAvailableTabbarShellRoute('personal', APP_ROUTES.favorites), true)
+  assert.equal(isVisibleTabbarRoute('landlord', APP_ROUTES.favorites), false)
+  assert.equal(isAvailableTabbarShellRoute('landlord', APP_ROUTES.favorites), true)
+  assert.equal(isAvailableTabbarShellRoute('visitor', APP_ROUTES.favorites), false)
+})
+
 test('生产和开发构建都只加载项目已启用分包', () => {
   assert.equal(APP_ROUTES.houseDetail, '/pages-housing/detail/index')
+  assert.equal(APP_ROUTES.houseMap, '/pages-housing/map/index')
   assert.equal(getHouseDetailRoute(42), '/pages-housing/detail/index?id=42')
   assert.equal(APP_ROUTES.tenantViewings, '/pages-personal-rental/viewings/index')
   assert.equal(APP_ROUTES.tenantLeases, '/pages-personal-rental/leases/index')
@@ -87,9 +138,9 @@ test('生产和开发构建都只加载项目已启用分包', () => {
   assert.equal(APP_ROUTES.organizationAdmin, '/pages-org-admin/index')
   assert.equal(getTenantViewingDetailRoute(7), '/pages-personal-rental/viewings/detail?id=7')
   assert.equal(getTenantLeaseDetailRoute(8), '/pages-personal-rental/leases/detail?id=8')
-  assert.deepEqual(productionSubpackageRoots, ['pages-housing', 'pages-personal-rental', 'pages-landlord', 'pages-org-rental', 'pages-org-work', 'pages-org-admin'])
-  assert.deepEqual(getSubpackageSourceRootsForBuild('production'), ['src/pages-housing', 'src/pages-personal-rental', 'src/pages-landlord', 'src/pages-org-rental', 'src/pages-org-work', 'src/pages-org-admin'])
-  assert.deepEqual(getSubpackageSourceRootsForBuild('development'), ['src/pages-housing', 'src/pages-personal-rental', 'src/pages-landlord', 'src/pages-org-rental', 'src/pages-org-work', 'src/pages-org-admin'])
+  assert.deepEqual(productionSubpackageRoots, ['pages-saas', 'pages-housing', 'pages-personal-rental', 'pages-landlord', 'pages-org-rental', 'pages-org-work', 'pages-org-admin'])
+  assert.deepEqual(getSubpackageSourceRootsForBuild('production'), ['src/pages-saas', 'src/pages-housing', 'src/pages-personal-rental', 'src/pages-landlord', 'src/pages-org-rental', 'src/pages-org-work', 'src/pages-org-admin'])
+  assert.deepEqual(getSubpackageSourceRootsForBuild('development'), ['src/pages-saas', 'src/pages-housing', 'src/pages-personal-rental', 'src/pages-landlord', 'src/pages-org-rental', 'src/pages-org-work', 'src/pages-org-admin'])
   assert.equal(productionExcludedSubpackageRoots.includes('pages-demo'), false)
 })
 
@@ -112,6 +163,9 @@ test('只有已启用分包参与路由归属和路由构建', () => {
 test('消息详情与偏好页归属消息模块', () => {
   assert.equal(findModuleByRoute(APP_ROUTES.messageDetail)?.key, 'messages')
   assert.equal(findModuleByRoute(APP_ROUTES.notificationPreferences)?.key, 'messages')
+  assert.equal(isProtectedMessageRoute(APP_ROUTES.messages), false)
+  assert.equal(isProtectedMessageRoute(APP_ROUTES.messageDetail), true)
+  assert.equal(isProtectedMessageRoute(APP_ROUTES.notificationPreferences), false)
 })
 
 test('账号手机验证页归属我的模块', () => {

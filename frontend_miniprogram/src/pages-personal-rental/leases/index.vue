@@ -1,161 +1,94 @@
 <script setup lang="ts">
 import type { TenantLeaseOut } from '@/features/tenant-rental/service'
-import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
-import { ref } from 'vue'
 import { formatTenantHouseTitle, getTenantLeaseStatusTone } from '@/domain/tenant-rental'
 import { listTenantLeases } from '@/features/tenant-rental/service'
-import { getTenantLeaseDetailRoute } from '@/modules/routes'
-import AppListState from '@/shared/components/AppListState.vue'
+import { APP_ROUTES, getTenantLeaseDetailRoute } from '@/modules/routes'
+import AppNotice from '@/components/app/AppNotice.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import AppStatusTag from '@/components/app/AppStatusTag.vue'
+import { usePagedPage } from '@/hooks/usePagedPage'
+
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
 definePage({
   style: {
+    navigationStyle: 'custom',
     navigationBarTitleText: '我的租约',
     enablePullDownRefresh: true,
   },
 })
 
-const items = ref<TenantLeaseOut[]>([])
-const page = ref(1)
-const pageSize = 12
-const loading = ref(false)
-const finished = ref(false)
-const loadError = ref('')
-
-async function loadLeases(reset = false) {
-  if (loading.value || (!reset && finished.value))
-    return
-  if (reset) {
-    page.value = 1
-    finished.value = false
-  }
-  loading.value = true
-  loadError.value = ''
-  try {
-    const result = await listTenantLeases(page.value, pageSize)
-    items.value = reset ? result.items : [...items.value, ...result.items]
-    finished.value = items.value.length >= result.total || result.items.length < pageSize
-    if (!finished.value)
-      page.value += 1
-  }
-  catch {
-    loadError.value = '租约加载失败，请稍后重试'
-  }
-  finally {
-    loading.value = false
-    uni.stopPullDownRefresh()
-  }
-}
+const leasePage = usePagedPage<TenantLeaseOut>({
+  loader: ({ page, pageSize }) => listTenantLeases(page, pageSize),
+  pageSize: 12,
+  keyOf: item => item.id,
+})
 
 function openLease(id: number) {
   uni.navigateTo({ url: getTenantLeaseDetailRoute(id) })
 }
 
-onShow(() => void loadLeases(true))
-onPullDownRefresh(() => loadLeases(true))
-onReachBottom(() => void loadLeases())
+function openViewings() {
+  uni.navigateTo({ url: APP_ROUTES.tenantViewings })
+}
 </script>
 
 <template>
-  <view class="tenant-page">
-    <view class="page-heading">
-      <view class="page-title">
-        我的租约
-      </view>
-      <view class="page-subtitle">
-        这里只展示与你账号绑定租客联系人关联的租约
-      </view>
-    </view>
-    <view v-if="items.length" class="lease-list">
-      <view v-for="item in items" :key="item.id" class="lease-card" @click="openLease(item.id)">
-        <view class="card-topline">
-          <view class="house-title">
-            {{ formatTenantHouseTitle(item.house) }}
-          </view>
-          <wd-tag :type="getTenantLeaseStatusTone(item.status)" variant="light" size="small">
-            {{ item.status__mapping }}
-          </wd-tag>
-        </view>
-        <view class="organization">
-          {{ item.organization.name }}
-        </view>
-        <view class="rent">
-          <strong>¥{{ item.monthly_rent }}</strong><text>/月</text>
-        </view>
-        <view class="term">
-          {{ item.start_date }} 至 {{ item.end_date }}
-        </view>
-      </view>
-    </view>
-    <AppListState
-      :loading="loading"
-      :has-items="Boolean(items.length)"
-      :finished="finished"
-      :error-message="loadError"
+  <AppPage variant="list" gutter="loose">
+    <template #navigation>
+      <AppCustomNavigation title="我的租约" back scroll-mode="sticky" />
+    </template>
+    <AppPagedList
+      :items="leasePage.items.value"
+      item-key="id"
+      :loading="leasePage.loading.value"
+      :refreshing="leasePage.refreshing.value"
+      :loading-more="leasePage.loadingMore.value"
+      :finished="leasePage.finished.value"
+      :error="leasePage.error.value"
       loading-text="正在加载租约…"
       empty-text="暂时没有与你关联的租约"
+      empty-description="完成签约后，租期、租金和合同资料会显示在这里。"
+      empty-icon="no-content"
+      empty-action-text="查看看房预约"
       finished-text="没有更多租约了"
-      @retry="loadLeases(items.length === 0)"
+      @retry="leasePage.refresh"
+      @empty-action="openViewings"
+    >
+      <template #item="{ item }">
+        <AppRecordCard clickable @click="openLease(item.id)">
+          <template #title>
+            {{ formatTenantHouseTitle(item.house) }}
+          </template>
+          <template #status>
+            <AppStatusTag :text="item.status__mapping" :tone="getTenantLeaseStatusTone(item.status)" />
+          </template>
+          <view class="text-xs text-content-muted">
+            {{ item.organization.name }}
+          </view>
+          <view class="mt-3.5 text-app-price">
+            <strong class="text-lg">¥{{ item.monthly_rent }}</strong><text class="ml-0.5 text-xs">/月</text>
+          </view>
+          <template #meta>
+            {{ item.start_date }} 至 {{ item.end_date }}
+          </template>
+        </AppRecordCard>
+      </template>
+    </AppPagedList>
+    <AppNotice
+      v-if="leasePage.items.value.length"
+      class="list-notice"
+      title="查看范围"
+      description="租客端当前只查看租期、租金、押金、付款日和合同文件，不提供缴费、报修或续租。"
+      compact
     />
-  </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
-.tenant-page {
-  min-height: 100vh;
-  padding: 28rpx 24rpx 56rpx;
-  background: var(--app-bg-page);
-}
-.page-heading {
-  margin-bottom: 24rpx;
-}
-.page-title {
-  color: var(--app-text-primary);
-  font-size: 38rpx;
-  font-weight: 700;
-}
-.page-subtitle {
-  margin-top: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-}
-.lease-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-.lease-card {
-  padding: 28rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.card-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-}
-.house-title {
-  min-width: 0;
-  flex: 1;
-  color: var(--app-text-primary);
-  font-size: 30rpx;
-  font-weight: 650;
-}
-.organization,
-.term {
-  margin-top: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.rent {
-  margin-top: 28rpx;
-  color: var(--app-color-price);
-}
-.rent strong {
-  font-size: 38rpx;
-}
-.rent text {
-  margin-left: 4rpx;
-  font-size: 23rpx;
+.list-notice {
+  margin-top: 48rpx;
 }
 </style>

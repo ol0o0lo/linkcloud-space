@@ -1,17 +1,39 @@
-import type { TenantViewingRecordIn } from '@/services/manual/tenant-rental'
+import type { TenantContactRequestIn, TenantViewingRecordIn, TenantViewingScope } from '@/services/manual/tenant-rental'
 import {
   cancelTenantViewing,
+  createTenantContactRequest,
   createTenantViewing,
+  requestTenantContactPreference,
   requestTenantLease,
   requestTenantLeases,
   requestTenantViewing,
   requestTenantViewings,
 } from '@/services/manual/tenant-rental'
+import { collectAllPages } from '@/utils/pagination/collectAllPages'
 
-export type { TenantLeaseOut, TenantViewingRecordIn, TenantViewingRecordOut } from '@/services/manual/tenant-rental'
+export type { TenantContactChannel, TenantContactPreference, TenantContactRequestIn, TenantLeaseOut, TenantViewingRecordIn, TenantViewingRecordOut } from '@/services/manual/tenant-rental'
 
-export function listTenantViewings(page = 1, pageSize = 20) {
-  return requestTenantViewings(page, pageSize)
+export function getTenantContactPreference() {
+  return requestTenantContactPreference()
+}
+
+export function sendTenantContact(payload: TenantContactRequestIn) {
+  return createTenantContactRequest(payload)
+}
+
+export function listTenantViewings(page = 1, pageSize = 20, scope?: TenantViewingScope) {
+  return requestTenantViewings(page, pageSize, scope)
+}
+
+export function listCurrentTenantViewings() {
+  return collectAllPages(
+    ({ page, pageSize }) => requestTenantViewings(page, pageSize, 'current'),
+    { pageSize: 500, getKey: item => item.id },
+  )
+}
+
+export function listHistoricalTenantViewings(page = 1, pageSize = 20) {
+  return requestTenantViewings(page, pageSize, 'history')
 }
 
 export function getTenantViewing(viewingRecordId: number) {

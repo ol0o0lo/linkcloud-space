@@ -2,14 +2,15 @@
 import type { NotificationOut } from '@/features/notifications/service'
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
-import { getNotificationCategoryPresentation, getNotificationTone, resolveNotificationScope } from '@/domain/notifications'
+import { getNotificationCategoryPresentation, getNotificationTone, resolveNotificationAction, resolveNotificationScope } from '@/domain/notifications'
 import { getNotification, removeNotification, updateNotificationReadState } from '@/features/notifications/service'
-import AppBottomAction from '@/shared/components/AppBottomAction.vue'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import { syncNotificationTabbarBadge } from '@/features/notifications/tabbar-badge'
+import AppDetailPage from '@/components/app/AppDetailPage.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppStatusTag from '@/components/app/AppStatusTag.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '消息详情' } })
+definePage({ style: { navigationBarTitleText: '消息详情', navigationStyle: 'custom' } })
 
 const appContextStore = useAppContextStore()
 const notificationId = ref(0)
@@ -17,6 +18,16 @@ const notification = ref<NotificationOut | null>(null)
 const loading = ref(true)
 const loadError = ref('')
 const category = computed(() => getNotificationCategoryPresentation(notification.value?.category || ''))
+const action = computed(() => notification.value
+  ? resolveNotificationAction({
+      category: notification.value.category,
+      data: notification.value.data,
+      targetType: notification.value.target_type,
+      targetId: notification.value.target_id,
+      url: notification.value.url,
+      expiresAt: notification.value.expires_at,
+    })
+  : null)
 
 function currentScope() {
   return resolveNotificationScope({ mode: appContextStore.navigationMode, organizationSlug: appContextStore.currentOrganization?.slug, landlordContactId: appContextStore.currentLandlordRelationship?.contact_id })
@@ -28,6 +39,13 @@ async function loadNotification() {
   try {
     const result = await getNotification(currentScope(), notificationId.value)
     notification.value = result.is_read ? result : await updateNotificationReadState(currentScope(), result.id, true)
+    if (!result.is_read) {
+      void syncNotificationTabbarBadge({
+        mode: appContextStore.navigationMode,
+        organizationSlug: appContextStore.currentOrganization?.slug,
+        landlordContactId: appContextStore.currentLandlordRelationship?.contact_id,
+      })
+    }
   }
   catch (error) {
     loadError.value = error instanceof Error ? error.message : '消息加载失败'
@@ -38,19 +56,25 @@ async function loadNotification() {
 }
 
 function openTarget() {
-  const url = notification.value?.url
-  if (!url)
+  const target = action.value
+  if (!target)
     return
-  if (/^https?:\/\//i.test(url)) {
+  if (target.kind === 'external') {
     // #ifdef H5
-    window.location.assign(url)
+    window.location.assign(target.url)
     // #endif
     // #ifndef H5
-    uni.setClipboardData({ data: url, success: () => uni.showToast({ title: '链接已复制', icon: 'success' }) })
+    uni.setClipboardData({ data: target.url, success: () => uni.showToast({ title: '链接已复制', icon: 'success' }) })
     // #endif
     return
   }
-  uni.showToast({ title: '请从当前身份的业务入口继续处理', icon: 'none' })
+  uni.navigateTo({ url: target.route })
+}
+
+function copyContact(value: unknown) {
+  if (typeof value !== 'string' || !value)
+    return
+  uni.setClipboardData({ data: value, success: () => uni.showToast({ title: '已复制', icon: 'success' }) })
 }
 
 function deleteCurrent() {
@@ -84,84 +108,182 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="detail-page">
-    <AppLoading v-if="loading" text="正在加载消息…" />
-    <AppErrorView v-else-if="loadError" title="消息加载失败" :message="loadError" @retry="loadNotification" />
-    <template v-else-if="notification">
-      <view class="hero-card">
-        <view class="hero-icon" :class="category.icon" />
-        <wd-tag :type="getNotificationTone(notification.is_read)" variant="light">
-          {{ notification.is_read ? '已读' : '未读' }}
-        </wd-tag>
-        <view class="title">
+  <AppDetailPage
+    :loading="loading"
+    :error="loadError"
+    loading-text="正在加载消息…"
+    error-title="消息加载失败"
+    :show-actions="Boolean(notification)"
+    @retry="loadNotification"
+  >
+    <template #navigation>
+      <AppCustomNavigation title="消息详情" back scroll-mode="sticky" />
+    </template>
+    <template v-if="notification">
+      <view class="message-hero app-card-plain">
+        <view class="message-hero__topline">
+          <view class="message-hero__icon" :class="category.icon" />
+          <AppStatusTag :text="notification.is_read ? '已读' : '未读'" :tone="getNotificationTone(notification.is_read)" />
+        </view>
+        <view class="message-hero__title">
           {{ notification.title || '无标题通知' }}
         </view>
-        <view class="meta">
+        <view class="message-hero__meta">
           {{ category.label }} · {{ new Date(notification.created_at).toLocaleString() }}
         </view>
       </view>
-      <view class="body-card">
+      <view class="message-body app-card-plain">
         {{ notification.body || '暂无正文' }}
       </view>
-      <wd-cell-group v-if="notification.actor" title="消息来源" insert>
-        <wd-cell title="发起人" :value="notification.actor.full_name || notification.actor.username" />
-      </wd-cell-group>
-      <AppBottomAction>
-        <view class="actions">
-          <wd-button block type="danger" variant="plain" @click="deleteCurrent">
-            删除
-          </wd-button>
-          <wd-button v-if="notification.url" block @click="openTarget">
-            继续处理
-          </wd-button>
+      <view v-if="notification.category === 'house.contact'" class="message-contact app-card-plain">
+        <view class="message-section-title">
+          租客联系方式
         </view>
-      </AppBottomAction>
+        <view v-if="notification.data.phone" class="message-row">
+          <text>手机号</text><button @click="copyContact(notification.data.phone)">
+            {{ notification.data.phone }} · 复制
+          </button>
+        </view>
+        <view v-if="notification.data.wechat" class="message-row">
+          <text>微信号</text><button @click="copyContact(notification.data.wechat)">
+            {{ notification.data.wechat }} · 复制
+          </button>
+        </view>
+      </view>
+      <view v-if="notification.actor" class="message-source app-card-plain">
+        <view class="message-section-title">
+          消息来源
+        </view>
+        <view class="message-row">
+          <text>发起人</text><strong>{{ notification.actor.full_name || notification.actor.username }}</strong>
+        </view>
+      </view>
+      <view class="message-note">
+        <view class="message-note__bar" />
+        <view><strong>{{ action ? '可继续处理' : '消息说明' }}</strong><text>{{ action ? `此消息关联业务记录，可通过下方“${action.label}”继续处理。` : '该消息仅用于告知，目前没有可继续处理的业务操作。' }}</text></view>
+      </view>
     </template>
-  </view>
+
+    <template #actions>
+      <view class="grid w-full gap-2" :class="action ? 'grid-cols-2' : 'grid-cols-1'">
+        <wd-button block type="danger" variant="plain" @click="deleteCurrent">
+          删除
+        </wd-button>
+        <wd-button v-if="action" block @click="openTarget">
+          {{ action.label }}
+        </wd-button>
+      </view>
+    </template>
+  </AppDetailPage>
 </template>
 
 <style scoped lang="scss">
-.detail-page {
-  min-height: 100vh;
-  padding: 26rpx 24rpx 160rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
+.message-hero,
+.message-body,
+.message-contact,
+.message-source,
+.message-note {
+  margin: 0 var(--app-page-gutter);
 }
-.hero-card,
-.body-card {
-  padding: 30rpx;
-  border-radius: 26rpx;
-  background: var(--app-bg-card);
+.message-hero {
+  padding: 32rpx;
 }
-.hero-card {
-  text-align: center;
+.message-hero__topline,
+.message-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-.hero-icon {
-  margin: 4rpx auto 20rpx;
+.message-hero__icon {
+  display: flex;
+  width: 92rpx;
+  height: 92rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 28rpx;
   color: var(--app-color-brand);
-  font-size: 62rpx;
+  font-size: 46rpx;
+  background: var(--app-bg-brand-soft);
 }
-.title {
-  margin-top: 22rpx;
+.message-hero__title {
+  margin-top: 26rpx;
   color: var(--app-text-primary);
-  font-size: 34rpx;
+  font-size: 36rpx;
   font-weight: 700;
 }
-.meta {
-  margin-top: 12rpx;
+.message-hero__meta {
+  margin-top: 16rpx;
   color: var(--app-text-muted);
   font-size: 23rpx;
 }
-.body-card {
-  margin: 20rpx 0;
+.message-body {
+  min-height: 250rpx;
+  padding: 36rpx 32rpx;
+  box-sizing: border-box;
   color: var(--app-text-secondary);
   font-size: 27rpx;
-  line-height: 1.8;
+  line-height: 1.9;
   white-space: pre-wrap;
 }
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18rpx;
+.message-source {
+  padding: 28rpx 32rpx 12rpx;
+}
+.message-contact {
+  padding: 28rpx 32rpx 12rpx;
+}
+.message-section-title {
+  margin-bottom: 22rpx;
+  color: var(--app-text-primary);
+  font-size: 28rpx;
+  font-weight: 700;
+}
+.message-row {
+  min-height: 76rpx;
+  border-top: 1rpx solid var(--app-divider-color);
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+}
+.message-row strong {
+  color: var(--app-text-primary);
+  font-weight: 500;
+}
+.message-row button {
+  margin: 0;
+  padding: 0;
+  color: var(--app-color-brand);
+  font-size: 24rpx;
+  line-height: 1.5;
+  background: transparent;
+}
+.message-row button::after {
+  border: 0;
+}
+.message-note {
+  display: flex;
+  gap: 22rpx;
+  padding: 26rpx 28rpx;
+  border: 1rpx solid var(--app-border-brand-soft);
+  border-radius: 28rpx;
+  background: var(--app-bg-brand-soft);
+}
+.message-note__bar {
+  width: 8rpx;
+  flex: 0 0 8rpx;
+  border-radius: 999rpx;
+  background: var(--app-color-brand);
+}
+.message-note > view:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+.message-note strong {
+  color: var(--app-text-primary);
+  font-size: 27rpx;
+}
+.message-note text {
+  color: var(--app-text-secondary);
+  font-size: 23rpx;
+  line-height: 1.65;
 }
 </style>

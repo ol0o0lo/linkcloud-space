@@ -1,5 +1,6 @@
 import { getLastPage } from '@/utils'
 import { debounce } from '@/utils/debounce'
+import { APP_ROUTES } from '@/modules/routes'
 
 interface ToLoginPageOptions {
   /**
@@ -14,8 +15,7 @@ interface ToLoginPageOptions {
   queryString?: string
 }
 
-// TODO: 自己增加登录页
-const LOGIN_PAGE = '/pages/auth/login'
+const LOGIN_PAGE = APP_ROUTES.login
 
 /**
  * 跳转到登录页, 带防抖处理

@@ -111,7 +111,7 @@ export function getCurrentPageI18nKey() {
   if (!currPage) {
     // 在主包中找不到对应的页面，则在分包中找
     const allSubPages: PageMetaDatum[] = []
-    subPackages?.forEach((config) => {
+    ;(subPackages as unknown as SubPackages)?.forEach((config) => {
       config.pages?.forEach((cur) => {
         allSubPages.push({
           ...cur,

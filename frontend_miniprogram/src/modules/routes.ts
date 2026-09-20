@@ -3,8 +3,17 @@ import { getCatalogModule } from './catalog.ts'
 
 export const APP_ROUTES = {
   home: getCatalogModule('home').mainRoute,
+  saasHome: buildSubpackageRoute('saas', 'index'),
+  saasOnboarding: buildSubpackageRoute('saas', 'onboarding'),
+  saasEnterprise: buildSubpackageRoute('saas', 'enterprise'),
+  saasPaymentSuccess: buildSubpackageRoute('saas', 'payment-success'),
   houses: getCatalogModule('houses').mainRoute,
+  publicHouseSearch: buildSubpackageRoute('housing', 'search/index'),
+  publicHouseCity: buildSubpackageRoute('housing', 'city/index'),
   houseDetail: buildSubpackageRoute('housing', 'detail/index'),
+  houseMap: buildSubpackageRoute('housing', 'map/index'),
+  homeContentList: buildSubpackageRoute('housing', 'home-content/index'),
+  homeContentDetail: buildSubpackageRoute('housing', 'home-content/detail'),
   houseMatch: '/pages/house-match/index',
   houseMatchDetail: buildSubpackageRoute('housing', 'match-detail/index'),
   favorites: getCatalogModule('favorites').mainRoute,
@@ -16,16 +25,20 @@ export const APP_ROUTES = {
   landlordLeaseDetail: buildSubpackageRoute('landlord', 'leases/detail'),
   landlordStore: buildSubpackageRoute('landlord', 'store/index'),
   landlordInvite: buildSubpackageRoute('landlord', 'invite/index'),
+  invitation: '/pages/invitations/index',
   organizationRental: buildSubpackageRoute('organization-rental', 'index'),
   organizationHouses: buildSubpackageRoute('organization-rental', 'houses/index'),
   organizationHouseDetail: buildSubpackageRoute('organization-rental', 'houses/detail'),
   organizationHouseForm: buildSubpackageRoute('organization-rental', 'houses/form'),
   organizationEstates: buildSubpackageRoute('organization-rental', 'estates/index'),
+  organizationEstateForm: buildSubpackageRoute('organization-rental', 'estates/form'),
   organizationBuildings: buildSubpackageRoute('organization-rental', 'buildings/index'),
+  organizationBuildingForm: buildSubpackageRoute('organization-rental', 'buildings/form'),
   organizationMap: buildSubpackageRoute('organization-rental', 'map/index'),
   organizationVacancySync: buildSubpackageRoute('organization-rental', 'vacancy-sync/index'),
   organizationContacts: buildSubpackageRoute('organization-rental', 'contacts/index'),
   organizationViewings: buildSubpackageRoute('organization-rental', 'viewings/index'),
+  organizationViewingForm: buildSubpackageRoute('organization-rental', 'viewings/form'),
   organizationViewingDetail: buildSubpackageRoute('organization-rental', 'viewings/detail'),
   organizationLeases: buildSubpackageRoute('organization-rental', 'leases/index'),
   organizationLeaseDetail: buildSubpackageRoute('organization-rental', 'leases/detail'),
@@ -55,13 +68,15 @@ export const APP_ROUTES = {
   messageDetail: '/pages/messages/detail',
   notificationPreferences: '/pages/messages/preferences',
   me: getCatalogModule('me').mainRoute,
+  accountSettings: '/pages/account/settings',
   phoneVerification: '/pages/account/phone',
   profile: '/pages/account/profile',
   realName: '/pages/account/real-name',
   wallet: '/pages/account/wallet',
   referrals: '/pages/account/referrals',
-  security: '/pages/account/security',
+  accountSecurity: '/pages/account/security',
   login: '/pages/auth/login',
+  pcLogin: '/pages/auth/pc-login',
   register: '/pages/auth/register',
   startupError: '/pages/error/startup',
   forbidden: '/pages/error/forbidden',
@@ -69,20 +84,35 @@ export const APP_ROUTES = {
 } as const
 
 const protectedAccountRoutes: readonly string[] = [
+  APP_ROUTES.accountSettings,
   APP_ROUTES.phoneVerification,
   APP_ROUTES.profile,
   APP_ROUTES.realName,
   APP_ROUTES.wallet,
   APP_ROUTES.referrals,
-  APP_ROUTES.security,
+  APP_ROUTES.accountSecurity,
+  APP_ROUTES.notificationPreferences,
+]
+
+const protectedMessageRoutes: readonly string[] = [
+  APP_ROUTES.messageDetail,
 ]
 
 export function isProtectedAccountRoute(path: string): boolean {
   return protectedAccountRoutes.includes(normalizeAppRoutePath(path).split('?')[0])
 }
 
+export function isProtectedMessageRoute(path: string): boolean {
+  return protectedMessageRoutes.includes(normalizeAppRoutePath(path).split('?')[0])
+}
+
 export function normalizeAppRoutePath(path: string): string {
   return path === '/' ? APP_ROUTES.home : path
+}
+
+export function getLoginRoute(redirect = ''): string {
+  const target = redirect.trim()
+  return target ? `${APP_ROUTES.login}?redirect=${encodeURIComponent(target)}` : APP_ROUTES.login
 }
 
 export function shouldBypassStartupBoundary(path: string): boolean {
@@ -99,6 +129,11 @@ export function getHouseMatchRoute(shareKey: string): string {
 
 export function getHouseMatchDetailRoute(shareKey: string, houseId: number): string {
   return `${APP_ROUTES.houseMatchDetail}?key=${encodeURIComponent(shareKey)}&id=${encodeURIComponent(String(houseId))}`
+}
+
+export function getInvitationRoute(kind: 'organization' | 'landlord', credential: string): string {
+  const queryKey = kind === 'organization' ? 'key' : 'token'
+  return `${APP_ROUTES.invitation}?kind=${kind}&${queryKey}=${encodeURIComponent(credential)}`
 }
 
 export function getTenantViewingDetailRoute(viewingRecordId: number): string {
@@ -119,8 +154,26 @@ export function getOrganizationHouseFormRoute(houseId?: number): string {
   return `${APP_ROUTES.organizationHouseForm}?id=${encodeURIComponent(String(houseId))}`
 }
 
+export function getOrganizationEstateFormRoute(estateId?: number): string {
+  if (!estateId)
+    return APP_ROUTES.organizationEstateForm
+  return `${APP_ROUTES.organizationEstateForm}?id=${encodeURIComponent(String(estateId))}`
+}
+
+export function getOrganizationBuildingFormRoute(buildingId?: number): string {
+  if (!buildingId)
+    return APP_ROUTES.organizationBuildingForm
+  return `${APP_ROUTES.organizationBuildingForm}?id=${encodeURIComponent(String(buildingId))}`
+}
+
 export function getOrganizationViewingDetailRoute(viewingRecordId: number): string {
   return `${APP_ROUTES.organizationViewingDetail}?id=${encodeURIComponent(String(viewingRecordId))}`
+}
+
+export function getOrganizationViewingFormRoute(houseId?: number): string {
+  if (!houseId)
+    return APP_ROUTES.organizationViewingForm
+  return `${APP_ROUTES.organizationViewingForm}?houseId=${encodeURIComponent(String(houseId))}`
 }
 
 export function getOrganizationLeaseDetailRoute(leaseId: number): string {
@@ -139,6 +192,10 @@ export function getOrganizationSigningRoute(viewingRecordId?: number): string {
   if (!viewingRecordId)
     return APP_ROUTES.organizationSigning
   return `${APP_ROUTES.organizationSigning}?viewingId=${encodeURIComponent(String(viewingRecordId))}`
+}
+
+export function getOrganizationHouseSigningRoute(houseId: number): string {
+  return `${APP_ROUTES.organizationSigning}?houseId=${encodeURIComponent(String(houseId))}`
 }
 
 export function getOrganizationTaskDetailRoute(target: { assignmentId: number } | { taskId: number }): string {

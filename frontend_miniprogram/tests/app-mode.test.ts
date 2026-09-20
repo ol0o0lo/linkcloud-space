@@ -83,7 +83,8 @@ test('身份切换入口只包含租客端和账号真实拥有的房东、中�
     { key: 'organization:linkcloud', title: '中介端 · 链云中介', active: false },
   ])
   assert.equal(options[1]?.description, '合作门店 · 3 套关联房源')
-  assert.equal(options[2]?.description, '主要使用的组织')
+  assert.equal(options[0]?.description, '找房、收藏与个人服务')
+  assert.equal(options[2]?.description, '默认组织')
 })
 
 test('当前身份摘要明确显示业务端和对应工作上下文', () => {
@@ -93,7 +94,7 @@ test('当前身份摘要明确显示业务端和对应工作上下文', () => {
     landlordRelationship: null,
   }), {
     title: '中介端 · 链云中介',
-    description: '进入该组织',
+    description: '中介工作台',
   })
 
   assert.deepEqual(getAppModePresentation({

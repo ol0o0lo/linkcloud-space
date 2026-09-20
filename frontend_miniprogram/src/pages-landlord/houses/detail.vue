@@ -7,12 +7,13 @@ import { getLandlordHouseStatusTone } from '@/domain/landlord'
 import { formatTenantHouseTitle } from '@/domain/tenant-rental'
 import { getLandlordHouse } from '@/features/landlord/service'
 import { APP_ROUTES, getHouseDetailRoute } from '@/modules/routes'
-import AppBottomAction from '@/shared/components/AppBottomAction.vue'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppDetailPage from '@/components/app/AppDetailPage.vue'
+import AppNotice from '@/components/app/AppNotice.vue'
+import AppStatusTag from '@/components/app/AppStatusTag.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '房东房源详情' } })
+definePage({ style: { navigationBarTitleText: '房源详情', navigationStyle: 'custom' } })
 
 const appContextStore = useAppContextStore()
 const houseId = ref(0)
@@ -20,10 +21,6 @@ const house = ref<LandlordHouseOut | null>(null)
 const loading = ref(true)
 const loadError = ref('')
 const title = computed(() => house.value ? formatTenantHouseTitle(house.value) : '房源详情')
-
-function imageUrl(image: Record<string, unknown>) {
-  return typeof image.url === 'string' ? image.url : typeof image.thumbnail === 'string' ? image.thumbnail : ''
-}
 
 async function loadHouse() {
   const contactId = appContextStore.currentLandlordRelationship?.contact_id
@@ -56,6 +53,10 @@ function openStore() {
     uni.navigateTo({ url: `${APP_ROUTES.landlordStore}?key=${encodeURIComponent(key)}` })
 }
 
+function backToHouses() {
+  uni.switchTab({ url: APP_ROUTES.houses, fail: () => uni.reLaunch({ url: APP_ROUTES.houses }) })
+}
+
 onLoad((options) => {
   houseId.value = Number(options?.id || 0)
   if (!houseId.value) {
@@ -73,77 +74,80 @@ onShareAppMessage(() => ({
 </script>
 
 <template>
-  <view class="detail-page">
-    <AppLoading v-if="loading" text="正在加载房源…" />
-    <AppErrorView v-else-if="loadError" title="房源加载失败" :message="loadError" @retry="loadHouse" />
-    <template v-else-if="house">
-      <swiper v-if="house.images.length" class="gallery" indicator-dots circular>
-        <swiper-item v-for="(image, index) in house.images" :key="index">
-          <image class="gallery-image" :src="imageUrl(image)" mode="aspectFill" />
-        </swiper-item>
-      </swiper>
-      <view v-else class="gallery gallery--empty">
-        暂无图片
-      </view>
+  <AppDetailPage
+    :loading="loading"
+    :error="loadError"
+    loading-text="正在加载房源…"
+    error-title="房源加载失败"
+    :show-actions="Boolean(house)"
+    content-class=""
+    @retry="loadHouse"
+  >
+    <template #navigation>
+      <AppCustomNavigation title="房源详情" back scroll-mode="sticky" />
+    </template>
+
+    <template v-if="house">
       <view class="hero-card">
         <view class="hero-topline">
-          <wd-tag :type="getLandlordHouseStatusTone(house.status)" variant="light">
-            {{ house.status__mapping }}
-          </wd-tag>
-          <text>{{ appContextStore.currentLandlordRelationship?.organization_name }}</text>
-        </view>
-        <view class="title">
-          {{ title }}
+          <view class="title">
+            {{ title }}
+          </view><AppStatusTag :text="house.status__mapping" :tone="getLandlordHouseStatusTone(house.status)" />
         </view>
         <view class="rent">
-          {{ house.asking_rent ? `¥${house.asking_rent} / 月` : '租金面议' }}
+          {{ house.asking_rent ? `¥${house.asking_rent}/月` : '租金面议' }}
+        </view>
+        <view class="hero-meta">
+          {{ formatHouseLayout(house.bedrooms, house.living_rooms) }} · {{ house.area ? `${house.area}㎡` : '面积未登记' }} · {{ house.floor === null ? '楼层未登记' : `${house.floor}层` }}
+        </view>
+        <view class="hero-meta">
+          关联组织：{{ appContextStore.currentLandlordRelationship?.organization_name || '当前组织' }}
         </view>
       </view>
-      <wd-cell-group title="房源信息" insert>
-        <wd-cell title="户型" :value="formatHouseLayout(house.bedrooms, house.living_rooms)" />
-        <wd-cell title="面积" :value="house.area ? `${house.area}㎡` : '未登记'" />
-        <wd-cell title="楼层" :value="house.floor === null ? '未登记' : `${house.floor} 层`" />
-        <wd-cell title="装修" :value="house.decoration__mapping || '未登记'" />
-        <wd-cell title="朝向" :value="house.orientation__mapping || '未登记'" />
-        <wd-cell title="押金" :value="house.deposit_amount ? `¥${house.deposit_amount}` : '未登记'" />
-      </wd-cell-group>
-      <AppBottomAction>
-        <view class="actions">
-          <wd-button block variant="plain" @click="openStore">
-            公开店铺
-          </wd-button>
-          <wd-button v-if="house.status === 'listed'" block @click="openPublicHouse">
-            查看公开页
-          </wd-button>
+      <view class="status-grid">
+        <view><text>房源状态</text><strong>{{ house.status__mapping }}</strong><view /></view>
+        <view><text>公开展示</text><strong>{{ house.status === 'listed' ? '已开启' : '未开启' }}</strong><view /></view>
+      </view>
+      <AppNotice
+        class="readonly-notice"
+        title="只读查看"
+        description="展示组织已登记的房源资料，不提供编辑、发布或经营分析。"
+        compact
+      />
+      <view class="related-card">
+        <view class="section-title">
+          关联信息
         </view>
-      </AppBottomAction>
+        <view class="related-copy">
+          所属组织 {{ appContextStore.currentLandlordRelationship?.organization_name || '当前组织' }}
+        </view>
+        <view class="related-copy">
+          装修 {{ house.decoration__mapping || '未登记' }} · 朝向 {{ house.orientation__mapping || '未登记' }}
+        </view>
+        <view class="related-copy">
+          押金 {{ house.deposit_amount ? `¥${house.deposit_amount}` : '未登记' }}
+        </view>
+        <view class="related-links">
+          <button @click="openStore">
+            公开店铺
+          </button><button v-if="house.status === 'listed'" @click="openPublicHouse">
+            公开房源页
+          </button>
+        </view>
+      </view>
     </template>
-  </view>
+
+    <template #actions>
+      <wd-button block @click="backToHouses">
+        返回房源列表
+      </wd-button>
+    </template>
+  </AppDetailPage>
 </template>
 
 <style scoped lang="scss">
-.detail-page {
-  min-height: 100vh;
-  padding-bottom: 150rpx;
-  background: var(--app-bg-page);
-}
-.gallery {
-  width: 100%;
-  height: 480rpx;
-  background: var(--app-bg-subtle);
-}
-.gallery-image {
-  width: 100%;
-  height: 100%;
-}
-.gallery--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--app-text-muted);
-}
 .hero-card {
-  margin: -24rpx 24rpx 24rpx;
+  margin: 0 var(--app-page-gutter);
   padding: 32rpx;
   position: relative;
   border-radius: 26rpx;
@@ -153,11 +157,8 @@ onShareAppMessage(() => ({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
 }
 .title {
-  margin-top: 20rpx;
   color: var(--app-text-primary);
   font-size: 36rpx;
   font-weight: 700;
@@ -168,9 +169,82 @@ onShareAppMessage(() => ({
   font-size: 34rpx;
   font-weight: 700;
 }
-.actions {
+.hero-meta {
+  margin-top: 16rpx;
+  color: var(--app-text-muted);
+  font-size: 23rpx;
+}
+.status-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18rpx;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20rpx;
+  margin: 0 var(--app-page-gutter);
+}
+.status-grid > view {
+  position: relative;
+  display: flex;
+  min-height: 128rpx;
+  padding: 24rpx;
+  flex-direction: column;
+  gap: 8rpx;
+  border-radius: 28rpx;
+  box-sizing: border-box;
+  background: var(--app-bg-card);
+}
+.status-grid text {
+  color: var(--app-text-muted);
+  font-size: 22rpx;
+}
+.status-grid strong {
+  color: var(--app-text-primary);
+  font-size: 32rpx;
+}
+.status-grid view view {
+  position: absolute;
+  bottom: 0;
+  left: 24rpx;
+  width: 56rpx;
+  height: 7rpx;
+  border-radius: 999rpx;
+  background: var(--app-color-brand);
+}
+.readonly-notice,
+.related-card {
+  margin: 0 var(--app-page-gutter);
+}
+.related-card {
+  padding: 30rpx 32rpx;
+  border-radius: 32rpx;
+  background: var(--app-bg-card);
+}
+.section-title {
+  margin-bottom: 20rpx;
+  color: var(--app-text-primary);
+  font-size: 28rpx;
+  font-weight: 700;
+}
+.related-copy {
+  margin-top: 10rpx;
+  color: var(--app-text-secondary);
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+.related-links {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+.related-links button {
+  margin: 0;
+  padding: 0 20rpx;
+  border: 0;
+  border-radius: 16rpx;
+  color: var(--app-color-brand);
+  font-size: 22rpx;
+  line-height: 58rpx;
+  background: var(--app-bg-brand-soft);
+}
+.related-links button::after {
+  border: 0;
 }
 </style>

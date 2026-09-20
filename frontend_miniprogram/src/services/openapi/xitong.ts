@@ -29,6 +29,24 @@ export function enumsUsingGet({
   });
 }
 
+/** 获取坐标周边设施 GET /api/nearby-pois/ */
+export function nearbyPoisUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.NearbyPoisUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.NearbyPoisOut>('/api/nearby-pois/', {
+    method: 'GET',
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
 /** 发送测试通知 向指定 staff 用户发送测试邮件或站内通知，仅超级管理员可用。 POST /api/test-notifications/ */
 export function testNotificationsUsingPost({
   body,

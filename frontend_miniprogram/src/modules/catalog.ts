@@ -5,7 +5,8 @@ export type ModuleStatus = 'active' | 'planned' | 'development'
 export type TabbarSlot = 'primary' | 'business' | 'activity' | 'messages' | 'account'
 export type SubpackageArea = 'public' | 'personal' | 'landlord' | 'organization' | 'development'
 export type SubpackageKey
-  = | 'housing'
+  = | 'saas'
+    | 'housing'
     | 'personal-rental'
     | 'landlord'
     | 'organization-rental'
@@ -53,14 +54,23 @@ export const appModuleCatalog: readonly AppModuleDefinition[] = [
     platforms: currentPlatforms,
     mainRoute: '/pages/index/index',
     routePrefixes: [],
-    subpackages: [],
+    subpackages: [
+      {
+        key: 'saas',
+        root: 'pages-saas',
+        sourceRoot: 'src/pages-saas',
+        area: 'public',
+        status: 'active',
+        description: 'SaaS 产品介绍、试用入驻、支付确认和企业咨询',
+      },
+    ],
     requiresAuth: false,
     order: 10,
     tabbar: {
       visitor: { slot: 'primary', text: '首页', icon: 'i-carbon-home' },
       personal: { slot: 'primary', text: '首页', icon: 'i-carbon-home' },
-      landlord: { slot: 'primary', text: '概览', icon: 'i-carbon-dashboard' },
-      organization: { slot: 'primary', text: '工作台', icon: 'i-carbon-workspace' },
+      landlord: { slot: 'primary', text: '首页', icon: 'i-carbon-home' },
+      organization: { slot: 'primary', text: '首页', icon: 'i-carbon-home' },
     },
   },
   {
@@ -84,10 +94,8 @@ export const appModuleCatalog: readonly AppModuleDefinition[] = [
     requiresAuth: false,
     order: 20,
     tabbar: {
-      visitor: { slot: 'business', text: '找房', icon: 'i-carbon-building' },
-      personal: { slot: 'business', text: '找房', icon: 'i-carbon-building' },
       landlord: { slot: 'business', text: '房源', icon: 'i-carbon-building' },
-      organization: { slot: 'business', text: '业务', icon: 'i-carbon-apps' },
+      organization: { slot: 'business', text: '工作台', icon: 'i-carbon-workspace' },
     },
   },
   {
@@ -112,7 +120,6 @@ export const appModuleCatalog: readonly AppModuleDefinition[] = [
     order: 30,
     tabbar: {
       personal: { slot: 'activity', text: '我的找房', icon: 'i-carbon-favorite' },
-      landlord: { slot: 'activity', text: '租约', icon: 'i-carbon-document' },
       organization: { slot: 'activity', text: '待办', icon: 'i-carbon-task' },
     },
   },
@@ -204,14 +211,15 @@ export const appModuleCatalog: readonly AppModuleDefinition[] = [
     key: 'messages',
     title: '消息',
     status: 'active',
-    modes: ['personal', 'landlord', 'organization'],
+    modes: ['visitor', 'personal', 'landlord', 'organization'],
     platforms: currentPlatforms,
     mainRoute: '/pages/messages/index',
     routePrefixes: ['/pages/messages/'],
     subpackages: [],
-    requiresAuth: true,
+    requiresAuth: false,
     order: 80,
     tabbar: {
+      visitor: { slot: 'messages', text: '消息', icon: 'i-carbon-notification' },
       personal: { slot: 'messages', text: '消息', icon: 'i-carbon-notification' },
       landlord: { slot: 'messages', text: '消息', icon: 'i-carbon-notification' },
       organization: { slot: 'messages', text: '消息', icon: 'i-carbon-notification' },

@@ -69,7 +69,15 @@ export default defineConfig({
   ],
   shortcuts: [
     {
-      center: 'flex justify-center items-center',
+      'center': 'flex justify-center items-center',
+      'app-page-shell': 'min-h-screen box-border bg-surface-page text-content-primary',
+      'app-card': 'border border-solid border-app-card rounded-app-lg bg-surface-card shadow-app-card',
+      'app-card-plain': 'border border-solid border-app-card rounded-app-lg bg-surface-card',
+      'app-row-between': 'flex items-center justify-between gap-2',
+      'app-stack-list': 'flex flex-col gap-3',
+      'app-section-title': 'text-base font-semibold text-content-primary',
+      'app-muted': 'text-xs text-content-muted',
+      'app-touchable': 'transform-gpu transition-all duration-150 ease-out active:scale-[0.985] active:opacity-75',
     },
   ],
   // 动态图标需要在这里配置，或者写在vue页面中注释掉
@@ -82,6 +90,7 @@ export default defineConfig({
     'i-carbon-workspace',
     'i-carbon-dashboard',
     'i-carbon-search',
+    'i-carbon-checkmark',
     'i-carbon-logo-wechat',
   ],
   rules: [
@@ -98,12 +107,45 @@ export default defineConfig({
   theme: {
     colors: {
       /** 主题色，用法如: text-primary */
-      primary: 'var(--wot-color-theme,#0957DE)',
+      'primary': 'var(--wot-color-theme,#0957DE)',
+      'app-brand': 'var(--app-color-brand)',
+      'app-success': 'var(--app-color-success)',
+      'app-warning': 'var(--app-color-warning)',
+      'app-danger': 'var(--app-color-danger)',
+      'app-price': 'var(--app-color-price)',
+      'app-warm': 'var(--app-color-warm)',
+      'surface-page': 'var(--app-bg-page)',
+      'surface-card': 'var(--app-bg-card)',
+      'surface-subtle': 'var(--app-bg-subtle)',
+      'surface-elevated': 'var(--app-bg-elevated)',
+      'surface-brand-soft': 'var(--app-bg-brand-soft)',
+      'surface-warm-soft': 'var(--app-bg-warm-soft)',
+      'surface-translucent': 'var(--app-bg-elevated-translucent)',
+      'content-primary': 'var(--app-text-primary)',
+      'content-secondary': 'var(--app-text-secondary)',
+      'content-muted': 'var(--app-text-muted)',
+      'content-disabled': 'var(--app-text-disabled)',
+      'content-on-brand': 'var(--app-text-on-brand)',
+      'app-border': 'var(--app-border-color)',
+      'app-card': 'var(--app-border-card)',
+      'app-divider': 'var(--app-divider-color)',
+    },
+    borderRadius: {
+      'app-sm': 'var(--app-radius-sm)',
+      'app-md': 'var(--app-radius-md)',
+      'app-lg': 'var(--app-radius-lg)',
+      'app-xl': 'var(--app-radius-xl)',
+    },
+    boxShadow: {
+      'app-card': 'var(--app-shadow-card)',
+      'app-bottom': 'var(--app-shadow-bottom-action)',
+    },
+    spacing: {
+      'app-gutter': 'var(--app-page-gutter)',
     },
     fontSize: {
       /** 提供更小号的字体，用法如：text-2xs */
       '2xs': ['20rpx', '28rpx'],
-      '3xs': ['18rpx', '26rpx'],
     },
   },
   // windows 系统会报错：[plugin:unocss:transformers:pre] Cannot overwrite a zero-length range - use append Left or prependRight instead.

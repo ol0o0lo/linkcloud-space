@@ -1,26 +1,30 @@
 <script setup lang="ts">
 import type { TenantViewingRecordOut } from '@/features/tenant-rental/service'
-import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 import { canCancelTenantViewing, formatTenantHouseTitle, getTenantViewingStatusTone } from '@/domain/tenant-rental'
 import { cancelScheduledTenantViewing, listTenantViewings } from '@/features/tenant-rental/service'
-import { getTenantViewingDetailRoute } from '@/modules/routes'
-import AppListState from '@/shared/components/AppListState.vue'
+import { APP_ROUTES, getTenantViewingDetailRoute } from '@/modules/routes'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import { usePagedPage } from '@/hooks/usePagedPage'
+
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
 definePage({
   style: {
+    navigationStyle: 'custom',
     navigationBarTitleText: '我的预约',
     enablePullDownRefresh: true,
   },
 })
 
-const items = ref<TenantViewingRecordOut[]>([])
-const page = ref(1)
-const pageSize = 12
-const loading = ref(false)
-const finished = ref(false)
-const loadError = ref('')
 const cancelingId = ref<number | null>(null)
+const viewingPage = usePagedPage<TenantViewingRecordOut>({
+  loader: ({ page, pageSize }) => listTenantViewings(page, pageSize),
+  pageSize: 12,
+  keyOf: item => item.id,
+})
 
 function formatDateTime(value: string | null) {
   if (!value)
@@ -28,33 +32,12 @@ function formatDateTime(value: string | null) {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
-async function loadViewings(reset = false) {
-  if (loading.value || (!reset && finished.value))
-    return
-  if (reset) {
-    page.value = 1
-    finished.value = false
-  }
-  loading.value = true
-  loadError.value = ''
-  try {
-    const result = await listTenantViewings(page.value, pageSize)
-    items.value = reset ? result.items : [...items.value, ...result.items]
-    finished.value = items.value.length >= result.total || result.items.length < pageSize
-    if (!finished.value)
-      page.value += 1
-  }
-  catch {
-    loadError.value = '预约记录加载失败，请稍后重试'
-  }
-  finally {
-    loading.value = false
-    uni.stopPullDownRefresh()
-  }
-}
-
 function openDetail(id: number) {
   uni.navigateTo({ url: getTenantViewingDetailRoute(id) })
+}
+
+function goFindHouse() {
+  uni.navigateTo({ url: APP_ROUTES.publicHouseSearch })
 }
 
 async function cancelViewing(item: TenantViewingRecordOut) {
@@ -64,7 +47,7 @@ async function cancelViewing(item: TenantViewingRecordOut) {
   cancelingId.value = item.id
   try {
     const updated = await cancelScheduledTenantViewing(item.id)
-    items.value = items.value.map(current => current.id === updated.id ? updated : current)
+    viewingPage.upsert(updated)
     uni.showToast({ title: '预约已取消', icon: 'success' })
   }
   catch (error) {
@@ -74,136 +57,67 @@ async function cancelViewing(item: TenantViewingRecordOut) {
     cancelingId.value = null
   }
 }
-
-onShow(() => void loadViewings(true))
-onPullDownRefresh(() => loadViewings(true))
-onReachBottom(() => void loadViewings())
 </script>
 
 <template>
-  <view class="tenant-page">
-    <view class="page-heading">
-      <view class="page-title">
-        预约与带看进度
-      </view>
-      <view class="page-subtitle">
-        预约状态与中介工作台保持实时一致
-      </view>
-    </view>
-
-    <view v-if="items.length" class="record-list">
-      <view v-for="item in items" :key="item.id" class="record-card" @click="openDetail(item.id)">
-        <view class="card-topline">
-          <view class="house-title">
-            {{ formatTenantHouseTitle(item.house) }}
-          </view>
-          <wd-tag :type="getTenantViewingStatusTone(item.status)" variant="light" size="small">
-            {{ item.status__mapping }}
-          </wd-tag>
-        </view>
-        <view class="organization">
-          {{ item.organization.name }}
-        </view>
-        <view class="time-row">
-          <text>预约时间</text>
-          <strong>{{ formatDateTime(item.scheduled_at) }}</strong>
-        </view>
-        <view v-if="item.viewed_at" class="time-row">
-          <text>实际带看</text>
-          <strong>{{ formatDateTime(item.viewed_at) }}</strong>
-        </view>
-        <view class="card-actions">
-          <text>查看详情</text>
-          <wd-button
-            v-if="canCancelTenantViewing(item.status)"
-            size="mini"
-            type="danger"
-            variant="plain"
-            :loading="cancelingId === item.id"
-            @click.stop="cancelViewing(item)"
-          >
-            取消预约
-          </wd-button>
-        </view>
-      </view>
-    </view>
-
-    <AppListState
-      :loading="loading"
-      :has-items="Boolean(items.length)"
-      :finished="finished"
-      :error-message="loadError"
+  <AppPage variant="list" gutter="loose">
+    <template #navigation>
+      <AppCustomNavigation title="我的预约" back scroll-mode="sticky" />
+    </template>
+    <AppPagedList
+      :items="viewingPage.items.value"
+      item-key="id"
+      :loading="viewingPage.loading.value"
+      :refreshing="viewingPage.refreshing.value"
+      :loading-more="viewingPage.loadingMore.value"
+      :finished="viewingPage.finished.value"
+      :error="viewingPage.error.value"
       loading-text="正在加载预约…"
-      empty-text="还没有看房预约，从房源详情发起吧"
+      empty-text="还没有看房预约"
+      empty-description="浏览房源并从详情页发起预约，中介会同步处理带看时间。"
+      empty-icon="no-content"
+      empty-action-text="去找房"
       finished-text="没有更多预约了"
-      @retry="loadViewings(items.length === 0)"
-    />
-  </view>
+      @retry="viewingPage.refresh"
+      @empty-action="goFindHouse"
+    >
+      <template #item="{ item }">
+        <AppRecordCard clickable @click="openDetail(item.id)">
+          <template #title>
+            {{ formatTenantHouseTitle(item.house) }}
+          </template>
+          <template #status>
+            <wd-tag :type="getTenantViewingStatusTone(item.status)" variant="light" size="small">
+              {{ item.status__mapping }}
+            </wd-tag>
+          </template>
+          <template #description>
+            {{ item.organization.name }}
+          </template>
+          <view class="app-row-between text-xs text-content-muted">
+            <text>预约时间</text>
+            <strong class="text-content-secondary font-medium">{{ formatDateTime(item.scheduled_at) }}</strong>
+          </view>
+          <view v-if="item.viewed_at" class="mt-3 app-row-between text-xs text-content-muted">
+            <text>实际带看</text>
+            <strong class="text-content-secondary font-medium">{{ formatDateTime(item.viewed_at) }}</strong>
+          </view>
+          <template #footer>
+            <text class="text-xs text-app-brand">查看详情</text>
+          </template>
+          <template v-if="canCancelTenantViewing(item.status)" #actions>
+            <wd-button
+              size="mini"
+              type="danger"
+              variant="plain"
+              :loading="cancelingId === item.id"
+              @click.stop="cancelViewing(item)"
+            >
+              取消预约
+            </wd-button>
+          </template>
+        </AppRecordCard>
+      </template>
+    </AppPagedList>
+  </AppPage>
 </template>
-
-<style scoped lang="scss">
-.tenant-page {
-  min-height: 100vh;
-  padding: 28rpx 24rpx 56rpx;
-  background: var(--app-bg-page);
-}
-.page-heading {
-  margin-bottom: 24rpx;
-}
-.page-title {
-  color: var(--app-text-primary);
-  font-size: 38rpx;
-  font-weight: 700;
-}
-.page-subtitle {
-  margin-top: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-}
-.record-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-.record-card {
-  padding: 28rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.card-topline,
-.time-row,
-.card-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-}
-.house-title {
-  min-width: 0;
-  flex: 1;
-  color: var(--app-text-primary);
-  font-size: 30rpx;
-  font-weight: 650;
-}
-.organization {
-  margin-top: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.time-row {
-  margin-top: 24rpx;
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-}
-.time-row strong {
-  color: var(--app-text-secondary);
-  font-weight: 500;
-}
-.card-actions {
-  margin-top: 24rpx;
-  padding-top: 20rpx;
-  border-top: 1px solid var(--app-divider-color);
-  color: var(--app-color-primary);
-  font-size: 24rpx;
-}
-</style>

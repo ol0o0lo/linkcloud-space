@@ -122,7 +122,11 @@ export function normalizeAppError(input: NormalizeAppErrorInput | AppError): App
     kind,
     message: getMessage(data, fieldErrors, fallbackMessage),
     statusCode: input.statusCode,
-    businessCode: typeof data?.code === 'string' || typeof data?.code === 'number' ? data.code : undefined,
+    businessCode: typeof data?.error === 'string'
+      ? data.error
+      : typeof data?.code === 'string' || typeof data?.code === 'number'
+        ? data.code
+        : undefined,
     fieldErrors,
     retryable: kind === 'network' || kind === 'timeout' || (kind === 'unexpected' && Boolean(input.statusCode && input.statusCode >= 500)),
     cause: input.cause,

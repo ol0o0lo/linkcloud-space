@@ -17,6 +17,16 @@ test('请求错误统一映射为稳定的错误种类并保留后端业务码',
   assert.equal(error.retryable, false)
 })
 
+test('统一错误包优先使用后端 error 字段作为业务码', () => {
+  const error = normalizeAppError({
+    statusCode: 403,
+    data: { code: 403, error: 'invitation.phone_verification_required', message: '请先验证受邀手机号。' },
+  })
+
+  assert.equal(error.kind, 'forbidden')
+  assert.equal(error.businessCode, 'invitation.phone_verification_required')
+})
+
 test('Django Ninja 校验详情归一化为字段错误', () => {
   const error = normalizeAppError({
     statusCode: 422,

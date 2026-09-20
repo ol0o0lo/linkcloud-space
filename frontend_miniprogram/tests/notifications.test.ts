@@ -9,8 +9,15 @@ import {
   getNotificationFilterParam,
   getNotificationTone,
   isRequiredNotificationChannel,
+  resolveNotificationAction,
   resolveNotificationScope,
 } from '../src/domain/notifications.ts'
+import {
+  APP_ROUTES,
+  getOrganizationAllocationDetailRoute,
+  getOrganizationAnnouncementDetailRoute,
+  getOrganizationTaskDetailRoute,
+} from '../src/modules/routes.ts'
 
 const testsDirectory = dirname(fileURLToPath(import.meta.url))
 const sourceRoot = join(testsDirectory, '../src')
@@ -42,6 +49,79 @@ test('必选通知渠道不能关闭', () => {
   assert.equal(isRequiredNotificationChannel({ required_channels: ['in_app'] }, 'in_app'), true)
   assert.equal(isRequiredNotificationChannel({ required_channels: ['in_app'] }, 'email'), false)
   assert.equal(isRequiredNotificationChannel({}, 'email'), false)
+})
+
+test('结构化通知优先映射到小程序可处理业务页', () => {
+  assert.deepEqual(resolveNotificationAction({ category: 'team.task.assigned', data: { assignment_id: 17, task_id: 9 } }), {
+    kind: 'internal',
+    route: getOrganizationTaskDetailRoute({ assignmentId: 17 }),
+    label: '查看任务',
+  })
+  assert.deepEqual(resolveNotificationAction({ category: 'team.task.completed', data: { assignment_id: 17, task_id: 9 } }), {
+    kind: 'internal',
+    route: getOrganizationTaskDetailRoute({ taskId: 9 }),
+    label: '查看任务',
+  })
+  assert.deepEqual(resolveNotificationAction({ category: 'team.announcement', data: { announcement_id: 5 } }), {
+    kind: 'internal',
+    route: getOrganizationAnnouncementDetailRoute(5),
+    label: '查看公告',
+  })
+  assert.deepEqual(resolveNotificationAction({ category: 'allocation.status', data: { allocation_request_id: 23 } }), {
+    kind: 'internal',
+    route: getOrganizationAllocationDetailRoute(23),
+    label: '查看收益申请',
+  })
+  assert.deepEqual(resolveNotificationAction({ category: 'subscription.billing', data: { event: 'expiring' } }), {
+    kind: 'internal',
+    route: APP_ROUTES.organizationAdminSubscription,
+    label: '查看订阅',
+  })
+})
+
+test('撤回、过期和非法业务标识的通知不产生操作', () => {
+  assert.equal(resolveNotificationAction({ category: 'team.announcement', data: { announcement_id: 5, withdrawn: true } }), null)
+  assert.equal(resolveNotificationAction({ category: 'team.task.assigned', data: { assignment_id: '17' } }), null)
+  assert.equal(resolveNotificationAction({ category: 'allocation.status', data: { allocation_request_id: 0 } }), null)
+  assert.equal(resolveNotificationAction({ category: 'subscription.billing', data: {}, expiresAt: '2026-09-08T12:00:00+08:00' }, new Date('2026-09-09T12:00:00+08:00').getTime()), null)
+})
+
+test('历史管理端链接只兼容精确白名单，HTTPS 外链保持外部动作', () => {
+  assert.deepEqual(resolveNotificationAction({ category: '', data: {}, url: '/dashboard/rental/workbench/tasks?assignment_id=31' }), {
+    kind: 'internal',
+    route: getOrganizationTaskDetailRoute({ assignmentId: 31 }),
+    label: '查看任务',
+  })
+  assert.deepEqual(resolveNotificationAction({ category: '', data: {}, url: '/dashboard/rental/workbench/announcements?announcement_id=7' }), {
+    kind: 'internal',
+    route: getOrganizationAnnouncementDetailRoute(7),
+    label: '查看公告',
+  })
+  assert.deepEqual(resolveNotificationAction({ category: '', data: {}, url: '/dashboard/rental/earnings?tab=reviews&request=12' }), {
+    kind: 'internal',
+    route: getOrganizationAllocationDetailRoute(12),
+    label: '查看收益申请',
+  })
+  assert.deepEqual(resolveNotificationAction({ category: '', data: {}, url: '/dashboard/space/subscription/orders' }), {
+    kind: 'internal',
+    route: APP_ROUTES.organizationAdminSubscription,
+    label: '查看订阅',
+  })
+  assert.deepEqual(resolveNotificationAction({ category: '', data: {}, url: 'https://example.com/notice' }), {
+    kind: 'external',
+    url: 'https://example.com/notice',
+    label: '打开链接',
+  })
+  assert.equal(resolveNotificationAction({ category: '', data: {}, url: 'http://example.com/insecure' }), null)
+  assert.equal(resolveNotificationAction({ category: '', data: {}, url: '/dashboard/users' }), null)
+  assert.equal(resolveNotificationAction({ category: '', data: {}, url: '/pages/account/profile' }), null)
+})
+
+test('消息详情仅执行领域解析后的动作', () => {
+  const source = readFileSync(join(sourceRoot, 'pages/messages/detail.vue'), 'utf8')
+
+  assert.match(source, /resolveNotificationAction/)
+  assert.doesNotMatch(source, /const url = notification\.value\?\.url/)
 })
 
 test('通知详情离开页面后进行中的轮询请求不能复活定时器', () => {

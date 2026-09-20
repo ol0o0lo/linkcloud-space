@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { formatHouseLayout, normalizePublicHouseQuery } from '../src/domain/house.ts'
+import { buildFavoriteHouseCardModel, buildHouseCardModel, formatHouseCardDeposit, formatHouseCardRent } from '../src/domain/house-card.ts'
 
 test('一室零厅统一显示为单间', () => {
   assert.equal(formatHouseLayout(1, 0), '单间')
@@ -32,4 +33,120 @@ test('公开房源查询只发送有值参数并保留 false 与 0', () => {
     page: 1,
     page_size: 20,
   })
+})
+
+test('房源卡片统一格式化标题、户型、电梯、月租和押金', () => {
+  const card = buildHouseCardModel({
+    id: 1,
+    room_number: '1202',
+    area: '68.00',
+    asking_rent: '4600.00',
+    deposit_amount: '9200.00',
+    bedrooms: 2,
+    living_rooms: 1,
+    decoration__mapping: '精装修',
+    has_elevator_access: true,
+    images: [{ thumbnail: 'https://example.com/cover.jpg' }],
+    building: {
+      name: '3栋',
+      estate: { display_name: '翡翠名都', district: '滨江区' },
+    },
+  })
+
+  assert.equal(card.title, '翡翠名都 3栋 1202')
+  assert.equal(card.location, '滨江区 · 精装修')
+  assert.equal(card.facts, '二室一厅 · 68㎡ · 有电梯')
+  assert.equal(card.rentText, '¥4,600/月')
+  assert.equal(card.depositText, '押金 ¥9,200')
+  assert.equal(card.coverUrl, 'https://example.com/cover.jpg')
+  assert.equal(card.showStatusDot, false)
+})
+
+test('房源卡片隐藏默认招租状态并标记非默认状态', () => {
+  const base = {
+    id: 1,
+    room_number: '806',
+    bedrooms: 1,
+    living_rooms: 0,
+    has_elevator_access: false,
+    building: { name: '云栖公寓', estate: null },
+  }
+
+  assert.equal(buildHouseCardModel({ ...base, status: 'listed', status__mapping: '招租中' }).showStatusDot, false)
+  assert.equal(buildHouseCardModel({ ...base, status: 'renovating', status__mapping: '维护中' }).showStatusDot, true)
+  assert.equal(buildHouseCardModel({ ...base, status: 'renovating', status__mapping: '维护中' }).statusLabel, '维护中')
+})
+
+test('房源卡片对缺失租金和押金使用稳定文案', () => {
+  assert.equal(formatHouseCardRent(null), '面议')
+  assert.equal(formatHouseCardDeposit(null), '押金待确认')
+})
+
+test('收藏房源复用目标数据生成统一卡片模型', () => {
+  const card = buildFavoriteHouseCardModel({
+    target_id: '12',
+    available: true,
+    display: null,
+    target: {
+      id: 12,
+      room_number: '1202',
+      area: '76.50',
+      asking_rent: '3650.00',
+      deposit_amount: '3650.00',
+      bedrooms: 3,
+      living_rooms: 2,
+      decoration__mapping: '豪装',
+      has_elevator_access: true,
+      images: [{ thumbnail: 'https://example.com/favorite.jpg' }],
+      building: {
+        name: '1栋1',
+        estate: { display_name: '云栖花园', district: '增城区' },
+      },
+    },
+  })
+
+  assert.equal(card.title, '云栖花园 1栋1 1202')
+  assert.equal(card.facts, '三室二厅 · 76.5㎡ · 有电梯')
+  assert.equal(card.rentAmountText, '3,650')
+  assert.equal(card.depositAmountText, '¥3,650')
+})
+
+test('已下架收藏使用展示快照生成同款卡片并标记状态', () => {
+  const card = buildFavoriteHouseCardModel({
+    target_id: '18',
+    available: false,
+    target: null,
+    display: {
+      title: '2栋 · 1801',
+      subtitle: '云栖花园',
+      cover_url: 'https://example.com/unavailable.jpg',
+      facts: [
+        { label: '月租', value: '¥4200' },
+        { label: '面积', value: '88㎡' },
+        { label: '户型', value: '三室一厅' },
+      ],
+    },
+  })
+
+  assert.equal(card.title, '2栋 · 1801')
+  assert.equal(card.location, '云栖花园')
+  assert.equal(card.facts, '88㎡ · 三室一厅')
+  assert.equal(card.rentAmountText, '4,200')
+  assert.equal(card.statusLabel, '已下架')
+  assert.equal(card.statusTone, 'muted')
+})
+
+test('地铁筛选房源优先显示最近站点距离', () => {
+  const model = buildHouseCardModel({
+    id: 1,
+    room_number: '1202',
+    bedrooms: 1,
+    living_rooms: 0,
+    has_elevator_access: true,
+    distance_m: 680,
+    nearest_metro_station: { name: '世界之窗', line_names: ['1号线', '2号线'] },
+    building: { name: '1栋', estate: { display_name: '世界花园', district: '南山区' } },
+  })
+
+  assert.equal(model.distanceText, '距世界之窗站 680m')
 })

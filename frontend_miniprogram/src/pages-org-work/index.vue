@@ -11,11 +11,13 @@ import {
   listOrganizationAnnouncements,
 } from '@/features/organization-work/service'
 import { APP_ROUTES, getOrganizationAnnouncementDetailRoute, getOrganizationTaskDetailRoute } from '@/modules/routes'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppDashboardSkeleton from '@/components/app/AppDashboardSkeleton.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '组织协作', enablePullDownRefresh: true } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '组织协作', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
 const dashboard = ref<DailyDashboardOut | null>(null)
@@ -72,10 +74,13 @@ onPullDownRefresh(loadDashboard)
 
 <template>
   <view class="work-page">
-    <AppLoading v-if="loading && !dashboard" text="正在加载协作看板…" />
+    <AppCustomNavigation title="组织协作" back scroll-mode="sticky" />
+    <AppDashboardSkeleton v-if="loading && !dashboard" />
     <AppErrorView v-else-if="loadError && !dashboard" title="协作看板加载失败" :message="loadError" @retry="loadDashboard" />
     <template v-else-if="dashboard">
       <view class="hero-card">
+        <view class="hero-decoration hero-decoration--large" />
+        <view class="hero-decoration hero-decoration--small" />
         <view class="eyebrow">
           今日协作
         </view>
@@ -103,7 +108,7 @@ onPullDownRefresh(loadDashboard)
       </view>
 
       <view class="entry-grid">
-        <view class="entry-card" @click="openRoute(APP_ROUTES.organizationTasks)">
+        <view class="entry-card app-touchable" hover-class="app-touchable--pressed" @click="openRoute(APP_ROUTES.organizationTasks)">
           <view class="i-carbon-task entry-icon" />
           <view class="entry-main">
             <strong>任务中心</strong><text>我的任务 {{ assignmentSummary?.pending || 0 }} 待接受 · 团队 {{ taskSummary?.active || 0 }} 进行中</text>
@@ -113,7 +118,7 @@ onPullDownRefresh(loadDashboard)
           </wd-tag>
           <view class="i-carbon-chevron-right" />
         </view>
-        <view class="entry-card" @click="openRoute(APP_ROUTES.organizationAnnouncements)">
+        <view class="entry-card app-touchable" hover-class="app-touchable--pressed" @click="openRoute(APP_ROUTES.organizationAnnouncements)">
           <view class="i-carbon-volume-up entry-icon" />
           <view class="entry-main">
             <strong>团队公告</strong><text>{{ dashboard.unacknowledged_announcements ? `${dashboard.unacknowledged_announcements} 条需要确认` : '公告均已处理' }}</text>
@@ -129,7 +134,7 @@ onPullDownRefresh(loadDashboard)
         <strong>紧急事项</strong><text @click="openRoute(APP_ROUTES.organizationTasks)">查看全部</text>
       </view>
       <view v-if="dashboard.urgent_items?.length" class="card-list">
-        <view v-for="item in dashboard.urgent_items" :key="item.id" class="record-card" @click="openRoute(getOrganizationTaskDetailRoute({ assignmentId: item.id }))">
+        <view v-for="item in dashboard.urgent_items" :key="item.id" class="record-card app-touchable" hover-class="app-touchable--pressed" @click="openRoute(getOrganizationTaskDetailRoute({ assignmentId: item.id }))">
           <view class="card-topline">
             <strong>{{ item.task_title }}</strong><wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
               {{ item.priority__mapping }}
@@ -150,7 +155,7 @@ onPullDownRefresh(loadDashboard)
         <strong>近期公告</strong><text @click="openRoute(APP_ROUTES.organizationAnnouncements)">查看全部</text>
       </view>
       <view v-if="announcements.length" class="card-list">
-        <view v-for="item in announcements" :key="item.id" class="record-card" @click="openRoute(getOrganizationAnnouncementDetailRoute(item.id))">
+        <view v-for="item in announcements" :key="item.id" class="record-card app-touchable" hover-class="app-touchable--pressed" @click="openRoute(getOrganizationAnnouncementDetailRoute(item.id))">
           <view class="card-topline">
             <strong>{{ item.title }}</strong><wd-tag v-if="shouldShowAnnouncementAcknowledgement(item)" :type="item.is_acknowledged ? 'success' : 'warning'" variant="light" size="small">
               {{ item.is_acknowledged ? '已确认' : '待确认' }}
@@ -172,16 +177,46 @@ onPullDownRefresh(loadDashboard)
 <style scoped lang="scss">
 .work-page {
   min-height: 100vh;
-  padding: 28rpx 24rpx 56rpx;
+  padding: 0 40rpx 56rpx;
   background: var(--app-bg-page);
   box-sizing: border-box;
 }
+.work-page :deep(.app-custom-navigation) {
+  margin: 0 -40rpx 40rpx;
+}
 .hero-card {
-  padding: 32rpx;
-  border-radius: 28rpx;
+  position: relative;
+  overflow: hidden;
+  min-height: 368rpx;
+  padding: 40rpx 36rpx;
+  border-radius: 44rpx;
+  box-sizing: border-box;
   color: var(--app-text-on-brand);
   background: var(--app-gradient-organization);
   box-shadow: var(--app-shadow-hero-organization);
+}
+.hero-decoration {
+  position: absolute;
+  border: 1rpx solid rgb(255 255 255 / 16%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 6%);
+  pointer-events: none;
+}
+.hero-decoration--large {
+  top: -100rpx;
+  right: -60rpx;
+  width: 292rpx;
+  height: 292rpx;
+}
+.hero-decoration--small {
+  right: 164rpx;
+  bottom: -92rpx;
+  width: 188rpx;
+  height: 188rpx;
+}
+.hero-card > view:not(.hero-decoration) {
+  position: relative;
+  z-index: 1;
 }
 .eyebrow,
 .hero-summary {
@@ -189,31 +224,35 @@ onPullDownRefresh(loadDashboard)
   font-size: 23rpx;
 }
 .hero-title {
-  margin-top: 10rpx;
-  font-size: 38rpx;
+  margin-top: 40rpx;
+  font-size: 54rpx;
   font-weight: 700;
 }
 .hero-summary {
-  margin-top: 14rpx;
+  margin-top: 28rpx;
 }
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12rpx;
-  margin-top: 20rpx;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24rpx;
+  margin-top: 48rpx;
 }
 .metric-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7rpx;
-  padding: 20rpx 8rpx;
-  border-radius: 20rpx;
+  min-height: 156rpx;
+  align-items: flex-start;
+  gap: 10rpx;
+  padding: 24rpx;
+  border: 1rpx solid var(--app-border-card);
+  border-radius: var(--app-radius-lg);
+  box-sizing: border-box;
   background: var(--app-bg-card);
 }
 .metric-card strong {
-  color: var(--app-color-primary);
-  font-size: 34rpx;
+  color: var(--app-text-primary);
+  font-size: 40rpx;
 }
 .metric-card text {
   color: var(--app-text-muted);
@@ -237,7 +276,8 @@ onPullDownRefresh(loadDashboard)
   align-items: center;
   gap: 18rpx;
   padding: 26rpx;
-  border-radius: 22rpx;
+  border: 1rpx solid var(--app-border-card);
+  border-radius: var(--app-radius-lg);
   background: var(--app-bg-card);
 }
 .entry-icon {
@@ -281,7 +321,8 @@ onPullDownRefresh(loadDashboard)
 .record-card,
 .quiet-card {
   padding: 26rpx;
-  border-radius: 22rpx;
+  border: 1rpx solid var(--app-border-card);
+  border-radius: var(--app-radius-lg);
   background: var(--app-bg-card);
 }
 .card-topline strong {

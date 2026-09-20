@@ -1,8 +1,10 @@
-import type { PublicHousesUsingGetParams } from '@/services/manual/houses'
+import type { PublicHouseMapParams, PublicHousesUsingGetParams, ResolvePublicHouseRegionParams } from '@/services/manual/houses'
 import { normalizePublicHouseQuery } from '@/domain/house'
-import { requestPublicHouse, requestPublicHouseFilters, requestPublicHouses } from '@/services/manual/houses'
+import { requestPublicHouse, requestPublicHouseFilters, requestPublicHouseMap, requestPublicHouseRegions, requestPublicHouses, resolvePublicHouseRegion } from '@/services/manual/houses'
+import { requestPublicMetroCities, requestPublicMetroCity } from '@/services/manual/metro'
 
-export type { PublicHouseDetailOut, PublicHouseFiltersOut, PublicHouseListOut, PublicHousesUsingGetParams } from '@/services/manual/houses'
+export type { PublicHouseLocationMode, PublicHouseMetroSelection, PublicHouseRadiusM, PublicMetroCityDetail, PublicMetroCitySummary, PublicMetroLine, PublicMetroStation } from '@/domain/public-house-metro'
+export type { HouseAIInsightOut, HouseOut, PublicHouseDetailOut, PublicHouseFiltersOut, PublicHouseListOut, PublicHouseMapLevel, PublicHouseMapMarker, PublicHouseMapParams, PublicHouseMapResponse, PublicHouseRegionsResponse, PublicHousesUsingGetParams, ResolvePublicHouseRegionParams } from '@/services/manual/houses'
 
 export function listPublicHouses(params: PublicHousesUsingGetParams) {
   return requestPublicHouses(normalizePublicHouseQuery(params) as PublicHousesUsingGetParams)
@@ -14,4 +16,24 @@ export function getPublicHouse(houseId: number) {
 
 export function getPublicHouseFilters() {
   return requestPublicHouseFilters()
+}
+
+export function getPublicHouseMap(params: PublicHouseMapParams) {
+  return requestPublicHouseMap(params)
+}
+
+export function getPublicHouseRegions() {
+  return requestPublicHouseRegions()
+}
+
+export function getLocatedPublicHouseRegion(params: ResolvePublicHouseRegionParams) {
+  return resolvePublicHouseRegion(params)
+}
+
+export function getPublicMetroCities() {
+  return requestPublicMetroCities()
+}
+
+export function getPublicMetroCity(city: string) {
+  return requestPublicMetroCity(city)
 }

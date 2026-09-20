@@ -2,6 +2,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { defineManifestConfig } from '@uni-helper/vite-plugin-uni-manifest'
 import { loadEnv } from 'vite'
+import { WEIXIN_LOCATION_MANIFEST } from './scripts/weixin-location-manifest'
 
 function getMode(): string {
   const args = process.argv.slice(2)
@@ -27,10 +28,12 @@ export default defineManifestConfig({
   },
   'mp-weixin': {
     appid: env.VITE_WX_APPID,
+    ...WEIXIN_LOCATION_MANIFEST,
     setting: {
       urlCheck: false,
       es6: true,
       minified: true,
+      ignoreDevUnusedFiles: false,
     },
     optimization: {
       subPackages: true,

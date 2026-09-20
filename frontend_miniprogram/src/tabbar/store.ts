@@ -2,7 +2,7 @@ import type { CustomTabBarItemBadge, TabbarSlot } from './types'
 import { computed, reactive } from 'vue'
 import { platformStorage } from '@/platform'
 import { useAppContextStore } from '@/store/app-context-v2'
-import { getTabbarItems } from './config'
+import { getTabbarItems, isTabbarShellRoute } from './config'
 
 const tabbarBadges = reactive<Partial<Record<TabbarSlot, CustomTabBarItemBadge>>>({})
 
@@ -16,7 +16,7 @@ const tabbarList = computed(() => {
 
 export function isPageTabbar(path: string) {
   const _path = normalizeRoutePath(path)
-  return _path === '/' || tabbarList.value.some(item => item.pagePath === _path)
+  return _path === '/' || isTabbarShellRoute(_path)
 }
 
 export function normalizeRoutePath(path?: string) {

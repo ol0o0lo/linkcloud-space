@@ -1,5 +1,6 @@
 import type { Plugin } from 'vite'
 import fs from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import Uni from '@uni-helper/plugin-uni'
@@ -19,9 +20,49 @@ import { defineConfig, loadEnv } from 'vite'
 import openDevTools from './scripts/open-dev-tools'
 import { getSubpackageSourceRootsForBuild } from './src/modules/subpackages'
 import vitePluginEruda from './scripts/vite-plugin-eruda'
+import { ensureWeixinLocationManifest } from './scripts/weixin-location-manifest'
 import { WotResolver } from './wot-ui-resolver'
 
 const unsupportedManifestPlatforms = ['app-plus', 'app-harmony', 'mp-harmony', 'quickapp', 'mp-alipay', 'mp-baidu', 'mp-toutiao'] as const
+
+function isPrivateIpv4(address: string): boolean {
+  return /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(address)
+}
+
+function getLanIpv4(): string | undefined {
+  const interfaces = networkInterfaces()
+  const preferredNames = ['en0', 'en1', 'wlan0', 'eth0']
+  const names = [...preferredNames, ...Object.keys(interfaces).filter(name => !preferredNames.includes(name))]
+
+  for (const name of names) {
+    const address = interfaces[name]?.find(item => item.family === 'IPv4' && !item.internal && isPrivateIpv4(item.address))
+    if (address)
+      return address.address
+  }
+}
+
+function fixUniWeixinShadowPreload(): Plugin {
+  const shadowImageUrl = 'https://cdn.dcloud.net.cn/img/shadow-grey.png'
+
+  return {
+    name: 'fix-uni-weixin-shadow-preload',
+    enforce: 'post',
+    generateBundle(_, bundle) {
+      if (process.env.UNI_PLATFORM !== 'mp-weixin')
+        return
+
+      for (const output of Object.values(bundle)) {
+        if (output.type !== 'chunk' || !output.code.includes('wx.preloadAssets') || !output.code.includes('/img/shadow-grey.png'))
+          continue
+
+        output.code = output.code.replace(
+          /src:\s*[$A-Z_a-z][$\w]*\s*\+\s*(["'])\/(?:[^"'\\]*\/)?img\/shadow-grey\.png\1/g,
+          `src: ${JSON.stringify(shadowImageUrl)}`,
+        )
+      }
+    },
+  }
+}
 
 function restrictManifestPlatforms(): Plugin {
   const manifestPath = path.resolve(process.cwd(), 'src/manifest.json')
@@ -47,6 +88,15 @@ export default defineConfig(({ mode }) => {
   const envDir = path.resolve(process.cwd(), 'env')
   const env = loadEnv(mode, envDir)
   const localEnv = loadEnv(mode, envDir, '')
+  if (mode === 'development' && UNI_PLATFORM === 'mp-weixin' && env.VITE_API_BASE_URL__WEIXIN_DEVELOP === 'auto') {
+    const lanIp = getLanIpv4()
+    if (!lanIp)
+      throw new Error('未检测到局域网 IPv4，请手动配置 VITE_API_BASE_URL__WEIXIN_DEVELOP')
+    const lanApiUrl = `http://${lanIp}:18000`
+    env.VITE_API_BASE_URL__WEIXIN_DEVELOP = lanApiUrl
+    process.env.VITE_API_BASE_URL__WEIXIN_DEVELOP = lanApiUrl
+    console.info(`微信小程序开发接口：${lanApiUrl}`)
+  }
   const {
     VITE_APP_PORT = '9000',
     VITE_SERVER_BASEURL,
@@ -88,6 +138,8 @@ export default defineConfig(({ mode }) => {
         excludePages: ['**/components/**/**.*', '**/sections/**/**.*'],
       }),
       Uni(),
+      fixUniWeixinShadowPreload(),
+      ensureWeixinLocationManifest(),
       {
         name: 'fix-vite-plugin-vue',
         configResolved(config) {

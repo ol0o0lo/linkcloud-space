@@ -1,21 +1,19 @@
 <script setup lang="ts">
 import type { WalletLedgerOut, WalletSummaryOut, WithdrawalOut } from '@/features/account/service'
 import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { createWithdrawalRequestId, formatWalletAmount, getWalletEntryTypeLabel, getWithdrawalActions, getWithdrawalPayChannelLabel, getWithdrawalStatusLabel, validateWithdrawalAmount } from '@/domain/personal-account'
 import { cancelWithdrawal, createWithdrawal, getWalletLedger, getWalletSummary, getWithdrawals } from '@/features/account/service'
-import AppListState from '@/shared/components/AppListState.vue'
+import AppPagedList from '@/components/app/AppPagedList.vue'
+import AppPage from '@/components/app/AppPage.vue'
+import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import { usePagedPage } from '@/hooks/usePagedPage'
 
-definePage({ style: { navigationBarTitleText: '我的钱包', enablePullDownRefresh: true } })
+definePage({ style: { navigationBarTitleText: '我的钱包', navigationStyle: 'custom', enablePullDownRefresh: true } })
 
 const summary = ref<WalletSummaryOut | null>(null)
-const ledger = ref<WalletLedgerOut[]>([])
-const withdrawals = ref<WithdrawalOut[]>([])
-const ledgerPage = ref(1)
-const withdrawalPage = ref(1)
 const pageSize = 20
-const ledgerTotal = ref(0)
-const withdrawalTotal = ref(0)
 const activeTab = ref<'ledger' | 'withdrawals'>('ledger')
 const amount = ref<string | number>('')
 const loading = ref(false)
@@ -23,50 +21,37 @@ const submitting = ref(false)
 const cancelingId = ref<number | null>(null)
 const loadError = ref('')
 
-const activeItemsLength = computed(() => activeTab.value === 'ledger' ? ledger.value.length : withdrawals.value.length)
-const activeTotal = computed(() => activeTab.value === 'ledger' ? ledgerTotal.value : withdrawalTotal.value)
-const finished = computed(() => activeItemsLength.value >= activeTotal.value && activeTotal.value >= 0)
+const ledgerPage = usePagedPage<WalletLedgerOut>({
+  loader: ({ page, pageSize: targetPageSize }) => getWalletLedger(page, targetPageSize),
+  pageSize,
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
+const withdrawalPage = usePagedPage<WithdrawalOut>({
+  loader: ({ page, pageSize: targetPageSize }) => getWithdrawals(page, targetPageSize),
+  pageSize,
+  refreshOnShow: false,
+  pullDownRefresh: false,
+  reachBottom: false,
+  keyOf: item => item.id,
+})
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
-async function loadData(reset = false) {
-  if (loading.value || (!reset && finished.value))
-    return
-  if (reset) {
-    ledgerPage.value = 1
-    withdrawalPage.value = 1
-  }
+async function refreshData() {
   loading.value = true
   loadError.value = ''
   try {
-    if (reset) {
-      const [nextSummary, nextLedger, nextWithdrawals] = await Promise.all([
-        getWalletSummary(),
-        getWalletLedger(1, pageSize),
-        getWithdrawals(1, pageSize),
-      ])
-      summary.value = nextSummary
-      ledger.value = nextLedger.items
-      withdrawals.value = nextWithdrawals.items
-      ledgerTotal.value = nextLedger.total
-      withdrawalTotal.value = nextWithdrawals.total
-      ledgerPage.value = nextLedger.items.length < nextLedger.total ? 2 : 1
-      withdrawalPage.value = nextWithdrawals.items.length < nextWithdrawals.total ? 2 : 1
-    }
-    else if (activeTab.value === 'ledger') {
-      const result = await getWalletLedger(ledgerPage.value, pageSize)
-      ledger.value = [...ledger.value, ...result.items]
-      ledgerTotal.value = result.total
-      ledgerPage.value += 1
-    }
-    else {
-      const result = await getWithdrawals(withdrawalPage.value, pageSize)
-      withdrawals.value = [...withdrawals.value, ...result.items]
-      withdrawalTotal.value = result.total
-      withdrawalPage.value += 1
-    }
+    const [nextSummary] = await Promise.all([
+      getWalletSummary(),
+      ledgerPage.refresh(),
+      withdrawalPage.refresh(),
+    ])
+    summary.value = nextSummary
   }
   catch {
     loadError.value = '钱包数据加载失败，请稍后重试'
@@ -75,6 +60,10 @@ async function loadData(reset = false) {
     loading.value = false
     uni.stopPullDownRefresh()
   }
+}
+
+async function loadMore() {
+  await (activeTab.value === 'ledger' ? ledgerPage.loadMore() : withdrawalPage.loadMore())
 }
 
 async function submitWithdrawal() {
@@ -97,7 +86,7 @@ async function submitWithdrawal() {
       client_request_id: createWithdrawalRequestId(),
     })
     amount.value = ''
-    await loadData(true)
+    await refreshData()
     activeTab.value = 'withdrawals'
     uni.showToast({ title: '提现申请已提交', icon: 'success' })
   }
@@ -116,7 +105,7 @@ async function cancel(item: WithdrawalOut) {
   cancelingId.value = item.id
   try {
     await cancelWithdrawal(item.id)
-    await loadData(true)
+    await refreshData()
     uni.showToast({ title: '提现申请已撤销', icon: 'success' })
   }
   catch (error) {
@@ -131,32 +120,41 @@ function switchTab(tab: 'ledger' | 'withdrawals') {
   activeTab.value = tab
 }
 
-onShow(() => void loadData(true))
-onPullDownRefresh(() => loadData(true))
-onReachBottom(() => void loadData())
+onShow(() => void refreshData())
+onPullDownRefresh(refreshData)
+onReachBottom(() => void loadMore())
 </script>
 
 <template>
-  <view class="account-page">
-    <view v-if="summary" class="summary-card">
-      <view class="balance-label">
+  <AppPage variant="list">
+    <template #navigation>
+      <AppCustomNavigation title="我的钱包" back scroll-mode="sticky" />
+    </template>
+    <view v-if="summary" class="wallet-hero app-card p-4">
+      <view class="text-xs">
         可用余额
       </view>
-      <view class="balance-value">
+      <view class="mt-1 text-3xl font-bold">
         {{ formatWalletAmount(summary.available_balance) }}
       </view>
-      <view class="summary-grid">
-        <view><strong>{{ formatWalletAmount(summary.frozen_balance) }}</strong><text>冻结余额</text></view>
-        <view><strong>{{ formatWalletAmount(summary.total_income) }}</strong><text>累计收入</text></view>
-        <view><strong>{{ formatWalletAmount(summary.total_withdrawn) }}</strong><text>累计提现</text></view>
+      <view class="grid grid-cols-3 mt-3.5 gap-1.5">
+        <view class="flex flex-col gap-1">
+          <strong class="text-sm">{{ formatWalletAmount(summary.frozen_balance) }}</strong><text class="text-2xs">冻结余额</text>
+        </view>
+        <view class="flex flex-col gap-1">
+          <strong class="text-sm">{{ formatWalletAmount(summary.total_income) }}</strong><text class="text-2xs">累计收入</text>
+        </view>
+        <view class="flex flex-col gap-1">
+          <strong class="text-sm">{{ formatWalletAmount(summary.total_withdrawn) }}</strong><text class="text-2xs">累计提现</text>
+        </view>
       </view>
     </view>
 
-    <view class="withdraw-card">
-      <view class="section-title">
+    <view class="mt-2.5 app-card p-3.5">
+      <view class="text-base text-content-primary font-bold">
         微信提现
       </view>
-      <view class="section-copy">
+      <view class="mb-2 mt-1 text-xs text-content-muted leading-relaxed">
         提现将使用当前账号已绑定的微信身份，提交后进入后台审核。
       </view>
       <wd-input v-model="amount" label="提现金额" type="number" clearable placeholder="请输入整数金额" />
@@ -165,172 +163,101 @@ onReachBottom(() => void loadData())
       </wd-button>
     </view>
 
-    <view class="tabs">
-      <view :class="{ active: activeTab === 'ledger' }" @click="switchTab('ledger')">
-        资金流水（{{ ledgerTotal }}）
+    <view class="grid grid-cols-2 mb-2 mt-3.5 gap-1.5 rounded-app-md bg-surface-subtle p-1">
+      <view class="app-touchable rounded-app-md px-1.5 py-2 text-center text-xs" :class="activeTab === 'ledger' ? 'bg-surface-card text-app-brand font-semibold' : 'text-content-muted'" @click="switchTab('ledger')">
+        资金流水（{{ ledgerPage.total.value }}）
       </view>
-      <view :class="{ active: activeTab === 'withdrawals' }" @click="switchTab('withdrawals')">
-        提现记录（{{ withdrawalTotal }}）
+      <view class="app-touchable rounded-app-md px-1.5 py-2 text-center text-xs" :class="activeTab === 'withdrawals' ? 'bg-surface-card text-app-brand font-semibold' : 'text-content-muted'" @click="switchTab('withdrawals')">
+        提现记录（{{ withdrawalPage.total.value }}）
       </view>
     </view>
 
-    <view v-if="activeTab === 'ledger' && ledger.length" class="record-list">
-      <view v-for="item in ledger" :key="item.id" class="record-card">
-        <view class="record-topline">
-          <strong>{{ getWalletEntryTypeLabel(item.entry_type, item.entry_type__mapping) }}</strong><text :class="{ income: item.amount_delta > 0 }">{{ item.amount_delta > 0 ? '+' : '' }}{{ formatWalletAmount(item.amount_delta) }}</text>
-        </view>
-        <view class="record-meta">
-          余额 {{ formatWalletAmount(item.available_balance_after) }} · {{ formatDateTime(item.created_at) }}
-        </view>
-        <view v-if="item.remark" class="record-copy">
-          {{ item.remark }}
-        </view>
-      </view>
-    </view>
-    <view v-else-if="activeTab === 'withdrawals' && withdrawals.length" class="record-list">
-      <view v-for="item in withdrawals" :key="item.id" class="record-card">
-        <view class="record-topline">
-          <strong>提现 {{ formatWalletAmount(item.amount) }}</strong><wd-tag variant="light" size="small">
-            {{ getWithdrawalStatusLabel(item.status, item.status__mapping) }}
-          </wd-tag>
-        </view>
-        <view class="record-meta">
-          到账 {{ formatWalletAmount(item.net_amount) }} · {{ getWithdrawalPayChannelLabel(item.pay_channel, item.pay_channel__mapping) }}
-        </view>
-        <view class="record-footer">
-          <text>{{ formatDateTime(item.created_at) }}</text><wd-button v-if="getWithdrawalActions(item.status).includes('cancel')" size="mini" type="danger" variant="plain" :loading="cancelingId === item.id" @click="cancel(item)">
-            撤销
-          </wd-button>
-        </view>
-        <view v-if="item.reject_reason" class="record-copy danger">
-          {{ item.reject_reason }}
-        </view>
-      </view>
-    </view>
-    <AppListState :loading="loading" :has-items="activeItemsLength > 0" :finished="finished" :error-message="loadError" loading-text="正在加载钱包数据…" :empty-text="activeTab === 'ledger' ? '暂无资金流水' : '暂无提现记录'" finished-text="没有更多记录了" @retry="loadData(activeItemsLength === 0)" />
-  </view>
+    <AppPagedList
+      v-if="activeTab === 'ledger'"
+      :items="ledgerPage.items.value"
+      item-key="id"
+      :loading="loading || ledgerPage.loading.value"
+      :refreshing="ledgerPage.refreshing.value"
+      :loading-more="ledgerPage.loadingMore.value"
+      :finished="ledgerPage.finished.value"
+      :error="ledgerPage.error.value || loadError"
+      loading-text="正在加载钱包数据…"
+      empty-text="暂无资金流水"
+      finished-text="没有更多记录了"
+      @retry="refreshData"
+    >
+      <template #item="{ item }">
+        <AppRecordCard>
+          <template #title>
+            {{ getWalletEntryTypeLabel(item.entry_type, item.entry_type__mapping) }}
+          </template>
+          <template #status>
+            <text class="text-sm font-semibold" :class="item.amount_delta > 0 ? 'text-app-success' : 'text-app-danger'">{{ item.amount_delta > 0 ? '+' : '' }}{{ formatWalletAmount(item.amount_delta) }}</text>
+          </template>
+          <template #meta>
+            余额 {{ formatWalletAmount(item.available_balance_after) }} · {{ formatDateTime(item.created_at) }}
+          </template>
+          <template v-if="item.remark" #description>
+            {{ item.remark }}
+          </template>
+        </AppRecordCard>
+      </template>
+    </AppPagedList>
+    <AppPagedList
+      v-else
+      :items="withdrawalPage.items.value"
+      item-key="id"
+      :loading="loading || withdrawalPage.loading.value"
+      :refreshing="withdrawalPage.refreshing.value"
+      :loading-more="withdrawalPage.loadingMore.value"
+      :finished="withdrawalPage.finished.value"
+      :error="withdrawalPage.error.value || loadError"
+      loading-text="正在加载钱包数据…"
+      empty-text="暂无提现记录"
+      finished-text="没有更多记录了"
+      @retry="refreshData"
+    >
+      <template #item="{ item }">
+        <AppRecordCard>
+          <template #title>
+            提现 {{ formatWalletAmount(item.amount) }}
+          </template>
+          <template #status>
+            <wd-tag variant="light" size="small">
+              {{ getWithdrawalStatusLabel(item.status, item.status__mapping) }}
+            </wd-tag>
+          </template>
+          <template #description>
+            到账 {{ formatWalletAmount(item.net_amount) }} · {{ getWithdrawalPayChannelLabel(item.pay_channel, item.pay_channel__mapping) }}
+            <view v-if="item.reject_reason" class="mt-1.5 text-app-danger">
+              {{ item.reject_reason }}
+            </view>
+          </template>
+          <template #footer>
+            {{ formatDateTime(item.created_at) }}
+          </template>
+          <template v-if="getWithdrawalActions(item.status).includes('cancel')" #actions>
+            <wd-button size="mini" type="danger" variant="plain" :loading="cancelingId === item.id" @click="cancel(item)">
+              撤销
+            </wd-button>
+          </template>
+        </AppRecordCard>
+      </template>
+    </AppPagedList>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
-.account-page {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
+.wallet-hero {
+  min-height: 340rpx;
+  border-radius: 40rpx;
+  color: #fff;
+  background: var(--app-gradient-personal);
+  box-shadow: var(--app-shadow-hero-personal);
 }
-.summary-card,
-.withdraw-card,
-.record-card {
-  padding: 28rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.summary-card {
-  background: var(--app-gradient-profile);
-}
-.balance-label,
-.section-copy,
-.record-meta,
-.record-copy,
-.record-footer {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.balance-value {
-  margin-top: 8rpx;
-  color: var(--app-text-primary);
-  font-size: 52rpx;
-  font-weight: 750;
-}
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rpx;
-  margin-top: 28rpx;
-}
-.summary-grid view {
-  display: flex;
-  flex-direction: column;
-  gap: 7rpx;
-}
-.summary-grid strong {
-  color: var(--app-text-secondary);
-  font-size: 26rpx;
-}
-.summary-grid text {
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.withdraw-card {
-  margin-top: 22rpx;
-}
-.section-title {
-  color: var(--app-text-primary);
-  font-size: 30rpx;
-  font-weight: 700;
-}
-.section-copy {
-  margin: 8rpx 0 18rpx;
-  line-height: 1.6;
-}
-.tabs {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10rpx;
-  margin: 28rpx 0 18rpx;
-  padding: 8rpx;
-  border-radius: 20rpx;
-  background: var(--app-bg-subtle);
-}
-.tabs view {
-  padding: 18rpx 12rpx;
-  border-radius: 15rpx;
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-  text-align: center;
-}
-.tabs view.active {
-  color: var(--app-color-primary);
-  background: var(--app-bg-card);
-  font-weight: 650;
-}
-.record-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-.record-topline,
-.record-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-.record-topline strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-}
-.record-topline text {
-  color: var(--app-color-danger);
-  font-size: 27rpx;
-  font-weight: 650;
-}
-.record-topline text.income {
-  color: var(--app-color-success);
-}
-.record-meta {
-  margin-top: 12rpx;
-}
-.record-copy {
-  margin-top: 12rpx;
-  line-height: 1.6;
-}
-.record-copy.danger {
-  color: var(--app-color-danger);
-}
-.record-footer {
-  margin-top: 18rpx;
-  padding-top: 16rpx;
-  border-top: 1px solid var(--app-divider-color);
+.wallet-hero text,
+.wallet-hero strong,
+.wallet-hero view {
+  color: inherit;
 }
 </style>

@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import type { LeaseOut } from '@/features/organization-rental/service'
+import type { LeaseOut } from '@/pages-org-rental/api/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
-import { formatOrganizationDateTime, formatOrganizationHouseTitle, formatOrganizationMoney, getOrganizationLeaseStatusTone } from '@/domain/organization-rental'
-import { getOrganizationLease } from '@/features/organization-rental/service'
+import { formatOrganizationDateTime, formatOrganizationHouseTitle, formatOrganizationMoney, getOrganizationLeaseStatusTone } from '@/pages-org-rental/domain/organization-rental'
+import { getOrganizationLease } from '@/pages-org-rental/api/organization-rental'
 import { getOrganizationHouseDetailRoute, getOrganizationLeaseFormRoute, getOrganizationViewingDetailRoute } from '@/modules/routes'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppDetailPage from '@/components/app/AppDetailPage.vue'
+import AppStatusTag from '@/components/app/AppStatusTag.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '租约详情' } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '租约详情' } })
 
 const appContextStore = useAppContextStore()
 const leaseId = ref(0)
@@ -57,24 +59,31 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="detail-page">
-    <AppLoading v-if="loading" text="正在加载租约…" />
-    <AppErrorView v-else-if="loadError" title="租约加载失败" :message="loadError" @retry="loadLease" />
-    <template v-else-if="lease">
-      <view class="hero-card">
-        <view class="hero-topline">
-          <wd-tag :type="getOrganizationLeaseStatusTone(lease.status)" variant="light">
-            {{ lease.status__mapping }}
-          </wd-tag><text>{{ formatOrganizationDateTime(lease.sign_at) }}</text>
+  <AppDetailPage
+    :loading="loading"
+    :error="loadError"
+    loading-text="正在加载租约…"
+    error-title="租约加载失败"
+    :show-actions="Boolean(lease)"
+    @retry="loadLease"
+  >
+    <template #navigation>
+      <AppCustomNavigation title="租约详情" back scroll-mode="sticky" />
+    </template>
+    <template v-if="lease">
+      <view class="mx-app-gutter app-card-plain p-4">
+        <view class="app-row-between text-xs text-content-muted">
+          <AppStatusTag :text="lease.status__mapping" :tone="getOrganizationLeaseStatusTone(lease.status)" />
+          <text>{{ formatOrganizationDateTime(lease.sign_at) }}</text>
         </view>
-        <view class="house-title">
+        <view class="mt-2.5 text-lg text-content-primary font-bold">
           {{ formatOrganizationHouseTitle(lease.house) }}
         </view>
-        <view class="tenant">
+        <view class="mt-1.5 text-xs text-content-muted">
           {{ lease.tenant.name }} · {{ lease.tenant.phone }}
         </view>
-        <view class="rent">
-          {{ formatOrganizationMoney(lease.monthly_rent) }}<text>/月</text>
+        <view class="mt-2.5 text-xl text-app-price font-bold">
+          {{ formatOrganizationMoney(lease.monthly_rent) }}<text class="ml-0.5 text-xs font-normal">/月</text>
         </view>
       </view>
       <wd-cell-group title="租约信息" insert>
@@ -88,60 +97,12 @@ onLoad((options) => {
         <wd-cell title="房源详情" is-link @click="openHouse" />
         <wd-cell v-if="lease.source_viewing_record_id" title="来源带看" is-link @click="openViewing" />
       </wd-cell-group>
-      <view class="action-card">
-        <wd-button block variant="plain" @click="editLease">
-          编辑租约
-        </wd-button>
-      </view>
     </template>
-  </view>
-</template>
 
-<style scoped lang="scss">
-.detail-page {
-  min-height: 100vh;
-  padding: 24rpx 0 56rpx;
-  background: var(--app-bg-page);
-}
-.hero-card {
-  margin: 0 24rpx 24rpx;
-  padding: 32rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.hero-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.house-title {
-  margin-top: 20rpx;
-  color: var(--app-text-primary);
-  font-size: 35rpx;
-  font-weight: 700;
-}
-.tenant {
-  margin-top: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.rent {
-  margin-top: 22rpx;
-  color: var(--app-color-price);
-  font-size: 42rpx;
-  font-weight: 700;
-}
-.rent text {
-  margin-left: 4rpx;
-  font-size: 23rpx;
-  font-weight: 400;
-}
-.action-card {
-  margin: 24rpx;
-  padding: 24rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-</style>
+    <template #actions>
+      <wd-button block variant="plain" @click="editLease">
+        编辑租约
+      </wd-button>
+    </template>
+  </AppDetailPage>
+</template>

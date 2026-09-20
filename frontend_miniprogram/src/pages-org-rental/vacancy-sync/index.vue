@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import type { VacancySyncIn, VacancySyncOut } from '@/features/organization-rental/service'
+import type { VacancySyncIn, VacancySyncOut } from '@/pages-org-rental/api/organization-rental'
 import { computed, ref } from 'vue'
-import { getVacancyBuildingMatchStatusLabel, getVacancyLineStatusLabel, isVacancySyncPreviewStale } from '@/domain/organization-rental'
-import { applyVacancySync, previewVacancySync } from '@/features/organization-rental/service'
+import { getVacancyBuildingMatchStatusLabel, getVacancyLineStatusLabel, isVacancySyncPreviewStale } from '@/pages-org-rental/domain/organization-rental'
+import { applyVacancySync, previewVacancySync } from '@/pages-org-rental/api/organization-rental'
+import AppNotice from '@/components/app/AppNotice.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '房表同步' } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '房表同步' } })
 
 const appContextStore = useAppContextStore()
 const rawText = ref('')
@@ -100,6 +103,7 @@ function updateIgnoredLine(lineNumber: number, event: { value: string | number |
 
 <template>
   <view class="sync-page">
+    <AppCustomNavigation title="房表同步" back scroll-mode="sticky" />
     <view class="intro-card">
       <view class="title">
         粘贴空置房表
@@ -120,9 +124,14 @@ function updateIgnoredLine(lineNumber: number, event: { value: string | number |
           {{ result.can_apply ? '可执行' : '需处理错误' }}
         </wd-tag>
       </view>
-      <view v-if="previewStale" class="stale-tip">
-        房表文本已修改，当前预览已失效，请重新预览。
-      </view>
+      <AppNotice
+        v-if="previewStale"
+        class="stale-notice"
+        tone="warning"
+        title="当前预览已失效"
+        description="房表文本已经修改，请重新生成预览后再执行同步。"
+        compact
+      />
       <view class="metric-grid">
         <view><strong>{{ result.summary.buildings }}</strong><text>楼栋</text></view>
         <view><strong>{{ result.summary.valid_lines }}</strong><text>有效行</text></view>
@@ -190,8 +199,11 @@ function updateIgnoredLine(lineNumber: number, event: { value: string | number |
 <style scoped lang="scss">
 .sync-page {
   min-height: 100vh;
-  padding: 24rpx;
+  padding: 0 24rpx 56rpx;
   background: var(--app-bg-page);
+}
+.sync-page :deep(.app-custom-navigation) {
+  margin: 0 -24rpx 24rpx;
 }
 .intro-card,
 .result-card {
@@ -247,13 +259,8 @@ function updateIgnoredLine(lineNumber: number, event: { value: string | number |
   font-size: 22rpx;
   line-height: 1.7;
 }
-.stale-tip {
+.stale-notice {
   margin-top: 20rpx;
-  padding: 18rpx;
-  border-radius: 14rpx;
-  background: var(--app-bg-warm-soft);
-  color: var(--app-color-warning);
-  font-size: 22rpx;
 }
 .block-list {
   display: flex;

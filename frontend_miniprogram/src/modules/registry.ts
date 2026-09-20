@@ -35,6 +35,12 @@ const defaultRoutes: Record<AppMode, string> = {
 const publicRoutePrefixes = [
   '/pages/houses/detail',
   APP_ROUTES.houseMatch,
+  APP_ROUTES.invitation,
+  APP_ROUTES.landlordInvite,
+  APP_ROUTES.pcLogin,
+  APP_ROUTES.saasHome,
+  APP_ROUTES.saasOnboarding,
+  APP_ROUTES.saasEnterprise,
   ...getProductSubpackageRoutePrefixes(['housing']),
 ]
 

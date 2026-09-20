@@ -63,15 +63,19 @@ export default uniHelper({
   },
 }, {
   files: [
+    'src/components/**/*.{ts,vue}',
     'src/pages/**/*.{ts,vue}',
     'src/pages-*/**/*.{ts,vue}',
     'src/features/**/*.{ts,vue}',
+  ],
+  ignores: [
+    'src/pages-*/api/**/*.{ts,vue}',
   ],
   rules: {
     'no-restricted-imports': ['error', {
       patterns: [{
         group: ['@/services/openapi', '@/services/openapi/**'],
-        message: '页面和 feature 必须通过手写 service 访问 OpenAPI，不能直接依赖生成目录。',
+        message: '页面、组件和 feature 必须通过接口适配层访问 OpenAPI，不能直接依赖生成目录。',
       }],
     }],
     'no-restricted-syntax': ['error', {

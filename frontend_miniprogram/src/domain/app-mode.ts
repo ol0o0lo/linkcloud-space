@@ -88,7 +88,7 @@ export function buildAppModeOptions(input: AppModeOptionsInput): AppModeOption[]
     {
       key: 'personal',
       title: '租客端',
-      description: '我要找房、收藏与本人服务',
+      description: '找房、收藏与个人服务',
       selection: { mode: 'personal' },
       active: input.mode === 'personal',
     },
@@ -102,7 +102,7 @@ export function buildAppModeOptions(input: AppModeOptionsInput): AppModeOption[]
     ...input.organizations.map(organization => ({
       key: `organization:${organization.slug}`,
       title: `中介端 · ${organization.name}`,
-      description: organization.is_primary ? '主要使用的组织' : '进入该组织',
+      description: organization.is_primary ? '默认组织' : '中介工作台',
       selection: { mode: 'organization' as const, organizationSlug: organization.slug },
       active: input.mode === 'organization' && input.organizationSlug === organization.slug,
     })),
@@ -120,7 +120,7 @@ export function getAppModePresentation(input: AppModePresentationInput): { title
   if (input.mode === 'organization' && input.organization) {
     return {
       title: `中介端 · ${input.organization.name}`,
-      description: input.organization.is_primary ? '主要使用的组织' : '进入该组织',
+      description: input.organization.is_primary ? '默认组织' : '中介工作台',
     }
   }
 
@@ -133,6 +133,6 @@ export function getAppModePresentation(input: AppModePresentationInput): { title
 
   return {
     title: '租客端',
-    description: '我要找房、收藏与本人服务',
+    description: '找房、收藏与个人服务',
   }
 }

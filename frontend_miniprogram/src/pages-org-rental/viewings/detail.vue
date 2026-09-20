@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import type { OrganizationViewingAction } from '@/domain/organization-rental'
-import type { ViewingRecordOut } from '@/features/organization-rental/service'
+import type { OrganizationViewingAction } from '@/pages-org-rental/domain/organization-rental'
+import type { ViewingRecordOut } from '@/pages-org-rental/api/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
-import { formatOrganizationDateTime, formatOrganizationHouseTitle, getOrganizationViewingStatusTone, getViewingActions } from '@/domain/organization-rental'
-import { getAllocationCapabilities, getOrganizationViewing, patchOrganizationViewing } from '@/features/organization-rental/service'
+import { formatOrganizationDateTime, formatOrganizationHouseTitle, getOrganizationViewingStatusTone, getViewingActions } from '@/pages-org-rental/domain/organization-rental'
+import { getAllocationCapabilities, getOrganizationViewing, patchOrganizationViewing } from '@/pages-org-rental/api/organization-rental'
 import { getOrganizationHouseDetailRoute, getOrganizationLeaseDetailRoute, getOrganizationSigningRoute } from '@/modules/routes'
-import AppBottomAction from '@/shared/components/AppBottomAction.vue'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppDetailPage from '@/components/app/AppDetailPage.vue'
+import AppStatusTag from '@/components/app/AppStatusTag.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '带看详情' } })
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '带看详情' } })
 
 const actionLabels: Record<OrganizationViewingAction, string> = {
   viewed: '已带看',
@@ -89,18 +90,24 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="detail-page">
-    <AppLoading v-if="loading" text="正在加载带看…" />
-    <AppErrorView v-else-if="loadError" title="带看加载失败" :message="loadError" @retry="loadRecord" />
-    <template v-else-if="record">
-      <view class="hero-card">
-        <wd-tag :type="getOrganizationViewingStatusTone(record.status)" variant="light">
-          {{ record.status__mapping }}
-        </wd-tag>
-        <view class="house-title">
+  <AppDetailPage
+    :loading="loading"
+    :error="loadError"
+    loading-text="正在加载带看…"
+    error-title="带看加载失败"
+    :show-actions="actions.length > 0"
+    @retry="loadRecord"
+  >
+    <template #navigation>
+      <AppCustomNavigation title="带看详情" back scroll-mode="sticky" />
+    </template>
+    <template v-if="record">
+      <view class="mx-app-gutter app-card-plain p-4">
+        <AppStatusTag :text="record.status__mapping" :tone="getOrganizationViewingStatusTone(record.status)" />
+        <view class="mt-2 text-lg text-content-primary font-bold">
           {{ formatOrganizationHouseTitle(record.house) }}
         </view>
-        <view class="customer">
+        <view class="mt-1.5 text-xs text-content-muted">
           {{ record.customer_name }} · {{ record.customer_phone }}
         </view>
       </view>
@@ -115,44 +122,16 @@ onLoad((options) => {
         <wd-cell v-if="record.signed_lease_id" title="成交租约" is-link @click="openLease" />
         <wd-cell v-else-if="record.status === 'converted' && canSubmitSigning" title="登记签约" is-link @click="openSigning" />
       </wd-cell-group>
-      <AppBottomAction v-if="actions.length">
-        <view class="action-row">
+    </template>
+
+    <template #actions>
+      <view class="w-full flex flex-wrap justify-end gap-1.5">
+        <template v-if="record">
           <wd-button v-for="action in actions" :key="action" size="small" :type="action === 'canceled' ? 'danger' : (action === 'no_show' ? 'warning' : 'primary')" :variant="action === 'converted' ? 'base' : 'plain'" :loading="updatingAction === action" :disabled="updatingAction !== null" @click="updateStatus(action)">
             {{ actionLabels[action] }}
           </wd-button>
-        </view>
-      </AppBottomAction>
+        </template>
+      </view>
     </template>
-  </view>
+  </AppDetailPage>
 </template>
-
-<style scoped lang="scss">
-.detail-page {
-  min-height: 100vh;
-  padding: 24rpx 0 160rpx;
-  background: var(--app-bg-page);
-}
-.hero-card {
-  margin: 0 24rpx 24rpx;
-  padding: 32rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.house-title {
-  margin-top: 18rpx;
-  color: var(--app-text-primary);
-  font-size: 35rpx;
-  font-weight: 700;
-}
-.customer {
-  margin-top: 12rpx;
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-}
-.action-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 12rpx;
-}
-</style>

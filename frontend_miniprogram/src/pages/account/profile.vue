@@ -3,11 +3,13 @@ import type { MeOut } from '@/features/account/service'
 import { onShow } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 import { getCurrentUser, saveCurrentUserProfile, uploadPersonalAvatar } from '@/features/account/service'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppPage from '@/components/app/AppPage.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '个人资料' } })
+definePage({ style: { navigationBarTitleText: '个人资料', navigationStyle: 'custom' } })
 
 const appContextStore = useAppContextStore()
 const user = ref<MeOut | null>(null)
@@ -87,61 +89,70 @@ onShow(() => void loadProfile())
 </script>
 
 <template>
-  <view class="account-page">
-    <AppLoading v-if="loading && !user" text="正在加载个人资料…" />
-    <AppErrorView v-else-if="loadError && !user" :message="loadError" @retry="loadProfile" />
-    <template v-else-if="user">
-      <view class="profile-card">
-        <image class="avatar" :src="avatarUrl" mode="aspectFill" />
-        <view class="avatar-main">
-          <view class="avatar-title">
-            头像
+  <AppPage variant="form" gutter="none">
+    <template #navigation>
+      <AppCustomNavigation title="个人资料" back scroll-mode="sticky" />
+    </template>
+    <view class="account-page">
+      <AppLoading v-if="loading && !user" text="正在加载个人资料…" />
+      <AppErrorView v-else-if="loadError && !user" :message="loadError" @retry="loadProfile" />
+      <template v-else-if="user">
+        <view class="profile-card">
+          <image class="avatar" :src="avatarUrl" mode="aspectFill" />
+          <view class="avatar-main">
+            <view class="avatar-title">
+              头像
+            </view>
+            <view class="avatar-copy">
+              支持 JPG、PNG、WebP，最大 10MB
+            </view>
+            <wd-button size="small" variant="plain" :loading="uploading" @click="chooseAvatar">
+              更换头像
+            </wd-button>
           </view>
-          <view class="avatar-copy">
-            支持 JPG、PNG、WebP，最大 10MB
-          </view>
-          <wd-button size="small" variant="plain" :loading="uploading" @click="chooseAvatar">
-            更换头像
+        </view>
+
+        <view class="form-card">
+          <wd-input v-model="nickname" label="昵称" clearable :maxlength="64" placeholder="请输入昵称" />
+          <wd-input v-model="timezone" label="时区" clearable placeholder="例如 Asia/Shanghai" />
+          <wd-input :model-value="user.email" label="邮箱" readonly />
+          <wd-input :model-value="user.phone_national_number || '未绑定'" label="手机号" readonly />
+        </view>
+
+        <view class="save-action">
+          <wd-button block size="large" :loading="saving" @click="saveProfile">
+            保存资料
           </wd-button>
         </view>
-      </view>
-
-      <view class="form-card">
-        <wd-input v-model="nickname" label="昵称" clearable :maxlength="64" placeholder="请输入昵称" />
-        <wd-input v-model="timezone" label="时区" clearable placeholder="例如 Asia/Shanghai" />
-        <wd-input :model-value="user.email" label="邮箱" readonly />
-        <wd-input :model-value="user.phone_national_number || '未绑定'" label="手机号" readonly />
-      </view>
-
-      <wd-button block size="large" :loading="saving" @click="saveProfile">
-        保存资料
-      </wd-button>
-    </template>
-  </view>
+      </template>
+    </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
 .account-page {
   min-height: 100vh;
-  padding: 28rpx 24rpx 56rpx;
+  padding: 48rpx 40rpx 28rpx;
   background: var(--app-bg-page);
   box-sizing: border-box;
 }
 .profile-card,
 .form-card {
   padding: 28rpx;
-  border-radius: 24rpx;
+  border-radius: 32rpx;
   background: var(--app-bg-card);
 }
 .profile-card {
   display: flex;
   align-items: center;
   gap: 24rpx;
-  margin-bottom: 22rpx;
+  min-height: 248rpx;
+  margin-bottom: 52rpx;
+  box-sizing: border-box;
 }
 .avatar {
-  width: 116rpx;
-  height: 116rpx;
+  width: 144rpx;
+  height: 144rpx;
   border-radius: 50%;
   background: var(--app-bg-subtle);
 }
@@ -160,6 +171,27 @@ onShow(() => void loadProfile())
   font-size: 22rpx;
 }
 .form-card {
-  margin-bottom: 28rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 28rpx;
+  margin-bottom: 48rpx;
+  padding: 0;
+  background: transparent;
+}
+:deep(.form-card .wd-input) {
+  overflow: hidden;
+  min-height: 112rpx;
+  padding: 16rpx 28rpx;
+  border: 1rpx solid var(--app-border-color);
+  border-radius: 28rpx;
+  box-sizing: border-box;
+  background: var(--app-bg-card);
+}
+.save-action {
+  position: sticky;
+  bottom: 0;
+  padding-top: 28rpx;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: linear-gradient(180deg, transparent, var(--app-bg-page) 28%);
 }
 </style>

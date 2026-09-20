@@ -7,13 +7,16 @@ import { getHouseMatchErrorCopy, resolveHouseMatchError } from '@/domain/house-m
 import type { HouseMatchErrorKind } from '@/domain/house-match'
 import { getHouseMatchDetailRoute } from '@/modules/routes'
 import { getPublicHouseMatchHouse, getPublicHouseMatchShare } from '@/features/house-match/service'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppPage from '@/components/app/AppPage.vue'
 
 definePage({
   excludeLoginPath: true,
   style: {
     navigationBarTitleText: '推荐房源详情',
+    navigationStyle: 'custom',
   },
 })
 
@@ -80,107 +83,136 @@ onShareAppMessage(() => ({
 </script>
 
 <template>
-  <view class="detail-page">
-    <AppLoading v-if="loading" text="正在加载推荐房源…" />
-    <AppErrorView
-      v-else-if="errorCopy"
-      :title="errorCopy.title"
-      :message="errorKind === 'not-found' ? '该房源可能已不在本次推荐中，或链接不完整。' : errorCopy.tip"
-      :retryable="errorKind === 'load-failed'"
-      @retry="loadDetail"
-    />
-    <template v-else-if="house">
-      <swiper v-if="house.images.length" class="gallery" indicator-dots circular>
-        <swiper-item v-for="image in house.images" :key="image.media_id">
-          <image class="gallery__image" :src="image.url || image.thumbnail || ''" mode="aspectFill" />
-        </swiper-item>
-      </swiper>
-      <view v-else class="gallery gallery--empty">
-        暂无房源图片
-      </view>
-
-      <view class="section hero-card">
-        <view class="price-row">
-          <view class="price">
-            <text class="price__amount">{{ house.asking_rent || '面议' }}</text><text v-if="house.asking_rent"> 元/月</text>
-          </view>
-          <wd-tag v-if="house.has_elevator_access" type="success" variant="light">
-            有电梯
-          </wd-tag>
-        </view>
-        <view class="title">
-          {{ title }}
-        </view>
-        <view class="facts">
-          <view><strong>{{ formatHouseLayout(house.bedrooms, house.living_rooms) }}</strong><text>户型</text></view>
-          <view><strong>{{ house.interior_area || house.area || '--' }}㎡</strong><text>面积</text></view>
-          <view><strong>{{ house.floor ?? '--' }} 层</strong><text>楼层</text></view>
-        </view>
-        <view class="location">
-          {{ location }}
-        </view>
-      </view>
-
-      <view v-if="house.effective_tags.length" class="section">
-        <view class="section-title">
-          房源亮点
-        </view>
-        <view class="tags">
-          <wd-tag v-for="tag in house.effective_tags" :key="tag" variant="light" type="primary">
-            {{ tag }}
-          </wd-tag>
-        </view>
-      </view>
-
-      <view class="section">
-        <view class="section-title">
-          房源信息
-        </view>
-        <view class="info-grid">
-          <view><text>朝向</text><strong>{{ house.orientation__mapping || '待完善' }}</strong></view>
-          <view><text>装修</text><strong>{{ house.decoration__mapping || '待完善' }}</strong></view>
-          <view><text>卫生间</text><strong>{{ house.bathrooms ?? '--' }}</strong></view>
-          <view><text>厨房</text><strong>{{ house.kitchens ?? '--' }}</strong></view>
-          <view><text>阳台</text><strong>{{ house.balconies ?? '--' }}</strong></view>
-          <view><text>押金</text><strong>{{ house.deposit_amount || '--' }}</strong></view>
-        </view>
-      </view>
-
-      <view v-if="house.public_description" class="section">
-        <view class="section-title">
-          房源介绍
-        </view>
-        <view class="description">
-          {{ house.public_description }}
-        </view>
-      </view>
-
-      <view v-if="share?.consultant" class="section consultant-card">
-        <image v-if="share.consultant.avatar_url" class="consultant-avatar" :src="share.consultant.avatar_url" mode="aspectFill" />
-        <view v-else class="consultant-avatar consultant-avatar--empty">
-          {{ share.consultant.name.slice(0, 1) }}
-        </view>
-        <view class="consultant-info">
-          <view class="consultant-name">
-            {{ share.consultant.name }}
-          </view>
-          <view class="consultant-label">
-            本次配房顾问
-          </view>
-        </view>
-        <wd-button v-if="share.consultant.phone" size="small" @click="callConsultant(share.consultant.phone)">
-          电话咨询
-        </wd-button>
-      </view>
+  <AppPage variant="detail" gutter="none">
+    <template #navigation>
+      <AppCustomNavigation title="推荐房源详情" back scroll-mode="sticky">
+        <template #action>
+          <button class="navigation-action" open-type="share">
+            分享
+          </button>
+        </template>
+      </AppCustomNavigation>
     </template>
-  </view>
+    <view class="detail-page">
+      <AppLoading v-if="loading" text="正在加载推荐房源…" />
+      <AppErrorView
+        v-else-if="errorCopy"
+        :title="errorCopy.title"
+        :message="errorKind === 'not-found' ? '该房源可能已不在本次推荐中，或链接不完整。' : errorCopy.tip"
+        :retryable="errorKind === 'load-failed'"
+        @retry="loadDetail"
+      />
+      <template v-else-if="house">
+        <swiper v-if="house.images.length" class="gallery" indicator-dots circular>
+          <swiper-item v-for="image in house.images" :key="image.media_id">
+            <image class="gallery__image" :src="image.url || image.thumbnail || ''" mode="aspectFill" />
+          </swiper-item>
+        </swiper>
+        <view v-else class="gallery gallery--empty">
+          暂无房源图片
+        </view>
+
+        <view class="section hero-card">
+          <view class="price-row">
+            <view class="price">
+              <text class="price__amount">{{ house.asking_rent || '面议' }}</text><text v-if="house.asking_rent"> 元/月</text>
+            </view>
+            <wd-tag v-if="house.has_elevator_access" type="success" variant="light">
+              有电梯
+            </wd-tag>
+          </view>
+          <view class="title">
+            {{ title }}
+          </view>
+          <view class="location">
+            {{ location }}
+          </view>
+          <view class="facts">
+            <view><strong>{{ formatHouseLayout(house.bedrooms, house.living_rooms) }}</strong></view>
+            <view><strong>{{ house.interior_area || house.area || '--' }}㎡</strong></view>
+            <view><strong>{{ house.floor ?? '--' }} 层</strong></view>
+          </view>
+        </view>
+
+        <view v-if="share?.remark" class="recommendation-note">
+          <view class="recommendation-note__bar" />
+          <view><strong>推荐说明</strong><text>{{ share.remark }}</text></view>
+        </view>
+
+        <view v-if="house.effective_tags.length" class="section">
+          <view class="section-title">
+            房源亮点
+          </view>
+          <view class="tags">
+            <wd-tag v-for="tag in house.effective_tags" :key="tag" variant="light" type="primary">
+              {{ tag }}
+            </wd-tag>
+          </view>
+        </view>
+
+        <view class="section">
+          <view class="section-title">
+            房源信息
+          </view>
+          <view class="info-grid">
+            <view><text>朝向</text><strong>{{ house.orientation__mapping || '待完善' }}</strong></view>
+            <view><text>装修</text><strong>{{ house.decoration__mapping || '待完善' }}</strong></view>
+            <view><text>卫生间</text><strong>{{ house.bathrooms ?? '--' }}</strong></view>
+            <view><text>厨房</text><strong>{{ house.kitchens ?? '--' }}</strong></view>
+            <view><text>阳台</text><strong>{{ house.balconies ?? '--' }}</strong></view>
+            <view><text>押金</text><strong>{{ house.deposit_amount || '--' }}</strong></view>
+          </view>
+        </view>
+
+        <view v-if="house.public_description" class="section">
+          <view class="section-title">
+            房源介绍
+          </view>
+          <view class="description">
+            {{ house.public_description }}
+          </view>
+        </view>
+
+        <view v-if="share?.consultant" class="section consultant-card">
+          <image v-if="share.consultant.avatar_url" class="consultant-avatar" :src="share.consultant.avatar_url" mode="aspectFill" />
+          <view v-else class="consultant-avatar consultant-avatar--empty">
+            {{ share.consultant.name.slice(0, 1) }}
+          </view>
+          <view class="consultant-info">
+            <view class="consultant-name">
+              {{ share.consultant.name }}
+            </view>
+            <view class="consultant-label">
+              本次配房顾问
+            </view>
+          </view>
+          <wd-button v-if="share.consultant.phone" size="small" @click="callConsultant(share.consultant.phone)">
+            电话咨询
+          </wd-button>
+        </view>
+      </template>
+    </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
 .detail-page {
-  min-height: 100vh;
+  min-height: inherit;
   padding-bottom: 60rpx;
   background: var(--app-bg-page);
+}
+.navigation-action {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--app-color-brand);
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 56rpx;
+  background: transparent;
+}
+.navigation-action::after {
+  border: 0;
 }
 
 .gallery {
@@ -241,13 +273,15 @@ onShareAppMessage(() => ({
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   margin-top: 30rpx;
+  padding: 20rpx 12rpx;
+  border-radius: 20rpx;
+  background: var(--app-bg-subtle);
   text-align: center;
 }
 
 .facts view {
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
   border-right: 1px solid var(--app-divider-color);
 }
 
@@ -260,15 +294,41 @@ onShareAppMessage(() => ({
   font-size: 28rpx;
 }
 
-.facts text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-
 .location {
-  margin-top: 28rpx;
+  margin-top: 14rpx;
+  margin-bottom: 22rpx;
   color: var(--app-text-secondary);
   font-size: 25rpx;
+}
+.recommendation-note {
+  display: flex;
+  gap: 22rpx;
+  margin: 20rpx 24rpx 0;
+  padding: 26rpx 28rpx;
+  border: 1rpx solid var(--app-border-brand-soft);
+  border-radius: 28rpx;
+  background: var(--app-bg-brand-soft);
+}
+.recommendation-note__bar {
+  width: 8rpx;
+  flex: 0 0 8rpx;
+  border-radius: 999rpx;
+  background: var(--app-color-brand);
+}
+.recommendation-note > view:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+.recommendation-note strong {
+  color: var(--app-text-primary);
+  font-size: 27rpx;
+}
+.recommendation-note text {
+  color: var(--app-text-secondary);
+  font-size: 23rpx;
+  line-height: 1.65;
+  white-space: pre-wrap;
 }
 
 .section-title {

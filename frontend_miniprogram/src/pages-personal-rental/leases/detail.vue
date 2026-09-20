@@ -5,10 +5,13 @@ import { ref } from 'vue'
 import { formatTenantHouseTitle, getTenantLeaseStatusTone } from '@/domain/tenant-rental'
 import { getTenantLease } from '@/features/tenant-rental/service'
 import { getHouseDetailRoute, getTenantViewingDetailRoute } from '@/modules/routes'
-import AppErrorView from '@/shared/components/AppErrorView.vue'
-import AppLoading from '@/shared/components/AppLoading.vue'
+import AppErrorView from '@/components/app/AppErrorView.vue'
+import AppLoading from '@/components/app/AppLoading.vue'
+import AppNotice from '@/components/app/AppNotice.vue'
+import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppPage from '@/components/app/AppPage.vue'
 
-definePage({ style: { navigationBarTitleText: '租约详情' } })
+definePage({ style: { navigationBarTitleText: '租约详情', navigationStyle: 'custom' } })
 
 const leaseId = ref(0)
 const lease = ref<TenantLeaseOut | null>(null)
@@ -55,50 +58,82 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="detail-page">
-    <AppLoading v-if="loading" text="正在加载租约…" />
-    <AppErrorView v-else-if="loadError" title="租约加载失败" :message="loadError" @retry="loadLease" />
-    <template v-else-if="lease">
-      <view class="hero-card">
-        <view class="hero-topline">
-          <wd-tag :type="getTenantLeaseStatusTone(lease.status)" variant="light">
-            {{ lease.status__mapping }}
-          </wd-tag>
-          <text>{{ lease.organization.name }}</text>
-        </view>
-        <view class="house-title">
-          {{ formatTenantHouseTitle(lease.house) }}
-        </view>
-        <view class="rent">
-          <strong>¥{{ lease.monthly_rent }}</strong><text>/月</text>
-        </view>
-      </view>
-      <wd-cell-group title="租约信息" insert>
-        <wd-cell title="租期" :value="`${lease.start_date} 至 ${lease.end_date}`" />
-        <wd-cell title="签约时间" :value="formatDateTime(lease.sign_at)" />
-        <wd-cell title="押金" :value="lease.deposit ? `¥${lease.deposit}` : '未登记'" />
-        <wd-cell title="付款日" :value="`每月 ${lease.payment_day} 日`" />
-        <wd-cell title="合同文件" :value="lease.contract_files.length ? `${lease.contract_files.length} 份` : '未上传'" />
-      </wd-cell-group>
-      <wd-cell-group title="相关内容" insert>
-        <wd-cell title="房源详情" is-link @click="openHouse" />
-        <wd-cell v-if="lease.source_viewing_record_id" title="来源带看" is-link @click="openSourceViewing" />
-      </wd-cell-group>
+  <AppPage variant="detail" gutter="none">
+    <template #navigation>
+      <AppCustomNavigation title="租约详情" back scroll-mode="sticky" />
     </template>
-  </view>
+    <view class="detail-page">
+      <AppLoading v-if="loading" text="正在加载租约…" />
+      <AppErrorView v-else-if="loadError" title="租约加载失败" :message="loadError" @retry="loadLease" />
+      <template v-else-if="lease">
+        <view class="hero-card">
+          <view class="hero-topline">
+            <wd-tag :type="getTenantLeaseStatusTone(lease.status)" variant="light">
+              {{ lease.status__mapping }}
+            </wd-tag>
+            <text>{{ lease.organization.name }}</text>
+          </view>
+          <view class="house-title">
+            {{ formatTenantHouseTitle(lease.house) }}
+          </view>
+          <view class="rent">
+            <strong>¥{{ lease.monthly_rent }}</strong><text>/月</text>
+          </view>
+        </view>
+        <view class="detail-card">
+          <view class="detail-card__title">
+            租约信息
+          </view>
+          <view class="detail-row">
+            <text>租期</text><strong>{{ lease.start_date }} 至 {{ lease.end_date }}</strong>
+          </view>
+          <view class="detail-row">
+            <text>签约时间</text><strong>{{ formatDateTime(lease.sign_at) }}</strong>
+          </view>
+          <view class="detail-row">
+            <text>押金</text><strong>{{ lease.deposit ? `¥${lease.deposit}` : '未登记' }}</strong>
+          </view>
+          <view class="detail-row">
+            <text>付款日</text><strong>每月 {{ lease.payment_day }} 日</strong>
+          </view>
+          <view class="detail-row">
+            <text>合同文件</text><strong>{{ lease.contract_files.length ? `${lease.contract_files.length} 份` : '未上传' }}</strong>
+          </view>
+        </view>
+        <view class="detail-card">
+          <view class="detail-card__title">
+            相关内容
+          </view>
+          <view class="detail-row detail-row--link" @click="openHouse">
+            <text>房源详情</text><strong>查看</strong>
+          </view>
+          <view v-if="lease.source_viewing_record_id" class="detail-row detail-row--link" @click="openSourceViewing">
+            <text>来源带看</text><strong>查看</strong>
+          </view>
+        </view>
+        <AppNotice
+          class="lease-notice"
+          title="租约由中介组织维护"
+          description="如合同字段有误，请联系签约组织核对。租客端不会直接修改租约。"
+          compact
+        />
+      </template>
+    </view>
+  </AppPage>
 </template>
 
 <style scoped lang="scss">
 .detail-page {
   min-height: 100vh;
-  padding: 24rpx 0 56rpx;
+  padding: 40rpx 40rpx 72rpx;
   background: var(--app-bg-page);
 }
 .hero-card {
-  margin: 0 24rpx 24rpx;
+  margin-bottom: 24rpx;
   padding: 32rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
+  border: 1rpx solid #bfe5d6;
+  border-radius: 36rpx;
+  background: #ecf9f3;
 }
 .hero-topline {
   display: flex;
@@ -123,5 +158,38 @@ onLoad((options) => {
 .rent text {
   margin-left: 4rpx;
   font-size: 24rpx;
+}
+.detail-card {
+  margin-top: 24rpx;
+  padding: 28rpx 32rpx 10rpx;
+  border-radius: 32rpx;
+  background: var(--app-bg-card);
+}
+.detail-card__title {
+  margin-bottom: 14rpx;
+  color: var(--app-text-primary);
+  font-size: 28rpx;
+  font-weight: 700;
+}
+.detail-row {
+  display: flex;
+  min-height: 86rpx;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  border-top: 1rpx solid var(--app-divider-color);
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+}
+.detail-row strong {
+  color: var(--app-text-primary);
+  font-weight: 500;
+  text-align: right;
+}
+.detail-row--link strong {
+  color: var(--app-color-brand);
+}
+.lease-notice {
+  margin-top: 24rpx;
 }
 </style>

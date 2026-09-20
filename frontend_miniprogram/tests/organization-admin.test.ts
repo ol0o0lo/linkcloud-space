@@ -119,7 +119,7 @@ test('快速切换角色时成员弹层只接受最后一次请求结果', () =>
   assert.match(source, /!roleMembersRequestGuard\.isCurrent\(requestGeneration\)/)
   assert.match(source, /roleMembersRequestGuard\.invalidate\(\)/)
   assert.match(source, /function closeRoleMembers\(\)/)
-  assert.match(source, /<wd-popup[^>]+@close="closeRoleMembers"/)
+  assert.match(source, /<AppBottomSheet[^>]+@close="closeRoleMembers"/)
 })
 
 test('角色页离开时使成员请求失效并关闭成员弹层', () => {
@@ -348,19 +348,21 @@ test('组织管理页面齐全、无占位并遵守 page 到 feature 到 manual 
   assert.match(manualSource, /management_context:\s*'tenant'/)
 })
 
-test('关键安全交互和分页模式由页面显式实现', () => {
+test('关键安全交互保留在页面，分页统一交给共享模块', () => {
   const members = readFileSync(join(sourceRoot, 'pages-org-admin/members/index.vue'), 'utf8')
   const invitations = readFileSync(join(sourceRoot, 'pages-org-admin/invitations/index.vue'), 'utf8')
   const teams = readFileSync(join(sourceRoot, 'pages-org-admin/teams/index.vue'), 'utf8')
   const responsibilities = readFileSync(join(sourceRoot, 'pages-org-admin/responsibilities/index.vue'), 'utf8')
   const subscriptions = readFileSync(join(sourceRoot, 'pages-org-admin/subscription/index.vue'), 'utf8')
   const dispatches = readFileSync(join(sourceRoot, 'pages-org-admin/notification-dispatches/index.vue'), 'utf8')
+  const pagedPage = readFileSync(join(sourceRoot, 'hooks/usePagedPage.ts'), 'utf8')
 
   for (const source of [members, invitations, teams, responsibilities, dispatches]) {
-    assert.match(source, /usePagedQuery/)
-    assert.match(source, /onPullDownRefresh/)
-    assert.match(source, /onReachBottom/)
+    assert.match(source, /usePagedPage/)
+    assert.match(source, /AppPagedList/)
   }
+  assert.match(pagedPage, /onPullDownRefresh/)
+  assert.match(pagedPage, /onReachBottom/)
   assert.doesNotMatch(members, /is_owner\s*:/)
   assert.doesNotMatch(invitations, /is_owner\s*:\s*true/)
   for (const source of [members, invitations, teams, responsibilities, dispatches]) {
@@ -544,7 +546,8 @@ test('通知发送提供详情、发送分页和进行中轮询', () => {
   assert.match(index, /organizationAdminNotificationDispatchDetail/)
   assert.match(detail, /getOrganizationNotificationDispatch/)
   assert.match(detail, /listOrganizationNotificationDispatchDeliveries/)
-  assert.match(detail, /usePagedQuery<NotificationOut>/)
+  assert.match(detail, /usePagedPage<NotificationOut>/)
+  assert.match(detail, /AppPagedList/)
   assert.match(detail, /\['pending', 'sending'\]\.includes/)
   assert.match(detail, /setTimeout/)
   assert.match(detail, /onReachBottom/)
