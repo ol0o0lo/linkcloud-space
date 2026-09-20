@@ -1,98 +1,69 @@
-<p align="center">
-  <a href="https://github.com/unibest-tech/unibest">
-    <img width="160" src="./src/static/logo.svg">
-  </a>
-</p>
+# 链云空间移动端
 
-<h1 align="center">
-  <a href="https://github.com/unibest-tech/unibest" target="_blank">unibest - 最好的 uniapp 开发框架</a>
-</h1>
+`frontend_miniprogram/` 是链云空间面向微信小程序与 H5 的统一客户端，基于 uni-app、Vue 3、TypeScript、Pinia、Wot UI v2 和 UnoCSS。
 
-<div align="center">
-旧仓库 codercup 进不去了，star 也拿不回来，这里也展示一下那个地址的 star.
+当前正式支持：
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/codercup/unibest?style=flat&logo=github)](https://github.com/codercup/unibest)
-[![GitHub forks](https://img.shields.io/github/forks/codercup/unibest?style=flat&logo=github)](https://github.com/codercup/unibest)
+- 微信小程序
+- H5（由 Django `/h5/` 提供生产入口）
 
-</div>
+未来扩展 App 时，应新增 `src/platform/app/` 适配器和对应编译依赖，不在业务页面中散落平台条件分支。
 
-<div align="center">
+## 环境要求
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/feige996/unibest?style=flat&logo=github)](https://github.com/feige996/unibest)
-[![GitHub forks](https://img.shields.io/github/forks/feige996/unibest?style=flat&logo=github)](https://github.com/feige996/unibest)
-[![star](https://gitee.com/feige996/unibest/badge/star.svg?theme=dark)](https://gitee.com/feige996/unibest/stargazers)
-[![fork](https://gitee.com/feige996/unibest/badge/fork.svg?theme=dark)](https://gitee.com/feige996/unibest/members)
-![node version](https://img.shields.io/badge/node-%3E%3D18-green)
-![pnpm version](https://img.shields.io/badge/pnpm-%3E%3D7.30-green)
-![GitHub package.json version (subfolder of monorepo)](https://img.shields.io/github/package-json/v/feige996/unibest)
-![GitHub License](https://img.shields.io/github/license/feige996/unibest)
+- Node.js 22
+- pnpm 10
+- 本地 Django API 默认运行在 `http://localhost:18000`
 
-</div>
+```bash
+source /Users/lan/.nvm/nvm.sh
+nvm use 22
+pnpm install
+```
 
-`unibest` —— 最好的 `uniapp` 开发模板，由 `uniapp` + `Vue3` + `Ts` + `Vite5` + `UnoCss` + `wot-ui` + `z-paging` 构成，使用了最新的前端技术栈，无需依靠 `HBuilderX`，通过命令行方式运行 `web`、`小程序` 和 `App`（编辑器推荐 `VSCode`，可选 `webstorm`）。
+## 常用命令
 
-`unibest` 内置了 `约定式路由`、`layout布局`、`请求封装`、`请求拦截`、`登录拦截`、`UnoCSS`、`i18n多语言` 等基础功能，提供了 `代码提示`、`自动格式化`、`统一配置`、`代码片段` 等辅助功能，让你编写 `uniapp` 拥有 `best` 体验 （ `unibest 的由来`）。
+```bash
+pnpm dev:h5          # H5 开发服务
+pnpm dev:mp          # 微信小程序开发构建
+pnpm build:h5:prod   # H5 生产构建
+pnpm build:mp:prod   # 微信小程序生产构建
+pnpm openapi         # 重新生成 OpenAPI 客户端
+pnpm verify          # 完整质量门禁
+```
 
-![](https://raw.githubusercontent.com/andreasbm/readme/master/screenshots/lines/rainbow.png)
+兼容项目根目录的 Just 命令，保留了 `dev:mp-weixin` 与 `build:mp-weixin` 别名。
 
-<p align="center">
-  <a href="https://unibest.tech/" target="_blank">📖 文档地址(new)</a>
-  <span style="margin:0 10px;">|</span>
-  <a href="https://unibest-tech.github.io/hello-unibest" target="_blank">📱 DEMO 地址</a>
-</p>
+## 架构边界
 
----
+- `src/app/`：应用 Provider、启动边界和全局装配。
+- `src/core/`：配置、错误、生命周期等与框架弱耦合的核心能力。
+- `src/platform/`：H5、微信的平台能力适配。
+- `src/infra/`：HTTP、认证、持久化、上传和埋点基础设施。
+- `src/domain/`：纯 TypeScript 领域结构与规则。
+- `src/modules/`：导航、路由、TabBar、分包和平台支持的唯一模块目录。
+- `src/features/`：按业务能力组织的页面逻辑与组件。
+- `src/pages*/`：uni-app 路由入口，只负责页面元数据和 feature 组合。
+- `src/shared/`：主题、通用组件和组合函数。
+- `src/services/openapi/`：生成代码，禁止手工修改。
 
-注意旧的地址 [codercup](https://github.com/codercup/unibest) 我进不去了，使用新的 [feige996](https://github.com/feige996/unibest)。PR和 issue 也请使用新地址，否则无法合并。
+业务页面和 feature 不应直接调用 `uni.request`、`uni.uploadFile`、`uni.login`，也不应直接依赖 OpenAPI 生成目录；统一通过平台层、基础设施或手写 service 访问。
 
-## 平台兼容性
+## API 配置
 
-| H5  | IOS | 安卓 | 微信小程序 | 字节小程序 | 快手小程序 | 支付宝小程序 | 钉钉小程序 | 百度小程序 |
-| --- | --- | ---- | ---------- | ---------- | ---------- | ------------ | ---------- | ---------- |
-| √   | √   | √    | √          | √          | √          | √            | √          | √          |
+H5 生产环境默认使用同源 `/api`。微信小程序必须按 `envVersion` 配置绝对 API 地址：
 
-注意每种 `UI框架` 支持的平台有所不同，详情请看各 `UI框架` 的官网，也可以看 `unibest` 文档。
+```dotenv
+VITE_API_BASE_URL__WEIXIN_DEVELOP='http://localhost:18000'
+VITE_API_BASE_URL__WEIXIN_TRIAL='https://trial-api.example.com'
+VITE_API_BASE_URL__WEIXIN_RELEASE='https://api.example.com'
+```
 
-## ⚙️ 环境
+微信体验版与正式版必须使用已加入小程序合法域名的 HTTPS 地址。仓库不提供虚假默认生产域名，未配置时应用会在启动阶段明确失败。
 
-- node>=18
-- pnpm>=7.30
-- Vue Official>=2.1.10
-- TypeScript>=5.0
+## 构建产物
 
-## 新版分支 
-- main == base
-- base --> base-i18n
-- base-login --> base-login-i18n
+- H5：`dist/build/h5`
+- 微信小程序：`dist/build/mp-weixin`
 
-## &#x1F4C2; 快速开始
-
-执行 `pnpm create unibest` 创建项目
-执行 `pnpm i` 安装依赖
-执行 `pnpm dev` 运行 `H5`
-执行 `pnpm dev:mp` 运行 `微信小程序`
-
-## 📦 运行（支持热更新）
-
-- web平台： `pnpm dev:h5`, 然后打开 [http://localhost:9000/](http://localhost:9000/)。
-- weixin平台：`pnpm dev:mp` 然后打开微信开发者工具，导入本地文件夹，选择本项目的`dist/dev/mp-weixin` 文件。
-- APP平台：`pnpm dev:app`, 然后打开 `HBuilderX`，导入刚刚生成的`dist/dev/app` 文件夹，选择运行到模拟器(开发时优先使用)，或者运行的安卓/ios基座。(如果是 `安卓` 和 `鸿蒙` 平台，则不用这个方式，可以把整个unibest项目导入到hbx，通过hbx的菜单来运行到对应的平台。)
-
-## 🔗 发布
-
-- web平台： `pnpm build:h5`，打包后的文件在 `dist/build/h5`，可以放到web服务器，如nginx运行。如果最终不是放在根目录，可以在 `manifest.config.ts` 文件的 `h5.router.base` 属性进行修改。
-- weixin平台：`pnpm build:mp`, 打包后的文件在 `dist/build/mp-weixin`，然后通过微信开发者工具导入，并点击右上角的“上传”按钮进行上传。
-- APP平台：`pnpm build:app`, 然后打开 `HBuilderX`，导入刚刚生成的`dist/build/app` 文件夹，选择发行 - APP云打包。(如果是 `安卓` 和 `鸿蒙` 平台，则不用这个方式，可以把整个unibest项目导入到hbx，通过hbx的菜单来发行到对应的平台。)
-
-## 📄 License
-
-[MIT](https://opensource.org/license/mit/)
-
-Copyright (c) 2025 菲鸽
-
-## 捐赠
-
-<p align='center'>
-<img alt="special sponsor appwrite" src="https://oss.laf.run/ukw0y1-site/pay/wepay.png" height="330" style="display:inline-block; height:330px;">
-<img alt="special sponsor appwrite" src="https://oss.laf.run/ukw0y1-site/pay/alipay.jpg" height="330" style="display:inline-block; height:330px; margin-left:10px;">
-</p>
+H5 产物由项目 `collectstatic` 流程复制到 `public/static/dist/h5`。
