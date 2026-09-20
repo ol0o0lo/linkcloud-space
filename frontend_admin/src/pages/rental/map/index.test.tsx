@@ -66,8 +66,7 @@ beforeEach(() => {
     id: 9,
     name: '1栋',
     address: '云栖路 88 号',
-    lat: '23.13',
-    lng: '113.36',
+    location: { latitude: 23.13, longitude: 113.36, coordinate_system: 'gcj02' },
     counts: { total: 1, vacant: 1, listed: 0, rented: 0, renovating: 0 },
   });
   mockListBuildingMap.mockResolvedValue({

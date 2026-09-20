@@ -35,13 +35,28 @@ vi.mock('@ant-design/pro-components', () => ({
       {children}
     </section>
   ),
-  ProTable: ({ actionRef, columns, headerTitle, pagination, request }: any) => {
+  ProTable: ({
+    actionRef,
+    columns,
+    headerTitle,
+    pagination,
+    params,
+    request,
+  }: any) => {
     const [data, setData] = React.useState<any[]>([]);
-    const pageSize = pagination?.defaultPageSize || 10;
+    const pageSize = pagination?.pageSize || pagination?.defaultPageSize || 10;
 
     const load = async () => {
-      const result = await request?.({ current: 1, pageSize });
-      setData(result?.data || []);
+      try {
+        const result = await request?.({
+          current: pagination?.current || 1,
+          pageSize,
+          ...params,
+        });
+        setData(result?.data || []);
+      } catch {
+        setData([]);
+      }
     };
 
     React.useEffect(() => {
@@ -49,7 +64,7 @@ vi.mock('@ant-design/pro-components', () => ({
         actionRef.current = { reload: () => void load() };
       }
       void load();
-    }, []);
+    }, [pagination?.current, pageSize, JSON.stringify(params)]);
 
     return (
       <section>
@@ -93,6 +108,7 @@ describe('SubscriptionsAdminPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/platform-management/subscriptions');
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -191,7 +207,7 @@ describe('SubscriptionsAdminPage', () => {
     fireEvent.click(
       within(
         requireElement(orderRow.closest('tr'), 'Expected order row to render'),
-      ).getByText('登记退款'),
+      ).getByRole('button', { name: '登记退款' }),
     );
     fireEvent.change(screen.getByLabelText('退款金额（分）'), {
       target: { value: '9900' },
@@ -213,6 +229,7 @@ describe('SubscriptionsAdminPage', () => {
       );
       expect(mockListOrders).toHaveBeenCalledTimes(2);
     });
+    expect(await screen.findByText('退款登记成功')).toBeInTheDocument();
   });
 
   it('processes an invoice request and refreshes the invoice table', async () => {
@@ -225,7 +242,7 @@ describe('SubscriptionsAdminPage', () => {
           invoiceTitle.closest('tr'),
           'Expected invoice row to render',
         ),
-      ).getByText('处理开票'),
+      ).getByRole('button', { name: '处理开票' }),
     );
     fireEvent.change(screen.getByLabelText('管理员备注'), {
       target: { value: '资料已核对，进入开票流程' },
@@ -244,6 +261,7 @@ describe('SubscriptionsAdminPage', () => {
       );
       expect(mockListInvoiceRequests).toHaveBeenCalledTimes(2);
     });
+    expect(await screen.findByText('开票处理结果已保存')).toBeInTheDocument();
   });
 
   it('shows late-payment evidence and requires an exception refund proof', async () => {
@@ -257,7 +275,7 @@ describe('SubscriptionsAdminPage', () => {
     expect(row.getByText('用户取消')).toBeInTheDocument();
     expect(row.getByText('WX-LATE-001')).toBeInTheDocument();
 
-    fireEvent.click(row.getByText('登记异常退款'));
+    fireEvent.click(row.getByRole('button', { name: '登记异常退款' }));
     expect(screen.getByText('异常支付只能保留当前订阅')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('退款原因'), {
       target: { value: '迟到付款已在线下退回' },
@@ -269,5 +287,50 @@ describe('SubscriptionsAdminPage', () => {
       { order_id: 12 },
       expect.anything(),
     );
+  });
+
+  it('restores independent order and invoice filters from the URL', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/platform-management/subscriptions?order_page=2&order_keyword=LC2026&order_status=paid&order_refund_status=none&order_created_from=2026-08-01&order_created_to=2026-08-31&invoice_page=3&invoice_keyword=%E9%93%BE%E4%BA%91&invoice_status=pending',
+    );
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockListOrders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 2,
+          page_size: 10,
+          keyword: 'LC2026',
+          status: 'paid',
+          refund_status: 'none',
+          created_from: expect.stringContaining('2026-08-01'),
+          created_to: expect.stringContaining('2026-09-01'),
+        }),
+      );
+      expect(mockListInvoiceRequests).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 3,
+          page_size: 10,
+          keyword: '链云',
+          status: 'pending',
+        }),
+      );
+    });
+  });
+
+  it('distinguishes order load failures and supports retry', async () => {
+    mockListOrders
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce({ items: [], total: 0 });
+
+    renderPage();
+
+    expect(await screen.findByText('订阅订单加载失败')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重新加载订单' }));
+
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledTimes(2));
   });
 });

@@ -112,6 +112,73 @@ export async function appsAccountsApiSignupWithSplitPhone(
   });
 }
 
+/** 确认小程序码电脑登录 POST /api/users/auth/wechat-miniprogram/pc-login/confirm/ */
+export async function appsAccountsApiConfirmWechatMiniprogramPcLogin(
+  body: API.WechatMiniprogramPcLoginConfirmIn,
+  options?: { [key: string]: any }
+) {
+  return request<any>("/api/users/auth/wechat-miniprogram/pc-login/confirm/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 创建小程序码电脑登录二维码 POST /api/users/auth/wechat-miniprogram/qr/ */
+export async function appsAccountsApiCreateWechatMiniprogramQr(
+  body: API.WechatOfficialQrCreateIn,
+  options?: { [key: string]: any }
+) {
+  return request<API.WechatOfficialQrOut>(
+    "/api/users/auth/wechat-miniprogram/qr/",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 查询小程序码电脑登录状态 GET /api/users/auth/wechat-miniprogram/qr/${param0}/ */
+export async function appsAccountsApiGetWechatMiniprogramQrStatus(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsAccountsApiGetWechatMiniprogramQrStatusParams,
+  options?: { [key: string]: any }
+) {
+  const { login_id: param0, ...queryParams } = params;
+  return request<API.WechatOfficialQrStatusOut>(
+    `/api/users/auth/wechat-miniprogram/qr/${param0}/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 完成小程序码电脑登录 POST /api/users/auth/wechat-miniprogram/qr/${param0}/complete/ */
+export async function appsAccountsApiCompleteWechatMiniprogramQrLogin(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsAccountsApiCompleteWechatMiniprogramQrLoginParams,
+  options?: { [key: string]: any }
+) {
+  const { login_id: param0, ...queryParams } = params;
+  return request<any>(
+    `/api/users/auth/wechat-miniprogram/qr/${param0}/complete/`,
+    {
+      method: "POST",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 创建公众号扫码登录二维码 POST /api/users/auth/wechat-official/qr/ */
 export async function appsAccountsApiCreateWechatOfficialQr(
   body: API.WechatOfficialQrCreateIn,

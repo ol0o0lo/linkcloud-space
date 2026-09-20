@@ -10,6 +10,11 @@ const { mockListAccounts, mockLedger, mockAdjust } = vi.hoisted(() => ({
   mockAdjust: vi.fn(),
 }));
 
+function requiredElement<T>(value: T | null | undefined): T {
+  if (!value) throw new Error('缺少预期的测试元素');
+  return value;
+}
+
 vi.mock('@ant-design/pro-components', () => ({
   PageContainer: ({ children, title, subTitle }: any) => (
     <section>
@@ -23,15 +28,24 @@ vi.mock('@ant-design/pro-components', () => ({
     columns,
     headerTitle,
     pagination,
+    params,
     request,
     toolBarRender,
   }: any) => {
     const [data, setData] = React.useState<any[]>([]);
-    const pageSize = pagination?.defaultPageSize || 10;
+    const pageSize = pagination?.pageSize || pagination?.defaultPageSize || 10;
 
     const load = async () => {
-      const result = await request?.({ current: 1, pageSize });
-      setData(result?.data || []);
+      try {
+        const result = await request?.({
+          current: pagination?.current || 1,
+          pageSize,
+          ...params,
+        });
+        setData(result?.data || []);
+      } catch {
+        setData([]);
+      }
     };
 
     React.useEffect(() => {
@@ -39,7 +53,7 @@ vi.mock('@ant-design/pro-components', () => ({
         actionRef.current = { reload: () => void load() };
       }
       void load();
-    }, []);
+    }, [pagination?.current, pageSize, JSON.stringify(params)]);
 
     return (
       <div>
@@ -80,6 +94,7 @@ describe('WalletAccountsPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/wallet-management/accounts');
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -162,7 +177,11 @@ describe('WalletAccountsPage', () => {
       expect(screen.getByText('张*')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByText('查看流水')[0]!);
+    fireEvent.click(
+      requiredElement(
+        screen.getAllByRole('button', { name: '查看流水' }).at(0),
+      ),
+    );
 
     await waitFor(() => {
       expect(mockLedger).toHaveBeenCalledWith({
@@ -172,7 +191,11 @@ describe('WalletAccountsPage', () => {
       });
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '创建调账' }));
+    fireEvent.click(
+      requiredElement(
+        screen.getAllByRole('button', { name: '创建调账' }).at(0),
+      ),
+    );
     fireEvent.change(screen.getByLabelText('用户 ID'), {
       target: { value: '7' },
     });
@@ -185,7 +208,9 @@ describe('WalletAccountsPage', () => {
     fireEvent.change(screen.getByLabelText('备注'), {
       target: { value: '补贴' },
     });
-    fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
+    fireEvent.click(
+      requiredElement(screen.getAllByRole('button', { name: 'OK' }).at(-1)),
+    );
 
     await waitFor(() => {
       expect(mockAdjust).toHaveBeenCalledWith({
@@ -195,5 +220,48 @@ describe('WalletAccountsPage', () => {
         remark: '补贴',
       });
     });
+    expect(await screen.findByText('调账已创建')).toBeInTheDocument();
+  });
+
+  it('restores account filters from the URL', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/wallet-management/accounts?page=2&keyword=alice&created_from=2026-08-01&created_to=2026-08-31',
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <WalletAccountsPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(mockListAccounts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 2,
+          page_size: 10,
+          keyword: 'alice',
+          created_from: expect.stringContaining('2026-08-01'),
+          created_to: expect.stringContaining('2026-09-01'),
+        }),
+      ),
+    );
+  });
+
+  it('distinguishes account load failures and supports retry', async () => {
+    mockListAccounts
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce({ items: [], total: 0 });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <WalletAccountsPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('钱包账户加载失败')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重新加载账户' }));
+    await waitFor(() => expect(mockListAccounts).toHaveBeenCalledTimes(2));
   });
 });

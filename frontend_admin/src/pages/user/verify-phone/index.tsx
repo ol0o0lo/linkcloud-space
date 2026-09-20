@@ -1,6 +1,7 @@
 import { history, Link, useModel, useSearchParams } from '@umijs/max';
 import { Alert, Button, Form, Input, Space, Typography } from 'antd';
 import React, { startTransition, useState } from 'react';
+import { useSmsCodeCountdown } from '@/hooks/useSmsCodeCountdown';
 import { loadAuthenticatedState } from '@/services/manual/authenticatedState';
 import {
   getPublicAuthErrorMessage,
@@ -20,6 +21,11 @@ const VerifyPhonePage: React.FC = () => {
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const {
+    isActive: resendCountdownActive,
+    remainingSeconds: resendRemainingSeconds,
+    start: startResendCountdown,
+  } = useSmsCodeCountdown(60);
   const phone = params.get('phone') || '当前手机号';
   const requestedRedirect = params.get('redirect');
   const redirect = getSafeAdminRedirect(requestedRedirect, '/');
@@ -53,11 +59,13 @@ const VerifyPhonePage: React.FC = () => {
   };
 
   const resend = async () => {
+    if (resendCountdownActive) return;
     setResending(true);
     setError('');
     setNotice('');
     try {
       await resendPublicPhoneCode();
+      startResendCountdown();
       setNotice('验证码已重新发送');
     } catch (requestError) {
       setError(
@@ -89,6 +97,7 @@ const VerifyPhonePage: React.FC = () => {
           >
             <Input
               size="large"
+              autoComplete="one-time-code"
               inputMode="numeric"
               maxLength={8}
               placeholder="请输入短信验证码"
@@ -104,8 +113,15 @@ const VerifyPhonePage: React.FC = () => {
             >
               确认验证
             </Button>
-            <Button block onClick={resend} loading={resending}>
-              重新发送
+            <Button
+              block
+              disabled={resendCountdownActive}
+              onClick={resend}
+              loading={resending}
+            >
+              {resendCountdownActive
+                ? `${resendRemainingSeconds} 秒后重试`
+                : '重新发送'}
             </Button>
           </Space>
         </Form>

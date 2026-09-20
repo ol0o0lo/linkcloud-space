@@ -9,6 +9,12 @@ export type FavoriteMediaRef = {
   thumbnail?: string | null;
 };
 
+export type FavoriteLocation = {
+  latitude: number;
+  longitude: number;
+  coordinate_system: 'gcj02';
+};
+
 export type FavoriteHouseTarget = {
   id: number;
   room_number: string;
@@ -46,8 +52,7 @@ export type FavoriteBuildingTarget = {
   id: number;
   name: string;
   address: string;
-  lat?: string | number | null;
-  lng?: string | number | null;
+  location?: FavoriteLocation | null;
   floors: number;
   elevator: boolean;
   images?: FavoriteMediaRef[];
@@ -76,8 +81,7 @@ export type FavoriteEstateTarget = {
   city: string;
   district: string;
   address: string;
-  lat?: string | number | null;
-  lng?: string | number | null;
+  location?: FavoriteLocation | null;
   images?: FavoriteMediaRef[];
   description?: string;
   publisher: {

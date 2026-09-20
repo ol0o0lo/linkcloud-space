@@ -704,6 +704,10 @@ declare namespace API {
     verification_id: number;
   };
 
+  type appsAccountsApiCompleteWechatMiniprogramQrLoginParams = {
+    login_id: string;
+  };
+
   type appsAccountsApiCompleteWechatOfficialQrLoginParams = {
     login_id: string;
   };
@@ -722,6 +726,10 @@ declare namespace API {
 
   type appsAccountsApiGetUserParams = {
     user_id: number;
+  };
+
+  type appsAccountsApiGetWechatMiniprogramQrStatusParams = {
+    login_id: string;
   };
 
   type appsAccountsApiGetWechatOfficialQrStatusParams = {
@@ -804,6 +812,26 @@ declare namespace API {
     user_id: number;
   };
 
+  type appsAiApiCreateMessageParams = {
+    conversation_id: number;
+  };
+
+  type appsAiApiListConversationsParams = {
+    scope?: "personal" | "organization";
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsAiApiListMessagesParams = {
+    conversation_id: number;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsAiApiStreamMessageParams = {
+    conversation_id: number;
+  };
+
   type appsAllocationApiGetAllocationRequestParams = {
     allocation_request_id: number;
   };
@@ -864,6 +892,11 @@ declare namespace API {
     event_names?: string | null;
   };
 
+  type appsBaseApiListNearbyPoisParams = {
+    lat: number | string;
+    lng: number | string;
+  };
+
   type appsFavoritesApiDeleteUserFavoriteParams = {
     target_type: string;
     target_id: string;
@@ -905,6 +938,10 @@ declare namespace API {
     estate_id: number;
   };
 
+  type appsHouseApiGenerateHouseAiInsightEndpointParams = {
+    house_id: number;
+  };
+
   type appsHouseApiGetBuildingMapDetailParams = {
     building_id: number;
   };
@@ -919,6 +956,10 @@ declare namespace API {
 
   type appsHouseApiGetEstateParams = {
     estate_id: number;
+  };
+
+  type appsHouseApiGetHouseAiInsightEndpointParams = {
+    house_id: number;
   };
 
   type appsHouseApiGetHouseParams = {
@@ -984,6 +1025,7 @@ declare namespace API {
     south?: number | string | null;
     east?: number | string | null;
     north?: number | string | null;
+    coordinate_system: string;
     page?: number;
     page_size?: number | null;
   };
@@ -1020,6 +1062,7 @@ declare namespace API {
     south?: number | string | null;
     east?: number | string | null;
     north?: number | string | null;
+    coordinate_system: string;
     page?: number;
     page_size?: number | null;
   };
@@ -1087,11 +1130,29 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type appsHouseApiListPublicHouseMapParams = {
+    zoom?: number;
+    west?: number | string | null;
+    south?: number | string | null;
+    east?: number | string | null;
+    north?: number | string | null;
+    keyword?: string | null;
+    province?: string | null;
+    city?: string | null;
+    district?: string | null;
+    longitude?: number | string | null;
+    latitude?: number | string | null;
+    radius_m?: number;
+    coordinate_system: string;
+  };
+
   type appsHouseApiListPublicHousesParams = {
     keyword?: string | null;
     province?: string | null;
     city?: string | null;
     district?: string | null;
+    estate_id?: number | null;
+    building_id?: number | null;
     min_rent?: number | string | null;
     max_rent?: number | string | null;
     min_area?: number | string | null;
@@ -1102,7 +1163,17 @@ declare namespace API {
     has_elevator_access?: boolean | null;
     tags?: string[] | null;
     publisher_slug?: string | null;
-    sort?: "latest" | "rent_asc" | "rent_desc" | "area_asc" | "area_desc";
+    longitude?: number | string | null;
+    latitude?: number | string | null;
+    radius_m?: number;
+    coordinate_system?: string | null;
+    sort?:
+      | "latest"
+      | "rent_asc"
+      | "rent_desc"
+      | "area_asc"
+      | "area_desc"
+      | "distance_asc";
     page?: number;
     page_size?: number | null;
   };
@@ -1168,6 +1239,12 @@ declare namespace API {
     member_id: number;
   };
 
+  type appsHouseApiResolvePublicHouseRegionParams = {
+    latitude: number | string;
+    longitude: number | string;
+    coordinate_system?: string;
+  };
+
   type appsHouseApiReviewLeaseAllocationRequestParams = {
     lease_id: number;
   };
@@ -1211,6 +1288,67 @@ declare namespace API {
     filename: string;
     /** 可选资源类型，用于在签发上传凭证前校验作用域与扩展名。 */
     resource_type?: string | null;
+  };
+
+  type appsMiniprogramHomeApiGetBannerParams = {
+    banner_id: number;
+  };
+
+  type appsMiniprogramHomeApiGetEntryParams = {
+    entry_id: number;
+  };
+
+  type appsMiniprogramHomeApiListBannersParams = {
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsMiniprogramHomeApiListEntriesParams = {
+    kind?: string | null;
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsMiniprogramHomeApiListEntryHousesParams = {
+    entry_id: number;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsMiniprogramHomeApiListHouseCandidatesParams = {
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsMiniprogramHomeApiPatchBannerParams = {
+    banner_id: number;
+  };
+
+  type appsMiniprogramHomeApiPatchEntryParams = {
+    entry_id: number;
+  };
+
+  type appsMiniprogramHomeApiPublicEntriesParams = {
+    kind: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsMiniprogramHomeApiPublicEntryDetailParams = {
+    slug: string;
+  };
+
+  type appsMiniprogramHomeApiPublicEntryHousesParams = {
+    slug: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsMiniprogramHomeApiPutEntryHousesParams = {
+    entry_id: number;
   };
 
   type appsNotificationsApiCreateDispatchParams = {
@@ -1381,6 +1519,10 @@ declare namespace API {
   };
 
   type appsReferralsApiAdminReferralRecordsParams = {
+    keyword?: string | null;
+    status?: string | null;
+    created_from?: string | null;
+    created_to?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1457,12 +1599,22 @@ declare namespace API {
   };
 
   type appsSubscriptionsApiAdminListInvoiceRequestsParams = {
+    organization_id?: number | null;
+    keyword?: string | null;
+    status?: string | null;
+    created_from?: string | null;
+    created_to?: string | null;
     page?: number;
     page_size?: number | null;
   };
 
   type appsSubscriptionsApiAdminListOrdersParams = {
     organization_id?: number | null;
+    keyword?: string | null;
+    status?: string | null;
+    refund_status?: string | null;
+    created_from?: string | null;
+    created_to?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1603,6 +1755,14 @@ declare namespace API {
     team_id: number;
   };
 
+  type appsTeamsApiListTeamMemberCandidatesParams = {
+    team_id: number;
+    /** 按员工姓名、职位、账号姓名、用户名或邮箱搜索成员。 */
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsTeamsApiListTeamsParams = {
     /** 按团队名称搜索。 */
     keyword?: string | null;
@@ -1626,6 +1786,10 @@ declare namespace API {
   };
 
   type appsWalletApiAdminWithdrawalsParams = {
+    keyword?: string | null;
+    status?: string | null;
+    created_from?: string | null;
+    created_to?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1639,6 +1803,9 @@ declare namespace API {
   };
 
   type appsWalletApiListWalletAccountsParams = {
+    keyword?: string | null;
+    created_from?: string | null;
+    created_to?: string | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1678,10 +1845,7 @@ declare namespace API {
     year_built?: number | null;
     /** Elevator */
     elevator?: boolean;
-    /** Lat */
-    lat?: number | string | null;
-    /** Lng */
-    lng?: number | string | null;
+    location?: GeoPointIn | null;
     /** Address */
     address?: string;
     /** Images */
@@ -1706,10 +1870,7 @@ declare namespace API {
     year_built: number | null;
     /** Elevator */
     elevator: boolean;
-    /** Lat */
-    lat: string | null;
-    /** Lng */
-    lng: string | null;
+    location: GeoPointOut | null;
     /** Address */
     address: string;
     /** Images */
@@ -1748,10 +1909,7 @@ declare namespace API {
     year_built: number | null;
     /** Elevator */
     elevator: boolean;
-    /** Lat */
-    lat: string | null;
-    /** Lng */
-    lng: string | null;
+    location: GeoPointOut | null;
     /** Address */
     address: string;
     /** Images */
@@ -1788,10 +1946,7 @@ declare namespace API {
     name: string;
     /** Address */
     address: string;
-    /** Lat */
-    lat: string;
-    /** Lng */
-    lng: string;
+    location: GeoPointOut;
     counts: BuildingMapCountsOut;
   };
 
@@ -1827,10 +1982,7 @@ declare namespace API {
     year_built: number | null;
     /** Elevator */
     elevator: boolean;
-    /** Lat */
-    lat: string | null;
-    /** Lng */
-    lng: string | null;
+    location: GeoPointOut | null;
     /** Address */
     address: string;
     /** Images */
@@ -1852,10 +2004,7 @@ declare namespace API {
     year_built?: number | null;
     /** Elevator */
     elevator?: boolean | null;
-    /** Lat */
-    lat?: number | string | null;
-    /** Lng */
-    lng?: number | string | null;
+    location?: GeoPointIn | null;
     /** Address */
     address?: string | null;
     /** Images */
@@ -1876,10 +2025,7 @@ declare namespace API {
     elevator: boolean;
     /** Address */
     address: string;
-    /** Lat */
-    lat: string | null;
-    /** Lng */
-    lng: string | null;
+    location: GeoPointOut | null;
   };
 
   type BulkActionIn = {
@@ -1962,6 +2108,28 @@ declare namespace API {
     name: string;
     /** Phone */
     phone: string;
+  };
+
+  type ConversationCreateIn = {
+    /** Scope */
+    scope?: "personal" | "organization";
+  };
+
+  type ConversationOut = {
+    /** Id */
+    id: number;
+    /** Organization Id */
+    organization_id: number | null;
+    /** Capability */
+    capability: string;
+    /** Title */
+    title: string;
+    /** Status */
+    status: string;
+    /** Last Message At */
+    last_message_at: string | null;
+    /** Created At */
+    created_at: string;
   };
 
   type CurrentSubscriptionOut = {
@@ -2089,6 +2257,10 @@ declare namespace API {
     name: string;
     /** Display Name */
     display_name: string;
+    /** Developer */
+    developer: string | null;
+    /** Built Year */
+    built_year: number | null;
     /** Property Type */
     property_type: string;
     /** Property Type  Mapping */
@@ -2101,12 +2273,11 @@ declare namespace API {
     district: string;
     /** Address */
     address: string;
-    /** Lat */
-    lat: string | null;
-    /** Lng */
-    lng: string | null;
+    location: GeoPointOut | null;
     /** Images */
     images: Record<string, any>[];
+    /** Description */
+    description: string;
     /** Building Count */
     building_count: number;
     counts: InventoryCountsOut;
@@ -2131,10 +2302,7 @@ declare namespace API {
     district: string;
     /** Address */
     address?: string;
-    /** Lat */
-    lat?: number | string | null;
-    /** Lng */
-    lng?: number | string | null;
+    location?: GeoPointIn | null;
     /** Images */
     images?: Record<string, any>[];
     /** Description */
@@ -2150,10 +2318,7 @@ declare namespace API {
     display_name: string;
     /** Address */
     address: string;
-    /** Lat */
-    lat: string;
-    /** Lng */
-    lng: string;
+    location: GeoPointOut;
     /** Location Source */
     location_source: "estate" | "building_centroid";
     /** Building Count */
@@ -2172,6 +2337,10 @@ declare namespace API {
     name: string;
     /** Display Name */
     display_name: string;
+    /** Developer */
+    developer: string | null;
+    /** Built Year */
+    built_year: number | null;
     /** Property Type */
     property_type: string;
     /** Property Type  Mapping */
@@ -2184,12 +2353,11 @@ declare namespace API {
     district: string;
     /** Address */
     address: string;
-    /** Lat */
-    lat: string | null;
-    /** Lng */
-    lng: string | null;
+    location: GeoPointOut | null;
     /** Images */
     images: Record<string, any>[];
+    /** Description */
+    description: string;
   };
 
   type EstatePatchIn = {
@@ -2211,10 +2379,7 @@ declare namespace API {
     district?: string | null;
     /** Address */
     address?: string | null;
-    /** Lat */
-    lat?: number | string | null;
-    /** Lng */
-    lng?: number | string | null;
+    location?: GeoPointIn | null;
     /** Images */
     images?: Record<string, any>[] | null;
     /** Description */
@@ -2282,6 +2447,102 @@ declare namespace API {
   type ForceLogoutOut = {
     /** Deleted Sessions */
     deleted_sessions: number;
+  };
+
+  type GeoPointIn = {
+    /** Longitude */
+    longitude: number;
+    /** Latitude */
+    latitude: number;
+    /** Coordinate System */
+    coordinate_system: string;
+  };
+
+  type GeoPointOut = {
+    /** Longitude */
+    longitude: number;
+    /** Latitude */
+    latitude: number;
+    /** Coordinate System */
+    coordinate_system?: string;
+  };
+
+  type HouseAIInsightAppealPointOut = {
+    /** Text */
+    text: string;
+    /** Fact Ids */
+    fact_ids: string[];
+  };
+
+  type HouseAIInsightContentOut = {
+    /** Schema Version */
+    schema_version: number;
+    conclusion: HouseAIInsightTextOut;
+    /** Signals */
+    signals: HouseAIInsightSignalOut[];
+    /** Appeal Points */
+    appeal_points: HouseAIInsightAppealPointOut[];
+    /** Viewing Questions */
+    viewing_questions: HouseAIInsightViewingQuestionOut[];
+    /** Missing Fields */
+    missing_fields: HouseAIInsightMissingFieldOut[];
+    /** Facts */
+    facts: HouseAIInsightFactOut[];
+  };
+
+  type HouseAIInsightFactOut = {
+    /** Id */
+    id: string;
+    /** Label */
+    label: string;
+    /** Value */
+    value: string;
+  };
+
+  type HouseAIInsightMissingFieldOut = {
+    /** Key */
+    key: string;
+    /** Label */
+    label: string;
+  };
+
+  type HouseAIInsightOut = {
+    /** State */
+    state: "not_generated" | "fresh" | "expired";
+    insight: HouseAIInsightContentOut | null;
+    /** Generated At */
+    generated_at: string | null;
+    /** Expires At */
+    expires_at: string | null;
+    /** Source Changed */
+    source_changed: boolean;
+  };
+
+  type HouseAIInsightSignalOut = {
+    /** Label */
+    label: string;
+    /** Value */
+    value: string;
+    /** Tone */
+    tone: "positive" | "neutral" | "caution";
+    /** Fact Ids */
+    fact_ids: string[];
+  };
+
+  type HouseAIInsightTextOut = {
+    /** Text */
+    text: string;
+    /** Fact Ids */
+    fact_ids: string[];
+  };
+
+  type HouseAIInsightViewingQuestionOut = {
+    /** Text */
+    text: string;
+    /** Fact Ids */
+    fact_ids: string[];
+    /** Missing Field Keys */
+    missing_field_keys: string[];
   };
 
   type HouseIn = {
@@ -3104,6 +3365,331 @@ declare namespace API {
     unread_count?: number;
   };
 
+  type MessageCreateIn = {
+    /** Content */
+    content: string;
+    /** Idempotency Key */
+    idempotency_key: string;
+  };
+
+  type MessageGenerationOut = {
+    /** Invocation Id */
+    invocation_id: number;
+    message: MessageOut;
+  };
+
+  type MessageOut = {
+    /** Id */
+    id: number;
+    /** Role */
+    role: string;
+    /** Content */
+    content: string;
+    /** Content Json */
+    content_json: Record<string, any> | any[] | null;
+    /** Invocation Id */
+    invocation_id: number | null;
+    /** Created At */
+    created_at: string;
+  };
+
+  type MiniProgramHomeBannerAdminOut = {
+    /** Id */
+    id: number;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Description */
+    description: string;
+    /** Button Text */
+    button_text: string;
+    /** Image */
+    image: ResolvedMediaRefOut[];
+    /** Tone */
+    tone: string;
+    /** Action Type */
+    action_type: string;
+    /** Action Type  Mapping */
+    action_type__mapping: string;
+    /** Entry Id */
+    entry_id: number | null;
+    /** Entry Title */
+    entry_title: string | null;
+    /** Sort Order */
+    sort_order: number;
+    /** Is Enabled */
+    is_enabled: boolean;
+    /** Starts At */
+    starts_at: string | null;
+    /** Ends At */
+    ends_at: string | null;
+    /** Display Status */
+    display_status: string;
+    /** Display Status  Mapping */
+    display_status__mapping: string;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type MiniProgramHomeBannerCreateIn = {
+    /** Eyebrow */
+    eyebrow?: string;
+    /** Title */
+    title: string;
+    /** Description */
+    description: string;
+    /** Button Text */
+    button_text?: string;
+    /** Image */
+    image?: Record<string, any>[];
+    /** Tone */
+    tone: string;
+    /** Action Type */
+    action_type: string;
+    /** Entry Id */
+    entry_id?: number | null;
+    /** Sort Order */
+    sort_order?: number;
+    /** Is Enabled */
+    is_enabled?: boolean;
+    /** Starts At */
+    starts_at?: string | null;
+    /** Ends At */
+    ends_at?: string | null;
+  };
+
+  type MiniProgramHomeBannerPatchIn = {
+    /** Eyebrow */
+    eyebrow?: string | null;
+    /** Title */
+    title?: string | null;
+    /** Description */
+    description?: string | null;
+    /** Button Text */
+    button_text?: string | null;
+    /** Image */
+    image?: Record<string, any>[] | null;
+    /** Tone */
+    tone?: string | null;
+    /** Action Type */
+    action_type?: string | null;
+    /** Entry Id */
+    entry_id?: number | null;
+    /** Sort Order */
+    sort_order?: number | null;
+    /** Is Enabled */
+    is_enabled?: boolean | null;
+    /** Starts At */
+    starts_at?: string | null;
+    /** Ends At */
+    ends_at?: string | null;
+  };
+
+  type MiniProgramHomeBannerPublicOut = {
+    /** Id */
+    id: number;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Description */
+    description: string;
+    /** Button Text */
+    button_text: string;
+    /** Image */
+    image: ResolvedMediaRefOut[];
+    /** Tone */
+    tone: string;
+    /** Action Type */
+    action_type: string;
+    /** Entry Slug */
+    entry_slug: string | null;
+  };
+
+  type MiniProgramHomeEntryAdminOut = {
+    /** Id */
+    id: number;
+    /** Kind */
+    kind: string;
+    /** Kind  Mapping */
+    kind__mapping: string;
+    /** Slug */
+    slug: string;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Cover Image */
+    cover_image: ResolvedMediaRefOut[];
+    /** Body Markdown */
+    body_markdown: string;
+    /** Tone */
+    tone: string;
+    /** Sort Order */
+    sort_order: number;
+    /** Is Enabled */
+    is_enabled: boolean;
+    /** Starts At */
+    starts_at: string | null;
+    /** Ends At */
+    ends_at: string | null;
+    /** Display Status */
+    display_status: string;
+    /** Display Status  Mapping */
+    display_status__mapping: string;
+    /** House Count */
+    house_count: number;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type MiniProgramHomeEntryCreateIn = {
+    /** Kind */
+    kind: string;
+    /** Eyebrow */
+    eyebrow?: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Cover Image */
+    cover_image?: Record<string, any>[];
+    /** Body Markdown */
+    body_markdown?: string;
+    /** Tone */
+    tone: string;
+    /** Sort Order */
+    sort_order?: number;
+    /** Is Enabled */
+    is_enabled?: boolean;
+    /** Starts At */
+    starts_at?: string | null;
+    /** Ends At */
+    ends_at?: string | null;
+  };
+
+  type MiniProgramHomeEntryDetailOut = {
+    /** Slug */
+    slug: string;
+    /** Kind */
+    kind: string;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Cover Image */
+    cover_image: ResolvedMediaRefOut[];
+    /** Tone */
+    tone: string;
+    /** Body Html */
+    body_html: string;
+  };
+
+  type MiniProgramHomeEntryHouseAdminOut = {
+    house: MiniProgramHomeHouseAdminOut;
+    /** Sort Order */
+    sort_order: number;
+    /** Recommendation Reason */
+    recommendation_reason: string;
+  };
+
+  type MiniProgramHomeEntryHouseItemIn = {
+    /** House Id */
+    house_id: number;
+    /** Recommendation Reason */
+    recommendation_reason?: string;
+  };
+
+  type MiniProgramHomeEntryHousePublicOut = {
+    house: PublicHouseListOut;
+    /** Recommendation Reason */
+    recommendation_reason: string;
+  };
+
+  type MiniProgramHomeEntryHousesPutIn = {
+    /** Items */
+    items: MiniProgramHomeEntryHouseItemIn[];
+  };
+
+  type MiniProgramHomeEntryPatchIn = {
+    /** Kind */
+    kind?: string | null;
+    /** Eyebrow */
+    eyebrow?: string | null;
+    /** Title */
+    title?: string | null;
+    /** Summary */
+    summary?: string | null;
+    /** Cover Image */
+    cover_image?: Record<string, any>[] | null;
+    /** Body Markdown */
+    body_markdown?: string | null;
+    /** Tone */
+    tone?: string | null;
+    /** Sort Order */
+    sort_order?: number | null;
+    /** Is Enabled */
+    is_enabled?: boolean | null;
+    /** Starts At */
+    starts_at?: string | null;
+    /** Ends At */
+    ends_at?: string | null;
+  };
+
+  type MiniProgramHomeEntrySummaryOut = {
+    /** Slug */
+    slug: string;
+    /** Kind */
+    kind: string;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Cover Image */
+    cover_image: ResolvedMediaRefOut[];
+    /** Tone */
+    tone: string;
+  };
+
+  type MiniProgramHomeHouseAdminOut = {
+    /** Id */
+    id: number;
+    /** Display Name */
+    display_name: string;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Layout */
+    layout: string;
+    /** Area */
+    area: string | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Images */
+    images: ResolvedMediaRefOut[];
+  };
+
+  type MiniProgramHomeOut = {
+    /** Banners */
+    banners: MiniProgramHomeBannerPublicOut[];
+    /** Topics */
+    topics: MiniProgramHomeEntrySummaryOut[];
+    /** Guides */
+    guides: MiniProgramHomeEntrySummaryOut[];
+  };
+
   type MonthlyAccrualTotalOut = {
     /** Beneficiary User Id */
     beneficiary_user_id: number;
@@ -3128,10 +3714,24 @@ declare namespace API {
   type NavigationAccessCapabilitiesOut = {
     /** Role Management */
     role_management: boolean;
+    /** Team Update Ids */
+    team_update_ids: number[];
+    /** Team Member Manage Ids */
+    team_member_manage_ids: number[];
+    /** Team Role View Ids */
+    team_role_view_ids: number[];
+    /** Team Role Manage Ids */
+    team_role_manage_ids: number[];
     /** Organization Settings */
     organization_settings: boolean;
+    /** Organization Settings Manage */
+    organization_settings_manage: boolean;
     /** Team Settings */
     team_settings: boolean;
+    /** Team Settings View Ids */
+    team_settings_view_ids: number[];
+    /** Team Settings Manage Ids */
+    team_settings_manage_ids: number[];
     /** Subscriptions */
     subscriptions: boolean;
     /** Subscriptions Manage */
@@ -3142,6 +3742,28 @@ declare namespace API {
     allocation: boolean;
     /** Notification Dispatches */
     notification_dispatches: boolean;
+  };
+
+  type NearbyPoiItemOut = {
+    /** Id */
+    id: string;
+    /** Name */
+    name: string;
+    /** Address */
+    address: string;
+    /** Distance */
+    distance: number;
+  };
+
+  type NearbyPoisOut = {
+    /** Bus */
+    bus: NearbyPoiItemOut[];
+    /** Subway */
+    subway: NearbyPoiItemOut[];
+    /** Education */
+    education: NearbyPoiItemOut[];
+    /** Medical */
+    medical: NearbyPoiItemOut[];
   };
 
   type NotificationActorOut = {
@@ -3578,6 +4200,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedConversationOut = {
+    /** Items */
+    items: ConversationOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedEstateDetailOut = {
     /** Items */
     items: EstateDetailOut[];
@@ -3691,6 +4324,83 @@ declare namespace API {
   type PagedMemberOut = {
     /** Items */
     items: MemberOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMessageOut = {
+    /** Items */
+    items: MessageOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMiniProgramHomeBannerAdminOut = {
+    /** Items */
+    items: MiniProgramHomeBannerAdminOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMiniProgramHomeEntryAdminOut = {
+    /** Items */
+    items: MiniProgramHomeEntryAdminOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMiniProgramHomeEntryHouseAdminOut = {
+    /** Items */
+    items: MiniProgramHomeEntryHouseAdminOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMiniProgramHomeEntryHousePublicOut = {
+    /** Items */
+    items: MiniProgramHomeEntryHousePublicOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMiniProgramHomeEntrySummaryOut = {
+    /** Items */
+    items: MiniProgramHomeEntrySummaryOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMiniProgramHomeHouseAdminOut = {
+    /** Items */
+    items: MiniProgramHomeHouseAdminOut[];
     /** Total */
     total: number;
     /** Page */
@@ -4026,10 +4736,7 @@ declare namespace API {
     name: string;
     /** Address */
     address: string;
-    /** Lat */
-    lat: string | null;
-    /** Lng */
-    lng: string | null;
+    location: GeoPointOut | null;
     estate: PublicEstateOut | null;
   };
 
@@ -4061,6 +4768,8 @@ declare namespace API {
     area: string | null;
     /** Asking Rent */
     asking_rent: string | null;
+    /** Deposit Amount */
+    deposit_amount: string | null;
     /** Bedrooms */
     bedrooms: number | null;
     /** Living Rooms */
@@ -4089,10 +4798,10 @@ declare namespace API {
     publisher: PublicPublisherOut;
     /** Updated At */
     updated_at: string;
+    /** Distance M */
+    distance_m?: number | null;
     /** Interior Area */
     interior_area: string | null;
-    /** Deposit Amount */
-    deposit_amount: string | null;
     /** Kitchens */
     kitchens: number | null;
     /** Balconies */
@@ -4135,6 +4844,8 @@ declare namespace API {
     area: string | null;
     /** Asking Rent */
     asking_rent: string | null;
+    /** Deposit Amount */
+    deposit_amount: string | null;
     /** Bedrooms */
     bedrooms: number | null;
     /** Living Rooms */
@@ -4163,6 +4874,62 @@ declare namespace API {
     publisher: PublicPublisherOut;
     /** Updated At */
     updated_at: string;
+    /** Distance M */
+    distance_m?: number | null;
+  };
+
+  type PublicHouseLocatedRegionOut = {
+    /** Province */
+    province: string;
+    /** City */
+    city: string;
+    /** District */
+    district: string;
+  };
+
+  type PublicHouseMapMarkerOut = {
+    /** Key */
+    key: string;
+    /** Level */
+    level: "city" | "district" | "estate" | "building";
+    /** Name */
+    name: string;
+    /** Address */
+    address: string;
+    location: GeoPointOut;
+    /** House Count */
+    house_count: number;
+    /** Child Count */
+    child_count: number;
+    /** Min Rent */
+    min_rent: string | null;
+    /** Target Zoom */
+    target_zoom: number;
+    /** City */
+    city?: string;
+    /** District */
+    district?: string;
+    /** Estate Id */
+    estate_id?: number | null;
+    /** Building Id */
+    building_id?: number | null;
+  };
+
+  type PublicHouseMapOut = {
+    /** Level */
+    level: "city" | "district" | "estate" | "building";
+    /** Zoom */
+    zoom: number;
+    /** Visible House Count */
+    visible_house_count: number;
+    /** Marker Count */
+    marker_count: number;
+    /** Unlocated House Count */
+    unlocated_house_count: number;
+    /** Truncated */
+    truncated: boolean;
+    /** Items */
+    items: PublicHouseMapMarkerOut[];
   };
 
   type PublicHouseMatchShareOut = {
@@ -4179,7 +4946,41 @@ declare namespace API {
     consultant: HouseMatchConsultantOut | null;
   };
 
+  type PublicHouseRegionCityOut = {
+    /** City */
+    city: string;
+    /** House Count */
+    house_count: number;
+    /** Districts */
+    districts: PublicHouseRegionDistrictOut[];
+  };
+
+  type PublicHouseRegionDistrictOut = {
+    /** District */
+    district: string;
+    /** House Count */
+    house_count: number;
+  };
+
+  type PublicHouseRegionProvinceOut = {
+    /** Province */
+    province: string;
+    /** House Count */
+    house_count: number;
+    /** Cities */
+    cities: PublicHouseRegionCityOut[];
+  };
+
+  type PublicHouseRegionsOut = {
+    /** Items */
+    items: PublicHouseRegionProvinceOut[];
+  };
+
   type PublicInviteOut = {
+    /** Organization Id */
+    organization_id: number;
+    /** Organization Slug */
+    organization_slug: string;
     /** Organization Name */
     organization_name: string;
     /** Sender Name */
@@ -5413,6 +6214,13 @@ declare namespace API {
     total_income: number;
     /** Total Withdrawn */
     total_withdrawn: number;
+  };
+
+  type WechatMiniprogramPcLoginConfirmIn = {
+    /** Scene 电脑端小程序码携带的临时场景值。 */
+    scene: string;
+    /** Code wx.login 返回的一次性 code。 */
+    code: string;
   };
 
   type WechatOfficialQrCreateIn = {

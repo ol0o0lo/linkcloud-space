@@ -785,7 +785,7 @@ const defaultLandlord = { id: 3, name: '张房东', phone: '13800000000' };
 const defaultTenant = { id: 6, name: '王租客', phone: '13700000000' };
 
 function buildingItem(overrides: Record<string, any> = {}) {
-  const { estate_display_name, ...rest } = overrides;
+  const { estate_display_name, lat, lng, ...rest } = overrides;
   const estateId = Object.hasOwn(overrides, 'estate_id')
     ? overrides.estate_id
     : defaultEstate.id;
@@ -805,6 +805,13 @@ function buildingItem(overrides: Record<string, any> = {}) {
     name: '1 栋',
     floors: 32,
     elevator: true,
+    location: Object.hasOwn(overrides, 'location')
+      ? overrides.location
+      : lat != null && lng != null
+        ? { latitude: lat, longitude: lng, coordinate_system: 'gcj02' }
+        : lat === null || lng === null
+          ? null
+          : undefined,
     ...rest,
   };
 }
@@ -1061,8 +1068,7 @@ describe('Property rental domain list pages', () => {
         expect(mockCreateEstate).toHaveBeenCalledWith(
           expect.objectContaining({
             address: '项目位置地图地址',
-            lat: 22.54321,
-            lng: 113.98765,
+            location: { latitude: 22.54321, longitude: 113.98765, coordinate_system: 'gcj02' },
           }),
         ),
       );
@@ -1078,8 +1084,7 @@ describe('Property rental domain list pages', () => {
             city: '深圳市',
             district: '南山区',
             address: '旧项目地址',
-            lat: 22.5,
-            lng: 113.9,
+            location: { latitude: 22.5, longitude: 113.9, coordinate_system: 'gcj02' },
             is_active: true,
           },
         ],
@@ -1098,8 +1103,7 @@ describe('Property rental domain list pages', () => {
           1,
           expect.objectContaining({
             address: '项目位置地图地址',
-            lat: 22.54321,
-            lng: 113.98765,
+            location: { latitude: 22.54321, longitude: 113.98765, coordinate_system: 'gcj02' },
           }),
         ),
       );
@@ -1115,8 +1119,7 @@ describe('Property rental domain list pages', () => {
             city: '深圳',
             district: '南山',
             address: '科技路',
-            lat: 22.54,
-            lng: 113.93,
+            location: { latitude: 22.54, longitude: 113.93, coordinate_system: 'gcj02' },
           },
         ],
         total: 1,
@@ -1153,8 +1156,7 @@ describe('Property rental domain list pages', () => {
             estate_id: 1,
             name: '2 栋',
             floors: 28,
-            lat: 22.54,
-            lng: 113.93,
+            location: { latitude: 22.54, longitude: 113.93, coordinate_system: 'gcj02' },
           }),
         ),
       );
@@ -1206,8 +1208,7 @@ describe('Property rental domain list pages', () => {
           2,
           expect.objectContaining({
             address: '楼栋位置地图地址',
-            lat: 22.54321,
-            lng: 113.98765,
+            location: { latitude: 22.54321, longitude: 113.98765, coordinate_system: 'gcj02' },
           }),
         ),
       );
@@ -1248,8 +1249,7 @@ describe('Property rental domain list pages', () => {
           2,
           expect.objectContaining({
             address: '保留的楼栋地址',
-            lat: null,
-            lng: null,
+            location: null,
           }),
         ),
       );

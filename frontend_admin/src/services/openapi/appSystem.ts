@@ -18,6 +18,21 @@ export async function appsBaseApiListEnums(options?: { [key: string]: any }) {
   });
 }
 
+/** 获取坐标周边设施 GET /api/nearby-pois/ */
+export async function appsBaseApiListNearbyPois(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsBaseApiListNearbyPoisParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.NearbyPoisOut>("/api/nearby-pois/", {
+    method: "GET",
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
 /** 发送测试通知 向指定 staff 用户发送测试邮件或站内通知，仅超级管理员可用。 POST /api/test-notifications/ */
 export async function appsBaseApiSendTestNotification(
   body: API.TestNotificationIn,

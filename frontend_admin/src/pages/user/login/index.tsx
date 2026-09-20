@@ -22,6 +22,7 @@ import { Alert, App, Button, Spin, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { startTransition, useEffect, useRef, useState } from 'react';
 import { Footer } from '@/components';
+import { useSmsCodeCountdown } from '@/hooks/useSmsCodeCountdown';
 import { postBrowserV1AuthLogin } from '@/services/allauth/authAccount';
 import {
   postBrowserV1AuthTwofaAuthenticate,
@@ -49,7 +50,7 @@ import {
 import { normalizeEmailLikeInput } from '@/utils/email';
 import Settings from '../../../../config/defaultSettings';
 import logoUrl from '../../../../public/logo.svg';
-import WechatOfficialLoginModal from './wechat-official-login-modal';
+import WechatMiniprogramLoginModal from './wechat-miniprogram-login-modal';
 
 type LoginFormValues = {
   email?: string;
@@ -377,6 +378,11 @@ const Login: React.FC = () => {
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('account');
   const [loginCodePhone, setLoginCodePhone] = useState('');
   const [requestingCode, setRequestingCode] = useState(false);
+  const {
+    isActive: loginCodeCountdownActive,
+    remainingSeconds: loginCodeRemainingSeconds,
+    start: startLoginCodeCountdown,
+  } = useSmsCodeCountdown();
   const [mfaWebauthnLoading, setMfaWebauthnLoading] = useState(false);
   const [pendingMfa, setPendingMfa] = useState<PendingMfaState>({
     active: false,
@@ -486,9 +492,11 @@ const Login: React.FC = () => {
   };
 
   const handleRequestLoginCode = async () => {
+    if (loginCodeCountdownActive) return;
     setRequestingCode(true);
     try {
       await requestPublicPhoneLoginCode(loginCodePhone);
+      startLoginCodeCountdown();
       message.success('验证码已发送，请查看手机短信');
     } catch (error) {
       message.error(
@@ -840,6 +848,7 @@ const Login: React.FC = () => {
                             <Button
                               className={styles.codeButton}
                               disabled={
+                                loginCodeCountdownActive ||
                                 !/^1\d{10}$/.test(loginCodePhone.trim())
                               }
                               htmlType="button"
@@ -848,7 +857,9 @@ const Login: React.FC = () => {
                               type="link"
                               onClick={() => void handleRequestLoginCode()}
                             >
-                              获取验证码
+                              {loginCodeCountdownActive
+                                ? `${loginCodeRemainingSeconds} 秒后重试`
+                                : '获取验证码'}
                             </Button>
                           ),
                         }}
@@ -858,7 +869,7 @@ const Login: React.FC = () => {
                     </>
                   )}
                   {loginMethod === 'wechat' && (
-                    <WechatOfficialLoginModal
+                    <WechatMiniprogramLoginModal
                       embedded
                       open
                       redirectPath={getPostLoginRedirectUrl()}

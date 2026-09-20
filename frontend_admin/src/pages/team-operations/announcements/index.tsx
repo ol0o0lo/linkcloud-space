@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Alert,
   Button,
   Card,
   DatePicker,
@@ -64,25 +65,68 @@ type AnnouncementFormValues = {
   require_acknowledgement?: boolean;
   expires_at?: Dayjs;
 };
+type AnnouncementSearchState = {
+  page: number;
+  status: AnnouncementFilter;
+  keyword: string;
+  announcementId?: number;
+};
 
-function requestedAnnouncementId() {
-  if (typeof window === 'undefined') return undefined;
-  const value = Number(
-    new URLSearchParams(window.location.search).get('announcement_id'),
-  );
-  return Number.isInteger(value) && value > 0 ? value : undefined;
+function positiveInteger(value: string | null) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function readAnnouncementSearchState(): AnnouncementSearchState {
+  if (typeof window === 'undefined') {
+    return { page: 1, status: 'all', keyword: '' };
+  }
+  const search = new URLSearchParams(window.location.search);
+  const status = search.get('status');
+  return {
+    page: positiveInteger(search.get('page')) || 1,
+    status:
+      status === 'draft' || status === 'published' || status === 'withdrawn'
+        ? status
+        : 'all',
+    keyword: search.get('keyword')?.trim() || '',
+    announcementId: positiveInteger(search.get('announcement_id')),
+  };
+}
+
+function syncAnnouncementSearchState(state: AnnouncementSearchState) {
+  if (typeof window === 'undefined') return;
+  const search = new URLSearchParams(window.location.search);
+  ['page', 'status', 'keyword', 'announcement_id'].forEach((name) => {
+    search.delete(name);
+  });
+  if (state.page > 1) search.set('page', String(state.page));
+  if (state.status !== 'all') search.set('status', state.status);
+  if (state.keyword) search.set('keyword', state.keyword);
+  if (state.announcementId) {
+    search.set('announcement_id', String(state.announcementId));
+  }
+  const nextSearch = search.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+  window.history.replaceState(window.history.state, '', nextUrl);
 }
 
 const TeamAnnouncementsPage: React.FC = () => {
   const { styles } = useStyles();
   const workspace = useTenantWorkspace();
   const queryClient = useQueryClient();
-  const initialAnnouncementId = useMemo(requestedAnnouncementId, []);
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<AnnouncementFilter>('all');
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keyword, setKeyword] = useState('');
+  const initialSearchState = useMemo(readAnnouncementSearchState, []);
+  const [page, setPage] = useState(initialSearchState.page);
+  const [statusFilter, setStatusFilter] = useState<AnnouncementFilter>(
+    initialSearchState.status,
+  );
+  const [keywordInput, setKeywordInput] = useState(initialSearchState.keyword);
+  const [keyword, setKeyword] = useState(initialSearchState.keyword);
+  const [requestedAnnouncementId, setRequestedAnnouncementId] = useState(
+    initialSearchState.announcementId,
+  );
   const [createOpen, setCreateOpen] = useState(false);
+  const [createDirty, setCreateDirty] = useState(false);
   const [detailAnnouncement, setDetailAnnouncement] =
     useState<TeamAnnouncement>();
   const [form] = Form.useForm<AnnouncementFormValues>();
@@ -119,14 +163,23 @@ const TeamAnnouncementsPage: React.FC = () => {
       'team-operations',
       'requested-announcement',
       workspace.selectedOrgSlug,
-      initialAnnouncementId,
+      requestedAnnouncementId,
     ],
     queryFn: () => {
-      if (!initialAnnouncementId) throw new Error('缺少公告 ID');
-      return getTeamAnnouncement(initialAnnouncementId);
+      if (!requestedAnnouncementId) throw new Error('缺少公告 ID');
+      return getTeamAnnouncement(requestedAnnouncementId);
     },
-    enabled: enabled && Boolean(initialAnnouncementId),
+    enabled: enabled && Boolean(requestedAnnouncementId) && !detailAnnouncement,
   });
+
+  useEffect(() => {
+    syncAnnouncementSearchState({
+      page,
+      status: statusFilter,
+      keyword,
+      announcementId: requestedAnnouncementId,
+    });
+  }, [keyword, page, requestedAnnouncementId, statusFilter]);
 
   useEffect(() => {
     if (requestedAnnouncementQuery.data) {
@@ -138,10 +191,12 @@ const TeamAnnouncementsPage: React.FC = () => {
     mutationFn: (payload: AnnouncementInput) => createTeamAnnouncement(payload),
     onSuccess: async () => {
       message.success('公告草稿已创建');
+      setCreateDirty(false);
       setCreateOpen(false);
       form.resetFields();
       await invalidateTeamOperations(queryClient);
     },
+    onError: () => message.error('公告创建失败，请稍后重试'),
   });
   const publishMutation = useMutation({
     mutationFn: (announcementId: number) =>
@@ -153,6 +208,7 @@ const TeamAnnouncementsPage: React.FC = () => {
       }
       await invalidateTeamOperations(queryClient);
     },
+    onError: () => message.error('公告发布失败，请稍后重试'),
   });
   const withdrawMutation = useMutation({
     mutationFn: (announcementId: number) =>
@@ -164,6 +220,7 @@ const TeamAnnouncementsPage: React.FC = () => {
       }
       await invalidateTeamOperations(queryClient);
     },
+    onError: () => message.error('公告撤回失败，请稍后重试'),
   });
   const acknowledgeMutation = useMutation({
     mutationFn: (announcementId: number) =>
@@ -179,6 +236,7 @@ const TeamAnnouncementsPage: React.FC = () => {
       }
       await invalidateTeamOperations(queryClient);
     },
+    onError: () => message.error('公告确认失败，请稍后重试'),
   });
 
   const capabilities = capabilitiesQuery.data;
@@ -261,31 +319,70 @@ const TeamAnnouncementsPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
-          <a onClick={() => setDetailAnnouncement(record)}>详情</a>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              setDetailAnnouncement(record);
+              setRequestedAnnouncementId(record.id);
+            }}
+          >
+            详情
+          </Button>
           {record.can_manage && record.status === 'draft' ? (
             <Popconfirm
               title="确认发布该公告？"
               description="发布后会向目标成员发送站内信。"
-              onConfirm={() => void publishMutation.mutateAsync(record.id)}
+              onConfirm={() => publishMutation.mutate(record.id)}
             >
-              <a>发布</a>
+              <Button
+                type="link"
+                size="small"
+                loading={
+                  publishMutation.isPending &&
+                  publishMutation.variables === record.id
+                }
+                disabled={publishMutation.isPending}
+              >
+                发布
+              </Button>
             </Popconfirm>
           ) : null}
           {record.can_manage && record.status === 'published' ? (
             <Popconfirm
               title="确认撤回该公告？"
-              onConfirm={() => void withdrawMutation.mutateAsync(record.id)}
+              onConfirm={() => withdrawMutation.mutate(record.id)}
             >
-              <a>撤回</a>
+              <Button
+                danger
+                type="link"
+                size="small"
+                loading={
+                  withdrawMutation.isPending &&
+                  withdrawMutation.variables === record.id
+                }
+                disabled={withdrawMutation.isPending}
+              >
+                撤回
+              </Button>
             </Popconfirm>
           ) : null}
           {record.status === 'published' &&
           record.is_recipient &&
           record.require_acknowledgement &&
           !record.is_acknowledged ? (
-            <a onClick={() => void acknowledgeMutation.mutateAsync(record.id)}>
+            <Button
+              type="link"
+              size="small"
+              loading={
+                acknowledgeMutation.isPending &&
+                acknowledgeMutation.variables === record.id
+              }
+              disabled={acknowledgeMutation.isPending}
+              onClick={() => acknowledgeMutation.mutate(record.id)}
+            >
               确认已知
-            </a>
+            </Button>
           ) : null}
         </ResponsiveActions>
       ),
@@ -303,9 +400,30 @@ const TeamAnnouncementsPage: React.FC = () => {
   };
 
   const openCreateModal = () => {
+    setCreateDirty(false);
     form.resetFields();
     form.setFieldsValue({ require_acknowledgement: false });
     setCreateOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    if (createMutation.isPending) return;
+    if (!createDirty) {
+      setCreateOpen(false);
+      return;
+    }
+    Modal.confirm({
+      title: '放弃未保存的公告？',
+      content: '当前填写的内容不会保留。',
+      okText: '放弃',
+      cancelText: '继续编辑',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        setCreateDirty(false);
+        setCreateOpen(false);
+        form.resetFields();
+      },
+    });
   };
 
   const resetFilters = () => {
@@ -320,7 +438,7 @@ const TeamAnnouncementsPage: React.FC = () => {
     <Empty
       image={Empty.PRESENTED_IMAGE_SIMPLE}
       description={
-        <Space direction="vertical" size={2}>
+        <Space orientation="vertical" size={2}>
           <Typography.Text strong>
             {isFiltered ? '未找到符合条件的公告' : '还没有公告'}
           </Typography.Text>
@@ -333,18 +451,7 @@ const TeamAnnouncementsPage: React.FC = () => {
       }
       className={styles.emptyState}
     >
-      <Space>
-        {isFiltered ? <Button onClick={resetFilters}>清除筛选</Button> : null}
-        {canManageAnnouncements ? (
-          <Button
-            className={styles.primaryAction}
-            type="primary"
-            onClick={openCreateModal}
-          >
-            新建公告
-          </Button>
-        ) : null}
-      </Space>
+      {isFiltered ? <Button onClick={resetFilters}>清除筛选</Button> : null}
     </Empty>
   );
 
@@ -382,7 +489,14 @@ const TeamAnnouncementsPage: React.FC = () => {
               allowClear
               value={keywordInput}
               placeholder="搜索公告"
-              onChange={(event) => setKeywordInput(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setKeywordInput(value);
+                if (!value) {
+                  setPage(1);
+                  setKeyword('');
+                }
+              }}
               onSearch={(value) => {
                 setPage(1);
                 setKeyword(value.trim());
@@ -399,13 +513,35 @@ const TeamAnnouncementsPage: React.FC = () => {
             ) : null}
           </Flex>
         </Flex>
+        {announcementsQuery.isError ? (
+          <Alert
+            showIcon
+            type="error"
+            title="公告列表加载失败"
+            description="请检查网络连接后重试。"
+            action={
+              <Button
+                size="small"
+                autoInsertSpace={false}
+                onClick={() => void announcementsQuery.refetch()}
+              >
+                重试
+              </Button>
+            }
+            style={{ marginTop: 20 }}
+          />
+        ) : null}
         <Table<TeamAnnouncement>
           rowKey="id"
           size="middle"
           loading={announcementsQuery.isLoading}
           columns={columns}
           dataSource={announcementsQuery.data?.items || []}
-          locale={{ emptyText: announcementEmptyText }}
+          locale={{
+            emptyText: announcementsQuery.isError
+              ? '公告数据未加载'
+              : announcementEmptyText,
+          }}
           pagination={fixedPagePagination(
             announcementsQuery.data?.page || page,
             announcementsQuery.data?.page_size || PAGE_SIZE,
@@ -424,12 +560,20 @@ const TeamAnnouncementsPage: React.FC = () => {
         okText="创建草稿"
         cancelText="取消"
         confirmLoading={createMutation.isPending}
-        onCancel={() => setCreateOpen(false)}
+        cancelButtonProps={{
+          autoInsertSpace: false,
+          disabled: createMutation.isPending,
+        }}
+        closable={!createMutation.isPending}
+        keyboard={!createMutation.isPending}
+        mask={{ closable: !createMutation.isPending }}
+        onCancel={closeCreateModal}
         onOk={() => form.submit()}
       >
         <Form<AnnouncementFormValues>
           form={form}
           layout="vertical"
+          onValuesChange={() => setCreateDirty(true)}
           onFinish={(values) => void submitCreate(values)}
         >
           <Form.Item
@@ -479,7 +623,10 @@ const TeamAnnouncementsPage: React.FC = () => {
         title="公告详情"
         open={Boolean(detailAnnouncement)}
         size={drawerWidthMd}
-        onClose={() => setDetailAnnouncement(undefined)}
+        onClose={() => {
+          setDetailAnnouncement(undefined);
+          setRequestedAnnouncementId(undefined);
+        }}
       >
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="标题">

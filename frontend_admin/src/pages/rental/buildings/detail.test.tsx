@@ -67,8 +67,7 @@ describe('BuildingDetailPage', () => {
       address: '科技园 1 栋',
       floors: 20,
       elevator: true,
-      lat: 22.5,
-      lng: 113.9,
+      location: { latitude: 22.5, longitude: 113.9, coordinate_system: 'gcj02' },
       counts: {
         total: 1,
         vacant: 1,

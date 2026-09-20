@@ -104,6 +104,15 @@ type AssignmentAction = {
   action: 'complete' | 'reject';
   assignment: TaskAssignment;
 };
+type TaskSearchState = {
+  view: TaskView;
+  taskPage: number;
+  assignmentPage: number;
+  taskFilters: TaskFilterState<WorkTaskStatus>;
+  assignmentFilters: TaskFilterState<TaskAssignmentStatus>;
+  taskId?: number;
+  assignmentId?: number;
+};
 
 const EMPTY_MANAGED_FILTERS: TaskFilterState<WorkTaskStatus> = {};
 const EMPTY_ASSIGNMENT_FILTERS: TaskFilterState<TaskAssignmentStatus> = {};
@@ -153,18 +162,134 @@ function deadlineMeta(value?: string | null, isOverdue = false) {
   return { absolute: deadline.format('YYYY-MM-DD HH:mm'), relative: undefined };
 }
 
-function requestedId(name: string) {
-  if (typeof window === 'undefined') return undefined;
-  const value = Number(new URLSearchParams(window.location.search).get(name));
-  return Number.isInteger(value) && value > 0 ? value : undefined;
+function positiveInteger(value: string | null) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function removeRequestedIdFromSearch(name: string) {
+function optionalSearchValue(value: string | null) {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function readTaskSearchState(): TaskSearchState {
+  if (typeof window === 'undefined') {
+    return {
+      view: 'managed',
+      taskPage: 1,
+      assignmentPage: 1,
+      taskFilters: EMPTY_MANAGED_FILTERS,
+      assignmentFilters: EMPTY_ASSIGNMENT_FILTERS,
+    };
+  }
+  const search = new URLSearchParams(window.location.search);
+  const taskId = positiveInteger(search.get('task_id'));
+  const assignmentId = positiveInteger(search.get('assignment_id'));
+  const requestedView = search.get('view');
+
+  return {
+    view:
+      requestedView === 'managed' || requestedView === 'mine'
+        ? requestedView
+        : assignmentId
+          ? 'mine'
+          : 'managed',
+    taskPage: positiveInteger(search.get('managed_page')) || 1,
+    assignmentPage: positiveInteger(search.get('mine_page')) || 1,
+    taskFilters: {
+      status: optionalSearchValue(
+        search.get('managed_status'),
+      ) as WorkTaskStatus,
+      priority: optionalSearchValue(
+        search.get('managed_priority'),
+      ) as TaskPriority,
+      team_id: positiveInteger(search.get('managed_team_id')),
+      due_state: optionalSearchValue(
+        search.get('managed_due_state'),
+      ) as TaskDueState,
+      keyword: optionalSearchValue(search.get('managed_keyword')),
+    },
+    assignmentFilters: {
+      status: optionalSearchValue(
+        search.get('mine_status'),
+      ) as TaskAssignmentStatus,
+      priority: optionalSearchValue(
+        search.get('mine_priority'),
+      ) as TaskPriority,
+      team_id: positiveInteger(search.get('mine_team_id')),
+      due_state: optionalSearchValue(
+        search.get('mine_due_state'),
+      ) as TaskDueState,
+      keyword: optionalSearchValue(search.get('mine_keyword')),
+    },
+    taskId,
+    assignmentId,
+  };
+}
+
+function syncTaskSearchState(state: TaskSearchState) {
   if (typeof window === 'undefined') return;
   const search = new URLSearchParams(window.location.search);
-  if (!search.has(name)) return;
+  [
+    'view',
+    'managed_page',
+    'managed_status',
+    'managed_priority',
+    'managed_team_id',
+    'managed_due_state',
+    'managed_keyword',
+    'mine_page',
+    'mine_status',
+    'mine_priority',
+    'mine_team_id',
+    'mine_due_state',
+    'mine_keyword',
+    'task_id',
+    'assignment_id',
+  ].forEach((name) => {
+    search.delete(name);
+  });
 
-  search.delete(name);
+  search.set('view', state.view);
+  if (state.taskPage > 1) search.set('managed_page', String(state.taskPage));
+  if (state.taskFilters.status) {
+    search.set('managed_status', state.taskFilters.status);
+  }
+  if (state.taskFilters.priority) {
+    search.set('managed_priority', state.taskFilters.priority);
+  }
+  if (state.taskFilters.team_id) {
+    search.set('managed_team_id', String(state.taskFilters.team_id));
+  }
+  if (state.taskFilters.due_state) {
+    search.set('managed_due_state', state.taskFilters.due_state);
+  }
+  if (state.taskFilters.keyword) {
+    search.set('managed_keyword', state.taskFilters.keyword);
+  }
+  if (state.assignmentPage > 1) {
+    search.set('mine_page', String(state.assignmentPage));
+  }
+  if (state.assignmentFilters.status) {
+    search.set('mine_status', state.assignmentFilters.status);
+  }
+  if (state.assignmentFilters.priority) {
+    search.set('mine_priority', state.assignmentFilters.priority);
+  }
+  if (state.assignmentFilters.team_id) {
+    search.set('mine_team_id', String(state.assignmentFilters.team_id));
+  }
+  if (state.assignmentFilters.due_state) {
+    search.set('mine_due_state', state.assignmentFilters.due_state);
+  }
+  if (state.assignmentFilters.keyword) {
+    search.set('mine_keyword', state.assignmentFilters.keyword);
+  }
+  if (state.taskId) search.set('task_id', String(state.taskId));
+  if (state.assignmentId) {
+    search.set('assignment_id', String(state.assignmentId));
+  }
+
   const nextSearch = search.toString();
   const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
   window.history.replaceState(window.history.state, '', nextUrl);
@@ -174,26 +299,32 @@ const TeamTasksPage: React.FC = () => {
   const { styles } = useStyles();
   const workspace = useTenantWorkspace();
   const queryClient = useQueryClient();
-  const [requestedAssignmentId, setRequestedAssignmentId] = useState(() =>
-    requestedId('assignment_id'),
+  const initialSearchState = useMemo(readTaskSearchState, []);
+  const [requestedAssignmentId, setRequestedAssignmentId] = useState(
+    initialSearchState.assignmentId,
   );
-  const [requestedTaskId, setRequestedTaskId] = useState(() =>
-    requestedId('task_id'),
+  const [requestedTaskId, setRequestedTaskId] = useState(
+    initialSearchState.taskId,
   );
-  const [view, setView] = useState<TaskView>(
-    requestedAssignmentId ? 'mine' : 'managed',
+  const [view, setView] = useState<TaskView>(initialSearchState.view);
+  const [taskPage, setTaskPage] = useState(initialSearchState.taskPage);
+  const [assignmentPage, setAssignmentPage] = useState(
+    initialSearchState.assignmentPage,
   );
-  const [taskPage, setTaskPage] = useState(1);
-  const [assignmentPage, setAssignmentPage] = useState(1);
   const [taskFilters, setTaskFilters] = useState<
     TaskFilterState<WorkTaskStatus>
-  >(EMPTY_MANAGED_FILTERS);
+  >(initialSearchState.taskFilters);
   const [assignmentFilters, setAssignmentFilters] = useState<
     TaskFilterState<TaskAssignmentStatus>
-  >(EMPTY_ASSIGNMENT_FILTERS);
-  const [taskKeywordInput, setTaskKeywordInput] = useState('');
-  const [assignmentKeywordInput, setAssignmentKeywordInput] = useState('');
+  >(initialSearchState.assignmentFilters);
+  const [taskKeywordInput, setTaskKeywordInput] = useState(
+    initialSearchState.taskFilters.keyword || '',
+  );
+  const [assignmentKeywordInput, setAssignmentKeywordInput] = useState(
+    initialSearchState.assignmentFilters.keyword || '',
+  );
   const [createOpen, setCreateOpen] = useState(false);
+  const [createDirty, setCreateDirty] = useState(false);
   const [selectedTask, setSelectedTask] = useState<WorkTask>();
   const [selectedAssignment, setSelectedAssignment] =
     useState<TaskAssignment>();
@@ -330,6 +461,26 @@ const TeamTasksPage: React.FC = () => {
   });
 
   useEffect(() => {
+    syncTaskSearchState({
+      view,
+      taskPage,
+      assignmentPage,
+      taskFilters,
+      assignmentFilters,
+      taskId: requestedTaskId,
+      assignmentId: requestedAssignmentId,
+    });
+  }, [
+    assignmentFilters,
+    assignmentPage,
+    requestedAssignmentId,
+    requestedTaskId,
+    taskFilters,
+    taskPage,
+    view,
+  ]);
+
+  useEffect(() => {
     if (!requestedAssignmentId || selectedAssignment) return;
     if (requestedAssignmentQuery.data) {
       setSelectedAssignment(requestedAssignmentQuery.data);
@@ -350,13 +501,11 @@ const TeamTasksPage: React.FC = () => {
   const closeTaskDetail = () => {
     setSelectedTask(undefined);
     setRequestedTaskId(undefined);
-    removeRequestedIdFromSearch('task_id');
   };
 
   const closeAssignmentDetail = () => {
     setSelectedAssignment(undefined);
     setRequestedAssignmentId(undefined);
-    removeRequestedIdFromSearch('assignment_id');
   };
 
   const capabilities = capabilitiesQuery.data;
@@ -376,6 +525,7 @@ const TeamTasksPage: React.FC = () => {
     mutationFn: (payload: WorkTaskInput) => createWorkTask(payload),
     onSuccess: async () => {
       message.success('任务已创建并通知执行人');
+      setCreateDirty(false);
       setCreateOpen(false);
       taskForm.resetFields();
       await invalidateTeamOperations(queryClient);
@@ -677,13 +827,33 @@ const TeamTasksPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
-          <a onClick={() => setSelectedTask(record)}>详情</a>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              setSelectedTask(record);
+              setRequestedTaskId(record.id);
+            }}
+          >
+            详情
+          </Button>
           {record.can_manage && record.status === 'active' ? (
             <Popconfirm
               title="确认取消该任务？"
               onConfirm={() => void cancelMutation.mutateAsync(record.id)}
             >
-              <a>取消</a>
+              <Button
+                danger
+                type="link"
+                size="small"
+                loading={
+                  cancelMutation.isPending &&
+                  cancelMutation.variables === record.id
+                }
+                disabled={cancelMutation.isPending}
+              >
+                取消
+              </Button>
             </Popconfirm>
           ) : null}
         </ResponsiveActions>
@@ -781,31 +951,54 @@ const TeamTasksPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
-          <a onClick={() => setSelectedAssignment(record)}>详情</a>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              setSelectedAssignment(record);
+              setRequestedAssignmentId(record.id);
+            }}
+          >
+            详情
+          </Button>
           {record.status === 'pending' ? (
             <>
-              <a onClick={() => void acceptMutation.mutateAsync(record.id)}>
+              <Button
+                type="link"
+                size="small"
+                loading={
+                  acceptMutation.isPending &&
+                  acceptMutation.variables === record.id
+                }
+                disabled={acceptMutation.isPending}
+                onClick={() => void acceptMutation.mutateAsync(record.id)}
+              >
                 接受
-              </a>
-              <a
+              </Button>
+              <Button
+                danger
+                type="link"
+                size="small"
                 onClick={() => {
                   actionForm.resetFields();
                   setAssignmentAction({ action: 'reject', assignment: record });
                 }}
               >
                 拒绝
-              </a>
+              </Button>
             </>
           ) : null}
           {record.status === 'in_progress' ? (
-            <a
+            <Button
+              type="link"
+              size="small"
               onClick={() => {
                 actionForm.resetFields();
                 setAssignmentAction({ action: 'complete', assignment: record });
               }}
             >
               完成
-            </a>
+            </Button>
           ) : null}
         </ResponsiveActions>
       ),
@@ -893,6 +1086,7 @@ const TeamTasksPage: React.FC = () => {
   );
 
   const openCreateModal = () => {
+    setCreateDirty(false);
     taskForm.resetFields();
     taskForm.setFieldsValue({
       is_organization_task: defaultOwnership === 'organization',
@@ -902,6 +1096,26 @@ const TeamTasksPage: React.FC = () => {
       assignee_ids: [],
     });
     setCreateOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    if (createMutation.isPending) return;
+    if (!createDirty) {
+      setCreateOpen(false);
+      return;
+    }
+    Modal.confirm({
+      title: '放弃未保存的任务？',
+      content: '当前填写的内容不会保留。',
+      okText: '放弃',
+      cancelText: '继续编辑',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        setCreateDirty(false);
+        setCreateOpen(false);
+        taskForm.resetFields();
+      },
+    });
   };
 
   const resetCurrentFilters = () => {
@@ -933,10 +1147,6 @@ const TeamTasksPage: React.FC = () => {
     >
       {hasActiveFilters ? (
         <Button onClick={resetCurrentFilters}>清除筛选</Button>
-      ) : view === 'managed' && canManageTasks ? (
-        <Button type="primary" onClick={openCreateModal}>
-          新建任务
-        </Button>
       ) : null}
     </Empty>
   );
@@ -1259,11 +1469,14 @@ const TeamTasksPage: React.FC = () => {
         okButtonProps={{
           icon: <SendOutlined aria-hidden />,
         }}
-        cancelButtonProps={{ disabled: createMutation.isPending }}
+        cancelButtonProps={{
+          autoInsertSpace: false,
+          disabled: createMutation.isPending,
+        }}
         closable={!createMutation.isPending}
         keyboard={!createMutation.isPending}
         mask={{ closable: !createMutation.isPending }}
-        onCancel={() => setCreateOpen(false)}
+        onCancel={closeCreateModal}
         onOk={() => taskForm.submit()}
         footer={(_originNode, { OkBtn, CancelBtn }) => (
           <div className={styles.createTaskFooter}>
@@ -1278,6 +1491,7 @@ const TeamTasksPage: React.FC = () => {
           form={taskForm}
           layout="vertical"
           className={styles.createTaskForm}
+          onValuesChange={() => setCreateDirty(true)}
           onFinish={(values) => void submitTask(values)}
         >
           <div className={styles.taskSection}>

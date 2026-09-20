@@ -1,6 +1,8 @@
 const OPENAPI_TAG_CODEGEN_MAP = {
   '应用/系统': 'app-system',
   '媒体/文件': 'media-files',
+  '小程序首页/管理': 'miniprogram-home-admin',
+  '小程序首页/公开': 'public-miniprogram-home',
   '权限/权限清单': 'access-permissions',
   '权限/导航能力': 'navigation-access',
   '权限/租户角色': 'access-organization-roles',

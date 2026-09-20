@@ -266,6 +266,7 @@ describe('backend capability routes', () => {
       '/super-admin/wallet/withdrawals',
       '/super-admin/subscriptions',
       '/super-admin/referrals',
+      '/super-admin/miniprogram-home',
       '/super-admin/notification-dispatches',
       '/super-admin/operations',
     ]);

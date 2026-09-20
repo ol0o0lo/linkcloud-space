@@ -52,7 +52,11 @@ import {
   type DeleteTarget,
   ResourceDeleteModal,
 } from '../estates/ResourceDeleteModal';
-import { formLocation, settingLocation } from '../location-utils';
+import {
+  formLocation,
+  settingLocation,
+  withApiLocation,
+} from '../location-utils';
 import type {
   PropertyAssetAction,
   PropertyAssetScope,
@@ -289,6 +293,7 @@ const useStyles = createStyles(({ css, token }) => ({
 function estateProfileValues(
   estate?: Partial<EstateOut> | EstateProfileValues,
 ): EstateProfileValues {
+  const location = estate ? formLocation(estate) : null;
   return {
     name: estate?.name || '',
     display_name: estate?.display_name || '',
@@ -297,14 +302,15 @@ function estateProfileValues(
     city: estate?.city || '',
     district: estate?.district || '',
     address: estate?.address || '',
-    lat: estate?.lat ?? null,
-    lng: estate?.lng ?? null,
+    lat: location?.lat ?? null,
+    lng: location?.lng ?? null,
   };
 }
 
 function buildingProfileValues(
   building?: Partial<BuildingOut> | BuildingProfileValues,
 ): BuildingProfileValues {
+  const location = building ? formLocation(building) : null;
   return {
     estate_id: building?.estate_id ?? null,
     name: building?.name || '',
@@ -313,8 +319,8 @@ function buildingProfileValues(
     year_built: building?.year_built ?? null,
     elevator: Boolean(building?.elevator),
     address: building?.address || '',
-    lat: building?.lat ?? null,
-    lng: building?.lng ?? null,
+    lat: location?.lat ?? null,
+    lng: location?.lng ?? null,
     images: building?.images || [],
     tags: building?.tags || [],
   };
@@ -558,7 +564,7 @@ export function PropertyAssetWorkspace({
   const updateProfile = useMutation({
     mutationFn: async (values: PropertyAssetProfileValues) => {
       if (action?.type === 'create-estate') {
-        const asset = await houseApi.createEstate(values);
+        const asset = await houseApi.createEstate(withApiLocation(values));
         return { asset, kind: 'estate' as const };
       }
       if (action?.type === 'create-building') {
@@ -576,24 +582,32 @@ export function PropertyAssetWorkspace({
                   : undefined),
               }
             : {};
-        const asset = await houseApi.createBuilding({
-          ...values,
-          ...inheritedLocation,
-          estate_id: values.estate_id ?? null,
-          floors: Number(values.floors),
-        });
+        const asset = await houseApi.createBuilding(
+          withApiLocation({
+            ...values,
+            ...inheritedLocation,
+            estate_id: values.estate_id ?? null,
+            floors: Number(values.floors),
+          }),
+        );
         return { asset, kind: 'building' as const };
       }
       if (selectedKind === 'estate' && estateId) {
-        const asset = await houseApi.patchEstate(estateId, values);
+        const asset = await houseApi.patchEstate(
+          estateId,
+          withApiLocation(values),
+        );
         return { asset, kind: 'estate' as const };
       }
       if (selectedKind === 'building' && buildingId) {
-        const asset = await houseApi.patchBuilding(buildingId, {
-          ...values,
-          estate_id: values.estate_id ?? null,
-          floors: Number(values.floors),
-        });
+        const asset = await houseApi.patchBuilding(
+          buildingId,
+          withApiLocation({
+            ...values,
+            estate_id: values.estate_id ?? null,
+            floors: Number(values.floors),
+          }),
+        );
         return { asset, kind: 'building' as const };
       }
       throw new Error('缺少待更新的房源对象');
@@ -1068,7 +1082,7 @@ export function PropertyAssetWorkspace({
                           key: 'location',
                           label: '地图位置',
                           children:
-                            estate?.lat == null || estate?.lng == null
+                            estate?.location == null
                               ? displayValue()
                               : '已定位',
                         },
@@ -1130,7 +1144,7 @@ export function PropertyAssetWorkspace({
                           key: 'location',
                           label: '地图位置',
                           children:
-                            building?.lat == null || building?.lng == null
+                            building?.location == null
                               ? displayValue()
                               : '已定位',
                         },

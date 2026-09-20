@@ -365,7 +365,7 @@ export const AdvancedFilterToolbar: React.FC<AdvancedFilterToolbarProps> = ({
           </Flex>
         }
         keyboard={!submitting}
-        maskClosable={!submitting}
+        mask={{ closable: !submitting }}
         open={mergedOpen}
         size={width}
         title={title}

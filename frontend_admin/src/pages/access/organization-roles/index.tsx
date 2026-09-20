@@ -150,7 +150,9 @@ export const OrganizationRolesPanel: React.FC = () => {
         render: (_value, record) =>
           record.is_system || !canManage ? null : (
             <ResponsiveActions>
-              <a
+              <Button
+                type="link"
+                size="small"
                 onClick={() => {
                   setEditingRole(record);
                   form.setFieldsValue({
@@ -161,12 +163,24 @@ export const OrganizationRolesPanel: React.FC = () => {
                 }}
               >
                 编辑
-              </a>
+              </Button>
               <Popconfirm
                 title="确认删除该角色？已有授权引用时将无法删除。"
-                onConfirm={() => void deleteMutation.mutateAsync(record.id)}
+                disabled={deleteMutation.isPending}
+                onConfirm={() => deleteMutation.mutateAsync(record.id)}
               >
-                <a>删除</a>
+                <Button
+                  type="link"
+                  size="small"
+                  danger
+                  disabled={deleteMutation.isPending}
+                  loading={
+                    deleteMutation.isPending &&
+                    deleteMutation.variables === record.id
+                  }
+                >
+                  删除
+                </Button>
               </Popconfirm>
             </ResponsiveActions>
           ),

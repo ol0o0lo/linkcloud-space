@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Alert, List, Skeleton } from 'antd';
+import { Alert, Button, List, Skeleton } from 'antd';
 import React, { useMemo, useState } from 'react';
 import type { CurrentUser } from '../data';
 import { listAuthenticators, queryCurrent } from '../service';
@@ -87,14 +87,16 @@ const SecurityView: React.FC = () => {
         renderItem={(item) => (
           <List.Item
             actions={[
-              <a
+              <Button
                 key={item.key}
+                type="link"
+                size="small"
                 onClick={() => {
                   setActiveModal(item.key);
                 }}
               >
                 {item.actionText}
-              </a>,
+              </Button>,
             ]}
           >
             <List.Item.Meta title={item.title} description={item.description} />

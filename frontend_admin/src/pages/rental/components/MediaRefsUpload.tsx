@@ -41,6 +41,7 @@ type Props = {
   title?: string;
   enableImageRoles?: boolean;
   preserveDerivedFieldsOnChange?: boolean;
+  scope?: 'user' | 'org';
 };
 
 function clean(items: MediaRefValue[]) {
@@ -76,6 +77,7 @@ const MediaRefsUpload: React.FC<Props> = ({
   title,
   enableImageRoles = true,
   preserveDerivedFieldsOnChange = false,
+  scope = 'org',
 }) => {
   const [uploading, setUploading] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<{
@@ -131,7 +133,7 @@ const MediaRefsUpload: React.FC<Props> = ({
     try {
       const files = [file as File];
       const uploaded = await appsMediaApiUploadFiles(
-        { resource_type: resourceType, scope: 'org' },
+        { resource_type: resourceType, scope },
         files,
       );
       const refs = uploaded.map((item, index) => ({

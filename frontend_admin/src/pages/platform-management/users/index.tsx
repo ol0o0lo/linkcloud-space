@@ -1,7 +1,7 @@
-import {EllipsisOutlined} from '@ant-design/icons';
-import type {ActionType, ProColumns} from '@ant-design/pro-components';
-import {ProTable} from '@ant-design/pro-components';
-import {useMutation} from '@tanstack/react-query';
+import { EllipsisOutlined } from '@ant-design/icons';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
+import { useMutation } from '@tanstack/react-query';
 import {
   AutoComplete,
   Avatar,
@@ -11,6 +11,7 @@ import {
   Dropdown,
   Form,
   Input,
+  type MenuProps,
   Modal,
   Row,
   Select,
@@ -18,10 +19,9 @@ import {
   Switch,
   Tag,
   Typography,
-  type MenuProps,
 } from 'antd';
-import React, {useRef, useState} from 'react';
-import {PageContainer} from '@/components/PageContainer';
+import React, { useRef, useState } from 'react';
+import { PageContainer } from '@/components/PageContainer';
 import {
   AdminToolbar,
   adminTableScroll,
@@ -30,7 +30,11 @@ import {
   toolbarControlStyle,
   toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
-import {enumMapping, enumSelectOptions, useEnums} from '@/services/manual/enums';
+import {
+  enumMapping,
+  enumSelectOptions,
+  useEnums,
+} from '@/services/manual/enums';
 import {
   appsAccountsApiCreateAdminUser,
   appsAccountsApiForceLogoutUser,
@@ -128,7 +132,13 @@ function buildUserInsight(user: AdminUserWithMapping): UserInsight {
   const phoneLabel = user.phone_national_number
     ? `${user.phone_country_code || ''} ${user.phone_national_number}`.trim()
     : '未绑定';
-  const roleLabel = user.role__mapping || (user.is_superuser ? '超级管理员' : user.is_staff ? '后台账号' : '普通账号');
+  const roleLabel =
+    user.role__mapping ||
+    (user.is_superuser
+      ? '超级管理员'
+      : user.is_staff
+        ? '后台账号'
+        : '普通账号');
 
   if (!user.is_active) {
     return {
@@ -192,7 +202,9 @@ const PlatformUsersPage: React.FC = () => {
     initialSearchState.realNameStatus,
   );
   const [role, setRole] = useState<string | undefined>(initialSearchState.role);
-  const [editingUser, setEditingUser] = useState<AdminUserWithMapping | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUserWithMapping | null>(
+    null,
+  );
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [passwordUser, setPasswordUser] = useState<AdminUserWithMapping | null>(
     null,
@@ -203,7 +215,11 @@ const PlatformUsersPage: React.FC = () => {
   >();
   const [passwordForm] = Form.useForm<API.AdminUserPasswordIn>();
   const [modal, modalContextHolder] = Modal.useModal();
-  const userEnums = useEnums(['accounts.real_name_status', 'accounts.admin_user_role', 'accounts.phone_country_code']);
+  const userEnums = useEnums([
+    'accounts.real_name_status',
+    'accounts.admin_user_role',
+    'accounts.phone_country_code',
+  ]);
 
   const updateSearchState = (next: Partial<UserListSearchState>) => {
     syncUserListSearch({
@@ -257,9 +273,9 @@ const PlatformUsersPage: React.FC = () => {
         phone_national_number: phoneParts.nationalNumber,
       };
       if (editingUser) {
-        const {password: _password, ...payload} = normalizedValues;
+        const { password: _password, ...payload } = normalizedValues;
         return appsAccountsApiPatchAdminUser(
-          {user_id: editingUser.id},
+          { user_id: editingUser.id },
           payload,
         );
       }
@@ -273,29 +289,29 @@ const PlatformUsersPage: React.FC = () => {
     },
   });
   const statusMutation = useMutation({
-    mutationFn: ({userId, isActive}: { userId: number; isActive: boolean }) =>
+    mutationFn: ({ userId, isActive }: { userId: number; isActive: boolean }) =>
       appsAccountsApiPatchUserStatus(
-        {user_id: userId},
-        {is_active: isActive},
+        { user_id: userId },
+        { is_active: isActive },
       ),
     onSuccess: () => tableActionRef.current?.reload(),
   });
   const forceLogoutMutation = useMutation({
     mutationFn: (userId: number) =>
-      appsAccountsApiForceLogoutUser({user_id: userId}),
+      appsAccountsApiForceLogoutUser({ user_id: userId }),
   });
   const resetMfaMutation = useMutation({
     mutationFn: (userId: number) =>
-      appsAccountsApiResetUserMfa({user_id: userId}),
+      appsAccountsApiResetUserMfa({ user_id: userId }),
   });
   const passwordMutation = useMutation({
     mutationFn: ({
-                   userId,
-                   body,
-                 }: {
+      userId,
+      body,
+    }: {
       userId: number;
       body: API.AdminUserPasswordIn;
-    }) => appsAccountsApiSetAdminUserPassword({user_id: userId}, body),
+    }) => appsAccountsApiSetAdminUserPassword({ user_id: userId }, body),
     onSuccess: async () => {
       setPasswordUser(null);
       passwordForm.resetFields();
@@ -304,12 +320,12 @@ const PlatformUsersPage: React.FC = () => {
   });
   const unbindPhoneMutation = useMutation({
     mutationFn: (userId: number) =>
-      appsAccountsApiUnbindUserPhone({user_id: userId}),
+      appsAccountsApiUnbindUserPhone({ user_id: userId }),
     onSuccess: () => tableActionRef.current?.reload(),
   });
   const unbindWechatMutation = useMutation({
     mutationFn: (userId: number) =>
-      appsAccountsApiUnbindUserWechat({user_id: userId}),
+      appsAccountsApiUnbindUserWechat({ user_id: userId }),
     onSuccess: () => tableActionRef.current?.reload(),
   });
 
@@ -348,24 +364,37 @@ const PlatformUsersPage: React.FC = () => {
       return;
     }
     if (key === 'force_logout') {
-      void forceLogoutMutation.mutateAsync(record.id);
+      forceLogoutMutation.mutate(record.id);
       return;
     }
     if (key === 'reset_mfa') {
-      void resetMfaMutation.mutateAsync(record.id);
+      resetMfaMutation.mutate(record.id);
     }
   };
+
+  const userActionPending =
+    unbindPhoneMutation.isPending ||
+    unbindWechatMutation.isPending ||
+    forceLogoutMutation.isPending ||
+    resetMfaMutation.isPending;
+  const pendingUserActionId = unbindPhoneMutation.isPending
+    ? unbindPhoneMutation.variables
+    : unbindWechatMutation.isPending
+      ? unbindWechatMutation.variables
+      : forceLogoutMutation.isPending
+        ? forceLogoutMutation.variables
+        : resetMfaMutation.variables;
 
   const buildUserActionItems = (
     record: UserInsight,
   ): NonNullable<MenuProps['items']> => {
     const items: NonNullable<MenuProps['items']> = [];
     if (record.phone_national_number) {
-      items.push({key: 'unbind_phone', label: '解绑手机'});
+      items.push({ key: 'unbind_phone', label: '解绑手机' });
     }
-    items.push({key: 'unbind_wechat', label: '解绑微信'});
-    items.push({key: 'force_logout', label: '强制退出登录'});
-    items.push({key: 'reset_mfa', label: '重置多因素验证'});
+    items.push({ key: 'unbind_wechat', label: '解绑微信' });
+    items.push({ key: 'force_logout', label: '强制退出登录' });
+    items.push({ key: 'reset_mfa', label: '重置多因素验证' });
     return items;
   };
 
@@ -374,13 +403,13 @@ const PlatformUsersPage: React.FC = () => {
       title: '用户名',
       dataIndex: 'username',
       hideInTable: true,
-      fieldProps: {placeholder: '按用户名搜索'},
+      fieldProps: { placeholder: '按用户名搜索' },
     },
     {
       title: '手机号',
       dataIndex: 'phone',
       hideInTable: true,
-      fieldProps: {placeholder: '按手机号搜索'},
+      fieldProps: { placeholder: '按手机号搜索' },
     },
     {
       title: '实名状态',
@@ -415,8 +444,10 @@ const PlatformUsersPage: React.FC = () => {
       search: false,
       render: (_value, record) => (
         <Space>
-          <Avatar src={record.avatar_url || undefined}>{record.username?.slice(0, 1).toUpperCase()}</Avatar>
-          <IdentityText primary={record.username} secondary={record.email}/>
+          <Avatar src={record.avatar_url || undefined}>
+            {record.username?.slice(0, 1).toUpperCase()}
+          </Avatar>
+          <IdentityText primary={record.username} secondary={record.email} />
         </Space>
       ),
     },
@@ -425,11 +456,14 @@ const PlatformUsersPage: React.FC = () => {
       dataIndex: 'phone_national_number',
       width: 180,
       search: false,
-      render: (_value, record) => (
-        record.phone_label === '未绑定'
-          ? <Typography.Text type="secondary">{record.phone_label}</Typography.Text>
-          : record.phone_label
-      ),
+      render: (_value, record) =>
+        record.phone_label === '未绑定' ? (
+          <Typography.Text type="secondary">
+            {record.phone_label}
+          </Typography.Text>
+        ) : (
+          record.phone_label
+        ),
     },
     {
       title: '实名状态',
@@ -445,8 +479,13 @@ const PlatformUsersPage: React.FC = () => {
             record.real_name_status__mapping,
             'accounts.real_name_status',
           );
-        if (!record.real_name_masked && record.real_name_status === 'unverified') {
-          return <Typography.Text type="secondary">{realNameText}</Typography.Text>;
+        if (
+          !record.real_name_masked &&
+          record.real_name_status === 'unverified'
+        ) {
+          return (
+            <Typography.Text type="secondary">{realNameText}</Typography.Text>
+          );
         }
         return (
           <IdentityText
@@ -475,6 +514,11 @@ const PlatformUsersPage: React.FC = () => {
       render: (_value, record) => (
         <Switch
           checked={record.is_active}
+          disabled={statusMutation.isPending}
+          loading={
+            statusMutation.isPending &&
+            statusMutation.variables?.userId === record.id
+          }
           onChange={(checked) =>
             void statusMutation.mutateAsync({
               userId: record.id,
@@ -494,14 +538,22 @@ const PlatformUsersPage: React.FC = () => {
       search: false,
       render: (_value, record) => (
         <ResponsiveActions>
-          <a onClick={() => openEdit(record)}>编辑</a>
-          <a onClick={() => setPasswordUser(record)}>设密码</a>
+          <Button type="link" size="small" onClick={() => openEdit(record)}>
+            编辑
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => setPasswordUser(record)}
+          >
+            设密码
+          </Button>
           <Dropdown
             trigger={['click']}
             placement="bottomRight"
             menu={{
               items: buildUserActionItems(record),
-              onClick: ({key, domEvent}) => {
+              onClick: ({ key, domEvent }) => {
                 domEvent.preventDefault();
                 handleUserAction(record, String(key));
               },
@@ -511,7 +563,9 @@ const PlatformUsersPage: React.FC = () => {
               type="link"
               size="small"
               aria-label="更多操作"
-              icon={<EllipsisOutlined/>}
+              disabled={userActionPending}
+              loading={userActionPending && pendingUserActionId === record.id}
+              icon={<EllipsisOutlined />}
             />
           </Dropdown>
         </ResponsiveActions>
@@ -538,7 +592,9 @@ const PlatformUsersPage: React.FC = () => {
               role: trimParam(params.role),
             });
             return {
-              data: ((result.items || []) as AdminUserWithMapping[]).map((item) => buildUserInsight(item)),
+              data: ((result.items || []) as AdminUserWithMapping[]).map(
+                (item) => buildUserInsight(item),
+              ),
               total: result.total || 0,
               success: true,
             };
@@ -652,9 +708,9 @@ const PlatformUsersPage: React.FC = () => {
               <Form.Item
                 label="用户名"
                 name="username"
-                rules={[{required: !editingUser, message: '请输入用户名'}]}
+                rules={[{ required: !editingUser, message: '请输入用户名' }]}
               >
-                <Input/>
+                <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
@@ -663,11 +719,11 @@ const PlatformUsersPage: React.FC = () => {
                 name="email"
                 normalize={normalizeEmailLikeInput}
                 rules={[
-                  {required: !editingUser, message: '请输入邮箱'},
-                  {type: 'email', message: '邮箱格式不正确'},
+                  { required: !editingUser, message: '请输入邮箱' },
+                  { type: 'email', message: '邮箱格式不正确' },
                 ]}
               >
-                <Input/>
+                <Input />
               </Form.Item>
             </Col>
             {!editingUser ? (
@@ -675,36 +731,42 @@ const PlatformUsersPage: React.FC = () => {
                 <Form.Item
                   label="初始密码"
                   name="password"
-                  rules={[{required: true, message: '请输入初始密码'}]}
+                  rules={[{ required: true, message: '请输入初始密码' }]}
                 >
-                  <Input.Password/>
+                  <Input.Password />
                 </Form.Item>
               </Col>
             ) : null}
             <Col xs={24} md={12}>
               <Form.Item label="姓氏" name="last_name">
-                <Input/>
+                <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
               <Form.Item label="名字" name="first_name">
-                <Input/>
+                <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
               <Form.Item label="时区" name="timezone">
-                <Input/>
+                <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
               <Form.Item label="手机号区号" name="phone_country_code">
                 <AutoComplete
                   allowClear
-                  options={enumSelectOptions(userEnums.data, 'accounts.phone_country_code')}
+                  options={enumSelectOptions(
+                    userEnums.data,
+                    'accounts.phone_country_code',
+                  )}
                   placeholder="+86"
-                  filterOption={(inputValue, option) =>
-                    String(option?.label || option?.value || '').toLowerCase().includes(inputValue.toLowerCase())
-                  }
+                  showSearch={{
+                    filterOption: (inputValue, option) =>
+                      String(option?.label || option?.value || '')
+                        .toLowerCase()
+                        .includes(inputValue.toLowerCase()),
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -714,12 +776,12 @@ const PlatformUsersPage: React.FC = () => {
                 name="phone_national_number"
                 dependencies={['phone_country_code']}
                 rules={[
-                  ({getFieldValue}) => ({
+                  ({ getFieldValue }) => ({
                     validator(_, value) {
                       const error = getAccountPhoneValidationError(
                         getFieldValue('phone_country_code'),
                         value,
-                        {optional: true},
+                        { optional: true },
                       );
                       return error
                         ? Promise.reject(new Error(error))
@@ -728,7 +790,7 @@ const PlatformUsersPage: React.FC = () => {
                   }),
                 ]}
               >
-                <Input inputMode="tel" autoComplete="tel-national"/>
+                <Input inputMode="tel" autoComplete="tel-national" />
               </Form.Item>
             </Col>
           </Row>
@@ -739,17 +801,21 @@ const PlatformUsersPage: React.FC = () => {
                 name="phone_verified"
                 valuePropName="checked"
               >
-                <Switch/>
+                <Switch />
               </Form.Item>
             </Col>
             <Col xs={12} sm={6}>
               <Form.Item label="启用" name="is_active" valuePropName="checked">
-                <Switch/>
+                <Switch />
               </Form.Item>
             </Col>
             <Col xs={12} sm={6}>
-              <Form.Item label="后台访问权限" name="is_staff" valuePropName="checked">
-                <Switch/>
+              <Form.Item
+                label="后台访问权限"
+                name="is_staff"
+                valuePropName="checked"
+              >
+                <Switch />
               </Form.Item>
             </Col>
             <Col xs={12} sm={6}>
@@ -758,7 +824,7 @@ const PlatformUsersPage: React.FC = () => {
                 name="is_superuser"
                 valuePropName="checked"
               >
-                <Switch/>
+                <Switch />
               </Form.Item>
             </Col>
           </Row>
@@ -785,9 +851,9 @@ const PlatformUsersPage: React.FC = () => {
           <Form.Item
             label="新密码"
             name="password"
-            rules={[{required: true, message: '请输入新密码'}]}
+            rules={[{ required: true, message: '请输入新密码' }]}
           >
-            <Input.Password style={fullWidthStyle}/>
+            <Input.Password style={fullWidthStyle} />
           </Form.Item>
         </Form>
       </Modal>

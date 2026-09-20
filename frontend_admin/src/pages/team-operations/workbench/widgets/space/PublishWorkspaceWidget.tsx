@@ -188,7 +188,7 @@ export function PublishWorkspaceWidget({
                   <Button
                     type="link"
                     icon={<ArrowRightOutlined />}
-                    iconPosition="end"
+                    iconPlacement="end"
                     onClick={() => history.push('/rental/properties/list')}
                   >
                     查看全部房源

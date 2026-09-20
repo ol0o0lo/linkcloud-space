@@ -32,4 +32,18 @@ describe('ResponsiveActions', () => {
       '/orders',
     );
   });
+
+  it('同样转换条件渲染片段中的点击链接', () => {
+    render(
+      <ResponsiveActions>
+        <React.Fragment key="conditional-actions">
+          <a onClick={vi.fn()}>接受</a>
+          <a onClick={vi.fn()}>拒绝</a>
+        </React.Fragment>
+      </ResponsiveActions>,
+    );
+
+    expect(screen.getByRole('button', { name: '接受' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '拒绝' })).toBeInTheDocument();
+  });
 });

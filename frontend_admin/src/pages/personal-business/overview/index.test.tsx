@@ -237,10 +237,14 @@ describe('PersonalBusinessPage', () => {
       expect(mockReferralSummary).toHaveBeenCalled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '复制分享链接' }));
-    expect(writeText).toHaveBeenCalledWith(
-      `${window.location.origin}/dashboard/user/register?invite_code=ABC&referral_source=link`,
+    fireEvent.click(
+      await screen.findByRole('button', { name: '复制分享链接' }),
     );
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/dashboard/user/register?invite_code=ABC&referral_source=link`,
+      );
+    });
 
     fireEvent.change(screen.getByLabelText('提现金额'), {
       target: { value: '500' },
@@ -272,7 +276,9 @@ describe('PersonalBusinessPage', () => {
         within(row).queryByText('待审核') && within(row).queryByText('详情'),
     );
     if (!pendingWithdrawalRow) throw new Error('待审核提现行未渲染');
-    fireEvent.click(within(pendingWithdrawalRow).getByText('详情'));
+    fireEvent.click(
+      within(pendingWithdrawalRow).getByRole('button', { name: '详情' }),
+    );
 
     await waitFor(() => {
       expect(mockWithdrawalDetail).toHaveBeenCalledWith({ withdrawal_id: 2 });
@@ -285,7 +291,14 @@ describe('PersonalBusinessPage', () => {
         within(row).queryByText('撤销提现'),
     );
     if (!failedWithdrawalRow) throw new Error('失败提现行未渲染');
-    fireEvent.click(within(failedWithdrawalRow).getByText('撤销提现'));
+    fireEvent.click(
+      within(failedWithdrawalRow).getByRole('button', { name: '撤销提现' }),
+    );
+    const confirmCancelButton = screen
+      .getAllByRole('button', { name: 'OK' })
+      .at(-1);
+    if (!confirmCancelButton) throw new Error('未找到撤销提现确认按钮');
+    fireEvent.click(confirmCancelButton);
 
     await waitFor(() => {
       expect(mockCancelWithdrawal).toHaveBeenCalledWith({ withdrawal_id: 3 });

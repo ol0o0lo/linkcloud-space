@@ -209,7 +209,7 @@ describe('TeamRolesPage', () => {
       );
     });
 
-    fireEvent.click(screen.getByText('编辑'));
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
     fireEvent.change(screen.getByLabelText('角色名称'), {
       target: { value: '团队运营主管' },
     });
@@ -222,7 +222,7 @@ describe('TeamRolesPage', () => {
       );
     });
 
-    fireEvent.click(screen.getByText('删除'));
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
     clickLastOkButton();
 
     await waitFor(() => {

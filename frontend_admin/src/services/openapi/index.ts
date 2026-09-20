@@ -9,11 +9,13 @@ import * as accessRoleManagement from "./accessRoleManagement";
 import * as accessTeamBindings from "./accessTeamBindings";
 import * as accessTeamRoles from "./accessTeamRoles";
 import * as adminReferrals from "./adminReferrals";
+import * as ai from "./ai";
 import * as allocation from "./allocation";
 import * as analytics from "./analytics";
 import * as appSystem from "./appSystem";
 import * as houseMatchShares from "./houseMatchShares";
 import * as mediaFiles from "./mediaFiles";
+import * as miniprogramHomeAdmin from "./miniprogramHomeAdmin";
 import * as navigationAccess from "./navigationAccess";
 import * as notificationDispatches from "./notificationDispatches";
 import * as notifications from "./notifications";
@@ -30,6 +32,7 @@ import * as propertyRentalTenant from "./propertyRentalTenant";
 import * as publicHouseMatchShares from "./publicHouseMatchShares";
 import * as publicHouses from "./publicHouses";
 import * as publicLandlordStore from "./publicLandlordStore";
+import * as publicMiniprogramHome from "./publicMiniprogramHome";
 import * as publicOrganizationInvites from "./publicOrganizationInvites";
 import * as realName from "./realName";
 import * as realNameAdmin from "./realNameAdmin";
@@ -49,6 +52,8 @@ import * as walletInternal from "./walletInternal";
 export default {
   appSystem,
   mediaFiles,
+  miniprogramHomeAdmin,
+  publicMiniprogramHome,
   navigationAccess,
   accessPermissions,
   accessRoleManagement,
@@ -62,6 +67,7 @@ export default {
   notifications,
   teamOperations,
   analytics,
+  ai,
   allocation,
   organizationMembers,
   organizationWorkspace,

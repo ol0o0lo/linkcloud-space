@@ -88,7 +88,7 @@ vi.mock('@ant-design/icons', () => ({
   UserOutlined: () => null,
 }));
 
-vi.mock('./wechat-official-login-modal', () => ({
+vi.mock('./wechat-miniprogram-login-modal', () => ({
   default: ({ embedded, open }: any) => {
     if (!open) return null;
     return embedded ? (
@@ -136,6 +136,7 @@ vi.mock('@ant-design/pro-components', () => {
       <div>
         <input
           aria-label={name}
+          autoComplete={fieldProps?.autoComplete}
           placeholder={placeholder}
           value={String(values[name] || '')}
           onChange={(event) => {
@@ -310,7 +311,14 @@ describe('admin 登录 MFA 流程', () => {
     await waitFor(() =>
       expect(mockRequestPhoneLoginCode).toHaveBeenCalledWith('13800138000'),
     );
-    fireEvent.change(screen.getByPlaceholderText('请输入短信验证码'), {
+    const codeInput = screen.getByPlaceholderText('请输入短信验证码');
+    expect(codeInput).toHaveAttribute('autocomplete', 'one-time-code');
+    const resendButton = screen.getByRole('button', { name: '60 秒后重试' });
+    expect(resendButton).toBeDisabled();
+    fireEvent.click(resendButton);
+    expect(mockRequestPhoneLoginCode).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(codeInput, {
       target: { value: '123456' },
     });
     fireEvent.click(screen.getByRole('button', { name: '提交' }));

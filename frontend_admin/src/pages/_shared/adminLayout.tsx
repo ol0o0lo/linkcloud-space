@@ -75,40 +75,51 @@ export const AdminToolbar: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
+function normalizeResponsiveAction(child: React.ReactNode): React.ReactNode {
+  if (!React.isValidElement(child)) return child;
+
+  if (child.type === React.Fragment) {
+    const fragment = child as React.ReactElement<{
+      children?: React.ReactNode;
+    }>;
+    return React.cloneElement(
+      fragment,
+      undefined,
+      React.Children.map(fragment.props.children, normalizeResponsiveAction),
+    );
+  }
+
+  const anchor = child as React.ReactElement<
+    React.AnchorHTMLAttributes<HTMLAnchorElement>
+  >;
+  if (anchor.type !== 'a' || anchor.props.href || !anchor.props.onClick) {
+    return child;
+  }
+
+  const { children: label, onClick, ...props } = anchor.props;
+  return (
+    <Button
+      key={anchor.key}
+      type="link"
+      size="small"
+      className={props.className}
+      style={props.style}
+      title={props.title}
+      aria-label={props['aria-label']}
+      onClick={(event) =>
+        onClick(event as unknown as React.MouseEvent<HTMLAnchorElement>)
+      }
+    >
+      {label}
+    </Button>
+  );
+}
+
 export const ResponsiveActions: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => (
   <Space size="small" wrap={false} style={{ whiteSpace: 'nowrap' }}>
-    {React.Children.map(children, (child) => {
-      if (
-        !React.isValidElement<React.AnchorHTMLAttributes<HTMLAnchorElement>>(
-          child,
-        ) ||
-        child.type !== 'a' ||
-        child.props.href ||
-        !child.props.onClick
-      ) {
-        return child;
-      }
-
-      const { children: label, onClick, ...props } = child.props;
-      return (
-        <Button
-          key={child.key}
-          type="link"
-          size="small"
-          className={props.className}
-          style={props.style}
-          title={props.title}
-          aria-label={props['aria-label']}
-          onClick={(event) =>
-            onClick(event as unknown as React.MouseEvent<HTMLAnchorElement>)
-          }
-        >
-          {label}
-        </Button>
-      );
-    })}
+    {React.Children.map(children, normalizeResponsiveAction)}
   </Space>
 );
 

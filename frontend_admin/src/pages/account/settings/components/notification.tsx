@@ -141,11 +141,10 @@ const NotificationView: React.FC = () => {
       {saveError ? (
         <Alert
           className="mb-3"
-          closable
+          closable={{ onClose: () => setSaveError('') }}
           showIcon
           type="error"
           title={saveError}
-          onClose={() => setSaveError('')}
         />
       ) : null}
       <div className="divide-y divide-gray-100">

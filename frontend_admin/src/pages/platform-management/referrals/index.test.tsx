@@ -33,13 +33,28 @@ vi.mock('@ant-design/pro-components', () => ({
       {children}
     </section>
   ),
-  ProTable: ({ actionRef, columns, headerTitle, pagination, request }: any) => {
+  ProTable: ({
+    actionRef,
+    columns,
+    headerTitle,
+    pagination,
+    params,
+    request,
+  }: any) => {
     const [data, setData] = React.useState<any[]>([]);
-    const pageSize = pagination?.defaultPageSize || 10;
+    const pageSize = pagination?.pageSize || pagination?.defaultPageSize || 10;
 
     const load = async () => {
-      const result = await request?.({ current: 1, pageSize });
-      setData(result?.data || []);
+      try {
+        const result = await request?.({
+          current: pagination?.current || 1,
+          pageSize,
+          ...params,
+        });
+        setData(result?.data || []);
+      } catch {
+        setData([]);
+      }
     };
 
     React.useEffect(() => {
@@ -47,7 +62,7 @@ vi.mock('@ant-design/pro-components', () => ({
         actionRef.current = { reload: () => void load() };
       }
       void load();
-    }, []);
+    }, [pagination?.current, pageSize, JSON.stringify(params)]);
 
     return (
       <div>
@@ -86,6 +101,7 @@ describe('ReferralsAdminPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/platform-management/referrals');
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -146,18 +162,65 @@ describe('ReferralsAdminPage', () => {
         expect.objectContaining({ inviter_reward_amount: 200 }),
       ),
     );
+    expect(await screen.findByText('邀请奖励规则已保存')).toBeInTheDocument();
 
     const row = screen.getByText('bob').closest('tr');
     expect(row).not.toBeNull();
     if (!row) {
       throw new Error('邀请记录行未渲染');
     }
-    fireEvent.click(within(row).getByText('通过'));
+    fireEvent.click(within(row).getByRole('button', { name: '通过' }));
+    expect(await screen.findByText('确认通过奖励审核？')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /确.*定/ }));
     await waitFor(() =>
       expect(mockReview).toHaveBeenCalledWith(
         { record_id: 6 },
         { approved: true, remark: '' },
       ),
     );
+    expect(await screen.findByText('奖励审核已通过')).toBeInTheDocument();
+  });
+
+  it('restores record filters from the URL', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/platform-management/referrals?page=2&keyword=alice&status=pending_review&created_from=2026-08-01&created_to=2026-08-31',
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReferralsAdminPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(mockRecords).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 2,
+          page_size: 10,
+          keyword: 'alice',
+          status: 'pending_review',
+          created_from: expect.stringContaining('2026-08-01'),
+          created_to: expect.stringContaining('2026-09-01'),
+        }),
+      ),
+    );
+  });
+
+  it('distinguishes record load failures and supports retry', async () => {
+    mockRecords
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce({ items: [], total: 0 });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReferralsAdminPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('邀请记录加载失败')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重新加载记录' }));
+    await waitFor(() => expect(mockRecords).toHaveBeenCalledTimes(2));
   });
 });

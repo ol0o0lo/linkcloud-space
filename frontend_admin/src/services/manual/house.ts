@@ -80,6 +80,43 @@ export type ContactOut = API.ContactOut & {
   user_id?: number | null;
 };
 export type HouseOut = API.HouseOut;
+export type HouseAIInsightState = 'not_generated' | 'fresh' | 'expired';
+export type HouseAIInsightFact = {
+  id: string;
+  label: string;
+  value: string;
+};
+export type HouseAIInsightText = {
+  text: string;
+  fact_ids: string[];
+};
+export type HouseAIInsightSignal = {
+  label: string;
+  value: string;
+  tone: 'positive' | 'neutral' | 'caution';
+  fact_ids: string[];
+};
+export type HouseAIInsightViewingQuestion = {
+  text: string;
+  fact_ids: string[];
+  missing_field_keys: string[];
+};
+export type HouseAIInsightResult = {
+  schema_version: number;
+  conclusion: HouseAIInsightText;
+  signals: HouseAIInsightSignal[];
+  appeal_points: HouseAIInsightText[];
+  viewing_questions: HouseAIInsightViewingQuestion[];
+  missing_fields: Array<{ key: string; label: string }>;
+  facts: HouseAIInsightFact[];
+};
+export type HouseAIInsightResponse = {
+  state: HouseAIInsightState;
+  insight: HouseAIInsightResult | null;
+  generated_at: string | null;
+  expires_at: string | null;
+  source_changed: boolean;
+};
 export type HouseCreateInput = API.HouseIn;
 export type HouseListParams = API.appsHouseApiListHousesParams;
 export type HousePatchInput = API.HousePatchIn;
@@ -263,12 +300,16 @@ export type PublicLandlordHouse = {
   tags: string[];
   effective_tags: string[];
   public_description: string;
+  distance_m?: number | null;
   building: {
     id: number;
     name: string;
     address: string;
-    lat?: string | number | null;
-    lng?: string | number | null;
+    location?: {
+      latitude: number;
+      longitude: number;
+      coordinate_system: 'gcj02';
+    } | null;
     estate?: {
       id: number;
       name: string;
@@ -408,6 +449,15 @@ export const houseApi = {
 
   listHouses: (params: HouseListParams = {}) => appsHouseApiListHouses(params),
   getHouse: (houseId: number) => appsHouseApiGetHouse({ house_id: houseId }) as Promise<HouseOut>,
+  getHouseAIInsight: (houseId: number) =>
+    request<HouseAIInsightResponse>(`/api/house/houses/${houseId}/ai-insight/`, {
+      skipErrorHandler: true,
+    }),
+  generateHouseAIInsight: (houseId: number) =>
+    request<HouseAIInsightResponse>(`/api/house/houses/${houseId}/ai-insight/generate/`, {
+      method: 'POST',
+      skipErrorHandler: true,
+    }),
   createHouse: (data: HouseCreateInput) => appsHouseApiCreateHouse(data),
   patchHouse: (houseId: number, data: HousePatchInput) => appsHouseApiPatchHouse({ house_id: houseId }, data),
   createHouseMatchShare: (data: HouseMatchShareCreateInput) =>

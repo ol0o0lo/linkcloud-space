@@ -84,8 +84,7 @@ const ManualAdjustmentModal: React.FC<ManualAdjustmentModalProps> = ({
           rules={[{ required: true, message: '请选择受益人' }]}
         >
           <Select
-            showSearch
-            optionFilterProp="label"
+            showSearch={{ optionFilterProp: 'label' }}
             loading={beneficiariesLoading}
             options={beneficiaries.map((item) => ({
               value: item.user_id,

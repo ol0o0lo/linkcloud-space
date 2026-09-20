@@ -296,6 +296,7 @@ const PropertyRentalMapPage: React.FC = () => {
       houseApi.listBuildingMap({
         ...businessFilters,
         ...bounds,
+        coordinate_system: 'gcj02',
         page: 1,
         page_size: 500,
       }),
@@ -316,6 +317,7 @@ const PropertyRentalMapPage: React.FC = () => {
       houseApi.listEstateMap({
         ...businessFilters,
         ...bounds,
+        coordinate_system: 'gcj02',
         page: 1,
         page_size: 500,
       }),
@@ -336,6 +338,7 @@ const PropertyRentalMapPage: React.FC = () => {
       houseApi.listBuildingMap({
         ...businessFilters,
         ...bounds,
+        coordinate_system: 'gcj02',
         standalone_only: true,
         page: 1,
         page_size: 500,
@@ -386,8 +389,11 @@ const PropertyRentalMapPage: React.FC = () => {
   });
   const selectedEstate = selectedEstateQuery.data;
   const estateLocation =
-    selectedEstate && selectedEstate.lat != null && selectedEstate.lng != null
-      ? { lat: Number(selectedEstate.lat), lng: Number(selectedEstate.lng) }
+    selectedEstate?.location
+      ? {
+          lat: Number(selectedEstate.location.latitude),
+          lng: Number(selectedEstate.location.longitude),
+        }
       : undefined;
   const defaultLocation = settingLocation(
     settings.data?.find(
@@ -817,14 +823,18 @@ const PropertyRentalMapPage: React.FC = () => {
       setSelectedBuildingSnapshot(building);
       userMovedRef.current = true;
       if (compact) {
-        moveMapTo(Number(building.lng), Number(building.lat), 16);
+        moveMapTo(
+          Number(building.location.longitude),
+          Number(building.location.latitude),
+          16,
+        );
         return;
       }
       if (!alreadySelected) {
         const currentZoom = Number(map.getZoom?.() || 16);
         moveMapTo(
-          Number(building.lng),
-          Number(building.lat),
+          Number(building.location.longitude),
+          Number(building.location.latitude),
           Math.min(currentZoom + 1, 20),
         );
       }
@@ -1099,7 +1109,10 @@ const PropertyRentalMapPage: React.FC = () => {
         return upsertMarker(
           `building:${item.id}`,
           {
-            position: [Number(item.lng), Number(item.lat)],
+            position: [
+              Number(item.location.longitude),
+              Number(item.location.latitude),
+            ],
             title: `${item.name} · ${metric.label} ${metric.value} 套`,
             anchor: focused || !compactMarker ? 'bottom-center' : 'center',
             zIndex: focused ? 120 : 100,
@@ -1113,8 +1126,8 @@ const PropertyRentalMapPage: React.FC = () => {
       const zoomIntoBuildingGroup = (buildings: BuildingMapMarkerOut[]) =>
         expandMapGroup(
           buildings.map((building) => [
-            Number(building.lng),
-            Number(building.lat),
+            Number(building.location.longitude),
+            Number(building.location.latitude),
           ]),
         );
 
@@ -1148,8 +1161,8 @@ const PropertyRentalMapPage: React.FC = () => {
           lat: number;
         }> = [];
         for (const item of groupableItems) {
-          const lng = Number(item.lng);
-          const lat = Number(item.lat);
+          const lng = Number(item.location.longitude);
+          const lat = Number(item.location.latitude);
           const pixel = map.lngLatToContainer?.(new AMap.LngLat(lng, lat));
           const x = Number(pixel?.x);
           const y = Number(pixel?.y);
@@ -1219,7 +1232,10 @@ const PropertyRentalMapPage: React.FC = () => {
       if (useSdkCluster) {
         const points = groupableItems.map(
           (building): ClusterPoint => ({
-            lnglat: [Number(building.lng), Number(building.lat)],
+            lnglat: [
+              Number(building.location.longitude),
+              Number(building.location.latitude),
+            ],
             building,
           }),
         );
@@ -1335,7 +1351,11 @@ const PropertyRentalMapPage: React.FC = () => {
           (point) => [point.lng, point.lat] as [number, number],
         )
       : locatedItems.map(
-          (item) => [Number(item.lng), Number(item.lat)] as [number, number],
+          (item) =>
+            [
+              Number(item.location.longitude),
+              Number(item.location.latitude),
+            ] as [number, number],
         );
     if (
       visibleCoordinates.length &&
@@ -1401,7 +1421,10 @@ const PropertyRentalMapPage: React.FC = () => {
     setFocusedBuildingId(building.id);
     setSelectedBuildingId(building.id);
     setSelectedBuildingSnapshot(building);
-    moveMapTo(Number(building.lng), Number(building.lat));
+    moveMapTo(
+      Number(building.location.longitude),
+      Number(building.location.latitude),
+    );
   };
 
   const selectEstatePoint = (point: EstateMapDisplayPoint) => {
@@ -1553,7 +1576,10 @@ const PropertyRentalMapPage: React.FC = () => {
       setFocusedEstateKey(undefined);
       setSelectedBuildingId(locatedBuilding.id);
       setSelectedBuildingSnapshot(locatedBuilding);
-      moveMapTo(Number(locatedBuilding.lng), Number(locatedBuilding.lat));
+      moveMapTo(
+        Number(locatedBuilding.location.longitude),
+        Number(locatedBuilding.location.latitude),
+      );
       cancelPendingDeepLink();
       return;
     }
@@ -1565,7 +1591,7 @@ const PropertyRentalMapPage: React.FC = () => {
     }
     const detail = pendingDeepLinkBuilding.data;
     if (!detail) return;
-    if (detail.lat == null || detail.lng == null) {
+    if (detail.location == null) {
       cancelPendingDeepLink();
       clearBuildingSelection(true);
       message.warning('该楼栋尚未定位，无法在地图中查看');
@@ -1576,8 +1602,7 @@ const PropertyRentalMapPage: React.FC = () => {
       estate: detail.estate,
       name: detail.name,
       address: detail.address,
-      lat: detail.lat,
-      lng: detail.lng,
+      location: detail.location,
       counts: detail.counts,
     };
     cancelPendingBounds();
@@ -1587,7 +1612,10 @@ const PropertyRentalMapPage: React.FC = () => {
     setFocusedEstateKey(undefined);
     setSelectedBuildingId(building.id);
     setSelectedBuildingSnapshot(building);
-    moveMapTo(Number(building.lng), Number(building.lat));
+    moveMapTo(
+      Number(building.location.longitude),
+      Number(building.location.latitude),
+    );
     cancelPendingDeepLink();
   }, [
     AMap,

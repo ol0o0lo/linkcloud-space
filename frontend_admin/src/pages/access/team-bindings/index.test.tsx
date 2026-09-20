@@ -4,6 +4,11 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeamBindingsPage from './index';
 
+function requireElement<T>(value: T | null | undefined, message: string): T {
+  if (!value) throw new Error(message);
+  return value;
+}
+
 const {
   mockListTeams,
   mockListMembers,
@@ -21,9 +26,21 @@ const {
 }));
 
 vi.mock('@/pages/space/shared', () => ({
-  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  formatPersonLabel: (user: { username?: string; first_name?: string; last_name?: string }) => [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || '未知用户',
-  useTenantWorkspace: () => ({ selectedOrgSlug: 'acme', queryClient: { invalidateQueries: vi.fn() } }),
+  TenantSelectionGuard: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  formatPersonLabel: (user: {
+    username?: string;
+    first_name?: string;
+    last_name?: string;
+  }) =>
+    [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+    user.username ||
+    '未知用户',
+  useTenantWorkspace: () => ({
+    selectedOrgSlug: 'acme',
+    queryClient: { invalidateQueries: vi.fn() },
+  }),
 }));
 
 vi.mock('@/services/openapi/teams', () => ({
@@ -49,11 +66,56 @@ describe('TeamBindingsPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    mockListTeams.mockResolvedValue({ items: [{ id: 3, name: 'Growth' }], total: 1, page: 1, page_size: 100 });
-    mockListRoles.mockResolvedValue([{ id: 4, name: '团队运营', code: 'team_ops', scope: 'team', is_active: true, is_system: false, permission_keys: [] }]);
-    mockListMembers.mockResolvedValue({ items: [{ pk: 1, user: { id: 7, username: 'alice', first_name: 'Alice', last_name: 'Zhang' } }] });
-    mockListBindings.mockResolvedValue([{ id: 12, user: { id: 7, username: 'alice', first_name: 'Alice', last_name: 'Zhang' }, role: { id: 4, name: '团队运营', code: 'team_ops', scope: 'team' }, created_at: '2026-06-16T10:00:00+08:00', updated_at: '2026-06-16T10:00:00+08:00' }]);
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    mockListTeams.mockResolvedValue({
+      items: [{ id: 3, name: 'Growth' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    });
+    mockListRoles.mockResolvedValue([
+      {
+        id: 4,
+        name: '团队运营',
+        code: 'team_ops',
+        scope: 'team',
+        is_active: true,
+        is_system: false,
+        permission_keys: [],
+      },
+    ]);
+    mockListMembers.mockResolvedValue({
+      items: [
+        {
+          pk: 1,
+          user: {
+            id: 7,
+            username: 'alice',
+            first_name: 'Alice',
+            last_name: 'Zhang',
+          },
+        },
+      ],
+    });
+    mockListBindings.mockResolvedValue([
+      {
+        id: 12,
+        user: {
+          id: 7,
+          username: 'alice',
+          first_name: 'Alice',
+          last_name: 'Zhang',
+        },
+        role: { id: 4, name: '团队运营', code: 'team_ops', scope: 'team' },
+        created_at: '2026-06-16T10:00:00+08:00',
+        updated_at: '2026-06-16T10:00:00+08:00',
+      },
+    ]);
     mockCreateBinding.mockResolvedValue({});
     mockDeleteBinding.mockResolvedValue({});
   });
@@ -74,25 +136,60 @@ describe('TeamBindingsPage', () => {
 
     expect(screen.queryByText('授权概览')).not.toBeInTheDocument();
     expect(screen.queryByText('角色覆盖与待分配')).not.toBeInTheDocument();
-    expect(screen.queryByText('团队授权决定谁来承接房源发布、资料补齐和异常收口')).not.toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '授权时间' })).toBeInTheDocument();
+    expect(
+      screen.queryByText('团队授权决定谁来承接房源发布、资料补齐和异常收口'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: '授权时间' }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '分配角色' }));
-    fireEvent.mouseDown(screen.getByLabelText('成员').closest('.ant-select')!);
+    fireEvent.mouseDown(
+      requireElement(
+        screen.getByLabelText('成员').closest('.ant-select'),
+        '未找到成员选择器',
+      ),
+    );
     fireEvent.click(await screen.findByText('Alice Zhang (alice)'));
-    fireEvent.mouseDown(screen.getByLabelText('角色').closest('.ant-select')!);
-    fireEvent.click(screen.getAllByText('团队运营').at(-1)!);
-    fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
+    fireEvent.mouseDown(
+      requireElement(
+        screen.getByLabelText('角色').closest('.ant-select'),
+        '未找到角色选择器',
+      ),
+    );
+    fireEvent.click(
+      requireElement(
+        screen.getAllByText('团队运营').at(-1),
+        '未找到团队运营角色',
+      ),
+    );
+    fireEvent.click(
+      requireElement(
+        screen.getAllByRole('button', { name: 'OK' }).at(-1),
+        '未找到分配确认按钮',
+      ),
+    );
 
     await waitFor(() => {
-      expect(mockCreateBinding).toHaveBeenCalledWith({ team_id: 3 }, { user: 7, role: 4 });
+      expect(mockCreateBinding).toHaveBeenCalledWith(
+        { team_id: 3 },
+        { user: 7, role: 4 },
+      );
     });
 
-    fireEvent.click(screen.getByText('移除'));
-    fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
+    fireEvent.click(screen.getByRole('button', { name: '移除' }));
+    fireEvent.click(
+      requireElement(
+        screen.getAllByRole('button', { name: 'OK' }).at(-1),
+        '未找到移除确认按钮',
+      ),
+    );
 
     await waitFor(() => {
-      expect(mockDeleteBinding).toHaveBeenCalledWith({ team_id: 3, binding_id: 12 });
+      expect(mockDeleteBinding).toHaveBeenCalledWith({
+        team_id: 3,
+        binding_id: 12,
+      });
     });
   });
 });

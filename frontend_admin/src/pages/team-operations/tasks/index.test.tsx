@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TeamTasksPage from './index';
 
 const {
+  mockAcceptTaskAssignment,
   mockGetTaskAssignment,
   mockGetTaskAssignmentSummary,
   mockGetTeamOperationsCapabilities,
@@ -19,6 +20,7 @@ const {
   mockListWorkTasks,
   mockListTeams,
 } = vi.hoisted(() => ({
+  mockAcceptTaskAssignment: vi.fn(),
   mockGetTaskAssignment: vi.fn(),
   mockGetTaskAssignmentSummary: vi.fn(),
   mockGetTeamOperationsCapabilities: vi.fn(),
@@ -53,7 +55,7 @@ vi.mock('@/pages/space/shared', () => ({
 }));
 
 vi.mock('@/services/manual/teamOperations', () => ({
-  acceptTaskAssignment: vi.fn(),
+  acceptTaskAssignment: mockAcceptTaskAssignment,
   cancelWorkTask: vi.fn(),
   completeTaskAssignment: vi.fn(),
   createWorkTask: vi.fn(),
@@ -158,6 +160,13 @@ describe('TeamTasksPage', () => {
     mockListTaskAssignees.mockResolvedValue({ items: [] });
     mockListWorkTasks.mockResolvedValue({ items: [] });
     mockListTeams.mockResolvedValue({ items: [] });
+    mockAcceptTaskAssignment.mockResolvedValue({
+      ...assignment,
+      status: 'in_progress',
+      status__mapping: '进行中',
+      can_accept: false,
+      can_complete: true,
+    });
   });
 
   afterEach(() => {
@@ -227,5 +236,117 @@ describe('TeamTasksPage', () => {
       ).not.toBeInTheDocument();
     });
     expect(window.location.search).not.toContain('assignment_id');
+  });
+
+  it('从 URL 恢复两类任务各自的页码和筛选条件', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/dashboard/rental/workbench/tasks?view=mine&managed_page=3&managed_status=active&managed_priority=high&managed_team_id=8&managed_due_state=due_soon&managed_keyword=%E5%B7%A1%E6%A3%80&mine_page=2&mine_status=pending&mine_priority=urgent&mine_team_id=9&mine_due_state=overdue&mine_keyword=%E5%90%88%E5%90%8C',
+    );
+    mockGetTeamOperationsCapabilities.mockResolvedValue({
+      task_organization_manage: true,
+      task_team_ids: [],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockListTaskAssignments).toHaveBeenCalledWith({
+        page: 2,
+        page_size: 10,
+        status: 'pending',
+        priority: 'urgent',
+        team_id: 9,
+        due_state: 'overdue',
+        keyword: '合同',
+      });
+    });
+
+    fireEvent.click(await screen.findByRole('radio', { name: '任务管理' }));
+
+    await waitFor(() => {
+      expect(mockListWorkTasks).toHaveBeenCalledWith({
+        page: 3,
+        page_size: 10,
+        status: 'active',
+        priority: 'high',
+        team_id: 8,
+        due_state: 'due_soon',
+        keyword: '巡检',
+      });
+      expect(new URLSearchParams(window.location.search).get('view')).toBe(
+        'managed',
+      );
+    });
+  });
+
+  it('从列表打开详情时写入 URL，接受操作防止重复提交', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/dashboard/rental/workbench/tasks?view=mine',
+    );
+    mockListTaskAssignments.mockResolvedValue({
+      items: [assignment],
+      page: 1,
+      page_size: 10,
+      total: 1,
+    });
+    let resolveAccept: (value: typeof assignment) => void = () => undefined;
+    mockAcceptTaskAssignment.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAccept = resolve;
+        }),
+    );
+
+    renderPage();
+
+    const detailButton = await screen.findByRole('button', { name: '详情' });
+    fireEvent.click(detailButton);
+    await waitFor(() =>
+      expect(
+        new URLSearchParams(window.location.search).get('assignment_id'),
+      ).toBe('2'),
+    );
+
+    const acceptButton = screen.getByRole('button', { name: '接受' });
+    fireEvent.click(acceptButton);
+    await waitFor(() => expect(acceptButton).toBeDisabled());
+    fireEvent.click(acceptButton);
+    expect(mockAcceptTaskAssignment).toHaveBeenCalledTimes(1);
+
+    resolveAccept({
+      ...assignment,
+      status: 'in_progress',
+      status__mapping: '进行中',
+      can_accept: false,
+      can_complete: true,
+    });
+  });
+
+  it('新建任务有输入时关闭会确认是否放弃', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/dashboard/rental/workbench/tasks?view=managed',
+    );
+    mockGetTeamOperationsCapabilities.mockResolvedValue({
+      task_organization_manage: true,
+      task_team_ids: [],
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '新建任务' }));
+    fireEvent.change(screen.getByLabelText('任务标题'), {
+      target: { value: '月度巡检' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+
+    expect(
+      (await screen.findAllByText('放弃未保存的任务？')).length,
+    ).toBeGreaterThan(0);
   });
 });

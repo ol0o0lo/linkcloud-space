@@ -74,7 +74,11 @@ function ResponsibilityScopeSummaryItem({
           {items.slice(0, 2).map((item) => (
             <Tag key={item.id}>{item.label}</Tag>
           ))}
-          {items.length > 2 ? <Typography.Text type="secondary">+{items.length - 2}</Typography.Text> : null}
+          {items.length > 2 ? (
+            <Typography.Text type="secondary">
+              +{items.length - 2}
+            </Typography.Text>
+          ) : null}
         </>
       ) : (
         <Typography.Text type="secondary">未分配</Typography.Text>
@@ -93,17 +97,26 @@ function ResponsibilityScopeSummary({
       <ResponsibilityScopeSummaryItem
         title="房东"
         color="blue"
-        items={record.landlords.map((item) => ({ id: item.id, label: item.name }))}
+        items={record.landlords.map((item) => ({
+          id: item.id,
+          label: item.name,
+        }))}
       />
       <ResponsibilityScopeSummaryItem
         title="楼栋"
         color="cyan"
-        items={record.buildings.map((item) => ({ id: item.id, label: buildingLabel(item) }))}
+        items={record.buildings.map((item) => ({
+          id: item.id,
+          label: buildingLabel(item),
+        }))}
       />
       <ResponsibilityScopeSummaryItem
         title="小区"
         color="green"
-        items={record.estates.map((item) => ({ id: item.id, label: item.display_name || item.name }))}
+        items={record.estates.map((item) => ({
+          id: item.id,
+          label: item.display_name || item.name,
+        }))}
       />
     </Space>
   );
@@ -134,7 +147,9 @@ function ResponsibilityScopeSection({
         </Space>
         <Typography.Text type="secondary">{description}</Typography.Text>
         {children}
-        <Typography.Text type="secondary">留空表示不在该层分配。</Typography.Text>
+        <Typography.Text type="secondary">
+          留空表示不在该层分配。
+        </Typography.Text>
       </Space>
     </Card>
   );
@@ -162,7 +177,8 @@ const StaffResponsibilitiesPage: React.FC = () => {
   const [draftResponsibilities, setDraftResponsibilities] = useState(
     EMPTY_RESPONSIBILITIES,
   );
-  const [pendingResponsibilities, setPendingResponsibilities] = useState<Required<PropertyResponsibilityUpdateIn> | null>(null);
+  const [pendingResponsibilities, setPendingResponsibilities] =
+    useState<Required<PropertyResponsibilityUpdateIn> | null>(null);
   const enabled = Boolean(workspace.selectedOrgSlug);
 
   const responsibilities = useQuery({
@@ -305,7 +321,9 @@ const StaffResponsibilitiesPage: React.FC = () => {
       title: '负责范围',
       dataIndex: 'responsibility_scope',
       width: 360,
-      render: (_value, record) => <ResponsibilityScopeSummary record={record} />,
+      render: (_value, record) => (
+        <ResponsibilityScopeSummary record={record} />
+      ),
     },
     {
       title: '负责房源',
@@ -326,7 +344,7 @@ const StaffResponsibilitiesPage: React.FC = () => {
             type="link"
             size="small"
             icon={<EditOutlined />}
-          onClick={() => setEditing(record)}
+            onClick={() => setEditing(record)}
           >
             配置分工
           </Button>
@@ -422,9 +440,7 @@ const StaffResponsibilitiesPage: React.FC = () => {
 
       <Drawer
         title={
-          editing
-            ? `配置分工 · ${formatPersonLabel(editing.user)}`
-            : '配置分工'
+          editing ? `配置分工 · ${formatPersonLabel(editing.user)}` : '配置分工'
         }
         open={Boolean(editing)}
         size={drawerWidthLg}
@@ -449,17 +465,26 @@ const StaffResponsibilitiesPage: React.FC = () => {
         <div style={{ margin: '0 4px 16px' }}>
           <Space size={6} wrap>
             <Typography.Text type="secondary">分配顺序</Typography.Text>
-            <Tag color="blue" bordered={false}>房东</Tag>
+            <Tag color="blue" variant="filled">
+              房东
+            </Tag>
             <Typography.Text type="secondary" aria-hidden>
               →
             </Typography.Text>
-            <Tag color="cyan" bordered={false}>楼栋</Tag>
+            <Tag color="cyan" variant="filled">
+              楼栋
+            </Tag>
             <Typography.Text type="secondary" aria-hidden>
               →
             </Typography.Text>
-            <Tag color="green" bordered={false}>小区</Tag>
+            <Tag color="green" variant="filled">
+              小区
+            </Tag>
           </Space>
-          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
+          <Typography.Text
+            type="secondary"
+            style={{ display: 'block', marginTop: 4 }}
+          >
             同一房源会归属至最先命中的范围；保存前还可再次确认。
           </Typography.Text>
         </div>
@@ -468,8 +493,12 @@ const StaffResponsibilitiesPage: React.FC = () => {
           form={form}
           layout="vertical"
           initialValues={{ landlord_ids: [], building_ids: [], estate_ids: [] }}
-          onValuesChange={(_changedValues, values) => setDraftResponsibilities(normalizeResponsibilities(values))}
-          onFinish={(values) => setPendingResponsibilities(normalizeResponsibilities(values))}
+          onValuesChange={(_changedValues, values) =>
+            setDraftResponsibilities(normalizeResponsibilities(values))
+          }
+          onFinish={(values) =>
+            setPendingResponsibilities(normalizeResponsibilities(values))
+          }
         >
           <ResponsibilityScopeSection
             priority={1}
@@ -548,7 +577,9 @@ const StaffResponsibilitiesPage: React.FC = () => {
       >
         {pendingResponsibilities ? (
           <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-            {pendingResponsibilities.landlord_ids.length || pendingResponsibilities.building_ids.length || pendingResponsibilities.estate_ids.length ? (
+            {pendingResponsibilities.landlord_ids.length ||
+            pendingResponsibilities.building_ids.length ||
+            pendingResponsibilities.estate_ids.length ? (
               <Alert
                 type="warning"
                 showIcon
@@ -566,22 +597,38 @@ const StaffResponsibilitiesPage: React.FC = () => {
             {[
               {
                 title: '房东范围',
-                labels: selectedOptionLabels(pendingResponsibilities.landlord_ids, landlordOptions),
+                labels: selectedOptionLabels(
+                  pendingResponsibilities.landlord_ids,
+                  landlordOptions,
+                ),
               },
               {
                 title: '楼栋范围',
-                labels: selectedOptionLabels(pendingResponsibilities.building_ids, buildingOptions),
+                labels: selectedOptionLabels(
+                  pendingResponsibilities.building_ids,
+                  buildingOptions,
+                ),
               },
               {
                 title: '小区范围',
-                labels: selectedOptionLabels(pendingResponsibilities.estate_ids, estateOptions),
+                labels: selectedOptionLabels(
+                  pendingResponsibilities.estate_ids,
+                  estateOptions,
+                ),
               },
             ].map((scope) => (
               <div key={scope.title}>
                 <Typography.Text strong>{scope.title}</Typography.Text>
-                <Typography.Text type="secondary"> · {scope.labels.length} 项</Typography.Text>
+                <Typography.Text type="secondary">
+                  {' '}
+                  · {scope.labels.length} 项
+                </Typography.Text>
                 <div>
-                  {scope.labels.length ? scope.labels.join('、') : <Typography.Text type="secondary">未分配</Typography.Text>}
+                  {scope.labels.length ? (
+                    scope.labels.join('、')
+                  ) : (
+                    <Typography.Text type="secondary">未分配</Typography.Text>
+                  )}
                 </div>
               </div>
             ))}

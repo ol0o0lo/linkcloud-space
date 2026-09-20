@@ -41,9 +41,27 @@ vi.mock('@/services/openapi/organizationSettings', () => ({
 
 const counts = { total: 1, vacant: 1, listed: 0, rented: 0, renovating: 0 };
 const buildings = [
-  { id: 1, name: 'A座', lat: '23.13', lng: '113.36', address: '', counts },
-  { id: 2, name: 'B座', lat: '23.13', lng: '113.3605', address: '', counts },
-  { id: 3, name: 'C座', lat: '23.13', lng: '113.38', address: '', counts },
+  {
+    id: 1,
+    name: 'A座',
+    location: { latitude: 23.13, longitude: 113.36, coordinate_system: 'gcj02' },
+    address: '',
+    counts,
+  },
+  {
+    id: 2,
+    name: 'B座',
+    location: { latitude: 23.13, longitude: 113.3605, coordinate_system: 'gcj02' },
+    address: '',
+    counts,
+  },
+  {
+    id: 3,
+    name: 'C座',
+    location: { latitude: 23.13, longitude: 113.38, coordinate_system: 'gcj02' },
+    address: '',
+    counts,
+  },
 ];
 const page = (items: typeof buildings) => ({
   items,
@@ -171,7 +189,10 @@ describe('地图聚合交互', () => {
   ])('从 %s 级展开时参考范围适配值 %s，平滑推进到 %s', async (zoom, fitZoom, expectedZoom) => {
     // Keep two markers grouped even at the highest tested zoom.
     listBuildingMap.mockResolvedValue(
-      page([buildings[0], { ...buildings[1], lng: '113.36001' }]),
+      page([
+        buildings[0],
+        { ...buildings[1], location: { ...buildings[1].location, longitude: 113.36001 } },
+      ]),
     );
     const { map, overlays } = createMap(zoom);
     await waitFor(() => expect(overlays.size).toBe(1));
@@ -192,7 +213,10 @@ describe('地图聚合交互', () => {
 
   it('坐标重合时只前进一级，不会跳到最大缩放', async () => {
     listBuildingMap.mockResolvedValue(
-      page([buildings[0], { ...buildings[1], lng: buildings[0].lng }]),
+      page([
+        buildings[0],
+        { ...buildings[1], location: { ...buildings[1].location, longitude: buildings[0].location.longitude } },
+      ]),
     );
     const { map, overlays } = createMap();
     await waitFor(() => expect(overlays.size).toBe(1));

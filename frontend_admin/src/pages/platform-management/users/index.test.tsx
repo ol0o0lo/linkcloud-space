@@ -45,7 +45,6 @@ vi.mock('@ant-design/pro-components', () => ({
     actionRef,
     columns,
     headerTitle,
-    options,
     pagination,
     params,
     request,
@@ -280,7 +279,7 @@ describe('PlatformUsersPage', () => {
       expect(mockResetMfa).toHaveBeenCalledWith({ user_id: 7 }),
     );
 
-    fireEvent.click(within(userRow).getByText('设密码'));
+    fireEvent.click(within(userRow).getByRole('button', { name: '设密码' }));
     const passwordDialog = screen
       .getByText('设置 alice 的密码')
       .closest('[role="dialog"]') as HTMLElement | null;
@@ -372,8 +371,12 @@ describe('PlatformUsersPage', () => {
     expect(screen.getByPlaceholderText('按手机号搜索')).toHaveValue(
       '13800138000',
     );
-    expect(screen.getByRole('combobox', { name: '实名状态' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: '用户角色' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: '实名状态' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: '用户角色' }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '下一页' }));
     await waitFor(() =>
@@ -400,8 +403,12 @@ describe('PlatformUsersPage', () => {
         '13800138000',
       );
     });
-    expect(screen.getByRole('combobox', { name: '实名状态' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: '用户角色' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: '实名状态' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: '用户角色' }),
+    ).toBeInTheDocument();
   });
 
   it('空头像使用文字占位而不是渲染空 src', async () => {

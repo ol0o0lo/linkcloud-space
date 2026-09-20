@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Popconfirm,
   Row,
   Space,
   Statistic,
@@ -27,12 +28,28 @@ import {
   drawerWidthMd,
   drawerWidthSm,
   fullWidthStyle,
+  ResponsiveActions,
   responsiveDescriptionColumns,
   twoColumnDescription,
-  ResponsiveActions,
   WrappedCodeText,
   wrapTextStyle,
 } from '@/pages/_shared/adminLayout';
+import { formatWalletAmount } from '@/pages/wallet-management/shared';
+import { enumMapping } from '@/services/manual/enums';
+import {
+  appsAccountsApiGetMyRealName,
+  appsAccountsApiListMyRealNameLogs,
+} from '@/services/openapi/realName';
+import {
+  appsReferralsApiMyReferralRecords,
+  appsReferralsApiMyReferralSummary,
+} from '@/services/openapi/referrals';
+import {
+  appsSettingsApiDeleteUserSettingView,
+  appsSettingsApiGetUserSettingView,
+  appsSettingsApiListUserSettings,
+  appsSettingsApiPutUserSetting,
+} from '@/services/openapi/userSettings';
 import {
   appsWalletApiCancelUserWithdrawal,
   appsWalletApiCreateWithdrawal,
@@ -41,22 +58,6 @@ import {
   appsWalletApiWalletLedger,
   appsWalletApiWalletSummary,
 } from '@/services/openapi/userWallet';
-import {
-  appsReferralsApiMyReferralRecords,
-  appsReferralsApiMyReferralSummary,
-} from '@/services/openapi/referrals';
-import {
-  appsAccountsApiGetMyRealName,
-  appsAccountsApiListMyRealNameLogs,
-} from '@/services/openapi/realName';
-import {
-  appsSettingsApiDeleteUserSettingView,
-  appsSettingsApiGetUserSettingView,
-  appsSettingsApiListUserSettings,
-  appsSettingsApiPutUserSetting,
-} from '@/services/openapi/userSettings';
-import { enumMapping } from '@/services/manual/enums';
-import { formatWalletAmount } from '@/pages/wallet-management/shared';
 import {
   isEditableUserSettingKey,
   visibleUserSettings,
@@ -116,7 +117,10 @@ const overviewTileStyle: React.CSSProperties = {
 function buildWithdrawalInsight(
   withdrawal: WithdrawalWithMapping,
 ): WithdrawalInsight {
-  const statusLabel = enumMapping(withdrawal.status, withdrawal.status__mapping);
+  const statusLabel = enumMapping(
+    withdrawal.status,
+    withdrawal.status__mapping,
+  );
   switch (withdrawal.status) {
     case 'pending_review':
       return {
@@ -214,11 +218,13 @@ const PersonalBusinessPage: React.FC = () => {
   });
   const realNameQuery = useQuery({
     queryKey: ['personal-business', 'real-name'],
-    queryFn: () => appsAccountsApiGetMyRealName() as Promise<RealNameStatusRecord>,
+    queryFn: () =>
+      appsAccountsApiGetMyRealName() as Promise<RealNameStatusRecord>,
   });
   const realNameLogsQuery = useQuery({
     queryKey: ['personal-business', 'real-name-logs'],
-    queryFn: () => appsAccountsApiListMyRealNameLogs() as Promise<RealNameLogRecord[]>,
+    queryFn: () =>
+      appsAccountsApiListMyRealNameLogs() as Promise<RealNameLogRecord[]>,
   });
   const userSettingsQuery = useQuery({
     queryKey: ['personal-business', 'user-settings'],
@@ -266,7 +272,10 @@ const PersonalBusinessPage: React.FC = () => {
 
   const walletSummary = walletSummaryQuery.data;
   const withdrawals: WithdrawalInsight[] = useMemo(
-    () => ((withdrawalsQuery.data?.items || []) as WithdrawalWithMapping[]).map((item) => buildWithdrawalInsight(item)),
+    () =>
+      ((withdrawalsQuery.data?.items || []) as WithdrawalWithMapping[]).map(
+        (item) => buildWithdrawalInsight(item),
+      ),
     [withdrawalsQuery.data?.items],
   );
   const pendingWithdrawals = withdrawals.filter(
@@ -285,7 +294,9 @@ const PersonalBusinessPage: React.FC = () => {
     | ReferralSummaryWithCapabilities
     | undefined;
   const realName = realNameQuery.data as RealNameWithMapping | undefined;
-  const withdrawalDetail = withdrawalDetailQuery.data as WithdrawalWithMapping | undefined;
+  const withdrawalDetail = withdrawalDetailQuery.data as
+    | WithdrawalWithMapping
+    | undefined;
 
   const copyReferralLink = async () => {
     if (!referralSummary?.share_link) return;
@@ -307,7 +318,8 @@ const PersonalBusinessPage: React.FC = () => {
       dataIndex: 'entry_type__mapping',
       width: 140,
       align: 'center',
-      render: (_value, record) => enumMapping(record.entry_type, record.entry_type__mapping),
+      render: (_value, record) =>
+        enumMapping(record.entry_type, record.entry_type__mapping),
     },
     {
       title: '变动',
@@ -366,7 +378,8 @@ const PersonalBusinessPage: React.FC = () => {
       dataIndex: 'pay_channel__mapping',
       width: 120,
       align: 'center',
-      render: (_value, record) => enumMapping(record.pay_channel, record.pay_channel__mapping),
+      render: (_value, record) =>
+        enumMapping(record.pay_channel, record.pay_channel__mapping),
     },
     {
       title: '创建时间',
@@ -382,15 +395,33 @@ const PersonalBusinessPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
-          <a onClick={() => setWithdrawalDetailId(record.id)}>详情</a>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => setWithdrawalDetailId(record.id)}
+          >
+            详情
+          </Button>
           {['pending_review', 'failed'].includes(record.status) ? (
-            <a
-              onClick={() =>
-                void cancelWithdrawalMutation.mutateAsync(record.id)
-              }
+            <Popconfirm
+              title="确认撤销该提现申请？"
+              description="撤销后本次提现将终止，请确认无需继续处理。"
+              disabled={cancelWithdrawalMutation.isPending}
+              onConfirm={() => cancelWithdrawalMutation.mutateAsync(record.id)}
             >
-              撤销提现
-            </a>
+              <Button
+                type="link"
+                size="small"
+                danger
+                disabled={cancelWithdrawalMutation.isPending}
+                loading={
+                  cancelWithdrawalMutation.isPending &&
+                  cancelWithdrawalMutation.variables === record.id
+                }
+              >
+                撤销提现
+              </Button>
+            </Popconfirm>
           ) : null}
         </ResponsiveActions>
       ),
@@ -635,7 +666,10 @@ const PersonalBusinessPage: React.FC = () => {
                     ) : null}
                     <Table
                       rowKey="id"
-                      dataSource={(referralRecordsQuery.data?.items || []) as ReferralRecordWithMapping[]}
+                      dataSource={
+                        (referralRecordsQuery.data?.items ||
+                          []) as ReferralRecordWithMapping[]
+                      }
                       pagination={false}
                       scroll={adminTableScroll}
                       columns={[
@@ -649,7 +683,8 @@ const PersonalBusinessPage: React.FC = () => {
                           dataIndex: 'status__mapping',
                           width: 120,
                           align: 'center',
-                          render: (_value, record) => enumMapping(record.status, record.status__mapping),
+                          render: (_value, record) =>
+                            enumMapping(record.status, record.status__mapping),
                         },
                       ]}
                     />
@@ -673,8 +708,7 @@ const PersonalBusinessPage: React.FC = () => {
                         {realName
                           ? enumMapping(
                               realName.status,
-                              realName.status__mapping ||
-                                realName.status_label,
+                              realName.status__mapping || realName.status_label,
                               'accounts.real_name_status',
                             )
                           : '未知'}
@@ -685,8 +719,7 @@ const PersonalBusinessPage: React.FC = () => {
                         {realName
                           ? enumMapping(
                               realName.status,
-                              realName.status__mapping ||
-                                realName.status_label,
+                              realName.status__mapping || realName.status_label,
                               'accounts.real_name_status',
                             )
                           : '-'}
@@ -707,7 +740,10 @@ const PersonalBusinessPage: React.FC = () => {
                     </Button>
                     <Table
                       rowKey="created_at"
-                      dataSource={(realNameLogsQuery.data || []) as RealNameLogWithMapping[]}
+                      dataSource={
+                        (realNameLogsQuery.data ||
+                          []) as RealNameLogWithMapping[]
+                      }
                       pagination={false}
                       scroll={adminTableScroll}
                       columns={[
@@ -716,7 +752,11 @@ const PersonalBusinessPage: React.FC = () => {
                           dataIndex: 'action__mapping',
                           width: 160,
                           align: 'center',
-                          render: (_value, record) => enumMapping(record.action, record.action__mapping || record.action_label),
+                          render: (_value, record) =>
+                            enumMapping(
+                              record.action,
+                              record.action__mapping || record.action_label,
+                            ),
                         },
                         {
                           title: '备注',
@@ -831,20 +871,35 @@ const PersonalBusinessPage: React.FC = () => {
                           align: 'center',
                           render: (_value, record) => (
                             <ResponsiveActions>
-                              <a
+                              <Button
+                                type="link"
+                                size="small"
                                 onClick={() => setSettingDetailKey(record.key)}
                               >
                                 详情
-                              </a>
-                              <a
-                                onClick={() =>
-                                  void deleteSettingMutation.mutateAsync(
-                                    record.key,
-                                  )
+                              </Button>
+                              <Popconfirm
+                                title="确认删除该设置？"
+                                description="删除后将恢复系统默认值。"
+                                disabled={deleteSettingMutation.isPending}
+                                onConfirm={() =>
+                                  deleteSettingMutation.mutateAsync(record.key)
                                 }
                               >
-                                删除
-                              </a>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  danger
+                                  disabled={deleteSettingMutation.isPending}
+                                  loading={
+                                    deleteSettingMutation.isPending &&
+                                    deleteSettingMutation.variables ===
+                                      record.key
+                                  }
+                                >
+                                  删除
+                                </Button>
+                              </Popconfirm>
                             </ResponsiveActions>
                           ),
                         },
@@ -872,7 +927,10 @@ const PersonalBusinessPage: React.FC = () => {
                         rowKey="id"
                         loading={ledgerQuery.isLoading}
                         columns={ledgerColumns}
-                        dataSource={(ledgerQuery.data?.items || []) as WalletLedgerWithMapping[]}
+                        dataSource={
+                          (ledgerQuery.data?.items ||
+                            []) as WalletLedgerWithMapping[]
+                        }
                         pagination={false}
                         scroll={adminTableScroll}
                       />
@@ -914,7 +972,12 @@ const PersonalBusinessPage: React.FC = () => {
               {withdrawalDetail?.id || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="状态">
-              {withdrawalDetail ? enumMapping(withdrawalDetail.status, withdrawalDetail.status__mapping) : '-'}
+              {withdrawalDetail
+                ? enumMapping(
+                    withdrawalDetail.status,
+                    withdrawalDetail.status__mapping,
+                  )
+                : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="金额">
               {formatWalletAmount(withdrawalDetail?.amount || 0)}
@@ -926,13 +989,16 @@ const PersonalBusinessPage: React.FC = () => {
               {formatWalletAmount(withdrawalDetail?.net_amount || 0)}
             </Descriptions.Item>
             <Descriptions.Item label="渠道">
-              {withdrawalDetail ? enumMapping(withdrawalDetail.pay_channel, withdrawalDetail.pay_channel__mapping) : '-'}
+              {withdrawalDetail
+                ? enumMapping(
+                    withdrawalDetail.pay_channel,
+                    withdrawalDetail.pay_channel__mapping,
+                  )
+                : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="收款快照">
               <WrappedCodeText
-                value={
-                  withdrawalDetail?.payee_account_snapshot || '-'
-                }
+                value={withdrawalDetail?.payee_account_snapshot || '-'}
               />
             </Descriptions.Item>
             <Descriptions.Item label="驳回原因">
@@ -940,16 +1006,12 @@ const PersonalBusinessPage: React.FC = () => {
             </Descriptions.Item>
             <Descriptions.Item label="创建时间">
               {withdrawalDetail?.created_at
-                ? dayjs(withdrawalDetail.created_at).format(
-                    'YYYY-MM-DD HH:mm',
-                  )
+                ? dayjs(withdrawalDetail.created_at).format('YYYY-MM-DD HH:mm')
                 : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="审核时间">
               {withdrawalDetail?.reviewed_at
-                ? dayjs(withdrawalDetail.reviewed_at).format(
-                    'YYYY-MM-DD HH:mm',
-                  )
+                ? dayjs(withdrawalDetail.reviewed_at).format('YYYY-MM-DD HH:mm')
                 : '-'}
             </Descriptions.Item>
           </Descriptions>

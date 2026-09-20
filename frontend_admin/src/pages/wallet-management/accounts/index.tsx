@@ -1,15 +1,18 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
+  Alert,
   Button,
   Card,
   Col,
+  DatePicker,
   Drawer,
   Form,
   Input,
   InputNumber,
   Modal,
+  message,
   Row,
   Space,
   Statistic,
@@ -22,10 +25,12 @@ import dayjs from 'dayjs';
 import React, { useRef, useState } from 'react';
 import { PageContainer } from '@/components/PageContainer';
 import {
+  AdminToolbar,
   adminTableScroll,
   drawerWidthXl,
   fullWidthStyle,
   ResponsiveActions,
+  toolbarControlStyle,
   wrapTextStyle,
 } from '@/pages/_shared/adminLayout';
 import {
@@ -45,9 +50,63 @@ type AccountInsight = API.WalletAccountAdminOut & {
   real_name_label?: string;
 };
 type TablePageParams = {
+  createdFrom?: string;
+  createdTo?: string;
   current?: number;
+  keyword?: string;
   pageSize?: number;
 };
+
+type AccountSearchState = {
+  createdFrom: string;
+  createdTo: string;
+  keyword: string;
+  page: number;
+};
+
+const PAGE_SIZE = 10;
+
+const trimParam = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+function readSearchState(): AccountSearchState {
+  const params = new URLSearchParams(window.location.search);
+  const page = Number(params.get('page'));
+  return {
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+    keyword: trimParam(params.get('keyword')) || '',
+    createdFrom: trimParam(params.get('created_from')) || '',
+    createdTo: trimParam(params.get('created_to')) || '',
+  };
+}
+
+function syncSearchState(state: AccountSearchState) {
+  const params = new URLSearchParams(window.location.search);
+  ['page', 'keyword', 'created_from', 'created_to'].forEach((name) => {
+    params.delete(name);
+  });
+  if (state.page > 1) params.set('page', String(state.page));
+  if (state.keyword) params.set('keyword', state.keyword);
+  if (state.createdFrom) params.set('created_from', state.createdFrom);
+  if (state.createdTo) params.set('created_to', state.createdTo);
+  const search = params.toString();
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash || ''}`,
+  );
+}
+
+function apiDateRange(createdFrom?: string, createdTo?: string) {
+  return {
+    created_from: createdFrom
+      ? dayjs(createdFrom).startOf('day').format()
+      : undefined,
+    created_to: createdTo
+      ? dayjs(createdTo).add(1, 'day').startOf('day').format()
+      : undefined,
+  };
+}
 
 const sectionStyle: React.CSSProperties = {
   padding: 20,
@@ -131,11 +190,15 @@ function buildAccountInsight(
 }
 
 const WalletAccountsPage: React.FC = () => {
+  const initialSearchState = React.useMemo(readSearchState, []);
   const [ledgerUserId, setLedgerUserId] = useState<number>();
   const [selectedAccount, setSelectedAccount] = useState<AccountInsight>();
   const [adjustOpen, setAdjustOpen] = useState(false);
   const tableActionRef = useRef<ActionType>(null);
   const [form] = Form.useForm<API.WalletAdjustmentIn>();
+  const [searchState, setSearchState] = useState(initialSearchState);
+  const [keywordDraft, setKeywordDraft] = useState(initialSearchState.keyword);
+  const [listError, setListError] = useState<unknown>();
 
   const ledgerQuery = useQuery({
     queryKey: walletQueryKeys.ledger(ledgerUserId, 1),
@@ -155,8 +218,17 @@ const WalletAccountsPage: React.FC = () => {
       form.resetFields();
       tableActionRef.current?.reload();
       await ledgerQuery.refetch();
+      message.success('调账已创建');
     },
   });
+
+  const updateSearchState = (next: Partial<AccountSearchState>) => {
+    setSearchState((current) => {
+      const value = { ...current, ...next };
+      syncSearchState(value);
+      return value;
+    });
+  };
 
   const columns: ProColumns<AccountInsight>[] = [
     {
@@ -164,8 +236,12 @@ const WalletAccountsPage: React.FC = () => {
       dataIndex: 'user_id',
       width: 220,
       render: (_value, record) => {
-        const primary = record.real_name_label || record.username || `用户 #${record.user_id}`;
-        const contact = record.phone_label || record.email || `用户 #${record.user_id}`;
+        const primary =
+          record.real_name_label ||
+          record.username ||
+          `用户 #${record.user_id}`;
+        const contact =
+          record.phone_label || record.email || `用户 #${record.user_id}`;
         return (
           <Space orientation="vertical" size={4}>
             <Typography.Text strong>{primary}</Typography.Text>
@@ -180,7 +256,9 @@ const WalletAccountsPage: React.FC = () => {
       dataIndex: 'governance_label',
       width: 140,
       align: 'center',
-      render: (_value, record) => <Tag color={record.governance_color}>{record.governance_label}</Tag>,
+      render: (_value, record) => (
+        <Tag color={record.governance_color}>{record.governance_label}</Tag>
+      ),
     },
     {
       title: '资金结构',
@@ -213,15 +291,19 @@ const WalletAccountsPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
-          <a
+          <Button
+            type="link"
+            size="small"
             onClick={() => {
               setSelectedAccount(record);
               setLedgerUserId(record.user_id);
             }}
           >
             查看流水
-          </a>
-          <a
+          </Button>
+          <Button
+            type="link"
+            size="small"
             onClick={() => {
               form.setFieldsValue({
                 user_id: record.user_id,
@@ -233,7 +315,7 @@ const WalletAccountsPage: React.FC = () => {
             }}
           >
             创建调账
-          </a>
+          </Button>
         </ResponsiveActions>
       ),
     },
@@ -287,46 +369,130 @@ const WalletAccountsPage: React.FC = () => {
     <PageContainer title="钱包账户">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
+          {listError ? (
+            <Alert
+              type="error"
+              showIcon
+              title="钱包账户加载失败"
+              description="暂时无法取得钱包账户，请检查网络后重试。"
+              action={
+                <Button
+                  size="small"
+                  onClick={() => tableActionRef.current?.reload()}
+                >
+                  重新加载账户
+                </Button>
+              }
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
           <ProTable<AccountInsight>
             actionRef={tableActionRef}
             rowKey="id"
             headerTitle="账户列表"
             columns={columns}
             request={async (params: TablePageParams) => {
-              const result = await appsWalletApiListWalletAccounts({
-                page: params.current || 1,
-                page_size: params.pageSize || 10,
-              });
-              return {
-                data: (result.items || []).map(buildAccountInsight),
-                total: result.total || 0,
-                success: true,
-              };
+              try {
+                const result = await appsWalletApiListWalletAccounts({
+                  page: params.current || 1,
+                  page_size: params.pageSize || PAGE_SIZE,
+                  keyword: trimParam(params.keyword),
+                  ...apiDateRange(params.createdFrom, params.createdTo),
+                });
+                setListError(undefined);
+                return {
+                  data: (result.items || []).map(buildAccountInsight),
+                  total: result.total || 0,
+                  success: true,
+                };
+              } catch (error) {
+                setListError(error);
+                return { data: [], total: 0, success: true };
+              }
+            }}
+            params={{
+              keyword: searchState.keyword,
+              createdFrom: searchState.createdFrom,
+              createdTo: searchState.createdTo,
             }}
             search={false}
             options={{ density: true, reload: false, setting: true }}
             toolBarRender={() => [
-              <Button
-                key="adjust"
-                type="primary"
-                onClick={() => {
-                  form.resetFields();
-                  setAdjustOpen(true);
-                }}
-              >
-                创建调账
-              </Button>,
+              <AdminToolbar key="actions">
+                <Input.Search
+                  aria-label="钱包账户关键词"
+                  allowClear
+                  placeholder="用户 ID、姓名、账号或邮箱"
+                  style={toolbarControlStyle}
+                  value={keywordDraft}
+                  onChange={(event) => setKeywordDraft(event.target.value)}
+                  onSearch={(value) =>
+                    updateSearchState({
+                      page: 1,
+                      keyword: trimParam(value) || '',
+                    })
+                  }
+                />
+                <DatePicker.RangePicker
+                  aria-label="钱包账户创建时间"
+                  value={
+                    searchState.createdFrom && searchState.createdTo
+                      ? [
+                          dayjs(searchState.createdFrom),
+                          dayjs(searchState.createdTo),
+                        ]
+                      : null
+                  }
+                  onChange={(dates) =>
+                    updateSearchState({
+                      page: 1,
+                      createdFrom: dates?.[0]?.format('YYYY-MM-DD') || '',
+                      createdTo: dates?.[1]?.format('YYYY-MM-DD') || '',
+                    })
+                  }
+                />
+                <Button
+                  onClick={() => {
+                    setKeywordDraft('');
+                    const reset: AccountSearchState = {
+                      page: 1,
+                      keyword: '',
+                      createdFrom: '',
+                      createdTo: '',
+                    };
+                    setSearchState(reset);
+                    syncSearchState(reset);
+                  }}
+                >
+                  重置
+                </Button>
+                <Button
+                  type="primary"
+                  onClick={() => {
+                    form.resetFields();
+                    setAdjustOpen(true);
+                  }}
+                >
+                  创建调账
+                </Button>
+              </AdminToolbar>,
             ]}
             ghost
             scroll={adminTableScroll}
-            pagination={{ defaultPageSize: 10 }}
+            pagination={{
+              current: searchState.page,
+              pageSize: PAGE_SIZE,
+              showSizeChanger: false,
+              onChange: (page) => updateSearchState({ page }),
+            }}
+            locale={listError ? { emptyText: '钱包账户加载失败' } : undefined}
           />
         </Card>
 
         <Drawer
           title={ledgerUserId ? `用户 #${ledgerUserId} 钱包流水` : '钱包流水'}
           open={Boolean(ledgerUserId)}
-          width={drawerWidthXl}
+          size={drawerWidthXl}
           onClose={() => {
             setLedgerUserId(undefined);
             setSelectedAccount(undefined);
@@ -385,15 +551,32 @@ const WalletAccountsPage: React.FC = () => {
 
             <div style={sectionStyle}>
               <Typography.Text strong>账户流水</Typography.Text>
-              <Table
-                rowKey="id"
-                loading={ledgerQuery.isLoading}
-                columns={ledgerColumns}
-                dataSource={ledgerQuery.data?.items || []}
-                pagination={false}
-                scroll={adminTableScroll}
-                style={{ marginTop: 16 }}
-              />
+              {ledgerQuery.isError ? (
+                <Alert
+                  type="error"
+                  showIcon
+                  title="账户流水加载失败"
+                  action={
+                    <Button
+                      size="small"
+                      onClick={() => void ledgerQuery.refetch()}
+                    >
+                      重新加载流水
+                    </Button>
+                  }
+                  style={{ marginTop: 16 }}
+                />
+              ) : (
+                <Table
+                  rowKey="id"
+                  loading={ledgerQuery.isLoading}
+                  columns={ledgerColumns}
+                  dataSource={ledgerQuery.data?.items || []}
+                  pagination={false}
+                  scroll={adminTableScroll}
+                  style={{ marginTop: 16 }}
+                />
+              )}
             </div>
           </Space>
         </Drawer>
@@ -409,6 +592,13 @@ const WalletAccountsPage: React.FC = () => {
           }}
         >
           <Space orientation="vertical" size={12} style={fullWidthStyle}>
+            {adjustMutation.isError ? (
+              <Alert
+                type="error"
+                showIcon
+                title="调账创建失败，请核对信息后重试"
+              />
+            ) : null}
             <Form form={form} layout="vertical">
               <Form.Item
                 label="用户 ID"
@@ -432,10 +622,7 @@ const WalletAccountsPage: React.FC = () => {
                 <Input />
               </Form.Item>
               <Form.Item label="备注" name="remark">
-                <Input.TextArea
-                  rows={3}
-                  placeholder="请输入调账原因"
-                />
+                <Input.TextArea rows={3} placeholder="请输入调账原因" />
               </Form.Item>
             </Form>
           </Space>

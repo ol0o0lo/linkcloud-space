@@ -87,6 +87,15 @@ import {
 } from '../constants';
 import { useHousePublishRules } from '../useHousePublishRules';
 import { usePagedSelectOptions } from '../usePagedSelectOptions';
+import {
+  buildInlineExtraPatch,
+  type InlineExtraDraft,
+  inlineExtraDraftUnchanged,
+  isPlainObject,
+  prepareInlineExtraDraft,
+  validateInlineExtraDraft,
+} from './detailExtraFields';
+import HouseAIInsightCard from './HouseAIInsightCard';
 import HouseLocationPoiCard from './HouseLocationPoiCard';
 import HouseMediaHero from './HouseMediaHero';
 import {
@@ -94,14 +103,6 @@ import {
   type InlineEditCloseReason,
   useInlineEditingSupported,
 } from './InlineEditableField';
-import {
-  buildInlineExtraPatch,
-  inlineExtraDraftUnchanged,
-  type InlineExtraDraft,
-  isPlainObject,
-  prepareInlineExtraDraft,
-  validateInlineExtraDraft,
-} from './detailExtraFields';
 
 type DetailFocusState = {
   action?: string;
@@ -1424,6 +1425,12 @@ const HouseDetailPage: React.FC = () => {
             </Row>
           </Card>
 
+          <HouseAIInsightCard
+            enabled={relatedEnabled}
+            houseId={houseId}
+            organizationSlug={workspace.selectedOrgSlug}
+          />
+
           <Row gutter={[16, 16]} align="top">
             <Col xs={24} xl={16}>
               <Space orientation="vertical" size={16} style={{ width: '100%' }}>
@@ -2604,8 +2611,8 @@ const HouseDetailPage: React.FC = () => {
                   currentHouse.building?.name ||
                   `楼栋 #${currentHouse.building_id}`
                 }
-                lat={currentHouse.building?.lat}
-                lng={currentHouse.building?.lng}
+                lat={currentHouse.building?.location?.latitude}
+                lng={currentHouse.building?.location?.longitude}
                 returnTo={
                   typeof window === 'undefined'
                     ? `/dashboard/rental/properties/${houseId}`

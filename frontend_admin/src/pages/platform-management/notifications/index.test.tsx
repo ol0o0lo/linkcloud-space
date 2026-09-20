@@ -116,11 +116,12 @@ describe('NotificationsAdminPage', () => {
 
     const row = screen.getByText('系统通知').closest('tr');
     expect(row).not.toBeNull();
+    if (!row) throw new Error('未找到通知行');
 
-    fireEvent.click(within(row!).getByRole('button', { name: '详情' }));
-    expect(new URLSearchParams(window.location.search).get('notification_id')).toBe(
-      '8',
-    );
+    fireEvent.click(within(row).getByRole('button', { name: '详情' }));
+    expect(
+      new URLSearchParams(window.location.search).get('notification_id'),
+    ).toBe('8');
     await waitFor(() =>
       expect(mockPatchNotification).toHaveBeenCalledWith(
         { notification_id: 8 },
@@ -128,7 +129,7 @@ describe('NotificationsAdminPage', () => {
       ),
     );
 
-    fireEvent.click(within(row!).getByText('标记已读'));
+    fireEvent.click(within(row).getByText('标记已读'));
     await waitFor(() =>
       expect(mockPatchNotification).toHaveBeenCalledWith(
         { notification_id: 8 },

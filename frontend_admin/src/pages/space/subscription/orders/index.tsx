@@ -24,7 +24,8 @@ import {
   Typography,
 } from 'antd';
 import { createStyles } from 'antd-style';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AppStatusTag } from '@/components/AppStatus';
 import { fixedPagePagination } from '@/pages/_shared/adminLayout';
 import { cancelSubscriptionOrder } from '@/services/manual/subscriptions';
 import {
@@ -46,15 +47,23 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
 };
 
 const REFUND_STATUS_LABELS: Record<string, string> = {
+  none: '未退款',
   partial: '部分退款',
-  full: '已退款',
+  full: '全额退款',
 };
 
-const ORDER_STATUS_META: Record<string, { color?: string; label: string }> = {
-  pending_payment: { color: 'gold', label: '待支付' },
-  paid: { color: 'green', label: '已支付' },
-  closed: { label: '已关闭' },
-  payment_failed: { color: 'red', label: '支付失败' },
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  pending_payment: '待支付',
+  paid: '已支付',
+  closed: '已关闭',
+  payment_failed: '支付失败',
+};
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  pending: '渠道待支付',
+  succeeded: '渠道已支付',
+  failed: '渠道失败',
+  exception: '支付异常',
 };
 
 const CLOSE_REASON_LABELS: Record<string, string> = {
@@ -301,13 +310,31 @@ function billingCycleLabel(cycle?: string) {
   return cycle === 'year' ? '年付' : '月付';
 }
 
+function readPageFromSearch() {
+  if (typeof window === 'undefined') return 1;
+  const page = Number(new URLSearchParams(window.location.search).get('page'));
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function syncPageToSearch(page: number) {
+  if (typeof window === 'undefined') return;
+  const search = new URLSearchParams(window.location.search);
+  search.delete('page');
+  if (page > 1) search.set('page', String(page));
+  const nextSearch = search.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+  window.history.replaceState(window.history.state, '', nextUrl);
+}
+
 const SubscriptionOrdersPage: React.FC = () => {
   const { styles } = useStyles();
   const workspace = useTenantWorkspace();
   const queryClient = useQueryClient();
   const { canManageSubscriptions } = useAccess();
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(readPageFromSearch);
   const [checkoutOrder, setCheckoutOrder] = useState<API.SaaSOrderOut>();
+
+  useEffect(() => syncPageToSearch(page), [page]);
 
   const plansQuery = useQuery({
     queryKey: ['subscriptions', 'plans'],
@@ -443,22 +470,32 @@ const SubscriptionOrdersPage: React.FC = () => {
         width: 220,
         align: 'center',
         render: (status: string, record) => {
-          const meta = ORDER_STATUS_META[status] || { label: status };
+          const paymentStatus = record.payment?.status
+            ? String(record.payment.status)
+            : undefined;
           return (
             <div className={styles.orderCell}>
               <div className={styles.paymentMeta}>
-                <Tag color={meta.color} variant="filled">
-                  {meta.label}
-                </Tag>
+                <AppStatusTag name="subscription.order" state={status}>
+                  {ORDER_STATUS_LABELS[status] || status}
+                </AppStatusTag>
+                {paymentStatus ? (
+                  <AppStatusTag
+                    name="subscription.payment"
+                    state={paymentStatus}
+                  >
+                    {PAYMENT_STATUS_LABELS[paymentStatus] || paymentStatus}
+                  </AppStatusTag>
+                ) : null}
                 {record.refund_status !== 'none' && (
-                  <Tag
-                    color="purple"
-                    variant="filled"
+                  <AppStatusTag
+                    name="subscription.refund"
+                    state={record.refund_status}
                     className={styles.refundTag}
                   >
                     {REFUND_STATUS_LABELS[record.refund_status] ||
                       record.refund_status}
-                  </Tag>
+                  </AppStatusTag>
                 )}
               </div>
               <Typography.Text type="secondary">
@@ -530,7 +567,7 @@ const SubscriptionOrdersPage: React.FC = () => {
   );
 
   const emptyDescription = ordersQuery.isError
-    ? '订单记录加载失败，请稍后重试'
+    ? '订单数据未加载'
     : '暂无套餐订单';
 
   return (
@@ -572,6 +609,25 @@ const SubscriptionOrdersPage: React.FC = () => {
               </Button>
             </div>
           </div>
+
+          {ordersQuery.isError ? (
+            <Alert
+              showIcon
+              type="error"
+              title="套餐订单加载失败"
+              description="请检查网络连接后重试。"
+              action={
+                <Button
+                  size="small"
+                  autoInsertSpace={false}
+                  onClick={() => void ordersQuery.refetch()}
+                >
+                  重试
+                </Button>
+              }
+              className="m-4"
+            />
+          ) : null}
 
           <div className={styles.desktopOrders}>
             <Table<API.SaaSOrderOut>
@@ -627,13 +683,24 @@ const SubscriptionOrdersPage: React.FC = () => {
                     </div>
                     <div className={styles.mobileOrderFact}>
                       <span className={styles.mobileOrderLabel}>订单状态</span>
-                      <Tag
-                        color={ORDER_STATUS_META[order.status]?.color}
-                        variant="filled"
+                      <AppStatusTag
+                        name="subscription.order"
+                        state={order.status}
                         className={styles.cycleTag}
                       >
-                        {ORDER_STATUS_META[order.status]?.label || order.status}
-                      </Tag>
+                        {ORDER_STATUS_LABELS[order.status] || order.status}
+                      </AppStatusTag>
+                      {order.payment?.status ? (
+                        <AppStatusTag
+                          name="subscription.payment"
+                          state={String(order.payment.status)}
+                          className={styles.cycleTag}
+                        >
+                          {PAYMENT_STATUS_LABELS[
+                            String(order.payment.status)
+                          ] || String(order.payment.status)}
+                        </AppStatusTag>
+                      ) : null}
                     </div>
                     <div className={styles.mobileOrderFact}>
                       <span className={styles.mobileOrderLabel}>订单号</span>
@@ -650,14 +717,14 @@ const SubscriptionOrdersPage: React.FC = () => {
                         <span className={styles.mobileOrderLabel}>
                           退款状态
                         </span>
-                        <Tag
-                          color="purple"
-                          variant="filled"
+                        <AppStatusTag
+                          name="subscription.refund"
+                          state={order.refund_status}
                           className={styles.refundTag}
                         >
                           {REFUND_STATUS_LABELS[order.refund_status] ||
                             order.refund_status}
-                        </Tag>
+                        </AppStatusTag>
                       </div>
                     )}
                   </div>

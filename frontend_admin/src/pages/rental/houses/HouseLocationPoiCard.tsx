@@ -12,30 +12,31 @@ import {
 import { createStyles } from 'antd-style';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppIcon } from '@/components/AppIcon';
-import { useAmap } from '@/services/manual/amap';
-
-const POI_RADIUS = 2000;
-const POI_LIMIT = 4;
+import {
+  getNearbyPois,
+  type NearbyPois,
+  useAmap,
+} from '@/services/manual/amap';
 
 const POI_CATEGORIES = [
-  { key: 'bus', label: '公交站', type: '150700' },
-  { key: 'subway', label: '地铁站', type: '150500' },
-  { key: 'education', label: '教育', type: '140000' },
-  { key: 'medical', label: '医疗', type: '090000' },
+  { key: 'bus', label: '公交站' },
+  { key: 'subway', label: '地铁站' },
+  { key: 'education', label: '教育' },
+  { key: 'medical', label: '医疗' },
 ] as const;
 
 type PoiCategoryKey = (typeof POI_CATEGORIES)[number]['key'];
 
-type NearbyPoi = {
-  id: string;
-  name: string;
-  address: string;
-  distance: number;
-};
-
 type Coordinates = {
   lat: number;
   lng: number;
+};
+
+const EMPTY_POIS: NearbyPois = {
+  bus: [],
+  subway: [],
+  education: [],
+  medical: [],
 };
 
 const useStyles = createStyles(({ css, token }) => ({
@@ -150,59 +151,6 @@ function toCoordinates(lat: unknown, lng: unknown): Coordinates | null {
   return { lat: nextLat, lng: nextLng };
 }
 
-function coordinateFromPoi(location: any, key: 'lat' | 'lng') {
-  const getter = key === 'lat' ? 'getLat' : 'getLng';
-  const value = location?.[key] ?? location?.[getter]?.();
-  const coordinate = Number(value);
-  return Number.isFinite(coordinate) ? coordinate : undefined;
-}
-
-function approximateDistance(
-  center: Coordinates,
-  point: { lat?: number; lng?: number },
-) {
-  if (point.lat == null || point.lng == null) return 0;
-  const earthRadius = 6371000;
-  const radians = (value: number) => (value * Math.PI) / 180;
-  const latDelta = radians(point.lat - center.lat);
-  const lngDelta = radians(point.lng - center.lng);
-  const a =
-    Math.sin(latDelta / 2) ** 2 +
-    Math.cos(radians(center.lat)) *
-      Math.cos(radians(point.lat)) *
-      Math.sin(lngDelta / 2) ** 2;
-  return Math.round(
-    earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)),
-  );
-}
-
-function normalizePois(result: any, center: Coordinates): NearbyPoi[] {
-  const rawPois = Array.isArray(result?.poiList?.pois)
-    ? result.poiList.pois
-    : [];
-  return rawPois.slice(0, POI_LIMIT).flatMap((poi: any, index: number) => {
-    const name = typeof poi?.name === 'string' ? poi.name.trim() : '';
-    if (!name) return [];
-    const lat = coordinateFromPoi(poi.location, 'lat');
-    const lng = coordinateFromPoi(poi.location, 'lng');
-    const rawDistance = Number(poi.distance);
-    const distance = Number.isFinite(rawDistance)
-      ? Math.max(0, Math.round(rawDistance))
-      : approximateDistance(center, { lat, lng });
-    const address = [poi.pname, poi.cityname, poi.adname, poi.address]
-      .filter((item) => typeof item === 'string' && item.trim())
-      .join('');
-    return [
-      {
-        id: String(poi.id || `${name}-${index}`),
-        name,
-        address: address || '暂无详细地址',
-        distance,
-      },
-    ];
-  });
-}
-
 function distanceText(distance: number) {
   if (distance < 1000) return `${distance} m`;
   return `${(distance / 1000).toFixed(1)} km`;
@@ -216,14 +164,9 @@ function LocatedPoiContent({
   coordinates: Coordinates;
 }) {
   const { styles } = useStyles();
-  const {
-    AMap,
-    loading: mapLoading,
-    error: mapError,
-    reload,
-  } = useAmap(['AMap.PlaceSearch']);
+  const { AMap, loading: mapLoading, error: mapError, reload } = useAmap();
   const [categoryKey, setCategoryKey] = useState<PoiCategoryKey>('bus');
-  const [pois, setPois] = useState<NearbyPoi[]>([]);
+  const [poiGroups, setPoiGroups] = useState<NearbyPois>(EMPTY_POIS);
   const [poiLoading, setPoiLoading] = useState(false);
   const [poiError, setPoiError] = useState<string>();
   const mapNodeRef = useRef<HTMLDivElement>(null);
@@ -232,6 +175,7 @@ function LocatedPoiContent({
   const category =
     POI_CATEGORIES.find((item) => item.key === categoryKey) ||
     POI_CATEGORIES[0];
+  const pois = poiGroups[category.key];
 
   useEffect(() => {
     if (!AMap || !mapNodeRef.current || mapRef.current) return;
@@ -264,36 +208,29 @@ function LocatedPoiContent({
   }, [AMap, buildingName, coordinates.lat, coordinates.lng]);
 
   useEffect(() => {
-    if (!AMap) return;
     const requestId = ++requestRef.current;
     setPoiLoading(true);
     setPoiError(undefined);
-    const placeSearch = new AMap.PlaceSearch({
-      type: category.type,
-      pageIndex: 1,
-      pageSize: POI_LIMIT,
-      extensions: 'base',
-    });
-    placeSearch.searchNearBy(
-      '',
-      [coordinates.lng, coordinates.lat],
-      POI_RADIUS,
-      (status: string, result: any) => {
+    setPoiGroups(EMPTY_POIS);
+    getNearbyPois({
+      lat: coordinates.lat,
+      lng: coordinates.lng,
+    })
+      .then((result) => {
         if (requestId !== requestRef.current) return;
-        if (status !== 'complete') {
-          setPois([]);
-          setPoiError('暂时无法获取周边设施，请稍后重试。');
-          setPoiLoading(false);
-          return;
-        }
-        setPois(normalizePois(result, coordinates));
+        setPoiGroups(result);
         setPoiLoading(false);
-      },
-    );
+      })
+      .catch(() => {
+        if (requestId !== requestRef.current) return;
+        setPoiGroups(EMPTY_POIS);
+        setPoiError('暂时无法获取周边设施，请稍后重试。');
+        setPoiLoading(false);
+      });
     return () => {
       requestRef.current += 1;
     };
-  }, [AMap, category.type, coordinates]);
+  }, [coordinates]);
 
   return (
     <>
@@ -435,4 +372,4 @@ export default function HouseLocationPoiCard({
   );
 }
 
-export { distanceText, normalizePois, toCoordinates };
+export { distanceText, toCoordinates };

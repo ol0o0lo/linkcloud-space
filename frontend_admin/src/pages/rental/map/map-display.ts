@@ -95,8 +95,8 @@ export function mergeEstateMapDisplayPoints(
   buildings: BuildingMapMarkerOut[],
 ): EstateMapDisplayPoint[] {
   const estatePoints = estates.flatMap((estate) => {
-    const lat = toCoordinate(estate.lat);
-    const lng = toCoordinate(estate.lng);
+    const lat = toCoordinate(estate.location.latitude);
+    const lng = toCoordinate(estate.location.longitude);
     if (lat == null || lng == null) return [];
     return [
       {
@@ -122,8 +122,8 @@ export function mergeEstateMapDisplayPoints(
   });
   const independentBuildingPoints = buildings.flatMap((building) => {
     if (building.estate) return [];
-    const lat = toCoordinate(building.lat);
-    const lng = toCoordinate(building.lng);
+    const lat = toCoordinate(building.location.latitude);
+    const lng = toCoordinate(building.location.longitude);
     if (lat == null || lng == null) return [];
     return [
       {

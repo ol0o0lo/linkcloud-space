@@ -1,13 +1,16 @@
-import { useMutation } from '@tanstack/react-query';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
+import { useMutation } from '@tanstack/react-query';
 import {
   Alert,
   Button,
   Card,
+  DatePicker,
   Form,
   Input,
   Modal,
+  message,
+  Select,
   Space,
   Typography,
 } from 'antd';
@@ -16,10 +19,14 @@ import React, { useRef, useState } from 'react';
 import { AppStatusTag } from '@/components/AppStatus';
 import { PageContainer } from '@/components/PageContainer';
 import {
+  AdminToolbar,
   adminTableScroll,
   fullWidthStyle,
   ResponsiveActions,
+  toolbarControlStyle,
+  toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
+import { enumMapping } from '@/services/manual/enums';
 import {
   appsWalletApiAdminWithdrawals,
   appsWalletApiPayoutWithdrawal,
@@ -29,12 +36,11 @@ import {
   appsWalletApiReconcile,
   appsWalletApiRetryWithdrawal,
 } from '@/services/openapi/walletInternal';
-import { enumMapping } from '@/services/manual/enums';
 import {
+  formatWalletAmount,
   IdempotencyFormItem,
   JsonText,
   PayoutModal,
-  formatWalletAmount,
 } from '../shared';
 
 type WithdrawalWithMapping = API.WithdrawalOut & {
@@ -42,7 +48,10 @@ type WithdrawalWithMapping = API.WithdrawalOut & {
   pay_channel__mapping?: string;
 };
 
-type ReviewState = { withdrawal: WithdrawalWithMapping; approved: boolean } | null;
+type ReviewState = {
+  withdrawal: WithdrawalWithMapping;
+  approved: boolean;
+} | null;
 type PayoutState = {
   withdrawal: WithdrawalWithMapping;
   mode: 'payout' | 'retry';
@@ -57,14 +66,87 @@ type WithdrawalInsight = WithdrawalWithMapping & {
   is_closed: boolean;
 };
 type TablePageParams = {
+  createdFrom?: string;
+  createdTo?: string;
   current?: number;
+  keyword?: string;
   pageSize?: number;
+  status?: string;
 };
+
+type WithdrawalSearchState = {
+  createdFrom: string;
+  createdTo: string;
+  keyword: string;
+  page: number;
+  status?: string;
+};
+
+const PAGE_SIZE = 10;
+
+const withdrawalStatusOptions = [
+  { value: 'pending_review', label: '待审核' },
+  { value: 'approved', label: '已通过' },
+  { value: 'paying', label: '打款中' },
+  { value: 'failed', label: '失败待重试' },
+  { value: 'rejected', label: '已驳回' },
+  { value: 'cancelled', label: '已取消' },
+  { value: 'paid', label: '已打款' },
+];
+
+const trimParam = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+function readSearchState(): WithdrawalSearchState {
+  const params = new URLSearchParams(window.location.search);
+  const page = Number(params.get('page'));
+  return {
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+    keyword: trimParam(params.get('keyword')) || '',
+    status: trimParam(params.get('status')),
+    createdFrom: trimParam(params.get('created_from')) || '',
+    createdTo: trimParam(params.get('created_to')) || '',
+  };
+}
+
+function syncSearchState(state: WithdrawalSearchState) {
+  const params = new URLSearchParams(window.location.search);
+  ['page', 'keyword', 'status', 'created_from', 'created_to'].forEach(
+    (name) => {
+      params.delete(name);
+    },
+  );
+  if (state.page > 1) params.set('page', String(state.page));
+  if (state.keyword) params.set('keyword', state.keyword);
+  if (state.status) params.set('status', state.status);
+  if (state.createdFrom) params.set('created_from', state.createdFrom);
+  if (state.createdTo) params.set('created_to', state.createdTo);
+  const search = params.toString();
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash || ''}`,
+  );
+}
+
+function apiDateRange(createdFrom?: string, createdTo?: string) {
+  return {
+    created_from: createdFrom
+      ? dayjs(createdFrom).startOf('day').format()
+      : undefined,
+    created_to: createdTo
+      ? dayjs(createdTo).add(1, 'day').startOf('day').format()
+      : undefined,
+  };
+}
 
 function buildWithdrawalInsight(
   withdrawal: WithdrawalWithMapping,
 ): WithdrawalInsight {
-  const statusLabel = enumMapping(withdrawal.status, withdrawal.status__mapping);
+  const statusLabel = enumMapping(
+    withdrawal.status,
+    withdrawal.status__mapping,
+  );
   switch (withdrawal.status) {
     case 'pending_review':
       return {
@@ -150,6 +232,7 @@ function buildWithdrawalInsight(
 }
 
 const WalletWithdrawalsPage: React.FC = () => {
+  const initialSearchState = React.useMemo(readSearchState, []);
   const [reviewState, setReviewState] = useState<ReviewState>(null);
   const [payoutState, setPayoutState] = useState<PayoutState>(null);
   const tableActionRef = useRef<ActionType>(null);
@@ -158,6 +241,9 @@ const WalletWithdrawalsPage: React.FC = () => {
   const [reconcileDiffCount, setReconcileDiffCount] = useState<number | null>(
     null,
   );
+  const [searchState, setSearchState] = useState(initialSearchState);
+  const [keywordDraft, setKeywordDraft] = useState(initialSearchState.keyword);
+  const [listError, setListError] = useState<unknown>();
 
   const reviewMutation = useMutation({
     mutationFn: ({
@@ -168,10 +254,13 @@ const WalletWithdrawalsPage: React.FC = () => {
       payload: API.WithdrawalReviewIn;
     }) =>
       appsWalletApiReviewWithdrawal({ withdrawal_id: withdrawal.id }, payload),
-    onSuccess: async () => {
+    onSuccess: async (_result, variables) => {
       setReviewState(null);
       reviewForm.resetFields();
       tableActionRef.current?.reload();
+      message.success(
+        variables.payload.approved ? '提现审核已通过' : '提现审核已驳回',
+      );
     },
   });
   const payoutMutation = useMutation({
@@ -187,6 +276,7 @@ const WalletWithdrawalsPage: React.FC = () => {
       setPayoutState(null);
       payoutForm.resetFields();
       tableActionRef.current?.reload();
+      message.success('打款请求已提交');
     },
   });
   const retryMutation = useMutation({
@@ -202,14 +292,24 @@ const WalletWithdrawalsPage: React.FC = () => {
       setPayoutState(null);
       payoutForm.resetFields();
       tableActionRef.current?.reload();
+      message.success('打款重试已提交');
     },
   });
   const reconcileMutation = useMutation({
     mutationFn: () => appsWalletApiReconcile(),
     onSuccess: (result) => {
       setReconcileDiffCount(result.diff_count);
+      message.success('钱包对账已完成');
     },
   });
+
+  const updateSearchState = (next: Partial<WithdrawalSearchState>) => {
+    setSearchState((current) => {
+      const value = { ...current, ...next };
+      syncSearchState(value);
+      return value;
+    });
+  };
 
   const columns: ProColumns<WithdrawalInsight>[] = [
     { title: '申请 ID', dataIndex: 'id', width: 110 },
@@ -267,7 +367,9 @@ const WalletWithdrawalsPage: React.FC = () => {
         <ResponsiveActions>
           {record.is_review_pending ? (
             <>
-              <a
+              <Button
+                type="link"
+                size="small"
                 onClick={() => {
                   reviewForm.setFieldsValue({
                     approved: true,
@@ -278,8 +380,11 @@ const WalletWithdrawalsPage: React.FC = () => {
                 }}
               >
                 通过
-              </a>
-              <a
+              </Button>
+              <Button
+                danger
+                type="link"
+                size="small"
                 onClick={() => {
                   reviewForm.setFieldsValue({
                     approved: false,
@@ -290,28 +395,36 @@ const WalletWithdrawalsPage: React.FC = () => {
                 }}
               >
                 驳回
-              </a>
+              </Button>
             </>
           ) : null}
           {record.is_ready_for_payout ? (
-            <a
+            <Button
+              type="link"
+              size="small"
               onClick={() => {
+                payoutMutation.reset();
+                retryMutation.reset();
                 payoutForm.resetFields();
                 setPayoutState({ withdrawal: record, mode: 'payout' });
               }}
             >
               发起打款
-            </a>
+            </Button>
           ) : null}
           {record.is_retry_needed ? (
-            <a
+            <Button
+              type="link"
+              size="small"
               onClick={() => {
+                payoutMutation.reset();
+                retryMutation.reset();
                 payoutForm.resetFields();
                 setPayoutState({ withdrawal: record, mode: 'retry' });
               }}
             >
               重试打款
-            </a>
+            </Button>
           ) : null}
           {!record.is_review_pending &&
           !record.is_ready_for_payout &&
@@ -327,6 +440,23 @@ const WalletWithdrawalsPage: React.FC = () => {
     <PageContainer title="提现审核">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card>
+          {listError ? (
+            <Alert
+              type="error"
+              showIcon
+              title="提现记录加载失败"
+              description="暂时无法取得提现记录，请检查网络后重试。"
+              action={
+                <Button
+                  size="small"
+                  onClick={() => tableActionRef.current?.reload()}
+                >
+                  重新加载提现记录
+                </Button>
+              }
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
           {reconcileDiffCount !== null ? (
             <Alert
               type={reconcileDiffCount > 0 ? 'warning' : 'success'}
@@ -339,6 +469,14 @@ const WalletWithdrawalsPage: React.FC = () => {
               style={{ marginBottom: 16 }}
             />
           ) : null}
+          {reconcileMutation.isError ? (
+            <Alert
+              type="error"
+              showIcon
+              title="钱包对账失败，请稍后重试"
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
 
           <ProTable<WithdrawalInsight>
             actionRef={tableActionRef}
@@ -346,30 +484,111 @@ const WalletWithdrawalsPage: React.FC = () => {
             headerTitle="提现列表"
             columns={columns}
             request={async (params: TablePageParams) => {
-              const result = await appsWalletApiAdminWithdrawals({
-                page: params.current || 1,
-                page_size: params.pageSize || 10,
-              });
-              return {
-                data: ((result.items || []) as WithdrawalWithMapping[]).map((item) => buildWithdrawalInsight(item)),
-                total: result.total || 0,
-                success: true,
-              };
+              try {
+                const result = await appsWalletApiAdminWithdrawals({
+                  page: params.current || 1,
+                  page_size: params.pageSize || PAGE_SIZE,
+                  keyword: trimParam(params.keyword),
+                  status: params.status,
+                  ...apiDateRange(params.createdFrom, params.createdTo),
+                });
+                setListError(undefined);
+                return {
+                  data: ((result.items || []) as WithdrawalWithMapping[]).map(
+                    (item) => buildWithdrawalInsight(item),
+                  ),
+                  total: result.total || 0,
+                  success: true,
+                };
+              } catch (error) {
+                setListError(error);
+                return { data: [], total: 0, success: true };
+              }
+            }}
+            params={{
+              keyword: searchState.keyword,
+              status: searchState.status,
+              createdFrom: searchState.createdFrom,
+              createdTo: searchState.createdTo,
             }}
             search={false}
             options={{ density: true, reload: false, setting: true }}
             toolBarRender={() => [
-              <Button
-                key="reconcile"
-                loading={reconcileMutation.isPending}
-                onClick={() => void reconcileMutation.mutateAsync()}
-              >
-                执行对账
-              </Button>,
+              <AdminToolbar key="actions">
+                <Input.Search
+                  aria-label="提现记录关键词"
+                  allowClear
+                  placeholder="用户 ID、姓名、账号或邮箱"
+                  style={toolbarControlStyle}
+                  value={keywordDraft}
+                  onChange={(event) => setKeywordDraft(event.target.value)}
+                  onSearch={(value) =>
+                    updateSearchState({
+                      page: 1,
+                      keyword: trimParam(value) || '',
+                    })
+                  }
+                />
+                <Select
+                  aria-label="提现状态"
+                  allowClear
+                  placeholder="提现状态"
+                  style={toolbarShortSelectStyle}
+                  value={searchState.status}
+                  options={withdrawalStatusOptions}
+                  onChange={(status) => updateSearchState({ page: 1, status })}
+                />
+                <DatePicker.RangePicker
+                  aria-label="提现申请时间"
+                  value={
+                    searchState.createdFrom && searchState.createdTo
+                      ? [
+                          dayjs(searchState.createdFrom),
+                          dayjs(searchState.createdTo),
+                        ]
+                      : null
+                  }
+                  onChange={(dates) =>
+                    updateSearchState({
+                      page: 1,
+                      createdFrom: dates?.[0]?.format('YYYY-MM-DD') || '',
+                      createdTo: dates?.[1]?.format('YYYY-MM-DD') || '',
+                    })
+                  }
+                />
+                <Button
+                  onClick={() => {
+                    setKeywordDraft('');
+                    const reset: WithdrawalSearchState = {
+                      page: 1,
+                      keyword: '',
+                      status: undefined,
+                      createdFrom: '',
+                      createdTo: '',
+                    };
+                    setSearchState(reset);
+                    syncSearchState(reset);
+                  }}
+                >
+                  重置
+                </Button>
+                <Button
+                  loading={reconcileMutation.isPending}
+                  onClick={() => void reconcileMutation.mutateAsync()}
+                >
+                  执行对账
+                </Button>
+              </AdminToolbar>,
             ]}
             ghost
             scroll={adminTableScroll}
-            pagination={{ defaultPageSize: 10 }}
+            pagination={{
+              current: searchState.page,
+              pageSize: PAGE_SIZE,
+              showSizeChanger: false,
+              onChange: (page) => updateSearchState({ page }),
+            }}
+            locale={listError ? { emptyText: '提现记录加载失败' } : undefined}
           />
         </Card>
 
@@ -393,6 +612,13 @@ const WalletWithdrawalsPage: React.FC = () => {
           }}
         >
           <Space orientation="vertical" size={12} style={fullWidthStyle}>
+            {reviewMutation.isError ? (
+              <Alert
+                type="error"
+                showIcon
+                title="提现审核失败，请核对信息后重试"
+              />
+            ) : null}
             <Alert
               type={reviewState?.approved ? 'info' : 'warning'}
               showIcon
@@ -421,21 +647,36 @@ const WalletWithdrawalsPage: React.FC = () => {
           title={payoutState?.mode === 'retry' ? '重试打款' : '发起打款'}
           open={Boolean(payoutState)}
           loading={payoutMutation.isPending || retryMutation.isPending}
+          error={
+            payoutMutation.isError
+              ? '打款请求失败，请核对信息后重试'
+              : retryMutation.isError
+                ? '打款重试失败，请核对信息后重试'
+                : undefined
+          }
           form={payoutForm}
-          onCancel={() => setPayoutState(null)}
+          onCancel={() => {
+            payoutMutation.reset();
+            retryMutation.reset();
+            setPayoutState(null);
+          }}
           onOk={async () => {
             const values = await payoutForm.validateFields();
             const payload = { ...values, request_payload: {} };
-            if (payoutState?.mode === 'retry') {
-              await retryMutation.mutateAsync({
-                withdrawal: payoutState.withdrawal,
-                payload,
-              });
-            } else if (payoutState) {
-              await payoutMutation.mutateAsync({
-                withdrawal: payoutState.withdrawal,
-                payload,
-              });
+            try {
+              if (payoutState?.mode === 'retry') {
+                await retryMutation.mutateAsync({
+                  withdrawal: payoutState.withdrawal,
+                  payload,
+                });
+              } else if (payoutState) {
+                await payoutMutation.mutateAsync({
+                  withdrawal: payoutState.withdrawal,
+                  payload,
+                });
+              }
+            } catch {
+              // 错误状态保留在弹窗内，便于用户修正后重试。
             }
           }}
         />

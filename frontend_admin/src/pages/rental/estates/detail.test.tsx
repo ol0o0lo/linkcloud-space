@@ -73,8 +73,7 @@ describe('EstateDetailPage', () => {
       city: '广州市',
       district: '天河区',
       address: '科技园路 1 号',
-      lat: '23.135120',
-      lng: '113.361210',
+      location: { latitude: 23.13512, longitude: 113.36121, coordinate_system: 'gcj02' },
       images: [],
       building_count: 1,
       counts: {

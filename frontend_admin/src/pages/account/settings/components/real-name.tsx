@@ -14,13 +14,13 @@ import {
   Upload,
 } from 'antd';
 import React, { useCallback, useMemo, useState } from 'react';
+import { enumMapping } from '@/services/manual/enums';
 import { appsMediaApiUploadFiles } from '@/services/openapi/mediaFiles';
 import {
   appsAccountsApiGetMyRealName,
   appsAccountsApiRetryMyRealName,
   appsAccountsApiSubmitMyRealName,
 } from '@/services/openapi/realName';
-import { enumMapping } from '@/services/manual/enums';
 import type { SecurityItem } from './security.types';
 
 type RealNameStatusRecord = API.RealNameVerificationOut & {
@@ -41,7 +41,8 @@ export const RealNameView: React.FC = () => {
     refetch: refetchRealName,
   } = useQuery({
     queryKey: ['security-real-name'],
-    queryFn: () => appsAccountsApiGetMyRealName() as Promise<RealNameStatusRecord>,
+    queryFn: () =>
+      appsAccountsApiGetMyRealName() as Promise<RealNameStatusRecord>,
   });
 
   const submitRealNameMutation = useMutation({
@@ -129,9 +130,14 @@ export const RealNameView: React.FC = () => {
         renderItem={(item) => (
           <List.Item
             actions={[
-              <a key={item.key} onClick={openRealNameModal}>
+              <Button
+                key={item.key}
+                type="link"
+                size="small"
+                onClick={openRealNameModal}
+              >
                 {item.actionText}
-              </a>,
+              </Button>,
             ]}
           >
             <List.Item.Meta title={item.title} description={item.description} />
@@ -145,12 +151,12 @@ export const RealNameView: React.FC = () => {
         footer={null}
         destroyOnHidden
       >
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           {realNameHelper ? (
             <Alert
               showIcon
               type={realNameHelper.type}
-              message={realNameHelper.message}
+              title={realNameHelper.message}
               description={realNameHelper.description}
             />
           ) : null}

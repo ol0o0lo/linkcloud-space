@@ -65,6 +65,11 @@ vi.mock('@/services/manual/subscriptions', () => ({
 describe('SubscriptionOrdersPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState(
+      null,
+      '',
+      '/dashboard/space/subscription/orders',
+    );
     mockAccess.canManageSubscriptions = true;
     mockPlans.mockResolvedValue([
       {
@@ -139,7 +144,98 @@ describe('SubscriptionOrdersPage', () => {
 
     await waitFor(() => {
       expect(mockOrders).toHaveBeenCalledWith({ page: 2, page_size: 10 });
+      expect(new URLSearchParams(window.location.search).get('page')).toBe('2');
     });
+  });
+
+  it('刷新后从 URL 恢复订单页码', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/dashboard/space/subscription/orders?page=2',
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionOrdersPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockOrders).toHaveBeenCalledWith({ page: 2, page_size: 10 });
+    });
+  });
+
+  it('订单加载失败时显示错误状态并可重试', async () => {
+    mockOrders
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 10,
+      });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionOrdersPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('套餐订单加载失败')).toBeInTheDocument();
+    expect(screen.getAllByText('订单数据未加载')).not.toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+
+    await waitFor(() => expect(mockOrders).toHaveBeenCalledTimes(2));
+  });
+
+  it('订单、支付和退款状态使用统一语义状态', async () => {
+    mockOrders.mockResolvedValueOnce({
+      items: [
+        {
+          id: 10,
+          order_no: 'S0010',
+          order_type: 'renewal',
+          status: 'payment_failed',
+          close_reason: 'provider_failed',
+          target_plan_code: 'professional',
+          billing_cycle: 'month',
+          list_amount: 29900,
+          credit_amount: 0,
+          payable_amount: 29900,
+          expires_at: '2026-09-06T11:30:00+08:00',
+          paid_at: null,
+          refund_status: 'partial',
+          refunded_amount: 1000,
+          created_at: '2026-09-06T11:00:00+08:00',
+          payment: { status: 'failed', transaction_no: 'P0010' },
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionOrdersPage />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findAllByTitle('订单支付失败，需要重新发起购买'),
+    ).not.toHaveLength(0);
+    expect(screen.getAllByTitle('支付渠道处理失败')).not.toHaveLength(0);
+    expect(screen.getAllByTitle('订单已登记部分退款')).not.toHaveLength(0);
   });
 
   it('可继续待支付订单、主动查单并取消订单', async () => {

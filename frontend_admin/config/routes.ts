@@ -358,10 +358,24 @@ export default [
         component: './platform-management/subscriptions',
       },
       {
+        name: '销售线索',
+        locale: false,
+        icon: 'contacts',
+        path: '/super-admin/subscriptions/sales-leads',
+        component: './platform-management/sales-leads',
+      },
+      {
         name: 'referrals',
         icon: 'shareAlt',
         path: '/super-admin/referrals',
         component: './platform-management/referrals',
+      },
+      {
+        name: '小程序首页设置',
+        locale: false,
+        icon: 'picture',
+        path: '/super-admin/miniprogram-home',
+        component: './platform-management/miniprogram-home',
       },
       {
         name: 'notification-dispatches',

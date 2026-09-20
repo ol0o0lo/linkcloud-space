@@ -8,6 +8,7 @@ import {
   Drawer,
   Form,
   Image,
+  Input,
   Select,
   Space,
   Table,
@@ -18,11 +19,13 @@ import dayjs from 'dayjs';
 import React, { useRef, useState } from 'react';
 import { PageContainer } from '@/components/PageContainer';
 import {
+  AdminToolbar,
   adminTableScroll,
   codeWrapStyle,
   drawerWidthLg,
   fullWidthStyle,
   ResponsiveActions,
+  toolbarControlStyle,
   toolbarSelectPopupWidth,
   toolbarShortSelectStyle,
   wrapTextStyle,
@@ -70,8 +73,52 @@ type RealNameSearchParams = {
   status?: string;
 };
 
+type RealNameListSearchState = {
+  detailId?: number;
+  keyword: string;
+  page: number;
+  status?: string;
+};
+
+const REAL_NAME_PAGE_SIZE = 10;
+
 const trimParam = (value: unknown) =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+const positiveNumber = (value: string | null) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+function getRealNameListSearchState(search: string): RealNameListSearchState {
+  const params = new URLSearchParams(search);
+  return {
+    detailId: positiveNumber(params.get('verification_id')),
+    keyword: trimParam(params.get('keyword')) || '',
+    page: positiveNumber(params.get('page')) || 1,
+    status: trimParam(params.get('status')),
+  };
+}
+
+function syncRealNameListSearch(state: RealNameListSearchState) {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('verification_id');
+  params.delete('keyword');
+  params.delete('page');
+  params.delete('status');
+
+  if (state.detailId) params.set('verification_id', String(state.detailId));
+  if (state.keyword) params.set('keyword', state.keyword);
+  if (state.page > 1) params.set('page', String(state.page));
+  if (state.status) params.set('status', state.status);
+
+  const nextSearch = params.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash || ''}`;
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }
+}
 
 function buildPhoneLabel(user?: Record<string, any>) {
   const countryCode = user?.phone_country_code || '';
@@ -174,16 +221,44 @@ function getAllowedActions(row: RealNameInsight): ReviewAction[] {
 }
 
 const RealNameAdminPage: React.FC = () => {
-  const [statusFilter, setStatusFilter] = useState<string>();
+  const initialSearchState = React.useMemo(
+    () => getRealNameListSearchState(window.location.search),
+    [],
+  );
+  const [page, setPage] = useState(initialSearchState.page);
+  const [keyword, setKeyword] = useState(initialSearchState.keyword);
+  const [keywordDraft, setKeywordDraft] = useState(initialSearchState.keyword);
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(
+    initialSearchState.status,
+  );
   const [actionState, setActionState] = useState<ActionState>(null);
-  const [detailId, setDetailId] = useState<number>();
+  const [detailId, setDetailId] = useState<number | undefined>(
+    initialSearchState.detailId,
+  );
   const tableActionRef = useRef<ActionType>(null);
   const [form] = Form.useForm<{ note: string }>();
   const realNameEnums = useEnums(['accounts.real_name_status']);
   const tableParams = React.useMemo(
-    () => ({ status: statusFilter }),
-    [statusFilter],
+    () => ({ keyword: trimParam(keyword), status: statusFilter }),
+    [keyword, statusFilter],
   );
+
+  const updateSearchState = (next: Partial<RealNameListSearchState>) => {
+    syncRealNameListSearch({
+      ...getRealNameListSearchState(window.location.search),
+      ...next,
+    });
+  };
+
+  const openDetail = (id: number) => {
+    setDetailId(id);
+    updateSearchState({ detailId: id });
+  };
+
+  const closeDetail = () => {
+    setDetailId(undefined);
+    updateSearchState({ detailId: undefined });
+  };
 
   const detailQuery = useQuery({
     queryKey: ['platform-management', 'real-name-detail', detailId],
@@ -303,14 +378,24 @@ const RealNameAdminPage: React.FC = () => {
       align: 'center',
       render: (_value, record) => (
         <ResponsiveActions>
-          <a onClick={() => setDetailId(record.id)}>详情</a>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => openDetail(record.id)}
+          >
+            详情
+          </Button>
           {getAllowedActions(record).map((action) => (
-            <a
+            <Button
               key={action}
+              type="link"
+              size="small"
+              danger={action === 'reject' || action === 'revoke'}
+              disabled={actionMutation.isPending}
               onClick={() => setActionState({ row: record, action })}
             >
               {getActionMeta(action, record).label}
-            </a>
+            </Button>
           ))}
         </ResponsiveActions>
       ),
@@ -349,32 +434,57 @@ const RealNameAdminPage: React.FC = () => {
           options={{
             density: true,
             reload: false,
-            search: {
-              name: 'keyword',
-              placeholder: '按用户名、邮箱、手机号、实名搜索',
-            },
             setting: true,
           }}
           toolBarRender={() => [
-            <Select
-              key="status"
-              allowClear
-              placeholder="按实名状态筛选"
-              style={toolbarShortSelectStyle}
-              popupMatchSelectWidth={toolbarSelectPopupWidth}
-              options={enumSelectOptions(
-                realNameEnums.data,
-                'accounts.real_name_status',
-              )}
-              onChange={(value) => setStatusFilter(value || undefined)}
-            />,
-            <Button key="back" href="/dashboard/super-admin/users">
-              返回用户列表
-            </Button>,
+            <AdminToolbar key="filters">
+              <Input.Search
+                aria-label="实名关键词"
+                allowClear
+                placeholder="按用户名、邮箱、手机号、实名搜索"
+                style={toolbarControlStyle}
+                value={keywordDraft}
+                onChange={(event) => setKeywordDraft(event.target.value)}
+                onSearch={(value) => {
+                  const nextKeyword = trimParam(value) || '';
+                  setPage(1);
+                  setKeyword(nextKeyword);
+                  setKeywordDraft(nextKeyword);
+                  updateSearchState({ page: 1, keyword: nextKeyword });
+                }}
+              />
+              <Select
+                aria-label="实名状态"
+                allowClear
+                placeholder="按实名状态筛选"
+                style={toolbarShortSelectStyle}
+                popupMatchSelectWidth={toolbarSelectPopupWidth}
+                value={statusFilter}
+                options={enumSelectOptions(
+                  realNameEnums.data,
+                  'accounts.real_name_status',
+                )}
+                onChange={(value) => {
+                  const nextStatus = value || undefined;
+                  setPage(1);
+                  setStatusFilter(nextStatus);
+                  updateSearchState({ page: 1, status: nextStatus });
+                }}
+              />
+              <Button href="/dashboard/super-admin/users">返回用户列表</Button>
+            </AdminToolbar>,
           ]}
           ghost
           scroll={adminTableScroll}
-          pagination={{ defaultPageSize: 10 }}
+          pagination={{
+            current: page,
+            pageSize: REAL_NAME_PAGE_SIZE,
+            showSizeChanger: false,
+            onChange: (nextPage) => {
+              setPage(nextPage);
+              updateSearchState({ page: nextPage });
+            },
+          }}
         />
       </Card>
 
@@ -398,8 +508,8 @@ const RealNameAdminPage: React.FC = () => {
       <Drawer
         title="实名详情"
         open={Boolean(detailId)}
-        onClose={() => setDetailId(undefined)}
-        width={drawerWidthLg}
+        onClose={closeDetail}
+        size={drawerWidthLg}
       >
         <Space orientation="vertical" size={12} style={fullWidthStyle}>
           <Descriptions column={1} bordered size="small">

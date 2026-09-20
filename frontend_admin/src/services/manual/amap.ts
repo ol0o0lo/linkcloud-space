@@ -1,4 +1,5 @@
 import AMapLoader from '@amap/amap-jsapi-loader';
+import { request } from '@umijs/max';
 import { useEffect, useRef, useState } from 'react';
 import { appsBaseApiAppContext } from '@/services/openapi/appSystem';
 
@@ -10,6 +11,26 @@ interface UseAmapResult {
   loading: boolean;
   error: Error | null;
   reload: () => void;
+}
+
+export type NearbyPoi = {
+  id: string;
+  name: string;
+  address: string;
+  distance: number;
+};
+
+export type NearbyPoiCategory = 'bus' | 'subway' | 'education' | 'medical';
+export type NearbyPois = Record<NearbyPoiCategory, NearbyPoi[]>;
+
+export function getNearbyPois(params: {
+  lat: number;
+  lng: number;
+}) {
+  return request<NearbyPois>('/api/nearby-pois/', {
+    params,
+    skipErrorHandler: true,
+  });
 }
 
 declare global {

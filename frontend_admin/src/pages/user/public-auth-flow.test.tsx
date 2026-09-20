@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   confirmEmail: vi.fn(),
@@ -70,6 +70,10 @@ describe('公开认证闭环', () => {
     window.history.replaceState({}, '', '/user/register');
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('注册真实账号并在待验证手机号时跳转', async () => {
     window.history.replaceState(
       {},
@@ -134,7 +138,10 @@ describe('公开认证闭环', () => {
       'href',
       '/user/login?redirect=%2Fpromotion',
     );
-    fireEvent.change(screen.getByPlaceholderText('请输入短信验证码'), {
+    const codeInput = screen.getByPlaceholderText('请输入短信验证码');
+    expect(codeInput).toHaveAttribute('autocomplete', 'one-time-code');
+    expect(screen.getByRole('button', { name: '60 秒后重试' })).toBeDisabled();
+    fireEvent.change(codeInput, {
       target: { value: '1234' },
     });
     fireEvent.click(screen.getByRole('button', { name: '确认验证' }));
@@ -143,9 +150,32 @@ describe('公开认证闭环', () => {
     expect(mocks.loadAuthenticatedState).toHaveBeenCalled();
     expect(mocks.setInitialState).toHaveBeenCalled();
     expect(mocks.historyReplace).toHaveBeenCalledWith('/promotion');
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: '重新发送' }));
-    await waitFor(() => expect(mocks.resendPhone).toHaveBeenCalled());
+  it('手机号验证码倒计时结束后可重新发送', async () => {
+    vi.useFakeTimers();
+    window.history.replaceState(
+      {},
+      '',
+      '/user/verify-phone?phone=%2B8613800138011',
+    );
+    mocks.resendPhone.mockResolvedValue({});
+
+    render(<VerifyPhonePage />);
+
+    expect(screen.getByRole('button', { name: '60 秒后重试' })).toBeDisabled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    const resendButton = screen.getByRole('button', { name: '重新发送' });
+    expect(resendButton).toBeEnabled();
+    await act(async () => {
+      fireEvent.click(resendButton);
+      await Promise.resolve();
+    });
+    expect(mocks.resendPhone).toHaveBeenCalled();
+    expect(screen.getByText('验证码已重新发送')).toBeInTheDocument();
   });
 
   it('发起密码重置请求', async () => {

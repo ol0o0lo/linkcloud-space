@@ -20,6 +20,9 @@ export type AppIconDefinitions = Record<string, AppIconDefinition>;
  * 插件通过 registerAppIconDefinitions() 扩展，不应直接修改此对象注入配置。
  */
 export const APP_ICON_DEFINITIONS = {
+  ai: {
+    icon: 'tabler:sparkles',
+  },
   unknown: {
     icon: 'solar:question-circle-outline',
   },
@@ -118,6 +121,78 @@ export const APP_ICON_DEFINITIONS = {
   },
   'invoice-request.cancelled': {
     icon: 'solar:close-circle-outline',
+  },
+  'subscription.order': {
+    icon: 'solar:cart-large-2-outline',
+  },
+  'subscription.order.pending_payment': {
+    icon: 'solar:clock-circle-outline',
+  },
+  'subscription.order.paid': {
+    icon: 'solar:verified-check-outline',
+  },
+  'subscription.order.closed': {
+    icon: 'solar:close-circle-outline',
+  },
+  'subscription.order.payment_failed': {
+    icon: 'solar:danger-triangle-outline',
+  },
+  'subscription.payment': {
+    icon: 'solar:wallet-money-outline',
+  },
+  'subscription.payment.pending': {
+    icon: 'solar:clock-circle-outline',
+  },
+  'subscription.payment.succeeded': {
+    icon: 'solar:verified-check-outline',
+  },
+  'subscription.payment.failed': {
+    icon: 'solar:danger-triangle-outline',
+  },
+  'subscription.payment.exception': {
+    icon: 'solar:danger-triangle-outline',
+  },
+  'subscription.refund': {
+    icon: 'solar:undo-left-round-outline',
+  },
+  'subscription.refund.none': {
+    icon: 'solar:minus-circle-outline',
+  },
+  'subscription.refund.partial': {
+    icon: 'solar:undo-left-round-outline',
+  },
+  'subscription.refund.full': {
+    icon: 'solar:undo-left-round-outline',
+  },
+  'referral.record': {
+    icon: 'solar:users-group-rounded-outline',
+  },
+  'referral.record.registered': {
+    icon: 'solar:user-plus-rounded-outline',
+  },
+  'referral.record.pending_review': {
+    icon: 'solar:clock-circle-outline',
+  },
+  'referral.record.review_rejected': {
+    icon: 'solar:close-circle-outline',
+  },
+  'referral.record.reward_issued': {
+    icon: 'solar:gift-outline',
+  },
+  'miniprogram-home.item': {
+    icon: 'solar:gallery-wide-outline',
+  },
+  'miniprogram-home.item.disabled': {
+    icon: 'solar:close-circle-outline',
+  },
+  'miniprogram-home.item.scheduled': {
+    icon: 'solar:clock-circle-outline',
+  },
+  'miniprogram-home.item.active': {
+    icon: 'solar:verified-check-outline',
+  },
+  'miniprogram-home.item.expired': {
+    icon: 'solar:calendar-mark-outline',
   },
   'wallet.withdrawal': {
     icon: 'solar:document-text-outline',

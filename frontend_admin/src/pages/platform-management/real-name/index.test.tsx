@@ -60,15 +60,22 @@ vi.mock('@ant-design/pro-components', () => ({
     headerTitle,
     options,
     pagination,
+    params,
     request,
     search,
     toolBarRender,
   }: any) => {
     const [data, setData] = React.useState<any[]>([]);
-    const pageSize = pagination?.defaultPageSize || 10;
+    const pageSize = pagination?.pageSize || pagination?.defaultPageSize || 10;
+    const current = pagination?.current || 1;
 
-    const load = async (params: Record<string, any> = {}) => {
-      const result = await request?.({ current: 1, pageSize, ...params });
+    const load = async (overrides: Record<string, any> = {}) => {
+      const result = await request?.({
+        current,
+        pageSize,
+        ...params,
+        ...overrides,
+      });
       setData(result?.data || []);
     };
 
@@ -77,7 +84,7 @@ vi.mock('@ant-design/pro-components', () => ({
         actionRef.current = { reload: () => void load() };
       }
       void load();
-    }, []);
+    }, [current, pageSize, params?.keyword, params?.status]);
 
     const keywordConfig = options?.search || search?.search;
     const keywordName = keywordConfig?.name || 'keyword';
@@ -101,6 +108,14 @@ vi.mock('@ant-design/pro-components', () => ({
           />
         ) : null}
         {toolBarRender ? <div>{toolBarRender()}</div> : null}
+        {pagination?.onChange ? (
+          <button
+            type="button"
+            onClick={() => pagination.onChange(current + 1, pageSize)}
+          >
+            下一页
+          </button>
+        ) : null}
         <table>
           <thead>
             <tr>
@@ -141,6 +156,7 @@ describe('RealNameAdminPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/super-admin/real-name');
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -247,7 +263,7 @@ describe('RealNameAdminPage', () => {
       throw new Error('Expected alice row to render');
     }
     const rowWithin = within(row);
-    fireEvent.click(rowWithin.getByText('通过实名'));
+    fireEvent.click(rowWithin.getByRole('button', { name: '通过实名' }));
     const approveDialog = screen.getAllByRole('dialog').at(-1);
     if (!(approveDialog instanceof HTMLElement)) {
       throw new Error('Expected approve dialog to render');
@@ -276,5 +292,44 @@ describe('RealNameAdminPage', () => {
         status: undefined,
       }),
     );
+    expect(new URLSearchParams(window.location.search).get('keyword')).toBe(
+      'alice',
+    );
+  });
+
+  it('从 URL 恢复实名筛选、页码和详情', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/super-admin/real-name?page=2&keyword=alice&status=manual_review&verification_id=3',
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RealNameAdminPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(mockList).toHaveBeenCalledWith({
+        page: 2,
+        page_size: 10,
+        keyword: 'alice',
+        status: 'manual_review',
+      }),
+    );
+    expect(
+      screen.getByPlaceholderText('按用户名、邮箱、手机号、实名搜索'),
+    ).toHaveValue('alice');
+    expect(
+      screen.getByRole('combobox', { name: '实名状态' }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockGet).toHaveBeenCalledWith({ verification_id: 3 }),
+    );
+    expect(screen.getByText('实名详情')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(new URLSearchParams(window.location.search).get('page')).toBe('3');
   });
 });

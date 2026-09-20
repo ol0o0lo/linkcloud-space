@@ -456,6 +456,40 @@ export async function appsHouseApiPatchHouse(
   });
 }
 
+/** 获取房源 AI 洞察 GET /api/house/houses/${param0}/ai-insight/ */
+export async function appsHouseApiGetHouseAiInsightEndpoint(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiGetHouseAiInsightEndpointParams,
+  options?: { [key: string]: any }
+) {
+  const { house_id: param0, ...queryParams } = params;
+  return request<API.HouseAIInsightOut>(
+    `/api/house/houses/${param0}/ai-insight/`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 生成房源 AI 洞察 POST /api/house/houses/${param0}/ai-insight/generate/ */
+export async function appsHouseApiGenerateHouseAiInsightEndpoint(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiGenerateHouseAiInsightEndpointParams,
+  options?: { [key: string]: any }
+) {
+  const { house_id: param0, ...queryParams } = params;
+  return request<API.HouseAIInsightOut>(
+    `/api/house/houses/${param0}/ai-insight/generate/`,
+    {
+      method: "POST",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取租约收益分配申请列表 GET /api/house/lease-allocations/ */
 export async function appsHouseApiListLeaseAllocations(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

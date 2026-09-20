@@ -85,6 +85,14 @@ describe('RealNameView', () => {
     );
   }
 
+  it('uses a keyboard-accessible button for the real-name action', async () => {
+    renderView();
+
+    expect(
+      await screen.findByRole('button', { name: '去认证' }),
+    ).toBeInTheDocument();
+  });
+
   it('submits real-name application from a modal with id-card media', async () => {
     renderView();
 

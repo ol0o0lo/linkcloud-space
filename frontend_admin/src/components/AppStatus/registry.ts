@@ -141,6 +141,150 @@ export const APP_STATUS_DEFINITIONS = {
       },
     },
   },
+  'subscription.order': {
+    states: {
+      pending_payment: {
+        description: '订单已创建，等待用户完成支付',
+        icon: 'subscription.order.pending_payment',
+        tone: 'warning',
+      },
+      paid: {
+        description: '订单已支付，套餐权益已经生效',
+        icon: 'subscription.order.paid',
+        tone: 'success',
+      },
+      closed: {
+        description: '订单已关闭，无法继续支付',
+        icon: 'subscription.order.closed',
+        tone: 'error',
+      },
+      payment_failed: {
+        description: '订单支付失败，需要重新发起购买',
+        icon: 'subscription.order.payment_failed',
+        tone: 'error',
+      },
+    },
+  },
+  'subscription.sales-lead': {
+    states: {
+      new: {
+        description: '客户刚提交企业版需求，等待首次联系',
+        icon: 'subscription.order.pending_payment',
+        tone: 'warning',
+      },
+      contacting: {
+        description: '销售顾问正在与客户沟通需求',
+        icon: 'subscription.payment.pending',
+        tone: 'info',
+      },
+      qualified: {
+        description: '需求和预算已确认，可推进方案与报价',
+        icon: 'subscription.payment.succeeded',
+        tone: 'success',
+      },
+      won: {
+        description: '企业版线索已经成交',
+        icon: 'subscription.order.paid',
+        tone: 'success',
+      },
+      lost: {
+        description: '当前线索已结束跟进',
+        icon: 'subscription.order.closed',
+        tone: 'secondary',
+      },
+    },
+  },
+  'subscription.payment': {
+    states: {
+      pending: {
+        description: '支付渠道等待用户付款',
+        icon: 'subscription.payment.pending',
+        tone: 'warning',
+      },
+      succeeded: {
+        description: '支付渠道已确认收款',
+        icon: 'subscription.payment.succeeded',
+        tone: 'success',
+      },
+      failed: {
+        description: '支付渠道处理失败',
+        icon: 'subscription.payment.failed',
+        tone: 'error',
+      },
+      exception: {
+        description: '支付结果与订单状态不一致，需要人工核查',
+        icon: 'subscription.payment.exception',
+        tone: 'error',
+      },
+    },
+  },
+  'subscription.refund': {
+    states: {
+      none: {
+        description: '订单尚未登记退款',
+        icon: 'subscription.refund.none',
+        tone: 'secondary',
+      },
+      partial: {
+        description: '订单已登记部分退款',
+        icon: 'subscription.refund.partial',
+        tone: 'warning',
+      },
+      full: {
+        description: '订单已登记全额退款',
+        icon: 'subscription.refund.full',
+        tone: 'error',
+      },
+    },
+  },
+  'referral.record': {
+    states: {
+      registered: {
+        description: '被邀请人已完成注册',
+        icon: 'referral.record.registered',
+        tone: 'info',
+      },
+      pending_review: {
+        description: '奖励条件已满足，等待人工审核',
+        icon: 'referral.record.pending_review',
+        tone: 'warning',
+      },
+      review_rejected: {
+        description: '奖励审核未通过',
+        icon: 'referral.record.review_rejected',
+        tone: 'error',
+      },
+      reward_issued: {
+        description: '奖励已经发放至钱包',
+        icon: 'referral.record.reward_issued',
+        tone: 'success',
+      },
+    },
+  },
+  'miniprogram-home.item': {
+    states: {
+      disabled: {
+        description: '当前内容未启用，不会在小程序首页展示',
+        icon: 'miniprogram-home.item.disabled',
+        tone: 'disabled',
+      },
+      scheduled: {
+        description: '内容已启用，将在设定的开始时间自动展示',
+        icon: 'miniprogram-home.item.scheduled',
+        tone: 'warning',
+      },
+      active: {
+        description: '内容当前正在小程序首页展示',
+        icon: 'miniprogram-home.item.active',
+        tone: 'success',
+      },
+      expired: {
+        description: '内容已超过结束时间，不再展示',
+        icon: 'miniprogram-home.item.expired',
+        tone: 'secondary',
+      },
+    },
+  },
   'landlord-binding': {
     states: {
       unbound: {

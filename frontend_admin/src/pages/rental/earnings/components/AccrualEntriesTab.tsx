@@ -203,8 +203,7 @@ const AccrualEntriesTab: React.FC<AccrualEntriesTabProps> = ({
               <Select
                 key="beneficiary"
                 allowClear
-                showSearch
-                optionFilterProp="label"
+                showSearch={{ optionFilterProp: 'label' }}
                 placeholder="按员工筛选"
                 loading={beneficiariesQuery.isLoading}
                 options={beneficiaries.map((item) => ({

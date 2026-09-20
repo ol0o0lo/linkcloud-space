@@ -281,9 +281,9 @@ const EstateDetailPage: React.FC = () => {
     `/rental/properties/list?estate_id=${estate.id}&asset_tab=structure&asset_action=create-building`,
   );
   const mapParams = new URLSearchParams({ estate_id: String(estate.id) });
-  if (estate.lat != null && estate.lng != null) {
-    mapParams.set('center_lat', String(estate.lat));
-    mapParams.set('center_lng', String(estate.lng));
+  if (estate.location) {
+    mapParams.set('center_lat', String(estate.location.latitude));
+    mapParams.set('center_lng', String(estate.location.longitude));
     mapParams.set('zoom', '15');
   }
   const mapHref = dashboardHref(
@@ -424,7 +424,7 @@ const EstateDetailPage: React.FC = () => {
                   ['详细地址', estate.address || '-'],
                   [
                     '地图位置',
-                    estate.lat == null || estate.lng == null
+                    estate.location == null
                       ? '待补充定位'
                       : '已维护定位',
                   ],

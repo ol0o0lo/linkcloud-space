@@ -23,6 +23,8 @@ function registerTestShard(name: string, register: () => void) {
 const {
   mockUseParams,
   mockGetHouse,
+  mockGetHouseAIInsight,
+  mockGenerateHouseAIInsight,
   mockListBuildings,
   mockListContacts,
   mockListLeases,
@@ -30,12 +32,15 @@ const {
   mockPatchHouse,
   mockGetTagSuggestions,
   mockUseAmap,
+  mockGetNearbyPois,
   mockGetFavorites,
   mockPutFavorite,
   mockRemoveFavorite,
 } = vi.hoisted(() => ({
   mockUseParams: vi.fn(),
   mockGetHouse: vi.fn(),
+  mockGetHouseAIInsight: vi.fn(),
+  mockGenerateHouseAIInsight: vi.fn(),
   mockListBuildings: vi.fn(),
   mockListContacts: vi.fn(),
   mockListLeases: vi.fn(),
@@ -43,6 +48,7 @@ const {
   mockPatchHouse: vi.fn(),
   mockGetTagSuggestions: vi.fn(),
   mockUseAmap: vi.fn(),
+  mockGetNearbyPois: vi.fn(),
   mockGetFavorites: vi.fn(),
   mockPutFavorite: vi.fn(),
   mockRemoveFavorite: vi.fn(),
@@ -115,6 +121,8 @@ vi.mock('@/components/EntityPreview', () => {
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
     getHouse: mockGetHouse,
+    getHouseAIInsight: mockGetHouseAIInsight,
+    generateHouseAIInsight: mockGenerateHouseAIInsight,
     listBuildings: mockListBuildings,
     listContacts: mockListContacts,
     listLeases: mockListLeases,
@@ -125,6 +133,7 @@ vi.mock('@/services/manual/house', () => ({
 }));
 
 vi.mock('@/services/manual/amap', () => ({
+  getNearbyPois: mockGetNearbyPois,
   useAmap: mockUseAmap,
 }));
 
@@ -301,6 +310,15 @@ describe('House detail page', () => {
     window.history.pushState({}, '', '/');
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
     mockGetHouse.mockReset();
+    mockGetHouseAIInsight.mockReset();
+    mockGenerateHouseAIInsight.mockReset();
+    mockGetHouseAIInsight.mockResolvedValue({
+      state: 'not_generated',
+      insight: null,
+      generated_at: null,
+      expires_at: null,
+      source_changed: false,
+    });
     mockListBuildings.mockResolvedValue({
       items: [buildingSummary],
       total: 1,
@@ -341,6 +359,13 @@ describe('House detail page', () => {
     mockPutFavorite.mockResolvedValue({});
     mockRemoveFavorite.mockResolvedValue({ success: true });
     mockGetTagSuggestions.mockResolvedValue({ tags: ['采光好', '南北通透'] });
+    mockGetNearbyPois.mockReset();
+    mockGetNearbyPois.mockResolvedValue({
+      bus: [],
+      subway: [],
+      education: [],
+      medical: [],
+    });
     mockUseAmap.mockReturnValue({
       AMap: null,
       loading: true,
@@ -615,10 +640,52 @@ describe('House detail page', () => {
         }),
       );
     });
-
   });
 
   registerTestShard('house-detail-overview', () => {
+    it('loads all nearby categories once and switches them locally', async () => {
+      mockGetHouse.mockResolvedValue({
+        ...completeHouse,
+        building: {
+          ...buildingSummary,
+          location: { latitude: 22.5331, longitude: 113.9304, coordinate_system: 'gcj02' },
+          address: '科技园 1 栋',
+        },
+      });
+      mockGetNearbyPois.mockResolvedValue({
+        bus: [
+          {
+            id: 'bus',
+            name: '科技园公交站',
+            address: '科技南路',
+            distance: 320,
+          },
+        ],
+        subway: [
+          {
+            id: 'subway',
+            name: '深大地铁站',
+            address: '地铁1号线',
+            distance: 680,
+          },
+        ],
+        education: [],
+        medical: [],
+      });
+
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <HouseDetailPage />
+        </QueryClientProvider>,
+      );
+
+      expect(await screen.findByText('科技园公交站')).toBeInTheDocument();
+      expect(mockGetNearbyPois).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByText('地铁站'));
+      expect(await screen.findByText('深大地铁站')).toBeInTheDocument();
+      expect(mockGetNearbyPois).toHaveBeenCalledTimes(1);
+    });
+
     it('toggles the favorite mutation', async () => {
       mockGetHouse.mockResolvedValue({ ...completeHouse, status: 'listed' });
       mockGetFavorites.mockResolvedValue({
@@ -881,7 +948,6 @@ describe('House detail page', () => {
         }),
       );
     });
-
   });
 
   registerTestShard('house-detail-routing', () => {

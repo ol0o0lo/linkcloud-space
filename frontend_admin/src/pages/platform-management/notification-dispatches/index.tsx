@@ -131,6 +131,41 @@ function isDispatchActive(status?: string) {
   return status === 'pending' || status === 'sending';
 }
 
+type DispatchListSearchState = {
+  detailId?: number;
+  page: number;
+};
+
+const DISPATCH_PAGE_SIZE = 10;
+
+function positiveNumber(value: string | null) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function getDispatchListSearchState(search: string): DispatchListSearchState {
+  const params = new URLSearchParams(search);
+  return {
+    detailId: positiveNumber(params.get('dispatch_id')),
+    page: positiveNumber(params.get('page')) || 1,
+  };
+}
+
+function syncDispatchListSearch(state: DispatchListSearchState) {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('dispatch_id');
+  params.delete('page');
+  if (state.detailId) params.set('dispatch_id', String(state.detailId));
+  if (state.page > 1) params.set('page', String(state.page));
+
+  const nextSearch = params.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash || ''}`;
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }
+}
+
 const NotificationDispatchesPage: React.FC = () => {
   const { styles } = useStyles();
   const location = useLocation();
@@ -146,7 +181,14 @@ const NotificationDispatchesPage: React.FC = () => {
   const selectedOrgSlug = isTenantMode
     ? workspace.selectedOrgSlug || workspace.selectedOrganization?.slug
     : undefined;
-  const [detailId, setDetailId] = useState<number>();
+  const initialSearchState = React.useMemo(
+    () => getDispatchListSearchState(window.location.search),
+    [],
+  );
+  const [page, setPage] = useState(initialSearchState.page);
+  const [detailId, setDetailId] = useState<number | undefined>(
+    initialSearchState.detailId,
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [createSource, setCreateSource] =
     useState<NotificationDispatchWithMapping>();
@@ -170,6 +212,23 @@ const NotificationDispatchesPage: React.FC = () => {
     ? isSuperuser || Boolean(currentOrganization?.is_owner)
     : isSuperuser;
 
+  const updateSearchState = (next: Partial<DispatchListSearchState>) => {
+    syncDispatchListSearch({
+      ...getDispatchListSearchState(window.location.search),
+      ...next,
+    });
+  };
+
+  const openDetail = (id: number) => {
+    setDetailId(id);
+    updateSearchState({ detailId: id });
+  };
+
+  const closeDetail = () => {
+    setDetailId(undefined);
+    updateSearchState({ detailId: undefined });
+  };
+
   const detailQuery = useQuery({
     queryKey: [
       ...platformQueryKeys.notificationDispatchDetail(detailId),
@@ -191,6 +250,8 @@ const NotificationDispatchesPage: React.FC = () => {
 
     managementBoundaryRef.current = nextBoundary;
     setDetailId(undefined);
+    setPage(1);
+    syncDispatchListSearch({ page: 1, detailId: undefined });
     setCreateOpen(false);
     setCreateSource(undefined);
     setHasActiveDispatches(false);
@@ -216,7 +277,7 @@ const NotificationDispatchesPage: React.FC = () => {
 
   const openCreate = (source?: NotificationDispatchWithMapping) => {
     setCreateSource(source);
-    setDetailId(undefined);
+    closeDetail();
     setCreateOpen(true);
   };
 
@@ -346,7 +407,7 @@ const NotificationDispatchesPage: React.FC = () => {
             type="link"
             size="small"
             onClick={() => {
-              setDetailId(record.id);
+              openDetail(record.id);
             }}
           >
             详情
@@ -435,7 +496,15 @@ const NotificationDispatchesPage: React.FC = () => {
           ]}
           ghost
           scroll={{ x: 760 }}
-          pagination={{ defaultPageSize: 10, showSizeChanger: false }}
+          pagination={{
+            current: page,
+            pageSize: DISPATCH_PAGE_SIZE,
+            showSizeChanger: false,
+            onChange: (nextPage) => {
+              setPage(nextPage);
+              updateSearchState({ page: nextPage });
+            },
+          }}
         />
 
         <NotificationDispatchCreateModal
@@ -454,9 +523,7 @@ const NotificationDispatchesPage: React.FC = () => {
         <Drawer
           title="发送详情"
           open={Boolean(detailId)}
-          onClose={() => {
-            setDetailId(undefined);
-          }}
+          onClose={closeDetail}
           size={drawerWidthMd}
           extra={
             detailQuery.data ? (

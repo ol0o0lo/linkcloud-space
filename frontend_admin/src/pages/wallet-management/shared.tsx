@@ -1,10 +1,15 @@
-import { Form, Input, Modal, Tooltip, Typography } from 'antd';
 import type { FormInstance } from 'antd';
+import { Alert, Form, Input, Modal, Space, Tooltip, Typography } from 'antd';
 import React from 'react';
 
 export const walletQueryKeys = {
   accounts: (page?: number) => ['wallet-management', 'accounts', page],
-  ledger: (userId?: number, page?: number) => ['wallet-management', 'ledger', userId, page],
+  ledger: (userId?: number, page?: number) => [
+    'wallet-management',
+    'ledger',
+    userId,
+    page,
+  ],
   withdrawals: (page?: number) => ['wallet-management', 'withdrawals', page],
 };
 
@@ -23,10 +28,18 @@ function stringifyJsonValue(value: unknown, pretty = false) {
 function summarizeJsonValue(value: unknown) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const snapshot = value as Record<string, unknown>;
-    const preferredKeys = ['receiver_name', 'masked_account', 'social_provider', 'channel'];
+    const preferredKeys = [
+      'receiver_name',
+      'masked_account',
+      'social_provider',
+      'channel',
+    ];
     const summary = preferredKeys
       .map((key) => snapshot[key])
-      .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      .filter(
+        (item): item is string =>
+          typeof item === 'string' && item.trim().length > 0,
+      )
       .join(' / ');
 
     if (summary) {
@@ -42,16 +55,35 @@ export const JsonText: React.FC<{ value: unknown }> = ({ value }) => (
   <Tooltip
     placement="topLeft"
     styles={{ root: { maxWidth: 520 } }}
-    title={<pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{stringifyJsonValue(value, true)}</pre>}
+    title={
+      <pre
+        style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+      >
+        {stringifyJsonValue(value, true)}
+      </pre>
+    }
   >
-    <Typography.Text code ellipsis style={{ display: 'inline-block', width: '100%', maxWidth: 360, verticalAlign: 'bottom' }}>
+    <Typography.Text
+      code
+      ellipsis
+      style={{
+        display: 'inline-block',
+        width: '100%',
+        maxWidth: 360,
+        verticalAlign: 'bottom',
+      }}
+    >
       {summarizeJsonValue(value)}
     </Typography.Text>
   </Tooltip>
 );
 
 export const IdempotencyFormItem: React.FC = () => (
-  <Form.Item label="幂等键" name="idempotency_key" rules={[{ required: true, message: '请输入幂等键' }]}>
+  <Form.Item
+    label="幂等键"
+    name="idempotency_key"
+    rules={[{ required: true, message: '请输入幂等键' }]}
+  >
     <Input />
   </Form.Item>
 );
@@ -60,19 +92,43 @@ export const PayoutModal: React.FC<{
   open: boolean;
   title: string;
   loading?: boolean;
+  error?: React.ReactNode;
   form: FormInstance<API.PayoutCreateIn>;
   onCancel: () => void;
   onOk: () => void;
-}> = ({ open, title, loading, form, onCancel, onOk }) => (
-  <Modal title={title} open={open} confirmLoading={loading} onCancel={onCancel} onOk={onOk}>
-    <Form form={form} layout="vertical">
-      <Form.Item label="渠道" name="provider" rules={[{ required: true, message: '请输入渠道' }]}>
-        <Input />
-      </Form.Item>
-      <Form.Item label="商户单号" name="out_trade_no" rules={[{ required: true, message: '请输入商户单号' }]}>
-        <Input />
-      </Form.Item>
-      <IdempotencyFormItem />
-    </Form>
+}> = ({ open, title, loading, error, form, onCancel, onOk }) => (
+  <Modal
+    title={title}
+    open={open}
+    confirmLoading={loading}
+    cancelButtonProps={{ disabled: loading }}
+    closable={!loading}
+    keyboard={!loading}
+    mask={{ closable: !loading }}
+    onCancel={() => {
+      if (!loading) onCancel();
+    }}
+    onOk={onOk}
+  >
+    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+      {error ? <Alert type="error" showIcon title={error} /> : null}
+      <Form form={form} layout="vertical">
+        <Form.Item
+          label="渠道"
+          name="provider"
+          rules={[{ required: true, message: '请输入渠道' }]}
+        >
+          <Input />
+        </Form.Item>
+        <Form.Item
+          label="商户单号"
+          name="out_trade_no"
+          rules={[{ required: true, message: '请输入商户单号' }]}
+        >
+          <Input />
+        </Form.Item>
+        <IdempotencyFormItem />
+      </Form>
+    </Space>
   </Modal>
 );

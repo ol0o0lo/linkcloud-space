@@ -53,8 +53,10 @@ import {
 } from '../constants';
 import {
   formLocation,
+  locationFormValues,
   prefillBuildingLocation,
   settingLocation,
+  withApiLocation,
 } from '../location-utils';
 import { type DeleteTarget, ResourceDeleteModal } from './ResourceDeleteModal';
 
@@ -172,7 +174,7 @@ function estateMatchesTask(
 function buildingMatchesTask(building: BuildingOut, task?: EstateTask) {
   if (task === 'building_address') return !building.address;
   if (task === 'building_location')
-    return building.lat == null || building.lng == null;
+    return building.location == null;
   return true;
 }
 
@@ -421,8 +423,8 @@ const EstatesPage: React.FC = () => {
   const saveEstate = useMutation({
     mutationFn: (values: EstateFormValues) =>
       editingEstate
-        ? houseApi.patchEstate(editingEstate.id, values)
-        : houseApi.createEstate(values),
+        ? houseApi.patchEstate(editingEstate.id, withApiLocation(values))
+        : houseApi.createEstate(withApiLocation(values)),
     onSuccess: async () => {
       message.success(editingEstate ? '项目已更新' : '项目已创建');
       setEstateOpen(false);
@@ -462,8 +464,8 @@ const EstatesPage: React.FC = () => {
         floors: Number(values.floors),
       };
       return editingBuilding
-        ? houseApi.patchBuilding(editingBuilding.id, payload)
-        : houseApi.createBuilding(payload);
+        ? houseApi.patchBuilding(editingBuilding.id, withApiLocation(payload))
+        : houseApi.createBuilding(withApiLocation(payload));
     },
     onSuccess: async (building) => {
       message.success(editingBuilding ? '楼栋已更新' : '楼栋已创建');
@@ -526,7 +528,7 @@ const EstatesPage: React.FC = () => {
     setDraftBuildingEstateId(undefined);
     setEditingBuilding(record);
     setBuildingOpen(true);
-    setBuildingLocationTouched(record.lat != null && record.lng != null);
+    setBuildingLocationTouched(record.location != null);
     previousBuildingEstateId.current = record.estate_id;
     updateDrawerState({ buildingEditId: record.id });
   };
@@ -558,15 +560,17 @@ const EstatesPage: React.FC = () => {
     void refreshDeleteLists();
   }, [refreshDeleteLists]);
 
-  const estateInitialValues: Partial<EstateFormValues> = editingEstate || {
-    property_type: 'residential',
-  };
+  const estateInitialValues: Partial<EstateFormValues> = editingEstate
+    ? locationFormValues(editingEstate)
+    : { property_type: 'residential' };
   const buildingInitialValues: Partial<BuildingFormValues> =
-    editingBuilding || {
-      estate_id: draftBuildingEstateId,
-      floors: 1,
-      elevator: false,
-    };
+    editingBuilding
+      ? locationFormValues(editingBuilding)
+      : {
+          estate_id: draftBuildingEstateId,
+          floors: 1,
+          elevator: false,
+        };
   const estateOverviewRows =
     allEstates.data?.items || estates.data?.items || [];
   const buildingOverviewRows =

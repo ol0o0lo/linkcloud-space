@@ -75,10 +75,11 @@ vi.mock('@ant-design/pro-components', () => ({
     toolBarRender,
   }: any) => {
     const [data, setData] = React.useState<any[]>([]);
-    const pageSize = pagination?.defaultPageSize || 10;
+    const pageSize = pagination?.pageSize || pagination?.defaultPageSize || 10;
+    const current = pagination?.current || 1;
 
     const load = async () => {
-      const result = await request?.({ current: 1, pageSize });
+      const result = await request?.({ current, pageSize });
       setData(result?.data || []);
     };
 
@@ -87,12 +88,20 @@ vi.mock('@ant-design/pro-components', () => ({
         actionRef.current = { reload: () => void load() };
       }
       void load();
-    }, []);
+    }, [current, pageSize]);
 
     return (
       <div>
         <div>{headerTitle}</div>
         {toolBarRender ? <div>{toolBarRender()}</div> : null}
+        {pagination?.onChange ? (
+          <button
+            type="button"
+            onClick={() => pagination.onChange(current + 1, pageSize)}
+          >
+            下一页
+          </button>
+        ) : null}
         <table>
           <thead>
             <tr>
@@ -146,6 +155,7 @@ describe('NotificationDispatchesPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/space/notification-dispatches');
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -366,6 +376,37 @@ describe('NotificationDispatchesPage', () => {
         expect(screen.getByText('发送详情')).toBeInTheDocument();
         expect(screen.getByText('发送中')).toBeInTheDocument();
       });
+      expect(new URLSearchParams(window.location.search).get('dispatch_id')).toBe(
+        '1',
+      );
+    });
+
+    it('从 URL 恢复发送记录页码和详情', async () => {
+      window.history.replaceState(
+        {},
+        '',
+        '/space/notification-dispatches?page=2&dispatch_id=1',
+      );
+
+      renderPage(queryClient);
+
+      await waitFor(() =>
+        expect(mockListDispatches).toHaveBeenCalledWith({
+          page: 2,
+          page_size: 10,
+          management_context: 'tenant',
+        }),
+      );
+      await waitFor(() =>
+        expect(mockGetDispatch).toHaveBeenCalledWith({
+          dispatch_id: 1,
+          management_context: 'tenant',
+        }),
+      );
+      expect(screen.getByText('发送详情')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+      expect(new URLSearchParams(window.location.search).get('page')).toBe('3');
     });
 
     it('lets superusers search and select named users instead of entering ids', async () => {

@@ -55,6 +55,33 @@ describe('AppStatus', () => {
     );
   });
 
+  it.each([
+    ['subscription.order', 'pending_payment', 'warning'],
+    ['subscription.order', 'paid', 'success'],
+    ['subscription.order', 'closed', 'error'],
+    ['subscription.order', 'payment_failed', 'error'],
+    ['subscription.payment', 'pending', 'warning'],
+    ['subscription.payment', 'succeeded', 'success'],
+    ['subscription.payment', 'failed', 'error'],
+    ['subscription.payment', 'exception', 'error'],
+    ['subscription.refund', 'none', 'secondary'],
+    ['subscription.refund', 'partial', 'warning'],
+    ['subscription.refund', 'full', 'error'],
+    ['referral.record', 'registered', 'info'],
+    ['referral.record', 'pending_review', 'warning'],
+    ['referral.record', 'review_rejected', 'error'],
+    ['referral.record', 'reward_issued', 'success'],
+    ['miniprogram-home.item', 'disabled', 'disabled'],
+    ['miniprogram-home.item', 'scheduled', 'warning'],
+    ['miniprogram-home.item', 'active', 'success'],
+    ['miniprogram-home.item', 'expired', 'secondary'],
+  ] as const)('为 %s.%s 提供统一业务状态语义', (name, state, tone) => {
+    expect(resolveAppStatusDefinition(name, state)).toMatchObject({
+      matched: true,
+      tone,
+    });
+  });
+
   it('允许插件分别注册图标与状态', () => {
     const unregisterIcons = registerAppIconDefinitions(
       'inspection-plugin',

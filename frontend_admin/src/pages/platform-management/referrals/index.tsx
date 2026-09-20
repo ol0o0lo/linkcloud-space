@@ -2,24 +2,33 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
+  Alert,
   Button,
   Card,
   Col,
+  DatePicker,
   Form,
+  Input,
   InputNumber,
+  Modal,
+  message,
   Row,
+  Select,
   Space,
   Switch,
-  Tag,
   Typography,
 } from 'antd';
 import dayjs from 'dayjs';
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { AppStatusTag } from '@/components/AppStatus';
 import { PageContainer } from '@/components/PageContainer';
 import {
+  AdminToolbar,
   adminTableScroll,
   fullWidthStyle,
   ResponsiveActions,
+  toolbarControlStyle,
+  toolbarShortSelectStyle,
 } from '@/pages/_shared/adminLayout';
 import { enumMapping } from '@/services/manual/enums';
 import {
@@ -36,12 +45,78 @@ type ReferralRecordWithMapping = API.ReferralRecordOut & {
 
 type ReferralInsight = ReferralRecordWithMapping & {
   stage_label: string;
-  stage_color: string;
 };
 type TablePageParams = {
+  createdFrom?: string;
+  createdTo?: string;
   current?: number;
+  keyword?: string;
   pageSize?: number;
+  status?: string;
 };
+
+type ReferralSearchState = {
+  createdFrom: string;
+  createdTo: string;
+  keyword: string;
+  page: number;
+  status?: string;
+};
+
+const PAGE_SIZE = 10;
+
+const referralStatusOptions = [
+  { value: 'registered', label: '已注册' },
+  { value: 'pending_review', label: '待审核' },
+  { value: 'review_rejected', label: '审核驳回' },
+  { value: 'reward_issued', label: '已发奖' },
+];
+
+const trimParam = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+function readSearchState(): ReferralSearchState {
+  const params = new URLSearchParams(window.location.search);
+  const page = Number(params.get('page'));
+  return {
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+    keyword: trimParam(params.get('keyword')) || '',
+    status: trimParam(params.get('status')),
+    createdFrom: trimParam(params.get('created_from')) || '',
+    createdTo: trimParam(params.get('created_to')) || '',
+  };
+}
+
+function syncSearchState(state: ReferralSearchState) {
+  const params = new URLSearchParams(window.location.search);
+  ['page', 'keyword', 'status', 'created_from', 'created_to'].forEach(
+    (name) => {
+      params.delete(name);
+    },
+  );
+  if (state.page > 1) params.set('page', String(state.page));
+  if (state.keyword) params.set('keyword', state.keyword);
+  if (state.status) params.set('status', state.status);
+  if (state.createdFrom) params.set('created_from', state.createdFrom);
+  if (state.createdTo) params.set('created_to', state.createdTo);
+  const search = params.toString();
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash || ''}`,
+  );
+}
+
+function apiDateRange(createdFrom?: string, createdTo?: string) {
+  return {
+    created_from: createdFrom
+      ? dayjs(createdFrom).startOf('day').format()
+      : undefined,
+    created_to: createdTo
+      ? dayjs(createdTo).add(1, 'day').startOf('day').format()
+      : undefined,
+  };
+}
 
 const compactSwitchStyle: React.CSSProperties = {
   minHeight: 32,
@@ -58,7 +133,6 @@ function buildReferralInsight(
     return {
       ...record,
       stage_label: stageLabel,
-      stage_color: 'green',
     };
   }
 
@@ -66,7 +140,6 @@ function buildReferralInsight(
     return {
       ...record,
       stage_label: stageLabel,
-      stage_color: 'volcano',
     };
   }
 
@@ -74,20 +147,26 @@ function buildReferralInsight(
     return {
       ...record,
       stage_label: stageLabel,
-      stage_color: 'gold',
     };
   }
 
   return {
     ...record,
     stage_label: stageLabel,
-    stage_color: 'blue',
   };
 }
 
 const ReferralsAdminPage: React.FC = () => {
+  const initialSearchState = React.useMemo(readSearchState, []);
   const [form] = Form.useForm<API.ReferralRuleConfigPatchIn>();
   const tableActionRef = useRef<ActionType>(null);
+  const [searchState, setSearchState] = useState(initialSearchState);
+  const [keywordDraft, setKeywordDraft] = useState(initialSearchState.keyword);
+  const [listError, setListError] = useState<unknown>();
+  const [reviewState, setReviewState] = useState<{
+    approved: boolean;
+    record: API.ReferralRecordOut;
+  }>();
 
   const configQuery = useQuery({
     queryKey: platformQueryKeys.referralConfig,
@@ -103,7 +182,10 @@ const ReferralsAdminPage: React.FC = () => {
   const saveMutation = useMutation({
     mutationFn: (payload: API.ReferralRuleConfigPatchIn) =>
       appsReferralsApiPatchReferralConfig(payload),
-    onSuccess: () => configQuery.refetch(),
+    onSuccess: () => {
+      message.success('邀请奖励规则已保存');
+      void configQuery.refetch();
+    },
   });
   const reviewMutation = useMutation({
     mutationFn: ({
@@ -117,8 +199,20 @@ const ReferralsAdminPage: React.FC = () => {
         { record_id: record.id },
         { approved, remark: '' },
       ),
-    onSuccess: () => tableActionRef.current?.reload(),
+    onSuccess: (_data, variables) => {
+      message.success(variables.approved ? '奖励审核已通过' : '奖励审核已驳回');
+      setReviewState(undefined);
+      tableActionRef.current?.reload();
+    },
   });
+
+  const updateSearchState = (next: Partial<ReferralSearchState>) => {
+    setSearchState((current) => {
+      const value = { ...current, ...next };
+      syncSearchState(value);
+      return value;
+    });
+  };
 
   const columns: ProColumns<ReferralInsight>[] = [
     {
@@ -138,7 +232,9 @@ const ReferralsAdminPage: React.FC = () => {
       width: 140,
       align: 'center',
       render: (_value, record) => (
-        <Tag color={record.stage_color}>{record.stage_label}</Tag>
+        <AppStatusTag name="referral.record" state={record.status}>
+          {record.stage_label}
+        </AppStatusTag>
       ),
     },
     {
@@ -164,20 +260,33 @@ const ReferralsAdminPage: React.FC = () => {
         <ResponsiveActions>
           {record.status === 'pending_review' || record.status === 'pending' ? (
             <>
-              <a
-                onClick={() =>
-                  void reviewMutation.mutateAsync({ record, approved: true })
+              <Button
+                type="link"
+                size="small"
+                loading={
+                  reviewMutation.isPending &&
+                  reviewMutation.variables?.record.id === record.id &&
+                  reviewMutation.variables.approved
                 }
+                disabled={reviewMutation.isPending}
+                onClick={() => setReviewState({ record, approved: true })}
               >
                 通过
-              </a>
-              <a
-                onClick={() =>
-                  void reviewMutation.mutateAsync({ record, approved: false })
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                danger
+                loading={
+                  reviewMutation.isPending &&
+                  reviewMutation.variables?.record.id === record.id &&
+                  !reviewMutation.variables.approved
                 }
+                disabled={reviewMutation.isPending}
+                onClick={() => setReviewState({ record, approved: false })}
               >
                 驳回
-              </a>
+              </Button>
             </>
           ) : (
             <Typography.Text type="secondary">已完成</Typography.Text>
@@ -191,6 +300,27 @@ const ReferralsAdminPage: React.FC = () => {
     <PageContainer title="邀请奖励">
       <Space orientation="vertical" size={16} style={fullWidthStyle}>
         <Card title="邀请奖励规则">
+          {configQuery.isError ? (
+            <Alert
+              type="error"
+              showIcon
+              title="邀请奖励规则加载失败"
+              action={
+                <Button size="small" onClick={() => void configQuery.refetch()}>
+                  重新加载规则
+                </Button>
+              }
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
+          {saveMutation.isError ? (
+            <Alert
+              type="error"
+              showIcon
+              title="邀请奖励规则保存失败，请稍后重试"
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
           <Form
             form={form}
             layout="vertical"
@@ -262,30 +392,153 @@ const ReferralsAdminPage: React.FC = () => {
           </Form>
         </Card>
 
+        {listError ? (
+          <Alert
+            type="error"
+            showIcon
+            title="邀请记录加载失败"
+            description="暂时无法取得邀请记录，请检查网络后重试。"
+            action={
+              <Button
+                size="small"
+                onClick={() => tableActionRef.current?.reload()}
+              >
+                重新加载记录
+              </Button>
+            }
+          />
+        ) : null}
         <ProTable<ReferralInsight>
           actionRef={tableActionRef}
           rowKey="id"
           headerTitle="邀请记录"
           columns={columns}
           request={async (params: TablePageParams) => {
-            const result = await appsReferralsApiAdminReferralRecords({
-              page: params.current || 1,
-              page_size: params.pageSize || 10,
-            });
-            return {
-              data: ((result.items || []) as ReferralRecordWithMapping[]).map(
-                (item) => buildReferralInsight(item),
-              ),
-              total: result.total || 0,
-              success: true,
-            };
+            try {
+              const result = await appsReferralsApiAdminReferralRecords({
+                page: params.current || 1,
+                page_size: params.pageSize || PAGE_SIZE,
+                keyword: trimParam(params.keyword),
+                status: params.status,
+                ...apiDateRange(params.createdFrom, params.createdTo),
+              });
+              setListError(undefined);
+              return {
+                data: ((result.items || []) as ReferralRecordWithMapping[]).map(
+                  (item) => buildReferralInsight(item),
+                ),
+                total: result.total || 0,
+                success: true,
+              };
+            } catch (error) {
+              setListError(error);
+              return { data: [], total: 0, success: true };
+            }
+          }}
+          params={{
+            keyword: searchState.keyword,
+            status: searchState.status,
+            createdFrom: searchState.createdFrom,
+            createdTo: searchState.createdTo,
           }}
           search={false}
           options={{ density: true, reload: false, setting: true }}
+          toolBarRender={() => [
+            <AdminToolbar key="filters">
+              <Input.Search
+                aria-label="邀请记录关键词"
+                allowClear
+                placeholder="邀请人或被邀请人"
+                style={toolbarControlStyle}
+                value={keywordDraft}
+                onChange={(event) => setKeywordDraft(event.target.value)}
+                onSearch={(value) =>
+                  updateSearchState({
+                    page: 1,
+                    keyword: trimParam(value) || '',
+                  })
+                }
+              />
+              <Select
+                aria-label="邀请记录状态"
+                allowClear
+                placeholder="当前阶段"
+                style={toolbarShortSelectStyle}
+                value={searchState.status}
+                options={referralStatusOptions}
+                onChange={(status) => updateSearchState({ page: 1, status })}
+              />
+              <DatePicker.RangePicker
+                aria-label="邀请记录创建时间"
+                value={
+                  searchState.createdFrom && searchState.createdTo
+                    ? [
+                        dayjs(searchState.createdFrom),
+                        dayjs(searchState.createdTo),
+                      ]
+                    : null
+                }
+                onChange={(dates) =>
+                  updateSearchState({
+                    page: 1,
+                    createdFrom: dates?.[0]?.format('YYYY-MM-DD') || '',
+                    createdTo: dates?.[1]?.format('YYYY-MM-DD') || '',
+                  })
+                }
+              />
+              <Button
+                onClick={() => {
+                  setKeywordDraft('');
+                  const reset: ReferralSearchState = {
+                    page: 1,
+                    keyword: '',
+                    status: undefined,
+                    createdFrom: '',
+                    createdTo: '',
+                  };
+                  setSearchState(reset);
+                  syncSearchState(reset);
+                }}
+              >
+                重置
+              </Button>
+            </AdminToolbar>,
+          ]}
           scroll={adminTableScroll}
-          pagination={{ defaultPageSize: 10 }}
+          pagination={{
+            current: searchState.page,
+            pageSize: PAGE_SIZE,
+            showSizeChanger: false,
+            onChange: (page) => updateSearchState({ page }),
+          }}
+          locale={listError ? { emptyText: '邀请记录加载失败' } : undefined}
         />
       </Space>
+
+      <Modal
+        title={
+          reviewState?.approved ? '确认通过奖励审核？' : '确认驳回奖励审核？'
+        }
+        open={Boolean(reviewState)}
+        okText="确定"
+        cancelText="取消"
+        confirmLoading={reviewMutation.isPending}
+        mask={{ closable: !reviewMutation.isPending }}
+        keyboard={!reviewMutation.isPending}
+        closable={!reviewMutation.isPending}
+        onCancel={() => setReviewState(undefined)}
+        onOk={async () => {
+          if (reviewState) {
+            await reviewMutation.mutateAsync(reviewState);
+          }
+        }}
+      >
+        <Typography.Text>
+          {reviewState?.approved
+            ? '通过后奖励会发放至用户钱包。'
+            : '驳回后该条邀请记录不会发放奖励。'}
+        </Typography.Text>
+      </Modal>
     </PageContainer>
   );
 };

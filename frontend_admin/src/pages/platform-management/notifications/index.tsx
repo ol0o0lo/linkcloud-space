@@ -1,6 +1,6 @@
 import { CheckOutlined, LinkOutlined } from '@ant-design/icons';
-import { history, useAccess } from '@umijs/max';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { history, useAccess } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -264,7 +264,7 @@ const NotificationsAdminPage: React.FC = () => {
       dataIndex: 'title',
       width: 280,
       render: (_value, record) => (
-        <Space direction="vertical" size={4}>
+        <Space orientation="vertical" size={4}>
           <Typography.Text style={wrapTextStyle}>
             {record.title || '无标题'}
           </Typography.Text>
@@ -281,7 +281,7 @@ const NotificationsAdminPage: React.FC = () => {
       width: 260,
       align: 'center',
       render: (_value, record) => (
-        <Space direction="vertical" size={6}>
+        <Space orientation="vertical" size={6}>
           <Tag color={record.status_color}>{record.status_label}</Tag>
           <Typography.Text type="secondary">
             {record.status_summary}
@@ -294,7 +294,7 @@ const NotificationsAdminPage: React.FC = () => {
       dataIndex: 'source_label',
       width: 280,
       render: (_value, record) => (
-        <Space direction="vertical" size={6}>
+        <Space orientation="vertical" size={6}>
           <Typography.Text>{record.source_label}</Typography.Text>
           <Typography.Text type="secondary">
             {record.source_summary}
@@ -311,7 +311,7 @@ const NotificationsAdminPage: React.FC = () => {
       width: 220,
       align: 'center',
       render: (_value, record) => (
-        <Space direction="vertical" size={6}>
+        <Space orientation="vertical" size={6}>
           <Typography.Text>{record.time_summary}</Typography.Text>
           <Typography.Text type="secondary">
             {dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}
@@ -402,7 +402,7 @@ const NotificationsAdminPage: React.FC = () => {
         }
       >
         <div style={sectionStyle}>
-          <Space direction="vertical" size={12} style={fullWidthStyle}>
+          <Space orientation="vertical" size={12} style={fullWidthStyle}>
             <div>
               <Typography.Text strong>通知列表</Typography.Text>
             </div>
@@ -449,9 +449,9 @@ const NotificationsAdminPage: React.FC = () => {
         title="通知详情"
         open={Boolean(detailId)}
         onClose={closeDetail}
-        width={drawerWidthMd}
+        size={drawerWidthMd}
       >
-        <Space direction="vertical" size={12} style={fullWidthStyle}>
+        <Space orientation="vertical" size={12} style={fullWidthStyle}>
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="通知标题">
               {detailData?.title || '-'}

@@ -146,8 +146,7 @@ const MonthlyTotalsTab: React.FC<MonthlyTotalsTabProps> = ({
             <Select
               key="beneficiary"
               allowClear
-              showSearch
-              optionFilterProp="label"
+              showSearch={{ optionFilterProp: 'label' }}
               placeholder="按员工筛选"
               loading={beneficiariesQuery.isLoading}
               options={(beneficiariesQuery.data?.items || []).map((item) => ({

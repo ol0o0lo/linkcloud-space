@@ -23,6 +23,11 @@ const {
   mockReconcile: vi.fn(),
 }));
 
+function requiredElement<T>(value: T | null | undefined): T {
+  if (!value) throw new Error('缺少预期的测试元素');
+  return value;
+}
+
 vi.mock('@/services/openapi/walletAdmin', () => ({
   appsWalletApiAdminWithdrawals: mockListWithdrawals,
   appsWalletApiReviewWithdrawal: mockReview,
@@ -47,15 +52,24 @@ vi.mock('@ant-design/pro-components', () => ({
     columns,
     headerTitle,
     pagination,
+    params,
     request,
     toolBarRender,
   }: any) => {
     const [data, setData] = React.useState<any[]>([]);
-    const pageSize = pagination?.defaultPageSize || 10;
+    const pageSize = pagination?.pageSize || pagination?.defaultPageSize || 10;
 
     const load = async () => {
-      const result = await request?.({ current: 1, pageSize });
-      setData(result?.data || []);
+      try {
+        const result = await request?.({
+          current: pagination?.current || 1,
+          pageSize,
+          ...params,
+        });
+        setData(result?.data || []);
+      } catch {
+        setData([]);
+      }
     };
 
     React.useEffect(() => {
@@ -63,7 +77,7 @@ vi.mock('@ant-design/pro-components', () => ({
         actionRef.current = { reload: () => void load() };
       }
       void load();
-    }, []);
+    }, [pagination?.current, pageSize, JSON.stringify(params)]);
 
     return (
       <div>
@@ -100,6 +114,7 @@ describe('WalletWithdrawalsPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/wallet-management/withdrawals');
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -185,13 +200,14 @@ describe('WalletWithdrawalsPage', () => {
       });
     });
 
-    const pendingRow = screen.getByText('5').closest('tr');
-    expect(pendingRow).not.toBeNull();
-    fireEvent.click(within(pendingRow!).getByText('通过'));
+    const pendingRow = requiredElement(screen.getByText('5').closest('tr'));
+    fireEvent.click(within(pendingRow).getByText('通过'));
     fireEvent.change(screen.getByLabelText('幂等键'), {
       target: { value: 'review-5' },
     });
-    fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
+    fireEvent.click(
+      requiredElement(screen.getAllByRole('button', { name: 'OK' }).at(-1)),
+    );
 
     await waitFor(() => {
       expect(mockReview).toHaveBeenCalledWith(
@@ -199,20 +215,27 @@ describe('WalletWithdrawalsPage', () => {
         { approved: true, reason: '', idempotency_key: 'review-5' },
       );
     });
+    expect(await screen.findByText('提现审核已通过')).toBeInTheDocument();
 
-    const approvedRow = screen.getByText('6').closest('tr');
-    expect(approvedRow).not.toBeNull();
-    fireEvent.click(within(approvedRow!).getAllByText('发起打款').at(-1)!);
+    const approvedRow = requiredElement(screen.getByText('6').closest('tr'));
+    fireEvent.click(
+      within(approvedRow).getByRole('button', { name: '发起打款' }),
+    );
     fireEvent.change(screen.getByLabelText('渠道'), {
       target: { value: 'mock' },
     });
     fireEvent.change(screen.getByLabelText('商户单号'), {
       target: { value: 'payout-6' },
     });
-    fireEvent.change(screen.getAllByLabelText('幂等键').at(-1)!, {
-      target: { value: 'payout-6' },
-    });
-    fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
+    fireEvent.change(
+      requiredElement(screen.getAllByLabelText('幂等键').at(-1)),
+      {
+        target: { value: 'payout-6' },
+      },
+    );
+    fireEvent.click(
+      requiredElement(screen.getAllByRole('button', { name: 'OK' }).at(-1)),
+    );
 
     await waitFor(() => {
       expect(mockPayout).toHaveBeenCalledWith(
@@ -225,20 +248,27 @@ describe('WalletWithdrawalsPage', () => {
         },
       );
     });
+    expect(await screen.findByText('打款请求已提交')).toBeInTheDocument();
 
-    const failedRow = screen.getByText('7').closest('tr');
-    expect(failedRow).not.toBeNull();
-    fireEvent.click(within(failedRow!).getAllByText('重试打款').at(-1)!);
+    const failedRow = requiredElement(screen.getByText('7').closest('tr'));
+    fireEvent.click(
+      requiredElement(within(failedRow).getAllByText('重试打款').at(-1)),
+    );
     fireEvent.change(screen.getByLabelText('渠道'), {
       target: { value: 'mock' },
     });
     fireEvent.change(screen.getByLabelText('商户单号'), {
       target: { value: 'retry-7' },
     });
-    fireEvent.change(screen.getAllByLabelText('幂等键').at(-1)!, {
-      target: { value: 'retry-7' },
-    });
-    fireEvent.click(screen.getAllByRole('button', { name: 'OK' }).at(-1)!);
+    fireEvent.change(
+      requiredElement(screen.getAllByLabelText('幂等键').at(-1)),
+      {
+        target: { value: 'retry-7' },
+      },
+    );
+    fireEvent.click(
+      requiredElement(screen.getAllByRole('button', { name: 'OK' }).at(-1)),
+    );
 
     await waitFor(() => {
       expect(mockRetry).toHaveBeenCalledWith(
@@ -251,11 +281,93 @@ describe('WalletWithdrawalsPage', () => {
         },
       );
     });
+    expect(await screen.findByText('打款重试已提交')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '执行对账' }));
 
     await waitFor(() => {
       expect(mockReconcile).toHaveBeenCalled();
     });
+    expect(
+      await screen.findByText(/本次对账发现 2 条差异/),
+    ).toBeInTheDocument();
+  });
+
+  it('restores withdrawal filters from the URL', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/wallet-management/withdrawals?page=2&keyword=alice&status=pending_review&created_from=2026-08-01&created_to=2026-08-31',
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <WalletWithdrawalsPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(mockListWithdrawals).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 2,
+          page_size: 10,
+          keyword: 'alice',
+          status: 'pending_review',
+          created_from: expect.stringContaining('2026-08-01'),
+          created_to: expect.stringContaining('2026-09-01'),
+        }),
+      ),
+    );
+  });
+
+  it('distinguishes withdrawal load failures and supports retry', async () => {
+    mockListWithdrawals
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce({ items: [], total: 0 });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <WalletWithdrawalsPage />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('提现记录加载失败')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重新加载提现记录' }));
+    await waitFor(() => expect(mockListWithdrawals).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps the payout modal open and explains payout failures', async () => {
+    mockPayout.mockRejectedValue(new Error('provider unavailable'));
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <WalletWithdrawalsPage />
+      </QueryClientProvider>,
+    );
+
+    const approvedRow = requiredElement(
+      (await screen.findByText('6')).closest('tr'),
+    );
+    fireEvent.click(
+      within(approvedRow).getByRole('button', { name: '发起打款' }),
+    );
+    fireEvent.change(screen.getByLabelText('渠道'), {
+      target: { value: 'mock' },
+    });
+    fireEvent.change(screen.getByLabelText('商户单号'), {
+      target: { value: 'payout-error-6' },
+    });
+    fireEvent.change(
+      requiredElement(screen.getAllByLabelText('幂等键').at(-1)),
+      { target: { value: 'payout-error-6' } },
+    );
+    fireEvent.click(
+      requiredElement(screen.getAllByRole('button', { name: 'OK' }).at(-1)),
+    );
+
+    expect(
+      await screen.findByText('打款请求失败，请核对信息后重试'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('发起打款')).not.toHaveLength(0);
   });
 });

@@ -168,8 +168,7 @@ const estate = {
   city: '深圳市',
   district: '南山区',
   address: '科技园路 88 号',
-  lat: null,
-  lng: null,
+  location: null,
   images: [],
   building_count: 2,
   counts: { total: 6, listed: 4, rented: 2, vacant: 0, renovating: 0 },
@@ -184,8 +183,7 @@ const building = {
   under_floors: 1,
   year_built: 2022,
   elevator: true,
-  lat: null,
-  lng: null,
+  location: null,
   address: '科技园路 88 号 1 栋',
   images: [],
   tags: [],
@@ -376,8 +374,7 @@ describe('PropertyAssetWorkspace', () => {
         expect.objectContaining({
           name: '云栖花园二期',
           address: '科技园路 99 号',
-          lat: 22.5,
-          lng: 113.9,
+          location: { latitude: 22.5, longitude: 113.9, coordinate_system: 'gcj02' },
         }),
       ),
     );
@@ -407,8 +404,7 @@ describe('PropertyAssetWorkspace', () => {
           name: 'A座',
           address: '科技园路 99 号',
           images: [{ media_id: 9 }],
-          lat: 22.5,
-          lng: 113.9,
+          location: { latitude: 22.5, longitude: 113.9, coordinate_system: 'gcj02' },
           tags: ['近地铁'],
         }),
       ),
@@ -569,8 +565,7 @@ describe('PropertyAssetWorkspace', () => {
     mockGetEstate.mockResolvedValue({
       ...estate,
       address: '科技园路 88 号',
-      lat: '22.4',
-      lng: '113.8',
+      location: { latitude: 22.4, longitude: 113.8, coordinate_system: 'gcj02' },
     });
     const onAssetSaved = vi.fn();
     renderWorkspace({
@@ -593,8 +588,7 @@ describe('PropertyAssetWorkspace', () => {
       expect(mockCreateBuilding).toHaveBeenCalledWith(
         expect.objectContaining({
           estate_id: 11,
-          lat: 22.4,
-          lng: 113.8,
+          location: { latitude: 22.4, longitude: 113.8, coordinate_system: 'gcj02' },
           name: '3栋',
         }),
       ),
