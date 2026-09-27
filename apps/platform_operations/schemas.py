@@ -7,8 +7,8 @@ from apps.house.constants import HouseStatus
 from apps.house.formatters import format_house_layout
 from apps.house.schemas import PublicHouseListOut, building_display_label
 from apps.media.schemas import ResolvedMediaRefOut
-from apps.miniprogram_home.constants import HomeBannerAction, HomeDisplayStatus, HomeEntryKind
-from apps.miniprogram_home.services import get_schedule_status, render_home_markdown
+from apps.platform_operations.constants import ContentDisplayStatus, ContentEntryKind, HomeBannerAction
+from apps.platform_operations.services import get_schedule_status, render_home_markdown
 
 
 def _obj_value(obj, field: str, default=None):
@@ -21,7 +21,7 @@ def _resolved_media(obj, field: str):
     return getattr(obj, f"{field}_resolved")
 
 
-class MiniProgramHomeEntryCreateIn(Schema):
+class ContentEntryCreateIn(Schema):
     kind: str
     eyebrow: str = Field("", max_length=40)
     title: str = Field(..., min_length=1, max_length=120)
@@ -35,7 +35,7 @@ class MiniProgramHomeEntryCreateIn(Schema):
     ends_at: datetime | None = None
 
 
-class MiniProgramHomeEntryPatchIn(Schema):
+class ContentEntryPatchIn(Schema):
     kind: str | None = None
     eyebrow: str | None = Field(None, max_length=40)
     title: str | None = Field(None, min_length=1, max_length=120)
@@ -49,7 +49,7 @@ class MiniProgramHomeEntryPatchIn(Schema):
     ends_at: datetime | None = None
 
 
-class MiniProgramHomeEntryAdminOut(Schema):
+class ContentEntryAdminOut(Schema):
     id: int
     kind: str
     kind__mapping: str
@@ -72,7 +72,7 @@ class MiniProgramHomeEntryAdminOut(Schema):
 
     @staticmethod
     def resolve_kind__mapping(obj):
-        return HomeEntryKind.get_choice_label(_obj_value(obj, "kind"))
+        return ContentEntryKind.get_choice_label(_obj_value(obj, "kind"))
 
     @staticmethod
     def resolve_cover_image(obj):
@@ -84,7 +84,7 @@ class MiniProgramHomeEntryAdminOut(Schema):
 
     @staticmethod
     def resolve_display_status__mapping(obj):
-        return HomeDisplayStatus.get_choice_label(get_schedule_status(obj))
+        return ContentDisplayStatus.get_choice_label(get_schedule_status(obj))
 
     @staticmethod
     def resolve_house_count(obj):
@@ -92,7 +92,7 @@ class MiniProgramHomeEntryAdminOut(Schema):
         return count if count is not None else obj.house_links.count()
 
 
-class MiniProgramHomeBannerCreateIn(Schema):
+class HomeBannerCreateIn(Schema):
     eyebrow: str = Field("", max_length=40)
     title: str = Field(..., min_length=1, max_length=120)
     description: str = Field(..., min_length=1, max_length=240)
@@ -107,7 +107,7 @@ class MiniProgramHomeBannerCreateIn(Schema):
     ends_at: datetime | None = None
 
 
-class MiniProgramHomeBannerPatchIn(Schema):
+class HomeBannerPatchIn(Schema):
     eyebrow: str | None = Field(None, max_length=40)
     title: str | None = Field(None, min_length=1, max_length=120)
     description: str | None = Field(None, min_length=1, max_length=240)
@@ -122,7 +122,7 @@ class MiniProgramHomeBannerPatchIn(Schema):
     ends_at: datetime | None = None
 
 
-class MiniProgramHomeBannerAdminOut(Schema):
+class HomeBannerAdminOut(Schema):
     id: int
     eyebrow: str
     title: str
@@ -166,10 +166,10 @@ class MiniProgramHomeBannerAdminOut(Schema):
 
     @staticmethod
     def resolve_display_status__mapping(obj):
-        return HomeDisplayStatus.get_choice_label(get_schedule_status(obj))
+        return ContentDisplayStatus.get_choice_label(get_schedule_status(obj))
 
 
-class MiniProgramHomeHouseAdminOut(Schema):
+class ContentHouseAdminOut(Schema):
     id: int
     display_name: str
     status: str
@@ -204,22 +204,22 @@ class MiniProgramHomeHouseAdminOut(Schema):
         return obj.images_resolved
 
 
-class MiniProgramHomeEntryHouseAdminOut(Schema):
-    house: MiniProgramHomeHouseAdminOut
+class ContentEntryHouseAdminOut(Schema):
+    house: ContentHouseAdminOut
     sort_order: int
     recommendation_reason: str
 
 
-class MiniProgramHomeEntryHouseItemIn(Schema):
+class ContentEntryHouseItemIn(Schema):
     house_id: int
     recommendation_reason: str = Field("", max_length=120)
 
 
-class MiniProgramHomeEntryHousesPutIn(Schema):
-    items: list[MiniProgramHomeEntryHouseItemIn]
+class ContentEntryHousesPutIn(Schema):
+    items: list[ContentEntryHouseItemIn]
 
 
-class MiniProgramHomeEntrySummaryOut(Schema):
+class ContentEntrySummaryOut(Schema):
     slug: str
     kind: str
     eyebrow: str
@@ -233,7 +233,7 @@ class MiniProgramHomeEntrySummaryOut(Schema):
         return _resolved_media(obj, "cover_image")
 
 
-class MiniProgramHomeEntryDetailOut(MiniProgramHomeEntrySummaryOut):
+class ContentEntryDetailOut(ContentEntrySummaryOut):
     body_html: str
 
     @staticmethod
@@ -241,7 +241,7 @@ class MiniProgramHomeEntryDetailOut(MiniProgramHomeEntrySummaryOut):
         return render_home_markdown(_obj_value(obj, "body_markdown", ""))
 
 
-class MiniProgramHomeBannerPublicOut(Schema):
+class HomeBannerPublicOut(Schema):
     id: int
     eyebrow: str
     title: str
@@ -262,12 +262,12 @@ class MiniProgramHomeBannerPublicOut(Schema):
         return entry.slug if entry else None
 
 
-class MiniProgramHomeOut(Schema):
-    banners: list[MiniProgramHomeBannerPublicOut]
-    topics: list[MiniProgramHomeEntrySummaryOut]
-    guides: list[MiniProgramHomeEntrySummaryOut]
+class HomeContentOut(Schema):
+    banners: list[HomeBannerPublicOut]
+    topics: list[ContentEntrySummaryOut]
+    guides: list[ContentEntrySummaryOut]
 
 
-class MiniProgramHomeEntryHousePublicOut(Schema):
+class ContentEntryHousePublicOut(Schema):
     house: PublicHouseListOut
     recommendation_reason: str

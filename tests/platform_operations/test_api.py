@@ -4,11 +4,12 @@ from django.contrib.auth import get_user_model
 
 import pytest
 
-from apps.miniprogram_home.models import MiniProgramHomeEntry
+from apps.platform_operations.models import ContentEntry
+from config.api import api
 from tests.api_helpers import api_data
 
-ADMIN_BASE = "/api/admin/miniprogram-home"
-PUBLIC_BASE = "/api/public/miniprogram"
+ADMIN_BASE = "/api/admin/platform-operations/content"
+PUBLIC_BASE = "/api/public/content"
 
 
 @pytest.mark.django_db
@@ -59,7 +60,7 @@ def test_superuser_can_create_and_update_home_entry(client):
 
 @pytest.mark.django_db
 def test_public_home_and_entry_detail_are_anonymous(client):
-    entry = MiniProgramHomeEntry.objects.create(
+    entry = ContentEntry.objects.create(
         kind="guide",
         title="公开避坑指南",
         summary="无需登录即可阅读",
@@ -70,7 +71,7 @@ def test_public_home_and_entry_detail_are_anonymous(client):
     )
 
     home_response = client.get(f"{PUBLIC_BASE}/home/")
-    detail_response = client.get(f"{PUBLIC_BASE}/home-entries/{entry.slug}/")
+    detail_response = client.get(f"{PUBLIC_BASE}/entries/{entry.slug}/")
 
     assert home_response.status_code == 200
     assert any(item["slug"] == entry.slug for item in api_data(home_response)["guides"])
@@ -79,9 +80,17 @@ def test_public_home_and_entry_detail_are_anonymous(client):
 
 
 @pytest.mark.django_db
+def test_legacy_home_url_remains_available_but_is_hidden_from_openapi(client):
+    assert client.get("/api/public/miniprogram/home/").status_code == 200
+    paths = api.get_openapi_schema()["paths"]
+    assert "/api/public/content/home/" in paths
+    assert "/api/public/miniprogram/home/" not in paths
+
+
+@pytest.mark.django_db
 def test_seeded_guide_contains_publishable_content(client):
-    seed_content = import_module("apps.miniprogram_home.migrations.0003_upgrade_seed_content").CONTENT_BY_SLUG["first-rental-checklist"]
-    entry = MiniProgramHomeEntry.objects.create(
+    seed_content = import_module("apps.platform_operations.migrations.0004_polish_seed_home_entries").CONTENT_BY_SLUG["first-rental-checklist"]
+    entry = ContentEntry.objects.create(
         kind="guide",
         slug="first-rental-checklist",
         title="第一次租房必须确认的 8 件事",
@@ -95,9 +104,9 @@ def test_seeded_guide_contains_publishable_content(client):
     assert "## 1. 出租人是否有权出租" in entry.body_markdown
     assert "## 8. 入住交接是否完整" in entry.body_markdown
 
-    response = client.get(f"{PUBLIC_BASE}/home-entries/{entry.slug}/")
+    response = client.get(f"{PUBLIC_BASE}/entries/{entry.slug}/")
 
     assert response.status_code == 200
     body_html = api_data(response)["body_html"]
     assert body_html.count("<h2>") == 8
-    assert "遇到催促立即付款" in body_html
+    assert "没确认清楚的钱不要急着付" in body_html

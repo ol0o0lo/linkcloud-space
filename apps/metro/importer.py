@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from pydantic import ValidationError as PydanticValidationError
 
-from apps.house.geo.coordinates import make_wgs84_point
+from apps.base.maps.coordinates import make_wgs84_point
 from apps.metro.models import MetroCity, MetroLine, MetroLineStation, MetroStation
 from apps.metro.schemas import MetroCityImportIn
 
@@ -150,4 +150,3 @@ def import_metro_city(raw_payload: dict) -> MetroImportResult:
     city_name = city.name
     transaction.on_commit(lambda: cache.delete(f"public-metro-city:v1:{city_name}"))
     return MetroImportResult(city=city.name, **counts)
-

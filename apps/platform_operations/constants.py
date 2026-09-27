@@ -1,7 +1,7 @@
 from apps.base.enums import StrChoices
 
 
-class HomeEntryKind(StrChoices):
+class ContentEntryKind(StrChoices):
     TOPIC = "topic", "专题活动"
     GUIDE = "guide", "租房指南"
 
@@ -18,14 +18,14 @@ class HomeBannerTone(StrChoices):
     TEAL = "teal", "青色"
 
 
-class HomeEntryTone(StrChoices):
+class ContentEntryTone(StrChoices):
     SAGE = "sage", "青绿"
     LAVENDER = "lavender", "淡紫"
     SLATE = "slate", "灰蓝"
     CLAY = "clay", "暖棕"
 
 
-class HomeDisplayStatus(StrChoices):
+class ContentDisplayStatus(StrChoices):
     DISABLED = "disabled", "未启用"
     SCHEDULED = "scheduled", "待开始"
     ACTIVE = "active", "展示中"
@@ -33,6 +33,6 @@ class HomeDisplayStatus(StrChoices):
 
 
 ENTRY_TONES_BY_KIND = {
-    HomeEntryKind.TOPIC: {HomeEntryTone.SAGE, HomeEntryTone.LAVENDER},
-    HomeEntryKind.GUIDE: {HomeEntryTone.SLATE, HomeEntryTone.CLAY},
+    ContentEntryKind.TOPIC: {ContentEntryTone.SAGE, ContentEntryTone.LAVENDER},
+    ContentEntryKind.GUIDE: {ContentEntryTone.SLATE, ContentEntryTone.CLAY},
 }

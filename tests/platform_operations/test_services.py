@@ -4,9 +4,9 @@ import pytest
 
 from apps.house.constants import EstatePropertyType, HouseStatus
 from apps.house.models import Building, Estate, House
-from apps.miniprogram_home.models import MiniProgramHomeBanner, MiniProgramHomeEntry, MiniProgramHomeEntryHouse
-from apps.miniprogram_home.services import get_public_entry_houses, get_public_home, render_home_markdown, sync_entry_houses
 from apps.organizations.models import Organization
+from apps.platform_operations.models import ContentEntry, ContentEntryHouse, HomeBanner
+from apps.platform_operations.services import get_public_entry_houses, get_public_home, render_home_markdown, sync_entry_houses
 
 
 def create_house(*, slug: str, status: str = HouseStatus.LISTED) -> House:
@@ -24,7 +24,7 @@ def create_house(*, slug: str, status: str = HouseStatus.LISTED) -> House:
     return House.objects.create(building=building, room_number="101", status=status, bedrooms=1, living_rooms=0)
 
 
-def create_topic(**overrides) -> MiniProgramHomeEntry:
+def create_topic(**overrides) -> ContentEntry:
     values = {
         "kind": "topic",
         "title": "毕业好房",
@@ -34,7 +34,7 @@ def create_topic(**overrides) -> MiniProgramHomeEntry:
         "sort_order": 1,
     }
     values.update(overrides)
-    return MiniProgramHomeEntry.objects.create(**values)
+    return ContentEntry.objects.create(**values)
 
 
 def test_render_home_markdown_keeps_basic_formatting_and_removes_unsafe_content():
@@ -48,10 +48,10 @@ def test_render_home_markdown_keeps_basic_formatting_and_removes_unsafe_content(
 
 @pytest.mark.django_db
 def test_public_home_only_returns_enabled_items_and_enforces_home_limits():
-    MiniProgramHomeBanner.objects.all().update(is_enabled=False)
-    MiniProgramHomeEntry.objects.all().update(is_enabled=False)
+    HomeBanner.objects.all().update(is_enabled=False)
+    ContentEntry.objects.all().update(is_enabled=False)
     for index in range(7):
-        MiniProgramHomeBanner.objects.create(
+        HomeBanner.objects.create(
             title=f"Banner {index}",
             description="说明",
             tone="blue",
@@ -83,7 +83,7 @@ def test_topic_house_sync_only_accepts_public_new_houses_and_hides_later_unliste
     public_house.status = HouseStatus.VACANT
     public_house.save(update_fields=["status", "updated_at"])
 
-    assert MiniProgramHomeEntryHouse.objects.filter(entry=topic, house=public_house).exists()
+    assert ContentEntryHouse.objects.filter(entry=topic, house=public_house).exists()
     assert list(get_public_entry_houses(topic)) == []
     retained = sync_entry_houses(topic, [{"house_id": public_house.pk, "recommendation_reason": "仍保留运营备注"}])
     assert retained[0].recommendation_reason == "仍保留运营备注"
@@ -91,7 +91,7 @@ def test_topic_house_sync_only_accepts_public_new_houses_and_hides_later_unliste
 
 @pytest.mark.django_db
 def test_guide_cannot_sync_houses():
-    guide = MiniProgramHomeEntry.objects.create(kind="guide", title="避坑指南", summary="签约注意事项", tone="slate")
+    guide = ContentEntry.objects.create(kind="guide", title="避坑指南", summary="签约注意事项", tone="slate")
     house = create_house(slug="guide-house")
 
     with pytest.raises(ValidationError):

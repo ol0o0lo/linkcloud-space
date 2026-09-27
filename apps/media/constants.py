@@ -35,7 +35,7 @@ class ResourceType(StrChoices):
     HOUSE_IMAGE = "house_image", _("房源图片")
     HOUSE_VIDEO = "house_video", _("房源视频")
     LEASE_CONTRACT = "lease_contract", _("租约合同")
-    MINIPROGRAM_HOME_IMAGE = "miniprogram_home_image", _("小程序首页图片")
+    PLATFORM_CONTENT_IMAGE = "platform_content_image", _("运营内容图片")
 
 
 class MediaType(StrChoices):

@@ -45,6 +45,14 @@ class HouseMatchMode(StrChoices):
     DYNAMIC = "dynamic", "动态配房"
 
 
+class HouseCommuteMode(StrChoices):
+    METRO = "metro", "地铁"
+    EBIKE = "ebike", "电动车"
+    BICYCLE = "bicycle", "自行车"
+    WALKING = "walking", "步行"
+    DRIVING = "driving", "驾车"
+
+
 class ViewingRecordStatus(StrChoices):
     SCHEDULED = "scheduled", "已预约"
     VIEWED = "viewed", "已带看"

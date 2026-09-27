@@ -128,6 +128,23 @@ class PublicHouseApiTestCase(TestCase):
         self.assertNotIn("internal_notes", payload)
         self.assertNotIn("extra", payload)
 
+    def test_public_house_suggestions_only_include_visible_houses_in_selected_city(self):
+        visible = self.make_house(org_slug="suggest-a", org_name="联想甲", room_number="A101", subdistrict="科技园")
+        self.make_house(org_slug="suggest-b", org_name="联想乙", room_number="B202", status=HouseStatus.VACANT, subdistrict="科技园")
+        self.make_house(org_slug="suggest-c", org_name="联想丙", room_number="C303", city="广州", subdistrict="科技园")
+
+        response = self.client.get("/api/public/houses/suggestions/", {"keyword": "联想", "city": "深圳"})
+        self.assertEqual(response.status_code, 200)
+        suggestions = api_data(response)
+        self.assertEqual([item["keyword"] for item in suggestions], [visible.building.estate.display_name])
+        self.assertEqual(suggestions[0]["house_count"], 1)
+
+        self.assertEqual(api_data(self.client.get("/api/public/houses/suggestions/", {"city": "深圳"})), [])
+        self.assertEqual(api_data(self.client.get("/api/public/houses/suggestions/", {"keyword": "  ", "city": "深圳"})), [])
+
+        district_results = api_data(self.client.get("/api/public/houses/", {"keyword": "南山", "city": "深圳", "page": 1, "page_size": 20}))
+        self.assertEqual([item["id"] for item in district_results["items"]], [visible.pk])
+
     def test_public_house_search_filters_global_inventory(self):
         matching = self.make_house(org_slug="filter-a", org_name="筛选甲", room_number="101", asking_rent=Decimal("2600.00"), subdistrict="科技园")
         matching.tags = ["近地铁", "采光好"]
@@ -441,7 +458,7 @@ class PublicHouseApiTestCase(TestCase):
         self.assertEqual([item["building_id"] for item in payload["items"]], [shenzhen.building_id])
 
     @override_settings(AMAP_WEB_SERVICE_KEY="test-amap-key")
-    @patch("apps.house.api.requests.get")
+    @patch("apps.base.maps.amap.requests.get")
     def test_public_house_region_resolve_uses_amap_and_falls_back_for_municipality(self, mocked_get):
         amap_response = Mock()
         amap_response.raise_for_status.return_value = None
@@ -465,6 +482,7 @@ class PublicHouseApiTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(api_data(response), {"province": "北京市", "city": "北京市", "district": "朝阳区"})
         mocked_get.assert_called_once()
+        self.assertEqual(mocked_get.call_args.kwargs["params"]["location"], "116.397428,39.909230")
 
     @override_settings(AMAP_WEB_SERVICE_KEY="")
     def test_public_house_region_resolve_requires_amap_configuration(self):
@@ -476,7 +494,7 @@ class PublicHouseApiTestCase(TestCase):
         self.assertEqual(response.status_code, 503)
 
     @override_settings(AMAP_WEB_SERVICE_KEY="test-amap-key")
-    @patch("apps.house.api.requests.get")
+    @patch("apps.base.maps.amap.requests.get")
     def test_public_house_region_resolve_handles_provider_failure(self, mocked_get):
         mocked_get.side_effect = requests.RequestException("amap unavailable")
 

@@ -5,8 +5,8 @@ from django.utils import timezone
 
 import pytest
 
-from apps.miniprogram_home.models import MiniProgramHomeBanner, MiniProgramHomeEntry
-from apps.miniprogram_home.services import get_schedule_status
+from apps.platform_operations.models import ContentEntry, HomeBanner
+from apps.platform_operations.services import get_schedule_status
 
 
 def make_entry(**overrides):
@@ -17,7 +17,7 @@ def make_entry(**overrides):
         "tone": "sage",
     }
     values.update(overrides)
-    return MiniProgramHomeEntry(**values)
+    return ContentEntry(**values)
 
 
 @pytest.mark.parametrize(
@@ -67,7 +67,7 @@ def test_entry_banner_requires_entry_and_search_banner_rejects_entry():
     entry.save()
 
     with pytest.raises(ValidationError):
-        MiniProgramHomeBanner(
+        HomeBanner(
             title="专题",
             description="进入专题",
             tone="blue",
@@ -75,7 +75,7 @@ def test_entry_banner_requires_entry_and_search_banner_rejects_entry():
         ).full_clean()
 
     with pytest.raises(ValidationError):
-        MiniProgramHomeBanner(
+        HomeBanner(
             title="找房",
             description="开始找房",
             tone="blue",

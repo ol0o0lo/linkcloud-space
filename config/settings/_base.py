@@ -102,7 +102,7 @@ INSTALLED_APPS = [
     "apps.wallet",
     "apps.subscriptions",
     "apps.referrals",
-    "apps.miniprogram_home",
+    "apps.platform_operations",
     "apps.notifications",
     "apps.team_operations",
     "apps.settings",
@@ -877,6 +877,8 @@ LOGGING = {
         "openai": {"level": "WARNING", "handlers": ["console"], "propagate": False},
         "httpx": {"level": "WARNING", "handlers": ["console"], "propagate": False},
         "httpcore": {"level": "WARNING", "handlers": ["console"], "propagate": False},
+        # 高德 Web Service 的 Key 位于 URL 查询参数中，不能记录 urllib3 的 DEBUG 请求 URL。
+        "urllib3": {"level": "WARNING", "handlers": ["console"], "propagate": False},
     },
 }
 

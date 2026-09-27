@@ -9,8 +9,8 @@ from ninja import Schema
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from apps.allocation.schemas import AllocationRequestOut
+from apps.base.maps.coordinates import serialize_point
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
-from apps.house.geo.coordinates import serialize_point
 from apps.media.schemas import ResolvedMediaRefOut
 from apps.organizations.schemas import OrgUserOut
 
@@ -947,6 +947,13 @@ class PublicHouseListOut(Schema):
     updated_at: datetime
     distance_m: int | None = None
     nearest_metro_station: NearestMetroStationOut | None = None
+    commute_minutes: int | None = None
+    commute_route_id: int | None = None
+
+    @staticmethod
+    def resolve_commute_minutes(obj):
+        seconds = getattr(obj, "commute_seconds", None)
+        return (seconds + 59) // 60 if seconds is not None else None
 
     @staticmethod
     def resolve_orientation__mapping(obj):
@@ -1005,6 +1012,12 @@ class PublicHouseFiltersOut(Schema):
     bedrooms: list[int]
     living_rooms: list[int]
     tags: list[str]
+
+
+class PublicHouseSuggestionOut(Schema):
+    keyword: str
+    category: Literal["区域", "商圈", "小区", "楼栋", "房号"]
+    house_count: int
 
 
 class PublicHouseRegionSubdistrictOut(Schema):

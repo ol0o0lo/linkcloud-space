@@ -234,6 +234,7 @@ def apply_public_house_filters(
             | Q(building__estate__name__icontains=keyword)
             | Q(building__estate__display_name__icontains=keyword)
             | Q(building__estate__subdistrict__icontains=keyword)
+            | Q(building__estate__district__icontains=keyword)
             | Q(building__organization__name__icontains=keyword)
         )
     if province:

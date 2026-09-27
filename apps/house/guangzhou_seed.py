@@ -9,16 +9,15 @@ from decimal import Decimal
 from django.core.cache import cache
 from django.db import transaction
 
-import requests
-
+from apps.base.maps.amap_reference import fetch_amap_guangzhou_metro_payload as fetch_amap_metro_snapshot
+from apps.base.maps.coordinates import make_wgs84_point
+from apps.base.maps.provider import MapProviderError
 from apps.house.constants import EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus
-from apps.house.geo.coordinates import make_wgs84_point
 from apps.house.models import Building, Estate, House
 from apps.metro.importer import import_metro_city
 from apps.metro.models import MetroCity, MetroLine, MetroLineStation, MetroStation
 from apps.organizations.models import Organization
 
-AMAP_GUANGZHOU_METRO_URL = "https://map.amap.com/service/subway?srhdata=4401_drw_guangzhou.json"
 DEMO_ORGANIZATION_SLUG = "housing-ui-demo"
 
 
@@ -66,14 +65,9 @@ GUANGZHOU_DISTRICTS = (
 
 def fetch_amap_guangzhou_metro_payload() -> dict:
     try:
-        response = requests.get(AMAP_GUANGZHOU_METRO_URL, timeout=20)
-        response.raise_for_status()
-        payload = response.json()
-    except (requests.RequestException, ValueError) as exc:
-        raise GuangzhouReferenceDataError("广州地铁数据获取失败") from exc
-    if not isinstance(payload, dict) or not isinstance(payload.get("l"), list) or not payload["l"]:
-        raise GuangzhouReferenceDataError("广州地铁数据格式无效")
-    return payload
+        return fetch_amap_metro_snapshot()
+    except MapProviderError as exc:
+        raise GuangzhouReferenceDataError(str(exc)) from exc
 
 
 def _normalized_line_name(raw_name: str, station_names: list[str], duplicate_counts: Counter) -> str:

@@ -17,6 +17,7 @@ from apps.house.constants import (
     LEASE_STATUS_TRANSITIONS,
     ContactRole,
     EstatePropertyType,
+    HouseCommuteMode,
     HouseDecoration,
     HouseMatchMode,
     HouseOrientation,
@@ -644,3 +645,40 @@ class LeaseAllocation(models.Model):
 
     def __str__(self):
         return f"LeaseAllocation<{self.lease_id}:{self.allocation_request_id}>"
+
+
+class HouseCommuteDestination(CreateUpdateTimeModelMixin):
+    """用户选定的地图地点；同一个 POI 可供不同搜索复用。"""
+
+    provider_code = models.CharField(max_length=24)
+    provider_place_id = models.CharField(max_length=128)
+    name = models.CharField(max_length=150)
+    address = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=64)
+    city_code = models.CharField(max_length=24)
+    location = models.PointField(srid=4326, geography=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["provider_code", "provider_place_id"], name="house_commute_destination_provider_place_unique")]
+
+
+class HouseCommuteRoute(CreateUpdateTimeModelMixin):
+    """楼栋到目的地的长期参考路线。"""
+
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name="commute_routes")
+    destination = models.ForeignKey(HouseCommuteDestination, on_delete=models.CASCADE, related_name="routes")
+    mode = models.CharField(max_length=16, choices=HouseCommuteMode.choices)
+    source = models.CharField(max_length=24)
+    version = models.PositiveSmallIntegerField(default=1)
+    origin_key = models.CharField(max_length=48)
+    destination_key = models.CharField(max_length=48)
+    status = models.CharField(max_length=16, choices=[("ready", "可达"), ("unreachable", "不可达")])
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+    distance_m = models.PositiveIntegerField(default=0)
+    walking_distance_m = models.PositiveIntegerField(default=0)
+    steps = models.JSONField(default=list)
+    transit_segments = models.JSONField(default=list)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["building", "destination", "mode"], name="house_commute_route_building_destination_mode_unique")]
+        indexes = [models.Index(fields=["destination", "mode", "status", "duration_seconds"], name="house_commute_lookup_idx")]

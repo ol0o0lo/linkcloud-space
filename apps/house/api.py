@@ -35,7 +35,6 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-import requests
 from ninja import Query, Router, Status
 from ninja.errors import HttpError
 from ninja.pagination import paginate
@@ -52,14 +51,16 @@ from apps.base.invitation_exceptions import (
     InvitationUnavailableException,
 )
 from apps.base.invitation_receipts import get_invitation_receipt, save_invitation_receipt
+from apps.base.maps import MapPoint, MapProviderConfigurationError, MapProviderError, MapProviderResponseError, get_place_provider
+from apps.base.maps.coordinates import convert_viewport_to_wgs84, make_wgs84_point, serialize_point
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_selected
 from apps.base.sms import send_invitation_sms
 from apps.house.ai_insights import HouseAIInsightBusyError, HouseAIInsightInsufficientDataError, generate_house_ai_insight, get_house_ai_insight
 from apps.house.allocation_services import create_lease_with_allocation, get_lease_allocation, review_lease_allocation, void_lease_allocation
+from apps.house.commute.search import apply_commute_filter, get_search
 from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus, ViewingRecordStatus
-from apps.house.geo.coordinates import convert_viewport_to_wgs84, make_wgs84_point, serialize_point
-from apps.house.geo.queries import NamedGeoOrigin, apply_nearby_house_filter, filter_by_viewport
+from apps.house.geo.queries import apply_nearby_house_filter, filter_by_viewport
 from apps.house.landlord_invitations import (
     LANDLORD_INVITATION_VALID_DAYS,
     LandlordInvitationCacheError,
@@ -73,6 +74,8 @@ from apps.house.landlord_invitations import (
 )
 from apps.house.models import Building, Contact, Estate, House, Lease, LeaseAllocation, PropertyResponsibility, ViewingRecord
 from apps.house.ordering import HOUSE_DEFAULT_ORDERING, HOUSE_ORDERING_DESCRIPTION, HOUSE_ORDERING_PATTERN, apply_house_ordering
+from apps.house.public_search import PublicHouseSearchFilters, filter_signature, public_houses_for_filters
+from apps.house.public_search import resolve_nearby_origin as _resolve_nearby_origin
 from apps.house.schemas import (
     BuildingIn,
     BuildingInventoryOut,
@@ -121,6 +124,7 @@ from apps.house.schemas import (
     PublicHouseLocatedRegionOut,
     PublicHouseMapOut,
     PublicHouseRegionsOut,
+    PublicHouseSuggestionOut,
     PublicLandlordProfileOut,
     TagSuggestionsOut,
     TenantContactRequestIn,
@@ -165,7 +169,6 @@ from apps.house.tenant_services import (
     send_tenant_contact_request,
 )
 from apps.house.vacancy_sync import apply_vacancy_sync, build_vacancy_sync_plan
-from apps.metro.models import MetroLineStation, MetroStation
 from apps.organizations.models import OrganizationMember
 
 router = Router(tags=["房源/管理"])
@@ -267,22 +270,10 @@ def list_public_houses(
     latitude: Decimal | None = Query(None),
     radius_m: int = Query(1000),
     coordinate_system: Literal["gcj02"] | None = Query(None),
-    sort: Literal["latest", "rent_asc", "rent_desc", "area_asc", "area_desc", "distance_asc"] = Query("latest"),
+    commute_search_id: str | None = Query(None),
+    sort: Literal["latest", "rent_asc", "rent_desc", "area_asc", "area_desc", "distance_asc", "commute_asc"] = Query("latest"),
 ):
-    if radius_m not in ALLOWED_PUBLIC_HOUSE_RADIUS_M:
-        raise HttpError(422, "范围只支持 500、1000、1500、2000 米")
-    metro_origins = _resolve_metro_origins(city=city, metro_stations=metro_stations)
-    if metro_origins and (longitude is not None or latitude is not None):
-        raise HttpError(422, "当前位置与地铁站不能同时作为搜索中心")
-    origin = _resolve_nearby_origin(
-        longitude=longitude,
-        latitude=latitude,
-        radius_m=radius_m,
-        coordinate_system=coordinate_system,
-        require_for_distance=sort == "distance_asc" and not metro_origins,
-    )
-    return apply_public_house_filters(
-        get_public_houses_queryset(),
+    filters = PublicHouseSearchFilters(
         keyword=keyword,
         province=province,
         city=city,
@@ -300,84 +291,31 @@ def list_public_houses(
         has_elevator_access=has_elevator_access,
         tags=tags,
         publisher_slug=publisher_slug,
-        origin=origin,
+        metro_stations=metro_stations,
+        longitude=longitude,
+        latitude=latitude,
         radius_m=radius_m,
-        metro_origins=metro_origins,
-        sort=sort,
+        coordinate_system=coordinate_system,
     )
+    commute_job = None
+    if commute_search_id:
+        commute_job = get_search(commute_search_id)
+        if commute_job is None:
+            raise HttpError(404, "通勤搜索已过期，请重新选择目的地")
+        if commute_job["filter_signature"] != filter_signature(filters):
+            raise HttpError(409, "房源条件已变化，请重新计算通勤范围")
+    elif sort == "commute_asc":
+        raise HttpError(422, "请先选择通勤条件")
+    qs = public_houses_for_filters(filters, sort="latest" if sort == "commute_asc" else sort)
+    if commute_job:
+        qs = apply_commute_filter(qs, commute_job)
+    return qs.order_by("commute_seconds", "pk") if sort == "commute_asc" else qs
 
 
 PUBLIC_HOUSE_MAP_MAX_MARKERS = 200
-ALLOWED_PUBLIC_HOUSE_RADIUS_M = {500, 1000, 1500, 2000}
-PUBLIC_HOUSE_METRO_STATION_LIMIT = 5
 PUBLIC_HOUSE_REGIONS_CACHE_KEY = "public-house-regions:v2"
 PUBLIC_HOUSE_REGIONS_CACHE_SECONDS = 5 * 60
 PUBLIC_HOUSE_REGION_RESOLVE_CACHE_SECONDS = 30 * 24 * 60 * 60
-
-
-def _unique_names(values: list[str] | None) -> list[str]:
-    return list(dict.fromkeys(value.strip() for value in values or [] if value.strip()))
-
-
-def _resolve_metro_origins(*, city: str | None, metro_stations: list[str] | None) -> list[NamedGeoOrigin]:
-    names = _unique_names(metro_stations)
-    if not names:
-        return []
-    if not city:
-        raise HttpError(422, "选择地铁站时必须提供完整城市名称")
-    if len(names) > PUBLIC_HOUSE_METRO_STATION_LIMIT:
-        raise HttpError(422, "最多选择 5 个地铁站")
-
-    active_links = MetroLineStation.objects.filter(is_active=True, line__is_active=True).select_related("line")
-    stations = list(
-        MetroStation.objects.filter(
-            city__name=city,
-            city__imported_at__isnull=False,
-            name__in=names,
-            is_active=True,
-            line_links__is_active=True,
-            line_links__line__is_active=True,
-        )
-        .prefetch_related(Prefetch("line_links", queryset=active_links))
-        .distinct()
-    )
-    stations_by_name = {station.name: station for station in stations}
-    unknown = [name for name in names if name not in stations_by_name]
-    if unknown:
-        raise HttpError(422, f"地铁站不存在或已停用：{'、'.join(unknown)}")
-
-    return [
-        NamedGeoOrigin(
-            name=name,
-            location=stations_by_name[name].location,
-            line_names=tuple(sorted({link.line.name for link in stations_by_name[name].line_links.all()})),
-        )
-        for name in names
-    ]
-
-
-def _resolve_nearby_origin(
-    *,
-    longitude: Decimal | None,
-    latitude: Decimal | None,
-    radius_m: int,
-    coordinate_system: Literal["gcj02"] | None,
-    require_for_distance: bool = False,
-):
-    if longitude is None and latitude is None:
-        if require_for_distance:
-            raise HttpError(422, "按距离排序时必须提供当前位置")
-        return None
-    if longitude is None or latitude is None:
-        raise HttpError(422, "经度和纬度必须同时提供")
-    if coordinate_system != "gcj02":
-        raise HttpError(422, "提供当前位置时必须指定 coordinate_system=gcj02")
-    if not 100 <= radius_m <= 50000:
-        raise HttpError(422, "附近范围必须在 100 到 50000 米之间")
-    try:
-        return make_wgs84_point(float(longitude), float(latitude), coordinate_system)
-    except ValueError as exc:
-        raise HttpError(422, str(exc)) from exc
 
 
 def _public_house_map_level(zoom: int) -> Literal["city", "district", "estate", "building"]:
@@ -568,14 +506,6 @@ def get_public_house_regions(request):
     return result
 
 
-def _amap_region_component(value) -> str:
-    if isinstance(value, str):
-        return value.strip()
-    if isinstance(value, list):
-        return next((item.strip() for item in value if isinstance(item, str) and item.strip()), "")
-    return ""
-
-
 @public_router.get("/regions/resolve/", response=PublicHouseLocatedRegionOut, auth=None, summary="根据坐标解析所在地区")
 def resolve_public_house_region(
     request,
@@ -590,43 +520,20 @@ def resolve_public_house_region(
 
     normalized_latitude = f"{latitude:.6f}"
     normalized_longitude = f"{longitude:.6f}"
-    cache_key = f"public-house-region-resolve:v1:{normalized_longitude}:{normalized_latitude}"
+    provider = get_place_provider()
+    cache_key = f"public-house-region-resolve:v2:{provider.code}:{normalized_longitude}:{normalized_latitude}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
-    key = settings.AMAP_WEB_SERVICE_KEY
-    if not key:
-        raise HttpError(503, "高德逆地理编码服务未配置")
     try:
-        response = requests.get(
-            "https://restapi.amap.com/v3/geocode/regeo",
-            params={
-                "key": key,
-                "location": f"{normalized_longitude},{normalized_latitude}",
-                "extensions": "base",
-                "radius": 1000,
-            },
-            timeout=5,
-        )
-        response.raise_for_status()
-        payload = response.json()
-    except (requests.RequestException, ValueError) as exc:
-        raise HttpError(502, "高德逆地理编码服务暂不可用") from exc
-
-    if not isinstance(payload, dict) or payload.get("status") != "1":
-        raise HttpError(502, "高德逆地理编码服务暂不可用")
-    regeocode = payload.get("regeocode")
-    address_component = regeocode.get("addressComponent") if isinstance(regeocode, dict) else None
-    if not isinstance(address_component, dict):
-        raise HttpError(502, "高德逆地理编码结果无效")
-
-    province = _amap_region_component(address_component.get("province"))
-    city = _amap_region_component(address_component.get("city")) or province
-    district = _amap_region_component(address_component.get("district"))
-    if not province or not city:
-        raise HttpError(502, "高德逆地理编码结果无效")
-    result = {"province": province, "city": city, "district": district}
+        result = provider.reverse_geocode(MapPoint.from_gcj02(Decimal(normalized_longitude), Decimal(normalized_latitude)))
+    except MapProviderConfigurationError as exc:
+        raise HttpError(503, "地图逆地理编码服务未配置") from exc
+    except MapProviderResponseError as exc:
+        raise HttpError(502, "地图逆地理编码结果无效") from exc
+    except MapProviderError as exc:
+        raise HttpError(502, "地图逆地理编码服务暂不可用") from exc
     cache.set(cache_key, result, timeout=PUBLIC_HOUSE_REGION_RESOLVE_CACHE_SECONDS)
     return result
 
@@ -652,6 +559,47 @@ def get_public_house_filters(request):
         "living_rooms": list(qs.exclude(living_rooms__isnull=True).values_list("living_rooms", flat=True).distinct().order_by("living_rooms")),
         "tags": sorted(tag_values),
     }
+
+
+@public_router.get("/suggestions/", response=list[PublicHouseSuggestionOut], auth=None, summary="联想公开房源搜索词")
+def get_public_house_suggestions(request, keyword: str = Query(""), city: str | None = Query(None)):
+    term = keyword.strip()[:40]
+    if not term:
+        return []
+    houses = get_public_houses_queryset().order_by()
+    if city:
+        houses = houses.filter(building__estate__city__iexact=city.strip())
+
+    groups = [
+        ("小区", "building__estate__display_name", Q(building__estate__display_name__icontains=term) | Q(building__estate__name__icontains=term)),
+        ("商圈", "building__estate__subdistrict", Q(building__estate__subdistrict__icontains=term)),
+        ("区域", "building__estate__district", Q(building__estate__district__icontains=term)),
+    ]
+    groups.extend([
+        ("楼栋", "building__name", Q(building__name__icontains=term)),
+        ("房号", "room_number", Q(room_number__icontains=term)),
+    ])
+
+    suggestions = []
+    seen = set()
+    for category, field, condition in groups:
+        rows = (
+            houses.filter(condition)
+            .exclude(**{f"{field}__isnull": True})
+            .exclude(**{field: ""})
+            .values(field)
+            .annotate(house_count=Count("pk"))
+            .order_by("-house_count", field)[:6]
+        )
+        for row in rows:
+            value = row[field].strip()
+            if not value or value in seen:
+                continue
+            suggestions.append({"keyword": value, "category": category, "house_count": row["house_count"]})
+            seen.add(value)
+            if len(suggestions) == 10:
+                return suggestions
+    return suggestions
 
 
 @public_router.get("/{house_id}/", response=PublicHouseDetailOut, auth=None, summary="获取公开房源详情")

@@ -26,12 +26,11 @@ from apps.house.api import public_landlord_router as house_public_landlord_route
 from apps.house.api import public_router as house_public_router
 from apps.house.api import router as house_router
 from apps.house.api import tenant_router as house_tenant_router
+from apps.house.commute.api import public_router as house_commute_public_router
 from apps.house.match_api import public_router as house_match_public_router
 from apps.house.match_api import router as house_match_router
 from apps.media.api import router as media_router
 from apps.metro.api import public_router as metro_public_router
-from apps.miniprogram_home.api import admin_router as miniprogram_home_admin_router
-from apps.miniprogram_home.api import public_router as miniprogram_home_public_router
 from apps.notifications.api import dispatches_router as notification_dispatches_router
 from apps.notifications.api import router as notifications_router
 from apps.organizations.api import (
@@ -49,6 +48,8 @@ from apps.organizations.api import (
 )
 from apps.organizations.workspace_api import router as organization_workspace_router
 from apps.payments.api import router as payments_router
+from apps.platform_operations.api import admin_router as platform_content_admin_router
+from apps.platform_operations.api import public_router as platform_content_public_router
 from apps.referrals.api import admin_router as referrals_admin_router
 from apps.referrals.api import router as referrals_router
 from apps.settings.api import org_router as settings_org_router
@@ -63,7 +64,18 @@ from apps.wallet.api import admin_router as wallet_admin_router
 from apps.wallet.api import internal_router as wallet_internal_router
 from apps.wallet.api import router as wallet_router
 
-api = EnvelopedNinjaAPI(
+
+class ProjectNinjaAPI(EnvelopedNinjaAPI):
+    def get_openapi_schema(self, **kwargs):
+        for router in self._get_bound_routers():
+            if router.url_name_prefix in {"legacy_miniprogram_home_admin", "legacy_miniprogram_home_public"}:
+                for path_view in router.path_operations.values():
+                    for operation in path_view.operations:
+                        operation.include_in_schema = False
+        return super().get_openapi_schema(**kwargs)
+
+
+api = ProjectNinjaAPI(
     title="Django Base Site API",
     version="1.0.0",
     auth=[jwt_token_auth, x_session_token_user_auth, django_auth],  # 优先支持 JWT Bearer / X-Session-Token，最后回落到 session cookie
@@ -75,8 +87,10 @@ register_error_handlers(api)
 
 api.add_router("/", base_router)
 api.add_router("/media/", media_router)
-api.add_router("/admin/miniprogram-home/", miniprogram_home_admin_router)
-api.add_router("/public/miniprogram/", miniprogram_home_public_router)
+api.add_router("/admin/platform-operations/content/", platform_content_admin_router)
+api.add_router("/public/content/", platform_content_public_router)
+api.add_router("/admin/miniprogram-home/", platform_content_admin_router, url_name_prefix="legacy_miniprogram_home_admin")
+api.add_router("/public/miniprogram/", platform_content_public_router, url_name_prefix="legacy_miniprogram_home_public")
 api.add_router("/access/navigation/", access_navigation_router)
 api.add_router("/access/permissions/", access_permissions_router)
 api.add_router("/access/role-management/", access_role_management_router)
@@ -117,6 +131,7 @@ api.add_router("/house/", house_router)
 api.add_router("/house/tenant/", house_tenant_router)
 api.add_router("/house-match-shares/", house_match_router)
 api.add_router("/house/landlord/", house_landlord_router)
+api.add_router("/public/houses/commute/", house_commute_public_router)
 api.add_router("/public/houses/", house_public_router)
 api.add_router("/public/metro/", metro_public_router)
 api.add_router("/public/house-match-shares/", house_match_public_router)
