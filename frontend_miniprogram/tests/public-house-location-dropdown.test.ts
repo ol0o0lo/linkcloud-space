@@ -8,20 +8,21 @@ const mapPageSource = readFileSync(new URL('../src/pages-housing/map/index.vue',
 const searchPageSource = readFileSync(new URL('../src/pages-housing/search/index.vue', import.meta.url), 'utf8')
 const housesPageSource = readFileSync(new URL('../src/pages/houses/index.vue', import.meta.url), 'utf8')
 
-test('区域地铁作为限定宽高的气泡弹窗打开', () => {
+test('区域、地铁与通勤作为限定宽高的气泡弹窗打开', () => {
   assert.doesNotMatch(source, /AppBottomSheet/)
   assert.match(source, /location-popover-host/)
   assert.match(source, /location-popover__mask/)
-  assert.match(source, /location-popover__header[\s\S]*<strong>筛选<\/strong>/)
+  assert.match(source, /location-popover__header[\s\S]*<strong>\{\{ headerContent\.title \}\}<\/strong>/)
   assert.match(source, /max-width:\s*var\(--public-house-filter-popover-width, 680rpx\)/)
-  assert.match(source, /height:\s*min\(68vh, 820rpx\)/)
-  assert.match(source, /grid-template-columns:\s*2fr 3fr 5fr/)
+  assert.match(source, /height:\s*min\(68vh, 760rpx\)/)
+  assert.match(source, /grid-template-columns:\s*19% 32% 49%/)
+  assert.match(source, /location-dropdown__columns--commute[\s\S]*grid-template-columns:\s*19% 81%/)
 })
 
 test('区域模式使用行政区和板块三级联动并保留全区选项', () => {
   assert.match(source, /activeDistrict/)
   assert.match(source, /activeDistrict\?\.subdistricts/)
-  assert.match(source, /grid-template-columns:\s*2fr 3fr 5fr/)
+  assert.match(source, /grid-template-columns:\s*19% 32% 49%/)
   assert.match(source, /@click="selectDraftDistrict\(''\)"[^>]*>\s*全区/)
   assert.match(source, /@click="selectDraftSubdistrict\(''\)"/)
   assert.match(source, /draftDistrict \? `\$\{shortRegionName\(draftDistrict\)\}全区` : '全区'/)
@@ -50,7 +51,7 @@ test('区域地铁模式使用纯文字入口且线路使用小圆点标识', ()
   assert.doesNotMatch(source, /<view class="i-carbon-map" \/>\s*<text>区域<\/text>/)
   assert.doesNotMatch(source, /<view class="i-carbon-train" \/>\s*<text>地铁<\/text>/)
   assert.doesNotMatch(source, /location-dropdown__option--mode\.active::before/)
-  assert.match(source, /\.location-dropdown__line-color\s*\{[^}]*width:\s*12rpx[^}]*height:\s*12rpx[^}]*border-radius:\s*50%/)
+  assert.match(source, /\.location-dropdown__line-color\s*\{[^}]*width:\s*13rpx[^}]*height:\s*13rpx[^}]*border-radius:\s*50%/)
 })
 
 test('三级筛选使用气泡操作区并限制五个站点', () => {
@@ -65,9 +66,10 @@ test('地铁模式不选择站点也可以确认查看房源', () => {
   assert.match(source, /stationNames: draftMode\.value === 'metro' \? \[\.\.\.draftStationNames\.value\] : \[\]/)
 })
 
-test('地铁站列表不重复展示线路标题和选择提示', () => {
-  assert.doesNotMatch(source, /selectedCountText|location-dropdown__station-heading|可跨线路选择|已选 \$\{/)
-  assert.match(source, /location-dropdown__checkbox--active/)
+test('地铁站列表不重复展示线路标题，选择数量显示在弹窗摘要中', () => {
+  assert.doesNotMatch(source, /selectedCountText|location-dropdown__station-heading|可跨线路选择/)
+  assert.match(source, /subtitle: `\$\{activeLine\.value\?\.name \|\| '选择线路'\} · 已选 \$\{draftStationNames\.value\.length\}\/5 站`/)
+  assert.match(source, /location-dropdown__checkbox/)
   assert.match(source, /location-dropdown__station-check--active/)
   assert.match(source, /i-carbon-checkmark/)
 })
@@ -79,7 +81,7 @@ test('地铁站卡片样式通过 custom-style 直接下发到 Wot Checkbox 根�
 })
 
 test('区域地铁面板只读取全局城市且不提供城市修改入口', () => {
-  assert.match(source, /全局地区/)
+  assert.match(source, /regionStore\.selection\.city/)
   assert.match(source, /请先从页面右上角选择城市/)
   assert.doesNotMatch(source, /切换城市/)
   assert.doesNotMatch(source, /choose-city/)
@@ -98,9 +100,10 @@ test('房源列表从顶部筛选栏打开区域地铁与附近气泡', () => {
 test('所有轻量筛选气泡使用统一宽度并标记当前打开入口', () => {
   for (const pageSource of [searchPageSource, housesPageSource]) {
     assert.match(pageSource, /--public-house-filter-popover-width:\s*680rpx/)
-    assert.match(pageSource, /\.quick-filter--open::after\s*\{[^}]*border-top:\s*8rpx solid/)
     assert.match(pageSource, /\.quick-filter--open > \.i-carbon-chevron-down\s*\{[^}]*transform:\s*rotate\(180deg\)/)
   }
+  assert.match(searchPageSource, /\.top-filter-popover-host::before\s*\{[^}]*border-top:/)
+  assert.match(housesPageSource, /\.quick-filter--open::after\s*\{[^}]*border-top:\s*8rpx solid/)
   assert.match(housesPageSource, /\.nearby-dropdown-host\s*\{[^}]*width:\s*calc\(100vw - var\(--app-page-gutter\) \* 2\)[^}]*max-width:\s*var\(--public-house-filter-popover-width\)/)
   assert.match(source, /max-width:\s*var\(--public-house-filter-popover-width, 680rpx\)/)
 })
@@ -113,10 +116,10 @@ test('独立找房页顶部筛选打开时遮罩层覆盖页面内容', () => {
 test('所有房源筛选浮层打开时锁定页面并阻断遮罩滑动穿透', () => {
   for (const pageSource of [searchPageSource, housesPageSource]) {
     assert.match(pageSource, /const filterOverlayOpen = computed/)
-    assert.match(pageSource, /<template>\s*<page-meta :page-style="`overflow:\$\{filterOverlayOpen \? 'hidden' : 'visible'\};`" \/>/)
-    assert.match(pageSource, /class="top-filter-mask" @touchmove\.stop\.prevent @click="closeTopFilter"/)
+    assert.match(pageSource, /<template>\s*<page-meta :page-style="`overflow:\$\{filterOverlayOpen \? '(?:hidden|clip)' : 'visible'\};`" \/>/)
+    assert.match(pageSource, /class="top-filter-mask" @touchmove\.stop\.prevent(?: @wheel\.stop\.prevent)? @click="closeTopFilter"/)
   }
-  assert.match(source, /class="location-popover__mask" @touchmove\.stop\.prevent @click="closeWithoutApply"/)
+  assert.match(source, /class="location-popover__mask" @touchmove\.stop\.prevent @wheel\.stop\.prevent @click="closeWithoutApply"/)
 })
 
 test('公开找房页面导航栏统一使用全局地区入口', () => {
@@ -129,11 +132,11 @@ test('公开找房页面首次加载会先初始化当前位置地区', () => {
     assert.match(pageSource, /initializeDefaultRegion/)
 })
 
-test('独立找房页导航栏只展示可输入搜索框和右侧地区入口', () => {
+test('独立找房页导航栏展示关键词搜索入口和右侧地区入口', () => {
   assert.match(searchPageSource, /navigationBarTitleText:\s*''/)
-  assert.match(searchPageSource, /navigation-search-row[\s\S]*navigation-search-input[\s\S]*PublicHouseRegionTrigger/)
-  assert.match(searchPageSource, /compact placeholder="搜索小区、区域或房源"/)
-  assert.match(searchPageSource, /confirm-type="search" @confirm="search"/)
+  assert.match(searchPageSource, /navigation-search-row[\s\S]*navigation-search-bar[\s\S]*PublicHouseRegionTrigger/)
+  assert.match(searchPageSource, /class="navigation-search-bar" aria-label="搜索房源" @click="openKeywordSearch"/)
+  assert.match(searchPageSource, /搜索小区、区域或房源/)
   assert.match(searchPageSource, /back transparent scroll-mode="sticky"/)
   assert.doesNotMatch(searchPageSource, /class="search-bar"/)
 })
@@ -144,14 +147,14 @@ test('地铁找房路由进入后自动打开地铁筛选', () => {
   assert.match(searchPageSource, /activeTopFilter\.value = 'location'/)
 })
 
-test('租金户型和面积使用独立气泡且筛选条件横向滚动', () => {
-  assert.match(searchPageSource, /type TopFilter = 'nearby' \| 'location' \| 'rent' \| 'bedroom' \| 'area'/)
+test('租金、户型、面积和电梯使用独立气泡且筛选条件横向滚动', () => {
+  assert.match(searchPageSource, /type TopFilter = 'nearby' \| 'location' \| 'rent' \| 'bedroom' \| 'area' \| 'elevator'/)
   assert.match(searchPageSource, /activeTopFilter = ref<TopFilter \| null>/)
   assert.match(searchPageSource, /class="quick-filter-scroll" scroll-x enhanced :show-scrollbar="false"/)
   assert.match(searchPageSource, /activeTopFilter === 'rent'/)
   assert.match(searchPageSource, /activeTopFilter === 'bedroom'/)
   assert.match(searchPageSource, /activeTopFilter === 'area'/)
-  assert.match(searchPageSource, /toggleElevatorFilter/)
+  assert.match(searchPageSource, /selectElevatorFilter/)
   assert.doesNotMatch(searchPageSource, /title="更多筛选"|showFilters|openFilters/)
 })
 

@@ -20,6 +20,7 @@ interface HouseMapLoadOptions {
 }
 
 export interface HouseMapSession<TParams> {
+  cancelPending: () => void
   dispose: () => void
   load: (params: TParams, options?: HouseMapLoadOptions) => Promise<void>
   schedule: (params: TParams) => void
@@ -91,6 +92,17 @@ export function createHouseMapSession<TParams, TResult>(options: CreateHouseMapS
     }, debounceMs)
   }
 
+  function cancelPending() {
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+    requestVersion += 1
+    activeKey = ''
+    activePromise = null
+    options.onRefreshingChange?.(false)
+  }
+
   function dispose() {
     disposed = true
     requestVersion += 1
@@ -103,5 +115,5 @@ export function createHouseMapSession<TParams, TResult>(options: CreateHouseMapS
     options.onRefreshingChange?.(false)
   }
 
-  return { dispose, load, schedule }
+  return { cancelPending, dispose, load, schedule }
 }

@@ -5,6 +5,7 @@ import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 import AppLoading from '@/components/app/AppLoading.vue'
 import { getLocatedPublicHouseRegion } from '@/features/houses/service'
 import { usePublicHouseRegionStore } from '@/store/public-house-region'
+import { getCurrentLocationGcj02, getLocationErrorMessage } from '@/utils/location'
 
 const props = defineProps<{
   visible: boolean
@@ -140,18 +141,18 @@ async function locateCurrentCity() {
       return
     }
 
-    let location: Awaited<ReturnType<typeof uni.getLocation>>
+    let location: Awaited<ReturnType<typeof getCurrentLocationGcj02>>
     try {
-      location = await uni.getLocation({ type: 'gcj02', isHighAccuracy: true })
+      location = await getCurrentLocationGcj02()
     }
-    catch {
+    catch (error) {
       // #ifdef MP-WEIXIN
       const modal = await uni.showModal({ title: '需要位置权限', content: '开启定位后可自动切换到当前城市，也可以继续手动选择。', confirmText: '去设置' })
       if (modal.confirm)
         await uni.openSetting()
       // #endif
       // #ifndef MP-WEIXIN
-      uni.showToast({ title: '无法获取当前位置，请检查浏览器位置权限', icon: 'none' })
+      uni.showToast({ title: getLocationErrorMessage(error), icon: 'none' })
       // #endif
       return
     }

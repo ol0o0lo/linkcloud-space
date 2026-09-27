@@ -1,23 +1,34 @@
 <script setup lang="ts">
 import type { PublicHouseLocationMode, PublicMetroCityDetail } from '@/domain/public-house-metro'
+import type { AppliedCommute, CommuteDraft } from '@/features/houses/commute'
 import type { PublicHouseLocationFilterValue } from '@/features/houses/usePublicHouseSpatialFilter'
 import { computed, ref, watch } from 'vue'
 import AppLoading from '@/components/app/AppLoading.vue'
+import CommutePicker from '@/features/houses/commute/CommutePicker.vue'
+import { commuteModeLabel } from '@/features/houses/commute'
+import { useWorkPlacePreferenceStore } from '@/features/houses/commute/preference'
 import { getPublicMetroCities, getPublicMetroCity } from '@/features/houses/service'
 import { usePublicHouseRegionStore } from '@/store/public-house-region'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   visible: boolean
   value: PublicHouseLocationFilterValue
-}>()
+  commute?: AppliedCommute | null
+  preferredMode?: 'commute' | null
+}>(), { commute: null })
 
 const emit = defineEmits<{
   'update:visible': [value: boolean]
   'apply': [value: PublicHouseLocationFilterValue]
+  'apply-commute': [value: CommuteDraft]
+  'clear-commute': []
 }>()
 
 const regionStore = usePublicHouseRegionStore()
-const draftMode = ref<PublicHouseLocationMode>('region')
+const workPlacePreference = useWorkPlacePreferenceStore()
+const draftMode = ref<PublicHouseLocationMode | 'commute'>('region')
+const draftCommute = ref<CommuteDraft>({ place: null, mode: 'metro', maxMinutes: 45 })
+const commutePickerRevision = ref(0)
 const draftDistrict = ref('')
 const draftSubdistrict = ref('')
 const draftStationNames = ref<string[]>([])
@@ -37,42 +48,68 @@ function shortRegionName(value: string) {
   return value.replace(/(自治县|自治州|[林新]区|地区|[盟省市县区])$/, '') || value
 }
 
+const headerContent = computed(() => {
+  if (draftMode.value === 'region') {
+    const city = shortRegionName(regionStore.selection.city)
+    const district = draftDistrict.value ? shortRegionName(draftDistrict.value) : '全区'
+    return {
+      icon: 'i-carbon-map',
+      title: '区域',
+      subtitle: [city, district, draftSubdistrict.value].filter(Boolean).join(' · '),
+    }
+  }
+  if (draftMode.value === 'metro') {
+    return {
+      icon: 'i-carbon-train',
+      title: '地铁',
+      subtitle: `${activeLine.value?.name || '选择线路'} · 已选 ${draftStationNames.value.length}/5 站`,
+    }
+  }
+  const placeName = draftCommute.value.place?.name
+  const commuteSummary = `${commuteModeLabel(draftCommute.value.mode)} ${draftCommute.value.maxMinutes} 分钟内`
+  return {
+    icon: 'i-carbon-location-star',
+    title: '通勤',
+    subtitle: `${placeName ? `到${placeName}` : '未选目的地'} · ${commuteSummary}`,
+  }
+})
+
 function stationCheckboxStyle(stationName: string) {
   const active = draftStationNames.value.includes(stationName)
   const stateStyle = active
     ? [
-        'border-color: #cfe1ff',
         'background: #eef5ff',
         'color: #1677ff',
         'font-weight: 600',
         '--wot-checkbox-label-color: #1677ff',
       ]
     : [
-        'border-color: transparent',
         'background: #ffffff',
-        'color: #1f2937',
+        'color: #17233d',
         'font-weight: 400',
-        '--wot-checkbox-label-color: #1f2937',
+        '--wot-checkbox-label-color: #17233d',
       ]
 
   return [
     'width: 100%',
-    'min-height: 72rpx',
-    'margin: 0 0 6rpx',
-    'padding: 0 14rpx 0 18rpx',
+    'min-height: 88rpx',
+    'padding: 0 16rpx',
     'box-sizing: border-box',
-    'border: 1rpx solid',
-    'border-radius: 16rpx',
-    '--wot-checkbox-label-font-size: 24rpx',
+    'border-bottom: 1rpx solid #e7edf5',
+    '--wot-checkbox-label-font-size: 25rpx',
     '--wot-checkbox-label-line-height: 1.35',
-    '--wot-checkbox-icon-size: 36rpx',
+    '--wot-checkbox-icon-size: 38rpx',
     '--wot-checkbox-color-checked: var(--location-filter-primary)',
     ...stateStyle,
   ].join('; ')
 }
 
 function resetDraftFromValue() {
-  draftMode.value = props.value.mode
+  commutePickerRevision.value += 1
+  draftMode.value = props.preferredMode || (props.commute || !regionStore.selection.city ? 'commute' : props.value.mode)
+  draftCommute.value = props.commute
+    ? { place: props.commute.place, mode: props.commute.mode, maxMinutes: props.commute.maxMinutes }
+    : { place: workPlacePreference.preference?.place || null, mode: workPlacePreference.preference?.mode || 'metro', maxMinutes: 45 }
   draftDistrict.value = props.value.district
   draftSubdistrict.value = props.value.subdistrict || ''
   draftStationNames.value = [...props.value.stationNames]
@@ -114,7 +151,7 @@ async function loadMetroCity() {
   }
 }
 
-function setDraftMode(mode: PublicHouseLocationMode) {
+function setDraftMode(mode: PublicHouseLocationMode | 'commute') {
   draftMode.value = mode
   if (mode === 'metro' && metroCity.value?.name !== regionStore.selection.city && !metroLoading.value)
     void loadMetroCity()
@@ -131,6 +168,15 @@ function selectDraftSubdistrict(subdistrict: string) {
 }
 
 function resetDraft() {
+  if (draftMode.value === 'commute') {
+    draftCommute.value = { place: null, mode: 'metro', maxMinutes: 45 }
+    commutePickerRevision.value += 1
+    if (props.commute) {
+      emit('clear-commute')
+      emit('update:visible', false)
+    }
+    return
+  }
   if (draftMode.value === 'metro')
     draftStationNames.value = []
   else
@@ -144,6 +190,15 @@ function closeWithoutApply() {
 }
 
 function applyDraft() {
+  if (draftMode.value === 'commute') {
+    if (!draftCommute.value.place) {
+      uni.showToast({ title: '请先选择通勤目的地', icon: 'none' })
+      return
+    }
+    emit('apply-commute', { ...draftCommute.value, place: draftCommute.value.place })
+    emit('update:visible', false)
+    return
+  }
   if (draftMode.value === 'metro') {
     if (!regionStore.selection.city) {
       uni.showToast({ title: '请先从页面右上角选择城市', icon: 'none' })
@@ -178,116 +233,133 @@ watch(() => regionStore.scopeKey, () => {
 
 <template>
   <view v-if="visible" class="location-popover-host">
-    <view class="location-popover__mask" @touchmove.stop.prevent @click="closeWithoutApply" />
+    <view class="location-popover__mask" @touchmove.stop.prevent @wheel.stop.prevent @click="closeWithoutApply" />
     <view class="location-popover" @click.stop>
       <view class="location-popover__header">
-        <strong>筛选</strong>
+        <view class="location-popover__header-icon" :class="headerContent.icon" />
+        <view class="location-popover__heading">
+          <strong>{{ headerContent.title }}</strong>
+          <text>{{ headerContent.subtitle }}</text>
+        </view>
         <button class="location-popover__close" aria-label="关闭" @click="closeWithoutApply">
           <view class="i-carbon-close" />
         </button>
       </view>
 
       <view class="location-dropdown">
-        <view v-if="regionStore.selection.city" class="location-dropdown__columns">
-          <scroll-view class="location-dropdown__column location-dropdown__column--mode" scroll-y enhanced :show-scrollbar="false">
-            <button class="location-dropdown__option location-dropdown__option--mode" :class="{ active: draftMode === 'region' }" @click="setDraftMode('region')">
-              <text>区域</text>
-            </button>
-            <button class="location-dropdown__option location-dropdown__option--mode" :class="{ active: draftMode === 'metro' }" @click="setDraftMode('metro')">
-              <text>地铁</text>
-            </button>
-          </scroll-view>
+        <template v-if="regionStore.selection.city || draftMode === 'commute'">
+          <view class="location-dropdown__columns" :class="{ 'location-dropdown__columns--commute': draftMode === 'commute' }">
+            <view class="location-dropdown__column location-dropdown__column--mode">
+              <button v-if="regionStore.selection.city" class="location-dropdown__mode" :class="{ active: draftMode === 'region' }" @click="setDraftMode('region')">
+                区域
+              </button>
+              <button v-if="regionStore.selection.city" class="location-dropdown__mode" :class="{ active: draftMode === 'metro' }" @click="setDraftMode('metro')">
+                地铁
+              </button>
+              <button class="location-dropdown__mode" :class="{ active: draftMode === 'commute' }" @click="setDraftMode('commute')">
+                通勤
+              </button>
+            </view>
 
-          <scroll-view class="location-dropdown__column location-dropdown__column--secondary" scroll-y enhanced :show-scrollbar="false">
-            <template v-if="draftMode === 'region'">
-              <button class="location-dropdown__option" :class="{ active: !draftDistrict }" @click="selectDraftDistrict('')">
-                全区
-              </button>
-              <button
-                v-for="item in activeCity?.districts || []"
-                :key="item.district"
-                class="location-dropdown__option"
-                :class="{ active: draftDistrict === item.district }"
-                @click="selectDraftDistrict(item.district)"
-              >
-                {{ shortRegionName(item.district) }}
-              </button>
-            </template>
-            <template v-else>
-              <button
-                v-for="line in metroCity?.lines || []"
-                :key="line.name"
-                class="location-dropdown__option location-dropdown__line"
-                :class="{ active: activeLine?.name === line.name }"
-                @click="activeLineName = line.name"
-              >
-                <i class="location-dropdown__line-color" :style="{ backgroundColor: line.color || 'var(--location-filter-primary)' }" />
-                <text>{{ line.name }}</text>
-              </button>
-            </template>
-          </scroll-view>
-
-          <scroll-view class="location-dropdown__column location-dropdown__column--content" scroll-y enhanced :show-scrollbar="false">
-            <template v-if="draftMode === 'region'">
-              <button class="location-dropdown__option" :class="{ active: !draftSubdistrict }" @click="selectDraftSubdistrict('')">
-                {{ draftDistrict ? `${shortRegionName(draftDistrict)}全区` : '全区' }}
-              </button>
-              <button
-                v-for="item in activeDistrict?.subdistricts || []"
-                :key="item.subdistrict"
-                class="location-dropdown__option"
-                :class="{ active: draftSubdistrict === item.subdistrict }"
-                @click="selectDraftSubdistrict(item.subdistrict)"
-              >
-                {{ item.subdistrict }}
-              </button>
-            </template>
-            <view v-else-if="metroLoading" class="location-dropdown__state">
-              <AppLoading text="正在加载地铁线路…" />
-            </view>
-            <view v-else-if="metroError" class="location-dropdown__state">
-              <view class="i-carbon-warning-alt location-dropdown__state-icon" />
-              <strong>地铁数据加载失败</strong>
-              <button @click="loadMetroCity">
-                重新加载
-              </button>
-            </view>
-            <view v-else-if="!metroCity?.lines.length" class="location-dropdown__state">
-              <view class="i-carbon-train location-dropdown__state-icon" />
-              <strong>该城市暂未提供地铁筛选</strong>
-              <text>仍可继续使用区域条件找房</text>
-            </view>
-            <view v-else class="location-dropdown__stations">
-              <wd-checkbox-group v-model="draftStationNames" :max="5" placement="right" custom-class="location-dropdown__checkbox-group">
-                <wd-checkbox
-                  v-for="station in activeLine?.stations || []"
-                  :key="station.name"
-                  :name="station.name"
-                  :custom-class="draftStationNames.includes(station.name) ? 'location-dropdown__checkbox location-dropdown__checkbox--active' : 'location-dropdown__checkbox'"
-                  :custom-style="stationCheckboxStyle(station.name)"
+            <scroll-view v-if="draftMode !== 'commute'" class="location-dropdown__column location-dropdown__column--secondary" scroll-y enhanced :show-scrollbar="false">
+              <template v-if="draftMode === 'region'">
+                <button class="location-dropdown__option location-dropdown__option--secondary" :class="{ active: !draftDistrict }" @click="selectDraftDistrict('')">
+                  全区
+                </button>
+                <button
+                  v-for="item in activeCity?.districts || []"
+                  :key="item.district"
+                  class="location-dropdown__option location-dropdown__option--secondary"
+                  :class="{ active: draftDistrict === item.district }"
+                  @click="selectDraftDistrict(item.district)"
                 >
-                  {{ station.name }}
-                  <template #icon="{ isChecked }">
-                    <view class="location-dropdown__station-check" :class="{ 'location-dropdown__station-check--active': isChecked }">
-                      <view v-if="isChecked" class="i-carbon-checkmark location-dropdown__station-check-icon" />
-                    </view>
-                  </template>
-                </wd-checkbox>
-              </wd-checkbox-group>
-            </view>
-          </scroll-view>
-        </view>
+                  {{ shortRegionName(item.district) }}
+                </button>
+              </template>
+              <template v-else>
+                <button
+                  v-for="line in metroCity?.lines || []"
+                  :key="line.name"
+                  class="location-dropdown__option location-dropdown__option--secondary location-dropdown__line"
+                  :class="{ active: activeLine?.name === line.name }"
+                  @click="activeLineName = line.name"
+                >
+                  <i class="location-dropdown__line-color" :style="{ backgroundColor: line.color || 'var(--location-filter-primary)' }" />
+                  <text>{{ line.name }}</text>
+                </button>
+              </template>
+            </scroll-view>
+
+            <scroll-view v-if="draftMode !== 'commute'" class="location-dropdown__column location-dropdown__column--content" scroll-y enhanced :show-scrollbar="false">
+              <template v-if="draftMode === 'region'">
+                <button class="location-dropdown__option location-dropdown__option--place" :class="{ active: !draftSubdistrict }" @click="selectDraftSubdistrict('')">
+                  <text>{{ draftDistrict ? `${shortRegionName(draftDistrict)}全区` : '全区' }}</text>
+                  <view v-if="!draftSubdistrict" class="i-carbon-checkmark" />
+                </button>
+                <button
+                  v-for="item in activeDistrict?.subdistricts || []"
+                  :key="item.subdistrict"
+                  class="location-dropdown__option location-dropdown__option--place"
+                  :class="{ active: draftSubdistrict === item.subdistrict }"
+                  @click="selectDraftSubdistrict(item.subdistrict)"
+                >
+                  <text>{{ item.subdistrict }}</text>
+                  <view v-if="draftSubdistrict === item.subdistrict" class="i-carbon-checkmark" />
+                </button>
+              </template>
+              <view v-else-if="metroLoading" class="location-dropdown__state">
+                <AppLoading text="正在加载地铁线路…" />
+              </view>
+              <view v-else-if="metroError" class="location-dropdown__state">
+                <view class="i-carbon-warning-alt location-dropdown__state-icon" />
+                <strong>地铁数据加载失败</strong>
+                <button @click="loadMetroCity">
+                  重新加载
+                </button>
+              </view>
+              <view v-else-if="!metroCity?.lines.length" class="location-dropdown__state">
+                <view class="i-carbon-train location-dropdown__state-icon" />
+                <strong>该城市暂未提供地铁筛选</strong>
+                <text>仍可继续使用区域条件找房</text>
+              </view>
+              <view v-else class="location-dropdown__stations">
+                <wd-checkbox-group v-model="draftStationNames" :max="5" placement="right" custom-class="location-dropdown__checkbox-group">
+                  <wd-checkbox
+                    v-for="station in activeLine?.stations || []"
+                    :key="station.name"
+                    :name="station.name"
+                    custom-class="location-dropdown__checkbox"
+                    :custom-style="stationCheckboxStyle(station.name)"
+                  >
+                    {{ station.name }}
+                    <template #icon="{ isChecked }">
+                      <view class="location-dropdown__station-check" :class="{ 'location-dropdown__station-check--active': isChecked }">
+                        <view v-if="isChecked" class="i-carbon-checkmark location-dropdown__station-check-icon" />
+                      </view>
+                    </template>
+                  </wd-checkbox>
+                </wd-checkbox-group>
+              </view>
+            </scroll-view>
+            <scroll-view v-else class="location-dropdown__column location-dropdown__column--commute" scroll-y enhanced :show-scrollbar="false">
+              <CommutePicker :key="commutePickerRevision" v-model="draftCommute" compact />
+            </scroll-view>
+          </view>
+        </template>
 
         <view v-else class="location-dropdown__empty-city">
           <view class="i-carbon-map location-dropdown__state-icon" />
           <strong>请先从页面右上角选择城市</strong>
-          <text>全局地区确定后，才可按区域或地铁找房</text>
+          <text>选择城市后可按区域或地铁找房，也可直接使用通勤筛选</text>
+          <button class="location-dropdown__commute-entry" @click="setDraftMode('commute')">
+            使用通勤筛选
+          </button>
         </view>
       </view>
 
       <view class="location-popover__footer">
         <wd-button block variant="plain" custom-class="location-dropdown__reset" @click="resetDraft">
-          重置
+          {{ draftMode === 'commute' ? '清空通勤' : '清空选择' }}
         </wd-button>
         <wd-button block custom-class="location-dropdown__apply" @click="applyDraft">
           查看房源
@@ -298,8 +370,7 @@ watch(() => regionStore.scopeKey, () => {
 </template>
 
 <style scoped lang="scss">
-.location-dropdown,
-.location-popover__footer {
+.location-popover {
   --location-filter-primary: #1677ff;
   --location-filter-primary-active: #0f63d8;
   --location-filter-primary-soft: #eef5ff;
@@ -314,11 +385,26 @@ watch(() => regionStore.scopeKey, () => {
   max-width: var(--public-house-filter-popover-width, 680rpx);
 }
 
+.location-popover-host::before {
+  position: absolute;
+  z-index: 3;
+  top: 6rpx;
+  left: var(--filter-pointer-x, 50%);
+  width: 20rpx;
+  height: 20rpx;
+  margin-left: -10rpx;
+  border-top: 1rpx solid rgb(255 255 255 / 80%);
+  border-left: 1rpx solid rgb(255 255 255 / 80%);
+  background: #fff;
+  content: '';
+  transform: rotate(45deg);
+}
+
 .location-popover__mask {
   position: fixed;
   z-index: 1;
   inset: 0;
-  background: rgb(15 23 42 / 24%);
+  background: rgb(15 23 42 / 28%);
   backdrop-filter: blur(3rpx);
 }
 
@@ -327,37 +413,61 @@ watch(() => regionStore.scopeKey, () => {
   z-index: 2;
   display: grid;
   width: 100%;
-  height: min(68vh, 820rpx);
+  height: min(68vh, 760rpx);
   margin-top: 14rpx;
   overflow: hidden;
-  border: 1rpx solid rgb(255 255 255 / 88%);
+  border: 1rpx solid rgb(255 255 255 / 80%);
   border-radius: 28rpx;
   box-sizing: border-box;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  background: rgb(248 251 255 / 99%);
-  box-shadow: 0 28rpx 72rpx rgb(26 79 145 / 22%);
+  background: #fff;
+  box-shadow: 0 26rpx 68rpx rgb(26 79 145 / 18%);
   animation: location-popover-in 180ms ease-out;
 }
 
 .location-popover__header {
   display: flex;
-  min-height: 78rpx;
+  min-height: 104rpx;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 20rpx 0 26rpx;
+  gap: 14rpx;
+  padding: 12rpx 18rpx 12rpx 28rpx;
   box-sizing: border-box;
-  background: rgb(255 255 255 / 96%);
+  background: #fff;
 }
 
-.location-popover__header strong {
+.location-popover__header-icon {
+  flex: 0 0 auto;
+  color: var(--location-filter-primary);
+  font-size: 30rpx;
+}
+
+.location-popover__heading {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.location-popover__heading strong {
   color: var(--app-text-primary);
-  font-size: 28rpx;
+  font-size: 29rpx;
+  line-height: 1.2;
+}
+
+.location-popover__heading text {
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 21rpx;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .location-popover__close {
   display: flex;
-  width: 52rpx;
-  height: 52rpx;
+  width: 56rpx;
+  height: 56rpx;
   margin: 0;
   padding: 0;
   align-items: center;
@@ -367,25 +477,68 @@ watch(() => regionStore.scopeKey, () => {
   color: var(--app-text-muted);
   font-size: 30rpx;
   line-height: 1;
-  background: transparent;
+  background: var(--app-bg-page);
 }
 
 .location-dropdown {
+  display: flex;
   min-height: 0;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .location-dropdown__option::after,
+.location-dropdown__mode::after,
 .location-dropdown__state button::after,
 .location-popover__close::after {
   border: 0;
 }
 
+.location-dropdown__mode {
+  display: flex;
+  width: 100%;
+  min-height: 88rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 4rpx;
+  border: 0;
+  border-bottom: 1rpx solid var(--app-divider-color);
+  border-radius: 0;
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+  font-weight: 500;
+  line-height: 1;
+  background: transparent;
+}
+
+.location-dropdown__mode.active {
+  color: var(--location-filter-primary);
+  font-weight: 600;
+  background: var(--location-filter-primary-soft);
+}
+
 .location-dropdown__columns {
   display: grid;
-  height: 100%;
+  min-height: 0;
+  flex: 1;
   overflow: hidden;
-  grid-template-columns: 2fr 3fr 5fr;
+  grid-template-columns: 19% 32% 49%;
+  border-top: 1rpx solid var(--app-divider-color);
+}
+
+.location-dropdown__columns--commute {
+  grid-template-columns: 19% 81%;
+}
+
+.location-dropdown__column--commute {
+  background: #fff;
+}
+
+.location-dropdown__commute-entry {
+  margin-top: 20rpx;
+  color: var(--app-color-brand);
+  font-size: 23rpx;
 }
 
 .location-dropdown__column {
@@ -409,94 +562,110 @@ watch(() => regionStore.scopeKey, () => {
 }
 
 .location-dropdown__column--mode {
-  padding: 12rpx 8rpx;
   box-sizing: border-box;
-  background: var(--location-filter-primary-soft);
+  border-right: 1rpx solid var(--app-divider-color);
+  background: var(--app-bg-page);
 }
 
 .location-dropdown__column--secondary {
-  border-right: 1rpx solid var(--app-border-color);
-  border-left: 1rpx solid var(--app-border-color);
+  border-right: 1rpx solid var(--app-divider-color);
   background: var(--app-bg-page);
 }
 
 .location-dropdown__column--content {
-  background: var(--app-bg-card);
+  background: #fff;
 }
 
 .location-dropdown__option {
   display: flex;
   width: 100%;
-  min-height: 82rpx;
+  min-height: 88rpx;
   margin: 0;
-  padding: 18rpx 22rpx;
+  padding: 15rpx 24rpx;
   align-items: center;
-  gap: 10rpx;
+  gap: 12rpx;
   border: 0;
+  border-bottom: 1rpx solid var(--app-divider-color);
   border-radius: 0;
   box-sizing: border-box;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
+  font-size: 25rpx;
   line-height: 1.35;
   text-align: left;
   background: transparent;
 }
 
-.location-dropdown__option--mode {
-  min-height: 76rpx;
-  justify-content: center;
-  margin-bottom: 6rpx;
-  padding: 12rpx 6rpx;
-  border-radius: 16rpx;
-  font-size: 23rpx;
+.location-dropdown__option--secondary {
+  padding-right: 10rpx;
+  padding-left: 17rpx;
+  gap: 9rpx;
+  font-size: 24rpx;
 }
 
-.location-dropdown__option.active {
+.location-dropdown__option--place {
+  padding-right: 16rpx;
+  padding-left: 17rpx;
+  font-size: 25rpx;
+}
+
+.location-dropdown__option--secondary.active {
   color: var(--location-filter-primary);
-  font-weight: 700;
-  background: rgb(255 255 255 / 92%);
-  box-shadow: 0 8rpx 22rpx rgb(15 23 42 / 6%);
+  font-weight: 600;
+  background: var(--location-filter-primary-soft);
+}
+
+.location-dropdown__option--place {
+  justify-content: space-between;
+  color: var(--app-text-primary);
+}
+
+.location-dropdown__option--place.active {
+  color: var(--location-filter-primary);
+  font-weight: 600;
+  background: var(--location-filter-primary-soft);
+}
+
+.location-dropdown__option--place .i-carbon-checkmark {
+  flex: 0 0 auto;
+  font-size: 25rpx;
 }
 
 .location-dropdown__line-color {
-  width: 12rpx;
-  height: 12rpx;
+  width: 13rpx;
+  height: 13rpx;
   flex: 0 0 auto;
   border-radius: 50%;
 }
 
 .location-dropdown__stations {
-  padding: 12rpx 14rpx 22rpx;
+  padding-bottom: 18rpx;
 }
 
 :deep(.location-dropdown__checkbox-group) {
   display: flex;
   flex-direction: column;
-  gap: 6rpx;
 }
 
 .location-dropdown__station-check {
   display: flex;
-  width: 34rpx;
-  height: 34rpx;
+  width: 36rpx;
+  height: 36rpx;
   align-items: center;
   justify-content: center;
-  border: 2rpx solid #d7dee8;
+  border: 2rpx solid #cbd5e3;
   border-radius: 50%;
   box-sizing: border-box;
   color: #fff;
   background: #fff;
   transition:
     border-color 160ms ease,
-    background-color 160ms ease,
-    transform 160ms ease;
+    background-color 160ms ease;
 }
 
 .location-dropdown__station-check--active {
   border-color: var(--location-filter-primary);
   background: var(--location-filter-primary);
-  box-shadow: 0 4rpx 12rpx rgb(22 119 255 / 22%);
-  transform: scale(1.04);
+  box-shadow: 0 3rpx 9rpx rgb(22 119 255 / 20%);
 }
 
 .location-dropdown__station-check-icon {
@@ -543,23 +712,25 @@ watch(() => regionStore.scopeKey, () => {
 .location-popover__footer {
   display: grid;
   width: 100%;
-  padding: 18rpx 22rpx 22rpx;
+  padding: 18rpx 24rpx 22rpx;
   box-sizing: border-box;
-  grid-template-columns: 1fr 1.8fr;
-  gap: 14rpx;
-  background: rgb(255 255 255 / 97%);
+  grid-template-columns: 1fr 1.6fr;
+  gap: 12rpx;
+  border-top: 1rpx solid var(--app-divider-color);
+  background: #fff;
 }
 
 :deep(.location-dropdown__reset),
 :deep(.location-dropdown__apply) {
-  border-radius: 20rpx;
+  --wot-button-height-medium: 78rpx;
+  border-radius: 16rpx;
 }
 
 :deep(.location-dropdown__reset) {
-  --wot-button-primary-color: var(--location-filter-primary);
-  --wot-button-primary-color-active: var(--location-filter-primary-active);
-  --wot-button-primary-plain-border: var(--location-filter-primary);
-  --wot-button-primary-plain-border-active: var(--location-filter-primary-active);
+  --wot-button-primary-color: #536278;
+  --wot-button-primary-color-active: #243247;
+  --wot-button-primary-plain-border: #dce4ee;
+  --wot-button-primary-plain-border-active: #b8c7da;
 }
 
 :deep(.location-dropdown__apply) {

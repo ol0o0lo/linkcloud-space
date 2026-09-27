@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import type { PublicHouseDetailOut } from '@/features/houses/service'
+import type { CommutePlace, CommuteRoute } from '@/features/houses/commute'
+import type { CommuteMode } from '@/services/manual/house-commute'
 import type { TenantContactChannel, TenantContactPreference } from '@/features/tenant-rental/service'
 import { onLoad, onPageScroll, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import { favoriteHouse, getHouseFavorite, unfavoriteHouse } from '@/features/favorites/service'
 import { getPublicHouse } from '@/features/houses/service'
+import { COMMUTE_MODES, getCommuteRoute, getHouseCommuteRoute } from '@/features/houses/commute'
+import { useWorkPlacePreferenceStore } from '@/features/houses/commute/preference'
 import { getTenantContactPreference, sendTenantContact } from '@/features/tenant-rental/service'
 import { trackPublicHouseEvent } from '@/infra/analytics/client'
 import { APP_ROUTES, getHouseDetailRoute, getLoginRoute } from '@/modules/routes'
 import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 import HouseDetailPage from '@/components/house/HouseDetailPage.vue'
 import HouseDetailSummary from '@/components/house/HouseDetailSummary.vue'
-import HouseInsightCard from '@/components/house/HouseInsightCard.vue'
 import HouseLocationCard from '@/components/house/HouseLocationCard.vue'
+import HouseCommuteCard from '@/components/house/HouseCommuteCard.vue'
 import HousePublicDetails from '@/components/house/HousePublicDetails.vue'
 import HouseMediaGallery from '@/components/house/HouseMediaGallery.vue'
 import { useNavigationScrollState } from '@/hooks/useNavigationScrollState'
@@ -27,6 +31,13 @@ definePage({
 })
 
 const houseId = ref(0)
+const commuteRouteId = ref(0)
+const commuteRoute = ref<CommuteRoute | null>(null)
+const commuteRouteError = ref('')
+const commuteLoading = ref(false)
+const commuteSettingsVisible = ref(false)
+let commuteLoadedKey = ''
+let commuteRequestVersion = 0
 const house = ref<PublicHouseDetailOut | null>(null)
 const loading = ref(true)
 const loadError = ref('')
@@ -41,6 +52,7 @@ const contactPhone = ref('')
 const contactWechat = ref('')
 const appContextStore = useAppContextStore()
 const sessionStore = useSessionStore()
+const workPlacePreference = useWorkPlacePreferenceStore()
 const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState({ threshold: 190, fadeDistance: 190 })
 onPageScroll(handleNavigationScroll)
 const updatedLabel = computed(() => house.value?.updated_at ? new Date(house.value.updated_at).toLocaleDateString('zh-CN') : '')
@@ -62,6 +74,9 @@ const title = computed(() => {
   return Array.from(new Set([estateName, house.value.building.name, house.value.room_number].filter(Boolean))).join(' ')
 })
 
+const commuteDestinationName = computed(() => workPlacePreference.preference?.place.name || commuteRoute.value?.destination_name || '')
+const commuteMode = computed<CommuteMode>(() => workPlacePreference.preference?.mode || commuteRoute.value?.mode || 'metro')
+
 const location = computed(() => {
   if (!house.value)
     return ''
@@ -82,6 +97,62 @@ async function loadHouse() {
   finally {
     loading.value = false
   }
+}
+
+async function loadCommuteRoute(force = false) {
+  if (!houseId.value)
+    return
+  const preference = workPlacePreference.preference
+  const key = preference
+    ? `${houseId.value}:${preference.place.destinationId}:${preference.mode}`
+    : `${houseId.value}:route:${commuteRouteId.value}`
+  if (!force && commuteLoadedKey === key)
+    return
+  commuteLoadedKey = key
+  const version = ++commuteRequestVersion
+  commuteRoute.value = null
+  commuteRouteError.value = ''
+  if (!preference && !commuteRouteId.value)
+    return
+  commuteLoading.value = true
+  try {
+    const route = preference
+      ? await getHouseCommuteRoute(houseId.value, preference.place.destinationId, preference.mode)
+      : await getCommuteRoute(commuteRouteId.value, houseId.value)
+    if (version === commuteRequestVersion)
+      commuteRoute.value = route
+  }
+  catch {
+    if (version === commuteRequestVersion)
+      commuteRouteError.value = '暂时无法计算'
+  }
+  finally {
+    if (version === commuteRequestVersion)
+      commuteLoading.value = false
+  }
+}
+
+function openCommuteSettings() {
+  commuteSettingsVisible.value = true
+}
+
+function openWorkPlacePicker() {
+  commuteSettingsVisible.value = false
+  uni.navigateTo({
+    url: `${APP_ROUTES.houseCommutePlace}${workPlacePreference.preference?.place.destinationId ? `?selected_id=${workPlacePreference.preference.place.destinationId}` : ''}`,
+    events: {
+      selectCommutePlace: (place: CommutePlace) => {
+        workPlacePreference.save(place)
+        void loadCommuteRoute()
+      },
+    },
+  })
+}
+
+function selectCommuteMode(mode: CommuteMode) {
+  workPlacePreference.setMode(mode)
+  commuteSettingsVisible.value = false
+  void loadCommuteRoute()
 }
 
 async function refreshFavorite() {
@@ -209,30 +280,35 @@ function shareHouse() {
 
 function retry() {
   void loadHouse()
+  void loadCommuteRoute(true)
 }
 
 onLoad((options) => {
   houseId.value = Number(options?.id || 0)
+  commuteRouteId.value = Number(options?.commute_route_id || 0)
   if (!houseId.value) {
     loadError.value = '房源参数不正确'
     loading.value = false
     return
   }
   void loadHouse()
+  void loadCommuteRoute()
 })
 
 onShow(() => {
   void refreshFavorite()
+  void loadCommuteRoute()
 })
 
 onShareAppMessage(() => ({
   title: title.value,
-  path: getHouseDetailRoute(houseId.value),
+  path: getHouseDetailRoute(houseId.value, commuteRouteId.value),
 }))
 </script>
 
 <template>
   <HouseDetailPage
+    class="public-house-page"
     :loading="loading"
     :error="loadError"
     :show-actions="Boolean(house)"
@@ -245,21 +321,33 @@ onShareAppMessage(() => ({
       <HouseMediaGallery v-if="house" :videos="house.videos" :images="house.images" />
     </template>
     <template v-if="house">
-      <HouseDetailSummary :house="house" />
-      <HouseInsightCard />
-      <HousePublicDetails :house="house" />
-      <HouseLocationCard
-        :name="house.building.estate?.display_name || house.building.name"
-        :address="location"
-        :latitude="house.building.location?.latitude"
-        :longitude="house.building.location?.longitude"
-      />
-      <view class="detail-page-end">
-        房源编号 #{{ house.id }} · 资料更新于 {{ updatedLabel }}
+      <view class="public-house-content">
+        <HouseDetailSummary :house="house" prominent />
+        <HousePublicDetails :house="house" section="intro" />
+        <HouseCommuteCard
+          :destination-name="commuteDestinationName"
+          :mode="commuteMode"
+          :route="commuteRoute"
+          :loading="commuteLoading"
+          :error="commuteRouteError"
+          @configure="openCommuteSettings"
+        />
+        <HouseLocationCard
+          :name="house.building.estate?.display_name || house.building.name"
+          :address="location"
+          :latitude="house.building.location?.latitude"
+          :longitude="house.building.location?.longitude"
+          :preview-count="4"
+          hide-nearby-hint
+        />
+        <HousePublicDetails :house="house" section="facts" />
+        <view class="detail-page-end">
+          房源编号 #{{ house.id }} · 资料更新于 {{ updatedLabel }}
+        </view>
       </view>
     </template>
     <template #actions>
-      <view class="detail-actions">
+      <view class="detail-actions public-house-actions">
         <button class="detail-action-icon" open-type="share" @click="shareHouse">
           <text class="i-carbon-share detail-action-icon__glyph" /><text>分享</text>
         </button>
@@ -275,6 +363,21 @@ onShareAppMessage(() => ({
     </template>
     <template #overlay>
       <template v-if="house">
+        <AppBottomSheet v-model:visible="commuteSettingsVisible" title="到上班地点" description="选择地点和常用出行方式" :z-index="1200" show-handle>
+          <view class="commute-settings">
+            <button class="commute-settings__place" @click="openWorkPlacePicker">
+              <view class="i-carbon-location-star" />
+              <text>{{ workPlacePreference.preference?.place.name || '设置上班地点' }}</text>
+              <view class="i-carbon-chevron-right" />
+            </button>
+            <text v-if="workPlacePreference.preference" class="commute-settings__label">出行方式</text>
+            <view v-if="workPlacePreference.preference" class="commute-settings__modes">
+              <button v-for="item in COMMUTE_MODES" :key="item.value" class="commute-settings__mode" :class="{ 'commute-settings__mode--active': commuteMode === item.value }" @click="selectCommuteMode(item.value)">
+                <view :class="item.icon" />{{ item.label }}
+              </button>
+            </view>
+          </view>
+        </AppBottomSheet>
         <AppBottomSheet v-model:visible="contactVisible" title="预约联系" description="发送后，中介将主动联系你并协商看房时间" :z-index="1200" show-handle custom-style="--wot-popup-radius:22px;--wot-popup-close-margin:24px;--wot-popup-close-size:20px">
           <view class="contact-form">
             <view v-if="contactLoading" class="contact-hint">
@@ -335,6 +438,175 @@ onShareAppMessage(() => ({
 
 <style scoped lang="scss">
 @use '@/components/house/detail.scss';
+.public-house-page {
+  --app-bg-page: #f3f6fa;
+  --app-text-primary: #182b43;
+  --app-text-secondary: #5c6e83;
+  --house-line: #e8eef5;
+  background: #f3f6fa;
+}
+.public-house-page :deep(.house-media) {
+  height: 64vw;
+  max-height: 360px;
+}
+.public-house-page :deep(.house-media--empty) {
+  height: 188px;
+}
+.public-house-page :deep(.house-media__empty) {
+  background: linear-gradient(145deg, #174b83, #102b4c);
+}
+.public-house-content {
+  background: #f3f6fa;
+}
+.public-house-content :deep(.summary--prominent) {
+  border-radius: 16px;
+}
+.public-house-content :deep(.detail-card:not(.summary)) {
+  margin: 10px 12px 0;
+  padding: 20px 18px;
+  border: 1px solid #e4ebf3;
+  border-radius: 16px;
+  background: #fff;
+}
+.public-house-content :deep(.detail-heading) {
+  min-height: 27px;
+  margin-bottom: 13px;
+  padding-left: 10px;
+  border-left: 3px solid #1269db;
+  color: #182b43;
+  font-size: 16px;
+  font-weight: 680;
+}
+.public-house-content :deep(.intro .detail-meta) {
+  display: none;
+}
+.public-house-content :deep(.detail-meta) {
+  color: #8796a8;
+  font-size: 11px;
+  font-weight: 400;
+}
+.public-house-content :deep(.tag-group) {
+  margin-top: 0;
+}
+.public-house-content :deep(.tag-item) {
+  padding: 4px 8px;
+  border: 1px solid #d8e8fa;
+  border-radius: 7px;
+  color: #2e69a8;
+  background: #eff6ff;
+}
+.public-house-content :deep(.tag-item--inherited) {
+  background: #eff6ff;
+}
+.public-house-content :deep(.description) {
+  margin-top: 14px;
+  color: #43566d;
+  font-size: 13px;
+  line-height: 23px;
+}
+.public-house-content :deep(.commute-card__mode-icon),
+.public-house-content :deep(.address-icon) {
+  color: #1269db;
+}
+.public-house-content :deep(.map) {
+  height: 174px;
+  margin-top: 14px;
+  border-radius: 12px;
+}
+.public-house-content :deep(.poi-tab--active) {
+  color: #1269db;
+  background: #edf5ff;
+}
+.public-house-content :deep(.details .datum) {
+  padding: 12px 0;
+}
+.public-house-content :deep(.details .datum-label) {
+  color: #8290a2;
+  font-size: 11px;
+}
+.public-house-content :deep(.details .detail-value) {
+  color: #273a51;
+  font-size: 13px;
+}
+.public-house-content .detail-page-end {
+  padding: 27px 12px 28px;
+}
+.public-house-actions {
+  gap: 12px;
+  --wot-button-primary-bg: #1269db;
+  --wot-button-primary-bg-active: #0c58bd;
+  --wot-button-height-medium: 48px;
+  --wot-button-radius-main: 12px;
+}
+.public-house-actions .detail-action-icon {
+  width: 46px;
+  height: 48px;
+}
+.public-house-actions .detail-action-icon__glyph {
+  font-size: 21px;
+}
+.public-house-actions .favorite-active {
+  color: #1269db;
+}
+.commute-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.commute-settings__place {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 11px;
+  border: 1px solid #e7ecf2;
+  border-radius: 10px;
+  color: #182538;
+  font-size: 13px;
+  text-align: left;
+  background: #f8fafc;
+}
+.commute-settings__place::after,
+.commute-settings__mode::after {
+  border: 0;
+}
+.commute-settings__place text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.commute-settings__label {
+  color: #182538;
+  font-size: 12px;
+  font-weight: 600;
+}
+.commute-settings__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.commute-settings__mode {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  color: #526177;
+  font-size: 12px;
+  line-height: 34px;
+  background: #fff;
+}
+.commute-settings__mode--active {
+  border-color: #b8d7f5;
+  color: #006bcc;
+  background: #edf6ff;
+}
 .favorite-active {
   color: #006bcc;
 }

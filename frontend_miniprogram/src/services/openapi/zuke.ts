@@ -5,6 +5,24 @@ import { CustomRequestOptions_ } from '@/http/types';
 
 import * as API from './types';
 
+/** 租客发送预约联系方式 POST /api/house/tenant/contact/ */
+export function houseTenantContactUsingPost({
+  body,
+  options,
+}: {
+  body: API.TenantContactRequestIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.TenantContactRequestOut>('/api/house/tenant/contact/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 获取租客个人租约 GET /api/house/tenant/leases/ */
 export function houseTenantLeasesUsingGet({
   params,

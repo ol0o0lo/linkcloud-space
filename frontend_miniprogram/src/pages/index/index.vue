@@ -21,6 +21,7 @@ import { usePagedPage } from '@/hooks/usePagedPage'
 import { useHouseCardFavorites } from '@/hooks/useHouseCardFavorites'
 import { useAppContextStore } from '@/store/app-context-v2'
 import { usePublicHouseRegionStore } from '@/store/public-house-region'
+import { getCurrentLocationGcj02, getLocationErrorMessage } from '@/utils/location'
 
 defineOptions({ name: 'Home' })
 definePage({
@@ -112,19 +113,19 @@ async function selectRecommendationMode(mode: RecommendationMode) {
 
   locatingNearby.value = true
   try {
-    const location = await uni.getLocation({ type: 'gcj02', isHighAccuracy: true })
+    const location = await getCurrentLocationGcj02()
     spatialFilter.enterNearby({ latitude: location.latitude, longitude: location.longitude }, nearbyRadiusM)
     recommendationMode.value = 'nearby'
     void recommendationPage.refresh()
   }
-  catch {
+  catch (error) {
     // #ifdef MP-WEIXIN
     const modal = await uni.showModal({ title: '需要位置权限', content: '开启定位后才能查看附近房源。', confirmText: '去设置' })
     if (modal.confirm)
       await uni.openSetting()
     // #endif
     // #ifndef MP-WEIXIN
-    uni.showToast({ title: '无法获取当前位置，请检查浏览器定位权限', icon: 'none' })
+    uni.showToast({ title: getLocationErrorMessage(error), icon: 'none' })
     // #endif
   }
   finally {
@@ -164,6 +165,10 @@ function handleRegionChange() {
 
 function goFindHouse(preset: PublicHouseSearchPreset = {}) {
   uni.navigateTo({ url: getPublicHouseSearchRoute(preset) })
+}
+
+function openKeywordSearch() {
+  uni.navigateTo({ url: `${APP_ROUTES.publicHouseSearchInput}?city=${encodeURIComponent(regionStore.selection.city)}` })
 }
 
 function goMapFindHouse() {
@@ -246,9 +251,9 @@ onShow(async () => {
         <template #content>
           <view class="home-navigation__finder">
             <PublicHouseRegionTrigger @change="handleRegionChange" />
-            <button class="home-navigation__search app-touchable" hover-class="app-touchable--pressed" @click="goFindHouse()">
+            <button class="home-navigation__search app-touchable" hover-class="app-touchable--pressed" @click="openKeywordSearch">
               <view class="i-carbon-search" />
-              <text>搜索小区、地铁、商圈</text>
+              <text>搜索小区、区域或房源</text>
             </button>
           </view>
         </template>

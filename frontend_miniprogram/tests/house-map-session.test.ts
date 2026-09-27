@@ -51,6 +51,37 @@ test('显式地图加载会取消尚未执行的视野请求', async () => {
   session.dispose()
 })
 
+test('点击标记会取消排队和在途的旧视野请求', async () => {
+  const pending = new Map<string, ReturnType<typeof deferred<string>>>()
+  const commits: string[] = []
+  const session = createHouseMapSession<{ key: string }, string>({
+    debounceMs: 10,
+    buildKey: params => params.key,
+    request: (params) => {
+      const task = deferred<string>()
+      pending.set(params.key, task)
+      return task.promise
+    },
+    onCommit: result => commits.push(result),
+  })
+
+  const oldRequest = session.load({ key: 'old-viewport' })
+  session.schedule({ key: 'queued-viewport' })
+  session.cancelPending()
+  pending.get('old-viewport')!.resolve('old-result')
+  await oldRequest
+  await new Promise(resolve => setTimeout(resolve, 30))
+
+  assert.deepEqual(Array.from(pending.keys()), ['old-viewport'])
+  assert.deepEqual(commits, [])
+
+  const targetRequest = session.load({ key: 'target-viewport' })
+  pending.get('target-viewport')!.resolve('target-result')
+  await targetRequest
+  assert.deepEqual(commits, ['target-result'])
+  session.dispose()
+})
+
 test('地图会话忽略比当前视野更早返回的过期响应', async () => {
   const pending = new Map<string, ReturnType<typeof deferred<string>>>()
   const commits: string[] = []

@@ -12,14 +12,14 @@ export function resolveRouteAccess(path: string) {
   if (shellRoutes.includes(path) || isPublicRoute(path))
     return { allowed: true, redirect: '' }
 
+  if ((isProtectedAccountRoute(path) || isProtectedMessageRoute(path)) && !appContextStore.authenticated)
+    return { allowed: false, redirect: getLoginRoute(path) }
+
   if (isTabbarShellRoute(path)) {
     return isAvailableTabbarShellRoute(appContextStore.navigationMode, path)
       ? { allowed: true, redirect: '' }
       : { allowed: false, redirect: APP_ROUTES.forbidden }
   }
-
-  if ((isProtectedAccountRoute(path) || isProtectedMessageRoute(path)) && !appContextStore.authenticated)
-    return { allowed: false, redirect: getLoginRoute(path) }
 
   const module = findModuleByRoute(path)
   if (!module)
@@ -44,12 +44,12 @@ export const permission = {
         }
       }
       appContextStore.syncRouteContext(path)
-      tabbarStore.syncCurrentPath(path)
       const decision = resolveRouteAccess(path)
       if (!decision.allowed) {
         next(decision.redirect)
         return
       }
+      tabbarStore.syncCurrentPath(path)
       next()
     })
   },

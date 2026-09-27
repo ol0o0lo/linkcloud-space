@@ -8,6 +8,8 @@ const props = defineProps<{
   address: string
   latitude?: string | number | null
   longitude?: string | number | null
+  previewCount?: number
+  hideNearbyHint?: boolean
 }>()
 const categories = [
   { key: 'bus', label: '公交' },
@@ -23,6 +25,7 @@ let poiRequestId = 0
 const hasCoordinates = computed(() => props.latitude != null && props.longitude != null && Number.isFinite(Number(props.latitude)) && Number.isFinite(Number(props.longitude)))
 const activeCategory = computed(() => categories.find(item => item.key === category.value) || categories[0])
 const pois = computed(() => poiGroups.value[category.value])
+const visiblePois = computed(() => props.previewCount ? pois.value.slice(0, props.previewCount) : pois.value)
 const markers = computed(() => hasCoordinates.value
   ? [{
       id: 1,
@@ -63,7 +66,7 @@ watch(
 )
 
 function distanceText(distance: number) {
-  return distance < 1000 ? `${distance} m` : `${(distance / 1000).toFixed(1)} km`
+  return distance < 1000 ? `${distance} 米` : `${(distance / 1000).toFixed(1)} 公里`
 }
 
 function openLocation() {
@@ -108,7 +111,7 @@ function openLocation() {
       {{ poiError }}
     </view>
     <view v-else-if="pois.length" class="poi-list">
-      <view v-for="poi in pois" :key="poi.id" class="poi-item">
+      <view v-for="poi in visiblePois" :key="poi.id" class="poi-item">
         <view class="poi-main">
           <text class="poi-name">{{ poi.name }}</text>
           <text class="poi-address">{{ poi.address }}</text>
@@ -119,7 +122,7 @@ function openLocation() {
     <view v-else class="poi-empty">
       2 公里内暂无{{ activeCategory.label }}地点信息
     </view>
-    <view class="poi-hint">
+    <view v-if="!hideNearbyHint" class="poi-hint">
       {{ hasCoordinates ? '2 公里内周边配套' : '房源位置以工作人员确认为准' }}
     </view>
   </view>

@@ -27,9 +27,12 @@ function formatAmount(value: number) {
 
 <template>
   <view class="map-result-sheet" @tap.stop>
-    <view class="map-result-sheet__handle" />
     <view class="map-result-sheet__heading">
       <view class="map-result-sheet__main">
+        <view class="map-result-sheet__eyebrow">
+          <view class="map-result-sheet__eyebrow-dot" />
+          <text>已选楼栋</text>
+        </view>
         <view class="map-result-sheet__title-row">
           <text class="map-result-sheet__title">{{ marker.name }}</text>
           <text class="map-result-sheet__count">{{ marker.house_count }} 套</text>
@@ -101,22 +104,15 @@ function formatAmount(value: number) {
   max-width: 760rpx;
   max-height: 48vh;
   margin: 0 auto;
-  padding: 18rpx 22rpx 22rpx;
+  padding: 22rpx 22rpx 22rpx;
   overflow: hidden;
-  border: 1rpx solid rgb(255 255 255 / 78%);
-  border-radius: 34rpx;
+  border: 1rpx solid rgb(255 255 255 / 84%);
+  border-radius: 30rpx;
   box-sizing: border-box;
   background: rgb(255 255 255 / 95%);
-  box-shadow: 0 20rpx 56rpx rgb(30 55 82 / 20%);
+  box-shadow: 0 18rpx 54rpx rgb(23 35 61 / 17%);
   animation: map-result-sheet-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
   backdrop-filter: blur(20rpx);
-}
-.map-result-sheet__handle {
-  width: 64rpx;
-  height: 7rpx;
-  margin: 0 auto 14rpx;
-  border-radius: 4rpx;
-  background: #d7e0eb;
 }
 .map-result-sheet__heading {
   display: flex;
@@ -126,6 +122,22 @@ function formatAmount(value: number) {
 .map-result-sheet__main {
   min-width: 0;
   flex: 1;
+}
+.map-result-sheet__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-bottom: 8rpx;
+  color: var(--app-color-brand-active);
+  font-size: 19rpx;
+  font-weight: 700;
+}
+.map-result-sheet__eyebrow-dot {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background: var(--app-color-brand);
+  box-shadow: 0 0 0 5rpx rgb(0 129 255 / 12%);
 }
 .map-result-sheet__title-row {
   display: flex;
@@ -176,7 +188,7 @@ function formatAmount(value: number) {
   gap: 3rpx;
   border: 0;
   border-radius: 20rpx;
-  color: var(--app-color-brand-active);
+  color: var(--app-color-brand);
   font-size: 18rpx;
   line-height: 1;
   background: var(--app-bg-brand-soft);

@@ -29,7 +29,7 @@ export interface AmapH5Map {
   resize: () => void
   setFitView: (overlays?: AmapH5Marker[], immediately?: boolean, avoid?: number[], maxZoom?: number) => void
   setZoom: (zoom: number) => void
-  setZoomAndCenter: (zoom: number, center: [number, number]) => void
+  setZoomAndCenter: (zoom: number, center: [number, number], immediately?: boolean) => void
 }
 
 export interface AmapH5Namespace {
@@ -80,15 +80,14 @@ export function buildAmapH5ScriptUrl(key: string, callback: string, plugins: str
 
 export function buildAmapH5MarkerContent(options: MarkerContentOptions): string {
   const activeClass = options.active ? ' house-h5-map-marker--active' : ''
-  const rent = options.minRent == null
-    ? ''
-    : `<span class="house-h5-map-marker__price">¥${Math.round(options.minRent).toLocaleString('zh-CN')}起</span>`
   const childLabels = { city: '个区域', district: '个小区', estate: '栋楼', building: '套房源' } as const
-  const child = options.level && options.childCount != null ? `<span class="house-h5-map-marker__child">${options.childCount}${childLabels[options.level]}</span>` : ''
+  const child = options.level && options.childCount != null ? `，${options.childCount}${childLabels[options.level]}` : ''
   const name = options.name ? `<strong class="house-h5-map-marker__name">${escapeMarkerText(options.name)}</strong>` : ''
+  const accessibleName = escapeMarkerText(options.name || '房源')
   if (options.level && options.level !== 'building')
-    return `<div class="house-h5-map-marker house-h5-map-marker--group${activeClass}">${name}<span class="house-h5-map-marker__meta">${child}<span class="house-h5-map-marker__count">${options.houseCount}套</span>${rent}</span><span class="house-h5-map-marker__arrow"></span></div>`
-  return `<div class="house-h5-map-marker${activeClass}">${name}<span class="house-h5-map-marker__count">${options.houseCount}套</span>${rent}<span class="house-h5-map-marker__arrow"></span></div>`
+    return `<div class="house-h5-map-marker house-h5-map-marker--group${activeClass}" aria-label="${accessibleName}${child}，${options.houseCount}套"><span class="house-h5-map-marker__cluster-count">${options.houseCount}<small>套</small></span>${name}</div>`
+  const label = options.minRent == null ? `${options.houseCount}套` : `¥${Math.round(options.minRent).toLocaleString('zh-CN')}起`
+  return `<div class="house-h5-map-marker${activeClass}" aria-label="${accessibleName}，${options.houseCount}套，${label}"><span class="house-h5-map-marker__price">${label}</span><span class="house-h5-map-marker__arrow"></span></div>`
 }
 
 function escapeMarkerText(value: string): string {

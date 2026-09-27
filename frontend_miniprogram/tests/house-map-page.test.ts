@@ -55,7 +55,7 @@ test('地图找房按视野实时请求并提供缩放定位交互', () => {
   assert.ok(pageSource.includes('function zoomIn()'))
   assert.ok(pageSource.includes('function zoomOut()'))
   assert.ok(pageSource.includes('function locateUser()'))
-  assert.ok(pageSource.includes('uni.getLocation'))
+  assert.ok(pageSource.includes('getCurrentLocationGcj02'))
   assert.ok(h5MapSource.includes(`map.on('zoomend'`))
   assert.ok(h5MapSource.includes(`map.on('moveend'`))
   assert.ok(h5MapSource.includes(`'viewport-change'`))
@@ -76,15 +76,20 @@ test('微信地图仅在有有效坐标时通过上下文适配视野', () => {
   assert.ok(!pageSource.includes(':include-points="'))
   assert.ok(pageSource.includes('const points = resolveMapIncludePoints'))
   assert.ok(pageSource.includes('if (!points?.length)'))
+  assert.ok(pageSource.includes('if (points.length === 1)'))
   assert.ok(pageSource.includes('context.includePoints({'))
+})
+
+test('H5 单个城市标记不会被自动适配到超出请求的缩放级别', () => {
+  assert.ok(h5MapSource.includes('map.setFitView(Array.from(markers.values()), true, [150, 32, 110, 32], props.zoom)'))
 })
 
 test('程序化地图移动不会覆盖显式全城请求', () => {
   const scheduleStart = pageSource.indexOf('function scheduleViewportLoad')
   const scheduleEnd = pageSource.indexOf('\n}', scheduleStart)
   const scheduleSource = pageSource.slice(scheduleStart, scheduleEnd)
-  assert.ok(scheduleSource.indexOf('Date.now() < ignoredViewportUntil') < scheduleSource.indexOf('currentViewport.value = viewport'))
-  assert.ok(scheduleSource.indexOf('ignoredViewportEvents > 0') < scheduleSource.indexOf('currentViewport.value = viewport'))
+  assert.ok(scheduleSource.indexOf('Date.now() < ignoredViewportUntil') < scheduleSource.lastIndexOf('currentViewport.value = viewport'))
+  assert.ok(scheduleSource.indexOf('ignoredViewportEvents > 0') < scheduleSource.lastIndexOf('currentViewport.value = viewport'))
   assert.ok(pageSource.includes('function ignoreNextViewportChange()'))
   assert.ok(pageSource.includes('ignoreNextViewportChange()\n  currentViewport.value = null'))
 })
@@ -96,6 +101,12 @@ test('清除附近筛选和查看全城都会强制恢复完整城市结果', ()
   assert.ok(resetSource.includes('spatialFilter.reset()'))
   assert.ok(resetSource.includes('loadMapMarkers(null, true)'))
   assert.ok(pageSource.includes('@click="hasActiveFilters ? viewFullCity() : resetMapView()"'))
+})
+
+test('恢复地图全览时即使查询条件未变也重新适配标记', () => {
+  const resetStart = pageSource.indexOf('function resetMapView()')
+  const resetEnd = pageSource.indexOf('\n}', resetStart)
+  assert.ok(pageSource.slice(resetStart, resetEnd).includes('loadMapMarkers(null, true)'))
 })
 
 test('楼栋选中后使用可关闭、可重试的独立房源结果层', () => {
@@ -120,7 +131,24 @@ test('点击聚合标记时显式加载下一地图层级', () => {
   assert.ok(selectSource.includes('if (marker.level !== \'building\')'))
   assert.ok(selectSource.includes('currentViewport.value = null'))
   assert.ok(selectSource.includes('mapScale.value = marker.target_zoom'))
-  assert.ok(selectSource.includes('loadMapMarkers(null)'))
+  assert.ok(selectSource.includes('pendingDrillViewport = {'))
+})
+
+test('点击聚合标记后按目标视野取数，不把全城标记重新适配到视野', () => {
+  const loadStart = pageSource.indexOf('async function loadMapMarkers')
+  const loadEnd = pageSource.indexOf('\n}\n\nfunction prepareMapFit', loadStart)
+  const loadSource = pageSource.slice(loadStart, loadEnd)
+  const selectStart = pageSource.indexOf('function selectMarkerByKey')
+  const selectEnd = pageSource.indexOf('\n}\n\nasync function loadSelectedHouses', selectStart)
+  const selectSource = pageSource.slice(selectStart, selectEnd)
+  const scheduleStart = pageSource.indexOf('function scheduleViewportLoad')
+  const scheduleEnd = pageSource.indexOf('\n}\n\nfunction handleH5ViewportChange', scheduleStart)
+  const scheduleSource = pageSource.slice(scheduleStart, scheduleEnd)
+
+  assert.ok(!selectSource.includes('loadMapMarkers(null)'))
+  assert.ok(scheduleSource.includes('if (pendingDrillViewport)'))
+  assert.ok(scheduleSource.includes('void loadMapMarkers(viewport)'))
+  assert.ok(loadSource.includes('fitRequestKeys.delete(requestKey)'))
 })
 
 test('微信小程序声明地图定位权限和隐私接口', () => {

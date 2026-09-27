@@ -8,7 +8,7 @@ export interface HomeEntryHouse {
 }
 
 const publicRequestOptions = { requestScope: { kind: 'public' as const } }
-const BASE_PATH = '/api/public/miniprogram'
+const BASE_PATH = '/api/public/content'
 
 export function requestHomeContent() {
   return httpGet<HomeContent>(`${BASE_PATH}/home/`, undefined, undefined, publicRequestOptions)
@@ -16,7 +16,7 @@ export function requestHomeContent() {
 
 export function requestHomeEntries(kind: HomeEntryKind, page: number, pageSize: number) {
   return httpGet<PageResult<HomeEntrySummary>>(
-    `${BASE_PATH}/home-entries/`,
+    `${BASE_PATH}/entries/`,
     { kind, page, page_size: pageSize },
     undefined,
     publicRequestOptions,
@@ -24,12 +24,12 @@ export function requestHomeEntries(kind: HomeEntryKind, page: number, pageSize: 
 }
 
 export function requestHomeEntry(slug: string) {
-  return httpGet<HomeEntryDetail>(`${BASE_PATH}/home-entries/${encodeURIComponent(slug)}/`, undefined, undefined, publicRequestOptions)
+  return httpGet<HomeEntryDetail>(`${BASE_PATH}/entries/${encodeURIComponent(slug)}/`, undefined, undefined, publicRequestOptions)
 }
 
 export function requestHomeEntryHouses(slug: string, page: number, pageSize: number) {
   return httpGet<PageResult<HomeEntryHouse>>(
-    `${BASE_PATH}/home-entries/${encodeURIComponent(slug)}/houses/`,
+    `${BASE_PATH}/entries/${encodeURIComponent(slug)}/houses/`,
     { page, page_size: pageSize },
     undefined,
     publicRequestOptions,

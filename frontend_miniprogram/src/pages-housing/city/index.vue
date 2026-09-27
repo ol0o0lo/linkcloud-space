@@ -10,6 +10,7 @@ import {
 } from '@/domain/public-house-region'
 import { getLocatedPublicHouseRegion } from '@/features/houses/service'
 import { usePublicHouseRegionStore } from '@/store/public-house-region'
+import { getCurrentLocationGcj02, getLocationErrorMessage } from '@/utils/location'
 
 definePage({
   style: {
@@ -93,11 +94,11 @@ async function locateCurrentCity(interactive = true) {
       return
     }
 
-    let location: Awaited<ReturnType<typeof uni.getLocation>>
+    let location: Awaited<ReturnType<typeof getCurrentLocationGcj02>>
     try {
-      location = await uni.getLocation({ type: 'gcj02', isHighAccuracy: true })
+      location = await getCurrentLocationGcj02()
     }
-    catch {
+    catch (error) {
       locationStatus.value = '定位失败，点击重试'
       if (interactive) {
         // #ifdef MP-WEIXIN
@@ -106,9 +107,12 @@ async function locateCurrentCity(interactive = true) {
           await uni.openSetting()
         // #endif
         // #ifndef MP-WEIXIN
-        uni.showToast({ title: '无法获取当前位置，请检查浏览器位置权限', icon: 'none' })
+        uni.showToast({ title: getLocationErrorMessage(error), icon: 'none' })
         // #endif
       }
+      // #ifdef H5
+      locationStatus.value = getLocationErrorMessage(error)
+      // #endif
       return
     }
 

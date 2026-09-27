@@ -1,4 +1,5 @@
 import type { PublicHouseLocatedRegion, PublicHouseManualRegionPreference, PublicHouseRegionSelection } from '@/domain/public-house-region'
+import type { GeoCoordinates } from '@/domain/geo-coordinates'
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
@@ -15,6 +16,7 @@ import {
 import { createVersionedStorage } from '@/infra/storage/versioned-storage'
 import { platformStorage } from '@/platform'
 import { requestPublicHouseRegions, resolvePublicHouseRegion } from '@/services/manual/houses'
+import { getCurrentLocationGcj02 } from '@/utils/location'
 
 const regionPersistence = createVersionedStorage<PublicHouseRegionSelection>({
   key: 'public-house-region',
@@ -153,7 +155,7 @@ export const usePublicHouseRegionStore = defineStore('public-house-region', () =
     selectRegion(createNationwidePublicHouseRegion())
   }
 
-  async function initializeDefaultRegion(): Promise<boolean> {
+  async function initializeDefaultRegion(initialLocation?: GeoCoordinates | null): Promise<boolean> {
     if (pendingInitialLocation)
       return pendingInitialLocation
     if (hasValidManualPreference() && loaded.value)
@@ -169,7 +171,9 @@ export const usePublicHouseRegionStore = defineStore('public-house-region', () =
         if (initialLocationAttempted)
           return false
         initialLocationAttempted = true
-        const location = await uni.getLocation({ type: 'gcj02', isHighAccuracy: true })
+        const location = initialLocation === undefined ? await getCurrentLocationGcj02() : initialLocation
+        if (!location)
+          return false
         const located = await resolvePublicHouseRegion({
           latitude: location.latitude,
           longitude: location.longitude,

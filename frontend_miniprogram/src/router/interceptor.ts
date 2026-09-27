@@ -62,8 +62,6 @@ export const navigateToInterceptor = {
     const appContextStore = useAppContextStore()
     appContextStore.syncRouteContext(path)
 
-    tabbarStore.syncCurrentPath(path)
-
     if (appContextStore.startupState !== 'ready')
       return true
 
@@ -78,6 +76,7 @@ export const navigateToInterceptor = {
       uni.navigateTo({ url: decision.redirect })
       return false
     }
+    tabbarStore.syncCurrentPath(path)
     return true
   },
 }

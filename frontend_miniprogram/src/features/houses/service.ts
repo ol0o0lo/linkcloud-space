@@ -1,10 +1,10 @@
 import type { PublicHouseMapParams, PublicHousesUsingGetParams, ResolvePublicHouseRegionParams } from '@/services/manual/houses'
 import { normalizePublicHouseQuery } from '@/domain/house'
-import { requestPublicHouse, requestPublicHouseFilters, requestPublicHouseMap, requestPublicHouseRegions, requestPublicHouses, resolvePublicHouseRegion } from '@/services/manual/houses'
+import { requestPublicHouse, requestPublicHouseFilters, requestPublicHouseMap, requestPublicHouseRegions, requestPublicHouses, requestPublicHouseSuggestions, resolvePublicHouseRegion } from '@/services/manual/houses'
 import { requestPublicMetroCities, requestPublicMetroCity } from '@/services/manual/metro'
 
 export type { PublicHouseLocationMode, PublicHouseMetroSelection, PublicHouseRadiusM, PublicMetroCityDetail, PublicMetroCitySummary, PublicMetroLine, PublicMetroStation } from '@/domain/public-house-metro'
-export type { HouseAIInsightOut, HouseOut, PublicHouseDetailOut, PublicHouseFiltersOut, PublicHouseListOut, PublicHouseMapLevel, PublicHouseMapMarker, PublicHouseMapParams, PublicHouseMapResponse, PublicHouseRegionsResponse, PublicHousesUsingGetParams, ResolvePublicHouseRegionParams } from '@/services/manual/houses'
+export type { HouseAIInsightOut, HouseOut, PublicHouseDetailOut, PublicHouseFiltersOut, PublicHouseListOut, PublicHouseMapLevel, PublicHouseMapMarker, PublicHouseMapParams, PublicHouseMapResponse, PublicHouseRegionsResponse, PublicHouseSuggestion, PublicHousesUsingGetParams, ResolvePublicHouseRegionParams } from '@/services/manual/houses'
 
 export function listPublicHouses(params: PublicHousesUsingGetParams) {
   return requestPublicHouses(normalizePublicHouseQuery(params) as PublicHousesUsingGetParams)
@@ -16,6 +16,10 @@ export function getPublicHouse(houseId: number) {
 
 export function getPublicHouseFilters() {
   return requestPublicHouseFilters()
+}
+
+export function getPublicHouseSuggestions(keyword: string, city?: string) {
+  return requestPublicHouseSuggestions(keyword, city)
 }
 
 export function getPublicHouseMap(params: PublicHouseMapParams) {

@@ -34,6 +34,11 @@ const houseFavorites = useHouseCardFavorites()
 const title = computed(() => entry.value?.title || '内容详情')
 const coverUrl = computed(() => entry.value?.cover_image[0]?.url || entry.value?.cover_image[0]?.thumbnail || '')
 const isTopic = computed(() => entry.value?.kind === 'topic')
+const articleBodyHtml = computed(() => {
+  const body = entry.value?.body_html || ''
+  const leadingTitle = body.match(/^\s*<h1>([\s\S]*?)<\/h1>\s*/i)
+  return leadingTitle?.[1].trim() === entry.value?.title.trim() ? body.slice(leadingTitle[0].length) : body
+})
 const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState({ threshold: 24, fadeDistance: 220 })
 
 const housePage = usePagedPage<HomeEntryHouse>({
@@ -83,7 +88,7 @@ onPageScroll(handleNavigationScroll)
 </script>
 
 <template>
-  <AppPage class="entry-detail-page" variant="detail" :gutter="isTopic ? 'none' : 'normal'" safe-area-bottom>
+  <AppPage class="entry-detail-page" :class="{ 'entry-detail-page--guide': entry && !isTopic }" variant="detail" :gutter="entry ? 'none' : 'normal'" safe-area-bottom>
     <template #navigation>
       <AppCustomNavigation
         v-if="isTopic"
@@ -95,7 +100,7 @@ onPageScroll(handleNavigationScroll)
         :scroll-progress="navigationProgress"
         content-opacity-mode="fade-in"
       />
-      <AppCustomNavigation v-else :title="title" back scroll-mode="sticky" scrolled />
+      <AppCustomNavigation v-else :title="entry?.eyebrow || '租房指南'" back scroll-mode="sticky" scrolled />
     </template>
 
     <AppLoading v-if="loading && !entry" text="正在加载内容…" />
@@ -112,22 +117,34 @@ onPageScroll(handleNavigationScroll)
           </view>
         </view>
         <view class="topic-story">
-          <view class="topic-story__marker">
-            <view class="topic-story__line" />
-            <text>专题内容</text>
+          <view class="topic-story__inner">
+            <view class="topic-story__marker">
+              <view class="topic-story__line" />
+              <text>专题内容</text>
+            </view>
+            <rich-text class="entry-body topic-story__body" :nodes="entry.body_html" />
           </view>
-          <rich-text class="entry-body topic-story__body" :nodes="entry.body_html" />
         </view>
       </view>
 
       <view v-else class="entry-article">
-        <image v-if="coverUrl" class="entry-cover" :src="coverUrl" mode="aspectFill" />
-        <view class="entry-heading">
-          <text class="entry-eyebrow">{{ entry.eyebrow || '实用指南' }}</text>
-          <text class="entry-title">{{ entry.title }}</text>
-          <text class="entry-summary">{{ entry.summary }}</text>
+        <view class="entry-hero" :class="`entry-hero--${entry.tone}`">
+          <image v-if="coverUrl" class="entry-hero__image" :src="coverUrl" mode="aspectFill" />
+          <view class="entry-hero__wash" />
+          <view v-if="!coverUrl" class="entry-hero__ornament" />
+          <view class="entry-hero__content">
+            <text class="entry-hero__eyebrow">{{ entry.eyebrow || '实用指南' }}</text>
+            <text class="entry-hero__title">{{ entry.title }}</text>
+            <text class="entry-hero__summary">{{ entry.summary }}</text>
+          </view>
         </view>
-        <rich-text class="entry-body" :nodes="entry.body_html" />
+        <view class="entry-article__paper">
+          <view class="entry-reading-label">
+            <view class="entry-reading-label__line" />
+            <text>正文</text>
+          </view>
+          <rich-text class="entry-body entry-article__body" :nodes="articleBodyHtml" />
+        </view>
       </view>
 
       <view v-if="isTopic" class="topic-houses topic-houses--immersive">
@@ -177,6 +194,10 @@ onPageScroll(handleNavigationScroll)
 .entry-detail-page {
   min-height: 100vh;
   background: var(--app-bg-page);
+}
+
+.entry-detail-page--guide {
+  background: linear-gradient(180deg, #edf2f7 0, var(--app-bg-page) 560rpx);
 }
 
 .topic-immersive {
@@ -271,6 +292,11 @@ onPageScroll(handleNavigationScroll)
   background: var(--app-bg-card);
 }
 
+.topic-story__inner {
+  max-width: 710px;
+  margin: 0 auto;
+}
+
 .topic-story__marker {
   display: flex;
   margin-bottom: 30rpx;
@@ -290,45 +316,137 @@ onPageScroll(handleNavigationScroll)
 }
 
 .entry-article {
+  width: calc(100% - var(--app-page-gutter) * 2);
+  max-width: 920px;
+  margin: 48rpx auto 0;
   overflow: hidden;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
+  border-radius: 36rpx;
   background: var(--app-bg-card);
-  box-shadow: var(--app-shadow-card);
+  box-shadow: 0 28rpx 90rpx rgb(38 61 86 / 9%);
 }
 
-.entry-cover {
-  display: block;
-  width: 100%;
-  height: 350rpx;
-  background: var(--app-bg-subtle);
-}
-
-.entry-heading {
+.entry-hero {
+  position: relative;
   display: flex;
-  padding: 34rpx 32rpx 24rpx;
+  min-height: 440rpx;
+  padding: 70rpx 72rpx 94rpx;
+  overflow: hidden;
+  align-items: flex-end;
+  background: linear-gradient(135deg, #152c47 0%, #254969 58%, #52758e 100%);
+  box-sizing: border-box;
+}
+
+.entry-hero--sage {
+  background: linear-gradient(135deg, #17423d 0%, #2d7169 58%, #669b8e 100%);
+}
+
+.entry-hero--lavender {
+  background: linear-gradient(135deg, #302952 0%, #655889 58%, #9b8cba 100%);
+}
+
+.entry-hero--clay {
+  background: linear-gradient(135deg, #54372f 0%, #95634e 58%, #c99b77 100%);
+}
+
+.entry-hero__image,
+.entry-hero__wash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.entry-hero__image {
+  display: block;
+}
+
+.entry-hero__wash {
+  background: linear-gradient(90deg, rgb(10 23 39 / 68%) 0%, rgb(10 23 39 / 30%) 100%);
+}
+
+.entry-hero__ornament {
+  position: absolute;
+  top: -220rpx;
+  right: -100rpx;
+  width: 650rpx;
+  height: 650rpx;
+  border: 1rpx solid rgb(255 255 255 / 19%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 110rpx rgb(255 255 255 / 5%),
+    0 0 0 220rpx rgb(255 255 255 / 3%);
+}
+
+.entry-hero__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
   flex-direction: column;
 }
 
-.entry-eyebrow {
-  color: var(--app-color-brand);
-  font-size: 20rpx;
+.entry-hero__eyebrow {
+  align-self: flex-start;
+  padding: 9rpx 18rpx;
+  border: 1rpx solid rgb(255 255 255 / 27%);
+  border-radius: 999rpx;
+  color: rgb(255 255 255 / 92%);
+  font-size: 21rpx;
   font-weight: 700;
+  letter-spacing: 2rpx;
+  background: rgb(255 255 255 / 10%);
 }
 
-.entry-title {
-  margin-top: 15rpx;
-  color: var(--app-text-primary);
-  font-size: 40rpx;
+.entry-hero__title {
+  max-width: 680px;
+  margin-top: 28rpx;
+  color: #fff;
+  font-size: clamp(54rpx, 4vw, 76rpx);
   font-weight: 800;
-  line-height: 1.3;
+  line-height: 1.22;
+  letter-spacing: -1rpx;
+  text-wrap: balance;
 }
 
-.entry-summary {
-  margin-top: 16rpx;
+.entry-hero__summary {
+  max-width: 620px;
+  margin-top: 24rpx;
+  color: rgb(255 255 255 / 81%);
+  font-size: 28rpx;
+  line-height: 1.65;
+}
+
+.entry-article__paper {
+  position: relative;
+  margin-top: -30rpx;
+  padding: 62rpx 72rpx 100rpx;
+  border-radius: 32rpx 32rpx 0 0;
+  background: var(--app-bg-card);
+}
+
+.entry-reading-label,
+.entry-article__body {
+  max-width: 710px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.entry-reading-label {
+  display: flex;
+  margin-bottom: 32rpx;
+  align-items: center;
+  gap: 14rpx;
   color: var(--app-text-muted);
-  font-size: 24rpx;
-  line-height: 1.6;
+  font-size: 21rpx;
+  font-weight: 700;
+  letter-spacing: 3rpx;
+}
+
+.entry-reading-label__line {
+  width: 38rpx;
+  height: 5rpx;
+  border-radius: 999rpx;
+  background: var(--app-color-brand);
 }
 
 .entry-body {
@@ -340,10 +458,104 @@ onPageScroll(handleNavigationScroll)
   overflow-wrap: anywhere;
 }
 
+.entry-article__body {
+  padding: 0;
+  color: #465363;
+  font-size: 31rpx;
+  line-height: 1.9;
+}
+
+.entry-article__body :deep(h1) {
+  margin: 0 0 26rpx;
+  color: var(--app-text-primary);
+  font-size: 42rpx;
+  line-height: 1.4;
+}
+
+.entry-article__body :deep(h2) {
+  margin: 50rpx 0 18rpx;
+  padding-top: 42rpx;
+  border-top: 1rpx solid var(--app-border-card);
+  color: var(--app-text-primary);
+  font-size: 37rpx;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.entry-article__body :deep(h2:first-child) {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.entry-article__body :deep(h3) {
+  margin: 36rpx 0 16rpx;
+  color: var(--app-text-primary);
+  font-size: 33rpx;
+  line-height: 1.5;
+}
+
+.entry-article__body :deep(p) {
+  margin: 0 0 26rpx;
+}
+
+.entry-article__body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.entry-article__body :deep(ul),
+.entry-article__body :deep(ol) {
+  margin: 0 0 30rpx;
+  padding-left: 42rpx;
+}
+
+.entry-article__body :deep(li) {
+  margin: 10rpx 0;
+}
+
+.entry-article__body :deep(blockquote) {
+  margin: 32rpx 0;
+  padding: 20rpx 28rpx;
+  border-left: 6rpx solid var(--app-color-brand);
+  border-radius: 0 14rpx 14rpx 0;
+  background: var(--app-bg-brand-soft);
+}
+
+.entry-article__body :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 18rpx;
+}
+
+.entry-article__body :deep(a) {
+  color: var(--app-color-brand-active);
+  text-decoration: underline;
+}
+
 .topic-story__body {
   padding: 0;
-  font-size: 28rpx;
+  color: #465363;
+  font-size: 31rpx;
   line-height: 1.9;
+}
+
+.topic-story__body :deep(h2) {
+  margin: 42rpx 0 16rpx;
+  color: var(--app-text-primary);
+  font-size: 36rpx;
+  line-height: 1.45;
+}
+
+.topic-story__body :deep(p) {
+  margin: 0 0 26rpx;
+}
+
+.topic-story__body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.topic-story__body :deep(li) {
+  margin: 10rpx 0;
 }
 
 .topic-houses {
@@ -396,5 +608,27 @@ onPageScroll(handleNavigationScroll)
 .recommendation-reason > view {
   flex: 0 0 auto;
   margin-top: 3rpx;
+}
+
+@media (max-width: 700px) {
+  .entry-article {
+    width: 100%;
+    margin-top: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .entry-hero {
+    min-height: 430rpx;
+    padding: 64rpx 42rpx 94rpx;
+  }
+
+  .entry-hero__ornament {
+    right: -320rpx;
+  }
+
+  .entry-article__paper {
+    padding: 50rpx 42rpx 90rpx;
+  }
 }
 </style>

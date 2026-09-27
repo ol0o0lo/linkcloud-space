@@ -15,6 +15,8 @@ const props = withDefaults(defineProps<{
   selected?: boolean
   disabled?: boolean
   actionText?: string
+  commuteMinutes?: number
+  commuteModeLabel?: string
 }>(), {
   variant: 'horizontal',
   imageRatio: 'standard',
@@ -111,6 +113,10 @@ function handleClick() {
       <view v-if="model.distanceText" class="house-card__distance">
         <view class="i-carbon-location-current" />
         <text>{{ model.distanceText }}</text>
+      </view>
+      <view v-if="commuteMinutes != null" class="house-card__commute">
+        <view class="i-carbon-time" />
+        <text>{{ commuteModeLabel || '通勤' }}约 {{ commuteMinutes }} 分钟</text>
       </view>
       <view class="house-card__facts">
         {{ model.facts }}
@@ -338,6 +344,16 @@ function handleClick() {
 }
 
 .house-card__distance {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  margin-top: 8rpx;
+  color: var(--app-color-brand-active);
+  font-size: 20rpx;
+  line-height: 1.4;
+}
+
+.house-card__commute {
   display: flex;
   align-items: center;
   gap: 6rpx;

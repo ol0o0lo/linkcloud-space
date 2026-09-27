@@ -2,7 +2,7 @@
 import type { HouseOut, PublicHouseDetailOut } from '@/features/houses/service'
 import { computed, ref } from 'vue'
 
-const props = defineProps<{ house: HouseOut | PublicHouseDetailOut, editable?: boolean }>()
+const props = withDefaults(defineProps<{ house: HouseOut | PublicHouseDetailOut, editable?: boolean, section?: 'all' | 'intro' | 'facts' }>(), { section: 'all' })
 defineEmits<{ edit: [] }>()
 const expanded = ref(false)
 const additional = computed(() => [
@@ -11,13 +11,21 @@ const additional = computed(() => [
   { label: '阳台', value: props.house.balconies == null ? '未登记' : `${props.house.balconies} 个` },
   { label: '套内面积', value: props.house.interior_area ? `${Number(props.house.interior_area)}㎡` : '未登记' },
 ])
+const publicFacts = computed(() => [
+  { label: '装修', value: props.house.decoration__mapping || '' },
+  { label: '朝向', value: props.house.orientation__mapping || '' },
+  { label: '卫生间', value: props.house.bathrooms == null ? '' : `${props.house.bathrooms} 个` },
+  { label: '厨房', value: props.house.kitchens == null ? '' : `${props.house.kitchens} 个` },
+  { label: '阳台', value: props.house.balconies == null ? '' : `${props.house.balconies} 个` },
+  { label: '套内面积', value: props.house.interior_area ? `${Number(props.house.interior_area)}㎡` : '' },
+].filter(item => item.value))
 function money(value: string | null) {
   return value == null ? '待确认' : `¥${Number(value).toLocaleString('zh-CN')}`
 }
 </script>
 
 <template>
-  <view class="detail-card">
+  <view v-if="section !== 'facts'" class="detail-card intro">
     <view class="detail-heading">
       <text>房源介绍</text><text class="detail-meta">公开介绍</text>
     </view>
@@ -28,14 +36,22 @@ function money(value: string | null) {
       {{ house.public_description || '暂无公开介绍' }}
     </view>
   </view>
-  <view class="detail-card details">
+  <view v-if="section !== 'intro'" class="detail-card details">
     <view class="detail-heading">
-      <text>房源资料</text>
+      <text>{{ section === 'facts' ? '房屋配置' : '房源资料' }}</text>
       <button v-if="editable" class="detail-text-button" @click="$emit('edit')">
         编辑 <text class="i-carbon-edit" />
       </button>
     </view>
-    <view class="data-grid">
+    <view v-if="section === 'facts' && publicFacts.length" class="data-grid">
+      <view v-for="item in publicFacts" :key="item.label" class="datum">
+        <text class="datum-label">{{ item.label }}</text><text class="detail-value">{{ item.value }}</text>
+      </view>
+    </view>
+    <view v-else-if="section === 'facts'" class="facts-empty">
+      更多房屋配置待完善
+    </view>
+    <view v-else class="data-grid">
       <view class="datum">
         <text class="datum-label">装修 / 朝向</text><text class="detail-value">{{ house.decoration__mapping || '未登记' }} / {{ house.orientation__mapping || '未登记' }}</text>
       </view>
@@ -55,10 +71,10 @@ function money(value: string | null) {
         <text class="datum-label">押金</text><text class="detail-value">{{ money(house.deposit_amount) }}</text>
       </view>
     </view>
-    <button class="accordion" :aria-expanded="expanded" @click="expanded = !expanded">
+    <button v-if="section !== 'facts'" class="accordion" :aria-expanded="expanded" @click="expanded = !expanded">
       <text>更多公开资料</text><text class="accordion-count">{{ additional.length }} 项</text><text class="accordion-chevron" :class="expanded ? 'i-carbon-chevron-up' : 'i-carbon-chevron-down'" />
     </button>
-    <view v-if="expanded" class="data-grid">
+    <view v-if="section !== 'facts' && expanded" class="data-grid">
       <view v-for="item in additional" :key="item.label" class="datum">
         <text class="datum-label">{{ item.label }}</text><text class="detail-value">{{ item.value }}</text>
       </view>
@@ -122,6 +138,11 @@ function money(value: string | null) {
   font-weight: 550;
   line-height: 19px;
   overflow-wrap: anywhere;
+}
+.facts-empty {
+  padding: 10px 0 2px;
+  color: #78869a;
+  font-size: 12px;
 }
 .accordion {
   display: flex;

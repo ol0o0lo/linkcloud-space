@@ -101,3 +101,53 @@ export function adminSubscriptionsOrdersOrderIdRefundUsingPost({
     }
   );
 }
+
+/** 平台查看销售线索 GET /api/admin/subscriptions/sales-leads/ */
+export function adminSubscriptionsSalesLeadsUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminSubscriptionsSalesLeadsUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PagedSalesLeadOut>(
+    '/api/admin/subscriptions/sales-leads/',
+    {
+      method: 'GET',
+      params: {
+        // page has a default value: 1
+        page: '1',
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 更新销售线索 PATCH /api/admin/subscriptions/sales-leads/${param0}/ */
+export function adminSubscriptionsSalesLeadsLeadIdUsingPatch({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.AdminSubscriptionsSalesLeadsLeadIdUsingPatchParams;
+  body: API.SalesLeadPatchIn;
+  options?: CustomRequestOptions_;
+}) {
+  const { lead_id: param0, ...queryParams } = params;
+
+  return request<API.SalesLeadOut>(
+    `/api/admin/subscriptions/sales-leads/${param0}/`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}

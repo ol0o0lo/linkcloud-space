@@ -103,7 +103,7 @@ function previewImage(item: GalleryMediaItem) {
 </script>
 
 <template>
-  <view class="house-media" :class="{ 'house-media--playing': playingId }">
+  <view class="house-media" :class="{ 'house-media--playing': playingId, 'house-media--empty': !mediaItems.length }">
     <swiper v-if="mediaItems.length" class="house-media__swiper" :circular="mediaItems.length > 1" :current="currentIndex" @change="handleChange">
       <swiper-item v-for="item in mediaItems" :key="item.id">
         <video

@@ -29,6 +29,7 @@ import { useHouseCardFavorites } from '@/hooks/useHouseCardFavorites'
 import { useAppContextStore } from '@/store/app-context-v2'
 import { usePublicHouseRegionStore } from '@/store/public-house-region'
 import { getTabbarItems } from '@/tabbar/config'
+import { getCurrentLocationGcj02, getLocationErrorMessage } from '@/utils/location'
 
 definePage({
   style: {
@@ -201,11 +202,11 @@ async function selectNearbyRadius(radius: number | null): Promise<boolean> {
     return false
   locatingNearby.value = true
   try {
-    const location = await uni.getLocation({ type: 'gcj02', isHighAccuracy: true })
+    const location = await getCurrentLocationGcj02()
     spatialFilter.enterNearby({ latitude: location.latitude, longitude: location.longitude }, radius)
     return true
   }
-  catch {
+  catch (error) {
     spatialFilter.exitNearby()
     // #ifdef MP-WEIXIN
     const modal = await uni.showModal({ title: '需要位置权限', content: '开启定位后才能筛选附近房源。', confirmText: '去设置' })
@@ -213,7 +214,7 @@ async function selectNearbyRadius(radius: number | null): Promise<boolean> {
       await uni.openSetting()
     // #endif
     // #ifndef MP-WEIXIN
-    uni.showToast({ title: '无法获取当前位置，请检查浏览器定位权限', icon: 'none' })
+    uni.showToast({ title: getLocationErrorMessage(error), icon: 'none' })
     // #endif
     return false
   }

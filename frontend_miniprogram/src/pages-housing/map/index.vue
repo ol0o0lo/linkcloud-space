@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { PublicHouseListOut, PublicHouseMapMarker, PublicHouseMapParams, PublicHouseMapResponse, PublicHousesUsingGetParams } from '@/features/houses/service'
 import type { CustomNavigationLayout } from '@/components/utils/navigation'
+import type { GeoCoordinates } from '@/domain/geo-coordinates'
 import type { PublicHouseRadiusM } from '@/domain/public-house-metro'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, nextTick, ref } from 'vue'
@@ -22,6 +23,7 @@ import { usePublicHouseSpatialFilter } from '@/features/houses/usePublicHouseSpa
 import { useHouseCardFavorites } from '@/hooks/useHouseCardFavorites'
 import { getHouseDetailRoute } from '@/modules/routes'
 import { usePublicHouseRegionStore } from '@/store/public-house-region'
+import { getCurrentLocationGcj02, getLocationErrorMessage } from '@/utils/location'
 // #ifdef H5
 import { useRuntimeStore } from '@/store/runtime'
 // #endif
@@ -69,6 +71,7 @@ const loadError = ref('')
 const locating = ref(false)
 const hasLoadedMap = ref(false)
 const hasViewport = ref(false)
+const currentUserLocation = ref<GeoCoordinates | null>(null)
 const mapResult = ref<PublicHouseMapResponse | null>(null)
 const mapScale = ref(7)
 const mapFitToken = ref(0)
@@ -96,8 +99,13 @@ let ignoredViewportEvents = 0
 let ignoredViewportUntil = 0
 let ignoredViewportResetTimer: ReturnType<typeof setTimeout> | null = null
 let lastMarkerTapAt = 0
+let pendingDrillViewport: { latitude: number, longitude: number, zoom: number } | null = null
+let awaitingInitialViewport = false
+let initialViewportFallbackTimer: ReturnType<typeof setTimeout> | null = null
+let pageActive = true
 const fitRequestKeys = new Set<string>()
 const PROGRAMMATIC_VIEWPORT_GUARD_MS = 1200
+const INITIAL_LOCATION_ZOOM = 14
 
 const markers = computed(() => mapResult.value?.items || [])
 const selectedMarker = computed(() => markers.value.find(marker => marker.key === selectedMarkerKey.value) || null)
@@ -140,33 +148,36 @@ const mapMarkerById = computed(() => new Map(markers.value.map(marker => [create
 const mapMarkers = computed(() => markers.value.map((marker) => {
   const active = marker.key === selectedMarkerKey.value
   const isGroup = marker.level !== 'building'
-  const groupLabels = { city: '区域', district: '小区', estate: '楼栋', building: '房源' }
   return {
     id: createHouseMapMarkerId(marker.key),
     latitude: Number(marker.location.latitude),
     longitude: Number(marker.location.longitude),
     iconPath: active ? '/static/tabbar/homeHL.png' : '/static/tabbar/home.png',
-    width: active ? 34 : 28,
-    height: active ? 34 : 28,
+    width: active ? 28 : 22,
+    height: active ? 28 : 22,
     callout: {
       content: isGroup
-        ? `${marker.name}\n${marker.child_count}${groupLabels[marker.level]} · ${marker.house_count}套`
-        : `${marker.name} · ${marker.house_count}套${marker.min_rent == null ? '' : ` · ¥${formatAmount(Number(marker.min_rent))}起`}`,
+        ? `${marker.name} · ${marker.house_count}套`
+        : marker.min_rent == null ? `${marker.house_count}套` : `¥${formatAmount(Number(marker.min_rent))}起`,
       display: 'ALWAYS' as const,
-      color: '#ffffff',
-      bgColor: active ? '#0066cc' : '#52657f',
-      borderRadius: 8,
-      borderWidth: 0,
-      borderColor: active ? '#0066cc' : '#52657f',
+      bgColor: active || isGroup ? '#0081ff' : '#ffffff',
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: active || isGroup ? '#0081ff' : '#ffffff',
+      color: active || isGroup ? '#ffffff' : '#0066cc',
       textAlign: 'center' as const,
       padding: 8,
-      fontSize: active ? 12 : 11,
+      fontSize: 12,
     },
   }
 }))
 
 function formatAmount(value: number) {
   return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+}
+
+function overviewZoom() {
+  return regionStore.selection.city ? 9 : 7
 }
 
 function selectedHouseParams(marker: PublicHouseMapMarker): PublicHousesUsingGetParams {
@@ -206,11 +217,12 @@ const mapSession = createHouseMapSession<PublicHouseMapParams, PublicHouseMapRes
       loading.value = false
   },
   onCommit(result, meta) {
+    const firstLoad = !hasLoadedMap.value
     const previouslySelectedKey = selectedMarkerKey.value
     mapResult.value = result
     mapScale.value = result.zoom
     loadError.value = ''
-    if (!hasLoadedMap.value && result.items[0]) {
+    if (firstLoad && !currentUserLocation.value && result.items[0]) {
       ignoreNextViewportChange()
       mapCenter.value = {
         latitude: Number(result.items[0].location.latitude),
@@ -226,6 +238,11 @@ const mapSession = createHouseMapSession<PublicHouseMapParams, PublicHouseMapRes
     }
     hasLoadedMap.value = true
     lastLoadedScopeKey = spatialFilter.scopeKey.value
+    if (firstLoad && currentUserLocation.value && currentViewport.value && isInitialLocationViewport(currentViewport.value, currentUserLocation.value)) {
+      const viewportKey = buildHouseMapRequestKey(mapRequestParams(currentViewport.value))
+      if (meta.key !== viewportKey)
+        void loadMapMarkers(currentViewport.value)
+    }
   },
   onError() {
     if (!hasLoadedMap.value)
@@ -235,31 +252,40 @@ const mapSession = createHouseMapSession<PublicHouseMapParams, PublicHouseMapRes
   },
 })
 
-async function loadMapMarkers(viewport: MapViewport | null = currentViewport.value, force = false) {
+async function loadMapMarkers(viewport: MapViewport | null = currentViewport.value, force = false, fit = true) {
+  if (!viewport)
+    pendingDrillViewport = null
   const params = mapRequestParams(viewport)
   const requestKey = buildHouseMapRequestKey(params)
-  if (!viewport)
+  if (!viewport && fit)
     fitRequestKeys.add(requestKey)
-  await mapSession.load(params, { force })
+  try {
+    await mapSession.load(params, { force })
+  }
+  finally {
+    fitRequestKeys.delete(requestKey)
+  }
 }
 
 function prepareMapFit(items: PublicHouseMapMarker[]) {
+  ignoreNextViewportChange()
   // #ifdef MP-WEIXIN
   const points = resolveMapIncludePoints(items, false)
   if (!points?.length)
     return
-  ignoreNextViewportChange()
   mapCenter.value = { ...points[0] }
+  if (points.length === 1)
+    return
   void nextTick(() => {
     const context = uni.createMapContext('public-house-map')
     context.includePoints({
       points,
-      padding: [120, 32, 96, 32],
+      padding: [156, 24, 96, 24],
     })
   })
   // #endif
   // #ifdef H5
-  ignoredViewportEvents = 2
+  ignoredViewportEvents = Math.max(ignoredViewportEvents, 2)
   // #endif
   mapFitToken.value += 1
 }
@@ -276,6 +302,16 @@ function ignoreNextViewportChange() {
   }, PROGRAMMATIC_VIEWPORT_GUARD_MS)
 }
 
+function cancelPendingDrill() {
+  pendingDrillViewport = null
+  ignoredViewportEvents = 0
+  ignoredViewportUntil = 0
+  if (ignoredViewportResetTimer) {
+    clearTimeout(ignoredViewportResetTimer)
+    ignoredViewportResetTimer = null
+  }
+}
+
 function search() {
   clearSelection()
   void loadMapMarkers()
@@ -288,7 +324,7 @@ function resetSearch() {
   ignoreNextViewportChange()
   currentViewport.value = null
   hasViewport.value = false
-  mapScale.value = 7
+  mapScale.value = overviewZoom()
   void loadMapMarkers(null, true)
 }
 
@@ -301,7 +337,7 @@ function handleRegionChange() {
   ignoreNextViewportChange()
   currentViewport.value = null
   hasViewport.value = false
-  mapScale.value = 7
+  mapScale.value = overviewZoom()
   void loadMapMarkers(null)
 }
 
@@ -315,17 +351,24 @@ function selectMarkerByKey(key: string) {
   const marker = markers.value.find(item => item.key === key)
   if (!marker)
     return
+  mapSession.cancelPending()
   lastMarkerTapAt = Date.now()
   ignoreNextViewportChange()
-  mapCenter.value = { latitude: Number(marker.location.latitude), longitude: Number(marker.location.longitude) }
   if (marker.level !== 'building') {
     clearSelection()
+    pendingDrillViewport = {
+      latitude: Number(marker.location.latitude),
+      longitude: Number(marker.location.longitude),
+      zoom: marker.target_zoom,
+    }
     currentViewport.value = null
     hasViewport.value = false
+    mapCenter.value = { latitude: pendingDrillViewport.latitude, longitude: pendingDrillViewport.longitude }
     mapScale.value = marker.target_zoom
-    void loadMapMarkers(null)
     return
   }
+  pendingDrillViewport = null
+  mapCenter.value = { latitude: Number(marker.location.latitude), longitude: Number(marker.location.longitude) }
   selectedMarkerKey.value = marker.key
   void loadSelectedHouses(marker)
 }
@@ -333,6 +376,7 @@ function selectMarkerByKey(key: string) {
 function handleMapTap() {
   if (!shouldClearHouseMapSelection(lastMarkerTapAt))
     return
+  cancelPendingDrill()
   clearSelection()
 }
 
@@ -374,12 +418,37 @@ function clearSelection() {
 }
 
 function scheduleViewportLoad(viewport: MapViewport) {
+  if (awaitingInitialViewport && currentUserLocation.value) {
+    if (!isInitialLocationViewport(viewport, currentUserLocation.value))
+      return
+    awaitingInitialViewport = false
+    if (initialViewportFallbackTimer) {
+      clearTimeout(initialViewportFallbackTimer)
+      initialViewportFallbackTimer = null
+    }
+    currentViewport.value = viewport
+    hasViewport.value = true
+    void loadMapMarkers(viewport)
+    return
+  }
+  if (pendingDrillViewport) {
+    const drill = pendingDrillViewport
+    const containsDrillCenter = viewport.west <= drill.longitude && drill.longitude <= viewport.east && viewport.south <= drill.latitude && drill.latitude <= viewport.north
+    if (viewport.zoom !== drill.zoom || !containsDrillCenter)
+      return
+    pendingDrillViewport = null
+    currentViewport.value = viewport
+    hasViewport.value = true
+    mapScale.value = viewport.zoom
+    void loadMapMarkers(viewport)
+    return
+  }
   if (Date.now() < ignoredViewportUntil) {
     ignoredViewportEvents = Math.max(0, ignoredViewportEvents - 1)
     return
   }
   if (ignoredViewportEvents > 0) {
-    ignoredViewportEvents = 0
+    ignoredViewportEvents -= 1
     return
   }
   currentViewport.value = viewport
@@ -388,6 +457,12 @@ function scheduleViewportLoad(viewport: MapViewport) {
   if (!hasLoadedMap.value)
     return
   mapSession.schedule(mapRequestParams(viewport))
+}
+
+function isInitialLocationViewport(viewport: MapViewport, location: GeoCoordinates) {
+  return viewport.zoom === INITIAL_LOCATION_ZOOM
+    && viewport.west <= location.longitude && location.longitude <= viewport.east
+    && viewport.south <= location.latitude && location.latitude <= viewport.north
 }
 
 function handleH5ViewportChange(viewport: MapViewport) {
@@ -421,10 +496,14 @@ function clampZoom(value: number) {
 }
 
 function zoomIn() {
+  mapSession.cancelPending()
+  cancelPendingDrill()
   mapScale.value = clampZoom(mapScale.value + 1)
 }
 
 function zoomOut() {
+  mapSession.cancelPending()
+  cancelPendingDrill()
   mapScale.value = clampZoom(mapScale.value - 1)
 }
 
@@ -433,8 +512,8 @@ function resetMapView() {
   ignoreNextViewportChange()
   currentViewport.value = null
   hasViewport.value = false
-  mapScale.value = 7
-  void loadMapMarkers(null)
+  mapScale.value = overviewZoom()
+  void loadMapMarkers(null, true)
 }
 
 async function locateUser() {
@@ -442,7 +521,10 @@ async function locateUser() {
     return
   locating.value = true
   try {
-    const location = await getCurrentLocation()
+    const location = await getCurrentLocationGcj02()
+    currentUserLocation.value = location
+    mapSession.cancelPending()
+    cancelPendingDrill()
     clearSelection()
     ignoreNextViewportChange()
     mapCenter.value = { latitude: location.latitude, longitude: location.longitude }
@@ -454,7 +536,7 @@ async function locateUser() {
       void loadMapMarkers(null)
     }
   }
-  catch {
+  catch (error) {
     // #ifdef MP-WEIXIN
     const modal = await uni.showModal({
       title: '需要位置权限',
@@ -465,16 +547,12 @@ async function locateUser() {
       await uni.openSetting()
     // #endif
     // #ifndef MP-WEIXIN
-    uni.showToast({ title: '无法获取当前位置，请检查浏览器定位权限', icon: 'none' })
+    uni.showToast({ title: getLocationErrorMessage(error), icon: 'none' })
     // #endif
   }
   finally {
     locating.value = false
   }
-}
-
-async function getCurrentLocation() {
-  return uni.getLocation({ type: 'gcj02', isHighAccuracy: true })
 }
 
 async function toggleNearby() {
@@ -484,7 +562,7 @@ async function toggleNearby() {
     ignoreNextViewportChange()
     currentViewport.value = null
     hasViewport.value = false
-    mapScale.value = 7
+    mapScale.value = overviewZoom()
     void loadMapMarkers(null)
     return
   }
@@ -492,7 +570,8 @@ async function toggleNearby() {
     return
   locating.value = true
   try {
-    const location = await getCurrentLocation()
+    const location = await getCurrentLocationGcj02()
+    currentUserLocation.value = location
     spatialFilter.enterNearby({ latitude: location.latitude, longitude: location.longitude }, 1000)
     ignoreNextViewportChange()
     mapCenter.value = { latitude: location.latitude, longitude: location.longitude }
@@ -502,14 +581,14 @@ async function toggleNearby() {
     clearSelection()
     await loadMapMarkers(null)
   }
-  catch {
+  catch (error) {
     // #ifdef MP-WEIXIN
     const modal = await uni.showModal({ title: '需要位置权限', content: '开启定位后才能按距离筛选附近房源。', confirmText: '去设置' })
     if (modal.confirm)
       await uni.openSetting()
     // #endif
     // #ifndef MP-WEIXIN
-    uni.showToast({ title: '无法获取当前位置，请检查浏览器定位权限', icon: 'none' })
+    uni.showToast({ title: getLocationErrorMessage(error), icon: 'none' })
     // #endif
   }
   finally {
@@ -547,8 +626,34 @@ function openSelectedLocation() {
 }
 
 onLoad(async () => {
-  await regionStore.initializeDefaultRegion()
-  await loadMapMarkers(null)
+  let location: GeoCoordinates | null = null
+  try {
+    location = await getCurrentLocationGcj02()
+  }
+  catch {
+    // 定位不可用时沿用已选城市概览。
+  }
+  if (!pageActive)
+    return
+  await regionStore.initializeDefaultRegion(location)
+  if (!pageActive)
+    return
+  if (!location) {
+    mapScale.value = overviewZoom()
+    await loadMapMarkers(null)
+    if (pageActive)
+      uni.showToast({ title: '定位不可用，已显示城市地图', icon: 'none' })
+    return
+  }
+  currentUserLocation.value = location
+  awaitingInitialViewport = true
+  mapCenter.value = { ...location }
+  mapScale.value = INITIAL_LOCATION_ZOOM
+  initialViewportFallbackTimer = setTimeout(() => {
+    awaitingInitialViewport = false
+    initialViewportFallbackTimer = null
+    void loadMapMarkers(null, false, false)
+  }, 1500)
 })
 onShow(() => {
   void houseFavorites.refreshFavorites()
@@ -556,6 +661,10 @@ onShow(() => {
     handleRegionChange()
 })
 onUnload(() => {
+  pageActive = false
+  awaitingInitialViewport = false
+  if (initialViewportFallbackTimer)
+    clearTimeout(initialViewportFallbackTimer)
   if (ignoredViewportResetTimer)
     clearTimeout(ignoredViewportResetTimer)
   mapSession.dispose()
@@ -600,6 +709,9 @@ onUnload(() => {
       <!-- #ifdef H5 -->
       <HouseH5Map
         class="house-map"
+        :class="{ 'house-h5-map--sheet-open': selectedMarkerShowsHouses }"
+        :fit-on-initial-markers="!currentUserLocation"
+        :user-location="currentUserLocation"
         :api-key="amapJsapiKey"
         :security-js-code="amapSecurityJsCode"
         :markers="markers"
@@ -625,59 +737,60 @@ onUnload(() => {
               搜索
             </wd-button>
           </view>
+        </view>
 
+        <view class="map-overview-row">
           <view class="nearby-row">
             <button class="nearby-trigger" :class="{ 'nearby-trigger--active': nearbyLocation }" @click="toggleNearby">
               <view class="i-carbon-location-current" />
               <text>{{ nearbyLocation && nearbyRadiusM ? `附近 ${formatPublicHouseRadiusLabel(nearbyRadiusM)}` : '附近' }}</text>
             </button>
-            <wd-radio-group
-              v-if="nearbyLocation"
-              v-model="nearbyRadiusM"
-              type="button"
-              direction="horizontal"
-              custom-class="nearby-radius-group"
-              @change="changeNearbyRadius"
-            >
-              <wd-radio v-for="radius in nearbyRadiusOptions" :key="radius" :value="radius">
-                {{ formatPublicHouseRadiusLabel(radius) }}
-              </wd-radio>
-            </wd-radio-group>
-            <text v-else class="nearby-hint">按直线距离筛选并优先展示最近房源</text>
           </view>
         </view>
 
-        <view v-if="mapResult && !loadError" class="map-result-summary">
-          <strong>{{ mapResult.visible_house_count }}</strong>
-          <text>套房源</text>
-          <view class="map-result-summary__divider" />
-          <strong>{{ mapResult.marker_count }}</strong>
-          <text>个{{ levelLabel }}</text>
-          <text v-if="refreshing" class="map-result-summary__hint">
-            更新中…
-          </text>
-          <text v-else-if="mapResult.truncated" class="map-result-summary__hint">
-            放大查看全部
-          </text>
-          <text v-else-if="mapResult.unlocated_house_count" class="map-result-summary__hint">
-            +{{ mapResult.unlocated_house_count }} 待定位
-          </text>
+        <view v-if="nearbyLocation" class="nearby-radius-panel">
+          <wd-radio-group
+            v-model="nearbyRadiusM"
+            type="button"
+            direction="horizontal"
+            custom-class="nearby-radius-group"
+            @change="changeNearbyRadius"
+          >
+            <wd-radio v-for="radius in nearbyRadiusOptions" :key="radius" :value="radius">
+              {{ formatPublicHouseRadiusLabel(radius) }}
+            </wd-radio>
+          </wd-radio-group>
         </view>
+        <text v-if="refreshing" class="map-status-hint">当前视野更新中…</text>
+        <text v-else-if="mapResult?.truncated" class="map-status-hint">放大地图，查看更多房源</text>
+        <text v-else-if="mapResult?.unlocated_house_count" class="map-status-hint">另有 {{ mapResult.unlocated_house_count }} 套房源待定位</text>
       </view>
 
-      <view class="map-controls">
-        <button class="map-control-button" aria-label="放大地图" @click.stop="zoomIn">
-          <view class="i-carbon-add" />
-        </button>
-        <button class="map-control-button" aria-label="缩小地图" @click.stop="zoomOut">
-          <view class="i-carbon-subtract" />
-        </button>
-        <button class="map-control-button" :class="{ 'map-control-button--loading': locating }" aria-label="定位到当前位置" @click.stop="locateUser">
-          <view class="i-carbon-location-current" />
-        </button>
-        <button class="map-control-button" aria-label="恢复地图全览" @click.stop="resetMapView">
-          <view class="i-carbon-center-circle" />
-        </button>
+      <view v-if="mapResult && !loadError && !selectedMarkerShowsHouses" class="map-result-summary">
+        <view class="map-result-summary__pulse" />
+        <text>当前视野</text>
+        <strong>{{ mapResult.visible_house_count }}</strong>
+        <text>套房源</text>
+        <text class="map-result-summary__detail">{{ mapResult.marker_count }} 个{{ levelLabel }}</text>
+      </view>
+
+      <view v-if="!selectedMarkerShowsHouses" class="map-controls">
+        <view class="map-controls__zoom">
+          <button class="map-control-button" aria-label="放大地图" @click.stop="zoomIn">
+            <view class="i-carbon-add" />
+          </button>
+          <button class="map-control-button" aria-label="缩小地图" @click.stop="zoomOut">
+            <view class="i-carbon-subtract" />
+          </button>
+        </view>
+        <view class="map-controls__quick">
+          <button class="map-control-button map-control-button--location" :class="{ 'map-control-button--loading': locating }" aria-label="定位到当前位置" @click.stop="locateUser">
+            <view class="i-carbon-location-current" />
+          </button>
+          <button class="map-control-button map-control-button--overview" aria-label="恢复地图全览" @click.stop="resetMapView">
+            <view class="i-carbon-center-circle" />
+          </button>
+        </view>
       </view>
 
       <view v-if="loading" class="map-state-layer">
@@ -730,7 +843,7 @@ onUnload(() => {
   height: 100vh;
   min-height: 100vh;
   overflow: hidden;
-  background: #dce8e1;
+  background: var(--app-bg-page);
 }
 :deep(.app-page__content) {
   height: 100vh;
@@ -743,8 +856,8 @@ onUnload(() => {
   inset: 0 0 auto;
 }
 :deep(.app-custom-navigation__back) {
-  background: rgb(255 255 255 / 88%);
-  box-shadow: 0 8rpx 24rpx rgb(30 55 82 / 16%);
+  background: var(--app-bg-elevated-translucent);
+  box-shadow: var(--app-shadow-card);
   backdrop-filter: blur(12rpx);
 }
 :deep(.app-custom-navigation__title) {
@@ -758,107 +871,126 @@ onUnload(() => {
   width: 100%;
   height: 100vh;
   overflow: hidden;
-  background: #dce8e1;
+  background: var(--app-bg-page);
 }
 .map-overlay-top {
   position: absolute;
   z-index: 60;
-  top: calc(var(--map-navigation-height) + 10rpx);
-  right: 20rpx;
-  left: 20rpx;
-  max-width: 760rpx;
+  top: calc(var(--map-navigation-height) + 18rpx);
+  right: 24rpx;
+  left: 24rpx;
+  max-width: 720rpx;
   margin: 0 auto;
   pointer-events: none;
 }
 .map-search-panel {
   position: relative;
-  padding: 14rpx;
-  border: 1rpx solid rgb(255 255 255 / 78%);
-  border-radius: 28rpx;
+  padding: 8rpx 10rpx 8rpx 20rpx;
+  border: 1rpx solid rgb(255 255 255 / 90%);
+  border-radius: 48rpx;
   pointer-events: auto;
-  background: rgb(255 255 255 / 90%);
-  box-shadow: 0 12rpx 36rpx rgb(30 55 82 / 16%);
-  backdrop-filter: blur(18rpx);
+  background: rgb(255 255 255 / 97%);
+  box-shadow: 0 14rpx 42rpx rgb(23 35 61 / 12%);
+  backdrop-filter: blur(16rpx);
 }
 .map-search-row {
   display: flex;
   align-items: center;
-  gap: 12rpx;
+  gap: 8rpx;
 }
 .map-search-box {
   display: flex;
   min-width: 0;
-  height: 68rpx;
+  height: 76rpx;
   flex: 1;
   align-items: center;
-  padding: 0 18rpx;
-  border: 1rpx solid rgb(205 217 232 / 72%);
-  border-radius: 22rpx;
+  padding: 0 8rpx;
   box-sizing: border-box;
-  background: rgb(244 248 252 / 94%);
+  background: transparent;
 }
 .map-search-icon {
   flex: 0 0 auto;
-  color: var(--app-text-muted);
+  display: flex;
+  width: 52rpx;
+  height: 52rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--app-color-brand);
   font-size: 30rpx;
+  background: var(--app-bg-brand-soft);
 }
 :deep(.map-search-input) {
   min-width: 0;
   flex: 1;
-  padding: 0 0 0 12rpx;
+  padding: 0 0 0 16rpx;
   background: transparent;
+  --wot-input-bg: transparent;
+  --wot-input-inner-height: 72rpx;
+  --wot-input-inner-font-size: 26rpx;
+  --wot-input-padding: 0;
 }
 :deep(.map-search-button) {
-  width: 102rpx;
-  height: 68rpx;
-  flex: 0 0 102rpx;
-  border-radius: 22rpx;
+  width: 112rpx;
+  height: 76rpx;
+  flex: 0 0 112rpx;
+  border-radius: 38rpx;
+  font-weight: 700;
+  --wot-button-primary-bg: var(--app-color-brand);
+}
+.map-overview-row {
+  display: flex;
+  align-items: center;
+  margin-top: 16rpx;
 }
 .nearby-row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 12rpx;
-  margin-top: 12rpx;
+  pointer-events: auto;
 }
 .nearby-trigger {
   display: inline-flex;
   width: auto;
   min-width: 112rpx;
-  height: 50rpx;
+  height: 64rpx;
   margin: 0;
-  padding: 0 18rpx;
+  padding: 0 24rpx;
   align-items: center;
   justify-content: center;
   gap: 7rpx;
-  border: 1rpx solid rgb(205 217 232 / 72%);
-  border-radius: 25rpx;
-  color: var(--app-text-secondary);
-  font-size: 20rpx;
-  line-height: 50rpx;
-  background: rgb(255 255 255 / 82%);
+  border: 1rpx solid rgb(255 255 255 / 90%);
+  border-radius: 32rpx;
+  color: var(--app-text-primary);
+  font-size: 23rpx;
+  font-weight: 600;
+  line-height: 64rpx;
+  background: rgb(255 255 255 / 95%);
+  box-shadow: 0 10rpx 30rpx rgb(23 35 61 / 10%);
+}
+.nearby-trigger > view {
+  color: var(--app-color-brand);
+  font-size: 27rpx;
 }
 .nearby-trigger::after {
   border: 0;
 }
 .nearby-trigger--active {
-  border-color: var(--app-color-brand);
+  border-color: rgb(0 102 204 / 25%);
   color: var(--app-color-brand-active);
-  font-weight: 650;
   background: var(--app-bg-brand-soft);
 }
-.nearby-hint {
-  overflow: hidden;
-  min-width: 0;
-  color: var(--app-text-muted);
-  font-size: 18rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.nearby-radius-panel {
+  display: inline-flex;
+  max-width: 100%;
+  margin-top: 10rpx;
+  padding: 8rpx 10rpx;
+  border: 1rpx solid var(--app-border-card);
+  border-radius: 22rpx;
+  pointer-events: auto;
+  background: var(--app-bg-elevated-translucent);
+  box-shadow: var(--app-shadow-card);
 }
 :deep(.nearby-radius-group) {
   display: flex;
   min-width: 0;
-  flex: 1;
   flex-wrap: nowrap;
   overflow-x: auto;
   --wot-radio-button-margin: 0 8rpx 0 0;
@@ -866,70 +998,109 @@ onUnload(() => {
   --wot-radio-button-padding: 6rpx 14rpx;
 }
 .map-result-summary {
-  display: inline-flex;
-  max-width: calc(100% - 40rpx);
+  position: absolute;
+  z-index: 65;
+  bottom: calc(112rpx + env(safe-area-inset-bottom));
+  left: 24rpx;
+  display: flex;
+  max-width: calc(100% - 136rpx);
+  height: 70rpx;
   align-items: center;
   gap: 7rpx;
-  margin-top: 12rpx;
-  padding: 12rpx 18rpx;
-  border: 1rpx solid rgb(255 255 255 / 72%);
-  border-radius: 22rpx;
-  color: var(--app-text-muted);
-  font-size: 19rpx;
-  background: rgb(255 255 255 / 88%);
-  box-shadow: 0 8rpx 24rpx rgb(30 55 82 / 12%);
-  backdrop-filter: blur(14rpx);
+  padding: 0 22rpx;
+  border-radius: 35rpx;
+  box-sizing: border-box;
+  color: rgb(255 255 255 / 88%);
+  font-size: 21rpx;
+  white-space: nowrap;
+  background: var(--app-color-brand);
+  box-shadow: 0 12rpx 34rpx rgb(0 129 255 / 26%);
+  backdrop-filter: blur(12rpx);
 }
 .map-result-summary strong {
-  color: var(--app-text-primary);
-  font-size: 25rpx;
+  color: var(--app-text-on-brand);
+  font-size: 28rpx;
 }
-.map-result-summary__divider {
-  width: 1rpx;
-  height: 22rpx;
-  margin: 0 5rpx;
-  background: var(--app-divider-color);
+.map-result-summary__pulse {
+  width: 12rpx;
+  height: 12rpx;
+  flex: 0 0 12rpx;
+  margin-right: 4rpx;
+  border-radius: 50%;
+  background: var(--app-text-on-brand);
+  box-shadow: 0 0 0 5rpx rgb(255 255 255 / 18%);
 }
-.map-result-summary__hint {
+.map-result-summary__detail {
   overflow: hidden;
-  min-width: 0;
-  margin-left: 4rpx;
-  color: var(--app-text-secondary);
+  margin-left: 7rpx;
+  padding-left: 14rpx;
+  border-left: 1rpx solid rgb(255 255 255 / 24%);
+  color: rgb(255 255 255 / 78%);
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.map-status-hint {
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 10rpx;
+  padding: 8rpx 14rpx;
+  border-radius: 16rpx;
+  color: var(--app-text-secondary);
+  font-size: 19rpx;
+  background: var(--app-bg-elevated-translucent);
 }
 .map-controls {
   position: absolute;
   z-index: 65;
-  top: calc(var(--map-navigation-height) + 324rpx);
-  right: 20rpx;
+  bottom: calc(112rpx + env(safe-area-inset-bottom));
+  right: 24rpx;
   display: flex;
-  overflow: hidden;
   flex-direction: column;
-  border: 1rpx solid rgb(255 255 255 / 78%);
-  border-radius: 24rpx;
-  background: rgb(255 255 255 / 92%);
-  box-shadow: 0 12rpx 34rpx rgb(30 55 82 / 18%);
-  backdrop-filter: blur(16rpx);
+  gap: 14rpx;
+}
+.map-controls__zoom,
+.map-controls__quick {
+  display: flex;
+  flex-direction: column;
+}
+.map-controls__zoom {
+  overflow: hidden;
+  border: 1rpx solid rgb(255 255 255 / 92%);
+  border-radius: 28rpx;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 10rpx 30rpx rgb(23 35 61 / 12%);
+}
+.map-controls__quick {
+  gap: 14rpx;
 }
 .map-control-button {
   display: flex;
-  width: 76rpx;
-  height: 76rpx;
+  width: 88rpx;
+  height: 88rpx;
   margin: 0;
   padding: 0;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-bottom: 1rpx solid var(--app-divider-color);
   border-radius: 0;
   color: var(--app-text-primary);
   font-size: 34rpx;
   line-height: 1;
   background: transparent;
 }
-.map-control-button:last-child {
-  border-bottom: 0;
+.map-controls__zoom .map-control-button:first-child {
+  border-bottom: 1rpx solid var(--app-divider-color);
+}
+.map-controls__quick .map-control-button {
+  border: 1rpx solid rgb(255 255 255 / 92%);
+  border-radius: 28rpx;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 10rpx 30rpx rgb(23 35 61 / 12%);
+}
+.map-controls__quick .map-control-button--location {
+  border-color: var(--app-color-brand);
+  color: var(--app-text-on-brand);
+  background: var(--app-color-brand);
+  box-shadow: 0 12rpx 30rpx rgb(0 129 255 / 26%);
 }
 .map-control-button::after,
 .map-empty-view__action::after {
@@ -938,6 +1109,10 @@ onUnload(() => {
 .map-control-button:active {
   color: var(--app-color-brand-active);
   background: var(--app-bg-brand-soft);
+}
+.map-control-button--location:active {
+  color: var(--app-text-on-brand);
+  background: var(--app-color-brand);
 }
 .map-control-button--loading {
   color: var(--app-color-brand);
@@ -951,7 +1126,7 @@ onUnload(() => {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #dce8e1;
+  background: var(--app-bg-page);
 }
 .map-empty-view {
   position: absolute;

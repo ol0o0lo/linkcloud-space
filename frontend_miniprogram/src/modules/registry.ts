@@ -39,6 +39,7 @@ const publicRoutePrefixes = [
   APP_ROUTES.landlordInvite,
   APP_ROUTES.pcLogin,
   APP_ROUTES.saasHome,
+  APP_ROUTES.saasFeature,
   APP_ROUTES.saasOnboarding,
   APP_ROUTES.saasEnterprise,
   ...getProductSubpackageRoutePrefixes(['housing']),

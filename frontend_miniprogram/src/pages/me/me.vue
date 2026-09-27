@@ -4,10 +4,9 @@ import { computed, ref } from 'vue'
 import { getOrganizationAdminSections } from '@/domain/organization-admin'
 import { getRealNameStatusLabel } from '@/domain/personal-account'
 import { getOrganizationAdminNavigation } from '@/features/organization-admin/service'
-import { APP_ROUTES } from '@/modules/routes'
+import { APP_ROUTES, getLoginRoute } from '@/modules/routes'
 import AppModeSwitcher from './components/AppModeSwitcher.vue'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
-import AppLoginGuide from '@/components/app/AppLoginGuide.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import { useNavigationScrollState } from '@/hooks/useNavigationScrollState'
 import { useAppContextStore } from '@/store/app-context-v2'
@@ -22,7 +21,7 @@ definePage({
 const appContextStore = useAppContextStore()
 const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState()
 onPageScroll(handleNavigationScroll)
-const displayName = computed(() => appContextStore.user?.first_name || appContextStore.user?.username || appContextStore.user?.email || '未登录用户')
+const displayName = computed(() => appContextStore.user?.first_name || appContextStore.user?.username || appContextStore.user?.email || '用户')
 const avatar = computed(() => appContextStore.user?.avatar?.[0]?.thumbnail || appContextStore.user?.avatar?.[0]?.url || '/static/images/default-avatar.png')
 const accountRoleLabel = computed(() => {
   if (!appContextStore.authenticated)
@@ -33,38 +32,53 @@ const accountRoleLabel = computed(() => {
     return '房东管理'
   return '租客'
 })
-const isTenantMode = computed(() => appContextStore.navigationMode === 'personal')
+const isTenantMode = computed(() => appContextStore.navigationMode === 'personal' || !appContextStore.authenticated)
 const organizationNavigationAvailable = ref(false)
 let organizationNavigationLoadId = 0
 const organizationAdminSections = computed(() => getOrganizationAdminSections(appContextStore.capabilities))
 const canOpenOrganizationAdmin = computed(() => organizationNavigationAvailable.value || organizationAdminSections.value.length > 0)
 
+function openAccountRoute(url: string, tabbar = false) {
+  if (!appContextStore.authenticated) {
+    uni.navigateTo({ url: getLoginRoute(url) })
+    return
+  }
+  if (tabbar)
+    uni.switchTab({ url })
+  else
+    uni.navigateTo({ url })
+}
+
+function openProfile() {
+  openAccountRoute(APP_ROUTES.profile)
+}
+
 function openRealName() {
-  uni.navigateTo({ url: APP_ROUTES.realName })
+  openAccountRoute(APP_ROUTES.realName)
 }
 
 function openWallet() {
-  uni.navigateTo({ url: APP_ROUTES.wallet })
+  openAccountRoute(APP_ROUTES.wallet)
 }
 
 function openReferrals() {
-  uni.navigateTo({ url: APP_ROUTES.referrals })
+  openAccountRoute(APP_ROUTES.referrals)
 }
 
 function openTenantViewings() {
-  uni.navigateTo({ url: APP_ROUTES.tenantViewings })
+  openAccountRoute(APP_ROUTES.tenantViewings)
 }
 
 function openTenantLeases() {
-  uni.navigateTo({ url: APP_ROUTES.tenantLeases })
+  openAccountRoute(APP_ROUTES.tenantLeases)
 }
 
 function openFavorites() {
-  uni.switchTab({ url: APP_ROUTES.favorites })
+  openAccountRoute(APP_ROUTES.favorites, true)
 }
 
 function openAccountSettings() {
-  uni.navigateTo({ url: APP_ROUTES.accountSettings })
+  openAccountRoute(APP_ROUTES.accountSettings)
 }
 
 function openLandlordStore() {
@@ -110,181 +124,187 @@ onShow(() => void refreshOrganizationAdminVisibility())
         </template>
       </AppCustomNavigation>
     </template>
-    <view class="profile-card">
+    <view class="profile-card" @click="openProfile">
       <view class="profile-decoration profile-decoration--large" />
       <view class="profile-decoration profile-decoration--small" />
       <view class="profile-summary">
         <view class="avatar-shell">
-          <image class="avatar" :src="avatar" mode="aspectFill" />
+          <image v-if="appContextStore.authenticated" class="avatar" :src="avatar" mode="aspectFill" />
+          <view v-else class="visitor-avatar i-carbon-user-avatar" />
         </view>
         <view class="profile-main">
           <view class="profile-name">
-            {{ displayName }}
+            {{ appContextStore.authenticated ? displayName : '登录 / 注册' }}
           </view>
-          <view class="profile-role">
+          <view v-if="appContextStore.authenticated" class="profile-role">
             <view class="profile-role__dot" />
             {{ accountRoleLabel }}
           </view>
+          <view v-else class="profile-prompt">
+            登录后同步收藏、预约和消息
+          </view>
         </view>
+        <view class="profile-arrow i-carbon-chevron-right" />
+      </view>
+    </view>
+
+    <view class="service-card">
+      <view class="service-heading">
+        <view>
+          <view class="service-title">
+            {{ isTenantMode ? '找房服务' : '常用服务' }}
+          </view>
+          <view class="service-subtitle">
+            {{ !appContextStore.authenticated ? '登录后保存进度，继续找房' : isTenantMode ? '收藏、预约与租约进度' : '账户相关功能快速入口' }}
+          </view>
+        </view>
+      </view>
+      <view v-if="isTenantMode" class="service-grid">
+        <view class="service-item" @click="openFavorites">
+          <view class="service-icon service-icon--favorite">
+            <view class="i-carbon-favorite" />
+          </view>
+          <text class="service-name">我的收藏</text>
+          <text class="service-copy">喜欢的房源</text>
+        </view>
+        <view class="service-item" @click="openTenantViewings">
+          <view class="service-icon service-icon--viewing">
+            <view class="i-carbon-calendar" />
+          </view>
+          <text class="service-name">看房预约</text>
+          <text class="service-copy">时间与进度</text>
+        </view>
+        <view class="service-item" @click="openTenantLeases">
+          <view class="service-icon service-icon--lease">
+            <view class="i-carbon-document" />
+          </view>
+          <text class="service-name">我的租约</text>
+          <text class="service-copy">合同与履约</text>
+        </view>
+      </view>
+      <view v-else class="service-grid">
+        <view class="service-item" @click="openWallet">
+          <view class="service-icon service-icon--wallet">
+            <view class="i-carbon-wallet" />
+          </view>
+          <text class="service-name">我的钱包</text>
+          <text class="service-copy">余额与流水</text>
+        </view>
+        <view class="service-item" @click="openRealName">
+          <view class="service-icon service-icon--identity">
+            <view class="i-carbon-identification" />
+          </view>
+          <text class="service-name">实名认证</text>
+          <text class="service-copy">{{ getRealNameStatusLabel(appContextStore.user?.real_name_status, appContextStore.user?.real_name_status__mapping) }}</text>
+        </view>
+        <view class="service-item" @click="openReferrals">
+          <view class="service-icon service-icon--referral">
+            <view class="i-carbon-share" />
+          </view>
+          <text class="service-name">我的推广</text>
+          <text class="service-copy">邀请与奖励</text>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="isTenantMode" class="feature-card account-service-card">
+      <view class="feature-section-title">
+        账户服务
+      </view>
+      <view class="menu-row menu-row--compact" @click="openRealName">
+        <view class="menu-icon menu-icon--identity">
+          <view class="i-carbon-identification" />
+        </view>
+        <view class="menu-main">
+          <text class="menu-title">实名认证</text>
+          <text class="menu-copy">{{ appContextStore.authenticated ? getRealNameStatusLabel(appContextStore.user?.real_name_status, appContextStore.user?.real_name_status__mapping) : '登录后查看认证状态' }}</text>
+        </view>
+        <view class="menu-arrow i-carbon-chevron-right" />
+      </view>
+      <view class="menu-row menu-row--compact" @click="openWallet">
+        <view class="menu-icon menu-icon--wallet">
+          <view class="i-carbon-wallet" />
+        </view>
+        <view class="menu-main">
+          <text class="menu-title">我的钱包</text>
+          <text class="menu-copy">余额与流水</text>
+        </view>
+        <view class="menu-arrow i-carbon-chevron-right" />
+      </view>
+      <view class="menu-row menu-row--compact" @click="openReferrals">
+        <view class="menu-icon menu-icon--referral">
+          <view class="i-carbon-share" />
+        </view>
+        <view class="menu-main">
+          <text class="menu-title">我的推广</text>
+          <text class="menu-copy">邀请与奖励</text>
+        </view>
+        <view class="menu-arrow i-carbon-chevron-right" />
+      </view>
+      <view class="menu-row menu-row--compact" @click="openAccountSettings">
+        <view class="menu-icon menu-icon--settings">
+          <view class="i-carbon-settings-adjust" />
+        </view>
+        <view class="menu-main">
+          <text class="menu-title">设置</text>
+          <text class="menu-copy">资料、通知与账号安全</text>
+        </view>
+        <view class="menu-arrow i-carbon-chevron-right" />
+      </view>
+    </view>
+
+    <template v-if="appContextStore.mode === 'landlord' && appContextStore.currentLandlordRelationship">
+      <view class="feature-card">
+        <view class="menu-row" @click="openLandlordStore">
+          <view class="menu-icon menu-icon--store">
+            <view class="i-carbon-store" />
+          </view>
+          <view class="menu-main">
+            <text class="menu-title">公开店铺</text>
+            <text class="menu-copy">房东服务 · 查看与分享公开房源</text>
+          </view>
+          <view class="menu-arrow i-carbon-chevron-right" />
+        </view>
+      </view>
+    </template>
+    <template v-if="appContextStore.navigationMode === 'organization' && canOpenOrganizationAdmin">
+      <view class="feature-card">
+        <view class="menu-row" @click="openOrganizationAdmin">
+          <view class="menu-icon menu-icon--organization">
+            <view class="i-carbon-building" />
+          </view>
+          <view class="menu-main">
+            <text class="menu-title">组织管理中心</text>
+            <text class="menu-copy">{{ organizationAdminSections.length ? `组织服务 · ${organizationAdminSections.length} 项可用功能` : '组织服务 · 查看成员与团队' }}</text>
+          </view>
+          <view class="menu-arrow i-carbon-chevron-right" />
+        </view>
+      </view>
+    </template>
+
+    <view v-if="!isTenantMode" class="feature-card">
+      <view class="menu-row" @click="openAccountSettings">
+        <view class="menu-icon menu-icon--settings">
+          <view class="i-carbon-settings-adjust" />
+        </view>
+        <view class="menu-main">
+          <text class="menu-title">设置</text>
+          <text class="menu-copy">资料、通知与账号安全</text>
+        </view>
+        <view class="menu-arrow i-carbon-chevron-right" />
       </view>
     </view>
 
     <view v-if="!appContextStore.authenticated || appContextStore.organizations.length === 0" class="saas-entry" @click="openSaaS">
-      <view class="saas-entry__icon i-carbon-store" />
+      <view class="saas-entry__icon">
+        <view class="i-carbon-store" />
+      </view>
       <view class="saas-entry__main">
         <strong>我是中介，免费开通工作台</strong>
-        <text>14 天专业版试用 · 房源、带看、签约一体化</text>
+        <text>14 天试用 · 管理房源、带看与签约</text>
       </view>
       <view class="i-carbon-chevron-right" />
     </view>
-
-    <template v-if="appContextStore.authenticated">
-      <view class="service-card">
-        <view class="service-heading">
-          <view>
-            <view class="service-title">
-              {{ isTenantMode ? '租客服务' : '常用服务' }}
-            </view>
-            <view class="service-subtitle">
-              {{ isTenantMode ? '查看找房和预约进度' : '账户相关功能快速入口' }}
-            </view>
-          </view>
-          <view class="service-badge">
-            {{ isTenantMode ? '2 项' : '3 项' }}
-          </view>
-        </view>
-        <view v-if="isTenantMode" class="service-grid">
-          <view class="service-item" @click="openTenantViewings">
-            <view class="service-icon service-icon--viewing">
-              <view class="i-carbon-calendar" />
-            </view>
-            <text class="service-name">看房预约</text>
-            <text class="service-copy">时间与进度</text>
-          </view>
-          <view class="service-item" @click="openFavorites">
-            <view class="service-icon service-icon--favorite">
-              <view class="i-carbon-favorite" />
-            </view>
-            <text class="service-name">收藏房源</text>
-            <text class="service-copy">快速继续找房</text>
-          </view>
-        </view>
-        <view v-else class="service-grid">
-          <view class="service-item" @click="openWallet">
-            <view class="service-icon service-icon--wallet">
-              <view class="i-carbon-wallet" />
-            </view>
-            <text class="service-name">我的钱包</text>
-            <text class="service-copy">余额与流水</text>
-          </view>
-          <view class="service-item" @click="openRealName">
-            <view class="service-icon service-icon--identity">
-              <view class="i-carbon-identification" />
-            </view>
-            <text class="service-name">实名认证</text>
-            <text class="service-copy">{{ getRealNameStatusLabel(appContextStore.user?.real_name_status, appContextStore.user?.real_name_status__mapping) }}</text>
-          </view>
-          <view class="service-item" @click="openReferrals">
-            <view class="service-icon service-icon--referral">
-              <view class="i-carbon-share" />
-            </view>
-            <text class="service-name">我的推广</text>
-            <text class="service-copy">邀请与奖励</text>
-          </view>
-        </view>
-      </view>
-
-      <view v-if="isTenantMode" class="feature-card account-service-card">
-        <view class="feature-section-title">
-          账户服务
-        </view>
-        <view class="menu-row menu-row--compact" @click="openRealName">
-          <view class="menu-icon menu-icon--identity">
-            <view class="i-carbon-identification" />
-          </view>
-          <view class="menu-main">
-            <text class="menu-title">实名认证</text>
-            <text class="menu-copy">{{ getRealNameStatusLabel(appContextStore.user?.real_name_status, appContextStore.user?.real_name_status__mapping) }}</text>
-          </view>
-          <view class="menu-arrow i-carbon-chevron-right" />
-        </view>
-        <view class="menu-row menu-row--compact" @click="openWallet">
-          <view class="menu-icon menu-icon--wallet">
-            <view class="i-carbon-wallet" />
-          </view>
-          <view class="menu-main">
-            <text class="menu-title">我的钱包</text>
-            <text class="menu-copy">余额与流水</text>
-          </view>
-          <view class="menu-arrow i-carbon-chevron-right" />
-        </view>
-        <view class="menu-row menu-row--compact" @click="openReferrals">
-          <view class="menu-icon menu-icon--referral">
-            <view class="i-carbon-share" />
-          </view>
-          <view class="menu-main">
-            <text class="menu-title">我的推广</text>
-            <text class="menu-copy">邀请与奖励</text>
-          </view>
-          <view class="menu-arrow i-carbon-chevron-right" />
-        </view>
-      </view>
-
-      <template v-if="appContextStore.mode === 'landlord' && appContextStore.currentLandlordRelationship">
-        <view class="feature-card">
-          <view class="menu-row" @click="openLandlordStore">
-            <view class="menu-icon menu-icon--store">
-              <view class="i-carbon-store" />
-            </view>
-            <view class="menu-main">
-              <text class="menu-title">公开店铺</text>
-              <text class="menu-copy">房东服务 · 查看与分享公开房源</text>
-            </view>
-            <view class="menu-arrow i-carbon-chevron-right" />
-          </view>
-        </view>
-      </template>
-      <template v-if="appContextStore.navigationMode === 'organization' && canOpenOrganizationAdmin">
-        <view class="feature-card">
-          <view class="menu-row" @click="openOrganizationAdmin">
-            <view class="menu-icon menu-icon--organization">
-              <view class="i-carbon-building" />
-            </view>
-            <view class="menu-main">
-              <text class="menu-title">组织管理中心</text>
-              <text class="menu-copy">{{ organizationAdminSections.length ? `组织服务 · ${organizationAdminSections.length} 项可用功能` : '组织服务 · 查看成员与团队' }}</text>
-            </view>
-            <view class="menu-arrow i-carbon-chevron-right" />
-          </view>
-        </view>
-      </template>
-
-      <view class="feature-card">
-        <view class="menu-row" @click="openAccountSettings">
-          <view class="menu-icon menu-icon--settings">
-            <view class="i-carbon-settings-adjust" />
-          </view>
-          <view class="menu-main">
-            <text class="menu-title">设置</text>
-            <text class="menu-copy">资料、通知与账号安全</text>
-          </view>
-          <view class="menu-arrow i-carbon-chevron-right" />
-        </view>
-      </view>
-
-      <view v-if="isTenantMode" class="secondary-entry" @click="openTenantLeases">
-        <view class="i-carbon-document" />
-        <text>我的租约</text>
-        <view class="i-carbon-chevron-right" />
-      </view>
-    </template>
-    <AppLoginGuide
-      v-else
-      class="visitor-guide"
-      title="登录后使用完整服务"
-      description="收藏房源、查看预约与消息，并在获得房东或中介身份后使用相应功能。"
-      :redirect="APP_ROUTES.me"
-    />
   </AppPage>
 </template>
 
@@ -312,11 +332,11 @@ onShow(() => void refreshOrganizationAdminVisibility())
   display: flex;
   align-items: center;
   gap: 18rpx;
-  margin-top: 20rpx;
+  margin-top: 24rpx;
   padding: 24rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
+  border: 1rpx solid var(--app-border-color);
   border-radius: 26rpx;
-  background: var(--app-bg-brand-soft);
+  background: var(--app-bg-card);
 }
 .saas-entry__icon {
   display: flex;
@@ -326,9 +346,9 @@ onShow(() => void refreshOrganizationAdminVisibility())
   align-items: center;
   justify-content: center;
   border-radius: 22rpx;
-  color: var(--app-text-on-brand);
+  color: var(--app-color-brand-active);
   font-size: 36rpx;
-  background: var(--app-color-brand);
+  background: var(--app-bg-brand-soft);
 }
 .saas-entry__main {
   display: flex;
@@ -391,9 +411,17 @@ onShow(() => void refreshOrganizationAdminVisibility())
   border-radius: 50%;
   background: var(--app-bg-subtle);
 }
+.visitor-avatar {
+  color: var(--app-color-brand);
+  font-size: 62rpx;
+}
 .profile-main {
   min-width: 0;
   flex: 1;
+}
+.profile-arrow {
+  color: var(--app-text-muted);
+  font-size: 26rpx;
 }
 .profile-name {
   overflow: hidden;
@@ -421,6 +449,11 @@ onShow(() => void refreshOrganizationAdminVisibility())
   border-radius: 50%;
   background: currentColor;
 }
+.profile-prompt {
+  margin-top: 8rpx;
+  color: var(--app-text-secondary);
+  font-size: 21rpx;
+}
 .service-card {
   margin-top: 24rpx;
   padding: 26rpx 16rpx 24rpx;
@@ -442,14 +475,6 @@ onShow(() => void refreshOrganizationAdminVisibility())
   margin-top: 5rpx;
   color: var(--app-text-muted);
   font-size: 20rpx;
-}
-.service-badge {
-  padding: 6rpx 12rpx;
-  border-radius: 999rpx;
-  color: var(--app-color-brand-active);
-  font-size: 18rpx;
-  font-weight: 600;
-  background: var(--app-bg-brand-soft);
 }
 .service-grid {
   display: flex;
@@ -495,6 +520,10 @@ onShow(() => void refreshOrganizationAdminVisibility())
 .service-icon--favorite {
   color: #d55370;
   background: #fff0f3;
+}
+.service-icon--lease {
+  color: #6b57e8;
+  background: #f0edff;
 }
 .service-icon--referral {
   color: #6b57e8;
@@ -614,23 +643,5 @@ onShow(() => void refreshOrganizationAdminVisibility())
   margin-left: 16rpx;
   color: var(--app-text-muted);
   font-size: 26rpx;
-}
-.secondary-entry {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8rpx;
-  padding: 22rpx 8rpx 4rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.secondary-entry > view:first-child {
-  font-size: 24rpx;
-}
-.secondary-entry > view:last-child {
-  font-size: 22rpx;
-}
-.visitor-guide {
-  margin-top: 28rpx;
 }
 </style>

@@ -328,6 +328,27 @@ export function usersMeSocialBindingsUsingGet({
   });
 }
 
+/** 绑定当前微信小程序身份 将 wx.login 对应的小程序身份安全连接到当前登录账号。 POST /api/users/me/wechat-miniprogram/ */
+export function usersMeWechatMiniprogramUsingPost({
+  body,
+  options,
+}: {
+  body: API.WechatMiniprogramConnectIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.WechatMiniprogramConnectOut>(
+    '/api/users/me/wechat-miniprogram/',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
 /** 绑定微信手机号 通过微信小程序手机号凭证为当前用户绑定手机号。 POST /api/users/me/wechat-phone/ */
 export function usersMeWechatPhoneUsingPost({
   body,

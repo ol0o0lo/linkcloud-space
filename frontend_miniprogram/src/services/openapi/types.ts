@@ -299,126 +299,128 @@ export enum ActionEnum {
 
 export type IActionEnum = keyof typeof ActionEnum;
 
-export type AdminMiniprogramHomeBannersBannerIdUsingGetParams = {
+export type AdminPlatformOperationsContentBannersBannerIdUsingGetParams = {
   banner_id: number;
 };
 
-export type AdminMiniprogramHomeBannersBannerIdUsingGetResponses = {
+export type AdminPlatformOperationsContentBannersBannerIdUsingGetResponses = {
   /**
    * OK
    */
-  200: MiniProgramHomeBannerAdminOut;
+  200: HomeBannerAdminOut;
 };
 
-export type AdminMiniprogramHomeBannersBannerIdUsingPatchParams = {
+export type AdminPlatformOperationsContentBannersBannerIdUsingPatchParams = {
   banner_id: number;
 };
 
-export type AdminMiniprogramHomeBannersBannerIdUsingPatchResponses = {
+export type AdminPlatformOperationsContentBannersBannerIdUsingPatchResponses = {
   /**
    * OK
    */
-  200: MiniProgramHomeBannerAdminOut;
+  200: HomeBannerAdminOut;
 };
 
-export type AdminMiniprogramHomeBannersUsingGetParams = {
+export type AdminPlatformOperationsContentBannersUsingGetParams = {
   keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
 
-export type AdminMiniprogramHomeBannersUsingGetResponses = {
+export type AdminPlatformOperationsContentBannersUsingGetResponses = {
   /**
    * OK
    */
-  200: PagedMiniProgramHomeBannerAdminOut;
+  200: PagedHomeBannerAdminOut;
 };
 
-export type AdminMiniprogramHomeBannersUsingPostResponses = {
+export type AdminPlatformOperationsContentBannersUsingPostResponses = {
   /**
    * Created
    */
-  201: MiniProgramHomeBannerAdminOut;
+  201: HomeBannerAdminOut;
 };
 
-export type AdminMiniprogramHomeEntriesEntryIdHousesUsingGetParams = {
+export type AdminPlatformOperationsContentEntriesEntryIdHousesUsingGetParams = {
   entry_id: number;
   page?: number;
   page_size?: number | null;
 };
 
-export type AdminMiniprogramHomeEntriesEntryIdHousesUsingGetResponses = {
-  /**
-   * OK
-   */
-  200: PagedMiniProgramHomeEntryHouseAdminOut;
-};
+export type AdminPlatformOperationsContentEntriesEntryIdHousesUsingGetResponses =
+  {
+    /**
+     * OK
+     */
+    200: PagedContentEntryHouseAdminOut;
+  };
 
-export type AdminMiniprogramHomeEntriesEntryIdHousesUsingPutParams = {
+export type AdminPlatformOperationsContentEntriesEntryIdHousesUsingPutParams = {
   entry_id: number;
 };
 
-export type AdminMiniprogramHomeEntriesEntryIdHousesUsingPutResponses = {
-  /**
-   * OK
-   */
-  200: MiniProgramHomeEntryHouseAdminOut[];
-};
+export type AdminPlatformOperationsContentEntriesEntryIdHousesUsingPutResponses =
+  {
+    /**
+     * OK
+     */
+    200: ContentEntryHouseAdminOut[];
+  };
 
-export type AdminMiniprogramHomeEntriesEntryIdUsingGetParams = {
+export type AdminPlatformOperationsContentEntriesEntryIdUsingGetParams = {
   entry_id: number;
 };
 
-export type AdminMiniprogramHomeEntriesEntryIdUsingGetResponses = {
+export type AdminPlatformOperationsContentEntriesEntryIdUsingGetResponses = {
   /**
    * OK
    */
-  200: MiniProgramHomeEntryAdminOut;
+  200: ContentEntryAdminOut;
 };
 
-export type AdminMiniprogramHomeEntriesEntryIdUsingPatchParams = {
+export type AdminPlatformOperationsContentEntriesEntryIdUsingPatchParams = {
   entry_id: number;
 };
 
-export type AdminMiniprogramHomeEntriesEntryIdUsingPatchResponses = {
+export type AdminPlatformOperationsContentEntriesEntryIdUsingPatchResponses = {
   /**
    * OK
    */
-  200: MiniProgramHomeEntryAdminOut;
+  200: ContentEntryAdminOut;
 };
 
-export type AdminMiniprogramHomeEntriesUsingGetParams = {
+export type AdminPlatformOperationsContentEntriesUsingGetParams = {
   kind?: string | null;
   keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
 
-export type AdminMiniprogramHomeEntriesUsingGetResponses = {
+export type AdminPlatformOperationsContentEntriesUsingGetResponses = {
   /**
    * OK
    */
-  200: PagedMiniProgramHomeEntryAdminOut;
+  200: PagedContentEntryAdminOut;
 };
 
-export type AdminMiniprogramHomeEntriesUsingPostResponses = {
+export type AdminPlatformOperationsContentEntriesUsingPostResponses = {
   /**
    * Created
    */
-  201: MiniProgramHomeEntryAdminOut;
+  201: ContentEntryAdminOut;
 };
 
-export type AdminMiniprogramHomeHouseCandidatesUsingGetParams = {
+export type AdminPlatformOperationsContentHouseCandidatesUsingGetParams = {
   keyword?: string | null;
   page?: number;
   page_size?: number | null;
 };
 
-export type AdminMiniprogramHomeHouseCandidatesUsingGetResponses = {
+export type AdminPlatformOperationsContentHouseCandidatesUsingGetResponses = {
   /**
    * OK
    */
-  200: PagedMiniProgramHomeHouseAdminOut;
+  200: PagedContentHouseAdminOut;
 };
 
 export type AdminRealNameDecisionIn = {
@@ -647,6 +649,33 @@ export type AdminSubscriptionsOrdersUsingGetResponses = {
    * OK
    */
   200: PagedSaaSOrderOut;
+};
+
+export type AdminSubscriptionsSalesLeadsLeadIdUsingPatchParams = {
+  lead_id: number;
+};
+
+export type AdminSubscriptionsSalesLeadsLeadIdUsingPatchResponses = {
+  /**
+   * OK
+   */
+  200: SalesLeadOut;
+};
+
+export type AdminSubscriptionsSalesLeadsUsingGetParams = {
+  keyword?: string | null;
+  status?: string | null;
+  created_from?: string | null;
+  created_to?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type AdminSubscriptionsSalesLeadsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedSalesLeadOut;
 };
 
 export type AdminUserCreateIn = {
@@ -1800,6 +1829,178 @@ export type ContactSummaryOut = {
   phone: string;
 };
 
+export type ContentEntryAdminOut = {
+  /** Id */
+  id: number;
+  /** Kind */
+  kind: string;
+  /** Kind  Mapping */
+  kind__mapping: string;
+  /** Slug */
+  slug: string;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Summary */
+  summary: string;
+  /** Cover Image */
+  cover_image: ResolvedMediaRefOut[];
+  /** Body Markdown */
+  body_markdown: string;
+  /** Tone */
+  tone: string;
+  /** Sort Order */
+  sort_order: number;
+  /** Is Enabled */
+  is_enabled: boolean;
+  /** Starts At */
+  starts_at: string | null;
+  /** Ends At */
+  ends_at: string | null;
+  /** Display Status */
+  display_status: string;
+  /** Display Status  Mapping */
+  display_status__mapping: string;
+  /** House Count */
+  house_count: number;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type ContentEntryCreateIn = {
+  /** Kind */
+  kind: string;
+  /** Eyebrow */
+  eyebrow?: string;
+  /** Title */
+  title: string;
+  /** Summary */
+  summary: string;
+  /** Cover Image */
+  cover_image?: Record<string, unknown>[];
+  /** Body Markdown */
+  body_markdown?: string;
+  /** Tone */
+  tone: string;
+  /** Sort Order */
+  sort_order?: number;
+  /** Is Enabled */
+  is_enabled?: boolean;
+  /** Starts At */
+  starts_at?: string | null;
+  /** Ends At */
+  ends_at?: string | null;
+};
+
+export type ContentEntryDetailOut = {
+  /** Slug */
+  slug: string;
+  /** Kind */
+  kind: string;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Summary */
+  summary: string;
+  /** Cover Image */
+  cover_image: ResolvedMediaRefOut[];
+  /** Tone */
+  tone: string;
+  /** Body Html */
+  body_html: string;
+};
+
+export type ContentEntryHouseAdminOut = {
+  house: ContentHouseAdminOut;
+  /** Sort Order */
+  sort_order: number;
+  /** Recommendation Reason */
+  recommendation_reason: string;
+};
+
+export type ContentEntryHouseItemIn = {
+  /** House Id */
+  house_id: number;
+  /** Recommendation Reason */
+  recommendation_reason?: string;
+};
+
+export type ContentEntryHousePublicOut = {
+  house: PublicHouseListOut;
+  /** Recommendation Reason */
+  recommendation_reason: string;
+};
+
+export type ContentEntryHousesPutIn = {
+  /** Items */
+  items: ContentEntryHouseItemIn[];
+};
+
+export type ContentEntryPatchIn = {
+  /** Kind */
+  kind?: string | null;
+  /** Eyebrow */
+  eyebrow?: string | null;
+  /** Title */
+  title?: string | null;
+  /** Summary */
+  summary?: string | null;
+  /** Cover Image */
+  cover_image?: Record<string, unknown>[] | null;
+  /** Body Markdown */
+  body_markdown?: string | null;
+  /** Tone */
+  tone?: string | null;
+  /** Sort Order */
+  sort_order?: number | null;
+  /** Is Enabled */
+  is_enabled?: boolean | null;
+  /** Starts At */
+  starts_at?: string | null;
+  /** Ends At */
+  ends_at?: string | null;
+};
+
+export type ContentEntrySummaryOut = {
+  /** Slug */
+  slug: string;
+  /** Kind */
+  kind: string;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Summary */
+  summary: string;
+  /** Cover Image */
+  cover_image: ResolvedMediaRefOut[];
+  /** Tone */
+  tone: string;
+};
+
+export type ContentHouseAdminOut = {
+  /** Id */
+  id: number;
+  /** Display Name */
+  display_name: string;
+  /** Status */
+  status: string;
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Layout */
+  layout: string;
+  /** Area */
+  area: string | null;
+  /** Asking Rent */
+  asking_rent: string | null;
+  /** Images */
+  images: ResolvedMediaRefOut[];
+};
+
 export type ConversationCreateIn = {
   /** Scope */
   scope?: 'personal' | 'organization';
@@ -1982,6 +2183,8 @@ export type EstateDetailOut = {
   city: string;
   /** District */
   district: string;
+  /** Subdistrict */
+  subdistrict: string;
   /** Address */
   address: string;
   location: GeoPointOut | null;
@@ -2011,6 +2214,8 @@ export type EstateIn = {
   city: string;
   /** District */
   district: string;
+  /** Subdistrict */
+  subdistrict?: string;
   /** Address */
   address?: string;
   location?: GeoPointIn | null;
@@ -2062,6 +2267,8 @@ export type EstateOut = {
   city: string;
   /** District */
   district: string;
+  /** Subdistrict */
+  subdistrict: string;
   /** Address */
   address: string;
   location: GeoPointOut | null;
@@ -2088,6 +2295,8 @@ export type EstatePatchIn = {
   city?: string | null;
   /** District */
   district?: string | null;
+  /** Subdistrict */
+  subdistrict?: string | null;
   /** Address */
   address?: string | null;
   location?: GeoPointIn | null;
@@ -2176,6 +2385,131 @@ export type GeoPointOut = {
   latitude: number;
   /** Coordinate System */
   coordinate_system?: string;
+};
+
+export type HomeBannerAdminOut = {
+  /** Id */
+  id: number;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Description */
+  description: string;
+  /** Button Text */
+  button_text: string;
+  /** Image */
+  image: ResolvedMediaRefOut[];
+  /** Tone */
+  tone: string;
+  /** Action Type */
+  action_type: string;
+  /** Action Type  Mapping */
+  action_type__mapping: string;
+  /** Entry Id */
+  entry_id: number | null;
+  /** Entry Title */
+  entry_title: string | null;
+  /** Sort Order */
+  sort_order: number;
+  /** Is Enabled */
+  is_enabled: boolean;
+  /** Starts At */
+  starts_at: string | null;
+  /** Ends At */
+  ends_at: string | null;
+  /** Display Status */
+  display_status: string;
+  /** Display Status  Mapping */
+  display_status__mapping: string;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type HomeBannerCreateIn = {
+  /** Eyebrow */
+  eyebrow?: string;
+  /** Title */
+  title: string;
+  /** Description */
+  description: string;
+  /** Button Text */
+  button_text?: string;
+  /** Image */
+  image?: Record<string, unknown>[];
+  /** Tone */
+  tone: string;
+  /** Action Type */
+  action_type: string;
+  /** Entry Id */
+  entry_id?: number | null;
+  /** Sort Order */
+  sort_order?: number;
+  /** Is Enabled */
+  is_enabled?: boolean;
+  /** Starts At */
+  starts_at?: string | null;
+  /** Ends At */
+  ends_at?: string | null;
+};
+
+export type HomeBannerPatchIn = {
+  /** Eyebrow */
+  eyebrow?: string | null;
+  /** Title */
+  title?: string | null;
+  /** Description */
+  description?: string | null;
+  /** Button Text */
+  button_text?: string | null;
+  /** Image */
+  image?: Record<string, unknown>[] | null;
+  /** Tone */
+  tone?: string | null;
+  /** Action Type */
+  action_type?: string | null;
+  /** Entry Id */
+  entry_id?: number | null;
+  /** Sort Order */
+  sort_order?: number | null;
+  /** Is Enabled */
+  is_enabled?: boolean | null;
+  /** Starts At */
+  starts_at?: string | null;
+  /** Ends At */
+  ends_at?: string | null;
+};
+
+export type HomeBannerPublicOut = {
+  /** Id */
+  id: number;
+  /** Eyebrow */
+  eyebrow: string;
+  /** Title */
+  title: string;
+  /** Description */
+  description: string;
+  /** Button Text */
+  button_text: string;
+  /** Image */
+  image: ResolvedMediaRefOut[];
+  /** Tone */
+  tone: string;
+  /** Action Type */
+  action_type: string;
+  /** Entry Slug */
+  entry_slug: string | null;
+};
+
+export type HomeContentOut = {
+  /** Banners */
+  banners: HomeBannerPublicOut[];
+  /** Topics */
+  topics: ContentEntrySummaryOut[];
+  /** Guides */
+  guides: ContentEntrySummaryOut[];
 };
 
 export type HouseAIInsightAppealPointOut = {
@@ -3167,6 +3501,13 @@ export type HouseTagSuggestionsUsingGetResponses = {
   200: TagSuggestionsOut;
 };
 
+export type HouseTenantContactUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: TenantContactRequestOut;
+};
+
 export type HouseTenantLeasesLeaseIdUsingGetParams = {
   lease_id: number;
 };
@@ -3191,6 +3532,7 @@ export type HouseTenantLeasesUsingGetResponses = {
 };
 
 export type HouseTenantViewingRecordsUsingGetParams = {
+  scope?: 'current' | 'history' | null;
   page?: number;
   page_size?: number | null;
 };
@@ -3986,303 +4328,6 @@ export type MessageOut = {
   created_at: string;
 };
 
-export type MiniProgramHomeBannerAdminOut = {
-  /** Id */
-  id: number;
-  /** Eyebrow */
-  eyebrow: string;
-  /** Title */
-  title: string;
-  /** Description */
-  description: string;
-  /** Button Text */
-  button_text: string;
-  /** Image */
-  image: ResolvedMediaRefOut[];
-  /** Tone */
-  tone: string;
-  /** Action Type */
-  action_type: string;
-  /** Action Type  Mapping */
-  action_type__mapping: string;
-  /** Entry Id */
-  entry_id: number | null;
-  /** Entry Title */
-  entry_title: string | null;
-  /** Sort Order */
-  sort_order: number;
-  /** Is Enabled */
-  is_enabled: boolean;
-  /** Starts At */
-  starts_at: string | null;
-  /** Ends At */
-  ends_at: string | null;
-  /** Display Status */
-  display_status: string;
-  /** Display Status  Mapping */
-  display_status__mapping: string;
-  /** Created At */
-  created_at: string;
-  /** Updated At */
-  updated_at: string;
-};
-
-export type MiniProgramHomeBannerCreateIn = {
-  /** Eyebrow */
-  eyebrow?: string;
-  /** Title */
-  title: string;
-  /** Description */
-  description: string;
-  /** Button Text */
-  button_text?: string;
-  /** Image */
-  image?: Record<string, unknown>[];
-  /** Tone */
-  tone: string;
-  /** Action Type */
-  action_type: string;
-  /** Entry Id */
-  entry_id?: number | null;
-  /** Sort Order */
-  sort_order?: number;
-  /** Is Enabled */
-  is_enabled?: boolean;
-  /** Starts At */
-  starts_at?: string | null;
-  /** Ends At */
-  ends_at?: string | null;
-};
-
-export type MiniProgramHomeBannerPatchIn = {
-  /** Eyebrow */
-  eyebrow?: string | null;
-  /** Title */
-  title?: string | null;
-  /** Description */
-  description?: string | null;
-  /** Button Text */
-  button_text?: string | null;
-  /** Image */
-  image?: Record<string, unknown>[] | null;
-  /** Tone */
-  tone?: string | null;
-  /** Action Type */
-  action_type?: string | null;
-  /** Entry Id */
-  entry_id?: number | null;
-  /** Sort Order */
-  sort_order?: number | null;
-  /** Is Enabled */
-  is_enabled?: boolean | null;
-  /** Starts At */
-  starts_at?: string | null;
-  /** Ends At */
-  ends_at?: string | null;
-};
-
-export type MiniProgramHomeBannerPublicOut = {
-  /** Id */
-  id: number;
-  /** Eyebrow */
-  eyebrow: string;
-  /** Title */
-  title: string;
-  /** Description */
-  description: string;
-  /** Button Text */
-  button_text: string;
-  /** Image */
-  image: ResolvedMediaRefOut[];
-  /** Tone */
-  tone: string;
-  /** Action Type */
-  action_type: string;
-  /** Entry Slug */
-  entry_slug: string | null;
-};
-
-export type MiniProgramHomeEntryAdminOut = {
-  /** Id */
-  id: number;
-  /** Kind */
-  kind: string;
-  /** Kind  Mapping */
-  kind__mapping: string;
-  /** Slug */
-  slug: string;
-  /** Eyebrow */
-  eyebrow: string;
-  /** Title */
-  title: string;
-  /** Summary */
-  summary: string;
-  /** Cover Image */
-  cover_image: ResolvedMediaRefOut[];
-  /** Body Markdown */
-  body_markdown: string;
-  /** Tone */
-  tone: string;
-  /** Sort Order */
-  sort_order: number;
-  /** Is Enabled */
-  is_enabled: boolean;
-  /** Starts At */
-  starts_at: string | null;
-  /** Ends At */
-  ends_at: string | null;
-  /** Display Status */
-  display_status: string;
-  /** Display Status  Mapping */
-  display_status__mapping: string;
-  /** House Count */
-  house_count: number;
-  /** Created At */
-  created_at: string;
-  /** Updated At */
-  updated_at: string;
-};
-
-export type MiniProgramHomeEntryCreateIn = {
-  /** Kind */
-  kind: string;
-  /** Eyebrow */
-  eyebrow?: string;
-  /** Title */
-  title: string;
-  /** Summary */
-  summary: string;
-  /** Cover Image */
-  cover_image?: Record<string, unknown>[];
-  /** Body Markdown */
-  body_markdown?: string;
-  /** Tone */
-  tone: string;
-  /** Sort Order */
-  sort_order?: number;
-  /** Is Enabled */
-  is_enabled?: boolean;
-  /** Starts At */
-  starts_at?: string | null;
-  /** Ends At */
-  ends_at?: string | null;
-};
-
-export type MiniProgramHomeEntryDetailOut = {
-  /** Slug */
-  slug: string;
-  /** Kind */
-  kind: string;
-  /** Eyebrow */
-  eyebrow: string;
-  /** Title */
-  title: string;
-  /** Summary */
-  summary: string;
-  /** Cover Image */
-  cover_image: ResolvedMediaRefOut[];
-  /** Tone */
-  tone: string;
-  /** Body Html */
-  body_html: string;
-};
-
-export type MiniProgramHomeEntryHouseAdminOut = {
-  house: MiniProgramHomeHouseAdminOut;
-  /** Sort Order */
-  sort_order: number;
-  /** Recommendation Reason */
-  recommendation_reason: string;
-};
-
-export type MiniProgramHomeEntryHouseItemIn = {
-  /** House Id */
-  house_id: number;
-  /** Recommendation Reason */
-  recommendation_reason?: string;
-};
-
-export type MiniProgramHomeEntryHousePublicOut = {
-  house: PublicHouseListOut;
-  /** Recommendation Reason */
-  recommendation_reason: string;
-};
-
-export type MiniProgramHomeEntryHousesPutIn = {
-  /** Items */
-  items: MiniProgramHomeEntryHouseItemIn[];
-};
-
-export type MiniProgramHomeEntryPatchIn = {
-  /** Kind */
-  kind?: string | null;
-  /** Eyebrow */
-  eyebrow?: string | null;
-  /** Title */
-  title?: string | null;
-  /** Summary */
-  summary?: string | null;
-  /** Cover Image */
-  cover_image?: Record<string, unknown>[] | null;
-  /** Body Markdown */
-  body_markdown?: string | null;
-  /** Tone */
-  tone?: string | null;
-  /** Sort Order */
-  sort_order?: number | null;
-  /** Is Enabled */
-  is_enabled?: boolean | null;
-  /** Starts At */
-  starts_at?: string | null;
-  /** Ends At */
-  ends_at?: string | null;
-};
-
-export type MiniProgramHomeEntrySummaryOut = {
-  /** Slug */
-  slug: string;
-  /** Kind */
-  kind: string;
-  /** Eyebrow */
-  eyebrow: string;
-  /** Title */
-  title: string;
-  /** Summary */
-  summary: string;
-  /** Cover Image */
-  cover_image: ResolvedMediaRefOut[];
-  /** Tone */
-  tone: string;
-};
-
-export type MiniProgramHomeHouseAdminOut = {
-  /** Id */
-  id: number;
-  /** Display Name */
-  display_name: string;
-  /** Status */
-  status: string;
-  /** Status  Mapping */
-  status__mapping: string;
-  /** Layout */
-  layout: string;
-  /** Area */
-  area: string | null;
-  /** Asking Rent */
-  asking_rent: string | null;
-  /** Images */
-  images: ResolvedMediaRefOut[];
-};
-
-export type MiniProgramHomeOut = {
-  /** Banners */
-  banners: MiniProgramHomeBannerPublicOut[];
-  /** Topics */
-  topics: MiniProgramHomeEntrySummaryOut[];
-  /** Guides */
-  guides: MiniProgramHomeEntrySummaryOut[];
-};
-
 export enum ModeEnum {
   'preview' = 'preview',
   'apply' = 'apply',
@@ -4690,6 +4735,40 @@ export type NotificationsUsingGetResponses = {
   200: PagedNotificationOut;
 };
 
+export type OnboardingProgressOut = {
+  /** Completed Count */
+  completed_count: number;
+  /** Total Count */
+  total_count: number;
+  /** Completion Percent */
+  completion_percent: number;
+  /** Activated */
+  activated: boolean;
+  /** Trial Ends At */
+  trial_ends_at?: string | null;
+  /** Trial Days Remaining */
+  trial_days_remaining?: number | null;
+  /** Tasks */
+  tasks: OnboardingTaskOut[];
+};
+
+export type OnboardingTaskOut = {
+  /** Key */
+  key: string;
+  /** Title */
+  title: string;
+  /** Description */
+  description: string;
+  /** Completed */
+  completed: boolean;
+  /** Completed At */
+  completed_at?: string | null;
+  /** Deadline At */
+  deadline_at?: string | null;
+  /** Action */
+  action: string;
+};
+
 export type OrganizationBindingOut = {
   /** Id */
   id: number;
@@ -4706,8 +4785,18 @@ export type OrganizationBindingOut = {
 export type OrganizationCreateIn = {
   /** Name 租户名称。 */
   name: string;
-  /** Slug 租户 slug，用于切换与公开链接。 */
-  slug: string;
+  /** Slug 租户 slug；留空时由系统自动生成。 */
+  slug?: string | null;
+  /** Business Type 经营类型：individual 或 store。 */
+  business_type?: string;
+  /** City Code 城市编码。 */
+  city_code?: string;
+  /** City Name 城市名称。 */
+  city_name?: string;
+  /** Team Size Band 团队规模区间。 */
+  team_size_band?: string;
+  /** Source 入驻来源。 */
+  source?: string;
 };
 
 export type OrganizationCreateOut = {
@@ -4717,6 +4806,8 @@ export type OrganizationCreateOut = {
   name: string;
   /** Slug */
   slug: string;
+  /** Trial */
+  trial?: Record<string, unknown> | null;
 };
 
 export type OrganizationInvitesInviteIdResendUsingPostParams = {
@@ -5256,6 +5347,61 @@ export type PagedContactOut = {
   page_size: number;
 };
 
+export type PagedContentEntryAdminOut = {
+  /** Items */
+  items: ContentEntryAdminOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedContentEntryHouseAdminOut = {
+  /** Items */
+  items: ContentEntryHouseAdminOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedContentEntryHousePublicOut = {
+  /** Items */
+  items: ContentEntryHousePublicOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedContentEntrySummaryOut = {
+  /** Items */
+  items: ContentEntrySummaryOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedContentHouseAdminOut = {
+  /** Items */
+  items: ContentHouseAdminOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedConversationOut = {
   /** Items */
   items: ConversationOut[];
@@ -5292,6 +5438,17 @@ export type PagedEstateMapMarkerOut = {
 export type PagedFavoriteOut = {
   /** Items */
   items: FavoriteOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedHomeBannerAdminOut = {
+  /** Items */
+  items: HomeBannerAdminOut[];
   /** Total */
   total: number;
   /** Page */
@@ -5399,72 +5556,6 @@ export type PagedMessageOut = {
   page_size: number;
 };
 
-export type PagedMiniProgramHomeBannerAdminOut = {
-  /** Items */
-  items: MiniProgramHomeBannerAdminOut[];
-  /** Total */
-  total: number;
-  /** Page */
-  page: number;
-  /** Page Size */
-  page_size: number;
-};
-
-export type PagedMiniProgramHomeEntryAdminOut = {
-  /** Items */
-  items: MiniProgramHomeEntryAdminOut[];
-  /** Total */
-  total: number;
-  /** Page */
-  page: number;
-  /** Page Size */
-  page_size: number;
-};
-
-export type PagedMiniProgramHomeEntryHouseAdminOut = {
-  /** Items */
-  items: MiniProgramHomeEntryHouseAdminOut[];
-  /** Total */
-  total: number;
-  /** Page */
-  page: number;
-  /** Page Size */
-  page_size: number;
-};
-
-export type PagedMiniProgramHomeEntryHousePublicOut = {
-  /** Items */
-  items: MiniProgramHomeEntryHousePublicOut[];
-  /** Total */
-  total: number;
-  /** Page */
-  page: number;
-  /** Page Size */
-  page_size: number;
-};
-
-export type PagedMiniProgramHomeEntrySummaryOut = {
-  /** Items */
-  items: MiniProgramHomeEntrySummaryOut[];
-  /** Total */
-  total: number;
-  /** Page */
-  page: number;
-  /** Page Size */
-  page_size: number;
-};
-
-export type PagedMiniProgramHomeHouseAdminOut = {
-  /** Items */
-  items: MiniProgramHomeHouseAdminOut[];
-  /** Total */
-  total: number;
-  /** Page */
-  page: number;
-  /** Page Size */
-  page_size: number;
-};
-
 export type PagedMonthlyAccrualTotalOut = {
   /** Items */
   items: MonthlyAccrualTotalOut[];
@@ -5556,6 +5647,17 @@ export type PagedRoleMemberOptionOut = {
 export type PagedSaaSOrderOut = {
   /** Items */
   items: SaaSOrderOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedSalesLeadOut = {
+  /** Items */
+  items: SalesLeadOut[];
   /** Total */
   total: number;
   /** Page */
@@ -5753,6 +5855,8 @@ export type PlanOut = {
   name: string;
   /** Description */
   description: string;
+  /** Purchase Mode */
+  purchase_mode: string;
   /** Display Order */
   display_order: number;
   /** Is Active */
@@ -5810,6 +5914,50 @@ export type PublicBuildingOut = {
   estate: PublicEstateOut | null;
 };
 
+export type PublicContentEntriesSlugHousesUsingGetParams = {
+  slug: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type PublicContentEntriesSlugHousesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedContentEntryHousePublicOut;
+};
+
+export type PublicContentEntriesSlugUsingGetParams = {
+  slug: string;
+};
+
+export type PublicContentEntriesSlugUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: ContentEntryDetailOut;
+};
+
+export type PublicContentEntriesUsingGetParams = {
+  kind: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type PublicContentEntriesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedContentEntrySummaryOut;
+};
+
+export type PublicContentHomeUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: HomeContentOut;
+};
+
 export type PublicEstateOut = {
   /** Id */
   id: number;
@@ -5823,6 +5971,8 @@ export type PublicEstateOut = {
   city: string;
   /** District */
   district: string;
+  /** Subdistrict */
+  subdistrict: string;
   /** Address */
   address: string;
 };
@@ -6068,6 +6218,8 @@ export type PublicHouseRegionDistrictOut = {
   district: string;
   /** House Count */
   house_count: number;
+  /** Subdistricts */
+  subdistricts: PublicHouseRegionSubdistrictOut[];
 };
 
 export type PublicHouseRegionProvinceOut = {
@@ -6082,6 +6234,13 @@ export type PublicHouseRegionProvinceOut = {
 export type PublicHouseRegionsOut = {
   /** Items */
   items: PublicHouseRegionProvinceOut[];
+};
+
+export type PublicHouseRegionSubdistrictOut = {
+  /** Subdistrict */
+  subdistrict: string;
+  /** House Count */
+  house_count: number;
 };
 
 export type PublicHousesFiltersUsingGetResponses = {
@@ -6112,6 +6271,7 @@ export type PublicHousesMapUsingGetParams = {
   province?: string | null;
   city?: string | null;
   district?: string | null;
+  subdistrict?: string | null;
   longitude?: number | string | null;
   latitude?: number | string | null;
   radius_m?: number;
@@ -6150,6 +6310,7 @@ export type PublicHousesUsingGetParams = {
   province?: string | null;
   city?: string | null;
   district?: string | null;
+  subdistrict?: string | null;
   estate_id?: number | null;
   building_id?: number | null;
   min_rent?: number | string | null;
@@ -6304,50 +6465,6 @@ export type PublicMetroStationOut = {
   name: string;
 };
 
-export type PublicMiniprogramHomeEntriesSlugHousesUsingGetParams = {
-  slug: string;
-  page?: number;
-  page_size?: number | null;
-};
-
-export type PublicMiniprogramHomeEntriesSlugHousesUsingGetResponses = {
-  /**
-   * OK
-   */
-  200: PagedMiniProgramHomeEntryHousePublicOut;
-};
-
-export type PublicMiniprogramHomeEntriesSlugUsingGetParams = {
-  slug: string;
-};
-
-export type PublicMiniprogramHomeEntriesSlugUsingGetResponses = {
-  /**
-   * OK
-   */
-  200: MiniProgramHomeEntryDetailOut;
-};
-
-export type PublicMiniprogramHomeEntriesUsingGetParams = {
-  kind: string;
-  page?: number;
-  page_size?: number | null;
-};
-
-export type PublicMiniprogramHomeEntriesUsingGetResponses = {
-  /**
-   * OK
-   */
-  200: PagedMiniProgramHomeEntrySummaryOut;
-};
-
-export type PublicMiniprogramHomeUsingGetResponses = {
-  /**
-   * OK
-   */
-  200: MiniProgramHomeOut;
-};
-
 export type PublicPublisherOut = {
   /** Slug */
   slug: string;
@@ -6357,6 +6474,20 @@ export type PublicPublisherOut = {
   logo: ResolvedMediaRefOut[];
   /** Description */
   description: string;
+};
+
+export type PublicSaasPlansUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PlanOut[];
+};
+
+export type PublicSaasSalesLeadsUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: SalesLeadOut;
 };
 
 export type PurchaseOrderIn = {
@@ -6826,6 +6957,77 @@ export type SaaSOrderOut = {
   invoice?: Record<string, unknown> | null;
 };
 
+export type SalesLeadCreateIn = {
+  /** Contact Name */
+  contact_name: string;
+  /** Contact Phone */
+  contact_phone: string;
+  /** Company Name */
+  company_name?: string;
+  /** City Name */
+  city_name?: string;
+  /** Team Size */
+  team_size?: string;
+  /** House Scale */
+  house_scale?: string;
+  /** Needs */
+  needs?: string;
+  /** Source */
+  source?: string;
+};
+
+export type SalesLeadOut = {
+  /** Id */
+  id: number;
+  /** User Id */
+  user_id: number | null;
+  /** Organization Id */
+  organization_id: number | null;
+  /** Organization Name */
+  organization_name: string;
+  /** Contact Name */
+  contact_name: string;
+  /** Contact Phone */
+  contact_phone: string;
+  /** Company Name */
+  company_name: string;
+  /** City Name */
+  city_name: string;
+  /** Team Size */
+  team_size: string;
+  /** House Scale */
+  house_scale: string;
+  /** Needs */
+  needs: string;
+  /** Source */
+  source: string;
+  /** Status */
+  status: string;
+  /** Admin Note */
+  admin_note: string;
+  /** Assigned To Id */
+  assigned_to_id: number | null;
+  /** Assigned To Name */
+  assigned_to_name: string;
+  /** Last Contacted At */
+  last_contacted_at: string | null;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+};
+
+export type SalesLeadPatchIn = {
+  /** Status */
+  status?: string | null;
+  /** Admin Note */
+  admin_note?: string | null;
+  /** Assigned To Id */
+  assigned_to_id?: number | null;
+  /** Last Contacted At */
+  last_contacted_at?: string | null;
+};
+
 export enum ScopeEnum {
   'platform' = 'platform',
   'organization' = 'organization',
@@ -7182,6 +7384,13 @@ export type SubscriptionsInvoiceRequestsUsingPostResponses = {
   201: InvoiceRequestOut;
 };
 
+export type SubscriptionsOnboardingProgressUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: OnboardingProgressOut;
+};
+
 export type SubscriptionsOrdersOrderNoCancelUsingPostParams = {
   order_no: string;
 };
@@ -7250,6 +7459,13 @@ export type SubscriptionsPlansUsingGetResponses = {
    * OK
    */
   200: PlanOut[];
+};
+
+export type SubscriptionsSalesLeadsUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: SalesLeadOut;
 };
 
 export type SuccessOut = {
@@ -7762,6 +7978,22 @@ export type TeamsUsingPostResponses = {
   201: TeamOut;
 };
 
+export type TenantContactRequestIn = {
+  /** House Id */
+  house_id: number;
+  /** Channels */
+  channels: ('phone' | 'wechat')[];
+  /** Phone */
+  phone?: string;
+  /** Wechat */
+  wechat?: string;
+};
+
+export type TenantContactRequestOut = {
+  /** Notification Id */
+  notification_id: number;
+};
+
 export type TenantLeaseOut = {
   /** Id */
   id: number;
@@ -8128,6 +8360,13 @@ export type UsersMeUsingGetResponses = {
    * OK
    */
   200: MeOut;
+};
+
+export type UsersMeWechatMiniprogramUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: WechatMiniprogramConnectOut;
 };
 
 export type UsersMeWechatPhoneUsingPostResponses = {
@@ -8581,6 +8820,16 @@ export type WalletSummaryOut = {
   total_income: number;
   /** Total Withdrawn */
   total_withdrawn: number;
+};
+
+export type WechatMiniprogramConnectIn = {
+  /** Code wx.login 返回的一次性 code。 */
+  code: string;
+};
+
+export type WechatMiniprogramConnectOut = {
+  /** Connected */
+  connected: boolean;
 };
 
 export type WechatMiniprogramPcLoginConfirmIn = {

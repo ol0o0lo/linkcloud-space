@@ -151,83 +151,32 @@ export function publicMetroCitiesCityNameUsingGet({
   );
 }
 
-/** 获取小程序首页专题和指南列表 GET /api/public/miniprogram/home-entries/ */
-export function publicMiniprogramHomeEntriesUsingGet({
-  params,
-  options,
-}: {
-  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
-  params: API.PublicMiniprogramHomeEntriesUsingGetParams;
-  options?: CustomRequestOptions_;
-}) {
-  return request<API.PagedMiniProgramHomeEntrySummaryOut>(
-    '/api/public/miniprogram/home-entries/',
-    {
-      method: 'GET',
-      params: {
-        // page has a default value: 1
-        page: '1',
-        ...params,
-      },
-      ...(options || {}),
-    }
-  );
-}
-
-/** 获取小程序首页专题或指南详情 GET /api/public/miniprogram/home-entries/${param0}/ */
-export function publicMiniprogramHomeEntriesSlugUsingGet({
-  params,
-  options,
-}: {
-  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
-  params: API.PublicMiniprogramHomeEntriesSlugUsingGetParams;
-  options?: CustomRequestOptions_;
-}) {
-  const { slug: param0, ...queryParams } = params;
-
-  return request<API.MiniProgramHomeEntryDetailOut>(
-    `/api/public/miniprogram/home-entries/${param0}/`,
-    {
-      method: 'GET',
-      params: { ...queryParams },
-      ...(options || {}),
-    }
-  );
-}
-
-/** 获取小程序首页专题房源 GET /api/public/miniprogram/home-entries/${param0}/houses/ */
-export function publicMiniprogramHomeEntriesSlugHousesUsingGet({
-  params,
-  options,
-}: {
-  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
-  params: API.PublicMiniprogramHomeEntriesSlugHousesUsingGetParams;
-  options?: CustomRequestOptions_;
-}) {
-  const { slug: param0, ...queryParams } = params;
-
-  return request<API.PagedMiniProgramHomeEntryHousePublicOut>(
-    `/api/public/miniprogram/home-entries/${param0}/houses/`,
-    {
-      method: 'GET',
-      params: {
-        // page has a default value: 1
-        page: '1',
-        ...queryParams,
-      },
-      ...(options || {}),
-    }
-  );
-}
-
-/** 获取小程序首页公开内容 GET /api/public/miniprogram/home/ */
-export function publicMiniprogramHomeUsingGet({
+/** 公开获取 SaaS 套餐目录 GET /api/public/saas/plans/ */
+export function publicSaasPlansUsingGet({
   options,
 }: {
   options?: CustomRequestOptions_;
 }) {
-  return request<API.MiniProgramHomeOut>('/api/public/miniprogram/home/', {
+  return request<API.PlanOut[]>('/api/public/saas/plans/', {
     method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 公开提交企业版需求 POST /api/public/saas/sales-leads/ */
+export function publicSaasSalesLeadsUsingPost({
+  body,
+  options,
+}: {
+  body: API.SalesLeadCreateIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.SalesLeadOut>('/api/public/saas/sales-leads/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
     ...(options || {}),
   });
 }

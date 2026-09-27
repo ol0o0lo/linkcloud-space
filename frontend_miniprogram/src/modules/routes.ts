@@ -4,11 +4,16 @@ import { getCatalogModule } from './catalog.ts'
 export const APP_ROUTES = {
   home: getCatalogModule('home').mainRoute,
   saasHome: buildSubpackageRoute('saas', 'index'),
+  saasFeature: buildSubpackageRoute('saas', 'feature'),
   saasOnboarding: buildSubpackageRoute('saas', 'onboarding'),
   saasEnterprise: buildSubpackageRoute('saas', 'enterprise'),
   saasPaymentSuccess: buildSubpackageRoute('saas', 'payment-success'),
   houses: getCatalogModule('houses').mainRoute,
   publicHouseSearch: buildSubpackageRoute('housing', 'search/index'),
+  publicHouseSearchInput: buildSubpackageRoute('housing', 'search/input'),
+  houseCommute: buildSubpackageRoute('housing', 'commute/index'),
+  houseCommutePlace: buildSubpackageRoute('housing', 'commute/place'),
+  houseCommuteResults: buildSubpackageRoute('housing', 'commute/results'),
   publicHouseCity: buildSubpackageRoute('housing', 'city/index'),
   houseDetail: buildSubpackageRoute('housing', 'detail/index'),
   houseMap: buildSubpackageRoute('housing', 'map/index'),
@@ -95,6 +100,7 @@ const protectedAccountRoutes: readonly string[] = [
 ]
 
 const protectedMessageRoutes: readonly string[] = [
+  APP_ROUTES.messages,
   APP_ROUTES.messageDetail,
 ]
 
@@ -119,8 +125,9 @@ export function shouldBypassStartupBoundary(path: string): boolean {
   return normalizeAppRoutePath(path) === APP_ROUTES.startupError
 }
 
-export function getHouseDetailRoute(houseId: number): string {
-  return `${APP_ROUTES.houseDetail}?id=${encodeURIComponent(String(houseId))}`
+export function getHouseDetailRoute(houseId: number, commuteRouteId?: number): string {
+  const route = `${APP_ROUTES.houseDetail}?id=${encodeURIComponent(String(houseId))}`
+  return commuteRouteId ? `${route}&commute_route_id=${encodeURIComponent(String(commuteRouteId))}` : route
 }
 
 export function getHouseMatchRoute(shareKey: string): string {

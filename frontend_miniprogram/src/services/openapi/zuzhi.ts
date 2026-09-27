@@ -94,6 +94,21 @@ export function subscriptionsInvoiceRequestsUsingPost({
   );
 }
 
+/** 获取试用激活进度 GET /api/subscriptions/onboarding-progress/ */
+export function subscriptionsOnboardingProgressUsingGet({
+  options,
+}: {
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.OnboardingProgressOut>(
+    '/api/subscriptions/onboarding-progress/',
+    {
+      method: 'GET',
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取本组织支付记录 GET /api/subscriptions/orders/ */
 export function subscriptionsOrdersUsingGet({
   params,
@@ -221,6 +236,24 @@ export function subscriptionsPlansUsingGet({
 }) {
   return request<API.PlanOut[]>('/api/subscriptions/plans/', {
     method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 组织提交企业版需求 POST /api/subscriptions/sales-leads/ */
+export function subscriptionsSalesLeadsUsingPost({
+  body,
+  options,
+}: {
+  body: API.SalesLeadCreateIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.SalesLeadOut>('/api/subscriptions/sales-leads/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
     ...(options || {}),
   });
 }
