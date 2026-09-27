@@ -1,7 +1,7 @@
 import { request } from '@umijs/max';
 import type { MediaRefValue } from '@/pages/rental/constants';
 
-const BASE_PATH = '/api/admin/miniprogram-home';
+const BASE_PATH = '/api/admin/platform-operations/content';
 
 export type PageResult<T> = {
   items: T[];
@@ -11,12 +11,12 @@ export type PageResult<T> = {
 };
 
 export type HomeDisplayStatus = 'disabled' | 'scheduled' | 'active' | 'expired';
-export type HomeEntryKind = 'topic' | 'guide';
+export type ContentEntryKind = 'topic' | 'guide';
 export type HomeBannerAction = 'entry' | 'house_list' | 'house_map';
 
-export type HomeEntry = {
+export type ContentEntry = {
   id: number;
-  kind: HomeEntryKind;
+  kind: ContentEntryKind;
   kind__mapping: string;
   slug: string;
   eyebrow: string;
@@ -69,7 +69,7 @@ export type HomeHouse = {
   images: MediaRefValue[];
 };
 
-export type HomeEntryHouse = {
+export type ContentEntryHouse = {
   house: HomeHouse;
   sort_order: number;
   recommendation_reason: string;
@@ -81,8 +81,8 @@ export type SchedulePayload = {
   ends_at: string | null;
 };
 
-export type HomeEntryPayload = SchedulePayload & {
-  kind: HomeEntryKind;
+export type ContentEntryPayload = SchedulePayload & {
+  kind: ContentEntryKind;
   eyebrow: string;
   title: string;
   summary: string;
@@ -116,31 +116,31 @@ export function updateHomeBanner(id: number, payload: Partial<HomeBannerPayload>
   return request<HomeBanner>(`${BASE_PATH}/banners/${id}/`, { method: 'PATCH', data: payload });
 }
 
-export function listHomeEntries(params: { page?: number; page_size?: number; kind?: HomeEntryKind; keyword?: string } = {}) {
-  return request<PageResult<HomeEntry>>(`${BASE_PATH}/entries/`, { method: 'GET', params });
+export function listHomeEntries(params: { page?: number; page_size?: number; kind?: ContentEntryKind; keyword?: string } = {}) {
+  return request<PageResult<ContentEntry>>(`${BASE_PATH}/entries/`, { method: 'GET', params });
 }
 
-export function createHomeEntry(payload: HomeEntryPayload) {
-  return request<HomeEntry>(`${BASE_PATH}/entries/`, { method: 'POST', data: payload });
+export function createContentEntry(payload: ContentEntryPayload) {
+  return request<ContentEntry>(`${BASE_PATH}/entries/`, { method: 'POST', data: payload });
 }
 
-export function updateHomeEntry(id: number, payload: Partial<HomeEntryPayload>) {
-  return request<HomeEntry>(`${BASE_PATH}/entries/${id}/`, { method: 'PATCH', data: payload });
+export function updateContentEntry(id: number, payload: Partial<ContentEntryPayload>) {
+  return request<ContentEntry>(`${BASE_PATH}/entries/${id}/`, { method: 'PATCH', data: payload });
 }
 
 export function listHomeHouseCandidates(params: { page?: number; page_size?: number; keyword?: string } = {}) {
   return request<PageResult<HomeHouse>>(`${BASE_PATH}/house-candidates/`, { method: 'GET', params });
 }
 
-export function listHomeEntryHouses(entryId: number) {
-  return request<PageResult<HomeEntryHouse>>(`${BASE_PATH}/entries/${entryId}/houses/`, {
+export function listContentEntryHouses(entryId: number) {
+  return request<PageResult<ContentEntryHouse>>(`${BASE_PATH}/entries/${entryId}/houses/`, {
     method: 'GET',
     params: { page: 1, page_size: 500 },
   });
 }
 
-export function saveHomeEntryHouses(entryId: number, items: Array<{ house_id: number; recommendation_reason: string }>) {
-  return request<HomeEntryHouse[]>(`${BASE_PATH}/entries/${entryId}/houses/`, {
+export function saveContentEntryHouses(entryId: number, items: Array<{ house_id: number; recommendation_reason: string }>) {
+  return request<ContentEntryHouse[]>(`${BASE_PATH}/entries/${entryId}/houses/`, {
     method: 'PUT',
     data: { items },
   });

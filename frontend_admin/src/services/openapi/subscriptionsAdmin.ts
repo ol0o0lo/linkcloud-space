@@ -82,3 +82,45 @@ export async function appsSubscriptionsApiAdminRefundOrder(
     }
   );
 }
+
+/** 平台查看销售线索 GET /api/admin/subscriptions/sales-leads/ */
+export async function appsSubscriptionsApiAdminListSalesLeads(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsSubscriptionsApiAdminListSalesLeadsParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.PagedSalesLeadOut>(
+    "/api/admin/subscriptions/sales-leads/",
+    {
+      method: "GET",
+      params: {
+        // page has a default value: 1
+        page: "1",
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 更新销售线索 PATCH /api/admin/subscriptions/sales-leads/${param0}/ */
+export async function appsSubscriptionsApiAdminUpdateSalesLead(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsSubscriptionsApiAdminUpdateSalesLeadParams,
+  body: API.SalesLeadPatchIn,
+  options?: { [key: string]: any }
+) {
+  const { lead_id: param0, ...queryParams } = params;
+  return request<API.SalesLeadOut>(
+    `/api/admin/subscriptions/sales-leads/${param0}/`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}

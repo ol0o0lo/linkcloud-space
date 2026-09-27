@@ -71,10 +71,10 @@ describe('AppStatus', () => {
     ['referral.record', 'pending_review', 'warning'],
     ['referral.record', 'review_rejected', 'error'],
     ['referral.record', 'reward_issued', 'success'],
-    ['miniprogram-home.item', 'disabled', 'disabled'],
-    ['miniprogram-home.item', 'scheduled', 'warning'],
-    ['miniprogram-home.item', 'active', 'success'],
-    ['miniprogram-home.item', 'expired', 'secondary'],
+    ['platform-content.item', 'disabled', 'disabled'],
+    ['platform-content.item', 'scheduled', 'warning'],
+    ['platform-content.item', 'active', 'success'],
+    ['platform-content.item', 'expired', 'secondary'],
   ] as const)('为 %s.%s 提供统一业务状态语义', (name, state, tone) => {
     expect(resolveAppStatusDefinition(name, state)).toMatchObject({
       matched: true,

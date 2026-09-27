@@ -78,6 +78,19 @@ export async function appsSubscriptionsApiCreateInvoiceRequest(
   );
 }
 
+/** 获取试用激活进度 GET /api/subscriptions/onboarding-progress/ */
+export async function appsSubscriptionsApiOnboardingProgress(options?: {
+  [key: string]: any;
+}) {
+  return request<API.OnboardingProgressOut>(
+    "/api/subscriptions/onboarding-progress/",
+    {
+      method: "GET",
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取本组织支付记录 GET /api/subscriptions/orders/ */
 export async function appsSubscriptionsApiListOrders(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -181,6 +194,21 @@ export async function appsSubscriptionsApiListPlans(options?: {
 }) {
   return request<API.PlanOut[]>("/api/subscriptions/plans/", {
     method: "GET",
+    ...(options || {}),
+  });
+}
+
+/** 组织提交企业版需求 POST /api/subscriptions/sales-leads/ */
+export async function appsSubscriptionsApiCreateSalesLead(
+  body: API.SalesLeadCreateIn,
+  options?: { [key: string]: any }
+) {
+  return request<API.SalesLeadOut>("/api/subscriptions/sales-leads/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
     ...(options || {}),
   });
 }

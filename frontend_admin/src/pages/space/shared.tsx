@@ -184,7 +184,7 @@ const CreateOrganizationButton: React.FC<{
     mutationFn: (values: API.OrganizationCreateIn) =>
       appsOrganizationsApiCreateOrganization({
         name: values.name.trim(),
-        slug: values.slug.trim().toLowerCase(),
+        slug: values.slug?.trim().toLowerCase() || undefined,
       }),
     onSuccess: async (created) => {
       const [organizations, teamOperationsResult, navigationResult] =

@@ -15,7 +15,6 @@ import * as analytics from "./analytics";
 import * as appSystem from "./appSystem";
 import * as houseMatchShares from "./houseMatchShares";
 import * as mediaFiles from "./mediaFiles";
-import * as miniprogramHomeAdmin from "./miniprogramHomeAdmin";
 import * as navigationAccess from "./navigationAccess";
 import * as notificationDispatches from "./notificationDispatches";
 import * as notifications from "./notifications";
@@ -26,19 +25,22 @@ import * as organizations from "./organizations";
 import * as organizationSettings from "./organizationSettings";
 import * as organizationWorkspace from "./organizationWorkspace";
 import * as payments from "./payments";
+import * as platformContentAdmin from "./platformContentAdmin";
 import * as propertyRentalLandlord from "./propertyRentalLandlord";
 import * as propertyRentalManagement from "./propertyRentalManagement";
 import * as propertyRentalTenant from "./propertyRentalTenant";
+import * as publicContent from "./publicContent";
 import * as publicHouseMatchShares from "./publicHouseMatchShares";
 import * as publicHouses from "./publicHouses";
 import * as publicLandlordStore from "./publicLandlordStore";
-import * as publicMiniprogramHome from "./publicMiniprogramHome";
+import * as publicMetro from "./publicMetro";
 import * as publicOrganizationInvites from "./publicOrganizationInvites";
 import * as realName from "./realName";
 import * as realNameAdmin from "./realNameAdmin";
 import * as referrals from "./referrals";
 import * as subscriptions from "./subscriptions";
 import * as subscriptionsAdmin from "./subscriptionsAdmin";
+import * as subscriptionsPublic from "./subscriptionsPublic";
 import * as teamOperations from "./teamOperations";
 import * as teams from "./teams";
 import * as teamSettings from "./teamSettings";
@@ -52,8 +54,8 @@ import * as walletInternal from "./walletInternal";
 export default {
   appSystem,
   mediaFiles,
-  miniprogramHomeAdmin,
-  publicMiniprogramHome,
+  platformContentAdmin,
+  publicContent,
   navigationAccess,
   accessPermissions,
   accessRoleManagement,
@@ -84,6 +86,7 @@ export default {
   payments,
   subscriptions,
   subscriptionsAdmin,
+  subscriptionsPublic,
   referrals,
   adminReferrals,
   organizationSettings,
@@ -94,6 +97,7 @@ export default {
   houseMatchShares,
   propertyRentalLandlord,
   publicHouses,
+  publicMetro,
   publicHouseMatchShares,
   publicLandlordStore,
   userFavorites,

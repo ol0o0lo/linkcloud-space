@@ -11,8 +11,8 @@ export async function appsHouseApiListPublicHouses(
   return request<API.PagedPublicHouseListOut>("/api/public/houses/", {
     method: "GET",
     params: {
-      // radius_m has a default value: 3000
-      radius_m: "3000",
+      // radius_m has a default value: 1000
+      radius_m: "1000",
 
       // sort has a default value: latest
       sort: "latest",

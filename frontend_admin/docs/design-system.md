@@ -205,10 +205,10 @@
 | 带看 `viewing` | `no_show` | 已爽约 | `error` | `#FF4D4F` | 用户缺席；表示预约对象未按计划到场 |
 | 带看 `viewing` | `signed` | 已签约（派生） | `success` | `#52C41A` | 合同文件；表示带看已关联正式合同 |
 | 带看 `viewing` | `unsigned` | 未签约（派生） | `secondary` | `#8C8C8C` | 合同文件；表示尚未关联正式合同 |
-| 小程序首页内容 `miniprogram-home.item` | `disabled` | 未启用 | `disabled` | `#BFBFBF` | 停用；表示内容不会在小程序首页展示 |
-| 小程序首页内容 `miniprogram-home.item` | `scheduled` | 待开始 | `warning` | `#FAAD14` | 时钟；表示内容已启用但尚未到开始时间 |
-| 小程序首页内容 `miniprogram-home.item` | `active` | 展示中 | `success` | `#52C41A` | 验证通过；表示内容当前正在小程序展示 |
-| 小程序首页内容 `miniprogram-home.item` | `expired` | 已结束 | `secondary` | `#8C8C8C` | 历史；表示内容已经超过结束时间 |
+| 运营内容 `platform-content.item` | `disabled` | 未启用 | `disabled` | `#BFBFBF` | 停用；表示内容不会在首页展示 |
+| 运营内容 `platform-content.item` | `scheduled` | 待开始 | `warning` | `#FAAD14` | 时钟；表示内容已启用但尚未到开始时间 |
+| 运营内容 `platform-content.item` | `active` | 展示中 | `success` | `#52C41A` | 验证通过；表示内容当前正在首页展示 |
+| 运营内容 `platform-content.item` | `expired` | 已结束 | `secondary` | `#8C8C8C` | 历史；表示内容已经超过结束时间 |
 
 `【强制】` 修改核心状态的颜色、图标或管理说明时，必须同时更新本表和 `APP_STATUS_DEFINITIONS`；状态引用的新图标必须在 `APP_ICON_DEFINITIONS` 中注册。新增尚未进入本表的业务域时，不得照搬其他对象的状态色，必须先根据真实业务结果判断其语义。
 

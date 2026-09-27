@@ -1140,6 +1140,7 @@ declare namespace API {
     province?: string | null;
     city?: string | null;
     district?: string | null;
+    subdistrict?: string | null;
     longitude?: number | string | null;
     latitude?: number | string | null;
     radius_m?: number;
@@ -1151,6 +1152,7 @@ declare namespace API {
     province?: string | null;
     city?: string | null;
     district?: string | null;
+    subdistrict?: string | null;
     estate_id?: number | null;
     building_id?: number | null;
     min_rent?: number | string | null;
@@ -1163,6 +1165,7 @@ declare namespace API {
     has_elevator_access?: boolean | null;
     tags?: string[] | null;
     publisher_slug?: string | null;
+    metro_stations?: string[] | null;
     longitude?: number | string | null;
     latitude?: number | string | null;
     radius_m?: number;
@@ -1197,6 +1200,7 @@ declare namespace API {
   };
 
   type appsHouseApiListTenantViewingRecordsParams = {
+    scope?: "current" | "history" | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1290,65 +1294,8 @@ declare namespace API {
     resource_type?: string | null;
   };
 
-  type appsMiniprogramHomeApiGetBannerParams = {
-    banner_id: number;
-  };
-
-  type appsMiniprogramHomeApiGetEntryParams = {
-    entry_id: number;
-  };
-
-  type appsMiniprogramHomeApiListBannersParams = {
-    keyword?: string | null;
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsMiniprogramHomeApiListEntriesParams = {
-    kind?: string | null;
-    keyword?: string | null;
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsMiniprogramHomeApiListEntryHousesParams = {
-    entry_id: number;
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsMiniprogramHomeApiListHouseCandidatesParams = {
-    keyword?: string | null;
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsMiniprogramHomeApiPatchBannerParams = {
-    banner_id: number;
-  };
-
-  type appsMiniprogramHomeApiPatchEntryParams = {
-    entry_id: number;
-  };
-
-  type appsMiniprogramHomeApiPublicEntriesParams = {
-    kind: string;
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsMiniprogramHomeApiPublicEntryDetailParams = {
-    slug: string;
-  };
-
-  type appsMiniprogramHomeApiPublicEntryHousesParams = {
-    slug: string;
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsMiniprogramHomeApiPutEntryHousesParams = {
-    entry_id: number;
+  type appsMetroApiGetPublicMetroCityParams = {
+    city_name: string;
   };
 
   type appsNotificationsApiCreateDispatchParams = {
@@ -1518,6 +1465,67 @@ declare namespace API {
     keyword?: string;
   };
 
+  type appsPlatformOperationsApiGetBannerParams = {
+    banner_id: number;
+  };
+
+  type appsPlatformOperationsApiGetEntryParams = {
+    entry_id: number;
+  };
+
+  type appsPlatformOperationsApiListBannersParams = {
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsPlatformOperationsApiListEntriesParams = {
+    kind?: string | null;
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsPlatformOperationsApiListEntryHousesParams = {
+    entry_id: number;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsPlatformOperationsApiListHouseCandidatesParams = {
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsPlatformOperationsApiPatchBannerParams = {
+    banner_id: number;
+  };
+
+  type appsPlatformOperationsApiPatchEntryParams = {
+    entry_id: number;
+  };
+
+  type appsPlatformOperationsApiPublicEntriesParams = {
+    kind: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsPlatformOperationsApiPublicEntryDetailParams = {
+    slug: string;
+  };
+
+  type appsPlatformOperationsApiPublicEntryHousesParams = {
+    slug: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsPlatformOperationsApiPutEntryHousesParams = {
+    entry_id: number;
+  };
+
   type appsReferralsApiAdminReferralRecordsParams = {
     keyword?: string | null;
     status?: string | null;
@@ -1619,12 +1627,25 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type appsSubscriptionsApiAdminListSalesLeadsParams = {
+    keyword?: string | null;
+    status?: string | null;
+    created_from?: string | null;
+    created_to?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsSubscriptionsApiAdminProcessInvoiceRequestParams = {
     invoice_request_id: number;
   };
 
   type appsSubscriptionsApiAdminRefundOrderParams = {
     order_id: number;
+  };
+
+  type appsSubscriptionsApiAdminUpdateSalesLeadParams = {
+    lead_id: number;
   };
 
   type appsSubscriptionsApiCancelOrderParams = {
@@ -2110,6 +2131,178 @@ declare namespace API {
     phone: string;
   };
 
+  type ContentEntryAdminOut = {
+    /** Id */
+    id: number;
+    /** Kind */
+    kind: string;
+    /** Kind  Mapping */
+    kind__mapping: string;
+    /** Slug */
+    slug: string;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Cover Image */
+    cover_image: ResolvedMediaRefOut[];
+    /** Body Markdown */
+    body_markdown: string;
+    /** Tone */
+    tone: string;
+    /** Sort Order */
+    sort_order: number;
+    /** Is Enabled */
+    is_enabled: boolean;
+    /** Starts At */
+    starts_at: string | null;
+    /** Ends At */
+    ends_at: string | null;
+    /** Display Status */
+    display_status: string;
+    /** Display Status  Mapping */
+    display_status__mapping: string;
+    /** House Count */
+    house_count: number;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type ContentEntryCreateIn = {
+    /** Kind */
+    kind: string;
+    /** Eyebrow */
+    eyebrow?: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Cover Image */
+    cover_image?: Record<string, any>[];
+    /** Body Markdown */
+    body_markdown?: string;
+    /** Tone */
+    tone: string;
+    /** Sort Order */
+    sort_order?: number;
+    /** Is Enabled */
+    is_enabled?: boolean;
+    /** Starts At */
+    starts_at?: string | null;
+    /** Ends At */
+    ends_at?: string | null;
+  };
+
+  type ContentEntryDetailOut = {
+    /** Slug */
+    slug: string;
+    /** Kind */
+    kind: string;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Cover Image */
+    cover_image: ResolvedMediaRefOut[];
+    /** Tone */
+    tone: string;
+    /** Body Html */
+    body_html: string;
+  };
+
+  type ContentEntryHouseAdminOut = {
+    house: ContentHouseAdminOut;
+    /** Sort Order */
+    sort_order: number;
+    /** Recommendation Reason */
+    recommendation_reason: string;
+  };
+
+  type ContentEntryHouseItemIn = {
+    /** House Id */
+    house_id: number;
+    /** Recommendation Reason */
+    recommendation_reason?: string;
+  };
+
+  type ContentEntryHousePublicOut = {
+    house: PublicHouseListOut;
+    /** Recommendation Reason */
+    recommendation_reason: string;
+  };
+
+  type ContentEntryHousesPutIn = {
+    /** Items */
+    items: ContentEntryHouseItemIn[];
+  };
+
+  type ContentEntryPatchIn = {
+    /** Kind */
+    kind?: string | null;
+    /** Eyebrow */
+    eyebrow?: string | null;
+    /** Title */
+    title?: string | null;
+    /** Summary */
+    summary?: string | null;
+    /** Cover Image */
+    cover_image?: Record<string, any>[] | null;
+    /** Body Markdown */
+    body_markdown?: string | null;
+    /** Tone */
+    tone?: string | null;
+    /** Sort Order */
+    sort_order?: number | null;
+    /** Is Enabled */
+    is_enabled?: boolean | null;
+    /** Starts At */
+    starts_at?: string | null;
+    /** Ends At */
+    ends_at?: string | null;
+  };
+
+  type ContentEntrySummaryOut = {
+    /** Slug */
+    slug: string;
+    /** Kind */
+    kind: string;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Cover Image */
+    cover_image: ResolvedMediaRefOut[];
+    /** Tone */
+    tone: string;
+  };
+
+  type ContentHouseAdminOut = {
+    /** Id */
+    id: number;
+    /** Display Name */
+    display_name: string;
+    /** Status */
+    status: string;
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Layout */
+    layout: string;
+    /** Area */
+    area: string | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Images */
+    images: ResolvedMediaRefOut[];
+  };
+
   type ConversationCreateIn = {
     /** Scope */
     scope?: "personal" | "organization";
@@ -2271,6 +2464,8 @@ declare namespace API {
     city: string;
     /** District */
     district: string;
+    /** Subdistrict */
+    subdistrict: string;
     /** Address */
     address: string;
     location: GeoPointOut | null;
@@ -2300,6 +2495,8 @@ declare namespace API {
     city: string;
     /** District */
     district: string;
+    /** Subdistrict */
+    subdistrict?: string;
     /** Address */
     address?: string;
     location?: GeoPointIn | null;
@@ -2351,6 +2548,8 @@ declare namespace API {
     city: string;
     /** District */
     district: string;
+    /** Subdistrict */
+    subdistrict: string;
     /** Address */
     address: string;
     location: GeoPointOut | null;
@@ -2377,6 +2576,8 @@ declare namespace API {
     city?: string | null;
     /** District */
     district?: string | null;
+    /** Subdistrict */
+    subdistrict?: string | null;
     /** Address */
     address?: string | null;
     location?: GeoPointIn | null;
@@ -2465,6 +2666,131 @@ declare namespace API {
     latitude: number;
     /** Coordinate System */
     coordinate_system?: string;
+  };
+
+  type HomeBannerAdminOut = {
+    /** Id */
+    id: number;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Description */
+    description: string;
+    /** Button Text */
+    button_text: string;
+    /** Image */
+    image: ResolvedMediaRefOut[];
+    /** Tone */
+    tone: string;
+    /** Action Type */
+    action_type: string;
+    /** Action Type  Mapping */
+    action_type__mapping: string;
+    /** Entry Id */
+    entry_id: number | null;
+    /** Entry Title */
+    entry_title: string | null;
+    /** Sort Order */
+    sort_order: number;
+    /** Is Enabled */
+    is_enabled: boolean;
+    /** Starts At */
+    starts_at: string | null;
+    /** Ends At */
+    ends_at: string | null;
+    /** Display Status */
+    display_status: string;
+    /** Display Status  Mapping */
+    display_status__mapping: string;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type HomeBannerCreateIn = {
+    /** Eyebrow */
+    eyebrow?: string;
+    /** Title */
+    title: string;
+    /** Description */
+    description: string;
+    /** Button Text */
+    button_text?: string;
+    /** Image */
+    image?: Record<string, any>[];
+    /** Tone */
+    tone: string;
+    /** Action Type */
+    action_type: string;
+    /** Entry Id */
+    entry_id?: number | null;
+    /** Sort Order */
+    sort_order?: number;
+    /** Is Enabled */
+    is_enabled?: boolean;
+    /** Starts At */
+    starts_at?: string | null;
+    /** Ends At */
+    ends_at?: string | null;
+  };
+
+  type HomeBannerPatchIn = {
+    /** Eyebrow */
+    eyebrow?: string | null;
+    /** Title */
+    title?: string | null;
+    /** Description */
+    description?: string | null;
+    /** Button Text */
+    button_text?: string | null;
+    /** Image */
+    image?: Record<string, any>[] | null;
+    /** Tone */
+    tone?: string | null;
+    /** Action Type */
+    action_type?: string | null;
+    /** Entry Id */
+    entry_id?: number | null;
+    /** Sort Order */
+    sort_order?: number | null;
+    /** Is Enabled */
+    is_enabled?: boolean | null;
+    /** Starts At */
+    starts_at?: string | null;
+    /** Ends At */
+    ends_at?: string | null;
+  };
+
+  type HomeBannerPublicOut = {
+    /** Id */
+    id: number;
+    /** Eyebrow */
+    eyebrow: string;
+    /** Title */
+    title: string;
+    /** Description */
+    description: string;
+    /** Button Text */
+    button_text: string;
+    /** Image */
+    image: ResolvedMediaRefOut[];
+    /** Tone */
+    tone: string;
+    /** Action Type */
+    action_type: string;
+    /** Entry Slug */
+    entry_slug: string | null;
+  };
+
+  type HomeContentOut = {
+    /** Banners */
+    banners: HomeBannerPublicOut[];
+    /** Topics */
+    topics: ContentEntrySummaryOut[];
+    /** Guides */
+    guides: ContentEntrySummaryOut[];
   };
 
   type HouseAIInsightAppealPointOut = {
@@ -3393,303 +3719,6 @@ declare namespace API {
     created_at: string;
   };
 
-  type MiniProgramHomeBannerAdminOut = {
-    /** Id */
-    id: number;
-    /** Eyebrow */
-    eyebrow: string;
-    /** Title */
-    title: string;
-    /** Description */
-    description: string;
-    /** Button Text */
-    button_text: string;
-    /** Image */
-    image: ResolvedMediaRefOut[];
-    /** Tone */
-    tone: string;
-    /** Action Type */
-    action_type: string;
-    /** Action Type  Mapping */
-    action_type__mapping: string;
-    /** Entry Id */
-    entry_id: number | null;
-    /** Entry Title */
-    entry_title: string | null;
-    /** Sort Order */
-    sort_order: number;
-    /** Is Enabled */
-    is_enabled: boolean;
-    /** Starts At */
-    starts_at: string | null;
-    /** Ends At */
-    ends_at: string | null;
-    /** Display Status */
-    display_status: string;
-    /** Display Status  Mapping */
-    display_status__mapping: string;
-    /** Created At */
-    created_at: string;
-    /** Updated At */
-    updated_at: string;
-  };
-
-  type MiniProgramHomeBannerCreateIn = {
-    /** Eyebrow */
-    eyebrow?: string;
-    /** Title */
-    title: string;
-    /** Description */
-    description: string;
-    /** Button Text */
-    button_text?: string;
-    /** Image */
-    image?: Record<string, any>[];
-    /** Tone */
-    tone: string;
-    /** Action Type */
-    action_type: string;
-    /** Entry Id */
-    entry_id?: number | null;
-    /** Sort Order */
-    sort_order?: number;
-    /** Is Enabled */
-    is_enabled?: boolean;
-    /** Starts At */
-    starts_at?: string | null;
-    /** Ends At */
-    ends_at?: string | null;
-  };
-
-  type MiniProgramHomeBannerPatchIn = {
-    /** Eyebrow */
-    eyebrow?: string | null;
-    /** Title */
-    title?: string | null;
-    /** Description */
-    description?: string | null;
-    /** Button Text */
-    button_text?: string | null;
-    /** Image */
-    image?: Record<string, any>[] | null;
-    /** Tone */
-    tone?: string | null;
-    /** Action Type */
-    action_type?: string | null;
-    /** Entry Id */
-    entry_id?: number | null;
-    /** Sort Order */
-    sort_order?: number | null;
-    /** Is Enabled */
-    is_enabled?: boolean | null;
-    /** Starts At */
-    starts_at?: string | null;
-    /** Ends At */
-    ends_at?: string | null;
-  };
-
-  type MiniProgramHomeBannerPublicOut = {
-    /** Id */
-    id: number;
-    /** Eyebrow */
-    eyebrow: string;
-    /** Title */
-    title: string;
-    /** Description */
-    description: string;
-    /** Button Text */
-    button_text: string;
-    /** Image */
-    image: ResolvedMediaRefOut[];
-    /** Tone */
-    tone: string;
-    /** Action Type */
-    action_type: string;
-    /** Entry Slug */
-    entry_slug: string | null;
-  };
-
-  type MiniProgramHomeEntryAdminOut = {
-    /** Id */
-    id: number;
-    /** Kind */
-    kind: string;
-    /** Kind  Mapping */
-    kind__mapping: string;
-    /** Slug */
-    slug: string;
-    /** Eyebrow */
-    eyebrow: string;
-    /** Title */
-    title: string;
-    /** Summary */
-    summary: string;
-    /** Cover Image */
-    cover_image: ResolvedMediaRefOut[];
-    /** Body Markdown */
-    body_markdown: string;
-    /** Tone */
-    tone: string;
-    /** Sort Order */
-    sort_order: number;
-    /** Is Enabled */
-    is_enabled: boolean;
-    /** Starts At */
-    starts_at: string | null;
-    /** Ends At */
-    ends_at: string | null;
-    /** Display Status */
-    display_status: string;
-    /** Display Status  Mapping */
-    display_status__mapping: string;
-    /** House Count */
-    house_count: number;
-    /** Created At */
-    created_at: string;
-    /** Updated At */
-    updated_at: string;
-  };
-
-  type MiniProgramHomeEntryCreateIn = {
-    /** Kind */
-    kind: string;
-    /** Eyebrow */
-    eyebrow?: string;
-    /** Title */
-    title: string;
-    /** Summary */
-    summary: string;
-    /** Cover Image */
-    cover_image?: Record<string, any>[];
-    /** Body Markdown */
-    body_markdown?: string;
-    /** Tone */
-    tone: string;
-    /** Sort Order */
-    sort_order?: number;
-    /** Is Enabled */
-    is_enabled?: boolean;
-    /** Starts At */
-    starts_at?: string | null;
-    /** Ends At */
-    ends_at?: string | null;
-  };
-
-  type MiniProgramHomeEntryDetailOut = {
-    /** Slug */
-    slug: string;
-    /** Kind */
-    kind: string;
-    /** Eyebrow */
-    eyebrow: string;
-    /** Title */
-    title: string;
-    /** Summary */
-    summary: string;
-    /** Cover Image */
-    cover_image: ResolvedMediaRefOut[];
-    /** Tone */
-    tone: string;
-    /** Body Html */
-    body_html: string;
-  };
-
-  type MiniProgramHomeEntryHouseAdminOut = {
-    house: MiniProgramHomeHouseAdminOut;
-    /** Sort Order */
-    sort_order: number;
-    /** Recommendation Reason */
-    recommendation_reason: string;
-  };
-
-  type MiniProgramHomeEntryHouseItemIn = {
-    /** House Id */
-    house_id: number;
-    /** Recommendation Reason */
-    recommendation_reason?: string;
-  };
-
-  type MiniProgramHomeEntryHousePublicOut = {
-    house: PublicHouseListOut;
-    /** Recommendation Reason */
-    recommendation_reason: string;
-  };
-
-  type MiniProgramHomeEntryHousesPutIn = {
-    /** Items */
-    items: MiniProgramHomeEntryHouseItemIn[];
-  };
-
-  type MiniProgramHomeEntryPatchIn = {
-    /** Kind */
-    kind?: string | null;
-    /** Eyebrow */
-    eyebrow?: string | null;
-    /** Title */
-    title?: string | null;
-    /** Summary */
-    summary?: string | null;
-    /** Cover Image */
-    cover_image?: Record<string, any>[] | null;
-    /** Body Markdown */
-    body_markdown?: string | null;
-    /** Tone */
-    tone?: string | null;
-    /** Sort Order */
-    sort_order?: number | null;
-    /** Is Enabled */
-    is_enabled?: boolean | null;
-    /** Starts At */
-    starts_at?: string | null;
-    /** Ends At */
-    ends_at?: string | null;
-  };
-
-  type MiniProgramHomeEntrySummaryOut = {
-    /** Slug */
-    slug: string;
-    /** Kind */
-    kind: string;
-    /** Eyebrow */
-    eyebrow: string;
-    /** Title */
-    title: string;
-    /** Summary */
-    summary: string;
-    /** Cover Image */
-    cover_image: ResolvedMediaRefOut[];
-    /** Tone */
-    tone: string;
-  };
-
-  type MiniProgramHomeHouseAdminOut = {
-    /** Id */
-    id: number;
-    /** Display Name */
-    display_name: string;
-    /** Status */
-    status: string;
-    /** Status  Mapping */
-    status__mapping: string;
-    /** Layout */
-    layout: string;
-    /** Area */
-    area: string | null;
-    /** Asking Rent */
-    asking_rent: string | null;
-    /** Images */
-    images: ResolvedMediaRefOut[];
-  };
-
-  type MiniProgramHomeOut = {
-    /** Banners */
-    banners: MiniProgramHomeBannerPublicOut[];
-    /** Topics */
-    topics: MiniProgramHomeEntrySummaryOut[];
-    /** Guides */
-    guides: MiniProgramHomeEntrySummaryOut[];
-  };
-
   type MonthlyAccrualTotalOut = {
     /** Beneficiary User Id */
     beneficiary_user_id: number;
@@ -3764,6 +3793,13 @@ declare namespace API {
     education: NearbyPoiItemOut[];
     /** Medical */
     medical: NearbyPoiItemOut[];
+  };
+
+  type NearestMetroStationOut = {
+    /** Name */
+    name: string;
+    /** Line Names */
+    line_names: string[];
   };
 
   type NotificationActorOut = {
@@ -3905,6 +3941,40 @@ declare namespace API {
     email?: boolean | null;
   };
 
+  type OnboardingProgressOut = {
+    /** Completed Count */
+    completed_count: number;
+    /** Total Count */
+    total_count: number;
+    /** Completion Percent */
+    completion_percent: number;
+    /** Activated */
+    activated: boolean;
+    /** Trial Ends At */
+    trial_ends_at?: string | null;
+    /** Trial Days Remaining */
+    trial_days_remaining?: number | null;
+    /** Tasks */
+    tasks: OnboardingTaskOut[];
+  };
+
+  type OnboardingTaskOut = {
+    /** Key */
+    key: string;
+    /** Title */
+    title: string;
+    /** Description */
+    description: string;
+    /** Completed */
+    completed: boolean;
+    /** Completed At */
+    completed_at?: string | null;
+    /** Deadline At */
+    deadline_at?: string | null;
+    /** Action */
+    action: string;
+  };
+
   type OrganizationBindingOut = {
     /** Id */
     id: number;
@@ -3921,8 +3991,18 @@ declare namespace API {
   type OrganizationCreateIn = {
     /** Name 租户名称。 */
     name: string;
-    /** Slug 租户 slug，用于切换与公开链接。 */
-    slug: string;
+    /** Slug 租户 slug；留空时由系统自动生成。 */
+    slug?: string | null;
+    /** Business Type 经营类型：individual 或 store。 */
+    business_type?: string;
+    /** City Code 城市编码。 */
+    city_code?: string;
+    /** City Name 城市名称。 */
+    city_name?: string;
+    /** Team Size Band 团队规模区间。 */
+    team_size_band?: string;
+    /** Source 入驻来源。 */
+    source?: string;
   };
 
   type OrganizationCreateOut = {
@@ -3932,6 +4012,8 @@ declare namespace API {
     name: string;
     /** Slug */
     slug: string;
+    /** Trial */
+    trial?: Record<string, any> | null;
   };
 
   type OrganizationNavigationOut = {
@@ -4200,6 +4282,61 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedContentEntryAdminOut = {
+    /** Items */
+    items: ContentEntryAdminOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedContentEntryHouseAdminOut = {
+    /** Items */
+    items: ContentEntryHouseAdminOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedContentEntryHousePublicOut = {
+    /** Items */
+    items: ContentEntryHousePublicOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedContentEntrySummaryOut = {
+    /** Items */
+    items: ContentEntrySummaryOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedContentHouseAdminOut = {
+    /** Items */
+    items: ContentHouseAdminOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedConversationOut = {
     /** Items */
     items: ConversationOut[];
@@ -4236,6 +4373,17 @@ declare namespace API {
   type PagedFavoriteOut = {
     /** Items */
     items: FavoriteOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedHomeBannerAdminOut = {
+    /** Items */
+    items: HomeBannerAdminOut[];
     /** Total */
     total: number;
     /** Page */
@@ -4343,72 +4491,6 @@ declare namespace API {
     page_size: number;
   };
 
-  type PagedMiniProgramHomeBannerAdminOut = {
-    /** Items */
-    items: MiniProgramHomeBannerAdminOut[];
-    /** Total */
-    total: number;
-    /** Page */
-    page: number;
-    /** Page Size */
-    page_size: number;
-  };
-
-  type PagedMiniProgramHomeEntryAdminOut = {
-    /** Items */
-    items: MiniProgramHomeEntryAdminOut[];
-    /** Total */
-    total: number;
-    /** Page */
-    page: number;
-    /** Page Size */
-    page_size: number;
-  };
-
-  type PagedMiniProgramHomeEntryHouseAdminOut = {
-    /** Items */
-    items: MiniProgramHomeEntryHouseAdminOut[];
-    /** Total */
-    total: number;
-    /** Page */
-    page: number;
-    /** Page Size */
-    page_size: number;
-  };
-
-  type PagedMiniProgramHomeEntryHousePublicOut = {
-    /** Items */
-    items: MiniProgramHomeEntryHousePublicOut[];
-    /** Total */
-    total: number;
-    /** Page */
-    page: number;
-    /** Page Size */
-    page_size: number;
-  };
-
-  type PagedMiniProgramHomeEntrySummaryOut = {
-    /** Items */
-    items: MiniProgramHomeEntrySummaryOut[];
-    /** Total */
-    total: number;
-    /** Page */
-    page: number;
-    /** Page Size */
-    page_size: number;
-  };
-
-  type PagedMiniProgramHomeHouseAdminOut = {
-    /** Items */
-    items: MiniProgramHomeHouseAdminOut[];
-    /** Total */
-    total: number;
-    /** Page */
-    page: number;
-    /** Page Size */
-    page_size: number;
-  };
-
   type PagedMonthlyAccrualTotalOut = {
     /** Items */
     items: MonthlyAccrualTotalOut[];
@@ -4500,6 +4582,17 @@ declare namespace API {
   type PagedSaaSOrderOut = {
     /** Items */
     items: SaaSOrderOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedSalesLeadOut = {
+    /** Items */
+    items: SalesLeadOut[];
     /** Total */
     total: number;
     /** Page */
@@ -4683,6 +4776,8 @@ declare namespace API {
     name: string;
     /** Description */
     description: string;
+    /** Purchase Mode */
+    purchase_mode: string;
     /** Display Order */
     display_order: number;
     /** Is Active */
@@ -4753,6 +4848,8 @@ declare namespace API {
     city: string;
     /** District */
     district: string;
+    /** Subdistrict */
+    subdistrict: string;
     /** Address */
     address: string;
   };
@@ -4800,6 +4897,7 @@ declare namespace API {
     updated_at: string;
     /** Distance M */
     distance_m?: number | null;
+    nearest_metro_station?: NearestMetroStationOut | null;
     /** Interior Area */
     interior_area: string | null;
     /** Kitchens */
@@ -4876,6 +4974,7 @@ declare namespace API {
     updated_at: string;
     /** Distance M */
     distance_m?: number | null;
+    nearest_metro_station?: NearestMetroStationOut | null;
   };
 
   type PublicHouseLocatedRegionOut = {
@@ -4960,6 +5059,8 @@ declare namespace API {
     district: string;
     /** House Count */
     house_count: number;
+    /** Subdistricts */
+    subdistricts: PublicHouseRegionSubdistrictOut[];
   };
 
   type PublicHouseRegionProvinceOut = {
@@ -4974,6 +5075,13 @@ declare namespace API {
   type PublicHouseRegionsOut = {
     /** Items */
     items: PublicHouseRegionProvinceOut[];
+  };
+
+  type PublicHouseRegionSubdistrictOut = {
+    /** Subdistrict */
+    subdistrict: string;
+    /** House Count */
+    house_count: number;
   };
 
   type PublicInviteOut = {
@@ -5007,6 +5115,38 @@ declare namespace API {
     organization: PublicPublisherOut;
     /** House Count */
     house_count: number;
+  };
+
+  type PublicMetroCityDetailOut = {
+    /** Name */
+    name: string;
+    /** Province */
+    province: string;
+    /** Data Version */
+    data_version: string;
+    /** Lines */
+    lines: PublicMetroLineOut[];
+  };
+
+  type PublicMetroCitySummaryOut = {
+    /** Name */
+    name: string;
+    /** Province */
+    province: string;
+  };
+
+  type PublicMetroLineOut = {
+    /** Name */
+    name: string;
+    /** Color */
+    color: string;
+    /** Stations */
+    stations: PublicMetroStationOut[];
+  };
+
+  type PublicMetroStationOut = {
+    /** Name */
+    name: string;
   };
 
   type PublicPublisherOut = {
@@ -5473,6 +5613,77 @@ declare namespace API {
     invoice?: Record<string, any> | null;
   };
 
+  type SalesLeadCreateIn = {
+    /** Contact Name */
+    contact_name: string;
+    /** Contact Phone */
+    contact_phone: string;
+    /** Company Name */
+    company_name?: string;
+    /** City Name */
+    city_name?: string;
+    /** Team Size */
+    team_size?: string;
+    /** House Scale */
+    house_scale?: string;
+    /** Needs */
+    needs?: string;
+    /** Source */
+    source?: string;
+  };
+
+  type SalesLeadOut = {
+    /** Id */
+    id: number;
+    /** User Id */
+    user_id: number | null;
+    /** Organization Id */
+    organization_id: number | null;
+    /** Organization Name */
+    organization_name: string;
+    /** Contact Name */
+    contact_name: string;
+    /** Contact Phone */
+    contact_phone: string;
+    /** Company Name */
+    company_name: string;
+    /** City Name */
+    city_name: string;
+    /** Team Size */
+    team_size: string;
+    /** House Scale */
+    house_scale: string;
+    /** Needs */
+    needs: string;
+    /** Source */
+    source: string;
+    /** Status */
+    status: string;
+    /** Admin Note */
+    admin_note: string;
+    /** Assigned To Id */
+    assigned_to_id: number | null;
+    /** Assigned To Name */
+    assigned_to_name: string;
+    /** Last Contacted At */
+    last_contacted_at: string | null;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type SalesLeadPatchIn = {
+    /** Status */
+    status?: string | null;
+    /** Admin Note */
+    admin_note?: string | null;
+    /** Assigned To Id */
+    assigned_to_id?: number | null;
+    /** Last Contacted At */
+    last_contacted_at?: string | null;
+  };
+
   type SetPrimaryOut = {
     /** Success */
     success: boolean;
@@ -5729,6 +5940,22 @@ declare namespace API {
     business_hours?: string | null;
     /** Members 新的团队成员用户 ID 列表。 */
     members?: number[] | null;
+  };
+
+  type TenantContactRequestIn = {
+    /** House Id */
+    house_id: number;
+    /** Channels */
+    channels: ("phone" | "wechat")[];
+    /** Phone */
+    phone?: string;
+    /** Wechat */
+    wechat?: string;
+  };
+
+  type TenantContactRequestOut = {
+    /** Notification Id */
+    notification_id: number;
   };
 
   type TenantLeaseOut = {
@@ -6214,6 +6441,16 @@ declare namespace API {
     total_income: number;
     /** Total Withdrawn */
     total_withdrawn: number;
+  };
+
+  type WechatMiniprogramConnectIn = {
+    /** Code wx.login 返回的一次性 code。 */
+    code: string;
+  };
+
+  type WechatMiniprogramConnectOut = {
+    /** Connected */
+    connected: boolean;
   };
 
   type WechatMiniprogramPcLoginConfirmIn = {

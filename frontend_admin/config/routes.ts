@@ -371,11 +371,11 @@ export default [
         component: './platform-management/referrals',
       },
       {
-        name: '小程序首页设置',
+        name: '内容运营',
         locale: false,
         icon: 'picture',
-        path: '/super-admin/miniprogram-home',
-        component: './platform-management/miniprogram-home',
+        path: '/super-admin/content-operations',
+        component: './platform-management/content-operations',
       },
       {
         name: 'notification-dispatches',

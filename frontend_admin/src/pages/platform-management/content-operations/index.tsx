@@ -38,22 +38,22 @@ import MediaRefsUpload from '@/pages/rental/components/MediaRefsUpload';
 import type { MediaRefValue } from '@/pages/rental/constants';
 import {
   createHomeBanner,
-  createHomeEntry,
+  createContentEntry,
   type HomeBanner,
   type HomeBannerAction,
   type HomeBannerPayload,
-  type HomeEntry,
-  type HomeEntryHouse,
-  type HomeEntryKind,
-  type HomeEntryPayload,
+  type ContentEntry,
+  type ContentEntryHouse,
+  type ContentEntryKind,
+  type ContentEntryPayload,
   type HomeHouse,
   listHomeBanners,
   listHomeEntries,
-  listHomeEntryHouses,
+  listContentEntryHouses,
   listHomeHouseCandidates,
-  saveHomeEntryHouses,
+  saveContentEntryHouses,
   updateHomeBanner,
-  updateHomeEntry,
+  updateContentEntry,
 } from './service';
 
 const PAGE_SIZE = 10;
@@ -191,8 +191,8 @@ function ScheduleFields<T extends ScheduleFormValues>({
 }
 
 const EntryEditorDrawer: React.FC<{
-  kind: HomeEntryKind;
-  record?: HomeEntry;
+  kind: ContentEntryKind;
+  record?: ContentEntry;
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -218,7 +218,7 @@ const EntryEditorDrawer: React.FC<{
     const values = await form.validateFields();
     setSaving(true);
     try {
-      const payload: HomeEntryPayload = {
+      const payload: ContentEntryPayload = {
         kind,
         eyebrow: values.eyebrow.trim(),
         title: values.title.trim(),
@@ -229,8 +229,8 @@ const EntryEditorDrawer: React.FC<{
         sort_order: values.sort_order,
         ...schedulePayload(values),
       };
-      if (record) await updateHomeEntry(record.id, payload);
-      else await createHomeEntry(payload);
+      if (record) await updateContentEntry(record.id, payload);
+      else await createContentEntry(payload);
       message.success(record ? '内容已更新' : '内容已创建');
       onSaved();
       onClose();
@@ -275,7 +275,7 @@ const EntryEditorDrawer: React.FC<{
         </Form.Item>
         <Form.Item label="封面图片" name="cover_image">
           <MediaRefsUpload
-            resourceType="miniprogram_home_image"
+            resourceType="platform_content_image"
             scope="user"
             mediaType="image"
             maxCount={1}
@@ -288,9 +288,9 @@ const EntryEditorDrawer: React.FC<{
           />
         </Form.Item>
         <Form.Item
-          label="Markdown 正文（小程序展示）"
+          label="Markdown 正文"
           name="body_markdown"
-          extra="这里填写可直接发布的完整正文，保存并启用后会在小程序详情页展示；支持标题、段落、列表、引用、链接和代码。"
+          extra="这里填写可直接发布的完整正文，保存并启用后会在小程序/H5 详情页展示；支持标题、段落、列表、引用、链接和代码。"
         >
           <Input.TextArea rows={16} />
         </Form.Item>
@@ -311,7 +311,7 @@ const BannerEditorDrawer: React.FC<{
 }> = ({ record, open, onClose, onSaved }) => {
   const [form] = Form.useForm<BannerFormValues>();
   const actionType = Form.useWatch('action_type', form);
-  const [entries, setEntries] = useState<HomeEntry[]>([]);
+  const [entries, setEntries] = useState<ContentEntry[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -403,7 +403,7 @@ const BannerEditorDrawer: React.FC<{
         </Form.Item>
         <Form.Item label="配图" name="image">
           <MediaRefsUpload
-            resourceType="miniprogram_home_image"
+            resourceType="platform_content_image"
             scope="user"
             mediaType="image"
             maxCount={1}
@@ -448,12 +448,12 @@ const BannerEditorDrawer: React.FC<{
 };
 
 const HouseSelectionDrawer: React.FC<{
-  entry?: HomeEntry;
+  entry?: ContentEntry;
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
 }> = ({ entry, open, onClose, onSaved }) => {
-  const [selected, setSelected] = useState<HomeEntryHouse[]>([]);
+  const [selected, setSelected] = useState<ContentEntryHouse[]>([]);
   const [candidates, setCandidates] = useState<HomeHouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -462,7 +462,7 @@ const HouseSelectionDrawer: React.FC<{
     if (!open || !entry) return;
     setLoading(true);
     void Promise.all([
-      listHomeEntryHouses(entry.id),
+      listContentEntryHouses(entry.id),
       listHomeHouseCandidates({ page: 1, page_size: 500 }),
     ])
       .then(([links, houses]) => {
@@ -508,7 +508,7 @@ const HouseSelectionDrawer: React.FC<{
     if (!entry) return;
     setSaving(true);
     try {
-      await saveHomeEntryHouses(
+      await saveContentEntryHouses(
         entry.id,
         selected.map((item) => ({
           house_id: item.house.id,
@@ -636,10 +636,10 @@ const HouseSelectionDrawer: React.FC<{
   );
 };
 
-const MiniProgramHomePage: React.FC = () => {
+const ContentOperationsPage: React.FC = () => {
   const bannerActionRef = useRef<ActionType>(null);
   const entryActionRef = useRef<ActionType>(null);
-  const [activeTab, setActiveTab] = useState<'banner' | HomeEntryKind>(
+  const [activeTab, setActiveTab] = useState<'banner' | ContentEntryKind>(
     'banner',
   );
   const [bannerEditor, setBannerEditor] = useState<{
@@ -648,11 +648,11 @@ const MiniProgramHomePage: React.FC = () => {
   }>({ open: false });
   const [entryEditor, setEntryEditor] = useState<{
     open: boolean;
-    record?: HomeEntry;
+    record?: ContentEntry;
   }>({ open: false });
   const [houseEditor, setHouseEditor] = useState<{
     open: boolean;
-    entry?: HomeEntry;
+    entry?: ContentEntry;
   }>({ open: false });
 
   const refresh = () => {
@@ -698,7 +698,7 @@ const MiniProgramHomePage: React.FC = () => {
       search: false,
       render: (_value, record) => (
         <AppStatusTag
-          name="miniprogram-home.item"
+          name="platform-content.item"
           state={record.display_status}
         >
           {record.display_status__mapping}
@@ -740,7 +740,7 @@ const MiniProgramHomePage: React.FC = () => {
     },
   ];
 
-  const entryColumns: ProColumns<HomeEntry>[] = [
+  const entryColumns: ProColumns<ContentEntry>[] = [
     {
       title: '封面',
       dataIndex: 'cover_image',
@@ -766,7 +766,7 @@ const MiniProgramHomePage: React.FC = () => {
       search: false,
       render: (_value, record) => (
         <AppStatusTag
-          name="miniprogram-home.item"
+          name="platform-content.item"
           state={record.display_status}
         >
           {record.display_status__mapping}
@@ -815,7 +815,7 @@ const MiniProgramHomePage: React.FC = () => {
             size="small"
             checked={record.is_enabled}
             onChange={(checked) =>
-              void updateHomeEntry(record.id, { is_enabled: checked }).then(
+              void updateContentEntry(record.id, { is_enabled: checked }).then(
                 () => refresh(),
               )
             }
@@ -853,7 +853,7 @@ const MiniProgramHomePage: React.FC = () => {
         scroll={adminTableScroll}
       />
     ) : (
-      <ProTable<HomeEntry>
+      <ProTable<ContentEntry>
         key={activeTab}
         actionRef={entryActionRef}
         rowKey="id"
@@ -888,12 +888,12 @@ const MiniProgramHomePage: React.FC = () => {
         <Alert
           type="info"
           showIcon
-          title="小程序首页设置"
-          description="这里维护的是可直接发布的首页内容，不是占位信息。首页对所有身份保持一致；Banner 最多展示前 5 条，专题活动和指南/攻略各展示前 2 条，停用或超过有效期后自动撤下。"
+          title="内容运营"
+          description="当前内容投放在小程序/H5 首页，对所有身份保持一致；Banner 最多展示前 5 条，专题活动和指南/攻略各展示前 2 条，停用或超过有效期后自动撤下。"
         />
         <Tabs
           activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as 'banner' | HomeEntryKind)}
+          onChange={(key) => setActiveTab(key as 'banner' | ContentEntryKind)}
           items={[
             { key: 'banner', label: 'Banner' },
             { key: 'topic', label: '专题活动' },
@@ -925,4 +925,4 @@ const MiniProgramHomePage: React.FC = () => {
   );
 };
 
-export default MiniProgramHomePage;
+export default ContentOperationsPage;

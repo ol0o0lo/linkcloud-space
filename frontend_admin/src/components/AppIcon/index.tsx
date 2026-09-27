@@ -179,19 +179,19 @@ export const APP_ICON_DEFINITIONS = {
   'referral.record.reward_issued': {
     icon: 'solar:gift-outline',
   },
-  'miniprogram-home.item': {
+  'platform-content.item': {
     icon: 'solar:gallery-wide-outline',
   },
-  'miniprogram-home.item.disabled': {
+  'platform-content.item.disabled': {
     icon: 'solar:close-circle-outline',
   },
-  'miniprogram-home.item.scheduled': {
+  'platform-content.item.scheduled': {
     icon: 'solar:clock-circle-outline',
   },
-  'miniprogram-home.item.active': {
+  'platform-content.item.active': {
     icon: 'solar:verified-check-outline',
   },
-  'miniprogram-home.item.expired': {
+  'platform-content.item.expired': {
     icon: 'solar:calendar-mark-outline',
   },
   'wallet.withdrawal': {

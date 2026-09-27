@@ -261,26 +261,26 @@ export const APP_STATUS_DEFINITIONS = {
       },
     },
   },
-  'miniprogram-home.item': {
+  'platform-content.item': {
     states: {
       disabled: {
-        description: '当前内容未启用，不会在小程序首页展示',
-        icon: 'miniprogram-home.item.disabled',
+        description: '当前内容未启用，不会在首页展示',
+        icon: 'platform-content.item.disabled',
         tone: 'disabled',
       },
       scheduled: {
         description: '内容已启用，将在设定的开始时间自动展示',
-        icon: 'miniprogram-home.item.scheduled',
+        icon: 'platform-content.item.scheduled',
         tone: 'warning',
       },
       active: {
-        description: '内容当前正在小程序首页展示',
-        icon: 'miniprogram-home.item.active',
+        description: '内容当前正在首页展示',
+        icon: 'platform-content.item.active',
         tone: 'success',
       },
       expired: {
         description: '内容已超过结束时间，不再展示',
-        icon: 'miniprogram-home.item.expired',
+        icon: 'platform-content.item.expired',
         tone: 'secondary',
       },
     },
