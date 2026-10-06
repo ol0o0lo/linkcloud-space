@@ -10,6 +10,9 @@ import { formatPublicHouseRadiusLabel, PUBLIC_HOUSE_RADIUS_OPTIONS } from '@/dom
 import { getPublicHouseSearchRoute, parsePublicHouseSearchPreset } from '@/domain/home-content'
 import { formatTenantHouseTitle } from '@/domain/tenant-rental'
 import HouseCard from '@/components/house/HouseCard.vue'
+import OrganizationWorkbench from '@/features/organization-workbench/OrganizationWorkbench.vue'
+import OrganizationWeather from '@/features/organization-workbench/OrganizationWeather.vue'
+import WeatherAttribution from '@/features/organization-workbench/WeatherAttribution.vue'
 import AppHouseCardSkeleton from '@/components/app/AppHouseCardSkeleton.vue'
 import AppRecordListSkeleton from '@/components/app/AppRecordListSkeleton.vue'
 import { getPublicHouseFilters, listPublicHouses } from '@/features/houses/service'
@@ -17,7 +20,6 @@ import { listLandlordHouses } from '@/features/landlord/service'
 import { APP_ROUTES, getHouseDetailRoute } from '@/modules/routes'
 import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
-import AppNotice from '@/components/app/AppNotice.vue'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import PublicHouseLocationDropdown from '@/features/houses/components/PublicHouseLocationDropdown.vue'
@@ -44,13 +46,14 @@ const regionStore = usePublicHouseRegionStore()
 const spatialFilter = usePublicHouseSpatialFilter()
 const houseFavorites = useHouseCardFavorites()
 const currentMode = computed(() => appContextStore.navigationMode)
+const { navigationScrolled, navigationProgress, navigationScrollTop: pageScrollTop, handleNavigationScroll } = useNavigationScrollState()
+const organizationWorkbench = ref<InstanceType<typeof OrganizationWorkbench> | null>(null)
+const organizationWeather = ref<InstanceType<typeof OrganizationWeather> | null>(null)
 const isPublicHouseMode = computed(() => currentMode.value === 'visitor' || currentMode.value === 'personal')
-const pageScrollTop = ref(0)
 const navigationRpxScale = (uni.getWindowInfo?.().windowWidth || 375) / 750
 const navigationSearchThreshold = Math.round(144 * navigationRpxScale)
 const navigationContentFadeDistance = Math.round(288 * navigationRpxScale)
 const navigationSearchVisible = computed(() => isPublicHouseMode.value && pageScrollTop.value >= navigationSearchThreshold)
-const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState()
 const navigationContentProgress = computed(() => {
   if (!isPublicHouseMode.value)
     return navigationProgress.value
@@ -59,7 +62,6 @@ const navigationContentProgress = computed(() => {
 
 function handlePageScroll(event: { scrollTop: number }) {
   handleNavigationScroll(event)
-  pageScrollTop.value = event.scrollTop
 }
 
 onPageScroll(handlePageScroll)
@@ -107,15 +109,6 @@ const rentFilterText = computed(() => {
   return '租金'
 })
 const bedroomFilterText = computed(() => query.bedrooms === '' ? '户型' : `${query.bedrooms}室`)
-const organizationBusinessEntries = computed(() => [
-  { title: '经营总览', subtitle: '打开全部组织经营功能', icon: 'i-carbon-apps', route: APP_ROUTES.organizationRental, featured: true },
-  { title: '房源资产', subtitle: '房源、小区、楼栋与地图', icon: 'i-carbon-building', route: APP_ROUTES.organizationHouses },
-  { title: '客户与带看', subtitle: '联系人和带看状态处理', icon: 'i-carbon-user-multiple', route: APP_ROUTES.organizationViewings },
-  { title: '租约管理', subtitle: '租约详情与登记签约', icon: 'i-carbon-document', route: APP_ROUTES.organizationLeases },
-  { title: '收益分配', subtitle: '申请与月度收益记录', icon: 'i-carbon-money', route: APP_ROUTES.organizationAllocation, capability: appContextStore.capabilities.allocation },
-  { title: '经营分析', subtitle: '组织经营事件与趋势', icon: 'i-carbon-chart-line', route: APP_ROUTES.organizationAnalytics, capability: appContextStore.capabilities.analytics },
-].filter(item => item.capability !== false))
-
 function requestParams(page: number, targetPageSize: number): PublicHousesUsingGetParams {
   return {
     keyword: query.keyword,
@@ -299,10 +292,6 @@ function clearLandlordFilters() {
   landlordStatus.value = 'all'
 }
 
-function openOrganizationRoute(url: string) {
-  uni.navigateTo({ url })
-}
-
 onLoad((options) => {
   if (currentMode.value === 'visitor' || currentMode.value === 'personal') {
     uni.redirectTo({
@@ -321,13 +310,22 @@ onShow(() => {
     if (publicPageInitialized.value && lastLoadedPublicScopeKey !== spatialFilter.scopeKey.value)
       void loadHouses(true)
   }
+  else if (currentMode.value === 'organization') {
+    void organizationWorkbench.value?.refresh()
+    void organizationWeather.value?.refresh()
+  }
 })
-onPullDownRefresh(() => {
+onPullDownRefresh(async () => {
   if (currentMode.value === 'visitor' || currentMode.value === 'personal')
     return loadHouses(true)
   if (currentMode.value === 'landlord')
     return loadLandlordHouses(true)
-  uni.stopPullDownRefresh()
+  try {
+    await Promise.all([organizationWorkbench.value?.refresh(), organizationWeather.value?.refresh()])
+  }
+  finally {
+    uni.stopPullDownRefresh()
+  }
 })
 onReachBottom(() => {
   if (currentMode.value === 'visitor' || currentMode.value === 'personal')
@@ -342,17 +340,18 @@ onReachBottom(() => {
   <AppPage class="houses-page" tabbar ai-background>
     <template #navigation>
       <AppCustomNavigation
-        title=""
+        :title="currentMode === 'organization' ? '工作台' : ''"
         align="start"
         scrolled-align="start"
         scroll-mode="fade"
         :scrolled="isPublicHouseMode ? navigationSearchVisible : navigationScrolled"
-        :content-opacity-mode="isPublicHouseMode ? 'fade-out' : 'fade-in'"
+        :content-opacity-mode="isPublicHouseMode ? 'fade-out' : 'manual'"
         scrolled-content-opacity-mode="fade-in"
         :scroll-progress="navigationContentProgress"
       >
-        <template v-if="isPublicHouseMode" #content>
-          <view class="navigation-primary-row min-w-0 w-full flex items-center gap-1.5">
+        <template #content>
+          <OrganizationWeather v-if="currentMode === 'organization'" ref="organizationWeather" />
+          <view v-else-if="isPublicHouseMode" class="navigation-primary-row min-w-0 w-full flex items-center gap-1.5">
             <PublicHouseRegionTrigger @change="handleRegionChange" />
           </view>
         </template>
@@ -593,32 +592,8 @@ onReachBottom(() => {
     </template>
 
     <template v-else-if="currentMode === 'organization'">
-      <view class="mode-heading">
-        <view class="mode-title">
-          业务中心
-        </view>
-        <view class="mode-subtitle">
-          {{ appContextStore.currentOrganization?.name }}
-        </view>
-      </view>
-      <view class="business-grid">
-        <view
-          v-for="item in organizationBusinessEntries"
-          :key="item.route"
-          class="business-card"
-          :class="{ 'business-card--featured': item.featured }"
-          @click="openOrganizationRoute(item.route)"
-        >
-          <view :class="item.icon" /><strong>{{ item.title }}</strong><text>{{ item.subtitle }}</text>
-          <view class="i-carbon-arrow-up-right business-arrow" />
-        </view>
-      </view>
-      <AppNotice
-        class="scope-notice"
-        title="功能按当前权限展示"
-        description="收益分配和经营分析会根据当前组织权限显示，具体数据仍由后端执行成员与角色校验。"
-        compact
-      />
+      <OrganizationWorkbench ref="organizationWorkbench" />
+      <WeatherAttribution v-if="organizationWeather?.provider === 'qweather'" />
     </template>
   </AppPage>
 </template>
@@ -946,19 +921,6 @@ onReachBottom(() => {
     animation: none;
   }
 }
-.mode-heading {
-  padding: 12rpx 6rpx 28rpx;
-}
-.mode-title {
-  color: var(--app-text-primary);
-  font-size: 40rpx;
-  font-weight: 700;
-}
-.mode-subtitle {
-  margin-top: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 25rpx;
-}
 .summary-card {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -982,49 +944,6 @@ onReachBottom(() => {
 .summary-card text {
   color: var(--app-text-muted);
   font-size: 24rpx;
-}
-.business-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18rpx;
-}
-.business-card {
-  position: relative;
-  display: flex;
-  min-height: 190rpx;
-  flex-direction: column;
-  justify-content: center;
-  gap: 10rpx;
-  padding: 24rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-.business-card--featured {
-  grid-column: 1 / -1;
-  min-height: 150rpx;
-  background: var(--app-bg-brand-soft);
-}
-.business-card > view {
-  color: var(--app-color-brand);
-  font-size: 38rpx;
-}
-.business-card strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-}
-.business-card text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.business-arrow {
-  position: absolute;
-  top: 24rpx;
-  right: 24rpx;
-  color: var(--app-text-muted) !important;
-  font-size: 28rpx !important;
-}
-.scope-notice {
-  margin-top: 24rpx;
 }
 .landlord-house-list {
   display: flex;

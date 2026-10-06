@@ -203,6 +203,7 @@ def apply_public_house_filters(
     qs,
     *,
     keyword=None,
+    listing_type=None,
     province=None,
     city=None,
     district=None,
@@ -214,6 +215,7 @@ def apply_public_house_filters(
     min_area=None,
     max_area=None,
     bedrooms=None,
+    bedrooms_min=None,
     living_rooms=None,
     decoration=None,
     has_elevator_access=None,
@@ -237,6 +239,8 @@ def apply_public_house_filters(
             | Q(building__estate__district__icontains=keyword)
             | Q(building__organization__name__icontains=keyword)
         )
+    if listing_type:
+        qs = qs.filter(listing_type=listing_type)
     if province:
         qs = qs.filter(building__estate__province__iexact=province)
     if city:
@@ -259,6 +263,8 @@ def apply_public_house_filters(
         qs = qs.filter(area__lte=max_area)
     if bedrooms is not None:
         qs = qs.filter(bedrooms=bedrooms)
+    if bedrooms_min is not None:
+        qs = qs.filter(bedrooms__gte=bedrooms_min)
     if living_rooms is not None:
         qs = qs.filter(living_rooms=living_rooms)
     if decoration:

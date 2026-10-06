@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { PublicHouseLocationMode, PublicMetroCityDetail } from '@/domain/public-house-metro'
+import type { PublicHouseLocationMode, PublicHouseRadiusM, PublicMetroCityDetail } from '@/domain/public-house-metro'
 import type { AppliedCommute, CommuteDraft } from '@/features/houses/commute'
 import type { PublicHouseLocationFilterValue } from '@/features/houses/usePublicHouseSpatialFilter'
 import { computed, ref, watch } from 'vue'
 import AppLoading from '@/components/app/AppLoading.vue'
 import CommutePicker from '@/features/houses/commute/CommutePicker.vue'
-import { commuteModeLabel } from '@/features/houses/commute'
+import { formatPublicHouseRadiusLabel, PUBLIC_HOUSE_RADIUS_OPTIONS } from '@/domain/public-house-metro'
 import { useWorkPlacePreferenceStore } from '@/features/houses/commute/preference'
 import { getPublicMetroCities, getPublicMetroCity } from '@/features/houses/service'
 import { usePublicHouseRegionStore } from '@/store/public-house-region'
@@ -15,6 +15,10 @@ const props = withDefaults(defineProps<{
   value: PublicHouseLocationFilterValue
   commute?: AppliedCommute | null
   preferredMode?: 'commute' | null
+  showNearby?: boolean
+  nearbyRadiusM?: PublicHouseRadiusM
+  nearbyActive?: boolean
+  locatingNearby?: boolean
 }>(), { commute: null })
 
 const emit = defineEmits<{
@@ -22,11 +26,14 @@ const emit = defineEmits<{
   'apply': [value: PublicHouseLocationFilterValue]
   'apply-commute': [value: CommuteDraft]
   'clear-commute': []
+  'apply-nearby': [radiusM: PublicHouseRadiusM]
+  'clear-nearby': []
 }>()
 
 const regionStore = usePublicHouseRegionStore()
 const workPlacePreference = useWorkPlacePreferenceStore()
-const draftMode = ref<PublicHouseLocationMode | 'commute'>('region')
+const draftMode = ref<PublicHouseLocationMode | 'commute' | 'nearby'>('region')
+const draftNearbyRadiusM = ref<PublicHouseRadiusM>(props.nearbyRadiusM || 1000)
 const draftCommute = ref<CommuteDraft>({ place: null, mode: 'metro', maxMinutes: 45 })
 const commutePickerRevision = ref(0)
 const draftDistrict = ref('')
@@ -49,29 +56,13 @@ function shortRegionName(value: string) {
 }
 
 const headerContent = computed(() => {
-  if (draftMode.value === 'region') {
-    const city = shortRegionName(regionStore.selection.city)
-    const district = draftDistrict.value ? shortRegionName(draftDistrict.value) : '全区'
-    return {
-      icon: 'i-carbon-map',
-      title: '区域',
-      subtitle: [city, district, draftSubdistrict.value].filter(Boolean).join(' · '),
-    }
-  }
-  if (draftMode.value === 'metro') {
-    return {
-      icon: 'i-carbon-train',
-      title: '地铁',
-      subtitle: `${activeLine.value?.name || '选择线路'} · 已选 ${draftStationNames.value.length}/5 站`,
-    }
-  }
-  const placeName = draftCommute.value.place?.name
-  const commuteSummary = `${commuteModeLabel(draftCommute.value.mode)} ${draftCommute.value.maxMinutes} 分钟内`
-  return {
-    icon: 'i-carbon-location-star',
-    title: '通勤',
-    subtitle: `${placeName ? `到${placeName}` : '未选目的地'} · ${commuteSummary}`,
-  }
+  if (draftMode.value === 'nearby')
+    return { icon: 'i-carbon-location-current', title: '附近' }
+  if (draftMode.value === 'region')
+    return { icon: 'i-carbon-map', title: '区域' }
+  if (draftMode.value === 'metro')
+    return { icon: 'i-carbon-train', title: '地铁' }
+  return { icon: 'i-carbon-location-star', title: '通勤' }
 })
 
 function stationCheckboxStyle(stationName: string) {
@@ -106,7 +97,9 @@ function stationCheckboxStyle(stationName: string) {
 
 function resetDraftFromValue() {
   commutePickerRevision.value += 1
-  draftMode.value = props.preferredMode || (props.commute || !regionStore.selection.city ? 'commute' : props.value.mode)
+  const fallbackMode = props.commute || !regionStore.selection.city ? 'commute' : props.value.mode
+  draftMode.value = props.preferredMode || (props.showNearby && (props.nearbyActive || !regionStore.selection.city) ? 'nearby' : fallbackMode)
+  draftNearbyRadiusM.value = props.nearbyRadiusM || 1000
   draftCommute.value = props.commute
     ? { place: props.commute.place, mode: props.commute.mode, maxMinutes: props.commute.maxMinutes }
     : { place: workPlacePreference.preference?.place || null, mode: workPlacePreference.preference?.mode || 'metro', maxMinutes: 45 }
@@ -151,7 +144,7 @@ async function loadMetroCity() {
   }
 }
 
-function setDraftMode(mode: PublicHouseLocationMode | 'commute') {
+function setDraftMode(mode: PublicHouseLocationMode | 'commute' | 'nearby') {
   draftMode.value = mode
   if (mode === 'metro' && metroCity.value?.name !== regionStore.selection.city && !metroLoading.value)
     void loadMetroCity()
@@ -168,6 +161,11 @@ function selectDraftSubdistrict(subdistrict: string) {
 }
 
 function resetDraft() {
+  if (draftMode.value === 'nearby') {
+    emit('clear-nearby')
+    emit('update:visible', false)
+    return
+  }
   if (draftMode.value === 'commute') {
     draftCommute.value = { place: null, mode: 'metro', maxMinutes: 45 }
     commutePickerRevision.value += 1
@@ -190,6 +188,10 @@ function closeWithoutApply() {
 }
 
 function applyDraft() {
+  if (draftMode.value === 'nearby') {
+    emit('apply-nearby', draftNearbyRadiusM.value)
+    return
+  }
   if (draftMode.value === 'commute') {
     if (!draftCommute.value.place) {
       uni.showToast({ title: '请先选择通勤目的地', icon: 'none' })
@@ -234,12 +236,11 @@ watch(() => regionStore.scopeKey, () => {
 <template>
   <view v-if="visible" class="location-popover-host">
     <view class="location-popover__mask" @touchmove.stop.prevent @wheel.stop.prevent @click="closeWithoutApply" />
-    <view class="location-popover" @click.stop>
+    <view class="location-popover" :class="{ 'location-popover--nearby': draftMode === 'nearby' }" @click.stop>
       <view class="location-popover__header">
         <view class="location-popover__header-icon" :class="headerContent.icon" />
         <view class="location-popover__heading">
           <strong>{{ headerContent.title }}</strong>
-          <text>{{ headerContent.subtitle }}</text>
         </view>
         <button class="location-popover__close" aria-label="关闭" @click="closeWithoutApply">
           <view class="i-carbon-close" />
@@ -247,9 +248,12 @@ watch(() => regionStore.scopeKey, () => {
       </view>
 
       <view class="location-dropdown">
-        <template v-if="regionStore.selection.city || draftMode === 'commute'">
-          <view class="location-dropdown__columns" :class="{ 'location-dropdown__columns--commute': draftMode === 'commute' }">
+        <template v-if="regionStore.selection.city || draftMode === 'commute' || draftMode === 'nearby'">
+          <view class="location-dropdown__columns" :class="{ 'location-dropdown__columns--wide': draftMode === 'commute' || draftMode === 'nearby' }">
             <view class="location-dropdown__column location-dropdown__column--mode">
+              <button v-if="showNearby" class="location-dropdown__mode" :class="{ active: draftMode === 'nearby' }" @click="setDraftMode('nearby')">
+                附近
+              </button>
               <button v-if="regionStore.selection.city" class="location-dropdown__mode" :class="{ active: draftMode === 'region' }" @click="setDraftMode('region')">
                 区域
               </button>
@@ -261,7 +265,7 @@ watch(() => regionStore.scopeKey, () => {
               </button>
             </view>
 
-            <scroll-view v-if="draftMode !== 'commute'" class="location-dropdown__column location-dropdown__column--secondary" scroll-y enhanced :show-scrollbar="false">
+            <scroll-view v-if="draftMode === 'region' || draftMode === 'metro'" class="location-dropdown__column location-dropdown__column--secondary" scroll-y enhanced :show-scrollbar="false">
               <template v-if="draftMode === 'region'">
                 <button class="location-dropdown__option location-dropdown__option--secondary" :class="{ active: !draftDistrict }" @click="selectDraftDistrict('')">
                   全区
@@ -290,7 +294,7 @@ watch(() => regionStore.scopeKey, () => {
               </template>
             </scroll-view>
 
-            <scroll-view v-if="draftMode !== 'commute'" class="location-dropdown__column location-dropdown__column--content" scroll-y enhanced :show-scrollbar="false">
+            <scroll-view v-if="draftMode === 'region' || draftMode === 'metro'" class="location-dropdown__column location-dropdown__column--content" scroll-y enhanced :show-scrollbar="false">
               <template v-if="draftMode === 'region'">
                 <button class="location-dropdown__option location-dropdown__option--place" :class="{ active: !draftSubdistrict }" @click="selectDraftSubdistrict('')">
                   <text>{{ draftDistrict ? `${shortRegionName(draftDistrict)}全区` : '全区' }}</text>
@@ -341,16 +345,27 @@ watch(() => regionStore.scopeKey, () => {
                 </wd-checkbox-group>
               </view>
             </scroll-view>
-            <scroll-view v-else class="location-dropdown__column location-dropdown__column--commute" scroll-y enhanced :show-scrollbar="false">
+            <scroll-view v-else-if="draftMode === 'commute'" class="location-dropdown__column location-dropdown__column--commute" scroll-y enhanced :show-scrollbar="false">
               <CommutePicker :key="commutePickerRevision" v-model="draftCommute" compact />
             </scroll-view>
+            <view v-else class="location-dropdown__column location-dropdown__column--nearby">
+              <strong>距离范围</strong>
+              <wd-radio-group v-model="draftNearbyRadiusM" type="button" direction="horizontal" custom-class="location-dropdown__nearby-options">
+                <wd-radio v-for="radius in PUBLIC_HOUSE_RADIUS_OPTIONS" :key="radius" :value="radius">
+                  {{ formatPublicHouseRadiusLabel(radius) }}
+                </wd-radio>
+              </wd-radio-group>
+            </view>
           </view>
         </template>
 
         <view v-else class="location-dropdown__empty-city">
           <view class="i-carbon-map location-dropdown__state-icon" />
           <strong>请先从页面右上角选择城市</strong>
-          <text>选择城市后可按区域或地铁找房，也可直接使用通勤筛选</text>
+          <text>{{ showNearby ? '选择城市后可按区域或地铁找房，也可直接使用附近或通勤筛选' : '选择城市后可按区域或地铁找房，也可直接使用通勤筛选' }}</text>
+          <button v-if="showNearby" class="location-dropdown__commute-entry" @click="setDraftMode('nearby')">
+            附近找房
+          </button>
           <button class="location-dropdown__commute-entry" @click="setDraftMode('commute')">
             使用通勤筛选
           </button>
@@ -359,10 +374,10 @@ watch(() => regionStore.scopeKey, () => {
 
       <view class="location-popover__footer">
         <wd-button block variant="plain" custom-class="location-dropdown__reset" @click="resetDraft">
-          {{ draftMode === 'commute' ? '清空通勤' : '清空选择' }}
+          {{ draftMode === 'nearby' ? '不限附近' : draftMode === 'commute' ? '清空通勤' : '清空选择' }}
         </wd-button>
-        <wd-button block custom-class="location-dropdown__apply" @click="applyDraft">
-          查看房源
+        <wd-button block custom-class="location-dropdown__apply" :loading="draftMode === 'nearby' && locatingNearby" @click="applyDraft">
+          {{ draftMode === 'nearby' && locatingNearby ? '定位中…' : '查看房源' }}
         </wd-button>
       </view>
     </view>
@@ -425,12 +440,17 @@ watch(() => regionStore.scopeKey, () => {
   animation: location-popover-in 180ms ease-out;
 }
 
+.location-popover--nearby {
+  height: auto;
+  grid-template-rows: auto auto auto;
+}
+
 .location-popover__header {
   display: flex;
-  min-height: 104rpx;
+  min-height: 88rpx;
   align-items: center;
   gap: 14rpx;
-  padding: 12rpx 18rpx 12rpx 28rpx;
+  padding: 10rpx 18rpx 10rpx 28rpx;
   box-sizing: border-box;
   background: #fff;
 }
@@ -445,23 +465,13 @@ watch(() => regionStore.scopeKey, () => {
   display: flex;
   min-width: 0;
   flex: 1;
-  flex-direction: column;
-  gap: 6rpx;
+  align-items: center;
 }
 
 .location-popover__heading strong {
   color: var(--app-text-primary);
   font-size: 29rpx;
   line-height: 1.2;
-}
-
-.location-popover__heading text {
-  overflow: hidden;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .location-popover__close {
@@ -527,12 +537,36 @@ watch(() => regionStore.scopeKey, () => {
   border-top: 1rpx solid var(--app-divider-color);
 }
 
-.location-dropdown__columns--commute {
+.location-dropdown__columns--wide {
   grid-template-columns: 19% 81%;
 }
 
 .location-dropdown__column--commute {
   background: #fff;
+}
+
+.location-dropdown__column--nearby {
+  padding: 28rpx 20rpx;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.location-dropdown__column--nearby strong {
+  color: var(--app-text-primary);
+  font-size: 25rpx;
+}
+
+:deep(.location-dropdown__nearby-options) {
+  display: grid;
+  margin-top: 24rpx;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+  --wot-radio-button-margin: 0;
+  --wot-radio-button-min-width: 0;
+  --wot-radio-checked-color: var(--location-filter-primary);
+  --wot-radio-button-bg: #f5f8fc;
+  --wot-radio-button-checked-bg: var(--location-filter-primary-soft);
+  --wot-radio-button-border-radius: 18rpx;
 }
 
 .location-dropdown__commute-entry {

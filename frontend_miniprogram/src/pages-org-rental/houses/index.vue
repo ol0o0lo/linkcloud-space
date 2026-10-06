@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { HouseOut } from '@/pages-org-rental/api/organization-rental'
+import { onLoad } from '@dcloudio/uni-app'
 import { computed, reactive, ref } from 'vue'
 import { HouseStatus, listOrganizationHouses } from '@/pages-org-rental/api/organization-rental'
 import OrganizationHouseCard from '@/pages-org-rental/houses/components/OrganizationHouseCard.vue'
@@ -17,6 +18,11 @@ definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '组织
 const appContextStore = useAppContextStore()
 const keyword = ref('')
 const statusFilter = ref<'all' | HouseStatus>('all')
+onLoad((options) => {
+  const status = options?.status
+  if (status === HouseStatus.vacant || status === HouseStatus.listed || status === HouseStatus.rented)
+    statusFilter.value = status
+})
 const summaryCounts = reactive({ vacant: 0, inspection: 0 })
 const hasFilters = computed(() => Boolean(keyword.value.trim() || statusFilter.value !== 'all'))
 const list = usePagedPage<HouseOut>({

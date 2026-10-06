@@ -34,8 +34,11 @@ test('首页地铁入口使用结构化筛选而不是关键词', () => {
   assert.deepEqual(HOME_RANKING_SEARCHES['地铁线路'], { location_mode: 'metro' })
   assert.deepEqual(parsePublicHouseSearchPreset({ location_mode: 'metro' }), {
     keyword: undefined,
+    listing_type: undefined,
     max_rent: undefined,
     bedrooms: undefined,
+    bedrooms_min: undefined,
+    nearby: undefined,
     sort: 'latest',
     location_mode: 'metro',
   })
@@ -61,8 +64,26 @@ test('Banner 动作只进入专题详情、公共找房或地图找房', () => {
 test('公共找房参数忽略非法户型和排序', () => {
   assert.deepEqual(parsePublicHouseSearchPreset({ keyword: '整租', bedrooms: '-1', sort: 'unknown' }), {
     keyword: '整租',
+    listing_type: undefined,
     max_rent: undefined,
     bedrooms: undefined,
+    bedrooms_min: undefined,
+    nearby: undefined,
+    sort: 'latest',
+    location_mode: undefined,
+  })
+})
+
+test('首页分类、三室以上及附近参数进入结构化搜索', () => {
+  assert.deepEqual(HOME_QUICK_SEARCHES['品质整租'], { listing_type: 'whole' })
+  assert.equal(getPublicHouseSearchRoute({ listing_type: 'shared', bedrooms_min: 3, nearby: 1 }), '/pages-housing/search/index?listing_type=shared&bedrooms_min=3&nearby=1')
+  assert.deepEqual(parsePublicHouseSearchPreset({ listing_type: 'shared', bedrooms_min: '3', nearby: '1', keyword: '%E6%9C%9B%E6%B5%B7' }), {
+    keyword: '望海',
+    listing_type: 'shared',
+    max_rent: undefined,
+    bedrooms: undefined,
+    bedrooms_min: 3,
+    nearby: 1,
     sort: 'latest',
     location_mode: undefined,
   })

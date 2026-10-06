@@ -20,6 +20,8 @@ export interface GeoPoint {
 }
 
 export type PublicHousesUsingGetParams = Omit<GeneratedPublicHousesUsingGetParams, 'radius_m' | 'sort'> & {
+  listing_type?: 'whole' | 'shared' | 'apartment' | 'short_term'
+  bedrooms_min?: number
   estate_id?: number | null
   building_id?: number | null
   subdistrict?: string
@@ -71,6 +73,9 @@ export interface PublicHouseMapParams {
   east?: number
   north?: number
   keyword?: string
+  listing_type?: 'whole' | 'shared' | 'apartment' | 'short_term'
+  bedrooms?: number
+  bedrooms_min?: number
   province?: string
   city?: string
   district?: string

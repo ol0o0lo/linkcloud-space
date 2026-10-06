@@ -31,6 +31,7 @@ const buildingVisible = ref(false)
 const landlordVisible = ref(false)
 const orientationVisible = ref(false)
 const decorationVisible = ref(false)
+const listingTypeVisible = ref(false)
 const buildingKeyword = ref('')
 const landlordKeyword = ref('')
 const buildingLoading = ref(false)
@@ -39,11 +40,13 @@ const buildings = ref<BuildingInventoryOut[]>([])
 const landlords = ref<ContactOut[]>([])
 const orientationSelection = ref<Array<string | number>>([])
 const decorationSelection = ref<Array<string | number>>([])
+const listingTypeSelection = ref<Array<string | number>>([])
 
 const form = reactive<OrganizationHouseWriteInput>({
   building_id: 0,
   landlord_id: null,
   room_number: '',
+  listing_type: null,
   floor: '',
   area: '',
   interior_area: '',
@@ -80,6 +83,13 @@ const decorationOptions = [
   { label: '精装', value: 'fine' },
   { label: '豪装', value: 'luxury' },
 ]
+const listingTypeOptions = [
+  { label: '暂不分类', value: '' },
+  { label: '整租', value: 'whole' },
+  { label: '合租', value: 'shared' },
+  { label: '公寓', value: 'apartment' },
+  { label: '短租', value: 'short_term' },
+]
 
 const selectedBuilding = computed(() => buildings.value.find(item => item.id === form.building_id))
 const selectedLandlord = computed(() => landlords.value.find(item => item.id === form.landlord_id))
@@ -94,6 +104,7 @@ const buildingLabel = computed(() => {
 const landlordLabel = computed(() => selectedLandlord.value?.name || (currentHouse.value?.landlord_id === form.landlord_id ? currentHouse.value.landlord?.name : '') || '不关联房东')
 const orientationLabel = computed(() => orientationOptions.find(item => item.value === form.orientation)?.label || '不设置')
 const decorationLabel = computed(() => decorationOptions.find(item => item.value === form.decoration)?.label || '不设置')
+const listingTypeLabel = computed(() => listingTypeOptions.find(item => item.value === form.listing_type)?.label || '暂不分类')
 const imageItems = computed(() => (form.images || []) as HouseMediaRef[])
 
 function mediaUrl(item: HouseMediaRef): string {
@@ -106,6 +117,7 @@ function fillHouse(house: HouseOut) {
     building_id: house.building_id,
     landlord_id: house.landlord_id,
     room_number: house.room_number,
+    listing_type: (house as HouseOut & { listing_type?: OrganizationHouseWriteInput['listing_type'] }).listing_type || null,
     floor: house.floor ?? '',
     area: house.area ?? '',
     interior_area: house.interior_area ?? '',
@@ -127,6 +139,7 @@ function fillHouse(house: HouseOut) {
   })
   orientationSelection.value = [house.orientation || '']
   decorationSelection.value = [house.decoration || '']
+  listingTypeSelection.value = [form.listing_type || '']
 }
 
 async function loadBuildings() {
@@ -165,6 +178,10 @@ function changeOrientation(event: PickerConfirmEvent) {
 
 function changeDecoration(event: PickerConfirmEvent) {
   form.decoration = String(event.value[0] || '')
+}
+
+function changeListingType(event: PickerConfirmEvent) {
+  form.listing_type = String(event.value[0] || '') as OrganizationHouseWriteInput['listing_type'] || null
 }
 
 async function addImages() {
@@ -254,6 +271,7 @@ onLoad((options) => {
       <wd-cell title="楼栋" :value="buildingLabel" is-link @click="buildingVisible = true" />
       <wd-cell title="房东" :value="landlordLabel" is-link @click="landlordVisible = true" />
       <wd-input v-model="form.room_number" label="房号" placeholder="请输入房号" clearable />
+      <wd-cell title="出租分类" :value="listingTypeLabel" is-link @click="listingTypeVisible = true" />
       <wd-input v-model="form.floor" label="楼层" type="number" placeholder="例如 12" clearable />
     </wd-cell-group>
 
@@ -365,6 +383,7 @@ onLoad((options) => {
 
       <wd-picker v-model="orientationSelection" v-model:visible="orientationVisible" :columns="orientationOptions" title="选择朝向" @confirm="changeOrientation" />
       <wd-picker v-model="decorationSelection" v-model:visible="decorationVisible" :columns="decorationOptions" title="选择装修情况" @confirm="changeDecoration" />
+      <wd-picker v-model="listingTypeSelection" v-model:visible="listingTypeVisible" :columns="listingTypeOptions" title="选择出租分类" @confirm="changeListingType" />
     </template>
   </AppFormPage>
 </template>

@@ -45,6 +45,7 @@ export interface OrganizationHouseWriteInput {
   building_id: number
   landlord_id: number | null
   room_number: string
+  listing_type?: 'whole' | 'shared' | 'apartment' | 'short_term' | null
   floor?: string | number | null
   area?: string | number | null
   interior_area?: string | number | null
@@ -289,6 +290,7 @@ export function buildOrganizationHouseCreatePayload(values: OrganizationHouseWri
     building_id: Number(values.building_id),
     landlord_id: values.landlord_id == null ? null : Number(values.landlord_id),
     room_number: values.room_number.trim(),
+    listing_type: values.listing_type || null,
     floor: numericValue(values.floor),
     area: numericValue(values.area),
     interior_area: numericValue(values.interior_area),

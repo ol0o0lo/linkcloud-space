@@ -9,6 +9,7 @@ import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 import AppHouseCardSkeleton from '@/components/app/AppHouseCardSkeleton.vue'
 import AppWaterfallList from '@/components/app/AppWaterfallList.vue'
 import HomeDiscoverySections from '@/features/home/components/HomeDiscoverySections.vue'
+import HomeSearchPanel from '@/features/home/components/HomeSearchPanel.vue'
 import { getHomeContent } from '@/features/home/service'
 import PublicHouseRegionTrigger from '@/features/houses/components/PublicHouseRegionTrigger.vue'
 import { getPublicHouseFilters, listPublicHouses } from '@/features/houses/service'
@@ -35,6 +36,7 @@ definePage({
 
 const appContextStore = useAppContextStore()
 const regionStore = usePublicHouseRegionStore()
+const homeSearchPreset = ref<PublicHouseSearchPreset>({ listing_type: 'whole' })
 const spatialFilter = usePublicHouseSpatialFilter(1000)
 const houseFavorites = useHouseCardFavorites()
 const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState()
@@ -79,8 +81,9 @@ function recommendationRequestParams(page: number, pageSize: number): PublicHous
 
 const recommendationPage = usePagedPage<PublicHouseListOut>({
   loader: ({ page, pageSize }) => listPublicHouses(recommendationRequestParams(page, pageSize)),
-  pageSize: 10,
+  pageSize: 4,
   refreshOnShow: false,
+  reachBottom: false,
   keyOf: item => item.id,
 })
 const recommendationSummary = computed(() => {
@@ -167,12 +170,45 @@ function goFindHouse(preset: PublicHouseSearchPreset = {}) {
   uni.navigateTo({ url: getPublicHouseSearchRoute(preset) })
 }
 
-function openKeywordSearch() {
-  uni.navigateTo({ url: `${APP_ROUTES.publicHouseSearchInput}?city=${encodeURIComponent(regionStore.selection.city)}` })
+function openKeywordSearch(preset: PublicHouseSearchPreset = homeSearchPreset.value) {
+  const values = [
+    ['city', regionStore.selection.city],
+    ['listing_type', preset.listing_type],
+    ['bedrooms', preset.bedrooms],
+    ['bedrooms_min', preset.bedrooms_min],
+  ]
+  const params = values.filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`).join('&')
+  uni.navigateTo({ url: `${APP_ROUTES.publicHouseSearchInput}?${params}` })
 }
 
-function goMapFindHouse() {
-  uni.navigateTo({ url: APP_ROUTES.houseMap })
+function goNearbyFindHouse(preset: PublicHouseSearchPreset = {}) {
+  goFindHouse({ ...preset, nearby: 1 })
+}
+
+function goCommuteFindHouse() {
+  uni.navigateTo({ url: APP_ROUTES.houseCommute })
+}
+
+function openAllRecommendations() {
+  if (recommendationMode.value === 'nearby') {
+    goNearbyFindHouse()
+    return
+  }
+  goFindHouse({ sort: recommendationMode.value === 'low-price' ? 'rent_asc' : 'latest' })
+}
+
+function updateHomeSearchPreset(preset: PublicHouseSearchPreset) {
+  homeSearchPreset.value = preset
+}
+
+function goMapFindHouse(preset: PublicHouseSearchPreset = {}) {
+  const values = [
+    ['listing_type', preset.listing_type],
+    ['bedrooms', preset.bedrooms],
+    ['bedrooms_min', preset.bedrooms_min],
+  ]
+  const params = values.filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`).join('&')
+  uni.navigateTo({ url: params ? `${APP_ROUTES.houseMap}?${params}` : APP_ROUTES.houseMap })
 }
 
 function openHomeBanner(banner: HomeBanner) {
@@ -202,10 +238,6 @@ function goFavorites() {
     uni.navigateTo({ url: getLoginRoute(APP_ROUTES.favorites) })
 }
 
-function showReservedContent(title: string) {
-  uni.showToast({ title: `${title}正在筹备中`, icon: 'none' })
-}
-
 function getImageRatio(house: PublicHouseListOut, index: number) {
   return (house.id + index) % 5 === 0 ? 'tall' : 'standard'
 }
@@ -215,7 +247,7 @@ function getHouseWeight(house: PublicHouseListOut, index: number) {
 }
 
 function retryRecommendations() {
-  void (recommendationPage.items.value.length ? recommendationPage.loadMore() : recommendationPage.refresh())
+  void recommendationPage.refresh()
 }
 
 async function refreshHomeContent() {
@@ -245,13 +277,19 @@ onShow(async () => {
 </script>
 
 <template>
-  <AppPage class="home-page" tabbar ai-background>
+  <AppPage class="home-page" tabbar>
     <template #navigation>
-      <AppCustomNavigation title="" align="start" scroll-mode="fade" :scrolled="navigationScrolled" :scroll-progress="navigationProgress">
+      <AppCustomNavigation title="" align="start" scroll-mode="fade" immersive :scrolled="navigationScrolled" :scroll-progress="navigationProgress">
         <template #content>
           <view class="home-navigation__finder">
-            <PublicHouseRegionTrigger @change="handleRegionChange" />
-            <button class="home-navigation__search app-touchable" hover-class="app-touchable--pressed" @click="openKeywordSearch">
+            <PublicHouseRegionTrigger variant="surface" @change="handleRegionChange" />
+            <button
+              class="home-navigation__search app-touchable"
+              :class="{ 'home-navigation__search--visible': navigationScrolled }"
+              :aria-hidden="!navigationScrolled"
+              hover-class="app-touchable--pressed"
+              @click="openKeywordSearch()"
+            >
               <view class="i-carbon-search" />
               <text>搜索小区、区域或房源</text>
             </button>
@@ -260,23 +298,58 @@ onShow(async () => {
       </AppCustomNavigation>
     </template>
 
-    <HomeDiscoverySections
-      :banners="homeContent.banners"
-      :topics="homeContent.topics"
-      :guides="homeContent.guides"
-      :loading="homeContentLoading"
-      @banner="openHomeBanner"
-      @find="goFindHouse"
-      @map="goMapFindHouse"
-      @entry="openHomeEntry"
-      @list="openHomeEntryList"
-      @reserved="showReservedContent"
-    />
+    <view class="home-featured">
+      <HomeDiscoverySections
+        section="intro"
+        :banners="homeContent.banners"
+        :topics="homeContent.topics"
+        :loading="homeContentLoading"
+        @banner="openHomeBanner"
+        @entry="openHomeEntry"
+      />
+      <view class="home-featured__search">
+        <HomeSearchPanel
+          @change="updateHomeSearchPreset"
+          @keyword="openKeywordSearch"
+          @search="goFindHouse"
+          @nearby="goNearbyFindHouse"
+          @map="goMapFindHouse"
+        />
+      </view>
+    </view>
+
+    <view class="home-shortcuts">
+      <button class="home-shortcut app-touchable" hover-class="app-touchable--pressed" @click="goMapFindHouse(homeSearchPreset)">
+        <view class="home-shortcut__icon home-shortcut__icon--map">
+          <view class="i-carbon-map" />
+        </view>
+        <text>地图找房</text>
+      </button>
+      <button class="home-shortcut app-touchable" hover-class="app-touchable--pressed" @click="goFindHouse({ location_mode: 'metro' })">
+        <view class="home-shortcut__icon home-shortcut__icon--metro">
+          <view class="i-carbon-train" />
+        </view>
+        <text>地铁找房</text>
+      </button>
+      <button class="home-shortcut app-touchable" hover-class="app-touchable--pressed" @click="goCommuteFindHouse">
+        <view class="home-shortcut__icon home-shortcut__icon--commute">
+          <view class="i-carbon-direction-straight-right" />
+        </view>
+        <text>通勤找房</text>
+      </button>
+      <button class="home-shortcut app-touchable" hover-class="app-touchable--pressed" @click="goNearbyFindHouse(homeSearchPreset)">
+        <view class="home-shortcut__icon home-shortcut__icon--nearby">
+          <view class="i-carbon-location-current" />
+        </view>
+        <text>附近房源</text>
+      </button>
+    </view>
 
     <view class="recommendation-feed">
       <view class="section-heading">
         <view>
-          <text class="section-heading__title">为你推荐</text>
+          <text class="section-heading__eyebrow">DISCOVER HOMES</text>
+          <text class="section-heading__title">发现好房</text>
           <text class="section-heading__subtitle">{{ recommendationSummary }}</text>
         </view>
         <button class="favorites-link" @click="goFavorites">
@@ -322,8 +395,9 @@ onShow(async () => {
         @empty-action="goFindHouse()"
       >
         <template #loading>
-          <AppHouseCardSkeleton :count="6" variant="waterfall" />
+          <AppHouseCardSkeleton :count="4" variant="waterfall" />
         </template>
+        <template #loadmore />
         <template #item="{ item, index }">
           <HouseCard
             :house="item"
@@ -337,6 +411,10 @@ onShow(async () => {
           />
         </template>
       </AppWaterfallList>
+
+      <button class="recommendation-more app-touchable" hover-class="app-touchable--pressed" @click="openAllRecommendations">
+        查看全部房源 <view class="i-carbon-arrow-right" />
+      </button>
 
       <AppBottomSheet v-model:visible="showRecommendationFilters" title="筛选推荐房源" height="tall" :z-index="1100">
         <view>
@@ -386,10 +464,26 @@ onShow(async () => {
         </template>
       </AppBottomSheet>
     </view>
+
+    <HomeDiscoverySections
+      section="content"
+      :guides="homeContent.guides"
+      :loading="homeContentLoading"
+      @entry="openHomeEntry"
+      @list="openHomeEntryList"
+    />
   </AppPage>
 </template>
 
 <style scoped lang="scss">
+.home-page {
+  background: linear-gradient(180deg, #edf5fb 0, #f6f8fa 480rpx, #f6f8fa 100%);
+}
+
+:deep(.home-page .app-page__content) {
+  padding-top: 0;
+}
+
 .home-navigation__finder {
   display: flex;
   width: 100%;
@@ -398,377 +492,217 @@ onShow(async () => {
   gap: 14rpx;
 }
 
+:deep(.home-navigation__finder .public-house-region-trigger) {
+  min-height: 58rpx;
+  padding: 0 17rpx;
+  border: 1rpx solid rgb(255 255 255 / 65%);
+  background: rgb(255 255 255 / 92%);
+  color: #24445e;
+  box-shadow: 0 8rpx 22rpx rgb(3 48 90 / 16%);
+}
+
 .home-navigation__search {
   display: flex;
   min-width: 0;
-  height: 72rpx;
+  height: 68rpx;
   flex: 1;
-  margin: 0;
-  padding: 0 22rpx;
   align-items: center;
-  gap: 14rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: 36rpx;
+  gap: 12rpx;
+  margin: 0;
+  padding: 0 20rpx;
+  border: 1rpx solid #e5edf4;
+  border-radius: 34rpx;
   box-sizing: border-box;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-  line-height: 72rpx;
+  background: #fff;
+  color: #93a1af;
+  font-size: 21rpx;
+  line-height: 68rpx;
   text-align: left;
-  background: var(--app-bg-card);
-  box-shadow: var(--app-shadow-card);
+  box-shadow: 0 5rpx 20rpx rgb(29 62 93 / 7%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--app-motion-duration-fast) linear;
 }
 
+.home-navigation__search--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.home-navigation__search::after,
+.home-shortcut::after,
+.favorites-link::after,
+.recommendation-filter::after,
+.recommendation-more::after {
+  border: 0;
+}
 .home-navigation__search view {
-  flex: 0 0 auto;
-  color: var(--app-color-brand);
+  flex: none;
+  color: #1678cf;
   font-size: 28rpx;
 }
-
 .home-navigation__search text {
-  min-width: 0;
   overflow: hidden;
+  min-width: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.home-navigation__search::after {
-  border: 0;
+.home-featured {
+  margin-top: 0;
+}
+.home-featured__search {
+  position: relative;
+  z-index: 2;
+  margin-top: -112rpx;
 }
 
-.finder-hero {
-  position: relative;
-  overflow: hidden;
-  min-height: 402rpx;
-  padding: 42rpx 42rpx 38rpx;
-  border-radius: 44rpx;
-  box-sizing: border-box;
-  color: var(--app-text-on-brand);
-  background: linear-gradient(145deg, rgb(0 129 255 / 96%), rgb(0 87 190 / 100%)), var(--app-gradient-personal);
-  box-shadow: var(--app-shadow-hero-personal);
-}
-.finder-hero::after {
-  position: absolute;
-  right: -40rpx;
-  bottom: -70rpx;
-  width: 330rpx;
-  height: 230rpx;
-  border: 1rpx solid rgb(255 255 255 / 13%);
-  border-radius: 50%;
-  content: '';
-  pointer-events: none;
-  transform: rotate(-18deg);
-}
-.finder-hero__glow {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-}
-.finder-hero__glow--one {
-  top: -160rpx;
-  right: -90rpx;
-  width: 390rpx;
-  height: 390rpx;
-  background: radial-gradient(circle, rgb(91 222 255 / 42%), transparent 68%);
-}
-.finder-hero__glow--two {
-  bottom: -210rpx;
-  left: -120rpx;
-  width: 430rpx;
-  height: 430rpx;
-  background: radial-gradient(circle, rgb(107 87 232 / 30%), transparent 70%);
-}
-.finder-hero__eyebrow,
-.finder-hero__title,
-.finder-hero__copy,
-.search-entry {
-  position: relative;
-  z-index: 1;
-}
-.finder-hero__eyebrow {
-  display: inline-flex;
-  min-height: 42rpx;
-  align-items: center;
-  padding: 0 18rpx;
-  border: 1rpx solid rgb(255 255 255 / 24%);
-  border-radius: 22rpx;
-  font-size: 21rpx;
-  font-weight: 700;
-  background: rgb(255 255 255 / 12%);
-}
-.finder-hero__title {
-  margin-top: 30rpx;
-  font-size: 48rpx;
-  font-weight: 700;
-  line-height: 1.28;
-  letter-spacing: -1rpx;
-}
-.finder-hero__copy {
-  max-width: 530rpx;
+.home-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4rpx;
   margin-top: 16rpx;
-  font-size: 23rpx;
-  line-height: 1.5;
-  opacity: 0.82;
+  padding: 10rpx 6rpx;
+  border: 1rpx solid #e7edf2;
+  border-radius: 22rpx;
+  background: #fff;
 }
-.search-entry {
+.home-shortcut {
   display: flex;
-  width: 100%;
-  height: 82rpx;
-  margin: 30rpx 0 0;
-  padding: 0 24rpx;
+  min-width: 0;
+  min-height: 112rpx;
+  flex-direction: column;
   align-items: center;
-  gap: 16rpx;
-  border: 0;
-  border-radius: 26rpx;
-  box-sizing: border-box;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 82rpx;
-  text-align: left;
-  background: rgb(255 255 255 / 96%);
-  box-shadow: 0 12rpx 32rpx rgb(0 51 112 / 18%);
+  justify-content: center;
+  gap: 7rpx;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: #4e6376;
+  font-size: 20rpx;
+  font-weight: 600;
+  line-height: 1.3;
 }
-.search-entry::after,
-.finder-action::after,
-.favorites-link::after {
-  border: 0;
+.home-shortcut text {
+  white-space: nowrap;
 }
-.search-entry__icon {
-  color: var(--app-color-brand);
+.home-shortcut__icon {
+  display: flex;
+  width: 58rpx;
+  height: 58rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16rpx;
+  background: #e9f3fb;
+  color: #267ac0;
+}
+.home-shortcut__icon view {
   font-size: 32rpx;
 }
-.search-entry text {
-  min-width: 0;
-  flex: 1;
-}
-.search-entry__arrow {
-  color: var(--app-text-muted);
-  font-size: 28rpx;
-}
-.finder-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18rpx;
-  margin-top: 22rpx;
-}
-.finder-action {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  min-height: 170rpx;
-  margin: 0;
-  padding: 26rpx;
-  align-items: center;
-  gap: 18rpx;
-  overflow: hidden;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  box-sizing: border-box;
-  line-height: 1;
-  text-align: left;
-  background: var(--app-bg-card);
-  box-shadow: var(--app-shadow-card);
-}
-.finder-action--map {
-  align-items: flex-end;
-  border-color: rgb(75 104 225 / 18%);
-  background: linear-gradient(145deg, #f0f4ff, #e8efff);
-}
-.finder-action__icon {
-  display: flex;
-  width: 70rpx;
-  height: 70rpx;
-  flex: 0 0 70rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 22rpx;
-  font-size: 34rpx;
-}
-.finder-action__icon--list {
-  color: var(--app-color-brand-active);
-  background: var(--app-bg-brand-soft);
-}
-.finder-action__content {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 12rpx;
-}
-.finder-action__content--map {
-  padding-top: 54rpx;
-}
-.finder-action strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  line-height: 1.25;
-}
-.finder-action text {
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-  line-height: 1.4;
-}
-.finder-action__arrow {
-  position: relative;
-  z-index: 2;
-  flex: 0 0 auto;
-  color: var(--app-text-muted);
-  font-size: 27rpx;
-}
-.map-art {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 105rpx;
-  opacity: 0.95;
-}
-.map-art__road {
-  position: absolute;
-  height: 16rpx;
-  border: 5rpx solid rgb(255 255 255 / 74%);
-  border-right: 0;
-  border-left: 0;
-  background: rgb(90 117 223 / 12%);
-}
-.map-art__road--one {
-  top: 24rpx;
-  right: -30rpx;
-  left: 45rpx;
-  transform: rotate(-12deg);
-}
-.map-art__road--two {
-  top: 60rpx;
-  right: 30rpx;
-  left: -28rpx;
-  transform: rotate(18deg);
-}
-.map-art__pin {
-  position: absolute;
-  display: flex;
-  width: 46rpx;
-  height: 46rpx;
-  align-items: center;
-  justify-content: center;
-  border: 4rpx solid #fff;
-  border-radius: 50% 50% 50% 12rpx;
-  color: #fff;
-  font-size: 24rpx;
-  background: #596fda;
-  box-shadow: 0 8rpx 18rpx rgb(55 78 178 / 24%);
-  transform: rotate(-45deg);
-}
-.map-art__pin view {
-  transform: rotate(45deg);
-}
-.map-art__pin--one {
-  top: 18rpx;
-  right: 36rpx;
-}
-.map-art__pin--two {
-  top: 46rpx;
-  left: 38rpx;
-  width: 38rpx;
-  height: 38rpx;
-  opacity: 0.76;
+
+.recommendation-feed {
+  margin: 38rpx calc(var(--app-page-gutter) * -1) 0;
+  padding: 0 var(--app-page-gutter);
 }
 .section-heading {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 20rpx;
-  margin: 52rpx 0 24rpx;
+  margin: 0 0 22rpx;
 }
 .section-heading > view {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 6rpx;
 }
 .section-heading__title {
-  color: var(--app-text-primary);
+  color: #20384c;
   font-size: 34rpx;
-  font-weight: 700;
+  font-weight: 750;
+  line-height: 1.3;
 }
 .section-heading__subtitle {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
+  color: #8a9aaa;
+  font-size: 21rpx;
 }
 .favorites-link {
   display: flex;
   width: auto;
-  min-width: 0;
-  height: 54rpx;
-  margin: 0;
-  padding: 0 18rpx;
+  flex: 0 0 auto;
+  height: 50rpx;
   align-items: center;
-  gap: 8rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 28rpx;
-  color: var(--app-color-brand);
-  font-size: 21rpx;
-  line-height: 54rpx;
-  background: var(--app-bg-brand-soft);
+  gap: 6rpx;
+  margin: 0 0 2rpx;
+  padding: 0 4rpx;
+  background: transparent;
+  color: #527c9e;
+  font-size: 20rpx;
+  font-weight: 600;
+  line-height: 50rpx;
 }
 .favorites-link view {
-  font-size: 25rpx;
-}
-
-.recommendation-feed {
-  margin: 48rpx calc(var(--app-page-gutter) * -1) calc(var(--app-page-gutter) * -1);
-  padding: 0 var(--app-page-gutter) var(--app-page-gutter);
-}
-
-.recommendation-feed .section-heading {
-  margin-top: 34rpx;
+  font-size: 22rpx;
 }
 
 .recommendation-filters {
   width: calc(100% + var(--app-page-gutter));
-  margin: -5rpx 0 24rpx;
+  margin: 0 0 20rpx;
   white-space: nowrap;
 }
-
 .recommendation-filters__row {
   display: inline-flex;
-  gap: 12rpx;
+  gap: 10rpx;
   padding-right: var(--app-page-gutter);
 }
-
 .recommendation-filter {
   display: inline-flex;
   width: auto;
   height: 58rpx;
   flex: 0 0 auto;
-  margin: 0;
-  padding: 0 20rpx;
   align-items: center;
-  gap: 5rpx;
-  border: 1rpx solid var(--app-border-card);
+  gap: 6rpx;
+  margin: 0;
+  padding: 0 19rpx;
+  border: 1rpx solid #e5ebf0;
   border-radius: 29rpx;
-  color: var(--app-text-secondary);
+  background: #fff;
+  color: #617487;
   font-size: 21rpx;
+  font-weight: 600;
   line-height: 58rpx;
-  background: var(--app-bg-card);
 }
-
-.recommendation-filter::after,
-.favorites-link::after {
-  border: 0;
-}
-
 .recommendation-filter--active {
-  border-color: var(--app-border-brand-soft);
-  color: var(--app-color-brand);
+  border-color: #b8d9f1;
+  background: #eaf4fb;
+  color: #176eb7;
   font-weight: 700;
-  background: var(--app-bg-brand-soft);
 }
-
 .recommendation-filter view {
   font-size: 20rpx;
 }
+
+.recommendation-more {
+  display: flex;
+  width: 100%;
+  height: 72rpx;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  margin: 22rpx 0 0;
+  border: 1rpx solid #dce8f1;
+  border-radius: 18rpx;
+  background: #fff;
+  color: #176eb7;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 72rpx;
+}
+.recommendation-more view {
+  font-size: 23rpx;
+}
+
 .filter-label {
   display: flex;
   align-items: center;

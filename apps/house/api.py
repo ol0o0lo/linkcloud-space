@@ -59,7 +59,7 @@ from apps.base.sms import send_invitation_sms
 from apps.house.ai_insights import HouseAIInsightBusyError, HouseAIInsightInsufficientDataError, generate_house_ai_insight, get_house_ai_insight
 from apps.house.allocation_services import create_lease_with_allocation, get_lease_allocation, review_lease_allocation, void_lease_allocation
 from apps.house.commute.search import apply_commute_filter, get_search
-from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseStatus, ViewingRecordStatus
+from apps.house.constants import HOUSE_ACTIVE_STATUSES, ContactRole, HouseListingType, HouseStatus, ViewingRecordStatus
 from apps.house.geo.queries import apply_nearby_house_filter, filter_by_viewport
 from apps.house.landlord_invitations import (
     LANDLORD_INVITATION_VALID_DAYS,
@@ -249,6 +249,7 @@ def get_public_landlord_house(request, public_key: UUID, house_id: int):
 def list_public_houses(
     request,
     keyword: str | None = Query(None),
+    listing_type: HouseListingType | None = Query(None),
     province: str | None = Query(None),
     city: str | None = Query(None),
     district: str | None = Query(None),
@@ -260,6 +261,7 @@ def list_public_houses(
     min_area: Decimal | None = Query(None),
     max_area: Decimal | None = Query(None),
     bedrooms: int | None = Query(None),
+    bedrooms_min: int | None = Query(None),
     living_rooms: int | None = Query(None),
     decoration: str | None = Query(None),
     has_elevator_access: bool | None = Query(None),
@@ -275,6 +277,7 @@ def list_public_houses(
 ):
     filters = PublicHouseSearchFilters(
         keyword=keyword,
+        listing_type=listing_type,
         province=province,
         city=city,
         district=district,
@@ -286,6 +289,7 @@ def list_public_houses(
         min_area=min_area,
         max_area=max_area,
         bedrooms=bedrooms,
+        bedrooms_min=bedrooms_min,
         living_rooms=living_rooms,
         decoration=decoration,
         has_elevator_access=has_elevator_access,
@@ -440,6 +444,9 @@ def list_public_house_map(
     east: Decimal | None = Query(None),
     north: Decimal | None = Query(None),
     keyword: str | None = Query(None),
+    listing_type: HouseListingType | None = Query(None),
+    bedrooms: int | None = Query(None),
+    bedrooms_min: int | None = Query(None),
     province: str | None = Query(None),
     city: str | None = Query(None),
     district: str | None = Query(None),
@@ -462,6 +469,9 @@ def list_public_house_map(
     filtered = apply_public_house_filters(
         get_public_houses_queryset(),
         keyword=keyword,
+        listing_type=listing_type,
+        bedrooms=bedrooms,
+        bedrooms_min=bedrooms_min,
         province=province,
         city=city,
         district=district,

@@ -65,6 +65,9 @@ const spatialFilter = usePublicHouseSpatialFilter()
 const runtimeStore = useRuntimeStore()
 // #endif
 const keyword = ref('')
+const listingType = ref<PublicHousesUsingGetParams['listing_type']>()
+const bedrooms = ref<number>()
+const bedroomsMin = ref<number>()
 const loading = ref(true)
 const refreshing = ref(false)
 const loadError = ref('')
@@ -183,6 +186,9 @@ function overviewZoom() {
 function selectedHouseParams(marker: PublicHouseMapMarker): PublicHousesUsingGetParams {
   return {
     keyword: keyword.value.trim(),
+    listing_type: listingType.value,
+    bedrooms: bedrooms.value,
+    bedrooms_min: bedroomsMin.value,
     ...spatialFilter.requestParams.value,
     estate_id: marker.level === 'estate' ? marker.estate_id : undefined,
     building_id: marker.level === 'building' ? marker.building_id : undefined,
@@ -200,6 +206,9 @@ function mapRequestParams(viewport: MapViewport | null): PublicHouseMapParams {
     east: viewport?.east,
     north: viewport?.north,
     keyword: keyword.value.trim() || undefined,
+    listing_type: listingType.value,
+    bedrooms: bedrooms.value,
+    bedrooms_min: bedroomsMin.value,
     ...spatialFilter.requestParams.value,
     coordinate_system: 'gcj02' as const,
   }
@@ -625,7 +634,13 @@ function openSelectedLocation() {
   })
 }
 
-onLoad(async () => {
+onLoad(async (options) => {
+  if (['whole', 'shared', 'apartment', 'short_term'].includes(String(options?.listing_type || '')))
+    listingType.value = options?.listing_type as PublicHousesUsingGetParams['listing_type']
+  const selectedBedrooms = Number(options?.bedrooms)
+  const selectedBedroomsMin = Number(options?.bedrooms_min)
+  bedrooms.value = Number.isInteger(selectedBedrooms) && selectedBedrooms > 0 ? selectedBedrooms : undefined
+  bedroomsMin.value = Number.isInteger(selectedBedroomsMin) && selectedBedroomsMin > 0 ? selectedBedroomsMin : undefined
   let location: GeoCoordinates | null = null
   try {
     location = await getCurrentLocationGcj02()

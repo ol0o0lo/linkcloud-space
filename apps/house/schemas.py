@@ -10,7 +10,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from apps.allocation.schemas import AllocationRequestOut
 from apps.base.maps.coordinates import serialize_point
-from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
+from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseListingType, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
 from apps.media.schemas import ResolvedMediaRefOut
 from apps.organizations.schemas import OrgUserOut
 
@@ -665,6 +665,7 @@ class HouseIn(Schema):
     building_id: int
     landlord_id: int | None = None
     room_number: str
+    listing_type: HouseListingType | None = None
     floor: int | None = None
     area: Decimal | None = None
     interior_area: Decimal | None = None
@@ -689,6 +690,7 @@ class HousePatchIn(Schema):
     building_id: int | None = None
     landlord_id: int | None = None
     room_number: str | None = None
+    listing_type: HouseListingType | None = None
     floor: int | None = None
     area: Decimal | None = None
     interior_area: Decimal | None = None
@@ -718,6 +720,7 @@ class HouseOut(Schema):
     landlord_id: int | None
     landlord: ContactSummaryOut | None
     room_number: str
+    listing_type: HouseListingType | None
     floor: int | None
     area: Decimal | None
     interior_area: Decimal | None
@@ -926,6 +929,7 @@ class NearestMetroStationOut(Schema):
 class PublicHouseListOut(Schema):
     id: int
     room_number: str
+    listing_type: HouseListingType | None
     floor: int | None
     area: Decimal | None
     asking_rent: Decimal | None

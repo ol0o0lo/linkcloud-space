@@ -12,7 +12,7 @@ from django.db import transaction
 from apps.base.maps.amap_reference import fetch_amap_guangzhou_metro_payload as fetch_amap_metro_snapshot
 from apps.base.maps.coordinates import make_wgs84_point
 from apps.base.maps.provider import MapProviderError
-from apps.house.constants import EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus
+from apps.house.constants import EstatePropertyType, HouseDecoration, HouseListingType, HouseOrientation, HouseStatus
 from apps.house.models import Building, Estate, House
 from apps.metro.importer import import_metro_city
 from apps.metro.models import MetroCity, MetroLine, MetroLineStation, MetroStation
@@ -222,6 +222,7 @@ def _seed_district_houses() -> tuple[str, int, int, int, int]:
                         "decoration": decorations[(district_index + subdistrict_index + room_index) % len(decorations)],
                         "has_elevator_access": building.elevator,
                         "status": HouseStatus.LISTED,
+                        "listing_type": HouseListingType.WHOLE,
                         "tags": [seed.name.removesuffix("区"), subdistrict, "UI验收", "近地铁"],
                         "public_description": f"广州市{seed.name}{subdistrict}筛选 UI 验收房源。",
                         "internal_notes": "开发环境 UI 验收数据，可重复执行命令更新。",

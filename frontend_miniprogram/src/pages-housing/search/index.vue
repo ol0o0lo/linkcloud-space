@@ -14,7 +14,6 @@ import AppPage from '@/components/app/AppPage.vue'
 import HouseCard from '@/components/house/HouseCard.vue'
 import { parsePublicHouseSearchPreset } from '@/domain/home-content'
 import { normalizePublicHouseQuery } from '@/domain/house'
-import { formatPublicHouseRadiusLabel, PUBLIC_HOUSE_RADIUS_OPTIONS } from '@/domain/public-house-metro'
 import PublicHouseLocationDropdown from '@/features/houses/components/PublicHouseLocationDropdown.vue'
 import PublicHouseRegionTrigger from '@/features/houses/components/PublicHouseRegionTrigger.vue'
 import { getPublicHouseFilters, listPublicHouses } from '@/features/houses/service'
@@ -28,7 +27,8 @@ import { APP_ROUTES, getHouseDetailRoute } from '@/modules/routes'
 import { usePublicHouseRegionStore } from '@/store/public-house-region'
 import { getCurrentLocationGcj02, getLocationErrorMessage } from '@/utils/location'
 
-type TopFilter = 'nearby' | 'location' | 'rent' | 'bedroom' | 'area' | 'elevator'
+type TopFilter = 'location' | 'rent' | 'bedroom' | 'more'
+type HouseSort = NonNullable<PublicHousesUsingGetParams['sort']>
 
 interface QuickRangeOption {
   label: string
@@ -84,8 +84,6 @@ const pendingLocationMode = ref<'metro' | null>(null)
 const locatingNearby = ref(false)
 const resultsRefreshing = ref(false)
 const nearbyRadiusM = computed<PublicHouseRadiusM | null>(() => spatialFilter.nearbyRadiusM.value)
-const nearbyDraftRadiusM = ref<PublicHouseRadiusM>(spatialFilter.radiusM.value)
-const nearbyRadiusOptions = PUBLIC_HOUSE_RADIUS_OPTIONS
 const rentRangeOptions = RENT_RANGE_OPTIONS
 const areaRangeOptions = AREA_RANGE_OPTIONS
 const windowInfo = uni.getWindowInfo()
@@ -98,20 +96,27 @@ const baseSearchNavigationHeight = resolveCustomNavigationLayout({
 }).height
 const rentDraft = reactive({ min: '', max: '' })
 const areaDraft = reactive({ min: '', max: '' })
+const elevatorDraft = ref<boolean | null>(null)
 const query = reactive({
   keyword: '',
+  listingType: '' as '' | 'whole' | 'shared' | 'apartment' | 'short_term',
   minRent: '',
   maxRent: '',
   minArea: '',
   maxArea: '',
   bedrooms: '' as string | number,
+  bedroomsMin: '' as string | number,
   elevator: null as boolean | null,
-  sort: 'latest' as NonNullable<PublicHousesUsingGetParams['sort']>,
+  sort: 'latest' as HouseSort,
 })
+// 当前版本的 wd-sort-button 用 -1 高亮上箭头、1 高亮下箭头。
+const rentSortDirection = computed<-1 | 0 | 1>(() => query.sort === 'rent_asc' ? -1 : query.sort === 'rent_desc' ? 1 : 0)
+const areaSortDirection = computed<-1 | 0 | 1>(() => query.sort === 'area_asc' ? -1 : query.sort === 'area_desc' ? 1 : 0)
 const activeFilterCount = computed(() => [
+  Boolean(query.listingType),
   Boolean(query.minRent || query.maxRent),
   Boolean(query.minArea || query.maxArea),
-  query.bedrooms !== '',
+  query.bedrooms !== '' || query.bedroomsMin !== '',
   query.elevator !== null,
   spatialFilter.hasAnyFilter.value,
   Boolean(commute.value),
@@ -119,9 +124,15 @@ const activeFilterCount = computed(() => [
 const hasPublicFilters = computed(() => Boolean(query.keyword.trim() || activeFilterCount.value))
 const emptyTitle = computed(() => hasPublicFilters.value ? '没有找到符合条件的房源' : '暂时没有公开房源')
 const emptyDescription = computed(() => hasPublicFilters.value ? '试试清空关键词或放宽筛选条件。' : '新房源发布后会显示在这里。')
-const locationFilterText = computed(() => commute.value
-  ? spatialFilter.hasLocationFilter.value ? `${spatialFilter.locationMode.value === 'metro' ? '地铁' : '区域'} · 通勤` : `通勤 ${commute.value.maxMinutes}分`
-  : spatialFilter.hasLocationFilter.value ? spatialFilter.locationLabel.value : '位置')
+const locationFilterText = computed(() => {
+  if (nearbyRadiusM.value)
+    return '附近'
+  if (spatialFilter.hasLocationFilter.value)
+    return spatialFilter.locationMode.value === 'metro' ? '地铁' : '区域'
+  if (commute.value)
+    return '通勤'
+  return '位置'
+})
 const rentFilterText = computed(() => {
   if (query.minRent && query.maxRent)
     return `¥${query.minRent}-${query.maxRent}`
@@ -131,27 +142,21 @@ const rentFilterText = computed(() => {
     return `¥${query.maxRent}以下`
   return '租金'
 })
-const bedroomFilterText = computed(() => query.bedrooms === '' ? '户型' : `${query.bedrooms}室`)
-const elevatorFilterText = computed(() => query.elevator === null ? '电梯' : query.elevator ? '有电梯' : '无电梯')
-const areaFilterText = computed(() => {
-  if (query.minArea && query.maxArea)
-    return `${query.minArea}-${query.maxArea}㎡`
-  if (query.minArea)
-    return `${query.minArea}㎡以上`
-  if (query.maxArea)
-    return `${query.maxArea}㎡以下`
-  return '面积'
-})
+const bedroomFilterText = computed(() => query.bedrooms !== '' ? `${query.bedrooms}室` : query.bedroomsMin !== '' ? `${query.bedroomsMin}室+` : '户型')
+const listingTypeLabel = computed(() => ({ whole: '整租', shared: '合租', apartment: '公寓', short_term: '短租' })[query.listingType] || '')
+const moreFilterCount = computed(() => Number(Boolean(query.minArea || query.maxArea)) + Number(query.elevator !== null))
 const bedroomOptions = computed(() => filters.value?.bedrooms.length ? filters.value.bedrooms : [1, 2, 3, 4])
 
 function requestParams(page: number, pageSize: number): PublicHousesUsingGetParams {
   return {
     keyword: query.keyword,
+    listing_type: query.listingType || undefined,
     min_rent: query.minRent,
     max_rent: query.maxRent,
     min_area: query.minArea,
     max_area: query.maxArea,
     bedrooms: query.bedrooms === '' ? undefined : Number(query.bedrooms),
+    bedrooms_min: query.bedroomsMin === '' ? undefined : Number(query.bedroomsMin),
     has_elevator_access: query.elevator ?? undefined,
     ...spatialFilter.requestParams.value,
     ...(commute.value && !spatialFilter.hasLocationFilter.value && !nearbyRadiusM.value ? { province: undefined, city: undefined } : {}),
@@ -260,16 +265,19 @@ function openKeywordSearch() {
 
 function resetFilters() {
   Object.assign(query, {
+    listingType: '',
     minRent: '',
     maxRent: '',
     minArea: '',
     maxArea: '',
     bedrooms: '',
+    bedroomsMin: '',
     elevator: null,
     sort: 'latest',
   })
   Object.assign(rentDraft, { min: '', max: '' })
   Object.assign(areaDraft, { min: '', max: '' })
+  elevatorDraft.value = null
   pendingLocationMode.value = null
   spatialFilter.reset()
   resetCommute(false)
@@ -390,12 +398,12 @@ function toggleTopFilter(filter: TopFilter) {
     activeTopFilter.value = null
     return
   }
-  if (filter === 'nearby')
-    nearbyDraftRadiusM.value = spatialFilter.radiusM.value
   if (filter === 'rent')
     Object.assign(rentDraft, { min: query.minRent, max: query.maxRent })
-  if (filter === 'area')
+  if (filter === 'more') {
     Object.assign(areaDraft, { min: query.minArea, max: query.maxArea })
+    elevatorDraft.value = query.elevator
+  }
   if (filter === 'bedroom' && !filters.value)
     void getPublicHouseFilters().then(result => filters.value = result).catch(() => undefined)
   if (filter === 'location')
@@ -432,8 +440,23 @@ function closeTopFilter() {
   activeTopFilter.value = null
 }
 
-async function applyNearbyFilter() {
-  const applied = await selectNearbyRadius(nearbyDraftRadiusM.value)
+function selectSort(sort: HouseSort) {
+  if (query.sort === sort)
+    return
+  query.sort = sort
+  search()
+}
+
+function selectRentSort({ value }: { value: number }) {
+  selectSort(value === 0 ? 'latest' : value === -1 ? 'rent_asc' : 'rent_desc')
+}
+
+function selectAreaSort({ value }: { value: number }) {
+  selectSort(value === 0 ? 'latest' : value === -1 ? 'area_asc' : 'area_desc')
+}
+
+async function applyNearbyFilter(radiusM: PublicHouseRadiusM) {
+  const applied = await selectNearbyRadius(radiusM)
   if (!applied)
     return
   query.sort = 'distance_asc'
@@ -442,11 +465,13 @@ async function applyNearbyFilter() {
 }
 
 function clearNearbyFilter() {
+  const hadNearbyFilter = Boolean(nearbyRadiusM.value)
   spatialFilter.exitNearby()
-  if (query.sort === 'distance_asc')
+  if (query.sort === 'distance_asc' && !spatialFilter.hasSpatialCenter.value)
     query.sort = 'latest'
   activeTopFilter.value = null
-  void refreshHouses()
+  if (hadNearbyFilter)
+    void refreshHouses()
 }
 
 function applyLocationFilter(value: PublicHouseLocationFilterValue) {
@@ -490,32 +515,35 @@ function clearRentFilter() {
   void refreshHouses()
 }
 
-function applyAreaFilter() {
+function applyMoreFilters() {
   if (!isValidRange(areaDraft.min, areaDraft.max, '面积'))
     return
   query.minArea = areaDraft.min
   query.maxArea = areaDraft.max
+  query.elevator = elevatorDraft.value
   activeTopFilter.value = null
   void refreshHouses()
 }
 
-function clearAreaFilter() {
+function clearMoreFilters() {
   Object.assign(areaDraft, { min: '', max: '' })
+  elevatorDraft.value = null
   query.minArea = ''
   query.maxArea = ''
+  query.elevator = null
   activeTopFilter.value = null
   void refreshHouses()
 }
 
 function selectBedroomFilter(value: string | number) {
   query.bedrooms = value
+  query.bedroomsMin = ''
   activeTopFilter.value = null
   void refreshHouses()
 }
 
-function selectElevatorFilter(value: boolean | null) {
-  query.elevator = value
-  activeTopFilter.value = null
+function clearListingType() {
+  query.listingType = ''
   void refreshHouses()
 }
 
@@ -544,8 +572,10 @@ function openCommuteSearch() {
 onLoad(async (options) => {
   const preset = parsePublicHouseSearchPreset((options || {}) as Record<string, string | undefined>)
   query.keyword = preset.keyword || ''
+  query.listingType = preset.listing_type || ''
   query.maxRent = preset.max_rent || ''
   query.bedrooms = preset.bedrooms ?? ''
+  query.bedroomsMin = preset.bedrooms_min ?? ''
   query.sort = preset.sort || 'latest'
   let initialCommute: AppliedCommute | null = null
   if (options?.commute_destination_id) {
@@ -560,6 +590,11 @@ onLoad(async (options) => {
     }
   }
   await regionStore.initializeDefaultRegion()
+  if (preset.nearby) {
+    const applied = await selectNearbyRadius(1000)
+    if (applied)
+      query.sort = 'distance_asc'
+  }
   if (preset.location_mode === 'metro') {
     pendingLocationMode.value = 'metro'
     if (regionStore.selection.city)
@@ -635,71 +670,30 @@ async function refreshResults() {
     </template>
 
     <view class="quick-filter-shell" :class="{ 'quick-filter-shell--open': activeTopFilter }" :style="{ '--filter-pointer-x': filterPointerX }">
-      <scroll-view class="quick-filter-scroll" scroll-x enhanced :show-scrollbar="false">
-        <view class="quick-filter-row">
-          <view class="quick-filter" :class="{ 'quick-filter--active': nearbyRadiusM, 'quick-filter--open': activeTopFilter === 'nearby' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('nearby')">
-            <view class="i-carbon-location-current" />
-            <text>{{ nearbyRadiusM ? `附近 ${formatPublicHouseRadiusLabel(nearbyRadiusM)}` : '附近' }}</text>
-            <view class="i-carbon-chevron-down" />
-          </view>
-          <view class="quick-filter" :class="{ 'quick-filter--active': spatialFilter.hasLocationFilter.value || commute, 'quick-filter--open': activeTopFilter === 'location' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('location')">
-            <view class="i-carbon-map" />
-            <text>{{ locationFilterText }}</text>
-            <view class="i-carbon-chevron-down" />
-          </view>
-          <view class="quick-filter" :class="{ 'quick-filter--active': query.minRent || query.maxRent, 'quick-filter--open': activeTopFilter === 'rent' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('rent')">
-            <view class="i-carbon-currency-yen" />
-            <text>{{ rentFilterText }}</text>
-            <view class="i-carbon-chevron-down" />
-          </view>
-          <view class="quick-filter" :class="{ 'quick-filter--active': query.bedrooms !== '', 'quick-filter--open': activeTopFilter === 'bedroom' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('bedroom')">
-            <view class="i-carbon-hotel" />
-            <text>{{ bedroomFilterText }}</text>
-            <view class="i-carbon-chevron-down" />
-          </view>
-          <view class="quick-filter" :class="{ 'quick-filter--active': query.minArea || query.maxArea, 'quick-filter--open': activeTopFilter === 'area' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('area')">
-            <view class="i-carbon-ruler" />
-            <text>{{ areaFilterText }}</text>
-            <view class="i-carbon-chevron-down" />
-          </view>
-          <view class="quick-filter" :class="{ 'quick-filter--active': query.elevator !== null, 'quick-filter--open': activeTopFilter === 'elevator' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('elevator')">
-            <view class="i-carbon-building" />
-            <text>{{ elevatorFilterText }}</text>
-            <view class="i-carbon-chevron-down" />
-          </view>
+      <view class="quick-filter-row">
+        <view class="quick-filter" :class="{ 'quick-filter--active': nearbyRadiusM || spatialFilter.hasLocationFilter.value || commute, 'quick-filter--open': activeTopFilter === 'location' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('location')">
+          <text class="quick-filter__label">{{ locationFilterText }}</text>
+          <view class="i-carbon-chevron-down" />
         </view>
-      </scroll-view>
+        <view class="quick-filter" :class="{ 'quick-filter--active': query.minRent || query.maxRent, 'quick-filter--open': activeTopFilter === 'rent' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('rent')">
+          <text class="quick-filter__label">{{ rentFilterText }}</text>
+          <view class="i-carbon-chevron-down" />
+        </view>
+        <view class="quick-filter" :class="{ 'quick-filter--active': query.bedrooms !== '', 'quick-filter--open': activeTopFilter === 'bedroom' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('bedroom')">
+          <text class="quick-filter__label">{{ bedroomFilterText }}</text>
+          <view class="i-carbon-chevron-down" />
+        </view>
+        <view class="quick-filter" :class="{ 'quick-filter--active': moreFilterCount > 0, 'quick-filter--open': activeTopFilter === 'more' }" hover-class="quick-filter--pressed" aria-label="筛选条件" @click="toggleTopFilter('more')">
+          <text class="quick-filter__label">筛选</text>
+          <text v-if="moreFilterCount" class="quick-filter__count">{{ moreFilterCount }}</text>
+          <view class="i-carbon-chevron-down" />
+        </view>
+      </view>
 
       <view v-if="activeTopFilter && activeTopFilter !== 'location'" class="top-filter-popover-host">
         <view class="top-filter-mask" @touchmove.stop.prevent @wheel.stop.prevent @click="closeTopFilter" />
         <view class="top-filter-popover" @wheel.stop.prevent>
-          <template v-if="activeTopFilter === 'nearby'">
-            <view class="top-filter-popover__heading">
-              <view class="top-filter-popover__heading-main">
-                <view class="i-carbon-location-current" />
-                <view class="top-filter-popover__heading-copy">
-                  <strong>附近找房</strong>
-                  <text>以当前位置为中心筛选房源</text>
-                </view>
-              </view>
-              <text v-if="locatingNearby" class="nearby-filter-status">定位中…</text>
-            </view>
-            <wd-radio-group v-model="nearbyDraftRadiusM" type="button" direction="horizontal" custom-class="top-filter-popover__radio-options">
-              <wd-radio v-for="radius in nearbyRadiusOptions" :key="radius" :value="radius">
-                {{ formatPublicHouseRadiusLabel(radius) }}
-              </wd-radio>
-            </wd-radio-group>
-            <view class="top-filter-popover__footer">
-              <button class="top-filter-popover__reset" @click="clearNearbyFilter">
-                不限附近
-              </button>
-              <button class="top-filter-popover__apply" :disabled="locatingNearby" @click="applyNearbyFilter">
-                {{ locatingNearby ? '定位中…' : '查看房源' }}
-              </button>
-            </view>
-          </template>
-
-          <template v-else-if="activeTopFilter === 'rent'">
+          <template v-if="activeTopFilter === 'rent'">
             <view class="top-filter-popover__heading">
               <view class="top-filter-popover__heading-main">
                 <view class="i-carbon-currency-yen" />
@@ -765,12 +759,12 @@ async function refreshResults() {
             </view>
           </template>
 
-          <template v-else-if="activeTopFilter === 'area'">
+          <template v-else-if="activeTopFilter === 'more'">
             <view class="top-filter-popover__heading">
               <view class="top-filter-popover__heading-main">
                 <view class="i-carbon-ruler" />
                 <view class="top-filter-popover__heading-copy">
-                  <strong>面积</strong>
+                  <strong>筛选</strong>
                   <text>建筑面积 · ㎡</text>
                 </view>
               </view>
@@ -795,34 +789,27 @@ async function refreshResults() {
                 <wd-input v-model="areaDraft.max" type="digit" placeholder="最大面积" />
               </view>
             </view>
-            <view class="top-filter-popover__footer">
-              <button class="top-filter-popover__reset" @click="clearAreaFilter">
-                不限面积
-              </button>
-              <button class="top-filter-popover__apply" @click="applyAreaFilter">
-                确定
-              </button>
+            <view class="top-filter-popover__section-title">
+              <view class="i-carbon-building" />
+              <strong>电梯</strong>
             </view>
-          </template>
-
-          <template v-else-if="activeTopFilter === 'elevator'">
-            <view class="top-filter-popover__heading">
-              <view class="top-filter-popover__heading-main">
-                <view class="i-carbon-building" />
-                <view class="top-filter-popover__heading-copy">
-                  <strong>电梯</strong>
-                </view>
-              </view>
-            </view>
-            <view class="top-filter-popover__choice-grid">
-              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': query.elevator === null }" @click="selectElevatorFilter(null)">
+            <view class="top-filter-popover__choice-grid top-filter-popover__choice-grid--elevator">
+              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': elevatorDraft === null }" @click="elevatorDraft = null">
                 不限
               </button>
-              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': query.elevator === true }" @click="selectElevatorFilter(true)">
+              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': elevatorDraft === true }" @click="elevatorDraft = true">
                 有电梯
               </button>
-              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': query.elevator === false }" @click="selectElevatorFilter(false)">
+              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': elevatorDraft === false }" @click="elevatorDraft = false">
                 无电梯
+              </button>
+            </view>
+            <view class="top-filter-popover__footer">
+              <button class="top-filter-popover__reset" @click="clearMoreFilters">
+                清空筛选
+              </button>
+              <button class="top-filter-popover__apply" @click="applyMoreFilters">
+                查看房源
               </button>
             </view>
           </template>
@@ -834,20 +821,38 @@ async function refreshResults() {
         :value="spatialFilter.locationFilter.value"
         :commute="commute"
         :preferred-mode="preferredLocationMode"
+        show-nearby
+        :nearby-radius-m="spatialFilter.radiusM.value"
+        :nearby-active="Boolean(nearbyRadiusM)"
+        :locating-nearby="locatingNearby"
         @update:visible="setLocationVisible"
+        @apply-nearby="applyNearbyFilter"
+        @clear-nearby="clearNearbyFilter"
         @apply="applyLocationFilter"
         @apply-commute="applyCommuteDraft"
         @clear-commute="resetCommute"
       />
     </view>
 
+    <view v-if="listingTypeLabel" class="selected-listing-type">
+      <text>出租分类</text>
+      <button @click="clearListingType">
+        {{ listingTypeLabel }} · 清除
+      </button>
+    </view>
+
     <view class="sort-row">
-      <view class="sort-actions">
-        <text v-if="commute" :class="{ active: query.sort === 'commute_asc' }" @click="query.sort = 'commute_asc'; search()">通勤</text>
-        <text v-if="spatialFilter.hasSpatialCenter.value" :class="{ active: query.sort === 'distance_asc' }" @click="query.sort = 'distance_asc'; search()">距离</text>
-        <text :class="{ active: query.sort === 'latest' }" @click="query.sort = 'latest'; search()">最新</text>
-        <text :class="{ active: query.sort === 'rent_asc' }" @click="query.sort = 'rent_asc'; search()">租金</text>
-      </view>
+      <button v-if="commute" class="sort-row__single" :class="{ 'sort-row__single--active': query.sort === 'commute_asc' }" @click="selectSort('commute_asc')">
+        通勤
+      </button>
+      <button v-if="spatialFilter.hasSpatialCenter.value" class="sort-row__single" :class="{ 'sort-row__single--active': query.sort === 'distance_asc' }" @click="selectSort('distance_asc')">
+        距离
+      </button>
+      <button class="sort-row__single" :class="{ 'sort-row__single--active': query.sort === 'latest' }" @click="selectSort('latest')">
+        最新
+      </button>
+      <wd-sort-button :model-value="rentSortDirection" title="租金" desc-first allow-reset @change="selectRentSort" />
+      <wd-sort-button :model-value="areaSortDirection" title="面积" desc-first allow-reset @change="selectAreaSort" />
     </view>
 
     <scroll-view
@@ -1075,39 +1080,51 @@ button::after {
 .quick-filter-shell--open {
   z-index: 1100;
 }
-.quick-filter-scroll {
-  width: 100%;
-  white-space: nowrap;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.quick-filter-scroll::-webkit-scrollbar,
-:deep(.quick-filter-scroll .uni-scroll-view::-webkit-scrollbar) {
-  display: none;
-  width: 0;
-  height: 0;
-}
 .quick-filter-row {
-  display: inline-flex;
-  gap: 16rpx;
-  padding-right: 24rpx;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12rpx;
 }
 .quick-filter {
   position: relative;
-  display: inline-flex;
-  min-width: 140rpx;
+  display: flex;
+  min-width: 0;
   height: 58rpx;
-  flex: 0 0 auto;
   box-sizing: border-box;
   align-items: center;
-  gap: 8rpx;
-  padding: 0 22rpx;
+  justify-content: center;
+  gap: 4rpx;
+  padding: 0 8rpx;
+  overflow: hidden;
   border: 1rpx solid var(--app-border-color);
   border-radius: 24rpx;
   color: var(--app-text-secondary);
   font-size: 24rpx;
   line-height: 58rpx;
   background: var(--app-bg-card);
+}
+.quick-filter__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-filter__count {
+  display: flex;
+  width: 26rpx;
+  height: 26rpx;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 18rpx;
+  line-height: 1;
+  background: var(--app-color-brand);
+}
+.quick-filter > .i-carbon-chevron-down {
+  flex: 0 0 auto;
+  font-size: 20rpx;
 }
 .quick-filter--active {
   border-color: rgb(22 119 255 / 24%);
@@ -1202,17 +1219,17 @@ button::after {
   color: var(--app-text-muted);
   font-size: 21rpx;
 }
-:deep(.top-filter-popover__radio-options) {
-  display: grid;
-  margin-top: 24rpx;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.top-filter-popover__section-title {
+  display: flex;
+  align-items: center;
   gap: 12rpx;
-  --wot-radio-button-margin: 0;
-  --wot-radio-button-min-width: 0;
-  --wot-radio-checked-color: var(--filter-popover-primary);
-  --wot-radio-button-bg: #f5f8fc;
-  --wot-radio-button-checked-bg: var(--filter-popover-primary-soft);
-  --wot-radio-button-border-radius: 18rpx;
+  margin-top: 24rpx;
+  color: var(--app-text-primary);
+  font-size: 25rpx;
+}
+.top-filter-popover__section-title > view {
+  color: var(--filter-popover-primary);
+  font-size: 28rpx;
 }
 .top-filter-popover__choice-grid {
   display: grid;
@@ -1222,6 +1239,9 @@ button::after {
 }
 .top-filter-popover__choice-grid--compact {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.top-filter-popover__choice-grid--elevator {
+  margin-top: 14rpx;
 }
 .top-filter-popover__choice {
   min-width: 0;
@@ -1298,18 +1318,61 @@ button::after {
 .top-filter-popover__apply[disabled] {
   opacity: 0.6;
 }
-.nearby-filter-status {
+.selected-listing-type {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 16rpx 0 0;
   color: var(--app-text-muted);
   font-size: 22rpx;
 }
+
+.selected-listing-type button {
+  height: 48rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  border-radius: 24rpx;
+  background: var(--app-bg-brand-soft);
+  color: var(--app-color-brand);
+  font-size: 22rpx;
+  line-height: 48rpx;
+}
+
+.selected-listing-type button::after {
+  border: 0;
+}
+
 .sort-row {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
-  padding: 20rpx 0 16rpx;
+  gap: 30rpx;
+  padding: 12rpx 0;
   color: var(--app-text-secondary);
-  font-size: 24rpx;
+  white-space: nowrap;
+  --wot-sort-button-height: 64rpx;
+  --wot-sort-button-text-font-size: 28rpx;
+  --wot-sort-button-arrow-icon-size: 36rpx;
+  --wot-sort-button-right-size: 24rpx;
+  --wot-sort-button-color: var(--app-text-secondary);
+  --wot-sort-button-color-active: var(--app-color-brand);
+  --wot-sort-button-icon-color-active: var(--app-color-brand);
+  --wot-sort-button-font-weight-active: 600;
+}
+.sort-row__single {
+  height: 64rpx;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--app-text-secondary);
+  font-size: 28rpx;
+  line-height: 64rpx;
+  background: transparent;
+}
+.sort-row__single--active {
+  color: var(--app-color-brand);
+  font-weight: 700;
 }
 .house-results-scroll {
   height: 0;
@@ -1318,15 +1381,6 @@ button::after {
 }
 .house-results-scroll__content {
   padding-bottom: calc(var(--app-page-gutter) + env(safe-area-inset-bottom));
-}
-.sort-actions {
-  display: flex;
-  gap: 24rpx;
-  white-space: nowrap;
-}
-.sort-actions .active {
-  color: var(--app-color-brand);
-  font-weight: 600;
 }
 @keyframes top-filter-dropdown-in {
   from {

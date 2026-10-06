@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { PublicHouseSuggestion } from '@/features/houses/service'
+import type { PublicHouseSearchPreset } from '@/domain/home-content'
 import { onLoad, onReady, onUnload } from '@dcloudio/uni-app'
 import { computed, ref, watch } from 'vue'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import { getPublicHouseSuggestions } from '@/features/houses/service'
+import { getPublicHouseSearchRoute } from '@/domain/home-content'
 import { APP_ROUTES } from '@/modules/routes'
 
 definePage({
@@ -17,6 +19,7 @@ interface OpenerPage {
 
 const keyword = ref('')
 const city = ref('')
+const searchPreset = ref<PublicHouseSearchPreset>({})
 const inputFocused = ref(false)
 const returnToResults = ref(false)
 const suggestions = ref<PublicHouseSuggestion[]>([])
@@ -25,6 +28,16 @@ const error = ref(false)
 const term = computed(() => keyword.value.trim())
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let searchVersion = 0
+
+function decodeRouteValue(value: unknown): string {
+  const text = String(value || '')
+  try {
+    return decodeURIComponent(text)
+  }
+  catch {
+    return text
+  }
+}
 
 watch(keyword, (value) => {
   clearTimeout(searchTimer)
@@ -65,13 +78,18 @@ function submitSearch(value = keyword.value) {
     uni.navigateBack()
     return
   }
-  uni.redirectTo({ url: `${APP_ROUTES.publicHouseSearch}?keyword=${encodeURIComponent(selectedKeyword)}` })
+  uni.redirectTo({ url: getPublicHouseSearchRoute({ ...searchPreset.value, keyword: selectedKeyword }) })
 }
 
 onLoad((options) => {
   returnToResults.value = options?.from === 'house-search'
-  city.value = String(options?.city || '')
-  keyword.value = String(options?.keyword || '')
+  city.value = decodeRouteValue(options?.city)
+  keyword.value = decodeRouteValue(options?.keyword)
+  searchPreset.value = {
+    listing_type: ['whole', 'shared', 'apartment', 'short_term'].includes(String(options?.listing_type || '')) ? options?.listing_type as PublicHouseSearchPreset['listing_type'] : undefined,
+    bedrooms: options?.bedrooms ? Number(options.bedrooms) : undefined,
+    bedrooms_min: options?.bedrooms_min ? Number(options.bedrooms_min) : undefined,
+  }
 })
 
 onReady(() => inputFocused.value = true)

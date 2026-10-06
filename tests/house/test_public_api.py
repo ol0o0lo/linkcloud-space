@@ -9,7 +9,7 @@ from django.utils import timezone
 import requests
 from model_bakery import baker
 
-from apps.house.constants import ContactRole, EstatePropertyType, HouseStatus
+from apps.house.constants import ContactRole, EstatePropertyType, HouseListingType, HouseStatus
 from apps.house.geo.coordinates import make_wgs84_point
 from apps.house.models import Building, Contact, Estate, House
 from apps.metro.models import MetroCity, MetroLine, MetroLineStation, MetroStation
@@ -183,6 +183,23 @@ class PublicHouseApiTestCase(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual([item["id"] for item in api_data(response)["items"]], [matching.pk])
+
+    def test_listing_type_and_minimum_bedrooms_filter_public_houses(self):
+        whole = self.make_house(org_slug="category-whole", org_name="整租方", room_number="101")
+        whole.listing_type = HouseListingType.WHOLE
+        whole.bedrooms = 3
+        whole.save(update_fields=["listing_type", "bedrooms", "updated_at"])
+        shared = self.make_house(org_slug="category-shared", org_name="合租方", room_number="202")
+        shared.listing_type = HouseListingType.SHARED
+        shared.bedrooms = 3
+        shared.save(update_fields=["listing_type", "bedrooms", "updated_at"])
+        self.make_house(org_slug="category-unknown", org_name="旧房源", room_number="303")
+
+        response = self.client.get("/api/public/houses/", {"listing_type": "whole", "bedrooms_min": 3, "page": 1, "page_size": 20})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["id"] for item in api_data(response)["items"]], [whole.pk])
+        self.assertEqual(api_data(response)["items"][0]["listing_type"], "whole")
+        self.assertNotEqual(whole.listing_type, shared.listing_type)
 
     def test_public_house_map_uses_viewport_bounds_and_zoom_levels(self):
         first = self.make_house(org_slug="map-a", org_name="地图甲", room_number="101", asking_rent=Decimal("2600.00"))

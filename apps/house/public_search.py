@@ -11,6 +11,7 @@ from ninja import Schema
 from ninja.errors import HttpError
 
 from apps.base.maps.coordinates import make_wgs84_point
+from apps.house.constants import HouseListingType
 from apps.house.geo.queries import NamedGeoOrigin
 from apps.house.services import apply_public_house_filters, get_public_houses_queryset
 from apps.metro.models import MetroLineStation, MetroStation
@@ -21,6 +22,7 @@ PUBLIC_HOUSE_METRO_STATION_LIMIT = 5
 
 class PublicHouseSearchFilters(Schema):
     keyword: str | None = None
+    listing_type: HouseListingType | None = None
     province: str | None = None
     city: str | None = None
     district: str | None = None
@@ -32,6 +34,7 @@ class PublicHouseSearchFilters(Schema):
     min_area: Decimal | None = None
     max_area: Decimal | None = None
     bedrooms: int | None = None
+    bedrooms_min: int | None = None
     living_rooms: int | None = None
     decoration: str | None = None
     has_elevator_access: bool | None = None

@@ -29,6 +29,13 @@ class HouseDecoration(StrChoices):
     LUXURY = "luxury", "豪装"
 
 
+class HouseListingType(StrChoices):
+    WHOLE = "whole", "整租"
+    SHARED = "shared", "合租"
+    APARTMENT = "apartment", "公寓"
+    SHORT_TERM = "short_term", "短租"
+
+
 class HouseStatus(StrChoices):
     VACANT = "vacant", "空置"
     LISTED = "listed", "招租"

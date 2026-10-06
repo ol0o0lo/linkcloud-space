@@ -52,8 +52,11 @@ export interface PageResult<T> {
 
 export interface PublicHouseSearchPreset {
   keyword?: string
+  listing_type?: 'whole' | 'shared' | 'apartment' | 'short_term'
   max_rent?: string
   bedrooms?: number
+  bedrooms_min?: number
+  nearby?: 1
   sort?: 'latest' | 'rent_asc'
   location_mode?: 'metro'
 }
@@ -68,7 +71,7 @@ export const HOME_QUICK_SEARCHES: Record<string, PublicHouseSearchPreset> = {
   条件找房: {},
   地铁找房: { location_mode: 'metro' },
   低价好房: { sort: 'rent_asc' },
-  品质整租: { keyword: '整租' },
+  品质整租: { listing_type: 'whole' },
   最新上架: { sort: 'latest' },
 }
 
@@ -109,12 +112,26 @@ export function getHomeBannerRoute(banner: HomeBanner): string | null {
 }
 
 export function parsePublicHouseSearchPreset(options: Record<string, string | undefined>): PublicHouseSearchPreset {
-  const bedrooms = options.bedrooms ? Number(options.bedrooms) : undefined
+  const decoded = Object.fromEntries(Object.entries(options).map(([key, value]) => {
+    if (!value)
+      return [key, value]
+    try {
+      return [key, decodeURIComponent(value)]
+    }
+    catch {
+      return [key, value]
+    }
+  })) as Record<string, string | undefined>
+  const bedrooms = decoded.bedrooms ? Number(decoded.bedrooms) : undefined
+  const bedroomsMin = decoded.bedrooms_min ? Number(decoded.bedrooms_min) : undefined
   return {
-    keyword: options.keyword || undefined,
-    max_rent: options.max_rent || undefined,
+    keyword: decoded.keyword || undefined,
+    listing_type: ['whole', 'shared', 'apartment', 'short_term'].includes(decoded.listing_type || '') ? decoded.listing_type as PublicHouseSearchPreset['listing_type'] : undefined,
+    max_rent: decoded.max_rent || undefined,
     bedrooms: Number.isInteger(bedrooms) && Number(bedrooms) >= 0 ? bedrooms : undefined,
-    sort: options.sort === 'rent_asc' ? 'rent_asc' : 'latest',
-    location_mode: options.location_mode === 'metro' ? 'metro' : undefined,
+    bedrooms_min: Number.isInteger(bedroomsMin) && Number(bedroomsMin) >= 0 ? bedroomsMin : undefined,
+    nearby: decoded.nearby === '1' ? 1 : undefined,
+    sort: decoded.sort === 'rent_asc' ? 'rent_asc' : 'latest',
+    location_mode: decoded.location_mode === 'metro' ? 'metro' : undefined,
   }
 }

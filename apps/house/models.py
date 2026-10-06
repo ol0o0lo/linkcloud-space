@@ -19,6 +19,7 @@ from apps.house.constants import (
     EstatePropertyType,
     HouseCommuteMode,
     HouseDecoration,
+    HouseListingType,
     HouseMatchMode,
     HouseOrientation,
     HouseStatus,
@@ -283,6 +284,7 @@ class House(CreateUpdateTimeModelMixin):
     area = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="建筑面积")
     interior_area = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="套内面积")
     asking_rent = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="挂牌租金")
+    listing_type = models.CharField(max_length=20, choices=HouseListingType.choices, blank=True, null=True, db_index=True, verbose_name="出租分类")
     deposit_amount = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(Decimal("0"))], verbose_name="押金金额")
     bedrooms = models.PositiveIntegerField(blank=True, null=True, verbose_name="卧室数")
     living_rooms = models.PositiveIntegerField(blank=True, null=True, verbose_name="客厅数")
