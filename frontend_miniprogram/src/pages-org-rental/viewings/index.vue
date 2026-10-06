@@ -33,6 +33,8 @@ const todayLabel = computed(() => new Date().toLocaleDateString('zh-CN', { month
 onLoad((options) => {
   const id = Number(options?.house_id)
   houseId.value = Number.isInteger(id) && id > 0 ? id : undefined
+  if (options?.status === 'scheduled' || options?.status === 'viewed')
+    statusFilter.value = options.status
 })
 const list = usePagedPage<ViewingRecordOut>({
   pageSize: 15,

@@ -205,10 +205,10 @@ function handleEmptyAction() {
   align-items: center;
   justify-content: center;
   border-radius: 22rpx;
-  color: #5e4bd8;
+  color: var(--app-color-brand-active);
   font-size: 29rpx;
   font-weight: 700;
-  background: #f0edff;
+  background: var(--app-bg-brand-soft);
 }
 .member-copy {
   display: flex;

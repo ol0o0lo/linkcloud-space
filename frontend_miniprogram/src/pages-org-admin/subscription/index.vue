@@ -503,7 +503,7 @@ onShow(() => void loadSubscription())
   padding: 30rpx;
   border-radius: 26rpx;
   color: var(--app-text-on-brand);
-  background: var(--app-gradient-organization);
+  background: var(--app-gradient-brand);
 }
 .hero-card strong {
   font-size: 36rpx;

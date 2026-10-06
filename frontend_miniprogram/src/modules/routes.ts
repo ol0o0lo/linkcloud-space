@@ -22,6 +22,7 @@ export const APP_ROUTES = {
   houseMatch: '/pages/house-match/index',
   houseMatchDetail: buildSubpackageRoute('housing', 'match-detail/index'),
   favorites: getCatalogModule('favorites').mainRoute,
+  personalFavorites: buildSubpackageRoute('personal-rental', 'favorites/index'),
   tenantViewings: buildSubpackageRoute('personal-rental', 'viewings/index'),
   tenantViewingDetail: buildSubpackageRoute('personal-rental', 'viewings/detail'),
   tenantLeases: buildSubpackageRoute('personal-rental', 'leases/index'),
@@ -100,7 +101,6 @@ const protectedAccountRoutes: readonly string[] = [
 ]
 
 const protectedMessageRoutes: readonly string[] = [
-  APP_ROUTES.messages,
   APP_ROUTES.messageDetail,
 ]
 

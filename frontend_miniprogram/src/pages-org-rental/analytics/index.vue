@@ -135,7 +135,7 @@ onPullDownRefresh(loadAnalytics)
   margin-top: 20rpx;
   padding: 28rpx;
   border-radius: 22rpx;
-  background: var(--app-gradient-organization);
+  background: var(--app-gradient-brand);
   color: #fff;
   text-align: center;
 }

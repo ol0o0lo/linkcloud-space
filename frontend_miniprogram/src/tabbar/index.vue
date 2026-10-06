@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { APP_ROUTES, getLoginRoute } from '@/modules/routes'
-import { useAppContextStore } from '@/store/app-context-v2'
 import { tabbarList, tabbarStore } from './store'
 
 // #ifdef MP-WEIXIN
@@ -12,7 +10,6 @@ defineOptions({
 // #endif
 
 const activePath = computed(() => tabbarStore.currentPath || tabbarList.value[0]?.pagePath || '')
-const appContextStore = useAppContextStore()
 const tabbarStyle = [
   '--wot-tabbar-height: var(--app-tabbar-height)',
   '--wot-tabbar-bg: var(--app-tabbar-background)',
@@ -22,10 +19,6 @@ const tabbarStyle = [
 
 function handleChange({ value }: { value: string | number }) {
   const url = String(value)
-  if (url === APP_ROUTES.messages && !appContextStore.authenticated) {
-    uni.navigateTo({ url: getLoginRoute(url) })
-    return
-  }
   if (url === tabbarStore.currentPath) {
     return
   }

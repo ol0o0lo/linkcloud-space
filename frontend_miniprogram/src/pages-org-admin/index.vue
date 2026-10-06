@@ -125,7 +125,7 @@ onPullDownRefresh(loadNavigation)
   border-radius: 40rpx;
   box-sizing: border-box;
   color: var(--app-text-on-brand);
-  background: var(--app-gradient-organization);
+  background: var(--app-gradient-brand);
 }
 .hero-decoration {
   position: absolute;

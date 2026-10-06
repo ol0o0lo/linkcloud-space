@@ -75,22 +75,6 @@ const contentClass = computed(() => [
   background: transparent;
 }
 
-.app-page--landlord {
-  --app-color-brand: #159d77;
-  --app-color-brand-active: #0f7c5d;
-  --app-color-brand-soft: #e9f8f2;
-  --app-bg-brand-soft: #e9f8f2;
-  --app-border-brand-soft: rgb(21 157 119 / 22%);
-}
-
-.app-page--organization {
-  --app-color-brand: #6b57e8;
-  --app-color-brand-active: #5141bd;
-  --app-color-brand-soft: #f0edff;
-  --app-bg-brand-soft: #f0edff;
-  --app-border-brand-soft: rgb(107 87 232 / 22%);
-}
-
 .app-page__tabbar-spacer {
   height: calc(var(--app-tabbar-height) + env(safe-area-inset-bottom));
   pointer-events: none;

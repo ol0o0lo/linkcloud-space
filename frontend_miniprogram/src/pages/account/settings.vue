@@ -61,7 +61,7 @@ function handleLogout() {
           <view class="settings-arrow i-carbon-chevron-right" />
         </view>
         <view class="settings-row">
-          <view class="settings-icon settings-icon--email">
+          <view class="settings-icon">
             <view class="i-carbon-email" />
           </view>
           <view class="settings-main">
@@ -70,7 +70,7 @@ function handleLogout() {
           <text class="settings-value">{{ appContextStore.user?.email || '未绑定' }}</text>
         </view>
         <view class="settings-row" @click="openPhoneVerification">
-          <view class="settings-icon settings-icon--phone">
+          <view class="settings-icon">
             <view class="i-carbon-phone" />
           </view>
           <view class="settings-main">
@@ -161,14 +161,6 @@ function handleLogout() {
   color: var(--app-color-brand-active);
   font-size: 30rpx;
   background: var(--app-bg-brand-soft);
-}
-.settings-icon--email {
-  color: #6b57e8;
-  background: #f0edff;
-}
-.settings-icon--phone {
-  color: #159d77;
-  background: #e9f8f2;
 }
 .settings-icon--security {
   color: #b45f06;

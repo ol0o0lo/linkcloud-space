@@ -8,6 +8,7 @@ import { getUnreadNotificationCount, listNotifications, markAllNotificationsRead
 import { setNotificationTabbarUnreadCount } from '@/features/notifications/tabbar-badge'
 import { APP_ROUTES, getLoginRoute, getNotificationDetailRoute } from '@/modules/routes'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import AppEmpty from '@/components/app/AppEmpty.vue'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import { useNavigationScrollState } from '@/hooks/useNavigationScrollState'
@@ -172,14 +173,14 @@ onReachBottom(() => void messagePage.loadMore())
       </view>
     </view>
 
-    <view v-if="currentMode === 'visitor'" class="visitor-empty">
-      <view class="visitor-empty__icon i-carbon-notification" />
-      <strong>暂无可查看的消息</strong>
-      <text>登录后即可查看预约进度和系统提醒</text>
-      <wd-button size="small" variant="soft" @click="openLogin">
-        去登录
-      </wd-button>
-    </view>
+    <AppEmpty
+      v-if="currentMode === 'visitor'"
+      title="暂时没有消息"
+      description="登录后可查看预约进度、租约动态和系统提醒。"
+      icon="no-message"
+      action-text="登录查看消息"
+      @action="openLogin"
+    />
 
     <template v-else>
       <view v-if="showToolbar" class="toolbar">
@@ -232,27 +233,6 @@ onReachBottom(() => void messagePage.loadMore())
 </template>
 
 <style scoped lang="scss">
-.visitor-empty {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 16rpx;
-  padding: 80rpx 24rpx;
-  color: var(--app-text-secondary);
-  text-align: center;
-}
-.visitor-empty__icon {
-  color: var(--app-color-brand);
-  font-size: 64rpx;
-}
-.visitor-empty strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-}
-.visitor-empty text {
-  margin-bottom: 8rpx;
-  font-size: 22rpx;
-}
 .page-heading,
 .toolbar,
 .notification-topline,

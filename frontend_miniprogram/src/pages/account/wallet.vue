@@ -252,8 +252,8 @@ onReachBottom(() => void loadMore())
   min-height: 340rpx;
   border-radius: 40rpx;
   color: #fff;
-  background: var(--app-gradient-personal);
-  box-shadow: var(--app-shadow-hero-personal);
+  background: var(--app-gradient-brand);
+  box-shadow: var(--app-shadow-hero-brand);
 }
 .wallet-hero text,
 .wallet-hero strong,

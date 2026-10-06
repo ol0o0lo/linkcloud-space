@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { onPageScroll, onShow } from '@dcloudio/uni-app'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { getOrganizationAdminSections } from '@/domain/organization-admin'
 import { getRealNameStatusLabel } from '@/domain/personal-account'
 import { getOrganizationAdminNavigation } from '@/features/organization-admin/service'
@@ -27,12 +27,11 @@ const accountRoleLabel = computed(() => {
   if (!appContextStore.authenticated)
     return '访客'
   if (appContextStore.navigationMode === 'organization')
-    return '中介管理'
+    return '中介端'
   if (appContextStore.mode === 'landlord')
-    return '房东管理'
+    return '房东端'
   return '租客'
 })
-const isTenantMode = computed(() => appContextStore.navigationMode === 'personal' || !appContextStore.authenticated)
 const organizationNavigationAvailable = ref(false)
 let organizationNavigationLoadId = 0
 const organizationAdminSections = computed(() => getOrganizationAdminSections(appContextStore.capabilities))
@@ -74,7 +73,8 @@ function openTenantLeases() {
 }
 
 function openFavorites() {
-  openAccountRoute(APP_ROUTES.favorites, true)
+  const personalTab = appContextStore.navigationMode === 'personal' || !appContextStore.authenticated
+  openAccountRoute(personalTab ? APP_ROUTES.favorites : APP_ROUTES.personalFavorites, personalTab)
 }
 
 function openAccountSettings() {
@@ -85,6 +85,14 @@ function openLandlordStore() {
   const key = appContextStore.currentLandlordRelationship?.public_key
   if (key)
     uni.navigateTo({ url: `${APP_ROUTES.landlordStore}?key=${encodeURIComponent(key)}` })
+}
+
+function openLandlordHouses() {
+  uni.switchTab({ url: APP_ROUTES.houses })
+}
+
+function openOrganizationRental() {
+  uni.navigateTo({ url: APP_ROUTES.organizationRental })
 }
 
 function openOrganizationAdmin() {
@@ -112,6 +120,7 @@ async function refreshOrganizationAdminVisibility() {
 }
 
 onShow(() => void refreshOrganizationAdminVisibility())
+watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] as const, () => void refreshOrganizationAdminVisibility())
 </script>
 
 <template>
@@ -152,14 +161,14 @@ onShow(() => void refreshOrganizationAdminVisibility())
       <view class="service-heading">
         <view>
           <view class="service-title">
-            {{ isTenantMode ? '找房服务' : '常用服务' }}
+            找房服务
           </view>
           <view class="service-subtitle">
-            {{ !appContextStore.authenticated ? '登录后保存进度，继续找房' : isTenantMode ? '收藏、预约与租约进度' : '账户相关功能快速入口' }}
+            {{ !appContextStore.authenticated ? '登录后保存进度，继续找房' : '收藏、预约与租约进度' }}
           </view>
         </view>
       </view>
-      <view v-if="isTenantMode" class="service-grid">
+      <view class="service-grid">
         <view class="service-item" @click="openFavorites">
           <view class="service-icon service-icon--favorite">
             <view class="i-carbon-favorite" />
@@ -175,44 +184,21 @@ onShow(() => void refreshOrganizationAdminVisibility())
           <text class="service-copy">时间与进度</text>
         </view>
         <view class="service-item" @click="openTenantLeases">
-          <view class="service-icon service-icon--lease">
+          <view class="service-icon">
             <view class="i-carbon-document" />
           </view>
           <text class="service-name">我的租约</text>
           <text class="service-copy">合同与履约</text>
         </view>
       </view>
-      <view v-else class="service-grid">
-        <view class="service-item" @click="openWallet">
-          <view class="service-icon service-icon--wallet">
-            <view class="i-carbon-wallet" />
-          </view>
-          <text class="service-name">我的钱包</text>
-          <text class="service-copy">余额与流水</text>
-        </view>
-        <view class="service-item" @click="openRealName">
-          <view class="service-icon service-icon--identity">
-            <view class="i-carbon-identification" />
-          </view>
-          <text class="service-name">实名认证</text>
-          <text class="service-copy">{{ getRealNameStatusLabel(appContextStore.user?.real_name_status, appContextStore.user?.real_name_status__mapping) }}</text>
-        </view>
-        <view class="service-item" @click="openReferrals">
-          <view class="service-icon service-icon--referral">
-            <view class="i-carbon-share" />
-          </view>
-          <text class="service-name">我的推广</text>
-          <text class="service-copy">邀请与奖励</text>
-        </view>
-      </view>
     </view>
 
-    <view v-if="isTenantMode" class="feature-card account-service-card">
+    <view class="feature-card account-service-card">
       <view class="feature-section-title">
         账户服务
       </view>
       <view class="menu-row menu-row--compact" @click="openRealName">
-        <view class="menu-icon menu-icon--identity">
+        <view class="menu-icon">
           <view class="i-carbon-identification" />
         </view>
         <view class="menu-main">
@@ -232,7 +218,7 @@ onShow(() => void refreshOrganizationAdminVisibility())
         <view class="menu-arrow i-carbon-chevron-right" />
       </view>
       <view class="menu-row menu-row--compact" @click="openReferrals">
-        <view class="menu-icon menu-icon--referral">
+        <view class="menu-icon">
           <view class="i-carbon-share" />
         </view>
         <view class="menu-main">
@@ -255,6 +241,19 @@ onShow(() => void refreshOrganizationAdminVisibility())
 
     <template v-if="appContextStore.mode === 'landlord' && appContextStore.currentLandlordRelationship">
       <view class="feature-card">
+        <view class="feature-section-title">
+          房东服务
+        </view>
+        <view class="menu-row" @click="openLandlordHouses">
+          <view class="menu-icon">
+            <view class="i-carbon-building" />
+          </view>
+          <view class="menu-main">
+            <text class="menu-title">我的房源</text>
+            <text class="menu-copy">查看名下房源与房态</text>
+          </view>
+          <view class="menu-arrow i-carbon-chevron-right" />
+        </view>
         <view class="menu-row" @click="openLandlordStore">
           <view class="menu-icon menu-icon--store">
             <view class="i-carbon-store" />
@@ -267,10 +266,23 @@ onShow(() => void refreshOrganizationAdminVisibility())
         </view>
       </view>
     </template>
-    <template v-if="appContextStore.navigationMode === 'organization' && canOpenOrganizationAdmin">
+    <template v-if="appContextStore.navigationMode === 'organization'">
       <view class="feature-card">
-        <view class="menu-row" @click="openOrganizationAdmin">
-          <view class="menu-icon menu-icon--organization">
+        <view class="feature-section-title">
+          中介服务
+        </view>
+        <view class="menu-row" @click="openOrganizationRental">
+          <view class="menu-icon">
+            <view class="i-carbon-workspace" />
+          </view>
+          <view class="menu-main">
+            <text class="menu-title">组织经营</text>
+            <text class="menu-copy">房源、带看与租约工作台</text>
+          </view>
+          <view class="menu-arrow i-carbon-chevron-right" />
+        </view>
+        <view v-if="canOpenOrganizationAdmin" class="menu-row" @click="openOrganizationAdmin">
+          <view class="menu-icon">
             <view class="i-carbon-building" />
           </view>
           <view class="menu-main">
@@ -281,19 +293,6 @@ onShow(() => void refreshOrganizationAdminVisibility())
         </view>
       </view>
     </template>
-
-    <view v-if="!isTenantMode" class="feature-card">
-      <view class="menu-row" @click="openAccountSettings">
-        <view class="menu-icon menu-icon--settings">
-          <view class="i-carbon-settings-adjust" />
-        </view>
-        <view class="menu-main">
-          <text class="menu-title">设置</text>
-          <text class="menu-copy">资料、通知与账号安全</text>
-        </view>
-        <view class="menu-arrow i-carbon-chevron-right" />
-      </view>
-    </view>
 
     <view v-if="!appContextStore.authenticated || appContextStore.organizations.length === 0" class="saas-entry" @click="openSaaS">
       <view class="saas-entry__icon">
@@ -509,10 +508,6 @@ onShow(() => void refreshOrganizationAdminVisibility())
   font-size: 34rpx;
   background: var(--app-bg-brand-soft);
 }
-.service-icon--identity {
-  color: #159d77;
-  background: #e9f8f2;
-}
 .service-icon--viewing {
   color: var(--app-color-brand-active);
   background: var(--app-bg-brand-soft);
@@ -520,14 +515,6 @@ onShow(() => void refreshOrganizationAdminVisibility())
 .service-icon--favorite {
   color: #d55370;
   background: #fff0f3;
-}
-.service-icon--lease {
-  color: #6b57e8;
-  background: #f0edff;
-}
-.service-icon--referral {
-  color: #6b57e8;
-  background: #f0edff;
 }
 .service-name,
 .service-copy {
@@ -572,7 +559,7 @@ onShow(() => void refreshOrganizationAdminVisibility())
   padding-top: 16rpx;
   padding-bottom: 16rpx;
 }
-.account-service-card .menu-row + .menu-row::before {
+.feature-card .menu-row + .menu-row::before {
   position: absolute;
   top: 0;
   right: 26rpx;
@@ -597,21 +584,9 @@ onShow(() => void refreshOrganizationAdminVisibility())
   color: #b45f06;
   background: #fff3df;
 }
-.menu-icon--organization {
-  color: #6b57e8;
-  background: #f0edff;
-}
-.menu-icon--identity {
-  color: #159d77;
-  background: #e9f8f2;
-}
 .menu-icon--wallet {
   color: var(--app-color-brand-active);
   background: var(--app-bg-brand-soft);
-}
-.menu-icon--referral {
-  color: #6b57e8;
-  background: #f0edff;
 }
 .menu-icon--settings {
   color: #4c647f;

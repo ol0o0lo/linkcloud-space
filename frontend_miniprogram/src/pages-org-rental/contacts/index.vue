@@ -360,6 +360,6 @@ async function inviteLandlord(item: ContactOut) {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #8877ee, var(--app-color-brand));
+  background: linear-gradient(90deg, var(--app-color-brand-active), var(--app-color-brand));
 }
 </style>

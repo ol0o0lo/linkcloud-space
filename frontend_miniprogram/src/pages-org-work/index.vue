@@ -192,8 +192,8 @@ onPullDownRefresh(loadDashboard)
   border-radius: 44rpx;
   box-sizing: border-box;
   color: var(--app-text-on-brand);
-  background: var(--app-gradient-organization);
-  box-shadow: var(--app-shadow-hero-organization);
+  background: var(--app-gradient-brand);
+  box-shadow: var(--app-shadow-hero-brand);
 }
 .hero-decoration {
   position: absolute;

@@ -173,10 +173,11 @@ test('所有主 Tab 在页面作用域监听滚动，我的页在左上角显示
 
   const [homeSource, housesSource, favoritesSource, messagesSource, meSource] = sources
 
-  for (const source of sources) {
+  for (const source of [homeSource, favoritesSource, messagesSource, meSource]) {
     assert.match(source, /<AppCustomNavigation[\s\S]{0,260}title=""/)
     assert.doesNotMatch(source, /<AppCustomNavigation[^>]*:title="tabbarTitle"/)
   }
+  assert.match(housesSource, /:title="currentMode === 'organization' \? '工作台' : ''"/)
 
   for (const source of [favoritesSource, messagesSource]) {
     assert.match(source, /useNavigationScrollState/)
@@ -196,7 +197,7 @@ test('所有主 Tab 在页面作用域监听滚动，我的页在左上角显示
   assert.doesNotMatch(meSource, /content-opacity-mode="fade-in"/)
 
   assert.match(housesSource, /useNavigationScrollState/)
-  assert.match(housesSource, /const \{ navigationScrolled, navigationProgress, handleNavigationScroll \} = useNavigationScrollState\(\)/)
+  assert.match(housesSource, /const \{ navigationScrolled, navigationProgress, navigationScrollTop: pageScrollTop, handleNavigationScroll \} = useNavigationScrollState\(\)/)
   assert.match(housesSource, /navigationSearchThreshold = Math\.round\(144 \* navigationRpxScale\)/)
   assert.match(housesSource, /navigationContentFadeDistance = Math\.round\(288 \* navigationRpxScale\)/)
   assert.match(housesSource, /pageScrollTop\.value \/ navigationContentFadeDistance/)
@@ -204,12 +205,12 @@ test('所有主 Tab 在页面作用域监听滚动，我的页在左上角显示
   assert.match(housesSource, /onPageScroll\(handlePageScroll\)/)
   assert.match(housesSource, /scroll-mode="fade"/)
   assert.match(housesSource, /:scrolled="isPublicHouseMode \? navigationSearchVisible : navigationScrolled"/)
-  assert.match(housesSource, /:content-opacity-mode="isPublicHouseMode \? 'fade-out' : 'fade-in'"/)
+  assert.match(housesSource, /:content-opacity-mode="isPublicHouseMode \? 'fade-out' : 'manual'"/)
   assert.match(housesSource, /scrolled-content-opacity-mode="fade-in"/)
   assert.match(housesSource, /scrolled-align="start"/)
   assert.match(housesSource, /:scroll-progress="navigationContentProgress"/)
   assert.doesNotMatch(housesSource, /scrolled-background=/)
-  assert.match(housesSource, /<template v-if="isPublicHouseMode" #content>[\s\S]*PublicHouseRegionTrigger/)
+  assert.match(housesSource, /<template #content>[\s\S]*PublicHouseRegionTrigger/)
   assert.doesNotMatch(housesSource, /navigation-title/)
   assert.match(housesSource, /<template v-if="isPublicHouseMode" #scrolled-content>[\s\S]*navigation-search-bar/)
 

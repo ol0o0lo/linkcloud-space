@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { AppModeOption } from '@/domain/app-mode'
-import { getDefaultRouteForMode } from '@/modules/registry'
 import { useAppContextStore } from '@/store/app-context-v2'
 import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 
@@ -64,14 +63,6 @@ function getModeIconClass(option: AppModeOption) {
   return 'i-carbon-search-locate'
 }
 
-function getModeColor(option: AppModeOption) {
-  if (option.selection.mode === 'landlord')
-    return '#0f7c5d'
-  if (option.selection.mode === 'organization')
-    return '#5141bd'
-  return '#0066cc'
-}
-
 function getOrganizationTitle(option: AppModeOption) {
   return option.title.replace(/^中介端\s*·\s*/, '')
 }
@@ -88,7 +79,6 @@ async function handleSelect(option: AppModeOption) {
   try {
     await appContextStore.switchMode(option.selection)
     visible.value = false
-    uni.reLaunch({ url: getDefaultRouteForMode(appContextStore.mode) })
   }
   catch {
     uni.showToast({ title: '切换失败，请稍后重试', icon: 'none' })
@@ -104,10 +94,7 @@ async function handleSelect(option: AppModeOption) {
     <button
       v-if="variant === 'navigation'"
       class="navigation-trigger"
-      :class="[
-        `navigation-trigger--${appContextStore.mode}`,
-        { 'navigation-trigger--switchable': canSwitch },
-      ]"
+      :class="{ 'navigation-trigger--switchable': canSwitch }"
       :disabled="!canSwitch"
       :aria-label="canSwitch ? `当前身份：${appContextStore.modePresentation.title}，点击切换` : `当前身份：${appContextStore.modePresentation.title}`"
       @click="openSwitcher"
@@ -138,7 +125,7 @@ async function handleSelect(option: AppModeOption) {
       show-handle
       :close-on-click-modal="!switchingKey"
       modal-style="background: rgba(15, 34, 51, 0.38); backdrop-filter: blur(18rpx) saturate(1.08); -webkit-backdrop-filter: blur(18rpx) saturate(1.08);"
-      custom-style="--wot-popup-bg: linear-gradient(180deg, #fbfdff 0%, #f4f8f7 100%); --wot-popup-radius: 48rpx; --wot-popup-close-margin: 34rpx; --wot-popup-close-size: 38rpx;"
+      custom-style="--wot-popup-bg: linear-gradient(180deg, #fbfdff 0%, #f2f8ff 100%); --wot-popup-radius: 48rpx; --wot-popup-close-margin: 34rpx; --wot-popup-close-size: 38rpx;"
     >
       <template #header>
         <view class="workspace-switcher__header">
@@ -150,7 +137,6 @@ async function handleSelect(option: AppModeOption) {
         <view
           v-if="currentModeOption"
           class="current-workspace"
-          :class="`current-workspace--${currentModeOption.selection.mode}`"
         >
           <view class="current-workspace__decoration current-workspace__decoration--large" />
           <view class="current-workspace__decoration current-workspace__decoration--small" />
@@ -174,10 +160,7 @@ async function handleSelect(option: AppModeOption) {
             v-for="option in standaloneModeOptions"
             :key="option.key"
             class="workspace-option"
-            :class="[
-              `workspace-option--${option.selection.mode}`,
-              { 'workspace-option--switching': switchingKey === option.key },
-            ]"
+            :class="{ 'workspace-option--switching': switchingKey === option.key }"
             :disabled="Boolean(switchingKey)"
             :aria-label="`切换到${option.title}`"
             @click="handleSelect(option)"
@@ -190,7 +173,7 @@ async function handleSelect(option: AppModeOption) {
               <text class="workspace-option__description">{{ option.description }}</text>
             </view>
             <view class="workspace-option__trail">
-              <wd-loading v-if="switchingKey === option.key" type="spinner" size="34rpx" :color="getModeColor(option)" />
+              <wd-loading v-if="switchingKey === option.key" type="spinner" size="34rpx" color="#0081ff" />
               <view v-else class="i-carbon-chevron-right" />
             </view>
           </button>
@@ -234,7 +217,7 @@ async function handleSelect(option: AppModeOption) {
                   <text class="organization-option__description">{{ option.description }}</text>
                 </view>
                 <view class="organization-option__trail">
-                  <wd-loading v-if="switchingKey === option.key" type="spinner" size="30rpx" :color="getModeColor(option)" />
+                  <wd-loading v-if="switchingKey === option.key" type="spinner" size="30rpx" color="#0081ff" />
                   <text v-else-if="option.active" class="organization-option__current">当前</text>
                   <view v-else class="i-carbon-chevron-right" />
                 </view>
@@ -293,16 +276,8 @@ async function handleSelect(option: AppModeOption) {
   align-items: center;
   justify-content: center;
   border-radius: 999rpx;
-  color: #0066cc;
-  background: #eaf4ff;
-}
-.navigation-trigger--landlord .navigation-trigger__identity {
-  color: #0f7c5d;
-  background: #e9f8f2;
-}
-.navigation-trigger--organization .navigation-trigger__identity {
-  color: #5141bd;
-  background: #f0edff;
+  color: var(--app-color-brand-active);
+  background: var(--app-bg-brand-soft);
 }
 .navigation-trigger__glyph {
   font-size: 23rpx;
@@ -420,18 +395,8 @@ async function handleSelect(option: AppModeOption) {
   border-radius: 36rpx;
   box-sizing: border-box;
   color: var(--app-text-on-brand);
-}
-.current-workspace--personal {
-  background: var(--app-gradient-personal);
-  box-shadow: var(--app-shadow-hero-personal);
-}
-.current-workspace--landlord {
-  background: var(--app-gradient-landlord);
-  box-shadow: var(--app-shadow-hero-landlord);
-}
-.current-workspace--organization {
-  background: var(--app-gradient-organization);
-  box-shadow: var(--app-shadow-hero-organization);
+  background: var(--app-gradient-brand);
+  box-shadow: var(--app-shadow-hero-brand);
 }
 .current-workspace__decoration {
   position: absolute;
@@ -564,19 +529,9 @@ async function handleSelect(option: AppModeOption) {
   align-items: center;
   justify-content: center;
   border-radius: 24rpx;
+  color: var(--app-color-brand-active);
   font-size: 32rpx;
-}
-.workspace-option--personal .workspace-option__icon {
-  color: #0066cc;
-  background: #eaf4ff;
-}
-.workspace-option--landlord .workspace-option__icon {
-  color: #0f7c5d;
-  background: #e9f8f2;
-}
-.workspace-option--organization .workspace-option__icon {
-  color: #5141bd;
-  background: #f0edff;
+  background: var(--app-bg-brand-soft);
 }
 .workspace-option__main {
   display: flex;
@@ -615,10 +570,10 @@ async function handleSelect(option: AppModeOption) {
 }
 .organization-group {
   overflow: hidden;
-  border: 1rpx solid rgb(81 65 189 / 18%);
+  border: 1rpx solid var(--app-border-brand-soft);
   border-radius: 30rpx;
   background: rgb(255 255 255 / 92%);
-  box-shadow: 0 8rpx 24rpx rgb(81 65 189 / 5%);
+  box-shadow: var(--app-shadow-card);
 }
 .organization-group__trigger {
   display: flex;
@@ -633,14 +588,14 @@ async function handleSelect(option: AppModeOption) {
   color: var(--app-text-primary);
   line-height: normal;
   text-align: left;
-  background: #f7f5ff;
+  background: var(--app-bg-brand-soft);
 }
 .organization-group__trigger::after,
 .organization-option::after {
   border: 0;
 }
 .organization-group__trigger:active {
-  background: #f0edff;
+  background: var(--app-color-brand-soft);
 }
 .organization-group__trigger:disabled {
   color: var(--app-text-primary);
@@ -654,9 +609,9 @@ async function handleSelect(option: AppModeOption) {
   align-items: center;
   justify-content: center;
   border-radius: 24rpx;
-  color: #5141bd;
+  color: var(--app-color-brand-active);
   font-size: 32rpx;
-  background: #ebe7ff;
+  background: var(--app-bg-brand-soft);
 }
 .organization-group__main {
   display: flex;
@@ -709,7 +664,7 @@ async function handleSelect(option: AppModeOption) {
   border-bottom: 0;
 }
 .organization-option:active:not(.organization-option--active) {
-  background: rgb(240 237 255 / 70%);
+  background: var(--app-bg-brand-soft);
 }
 .organization-option:disabled {
   color: var(--app-text-primary);
@@ -757,9 +712,9 @@ async function handleSelect(option: AppModeOption) {
 .organization-option__current {
   padding: 5rpx 12rpx;
   border-radius: 999rpx;
-  color: #5141bd;
+  color: var(--app-color-brand-active);
   font-size: 17rpx;
   font-weight: 700;
-  background: #f0edff;
+  background: var(--app-bg-brand-soft);
 }
 </style>

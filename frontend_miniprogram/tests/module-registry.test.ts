@@ -73,16 +73,19 @@ test('登录入口统一构建并保留登录后的返回地址', () => {
   assert.equal(getLoginRoute('/pages-housing/detail/index?id=42&from=share'), `${APP_ROUTES.login}?redirect=%2Fpages-housing%2Fdetail%2Findex%3Fid%3D42%26from%3Dshare`)
 })
 
-test('未登录时我的页保留服务入口，消息入口点击前跳转登录', () => {
+test('未登录时消息页展示登录引导，登录后返回消息页', () => {
   const messagesSource = readFileSync(resolve(process.cwd(), 'src/pages/messages/index.vue'), 'utf8')
   const meSource = readFileSync(resolve(process.cwd(), 'src/pages/me/me.vue'), 'utf8')
   const tabbarSource = readFileSync(resolve(process.cwd(), 'src/tabbar/index.vue'), 'utf8')
 
-  assert.doesNotMatch(messagesSource, /<AppLoginGuide/)
+  assert.match(messagesSource, /v-if="currentMode === 'visitor'"/)
+  assert.match(messagesSource, /action-text="登录查看消息"/)
+  assert.match(messagesSource, /getLoginRoute\(APP_ROUTES\.messages\)/)
   assert.doesNotMatch(meSource, /<AppLoginGuide/)
   assert.match(meSource, /openAccountRoute\(APP_ROUTES\.tenantViewings\)/)
   assert.match(meSource, /getLoginRoute\(url\)/)
-  assert.match(tabbarSource, /url === APP_ROUTES\.messages && !appContextStore\.authenticated/)
+  assert.doesNotMatch(tabbarSource, /url === APP_ROUTES\.messages && !appContextStore\.authenticated/)
+  assert.match(tabbarSource, /uni\.switchTab\(\{ url \}\)/)
 })
 
 test('构建清单固定五个主包槽位，运行时只展示已启用模块', () => {
@@ -161,10 +164,10 @@ test('只有已启用分包参与路由归属和路由构建', () => {
   assert.equal(buildSubpackageRoute('organization-rental', 'houses/index'), '/pages-org-rental/houses/index')
 })
 
-test('消息详情与偏好页归属消息模块', () => {
+test('消息列表允许访客访问，消息详情与偏好页仍需登录', () => {
   assert.equal(findModuleByRoute(APP_ROUTES.messageDetail)?.key, 'messages')
   assert.equal(findModuleByRoute(APP_ROUTES.notificationPreferences)?.key, 'messages')
-  assert.equal(isProtectedMessageRoute(APP_ROUTES.messages), true)
+  assert.equal(isProtectedMessageRoute(APP_ROUTES.messages), false)
   assert.equal(isProtectedMessageRoute(APP_ROUTES.messageDetail), true)
   assert.equal(isProtectedMessageRoute(APP_ROUTES.notificationPreferences), false)
 })
