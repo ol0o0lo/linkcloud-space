@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Literal
 
 from django.conf import settings
 from django.core.cache import cache
@@ -13,6 +14,8 @@ from apps.base.maps import MapPoint, MapProviderConfigurationError, MapProviderE
 from apps.base.permissions import require_superuser
 from apps.base.utils.email import send_email
 from apps.base.utils.timezones import get_timezone_label
+from apps.base.weather import get_current_weather
+from apps.base.weather_providers.provider import WeatherProviderConfigurationError, WeatherProviderError
 from apps.notifications.services import notify
 from apps.organizations.models import Organization, OrganizationMember
 from apps.organizations.session import get_member_count, get_owner_count
@@ -76,6 +79,27 @@ class NearbyPoisOut(Schema):
     medical: list[NearbyPoiItemOut]
 
 
+class WeatherLocationOut(Schema):
+    province: str
+    city: str
+    district: str
+    source: Literal["device", "default"]
+
+
+class WeatherNowOut(Schema):
+    temperature_c: float
+    condition: str
+    humidity_percent: int | None
+    observed_at: str
+
+
+class CurrentWeatherOut(Schema):
+    provider: Literal["amap", "qweather"]
+    location: WeatherLocationOut
+    current: WeatherNowOut
+    stale: bool
+
+
 NEARBY_POI_CACHE_SECONDS = 30 * 24 * 60 * 60
 
 
@@ -113,6 +137,26 @@ def list_nearby_pois(request, lat: Decimal, lng: Decimal):
     if not Decimal("-90") <= lat <= Decimal("90") or not Decimal("-180") <= lng <= Decimal("180"):
         raise HttpError(422, "经纬度无效")
     return _get_nearby_pois(lat, lng)
+
+
+@router.get("/weather/current/", response=CurrentWeatherOut, summary="获取工作台实况天气")
+def current_weather(request, latitude: Decimal | None = None, longitude: Decimal | None = None, coordinate_system: Literal["gcj02"] = "gcj02"):
+    if (latitude is None) != (longitude is None):
+        raise HttpError(422, "经纬度必须同时提供")
+    if (
+        latitude is not None
+        and longitude is not None
+        and (not latitude.is_finite() or not longitude.is_finite() or not Decimal("-90") <= latitude <= Decimal("90") or not Decimal("-180") <= longitude <= Decimal("180"))
+    ):
+        raise HttpError(422, "经纬度无效")
+    if coordinate_system != "gcj02":
+        raise HttpError(422, "定位坐标必须使用 coordinate_system=gcj02")
+    try:
+        return get_current_weather(latitude, longitude)
+    except WeatherProviderConfigurationError as exc:
+        raise HttpError(503, "天气服务未配置") from exc
+    except WeatherProviderError as exc:
+        raise HttpError(502, "天气服务暂不可用") from exc
 
 
 @router.get("/enums/", auth=None, summary="获取后端枚举映射")

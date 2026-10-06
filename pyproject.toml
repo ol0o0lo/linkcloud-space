@@ -228,6 +228,11 @@ AMAP_JSAPI_KEY = { type = "str", default = "", help_text = "Amap JSAPI key for m
 AMAP_SECURITY_JS_CODE = { type = "str", default = "", help_text = "Amap JSAPI security code (required for JSAPI 2.0)" }
 AMAP_WEB_SERVICE_KEY = { type = "str", default = "", help_text = "Amap Web Service key for server-side place search" }
 
+# Weather
+WEATHER_PROVIDER = { type = "str", default = "qweather", help_text = "Current weather provider: amap or qweather" }
+QWEATHER_API_HOST = { type = "str", default = "", help_text = "QWeather dedicated API host, for example abc123.qweatherapi.com" }
+QWEATHER_API_KEY = { type = "str", default = "", help_text = "QWeather API key, kept on the server" }
+
 # AI Foundation
 AI_ENABLED = { type = "bool", default = false, help_text = "Enable outbound AI provider calls" }
 AI_MAX_INPUT_CHARS = { type = "int", default = 100000, help_text = "Maximum total characters accepted by one AI invocation" }

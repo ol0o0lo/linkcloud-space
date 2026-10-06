@@ -106,12 +106,16 @@ class AmapProvider:
             )
         return pois
 
-    def reverse_geocode(self, point: MapPoint) -> LocatedRegion:
+    def _reverse_geocode_component(self, point: MapPoint) -> dict:
         payload = self._request("/v3/geocode/regeo", {"location": _amap_location(point), "extensions": "base", "radius": 1000})
         regeocode = payload.get("regeocode")
         address_component = regeocode.get("addressComponent") if isinstance(regeocode, dict) else None
         if not isinstance(address_component, dict):
             raise MapProviderResponseError("高德逆地理编码结果无效")
+        return address_component
+
+    def reverse_geocode(self, point: MapPoint) -> LocatedRegion:
+        address_component = self._reverse_geocode_component(point)
         province = _region_component(address_component.get("province"))
         city = _region_component(address_component.get("city")) or province
         district = _region_component(address_component.get("district"))

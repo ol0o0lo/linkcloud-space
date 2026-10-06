@@ -369,6 +369,11 @@ AMAP_JSAPI_KEY = env("AMAP_JSAPI_KEY", default="")
 AMAP_SECURITY_JS_CODE = env("AMAP_SECURITY_JS_CODE", default="")
 AMAP_WEB_SERVICE_KEY = env("AMAP_WEB_SERVICE_KEY", default="")
 
+# Weather (天气服务)
+WEATHER_PROVIDER = env("WEATHER_PROVIDER", default="qweather")
+QWEATHER_API_HOST = env("QWEATHER_API_HOST", default="")
+QWEATHER_API_KEY = env("QWEATHER_API_KEY", default="")
+
 # 通用 AI 底座。供应商密钥由 AIProviderConfig 引用环境变量，不进入数据库。
 AI_ENABLED = env.bool("AI_ENABLED", default=False)
 AI_MAX_INPUT_CHARS = env.int("AI_MAX_INPUT_CHARS", default=100_000)
