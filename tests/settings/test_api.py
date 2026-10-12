@@ -5,11 +5,7 @@ from model_bakery import baker
 
 from apps.access.constants import AccessScope
 from apps.accounts.models import User
-from apps.house.services import (
-    INSPECTION_MAX_AGE_DAYS_SETTING_KEY,
-    MAX_INSPECTION_MAX_AGE_DAYS,
-    MIN_INSPECTION_MAX_AGE_DAYS,
-)
+from apps.house.services.settings import INSPECTION_MAX_AGE_DAYS_SETTING_KEY, MAX_INSPECTION_MAX_AGE_DAYS, MIN_INSPECTION_MAX_AGE_DAYS
 from apps.organizations.models import OrganizationMember
 from apps.settings.models import DefaultSetting, OrganizationSetting
 from tests.access.helpers import bind_org_role, bind_team_role, make_access_group

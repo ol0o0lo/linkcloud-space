@@ -3,9 +3,9 @@ from unittest.mock import patch
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 
-from apps.base.api import NEARBY_POI_CACHE_SECONDS
 from apps.base.maps import MapPoint
 from apps.base.maps.amap import AmapProvider
+from apps.geography.locations import NEARBY_POI_CACHE_SECONDS
 from tests.api_helpers import api_data
 
 
@@ -40,7 +40,7 @@ class NearbyPoisApiTestCase(TestCase):
         self.assertEqual(mock_get.call_args_list[0].kwargs["params"]["types"], "120000|170000")
         self.assertIn("/v3/geocode/regeo", mock_get.call_args_list[1].args[0])
 
-    @patch("apps.base.api.get_place_provider")
+    @patch("apps.geography.locations.get_place_provider")
     def test_nearby_pois_cache_is_isolated_by_provider(self, provider_factory):
         cache.clear()
         provider = provider_factory.return_value

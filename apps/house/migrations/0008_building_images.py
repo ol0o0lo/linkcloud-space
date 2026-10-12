@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
                 allowed_media_types=["image"],
                 allowed_resource_types=["building_image"],
                 blank=True,
-                business_validators=["apps.house.services.validate_org_scoped_media_refs"],
+                business_validators=["apps.house.validators.validate_org_scoped_media_refs"],
                 default=list,
                 max_items=9,
                 verbose_name="楼栋图片",

@@ -5,18 +5,22 @@ from unittest.mock import patch
 
 from django.contrib.auth import user_logged_in
 from django.db import IntegrityError
-from django.db.models import Q
 from django.test import TestCase
 from django.utils import timezone
 
 from model_bakery import baker
 
 from apps.accounts.models import User
-from apps.house import services as house_services
+from apps.geography.coordinates import make_wgs84_point
 from apps.house.constants import ContactRole, EstatePropertyType, HouseDecoration, HouseOrientation, HouseStatus, LeaseStatus, ViewingRecordStatus
-from apps.house.geo.coordinates import make_wgs84_point
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
-from apps.house.schemas import ContactIn, ContactPatchIn, HouseIn, LeaseIn, ViewingRecordIn
+from apps.house.schemas.contacts import ContactIn, ContactPatchIn
+from apps.house.schemas.leases import LeaseIn
+from apps.house.schemas.properties import HouseIn
+from apps.house.schemas.viewings import ViewingRecordIn
+from apps.house.services import properties as house_services
+from apps.house.services.leases import create_deal_signing
+from apps.house.services.settings import TAG_SUGGESTIONS_SETTING_KEY
 from apps.media.constants import MediaType, ResourceType
 from apps.media.services import register_media_file
 from apps.organizations.signals import user_logged_in_receiver
@@ -67,7 +71,7 @@ class HouseApiTestCase(TestCase):
 
     def test_tag_suggestions_use_system_default_only_and_normalize_values(self):
         setting = DefaultSetting.objects.create(
-            key=house_services.TAG_SUGGESTIONS_SETTING_KEY,
+            key=TAG_SUGGESTIONS_SETTING_KEY,
             value=[" 近地铁 ", "近地铁", "南北   通透", 1, ""],
             value_type="json",
             widget="tags",
@@ -80,7 +84,7 @@ class HouseApiTestCase(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(api_data(response), {"tags": ["近地铁", "南北 通透"]})
-        self.assertNotIn(house_services.TAG_SUGGESTIONS_SETTING_KEY, {item["key"] for item in api_data(org_settings_response)})
+        self.assertNotIn(TAG_SUGGESTIONS_SETTING_KEY, {item["key"] for item in api_data(org_settings_response)})
 
     def test_estate_delete_check_reports_building_preview(self):
         empty_estate = Estate.objects.create(
@@ -737,7 +741,7 @@ class HouseApiTestCase(TestCase):
     def test_list_houses_openapi_describes_ordering_contract(self):
         from config.api import api
 
-        schema = api.get_openapi_schema(path_prefix="/api")
+        schema = api.get_openapi_schema()
         parameters = schema["paths"]["/api/house/houses/"]["get"]["parameters"]
         ordering = next(parameter for parameter in parameters if parameter["name"] == "ordering")
 
@@ -751,7 +755,7 @@ class HouseApiTestCase(TestCase):
     def test_house_openapi_describes_shared_query_and_response_contract(self):
         from config.api import api
 
-        schema = api.get_openapi_schema(path_prefix="/api")
+        schema = api.get_openapi_schema()
         parameters = {parameter["name"]: parameter for parameter in schema["paths"]["/api/house/houses/"]["get"]["parameters"]}
         house_out = schema["components"]["schemas"]["HouseOut"]
         house_patch = schema["components"]["schemas"]["HousePatchIn"]
@@ -855,6 +859,13 @@ class HouseApiTestCase(TestCase):
         self.assertNotIn("contact_phone", viewing_payload)
         self.assertEqual(viewing_payload["status__mapping"], ViewingRecordStatus.get_choice_label(viewing_payload["status"]))
         self.assertEqual(viewing_payload["signed_lease_id"], lease_payload["id"])
+        patch_response = self.client.patch(
+            f"/api/house/viewing-records/{viewing.pk}/",
+            data=json.dumps({"notes": "已签约，补充带看备注"}),
+            content_type="application/json",
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(api_data(patch_response)["signed_lease_id"], lease_payload["id"])
         self.assertEqual(lease_payload["house_id"], house.pk)
         self.assertEqual(lease_payload["house"]["id"], house.pk)
         self.assertEqual(lease_payload["house"]["label"], expected_house_label)
@@ -1196,7 +1207,9 @@ class HouseApiTestCase(TestCase):
         other_house.building.estate.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         other_house.building.estate.save()
 
-        response = self.client.get("/api/house/estate-map/?coordinate_system=gcj02&keyword=1栋&house_status=vacant&west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50")
+        response = self.client.get(
+            "/api/house/estate-map/?coordinate_system=gcj02&keyword=1栋&house_status=vacant&west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50"
+        )
         invalid_bounds_response = self.client.get("/api/house/estate-map/?coordinate_system=gcj02&west=114&south=22&east=113&north=23")
 
         self.assertEqual(response.status_code, 200)
@@ -2121,7 +2134,7 @@ class HouseApiTestCase(TestCase):
             patch.object(House, "save", side_effect=IntegrityError("房态更新失败")),
             self.assertRaises(IntegrityError),
         ):
-            house_services.create_deal_signing(
+            create_deal_signing(
                 organization=self.org,
                 house_id=house.pk,
                 tenant=tenant,

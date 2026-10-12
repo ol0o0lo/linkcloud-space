@@ -12,8 +12,8 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.house.constants import ContactRole, EstatePropertyType, HouseStatus
-from apps.house.landlord_invitations import get_landlord_invitation
 from apps.house.models import Building, Contact, Estate, House, Lease
+from apps.house.services.invitations import get_landlord_invitation
 from tests.api_helpers import api_data, api_error
 
 LANDLORD_TEST_CACHES = {
@@ -64,7 +64,7 @@ class LandlordPortalApiTestCase(TestCase):
         return user
 
     def create_invitation(self, contact):
-        with patch("apps.house.api.send_invitation_sms") as send_sms:
+        with patch("apps.house.services.contacts.send_invitation_sms") as send_sms:
             response = self.client.post(f"/api/house/contacts/{contact.pk}/landlord-invite/")
         self.assertEqual(response.status_code, 200)
         payload = api_data(response)
@@ -112,7 +112,7 @@ class LandlordPortalApiTestCase(TestCase):
     def test_manual_invitation_returns_share_link_without_sending_sms(self):
         contact = self.make_contact()
 
-        with patch("apps.house.api.send_invitation_sms") as send_sms:
+        with patch("apps.house.services.contacts.send_invitation_sms") as send_sms:
             response = self.client.post(f"/api/house/contacts/{contact.pk}/landlord-invite/?delivery_method=manual")
 
         self.assertEqual(response.status_code, 200)
@@ -121,11 +121,11 @@ class LandlordPortalApiTestCase(TestCase):
         send_sms.assert_not_called()
 
     @override_settings(WECHAT_MINIPROGRAM_URL_LINK_ENABLED=True)
-    @patch("apps.house.landlord_invitations.build_invitation_action_url", return_value="https://wxaurl.cn/landlord-invite")
+    @patch("apps.house.services.invitations.build_invitation_action_url", return_value="https://wxaurl.cn/landlord-invite")
     def test_manual_invitation_returns_miniprogram_url_link_when_enabled(self, build_action_url):
         contact = self.make_contact()
 
-        with patch("apps.house.api.send_invitation_sms") as send_sms:
+        with patch("apps.house.services.contacts.send_invitation_sms") as send_sms:
             response = self.client.post(f"/api/house/contacts/{contact.pk}/landlord-invite/?delivery_method=manual")
 
         self.assertEqual(response.status_code, 200)
@@ -278,9 +278,9 @@ class LandlordPortalApiTestCase(TestCase):
         self.assertEqual(self.client.get(f"/api/public/landlords/{contact.public_key}/houses/{other.pk}/").status_code, 404)
         self.assertEqual(self.client.get(f"/api/public/landlords/{uuid4()}/").status_code, 404)
 
-    @patch("apps.house.api.create_landlord_invitation")
+    @patch("apps.house.services.contacts.create_landlord_invitation")
     def test_invitation_cache_failure_returns_service_unavailable(self, create_invitation):
-        from apps.house.landlord_invitations import LandlordInvitationCacheError
+        from apps.house.services.invitations import LandlordInvitationCacheError
 
         create_invitation.side_effect = LandlordInvitationCacheError("房东邀请服务暂不可用。")
         contact = self.make_contact()

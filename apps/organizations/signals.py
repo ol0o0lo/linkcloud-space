@@ -43,6 +43,6 @@ def hijack_ended_receiver(sender, **kwargs):
 def organization_created_receiver(sender, instance, created, **kwargs):
     if not created:
         return
-    from apps.house.services import ensure_default_building
+    from apps.house.services.settings import ensure_default_building
 
     ensure_default_building(instance)

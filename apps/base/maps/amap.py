@@ -7,7 +7,6 @@ from django.conf import settings
 
 import requests
 
-from apps.base.maps.coordinates import MapPoint
 from apps.base.maps.provider import (
     LocatedRegion,
     MapPlace,
@@ -20,6 +19,7 @@ from apps.base.maps.provider import (
     NearbyPoi,
     RouteMode,
 )
+from apps.geography.coordinates import MapPoint
 
 AMAP_NEARBY_POI_TYPE_CODES = {
     "bus": "150700",

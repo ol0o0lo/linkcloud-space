@@ -3,12 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 
-from apps.house.services import (
-    DEFAULT_LOCATION_SETTING_KEY,
-    INSPECTION_MAX_AGE_DAYS_SETTING_KEY,
-    MAX_INSPECTION_MAX_AGE_DAYS,
-    MIN_INSPECTION_MAX_AGE_DAYS,
-)
+from apps.house.services.settings import DEFAULT_LOCATION_SETTING_KEY, INSPECTION_MAX_AGE_DAYS_SETTING_KEY, MAX_INSPECTION_MAX_AGE_DAYS, MIN_INSPECTION_MAX_AGE_DAYS
 from apps.settings.constants import SettingWidget, ValueType
 from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting
 

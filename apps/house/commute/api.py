@@ -16,6 +16,7 @@ from ninja.pagination import paginate
 
 from apps.base.maps import MapPoint, MapProviderConfigurationError, MapProviderError, get_place_provider, get_route_provider
 from apps.base.ninja_pagination import LegacyPagination
+from apps.house.commute.presentation import route_payload
 from apps.house.commute.routing import ensure_route, is_current
 from apps.house.commute.schemas import (
     CommuteDestinationIn,
@@ -28,14 +29,12 @@ from apps.house.commute.schemas import (
     CommuteSearchCreatedOut,
     CommuteSearchIn,
 )
-from apps.house.commute.search import create_search, get_search, result_queryset, route_error_key, route_task_key, search_progress
+from apps.house.commute.search import get_search, get_search_progress, result_queryset, start_search
 from apps.house.models import HouseCommuteDestination, HouseCommuteRoute
-from apps.house.services import get_public_houses_queryset
-from apps.house.tasks import compute_commute_batch_task
+from apps.house.queries.public import get_public_houses_queryset
 
 public_router = Router(tags=["房源/通勤找房"])
 PLACE_SIGNING_NAMESPACE = "house-commute-place-v1"
-MAX_QUEUED_ROUTES_PER_SEARCH = 60
 
 
 def _enforce_public_rate_limit(request, *, scope: str, limit: int, window_seconds: int) -> None:
@@ -93,6 +92,8 @@ def search_commute_places(request, keyword: str = Query(""), city: str = Query("
             "name": place["name"],
             "address": place["address"],
             "city": place["city"],
+            "longitude": place["point"].to_gcj02()[0],
+            "latitude": place["point"].to_gcj02()[1],
             "distance_m": _distance_m(location, place["point"]) if location else None,
             "token": signing.dumps(
                 {
@@ -147,36 +148,15 @@ def start_commute_search(request, payload: CommuteSearchIn):
         raise HttpError(422, "请选择一个有效的通勤目的地")
     destination = get_object_or_404(HouseCommuteDestination, pk=payload.destination_id) if payload.destination_id else _destination_from_token(payload.place_token or "")
     try:
-        search_id = create_search(destination, payload.mode, payload.max_minutes, payload.filters)
+        search_id = start_search(destination, payload.mode, payload.max_minutes, payload.filters, retry=payload.retry)
     except ValueError as exc:
         raise HttpError(422, str(exc)) from exc
-    job = get_search(search_id)
-    if job:
-        _schedule_missing_routes(search_id, job, retry=payload.retry)
     return Status(201, {"search_id": search_id, "destination_id": destination.pk})
-
-
-def _schedule_missing_routes(search_id: str, job: dict, *, retry: bool = False) -> None:
-    missing_ids = search_progress(job)["missing_ids"]
-    if retry:
-        cache.delete_many([route_error_key(building_id, job["destination_id"], job["mode"]) for building_id in missing_ids])
-    for queued, building_id in enumerate(missing_ids, start=1):
-        key = route_task_key(building_id, job["destination_id"], job["mode"])
-        if cache.add(key, 1, timeout=120):
-            compute_commute_batch_task.delay(search_id, [building_id])
-        if queued >= MAX_QUEUED_ROUTES_PER_SEARCH:
-            break
 
 
 @public_router.get("/searches/{search_id}/", auth=None, response=CommuteProgressOut, summary="获取通勤计算进度")
 def get_commute_search(request, search_id: str):
-    job = get_search(search_id)
-    if job is None:
-        raise HttpError(404, "搜索已过期，请重新搜索")
-    progress = search_progress(job)
-    if progress["status"] == "pending":
-        _schedule_missing_routes(search_id, job)
-    return {key: progress[key] for key in ("status", "processed", "total", "error")}
+    return get_search_progress(search_id)
 
 
 @public_router.get("/searches/{search_id}/houses/", auth=None, response=list[CommuteHouseOut], summary="获取通勤房源")
@@ -201,7 +181,7 @@ def get_house_commute_route(request, payload: CommuteRouteForHouseIn):
         raise HttpError(503, "路线暂时无法计算，请稍后重试") from exc
     if route.status != "ready":
         raise HttpError(404, "当前出行方式暂无可用路线")
-    return route
+    return route_payload(route)
 
 
 @public_router.get("/routes/{route_id}/", auth=None, response=CommuteRouteOut, summary="获取房源通勤路线")
@@ -211,4 +191,4 @@ def get_commute_route(request, route_id: int, house_id: int = Query(...)):
         raise Http404
     if not is_current(route, route.building, route.destination, get_route_provider().code):
         raise Http404
-    return route
+    return route_payload(route)

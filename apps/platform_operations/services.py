@@ -8,7 +8,7 @@ from django.utils import timezone
 import markdown
 import nh3
 
-from apps.house.services import apply_public_house_filters, get_public_houses_queryset
+from apps.house.queries.public import apply_public_house_filters, get_public_houses_queryset
 from apps.platform_operations.constants import ContentDisplayStatus, ContentEntryKind
 from apps.platform_operations.models import ContentEntry, ContentEntryHouse, HomeBanner
 

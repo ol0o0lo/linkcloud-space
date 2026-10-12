@@ -5,7 +5,8 @@ from pydantic import Field
 
 from apps.house.constants import HouseStatus
 from apps.house.formatters import format_house_layout
-from apps.house.schemas import PublicHouseListOut, building_display_label
+from apps.house.schemas.common import building_display_label
+from apps.house.schemas.public import PublicHouseListOut
 from apps.media.schemas import ResolvedMediaRefOut
 from apps.platform_operations.constants import ContentDisplayStatus, ContentEntryKind, HomeBannerAction
 from apps.platform_operations.services import get_schedule_status, render_home_markdown

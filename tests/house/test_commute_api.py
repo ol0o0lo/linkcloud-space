@@ -9,12 +9,12 @@ from django.test import TestCase, override_settings
 from model_bakery import baker
 
 from apps.base.maps import MapPoint, MapProviderUnavailable
+from apps.geography.models import MetroCity, MetroLine
 from apps.house.commute.api import PLACE_SIGNING_NAMESPACE
 from apps.house.commute.search import get_search, route_task_key
 from apps.house.constants import HouseStatus
 from apps.house.models import Building, Estate, House, HouseCommuteDestination, HouseCommuteRoute
 from apps.house.tasks import compute_commute_batch_task
-from apps.metro.models import MetroCity, MetroLine
 from tests.api_helpers import api_data
 
 
@@ -30,6 +30,12 @@ class HouseCommuteApiTests(TestCase):
                 organization=org, estate=estate, name=f"{index}栋", address=f"天河路 {index} 号", floors=10, location=Point(longitude, 23.13, srid=4326)
             )
             self.houses.append(House.objects.create(building=building, room_number=f"{index}01", status=HouseStatus.LISTED, asking_rent=2000 + index * 100))
+
+    def search_job(self, search_id: str) -> dict:
+        job = get_search(search_id)
+        if job is None:
+            raise AssertionError("通勤搜索未创建或已过期")
+        return job
 
     def place_token(self, place_id: str, longitude: float) -> str:
         return signing.dumps(
@@ -50,11 +56,14 @@ class HouseCommuteApiTests(TestCase):
     def test_place_search_returns_signed_provider_location(self, provider):
         provider.return_value.code = "amap"
         provider.return_value.search_places.return_value = [
-            {"id": "POI-A", "name": "丰兴广场", "address": "天河路", "city": "广州市", "city_code": "020", "point": MapPoint(113.33, 23.14)}
+            {"id": "POI-A", "name": "丰兴广场", "address": "天河路", "city": "广州市", "city_code": "020", "point": MapPoint.from_gcj02(113.33, 23.14)}
         ]
         response = self.client.get("/api/public/houses/commute/places/", {"keyword": "丰兴广场"})
         self.assertEqual(response.status_code, 200, response.content)
-        token = api_data(response)[0]["token"]
+        result = api_data(response)[0]
+        self.assertAlmostEqual(result["longitude"], 113.33, places=5)
+        self.assertAlmostEqual(result["latitude"], 23.14, places=5)
+        token = result["token"]
         place = signing.loads(token, salt=PLACE_SIGNING_NAMESPACE)
         self.assertEqual(place["provider_place_id"], "POI-A")
         self.assertEqual(place["city"], "广州市")
@@ -91,7 +100,7 @@ class HouseCommuteApiTests(TestCase):
             self.assertEqual(self.client.get("/api/public/houses/commute/places/", {"keyword": "天河"}).status_code, 200)
         self.assertEqual(self.client.get("/api/public/houses/commute/places/", {"keyword": "天河"}).status_code, 429)
 
-    @patch("apps.house.commute.api.compute_commute_batch_task.delay")
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
     def test_destination_can_be_saved_without_starting_route_jobs(self, delayed):
         token = self.place_token("A", 113.32)
         response = self.client.post("/api/public/houses/commute/destinations/", data=json.dumps({"place_token": token}), content_type="application/json")
@@ -101,7 +110,7 @@ class HouseCommuteApiTests(TestCase):
         delayed.assert_not_called()
         search = self.start(destination_id=destination_id, filters={"max_rent": 2100})
         self.assertEqual(search["destination_id"], destination_id)
-        self.assertEqual(get_search(search["search_id"])["building_ids"], [self.houses[0].building_id])
+        self.assertEqual(self.search_job(search["search_id"])["building_ids"], [self.houses[0].building_id])
 
     def start(self, token: str | None = None, *, destination_id: int | None = None, filters: dict | None = None, retry: bool = False):
         payload = {"mode": "walking", "max_minutes": 60, "filters": filters or {}, "retry": retry}
@@ -115,7 +124,7 @@ class HouseCommuteApiTests(TestCase):
 
     @patch("apps.house.commute.routing.get_route_provider")
     @patch("apps.house.commute.search.get_route_provider")
-    @patch("apps.house.commute.api.compute_commute_batch_task.delay")
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
     def test_addresses_are_isolated_and_results_are_sorted_by_duration(self, delayed, search_provider, routing_provider):
         search_provider.return_value.code = "amap"
         routing_provider.return_value.code = "amap"
@@ -128,7 +137,7 @@ class HouseCommuteApiTests(TestCase):
         search_a = self.start(self.place_token("A", 113.32))["search_id"]
         search_b = self.start(self.place_token("B", 113.29))["search_id"]
         for search_id in (search_a, search_b):
-            job = get_search(search_id)
+            job = self.search_job(search_id)
             compute_commute_batch_task(search_id, job["building_ids"])
             response = self.client.get(f"/api/public/houses/commute/searches/{search_id}/houses/", {"page": 1, "page_size": 10})
             self.assertEqual(response.status_code, 200, response.content)
@@ -140,8 +149,8 @@ class HouseCommuteApiTests(TestCase):
         self.assertEqual(HouseCommuteRoute.objects.count(), 4)
 
         self.assertEqual(self.client.get("/api/public/houses/", {"commute_search_id": search_a, "max_rent": 2100}).status_code, 409)
-        narrowed = self.start(destination_id=get_search(search_a)["destination_id"], filters={"max_rent": 2100})
-        self.assertEqual(get_search(narrowed["search_id"])["building_ids"], [self.houses[0].building_id])
+        narrowed = self.start(destination_id=self.search_job(search_a)["destination_id"], filters={"max_rent": 2100})
+        self.assertEqual(self.search_job(narrowed["search_id"])["building_ids"], [self.houses[0].building_id])
         self.assertEqual(routing_provider.return_value.plan_route.call_count, 4)
         combined = self.client.get("/api/public/houses/", {"commute_search_id": narrowed["search_id"], "max_rent": 2100, "sort": "commute_asc", "page": 1, "page_size": 10})
         self.assertEqual(combined.status_code, 200, combined.content)
@@ -157,7 +166,7 @@ class HouseCommuteApiTests(TestCase):
         self.assertEqual(other_address.status_code, 409)
         self.assertIsNone(api_data(self.client.get("/api/public/houses/"))["items"][0]["commute_minutes"])
 
-    @patch("apps.house.commute.api.compute_commute_batch_task.delay")
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
     def test_pending_search_returns_partial_results(self, delayed):
         search_id = self.start(self.place_token("A", 113.32))["search_id"]
         self.assertEqual(delayed.call_count, 2)
@@ -169,7 +178,7 @@ class HouseCommuteApiTests(TestCase):
         self.assertEqual(api_data(self.client.get("/api/public/houses/", {"commute_search_id": search_id}))["total"], 0)
         self.assertEqual(self.client.get("/api/public/houses/", {"sort": "commute_asc"}).status_code, 422)
 
-    @patch("apps.house.commute.api.compute_commute_batch_task.delay")
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
     @patch("apps.house.commute.search.get_route_provider")
     @patch("apps.house.commute.routing.get_route_provider")
     def test_calculated_houses_appear_while_other_routes_are_pending(self, routing_provider, search_provider, delayed):
@@ -183,9 +192,9 @@ class HouseCommuteApiTests(TestCase):
         self.assertEqual((progress["status"], progress["processed"], progress["total"]), ("pending", 1, 2))
         result = api_data(self.client.get("/api/public/houses/", {"commute_search_id": search_id, "sort": "commute_asc"}))
         self.assertEqual([item["id"] for item in result["items"]], [self.houses[0].pk])
-        self.assertIsNone(cache.get(route_task_key(first_building_id, get_search(search_id)["destination_id"], "walking")))
+        self.assertIsNone(cache.get(route_task_key(first_building_id, self.search_job(search_id)["destination_id"], "walking")))
 
-    @patch("apps.house.commute.api.compute_commute_batch_task.delay")
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
     def test_nearby_buildings_in_another_city_are_candidates_without_city_filter(self, delayed):
         estate = Estate.objects.create(
             organization=self.houses[0].building.organization,
@@ -199,11 +208,11 @@ class HouseCommuteApiTests(TestCase):
         building = Building.objects.create(organization=estate.organization, estate=estate, name="邻城栋", address="邻城路", floors=10, location=Point(113.32, 23.13, srid=4326))
         House.objects.create(building=building, room_number="301", status=HouseStatus.LISTED, asking_rent=2300)
         unrestricted = self.start(self.place_token("A", 113.32))["search_id"]
-        self.assertIn(building.pk, get_search(unrestricted)["building_ids"])
-        city_only = self.start(destination_id=get_search(unrestricted)["destination_id"], filters={"city": "广州市"})["search_id"]
-        self.assertNotIn(building.pk, get_search(city_only)["building_ids"])
+        self.assertIn(building.pk, self.search_job(unrestricted)["building_ids"])
+        city_only = self.start(destination_id=self.search_job(unrestricted)["destination_id"], filters={"city": "广州市"})["search_id"]
+        self.assertNotIn(building.pk, self.search_job(city_only)["building_ids"])
 
-    @patch("apps.house.commute.api.compute_commute_batch_task.delay")
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
     @patch("apps.house.commute.search.get_route_provider")
     @patch("apps.house.commute.routing.get_route_provider")
     def test_provider_failure_marks_search_failed_and_next_search_can_resume(self, routing_provider, search_provider, delayed):
@@ -215,7 +224,7 @@ class HouseCommuteApiTests(TestCase):
         with self.assertRaises(MapProviderUnavailable):
             compute_commute_batch_task(search_id, [self.houses[0].building_id])
         self.assertEqual(api_data(self.client.get(f"/api/public/houses/commute/searches/{search_id}/"))["status"], "pending")
-        route_key = route_task_key(self.houses[0].building_id, get_search(search_id)["destination_id"], "walking")
+        route_key = route_task_key(self.houses[0].building_id, self.search_job(search_id)["destination_id"], "walking")
         self.assertIsNotNone(cache.get(route_key))
 
         compute_commute_batch_task.apply(args=(search_id, [self.houses[0].building_id]), retries=2, throw=False)
@@ -226,10 +235,10 @@ class HouseCommuteApiTests(TestCase):
         routing_provider.return_value.plan_route.return_value = {"duration_seconds": 900, "distance_m": 2000, "walking_distance_m": 0, "steps": []}
         resumed_id = self.start(token, retry=True)["search_id"]
         self.assertEqual(delayed.call_count, 3)
-        compute_commute_batch_task(resumed_id, get_search(resumed_id)["building_ids"])
+        compute_commute_batch_task(resumed_id, self.search_job(resumed_id)["building_ids"])
         self.assertEqual(api_data(self.client.get(f"/api/public/houses/commute/searches/{resumed_id}/"))["status"], "ready")
 
-    @patch("apps.house.commute.api.compute_commute_batch_task.delay")
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
     @patch("apps.house.commute.search.get_route_provider")
     @patch("apps.house.commute.routing.get_route_provider")
     def test_route_is_reused_and_detail_checks_public_house_and_coordinates(self, routing_provider, search_provider, delayed):
@@ -243,7 +252,7 @@ class HouseCommuteApiTests(TestCase):
         }
         token = self.place_token("A", 113.32)
         search_id = self.start(token)["search_id"]
-        job = get_search(search_id)
+        job = self.search_job(search_id)
         compute_commute_batch_task(search_id, job["building_ids"])
         route_id = api_data(self.client.get(f"/api/public/houses/commute/searches/{search_id}/houses/"))["items"][0]["commute_route_id"]
         route_url = f"/api/public/houses/commute/routes/{route_id}/"

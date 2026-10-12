@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 
 from django.core.cache import cache
 
-from apps.base.maps.coordinates import MapPoint
 from apps.base.weather_providers.provider import CurrentWeather, WeatherProviderError, WeatherReading, WeatherRegion
+from apps.geography.coordinates import MapPoint
 
 
 class CachedWeatherProvider(ABC):

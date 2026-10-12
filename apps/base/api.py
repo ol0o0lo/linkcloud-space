@@ -2,7 +2,6 @@ from decimal import Decimal
 from typing import Literal
 
 from django.conf import settings
-from django.core.cache import cache
 from django.utils import dateformat
 from django.utils.timezone import now
 
@@ -10,12 +9,13 @@ from ninja import Router, Schema
 from ninja.errors import HttpError
 
 from apps.accounts.models import User
-from apps.base.maps import MapPoint, MapProviderConfigurationError, MapProviderError, get_place_provider
 from apps.base.permissions import require_superuser
 from apps.base.utils.email import send_email
 from apps.base.utils.timezones import get_timezone_label
 from apps.base.weather import get_current_weather
 from apps.base.weather_providers.provider import WeatherProviderConfigurationError, WeatherProviderError
+from apps.geography.locations import get_nearby_pois
+from apps.geography.schemas import NearbyPoisOut
 from apps.notifications.services import notify
 from apps.organizations.models import Organization, OrganizationMember
 from apps.organizations.session import get_member_count, get_owner_count
@@ -65,20 +65,6 @@ class AppContextOut(Schema):
     amapSecurityJsCode: str = ""
 
 
-class NearbyPoiItemOut(Schema):
-    id: str
-    name: str
-    address: str
-    distance: int
-
-
-class NearbyPoisOut(Schema):
-    bus: list[NearbyPoiItemOut]
-    subway: list[NearbyPoiItemOut]
-    education: list[NearbyPoiItemOut]
-    medical: list[NearbyPoiItemOut]
-
-
 class WeatherLocationOut(Schema):
     province: str
     city: str
@@ -100,28 +86,6 @@ class CurrentWeatherOut(Schema):
     stale: bool
 
 
-NEARBY_POI_CACHE_SECONDS = 30 * 24 * 60 * 60
-
-
-def _get_nearby_pois(lat: Decimal, lng: Decimal):
-    normalized_lat = f"{lat:.6f}"
-    normalized_lng = f"{lng:.6f}"
-    provider = get_place_provider()
-    cache_key = f"nearby-pois:v3:{provider.code}:{normalized_lng}:{normalized_lat}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    try:
-        pois = provider.nearby_pois(MapPoint.from_gcj02(Decimal(normalized_lng), Decimal(normalized_lat)))
-    except MapProviderConfigurationError as exc:
-        raise HttpError(503, "地图周边服务未配置") from exc
-    except MapProviderError as exc:
-        raise HttpError(502, "地图周边服务暂不可用") from exc
-    cache.set(cache_key, pois, timeout=NEARBY_POI_CACHE_SECONDS)
-    return pois
-
-
 def _get_app_version() -> str:
     return "unknown"
 
@@ -134,9 +98,7 @@ def get_version(request):
 
 @router.get("/nearby-pois/", auth=None, response=NearbyPoisOut, summary="获取坐标周边设施")
 def list_nearby_pois(request, lat: Decimal, lng: Decimal):
-    if not Decimal("-90") <= lat <= Decimal("90") or not Decimal("-180") <= lng <= Decimal("180"):
-        raise HttpError(422, "经纬度无效")
-    return _get_nearby_pois(lat, lng)
+    return get_nearby_pois(latitude=lat, longitude=lng)
 
 
 @router.get("/weather/current/", response=CurrentWeatherOut, summary="获取工作台实况天气")

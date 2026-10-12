@@ -1,7 +1,10 @@
+from django import forms
 from django.contrib import admin, messages
 from django.db.models import ProtectedError
 
+from apps.house.exceptions import HouseInvalidException
 from apps.house.models import Building, Contact, Estate, House, HouseAIInsight, HouseFavorite, Lease, LeaseAllocation, PropertyResponsibility, ViewingRecord
+from apps.house.services.properties import validate_house_publication
 
 
 class ProtectedDeleteMessageMixin:
@@ -26,8 +29,25 @@ class BuildingAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
     search_fields = ("name", "estate__name", "address")
 
 
+class HouseAdminForm(forms.ModelForm):
+    class Meta:
+        model = House
+        fields = "__all__"
+
+    def _post_clean(self):
+        super()._post_clean()
+        if self.errors:
+            return
+        previous_status = House.objects.filter(pk=self.instance.pk).values_list("status", flat=True).first() if self.instance.pk else None
+        try:
+            validate_house_publication(self.instance, previous_status=previous_status, organization=self.instance.organization)
+        except HouseInvalidException as exc:
+            self.add_error("status", str(exc))
+
+
 @admin.register(House)
 class HouseAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
+    form = HouseAdminForm
     list_display = ("room_number", "building", "landlord", "floor", "status")
     list_filter = ("building__organization", "status", "decoration", "orientation")
     search_fields = ("room_number", "building__name", "building__estate__name", "landlord__name", "landlord__phone")

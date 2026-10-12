@@ -1,4 +1,4 @@
-from apps.house.geo.coordinates import (
+from apps.geography.coordinates import (
     COORDINATE_SYSTEM_GCJ02,
     convert_viewport_to_wgs84,
     gcj02_to_wgs84,

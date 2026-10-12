@@ -6,7 +6,8 @@ from django.core.exceptions import ValidationError
 import pytest
 from model_bakery import baker
 
-from apps.house.services import (
+from apps.house.services.properties import evaluate_house_publish_state
+from apps.house.services.settings import (
     DEFAULT_BUILDING_SETTING_KEY,
     DEFAULT_HOUSE_PUBLISH_RULES,
     DEFAULT_LOCATION_SETTING_KEY,
@@ -14,7 +15,6 @@ from apps.house.services import (
     TAG_SUGGESTIONS_SETTING_KEY,
     _default_building_setting,
     _publish_rules_setting,
-    evaluate_house_publish_state,
     normalize_house_publish_rules,
 )
 from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting

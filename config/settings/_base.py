@@ -94,7 +94,7 @@ INSTALLED_APPS = [
     "apps.teams",
     "apps.access",
     "apps.allocation",
-    "apps.metro",
+    "apps.geography",
     "apps.house",
     "apps.favorites",
     "apps.analytics",

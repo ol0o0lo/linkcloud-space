@@ -16,9 +16,9 @@ from apps.allocation.exceptions import AllocationExpiredException, AllocationInv
 from apps.allocation.models import AccrualEntry
 from apps.allocation.queries import monthly_accrual_totals_for_org
 from apps.allocation.services import create_manual_entry
-from apps.house.allocation_services import create_lease_with_allocation, review_lease_allocation, void_lease_allocation
 from apps.house.constants import ContactRole, EstatePropertyType, LeaseStatus
 from apps.house.models import Building, Contact, Estate, House
+from apps.house.services.allocations import create_lease_with_allocation, review_lease_allocation, void_lease_allocation
 from apps.house.tasks import expire_lease_allocation_requests_task
 from apps.settings.models import DefaultSetting
 

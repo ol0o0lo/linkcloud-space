@@ -1,37 +1,12 @@
 """公开通勤找房接口结构。"""
 
-import re
 from typing import Literal
 
 from ninja import Field, Schema
 
-from apps.house.public_search import PublicHouseSearchFilters
-from apps.house.schemas import PublicHouseListOut
-from apps.metro.models import MetroLine
+from apps.house.schemas.public import PublicHouseListOut, PublicHouseSearchFilters
 
 CommuteMode = Literal["metro", "ebike", "bicycle", "walking", "driving"]
-HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
-
-
-def _line_key(name: str) -> str:
-    return re.sub(r"\s+", "", re.split(r"[（(]", name, maxsplit=1)[0]).removeprefix("地铁")
-
-
-def _metro_line_colors(city_name: str) -> dict[str, str]:
-    city = city_name.strip().removesuffix("市")
-    colors: dict[str, str] = {}
-    for name, color in MetroLine.objects.filter(city__name__in=[city, f"{city}市"], is_active=True).values_list("name", "color"):
-        if HEX_COLOR.fullmatch(color):
-            colors[_line_key(name)] = color
-    return colors
-
-
-def _line_color(line_name: str, colors: dict[str, str]) -> str:
-    key = _line_key(line_name)
-    if key in colors:
-        return colors[key]
-    candidates = {color for name, color in colors.items() if name.startswith(key) or key.startswith(name)}
-    return candidates.pop() if len(candidates) == 1 else ""
 
 
 class CommutePlaceOut(Schema):
@@ -39,6 +14,8 @@ class CommutePlaceOut(Schema):
     address: str
     city: str
     token: str
+    longitude: float
+    latitude: float
     distance_m: int | None = None
 
 
@@ -96,22 +73,6 @@ class CommuteRouteOut(Schema):
     walking_distance_m: int
     steps: list[str]
     transit_segments: list[CommuteTransitSegmentOut]
-
-    @staticmethod
-    def resolve_duration_minutes(obj):
-        return (obj.duration_seconds + 59) // 60
-
-    @staticmethod
-    def resolve_destination_name(obj):
-        return obj.destination.name
-
-    @staticmethod
-    def resolve_transit_segments(obj):
-        segments = obj.transit_segments
-        if obj.mode != "metro" or not segments:
-            return segments
-        colors = _metro_line_colors(obj.destination.city)
-        return [{**segment, "color": _line_color(segment["label"], colors) if segment["kind"] == "metro" else ""} for segment in segments]
 
 
 class CommuteRouteForHouseIn(Schema):

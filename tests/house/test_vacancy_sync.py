@@ -9,8 +9,8 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
+from apps.house.house_sync import VACANCY_SYNC_SETTING_KEY, parse_vacancy_text
 from apps.house.models import Building, Contact, House, Lease
-from apps.house.vacancy_sync import VACANCY_SYNC_SETTING_KEY, parse_vacancy_text
 from apps.organizations.signals import user_logged_in_receiver
 from apps.settings.models import DefaultSetting, OrganizationSetting
 from tests.api_helpers import api_data, api_error

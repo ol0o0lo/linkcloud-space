@@ -8,7 +8,6 @@ from django.utils import timezone
 
 import requests
 
-from apps.base.maps.coordinates import MapPoint
 from apps.base.weather_providers.cache import CachedWeatherProvider
 from apps.base.weather_providers.provider import (
     CurrentWeather,
@@ -17,6 +16,7 @@ from apps.base.weather_providers.provider import (
     WeatherProviderUnavailable,
     WeatherRegion,
 )
+from apps.geography.coordinates import MapPoint
 
 
 class QWeatherProvider(CachedWeatherProvider):

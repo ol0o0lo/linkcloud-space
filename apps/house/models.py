@@ -12,6 +12,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.accounts.models import normalize_phone
 from apps.base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from apps.house.constants import (
     LEASE_STATUS_TRANSITIONS,
@@ -26,6 +27,7 @@ from apps.house.constants import (
     LeaseStatus,
     ViewingRecordStatus,
 )
+from apps.house.geo.regions import REGION_FIELDS, building_region
 from apps.media.constants import MediaType, ResourceType
 from apps.media.fields import MediaRefsField
 
@@ -79,7 +81,7 @@ class Estate(CreateUpdateTimeModelMixin):
         max_items=9,
         allowed_media_types=[MediaType.IMAGE],
         allowed_resource_types=[ResourceType.ESTATE_IMAGE],
-        business_validators=["apps.house.services.validate_org_scoped_media_refs"],
+        business_validators=["apps.house.validators.validate_org_scoped_media_refs"],
         verbose_name="项目图片",
     )
     description = models.TextField(blank=True, verbose_name="描述")
@@ -106,6 +108,10 @@ class Building(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="buildings", verbose_name="所属组织")
     estate = models.ForeignKey(Estate, on_delete=models.PROTECT, related_name="buildings", null=True, blank=True, verbose_name="项目小区")
     name = models.CharField(max_length=100, verbose_name="楼栋名称")
+    province = models.CharField(max_length=64, blank=True, default="", verbose_name="省份")
+    city = models.CharField(max_length=64, blank=True, default="", verbose_name="城市")
+    district = models.CharField(max_length=64, blank=True, default="", verbose_name="区县")
+    subdistrict = models.CharField(max_length=64, blank=True, default="", verbose_name="街道/板块")
     floors = models.PositiveIntegerField(validators=[MinValueValidator(1)], verbose_name="地上楼层数")
     under_floors = models.PositiveIntegerField(blank=True, null=True, verbose_name="地下楼层数")
     year_built = models.PositiveIntegerField(blank=True, null=True, verbose_name="建成年份")
@@ -118,7 +124,7 @@ class Building(CreateUpdateTimeModelMixin):
         max_items=9,
         allowed_media_types=[MediaType.IMAGE],
         allowed_resource_types=[ResourceType.BUILDING_IMAGE],
-        business_validators=["apps.house.services.validate_org_scoped_media_refs"],
+        business_validators=["apps.house.validators.validate_org_scoped_media_refs"],
         verbose_name="楼栋图片",
     )
     tags = models.JSONField(default=list, blank=True, verbose_name="标签")
@@ -158,7 +164,15 @@ class Building(CreateUpdateTimeModelMixin):
     def full_clean(self, exclude=None, validate_unique=True, validate_constraints=True):
         self.name = normalize_space_identity(self.name)
         self.address = normalize_space_identity(self.address)
+        for field in REGION_FIELDS:
+            value = getattr(self, field)
+            if isinstance(value, str):
+                setattr(self, field, value.strip())
         super().full_clean(exclude=exclude, validate_unique=validate_unique, validate_constraints=validate_constraints)
+
+    @property
+    def effective_region(self) -> dict[str, str]:
+        return building_region(self)
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -169,6 +183,7 @@ class Contact(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="house_contacts", verbose_name="所属组织")
     name = models.CharField(max_length=100, verbose_name="联系人姓名")
     phone = models.CharField(max_length=32, verbose_name="手机号")
+    normalized_phone = models.CharField(max_length=32, blank=True, default="", db_index=True, editable=False, verbose_name="标准化手机号")
     email = models.EmailField(blank=True, verbose_name="邮箱")
     roles = models.JSONField(default=list, blank=True, verbose_name="角色列表")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="house_contacts", verbose_name="用户")
@@ -192,6 +207,7 @@ class Contact(CreateUpdateTimeModelMixin):
         super().clean()
         self.name = self.name.strip()
         self.phone = self.phone.strip()
+        self.normalized_phone = normalize_phone(self.phone) or ""
         if not self.phone:
             raise ValidationError({"phone": "联系人手机号不能为空。"})
         if not isinstance(self.roles, list):
@@ -207,6 +223,8 @@ class Contact(CreateUpdateTimeModelMixin):
             public_key_created = True
         if public_key_created and kwargs.get("update_fields") is not None:
             kwargs["update_fields"] = set(kwargs["update_fields"]) | {"public_key"}
+        if kwargs.get("update_fields") is not None and "phone" in kwargs["update_fields"]:
+            kwargs["update_fields"] = set(kwargs["update_fields"]) | {"normalized_phone"}
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -301,7 +319,7 @@ class House(CreateUpdateTimeModelMixin):
         max_items=9,
         allowed_media_types=[MediaType.IMAGE],
         allowed_resource_types=[ResourceType.HOUSE_IMAGE],
-        business_validators=["apps.house.services.validate_org_scoped_media_refs"],
+        business_validators=["apps.house.validators.validate_org_scoped_media_refs"],
         verbose_name="房源图片",
     )
     videos = MediaRefsField(
@@ -310,7 +328,7 @@ class House(CreateUpdateTimeModelMixin):
         max_items=3,
         allowed_media_types=[MediaType.VIDEO],
         allowed_resource_types=[ResourceType.HOUSE_VIDEO],
-        business_validators=["apps.house.services.validate_org_scoped_media_refs"],
+        business_validators=["apps.house.validators.validate_org_scoped_media_refs"],
         verbose_name="房源视频",
     )
     tags = models.JSONField(default=list, blank=True, verbose_name="标签")
@@ -543,7 +561,7 @@ class Lease(CreateUpdateTimeModelMixin):
         max_items=1,
         allowed_media_types=[MediaType.FILE],
         allowed_resource_types=[ResourceType.LEASE_CONTRACT],
-        business_validators=["apps.house.services.validate_org_scoped_media_refs"],
+        business_validators=["apps.house.validators.validate_org_scoped_media_refs"],
         verbose_name="租约合同",
     )
     notes = models.TextField(blank=True, verbose_name="备注")

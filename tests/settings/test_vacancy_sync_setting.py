@@ -4,7 +4,7 @@ from django.apps import apps as django_apps
 
 import pytest
 
-from apps.house.vacancy_sync import VACANCY_SYNC_SETTING_KEY
+from apps.house.house_sync import VACANCY_SYNC_SETTING_KEY
 from apps.settings.models import DefaultSetting
 
 

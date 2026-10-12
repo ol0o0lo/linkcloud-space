@@ -1,6 +1,6 @@
-"""兼容旧导入路径；通用坐标实现位于 apps.base.maps.coordinates。"""
+"""兼容旧导入路径；通用坐标实现位于 apps.geography.coordinates。"""
 
-from apps.base.maps.coordinates import (
+from apps.geography.coordinates import (
     COORDINATE_SYSTEM_GCJ02,
     COORDINATE_SYSTEM_WGS84,
     CoordinateSystem,

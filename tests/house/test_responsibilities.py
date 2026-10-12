@@ -11,7 +11,7 @@ from model_bakery import baker
 from apps.accounts.models import User
 from apps.house.constants import ContactRole
 from apps.house.models import Building, Contact, Estate, House, PropertyResponsibility
-from apps.house.services import INSPECTION_MAX_AGE_DAYS_SETTING_KEY
+from apps.house.services.settings import INSPECTION_MAX_AGE_DAYS_SETTING_KEY
 from apps.media.constants import MediaType, ResourceType
 from apps.media.services import register_media_file
 from apps.organizations.signals import user_logged_in_receiver
@@ -107,24 +107,14 @@ class PropertyResponsibilityApiTestCase(TestCase):
         self.assertEqual({item["id"] for item in api_data(default_response)["items"]}, expected_ids)
         self.assertEqual({item["id"] for item in api_data(explicit_response)["items"]}, expected_ids)
 
-    def test_house_scope_mine_and_legacy_responsibility_are_compatible(self):
+    def test_house_scope_mine_filters_current_member_houses(self):
         PropertyResponsibility.objects.create(organization=self.org, member=self.member, estate=self.estate)
         self.login_as(self.employee)
         expected_ids = {self.overlap_house.pk, self.estate_house.pk, self.estate_only_house.pk}
 
         scope_response = self.client.get("/api/house/houses/", {"page": 1, "page_size": 20, "scope": "mine"})
-        legacy_response = self.client.get("/api/house/houses/", {"page": 1, "page_size": 20, "responsibility": "mine"})
-        matching_response = self.client.get(
-            "/api/house/houses/",
-            {"page": 1, "page_size": 20, "scope": "mine", "responsibility": "mine"},
-        )
-
         self.assertEqual(scope_response.status_code, 200)
-        self.assertEqual(legacy_response.status_code, 200)
-        self.assertEqual(matching_response.status_code, 200)
         self.assertEqual({item["id"] for item in api_data(scope_response)["items"]}, expected_ids)
-        self.assertEqual({item["id"] for item in api_data(legacy_response)["items"]}, expected_ids)
-        self.assertEqual({item["id"] for item in api_data(matching_response)["items"]}, expected_ids)
 
     def test_asset_tree_scope_mine_filters_estates_buildings_and_counts(self):
         PropertyResponsibility.objects.create(organization=self.org, member=self.member, estate=self.estate)
@@ -144,15 +134,10 @@ class PropertyResponsibilityApiTestCase(TestCase):
         self.assertEqual(sum(item["counts"]["total"] for item in buildings), 3)
 
     def test_house_scope_rejects_conflicting_responsibility_filters(self):
-        conflicting_legacy_response = self.client.get(
-            "/api/house/houses/",
-            {"page": 1, "page_size": 20, "scope": "all", "responsibility": "mine"},
-        )
         conflicting_member_response = self.client.get(
             "/api/house/houses/",
             {"page": 1, "page_size": 20, "scope": "mine", "responsible_member_id": self.member.pk},
         )
-        self.assertEqual(conflicting_legacy_response.status_code, 422)
         self.assertEqual(conflicting_member_response.status_code, 422)
 
     def test_inspection_due_lists_only_current_employee_responsibilities_and_reports_reasons(self):

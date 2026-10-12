@@ -6,13 +6,17 @@ from django.contrib.gis.measure import D
 from django.core.cache import cache
 from django.db.models import F
 
+from apps.base.exceptions import NotFoundException
 from apps.base.maps import get_route_provider
 from apps.house.commute.routing import is_current
+from apps.house.exceptions import HouseUnavailableException
 from apps.house.models import HouseCommuteDestination, HouseCommuteRoute
-from apps.house.public_search import PublicHouseSearchFilters, filter_signature, public_houses_for_filters
+from apps.house.queries.public import filter_signature, public_houses_for_filters
+from apps.house.schemas.public import PublicHouseSearchFilters
 
 JOB_TTL_SECONDS = 2 * 60 * 60
 MAX_CANDIDATE_BUILDINGS = 2000
+MAX_QUEUED_ROUTES_PER_SEARCH = 60
 # 粗筛采用宽松速度上界；最终结果始终以地图路线时长为准。
 MAX_COARSE_SPEED_KMH = {"metro": 120, "ebike": 55, "bicycle": 35, "walking": 10, "driving": 160}
 
@@ -57,6 +61,47 @@ def get_search(search_id: str) -> dict | None:
     if len(search_id) != 32 or not all(char in "0123456789abcdef" for char in search_id):
         return None
     return cache.get(job_cache_key(search_id))
+
+
+def start_search(destination, mode, max_minutes, filters=None, *, retry=False) -> str:
+    search_id = create_search(destination, mode, max_minutes, filters)
+    job = get_search(search_id)
+    if job:
+        schedule_missing_routes(search_id, job, retry=retry)
+    return search_id
+
+
+def schedule_missing_routes(search_id: str, job: dict, *, retry=False, limit=MAX_QUEUED_ROUTES_PER_SEARCH) -> None:
+    from apps.house.tasks import compute_commute_batch_task
+
+    progress = search_progress(job)
+    if retry:
+        cache.delete_many([route_error_key(building_id, job["destination_id"], job["mode"]) for building_id in progress["missing_ids"]])
+    elif progress["status"] == "failed":
+        return
+    queued = 0
+    for building_id in progress["missing_ids"]:
+        key = route_task_key(building_id, job["destination_id"], job["mode"])
+        if not cache.add(key, 1, timeout=120):
+            continue
+        try:
+            compute_commute_batch_task.delay(search_id, [building_id])
+        except Exception as exc:
+            cache.delete(key)
+            job["error"] = "路线任务暂时无法提交，请稍后重试计算"
+            cache.set(job_cache_key(search_id), job, timeout=JOB_TTL_SECONDS)
+            raise HouseUnavailableException(job["error"]) from exc
+        queued += 1
+        if queued >= limit:
+            break
+
+
+def get_search_progress(search_id: str) -> dict:
+    job = get_search(search_id)
+    if job is None:
+        raise NotFoundException("搜索已过期，请重新搜索")
+    progress = search_progress(job)
+    return {key: progress[key] for key in ("status", "processed", "total", "error")}
 
 
 def search_progress(job: dict) -> dict:

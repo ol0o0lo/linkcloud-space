@@ -1,3 +1,6 @@
+from unittest.mock import patch
+
+from django.contrib.postgres.operations import CreateExtension
 from django.db import IntegrityError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.db.migrations.recorder import MigrationRecorder
@@ -6,33 +9,45 @@ from django.test import TransactionTestCase, override_settings
 from model_bakery import baker
 
 
-def migration_targets(executor, house_target):
-    """将房源应用回退到目标迁移，同时排除依赖房源最新迁移的收藏应用。"""
-    return [target for target in executor.loader.graph.leaf_nodes() if target[0] not in {"house", "favorites"}] + [house_target]
+def applied_migration_apps():
+    loader = MigrationExecutor(connection).loader
+    return loader.project_state(list(loader.applied_migrations)).apps
 
 
 @override_settings(MIGRATION_MODULES={})
-class TestOptionalBuildingEstateMigration(TransactionTestCase):
-    migrate_from = [("house", "0005_remove_house_available_from")]
-    migrate_to = [("house", "0008_building_images")]
-
+class HouseMigrationTestCase(TransactionTestCase):
     def setUp(self):
         super().setUp()
+        # PostGIS 是测试数据库的共享基础设施，回退房源迁移时应保留。
+        extension_patch = patch.object(CreateExtension, "database_backwards", return_value=None)
+        extension_patch.start()
+        self.addCleanup(extension_patch.stop)
+
         executor = MigrationExecutor(connection)
         recorder = MigrationRecorder(connection)
+        # --nomigrations 按现有模型建表，需要补齐当前结构的迁移记录。
         for app_label, migration_name in executor.loader.graph.nodes:
-            recorder.record_applied(app_label, migration_name)
+            if (app_label, migration_name) not in executor.loader.applied_migrations:
+                recorder.record_applied(app_label, migration_name)
         executor = MigrationExecutor(connection)
-        self.migrate_from_targets = migration_targets(executor, self.migrate_from[0])
-        executor.migrate(self.migrate_from_targets)
+        self.addCleanup(self.restore_latest_schema)
+        executor.migrate(self.migrate_from)
         self.executor = MigrationExecutor(connection)
-        self.migrate_to_targets = migration_targets(self.executor, self.migrate_to[0])
-        self.old_apps = self.executor.loader.project_state(self.migrate_from_targets).apps
+        # 其他应用仍处于各自已应用的版本，不能仅用房源祖先迁移推导它们的模型。
+        self.old_apps = applied_migration_apps()
 
-    def tearDown(self):
+    def restore_latest_schema(self):
         executor = MigrationExecutor(connection)
         executor.migrate(executor.loader.graph.leaf_nodes())
+
+    def tearDown(self):
+        self.restore_latest_schema()
         super().tearDown()
+
+
+class TestOptionalBuildingEstateMigration(HouseMigrationTestCase):
+    migrate_from = [("house", "0005_remove_house_available_from")]
+    migrate_to = [("house", "0008_building_images")]
 
     def make_old_hierarchy(self):
         Organization = self.old_apps.get_model("organizations", "Organization")
@@ -52,8 +67,8 @@ class TestOptionalBuildingEstateMigration(TransactionTestCase):
             address="  海滨路  20  号  ",
         )
 
-        self.executor.migrate(self.migrate_to_targets)
-        new_apps = self.executor.loader.project_state(self.migrate_to_targets).apps
+        self.executor.migrate(self.migrate_to)
+        new_apps = applied_migration_apps()
         Building = new_apps.get_model("house", "Building")
 
         migrated = Building.objects.get(pk=building.pk)
@@ -80,7 +95,7 @@ class TestOptionalBuildingEstateMigration(TransactionTestCase):
 
         try:
             with self.assertRaises(RuntimeError):
-                self.executor.migrate(self.migrate_to_targets)
+                self.executor.migrate(self.migrate_to)
 
             self.assertFalse(MigrationRecorder(connection).migration_qs.filter(app="house", name="0006_optional_building_estate").exists())
             self.assertTrue(MigrationRecorder(connection).migration_qs.filter(app="house", name="0005_remove_house_available_from").exists())
@@ -90,31 +105,12 @@ class TestOptionalBuildingEstateMigration(TransactionTestCase):
             self.assertEqual(Building.objects.get(pk=second.pk).address, "地址二")
         finally:
             Building.objects.filter(pk=second.pk).update(name="2 栋")
-            MigrationExecutor(connection).migrate(self.migrate_to_targets)
+            MigrationExecutor(connection).migrate(self.migrate_to)
 
 
-@override_settings(MIGRATION_MODULES={})
-class TestUnifiedHouseStatusMigration(TransactionTestCase):
+class TestUnifiedHouseStatusMigration(HouseMigrationTestCase):
     migrate_from = [("house", "0011_property_responsibility_audit_fields")]
     migrate_to = [("house", "0012_unify_house_status")]
-
-    def setUp(self):
-        super().setUp()
-        executor = MigrationExecutor(connection)
-        recorder = MigrationRecorder(connection)
-        for app_label, migration_name in executor.loader.graph.nodes:
-            recorder.record_applied(app_label, migration_name)
-        executor = MigrationExecutor(connection)
-        self.migrate_from_targets = migration_targets(executor, self.migrate_from[0])
-        executor.migrate(self.migrate_from_targets)
-        self.executor = MigrationExecutor(connection)
-        self.migrate_to_targets = migration_targets(self.executor, self.migrate_to[0])
-        self.old_apps = self.executor.loader.project_state(self.migrate_from_targets).apps
-
-    def tearDown(self):
-        executor = MigrationExecutor(connection)
-        executor.migrate(executor.loader.graph.leaf_nodes())
-        super().tearDown()
 
     def test_migrates_legacy_state_to_single_status_without_dropping_columns(self):
         Organization = self.old_apps.get_model("organizations", "Organization")
@@ -131,8 +127,8 @@ class TestUnifiedHouseStatusMigration(TransactionTestCase):
         locked = baker.make(House, building=building, room_number="105", status="locked", publish_status="published", is_active=True)
         inactive = baker.make(House, building=building, room_number="106", status="vacant", publish_status="published", is_active=False)
 
-        self.executor.migrate(self.migrate_to_targets)
-        new_apps = self.executor.loader.project_state(self.migrate_to_targets).apps
+        self.executor.migrate(self.migrate_to)
+        new_apps = applied_migration_apps()
         MigratedHouse = new_apps.get_model("house", "House")
 
         self.assertEqual(MigratedHouse.objects.get(pk=vacant.pk).status, "vacant")

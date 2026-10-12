@@ -4,8 +4,8 @@ from typing import Any
 from apps.favorites.registry import FavoriteDisplayFact, FavoriteTargetDisplay, get_target_adapter, register_target_adapter
 from apps.favorites.targets import IntegerFavoriteTargetAdapter
 from apps.house.formatters import format_house_layout
-from apps.house.schemas import FavoriteBuildingTargetOut, FavoriteEstateTargetOut, PublicHouseListOut
-from apps.house.services import get_public_buildings_queryset, get_public_estates_queryset, get_public_houses_queryset
+from apps.house.queries.public import get_public_buildings_queryset, get_public_estates_queryset, get_public_houses_queryset
+from apps.house.schemas.public import FavoriteBuildingTargetOut, FavoriteEstateTargetOut, PublicHouseListOut
 
 
 def _cover_url(serialized_target: dict[str, Any]) -> str | None:

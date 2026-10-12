@@ -9,10 +9,10 @@ from django.utils import timezone
 import requests
 from model_bakery import baker
 
+from apps.geography.coordinates import make_wgs84_point
+from apps.geography.models import MetroCity, MetroLine, MetroLineStation, MetroStation
 from apps.house.constants import ContactRole, EstatePropertyType, HouseListingType, HouseStatus
-from apps.house.geo.coordinates import make_wgs84_point
 from apps.house.models import Building, Contact, Estate, House
-from apps.metro.models import MetroCity, MetroLine, MetroLineStation, MetroStation
 from tests.api_helpers import api_data
 
 
@@ -144,6 +144,34 @@ class PublicHouseApiTestCase(TestCase):
 
         district_results = api_data(self.client.get("/api/public/houses/", {"keyword": "南山", "city": "深圳", "page": 1, "page_size": 20}))
         self.assertEqual([item["id"] for item in district_results["items"]], [visible.pk])
+
+    def test_public_house_suggestions_follow_nearby_location(self):
+        nearby = self.make_house(org_slug="suggest-near", org_name="附近甲", room_number="101")
+        nearby.listing_type = HouseListingType.WHOLE
+        nearby.save(update_fields=["listing_type", "updated_at"])
+        shared = self.make_house(org_slug="suggest-shared", org_name="附近合租", room_number="303")
+        shared.listing_type = HouseListingType.SHARED
+        shared.save(update_fields=["listing_type", "updated_at"])
+        outside = self.make_house(org_slug="suggest-far", org_name="附近乙", room_number="202")
+        for house, longitude in ((nearby, 113.93), (shared, 113.931), (outside, 114.1)):
+            house.building.location = make_wgs84_point(longitude, 22.533, "gcj02")
+            house.building.save(update_fields=["location", "updated_at"])
+        params = {
+            "longitude": 113.93,
+            "latitude": 22.533,
+            "radius_m": 1000,
+            "coordinate_system": "gcj02",
+            "city": "广州",
+        }
+
+        nearby_addresses = api_data(self.client.get("/api/public/houses/suggestions/", params))
+        self.assertIn(nearby.building.estate.display_name, [item["keyword"] for item in nearby_addresses])
+        self.assertIn(shared.building.estate.display_name, [item["keyword"] for item in nearby_addresses])
+        self.assertNotIn(outside.building.estate.display_name, [item["keyword"] for item in nearby_addresses])
+        self.assertEqual(next(item["address"] for item in nearby_addresses if item["keyword"] == nearby.building.estate.display_name), "科技园路")
+
+        typed = api_data(self.client.get("/api/public/houses/suggestions/", {**params, "keyword": "附近", "listing_type": HouseListingType.WHOLE}))
+        self.assertEqual([item["keyword"] for item in typed], [nearby.building.estate.display_name])
 
     def test_public_house_search_filters_global_inventory(self):
         matching = self.make_house(org_slug="filter-a", org_name="筛选甲", room_number="101", asking_rent=Decimal("2600.00"), subdistrict="科技园")
@@ -447,15 +475,18 @@ class PublicHouseApiTestCase(TestCase):
         )
 
     @override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}})
-    def test_public_house_regions_uses_short_cache(self):
+    def test_public_house_regions_refreshes_after_committed_changes(self):
         cache.clear()
         self.make_house(org_slug="region-cache-a", org_name="缓存甲", room_number="101")
         first = api_data(self.client.get("/api/public/houses/regions/"))
-        self.make_house(org_slug="region-cache-b", org_name="缓存乙", room_number="202", city="广州", district="天河")
+        with self.captureOnCommitCallbacks(execute=True):
+            self.make_house(org_slug="region-cache-b", org_name="缓存乙", room_number="202", city="广州", district="天河")
+            self.assertEqual(api_data(self.client.get("/api/public/houses/regions/")), first)
 
         second = api_data(self.client.get("/api/public/houses/regions/"))
 
-        self.assertEqual(second, first)
+        self.assertNotEqual(second, first)
+        self.assertEqual({city["city"] for province in second["items"] for city in province["cities"]}, {"深圳", "广州"})
 
     def test_public_house_map_filters_by_full_region_identity(self):
         shenzhen = self.make_house(org_slug="map-region-a", org_name="地图地区甲", room_number="101", province="广东", city="深圳", district="南山")

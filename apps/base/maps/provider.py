@@ -2,7 +2,7 @@
 
 from typing import Literal, NotRequired, Protocol, TypedDict
 
-from apps.base.maps.coordinates import MapPoint
+from apps.geography.coordinates import MapPoint
 
 
 class NearbyPoi(TypedDict):

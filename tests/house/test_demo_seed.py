@@ -3,10 +3,11 @@ from unittest.mock import patch
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
-from apps.house.guangzhou_seed import DEMO_ORGANIZATION_SLUG
+from apps.geography.models import MetroCity, MetroLine, MetroLineStation, MetroStation
 from apps.house.models import House
-from apps.house.services import build_public_house_regions, get_public_houses_queryset
-from apps.metro.models import MetroCity, MetroLine, MetroLineStation, MetroStation
+from apps.house.queries.public import build_public_house_regions, get_public_houses_queryset
+from apps.house.seeds.guangzhou import DEMO_ORGANIZATION_SLUG, seed_guangzhou_ui_data
+from apps.organizations.models import Organization
 
 
 @override_settings(DEBUG=True)
@@ -33,7 +34,7 @@ class HousingUiDemoSeedTestCase(TestCase):
         ],
     }
 
-    @patch("apps.house.guangzhou_seed.fetch_amap_guangzhou_metro_payload", return_value=metro_payload)
+    @patch("apps.house.seeds.guangzhou.fetch_amap_guangzhou_metro_payload", return_value=metro_payload)
     def test_seed_command_populates_complete_guangzhou_filter_data_idempotently(self, _fetch_metro):
         call_command("seed_housing_ui_demo")
         initial_counts = (
@@ -71,3 +72,13 @@ class HousingUiDemoSeedTestCase(TestCase):
         tianhe = next(item for item in guangzhou["districts"] if item["district"] == "天河区")
         self.assertEqual({item["subdistrict"] for item in tianhe["subdistricts"]}, {"珠江新城", "天河北", "车陂"})
         self.assertEqual(House.objects.filter(building__organization__slug=DEMO_ORGANIZATION_SLUG).count(), 46)
+
+    def test_demo_houses_stay_in_dedicated_organization_when_business_organizations_exist(self):
+        first = Organization.objects.create(slug="existing-business", name="现有业务组织")
+        demo_space = Organization.objects.create(slug="demo-space", name="已有演示空间")
+
+        result = seed_guangzhou_ui_data(source=self.metro_payload)
+
+        self.assertEqual(result.organization_slug, DEMO_ORGANIZATION_SLUG)
+        self.assertEqual(House.objects.filter(building__organization__slug=DEMO_ORGANIZATION_SLUG).count(), 46)
+        self.assertFalse(House.objects.filter(building__organization__in=[first, demo_space]).exists())

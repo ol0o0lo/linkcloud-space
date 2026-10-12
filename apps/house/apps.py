@@ -7,6 +7,7 @@ class HouseConfig(AppConfig):
     verbose_name = "房源租赁"
 
     def ready(self):
+        from apps.house import signals  # noqa: F401, PLC0415
         from apps.house.favorite_targets import register_favorite_target_adapters  # noqa: PLC0415
 
         register_favorite_target_adapters()

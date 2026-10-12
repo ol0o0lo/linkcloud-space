@@ -1,8 +1,8 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.core.exceptions import ValidationError
 from django.contrib.gis.geos import Point
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import ProtectedError
 from django.test import TestCase
@@ -11,10 +11,10 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.accounts.services import bind_phone_to_user
+from apps.geography.coordinates import make_wgs84_point, serialize_point
 from apps.house.constants import ContactRole, EstatePropertyType, HouseStatus, LeaseStatus, ViewingRecordStatus
-from apps.house.geo.coordinates import make_wgs84_point, serialize_point
 from apps.house.models import Building, Contact, Estate, House, Lease, ViewingRecord
-from apps.house.services import get_landlord_houses, get_landlord_leases
+from apps.house.queries.landlord import get_landlord_houses, get_landlord_leases
 from apps.media.constants import MediaType, ResourceType
 from apps.media.services import collect_media_ref_field_ids, register_media_file
 

@@ -21,16 +21,17 @@ from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
 from apps.base.responses import EnvelopedNinjaAPI
 from apps.favorites.api import router as favorites_router
+from apps.geography.api import metro_router as metro_public_router
+from apps.geography.api import router as geography_router
 from apps.house.api import landlord_router as house_landlord_router
 from apps.house.api import public_landlord_router as house_public_landlord_router
 from apps.house.api import public_router as house_public_router
 from apps.house.api import router as house_router
 from apps.house.api import tenant_router as house_tenant_router
+from apps.house.api.matching import public_router as house_match_public_router
+from apps.house.api.matching import router as house_match_router
 from apps.house.commute.api import public_router as house_commute_public_router
-from apps.house.match_api import public_router as house_match_public_router
-from apps.house.match_api import router as house_match_router
 from apps.media.api import router as media_router
-from apps.metro.api import public_router as metro_public_router
 from apps.notifications.api import dispatches_router as notification_dispatches_router
 from apps.notifications.api import router as notifications_router
 from apps.organizations.api import (
@@ -134,6 +135,7 @@ api.add_router("/house/landlord/", house_landlord_router)
 api.add_router("/public/houses/commute/", house_commute_public_router)
 api.add_router("/public/houses/", house_public_router)
 api.add_router("/public/metro/", metro_public_router)
+api.add_router("/geography/", geography_router)
 api.add_router("/public/house-match-shares/", house_match_public_router)
 api.add_router("/public/landlords/", house_public_landlord_router)
 api.add_router("/users/me/favorite/", favorites_router)

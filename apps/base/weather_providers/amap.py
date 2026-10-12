@@ -4,7 +4,6 @@ import math
 import re
 
 from apps.base.maps.amap import AmapProvider, _region_component
-from apps.base.maps.coordinates import MapPoint
 from apps.base.maps.provider import MapProviderConfigurationError, MapProviderResponseError, MapProviderUnavailable
 from apps.base.weather_providers.cache import CachedWeatherProvider
 from apps.base.weather_providers.provider import (
@@ -14,6 +13,7 @@ from apps.base.weather_providers.provider import (
     WeatherProviderUnavailable,
     WeatherRegion,
 )
+from apps.geography.coordinates import MapPoint
 
 
 class AmapWeatherProvider(CachedWeatherProvider):
