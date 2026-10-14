@@ -189,6 +189,30 @@ class TestGetAllOrgSettings:
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("value", [False, 0, "", [], {}])
+def test_falsy_setting_overrides_keep_values_and_inheritance_sources(org, team, value):
+    setting = DefaultSetting.objects.create(key="falsy_override", value={"default": True}, value_type="json", ui={"inherit_org": True})
+    OrganizationSetting.objects.create(organization=org, setting=setting, value=value)
+
+    org_result = get_org_setting(org, setting.key)
+    inherited = get_team_setting(team, setting.key)
+    assert org_result["value"] == inherited["value"] == value
+    assert type(org_result["value"]) is type(value)
+    assert org_result["is_customized"] is True
+    assert inherited["is_customized"] is False
+    assert org_result["value_source"] == inherited["value_source"] == "organization"
+    assert next(item for item in get_all_org_settings(org) if item["key"] == setting.key) == org_result
+    assert next(item for item in get_all_team_settings(team) if item["key"] == setting.key) == inherited
+
+    TeamSetting.objects.create(team=team, setting=setting, value=value)
+    customized = get_team_setting(team, setting.key)
+    assert customized["value"] == value
+    assert customized["is_customized"] is True
+    assert customized["value_source"] == "team"
+    assert next(item for item in get_all_team_settings(team) if item["key"] == setting.key) == customized
+
+
+@pytest.mark.django_db
 class TestSetOrgSetting:
     def test_creates_override(self, default_text, org):
         set_org_setting(org, "site_name", "New Name")

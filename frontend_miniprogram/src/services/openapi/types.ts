@@ -1763,6 +1763,161 @@ export type BulkResultOut = {
   deleted?: number;
 };
 
+export enum CategoryEnum {
+  '区域' = '区域',
+  '商圈' = '商圈',
+  '小区' = '小区',
+  '楼栋' = '楼栋',
+  '房号' = '房号',
+}
+
+export type ICategoryEnum = keyof typeof CategoryEnum;
+
+export type CommuteDestinationIn = {
+  /** Place Token */
+  place_token: string;
+};
+
+export type CommuteDestinationOut = {
+  /** Destination Id */
+  destination_id: number;
+};
+
+export type CommuteHouseOut = {
+  /** Id */
+  id: number;
+  /** Room Number */
+  room_number: string;
+  listing_type: HouseListingType | null;
+  /** Floor */
+  floor: number | null;
+  /** Area */
+  area: string | null;
+  /** Asking Rent */
+  asking_rent: string | null;
+  /** Deposit Amount */
+  deposit_amount: string | null;
+  /** Bedrooms */
+  bedrooms: number | null;
+  /** Living Rooms */
+  living_rooms: number | null;
+  /** Bathrooms */
+  bathrooms: number | null;
+  /** Orientation */
+  orientation: string | null;
+  /** Orientation  Mapping */
+  orientation__mapping: string;
+  /** Decoration */
+  decoration: string | null;
+  /** Decoration  Mapping */
+  decoration__mapping: string;
+  /** Has Elevator Access */
+  has_elevator_access: boolean;
+  /** Images */
+  images: ResolvedMediaRefOut[];
+  /** Tags */
+  tags: string[];
+  /** Effective Tags */
+  effective_tags: string[];
+  /** Public Description */
+  public_description: string;
+  building: PublicBuildingOut;
+  publisher: PublicPublisherOut;
+  /** Updated At */
+  updated_at: string;
+  /** Distance M */
+  distance_m?: number | null;
+  nearest_metro_station?: NearestMetroStationOut | null;
+  /** Commute Minutes */
+  commute_minutes: number;
+  /** Commute Route Id */
+  commute_route_id: number;
+};
+
+export type CommutePlaceOut = {
+  /** Name */
+  name: string;
+  /** Address */
+  address: string;
+  /** City */
+  city: string;
+  /** Token */
+  token: string;
+  /** Distance M */
+  distance_m?: number | null;
+};
+
+export type CommuteProgressOut = {
+  /** Status */
+  status: 'pending' | 'ready' | 'failed';
+  /** Processed */
+  processed: number;
+  /** Total */
+  total: number;
+  /** Error */
+  error: string;
+};
+
+export type CommuteRouteForHouseIn = {
+  /** House Id */
+  house_id: number;
+  /** Destination Id */
+  destination_id: number;
+  /** Mode */
+  mode: 'metro' | 'ebike' | 'bicycle' | 'walking' | 'driving';
+};
+
+export type CommuteRouteOut = {
+  /** Mode */
+  mode: 'metro' | 'ebike' | 'bicycle' | 'walking' | 'driving';
+  /** Destination Name */
+  destination_name: string;
+  /** Duration Minutes */
+  duration_minutes: number;
+  /** Distance M */
+  distance_m: number;
+  /** Walking Distance M */
+  walking_distance_m: number;
+  /** Steps */
+  steps: string[];
+  /** Transit Segments */
+  transit_segments: CommuteTransitSegmentOut[];
+};
+
+export type CommuteSearchCreatedOut = {
+  /** Search Id */
+  search_id: string;
+  /** Destination Id */
+  destination_id: number;
+};
+
+export type CommuteSearchIn = {
+  /** Place Token */
+  place_token?: string | null;
+  /** Destination Id */
+  destination_id?: number | null;
+  /** Mode */
+  mode: 'metro' | 'ebike' | 'bicycle' | 'walking' | 'driving';
+  /** Max Minutes */
+  max_minutes: number;
+  filters?: PublicHouseSearchFilters;
+  /** Retry */
+  retry?: boolean;
+};
+
+export type CommuteTransitSegmentOut = {
+  /** Kind */
+  kind: 'walk' | 'metro';
+  /** Label */
+  label: string;
+  /** Distance M */
+  distance_m: number;
+  /** Duration Seconds */
+  duration_seconds: number | null;
+  /** Color */
+  color?: string;
+};
+
 export type ContactIn = {
   /** Name */
   name: string;
@@ -2033,6 +2188,15 @@ export type CurrentSubscriptionOut = {
   /** Subscription */
   subscription: Record<string, unknown> | null;
   recommendation: UpgradeRecommendationOut | null;
+};
+
+export type CurrentWeatherOut = {
+  /** Provider */
+  provider: 'amap' | 'qweather';
+  location: WeatherLocationOut;
+  current: WeatherNowOut;
+  /** Stale */
+  stale: boolean;
 };
 
 export type CustomRoleCreateIn = {
@@ -2914,7 +3078,6 @@ export type HouseHousesUsingGetParams = {
   building_id?: number | null;
   responsible_member_id?: number | null;
   scope?: 'all' | 'mine' | null;
-  responsibility?: string | null;
   inspection_due?: boolean;
   inspection_reason?: 'missing_images' | 'missing_videos' | 'expired' | null;
   status?: HouseStatus | null;
@@ -2946,6 +3109,7 @@ export type HouseIn = {
   landlord_id?: number | null;
   /** Room Number */
   room_number: string;
+  listing_type?: HouseListingType | null;
   /** Floor */
   floor?: number | null;
   /** Area */
@@ -3162,12 +3326,14 @@ export type HouseLeasesUsingPostResponses = {
   201: LeaseOut;
 };
 
-export type HouseLeasesWithAllocationUsingPostResponses = {
-  /**
-   * Created
-   */
-  201: LeaseAllocationOut;
-};
+export enum HouseListingType {
+  'whole' = 'whole',
+  'shared' = 'shared',
+  'apartment' = 'apartment',
+  'short_term' = 'short_term',
+}
+
+export type IHouseListingType = keyof typeof HouseListingType;
 
 export type HouseMatchConsultantOut = {
   /** Id */
@@ -3318,6 +3484,7 @@ export type HouseOut = {
   landlord: ContactSummaryOut | null;
   /** Room Number */
   room_number: string;
+  listing_type: HouseListingType | null;
   /** Floor */
   floor: number | null;
   /** Area */
@@ -3384,6 +3551,7 @@ export type HousePatchIn = {
   landlord_id?: number | null;
   /** Room Number */
   room_number?: string | null;
+  listing_type?: HouseListingType | null;
   /** Floor */
   floor?: number | null;
   /** Area */
@@ -3846,6 +4014,13 @@ export type InvoiceRequestOut = {
   created_at: string;
 };
 
+export enum KindEnum {
+  'walk' = 'walk',
+  'metro' = 'metro',
+}
+
+export type IKindEnum = keyof typeof KindEnum;
+
 export type LandlordHouseOut = {
   /** Id */
   id: number;
@@ -4059,14 +4234,6 @@ export type LeasePatchIn = {
   notes?: string | null;
   /** Extra */
   extra?: Record<string, unknown> | null;
-};
-
-export type LeaseWithAllocationIn = {
-  lease: LeaseIn;
-  /** Team Id */
-  team_id?: number | null;
-  /** Beneficiary User Ids */
-  beneficiary_user_ids: number[];
 };
 
 export enum LevelEnum {
@@ -4348,6 +4515,36 @@ export enum ModeEnum3 {
 }
 
 export type IModeEnum3 = keyof typeof ModeEnum3;
+
+export enum ModeEnum4 {
+  'metro' = 'metro',
+  'ebike' = 'ebike',
+  'bicycle' = 'bicycle',
+  'walking' = 'walking',
+  'driving' = 'driving',
+}
+
+export type IModeEnum4 = keyof typeof ModeEnum4;
+
+export enum ModeEnum5 {
+  'metro' = 'metro',
+  'ebike' = 'ebike',
+  'bicycle' = 'bicycle',
+  'walking' = 'walking',
+  'driving' = 'driving',
+}
+
+export type IModeEnum5 = keyof typeof ModeEnum5;
+
+export enum ModeEnum6 {
+  'metro' = 'metro',
+  'ebike' = 'ebike',
+  'bicycle' = 'bicycle',
+  'walking' = 'walking',
+  'driving' = 'driving',
+}
+
+export type IModeEnum6 = keyof typeof ModeEnum6;
 
 export type MonthlyAccrualTotalOut = {
   /** Beneficiary User Id */
@@ -5336,6 +5533,17 @@ export type PagedBuildingMapUnlocatedOut = {
   page_size: number;
 };
 
+export type PagedCommuteHouseOut = {
+  /** Items */
+  items: CommuteHouseOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedContactOut = {
   /** Items */
   items: ContactOut[];
@@ -5903,6 +6111,13 @@ export type PropertyResponsibilityUpdateIn = {
   estate_ids?: number[];
 };
 
+export enum ProviderEnum {
+  'amap' = 'amap',
+  'qweather' = 'qweather',
+}
+
+export type IProviderEnum = keyof typeof ProviderEnum;
+
 export type PublicBuildingOut = {
   /** Id */
   id: number;
@@ -5982,6 +6197,7 @@ export type PublicHouseDetailOut = {
   id: number;
   /** Room Number */
   room_number: string;
+  listing_type: HouseListingType | null;
   /** Floor */
   floor: number | null;
   /** Area */
@@ -6021,6 +6237,10 @@ export type PublicHouseDetailOut = {
   /** Distance M */
   distance_m?: number | null;
   nearest_metro_station?: NearestMetroStationOut | null;
+  /** Commute Minutes */
+  commute_minutes?: number | null;
+  /** Commute Route Id */
+  commute_route_id?: number | null;
   /** Interior Area */
   interior_area: string | null;
   /** Kitchens */
@@ -6059,6 +6279,7 @@ export type PublicHouseListOut = {
   id: number;
   /** Room Number */
   room_number: string;
+  listing_type: HouseListingType | null;
   /** Floor */
   floor: number | null;
   /** Area */
@@ -6098,6 +6319,10 @@ export type PublicHouseListOut = {
   /** Distance M */
   distance_m?: number | null;
   nearest_metro_station?: NearestMetroStationOut | null;
+  /** Commute Minutes */
+  commute_minutes?: number | null;
+  /** Commute Route Id */
+  commute_route_id?: number | null;
 };
 
 export type PublicHouseLocatedRegionOut = {
@@ -6243,6 +6468,127 @@ export type PublicHouseRegionSubdistrictOut = {
   house_count: number;
 };
 
+export type PublicHousesCommuteDestinationsUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: CommuteDestinationOut;
+};
+
+export type PublicHousesCommutePlacesUsingGetParams = {
+  keyword?: string;
+  city?: string;
+  lat?: number | null;
+  lng?: number | null;
+};
+
+export type PublicHousesCommutePlacesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: CommutePlaceOut[];
+};
+
+export type PublicHousesCommuteRoutesForHouseUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: CommuteRouteOut;
+};
+
+export type PublicHousesCommuteRoutesRouteIdUsingGetParams = {
+  route_id: number;
+  house_id: number;
+};
+
+export type PublicHousesCommuteRoutesRouteIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: CommuteRouteOut;
+};
+
+export type PublicHousesCommuteSearchesSearchIdHousesUsingGetParams = {
+  search_id: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type PublicHousesCommuteSearchesSearchIdHousesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedCommuteHouseOut;
+};
+
+export type PublicHousesCommuteSearchesSearchIdUsingGetParams = {
+  search_id: string;
+};
+
+export type PublicHousesCommuteSearchesSearchIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: CommuteProgressOut;
+};
+
+export type PublicHousesCommuteSearchesUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: CommuteSearchCreatedOut;
+};
+
+export type PublicHouseSearchFilters = {
+  /** Keyword */
+  keyword?: string | null;
+  listing_type?: HouseListingType | null;
+  /** Province */
+  province?: string | null;
+  /** City */
+  city?: string | null;
+  /** District */
+  district?: string | null;
+  /** Subdistrict */
+  subdistrict?: string | null;
+  /** Estate Id */
+  estate_id?: number | null;
+  /** Building Id */
+  building_id?: number | null;
+  /** Min Rent */
+  min_rent?: number | string | null;
+  /** Max Rent */
+  max_rent?: number | string | null;
+  /** Min Area */
+  min_area?: number | string | null;
+  /** Max Area */
+  max_area?: number | string | null;
+  /** Bedrooms */
+  bedrooms?: number | null;
+  /** Bedrooms Min */
+  bedrooms_min?: number | null;
+  /** Living Rooms */
+  living_rooms?: number | null;
+  /** Decoration */
+  decoration?: string | null;
+  /** Has Elevator Access */
+  has_elevator_access?: boolean | null;
+  /** Tags */
+  tags?: string[] | null;
+  /** Publisher Slug */
+  publisher_slug?: string | null;
+  /** Metro Stations */
+  metro_stations?: string[] | null;
+  /** Longitude */
+  longitude?: number | string | null;
+  /** Latitude */
+  latitude?: number | string | null;
+  /** Radius M */
+  radius_m?: number;
+  /** Coordinate System */
+  coordinate_system?: string | null;
+};
+
 export type PublicHousesFiltersUsingGetResponses = {
   /**
    * OK
@@ -6268,6 +6614,9 @@ export type PublicHousesMapUsingGetParams = {
   east?: number | string | null;
   north?: number | string | null;
   keyword?: string | null;
+  listing_type?: HouseListingType | null;
+  bedrooms?: number | null;
+  bedrooms_min?: number | null;
   province?: string | null;
   city?: string | null;
   district?: string | null;
@@ -6305,8 +6654,30 @@ export type PublicHousesRegionsUsingGetResponses = {
   200: PublicHouseRegionsOut;
 };
 
+export type PublicHousesSuggestionsUsingGetParams = {
+  keyword?: string;
+  city?: string | null;
+};
+
+export type PublicHousesSuggestionsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PublicHouseSuggestionOut[];
+};
+
+export type PublicHouseSuggestionOut = {
+  /** Keyword */
+  keyword: string;
+  /** Category */
+  category: '区域' | '商圈' | '小区' | '楼栋' | '房号';
+  /** House Count */
+  house_count: number;
+};
+
 export type PublicHousesUsingGetParams = {
   keyword?: string | null;
+  listing_type?: HouseListingType | null;
   province?: string | null;
   city?: string | null;
   district?: string | null;
@@ -6318,6 +6689,7 @@ export type PublicHousesUsingGetParams = {
   min_area?: number | string | null;
   max_area?: number | string | null;
   bedrooms?: number | null;
+  bedrooms_min?: number | null;
   living_rooms?: number | null;
   decoration?: string | null;
   has_elevator_access?: boolean | null;
@@ -6328,13 +6700,15 @@ export type PublicHousesUsingGetParams = {
   latitude?: number | string | null;
   radius_m?: number;
   coordinate_system?: string | null;
+  commute_search_id?: string | null;
   sort?:
     | 'latest'
     | 'rent_asc'
     | 'rent_desc'
     | 'area_asc'
     | 'area_desc'
-    | 'distance_asc';
+    | 'distance_asc'
+    | 'commute_asc';
   page?: number;
   page_size?: number | null;
 };
@@ -7292,6 +7666,13 @@ export enum SortEnum {
 
 export type ISortEnum = keyof typeof SortEnum;
 
+export enum SourceEnum {
+  'device' = 'device',
+  'default' = 'default',
+}
+
+export type ISourceEnum = keyof typeof SourceEnum;
+
 export type SplitPhoneIn = {
   /** Phone Country Code 手机号国家区号。 */
   phone_country_code?: string;
@@ -7343,6 +7724,14 @@ export enum StatusEnum3 {
 }
 
 export type IStatusEnum3 = keyof typeof StatusEnum3;
+
+export enum StatusEnum4 {
+  'pending' = 'pending',
+  'ready' = 'ready',
+  'failed' = 'failed',
+}
+
+export type IStatusEnum4 = keyof typeof StatusEnum4;
 
 export type SubscriptionsCurrentUsingGetResponses = {
   /**
@@ -8820,6 +9209,41 @@ export type WalletSummaryOut = {
   total_income: number;
   /** Total Withdrawn */
   total_withdrawn: number;
+};
+
+export type WeatherCurrentUsingGetParams = {
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  coordinate_system?: string;
+};
+
+export type WeatherCurrentUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: CurrentWeatherOut;
+};
+
+export type WeatherLocationOut = {
+  /** Province */
+  province: string;
+  /** City */
+  city: string;
+  /** District */
+  district: string;
+  /** Source */
+  source: 'device' | 'default';
+};
+
+export type WeatherNowOut = {
+  /** Temperature C */
+  temperature_c: number;
+  /** Condition */
+  condition: string;
+  /** Humidity Percent */
+  humidity_percent: number | null;
+  /** Observed At */
+  observed_at: string;
 };
 
 export type WechatMiniprogramConnectIn = {

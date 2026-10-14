@@ -339,6 +339,20 @@ def load_media_refs(media_refs: Iterable[int | Mapping[str, Any]], *, media_by_i
     return MediaRefBatch(refs=refs, ids=ordered_ids, media_by_id=media_by_id)
 
 
+def _resolve_callback(callback: str | Callable) -> Callable:
+    if isinstance(callback, str):
+        module_path, func_name = callback.rsplit(".", 1)
+        return getattr(import_module(module_path), func_name)
+    return callback
+
+
+def _provider_reference_ids(providers: Iterable[str | Callable]) -> set[int]:
+    referenced_ids: set[int] = set()
+    for provider in providers:
+        referenced_ids.update(int(media_id) for media_id in _resolve_callback(provider)() if media_id)
+    return referenced_ids
+
+
 def validate_media_refs(
     media_refs: Iterable[int | Mapping[str, Any]],
     *,
@@ -371,12 +385,7 @@ def validate_media_refs(
         normalized_refs.append(item)
 
     for validator in business_validators or []:
-        if isinstance(validator, str):
-            module_path, func_name = validator.rsplit(".", 1)
-            callback = getattr(import_module(module_path), func_name)
-        else:
-            callback = validator
-        callback(instance=instance, refs=normalized_refs, media_by_id=batch.media_by_id, field=field)
+        _resolve_callback(validator)(instance=instance, refs=normalized_refs, media_by_id=batch.media_by_id, field=field)
     return normalized_refs
 
 
@@ -435,13 +444,7 @@ def collect_referenced_media_ids(providers: Iterable[str | Callable[[], Iterable
     provider 只负责上报“哪些 MediaFile 仍被业务引用”，不负责删除媒体。
     """
     referenced_ids, _ = collect_media_ref_field_ids()
-    for provider in providers or getattr(settings, "MEDIA_REFERENCE_PROVIDERS", []):
-        if isinstance(provider, str):
-            module_path, func_name = provider.rsplit(".", 1)
-            callback = getattr(import_module(module_path), func_name)
-        else:
-            callback = provider
-        referenced_ids.update(int(media_id) for media_id in callback() if media_id)
+    referenced_ids.update(_provider_reference_ids(providers or getattr(settings, "MEDIA_REFERENCE_PROVIDERS", [])))
     return referenced_ids
 
 
@@ -481,14 +484,7 @@ def cleanup_unreferenced_media(
         field_referenced_ids, has_media_ref_fields = collect_media_ref_field_ids()
         if not providers and not has_media_ref_fields:
             return CleanupResult(deleted_count=0, deleted_ids=[])
-        referenced_ids = set(field_referenced_ids)
-        for provider in providers:
-            if isinstance(provider, str):
-                module_path, func_name = provider.rsplit(".", 1)
-                callback = getattr(import_module(module_path), func_name)
-            else:
-                callback = provider
-            referenced_ids.update(int(media_id) for media_id in callback() if media_id)
+        referenced_ids = field_referenced_ids | _provider_reference_ids(providers)
 
     cutoff = timezone.now() - older_than
     candidate_ids = list(MediaFile.objects.filter(created_at__lt=cutoff).exclude(pk__in=referenced_ids).order_by("pk").values_list("pk", flat=True))

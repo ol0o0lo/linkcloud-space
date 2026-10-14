@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LeaseContractEditor from '@/pages-org-rental/components/LeaseContractEditor.vue'
 import type { AllocationCapabilitiesOut, HouseOut, ViewingRecordOut } from '@/pages-org-rental/api/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
@@ -34,6 +35,8 @@ const monthlyRent = ref('')
 const deposit = ref('')
 const paymentDay = ref('1')
 const notes = ref('')
+const contractFiles = ref<Record<string, unknown>[]>([])
+const uploadingContract = ref(false)
 const allowed = computed(() => allocationCapabilities.value?.submit === true)
 const previewHouse = computed(() => selectedHouse.value || sourceViewing.value?.house || null)
 
@@ -67,6 +70,8 @@ async function loadSigningContext() {
 }
 
 async function submit() {
+  if (submitting.value || uploadingContract.value)
+    return
   if (!allowed.value) {
     uni.showToast({ title: '当前账号没有签约提交权限', icon: 'none' })
     return
@@ -90,6 +95,7 @@ async function submit() {
         deposit: deposit.value || undefined,
         payment_day: Number(paymentDay.value) || 1,
         notes: notes.value.trim(),
+        contract_files: contractFiles.value.map(file => ({ media_id: Number(file.media_id), media_type: 'file' })),
       },
       beneficiary_user_ids: [beneficiaryUserId],
     })
@@ -131,9 +137,10 @@ onLoad((options) => {
       <wd-input v-model="monthlyRent" label="月租金" type="digit" placeholder="请输入月租金" clearable />
       <wd-input v-model="deposit" label="押金" type="digit" placeholder="可不填" clearable />
       <wd-input v-model="paymentDay" label="付款日" type="number" placeholder="1-31" clearable />
+      <LeaseContractEditor v-model:files="contractFiles" :disabled="submitting" :organization-slug="appContextStore.organizationSlug" @uploading="uploadingContract = $event" />
       <wd-textarea v-model="notes" label="备注" placeholder="补充成交说明" :maxlength="1000" />
       <view class="submit-row">
-        <wd-button block :loading="submitting" @click="submit">
+        <wd-button block :loading="submitting" :disabled="uploadingContract" @click="submit">
           登记签约并提交收益分配
         </wd-button>
       </view>

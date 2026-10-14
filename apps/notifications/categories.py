@@ -29,7 +29,7 @@ The list is what powers the per-user preferences UI and gates delivery through
 """
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from django.conf import settings
 
@@ -79,6 +79,19 @@ def get_categories() -> list[NotificationCategory]:
     )
 
 
+def _channel_enabled(category: NotificationCategory, preference, channel: str) -> bool:
+    if channel in category.required_channels:
+        return True
+    if preference is None:
+        return channel in category.default_channels
+    field = _CHANNEL_FIELD.get(channel)
+    return field is None or getattr(preference, field)
+
+
+def serialize_preference(category: NotificationCategory, preference) -> dict:
+    return {**asdict(category), **{field: _channel_enabled(category, preference, channel) for channel, field in _CHANNEL_FIELD.items()}}
+
+
 def filter_recipients(users: Iterable, category: str, channel: str) -> list:
     """
     Return the subset of `users` that should receive `(category, channel)`.
@@ -101,25 +114,11 @@ def filter_recipients(users: Iterable, category: str, channel: str) -> list:
     if channel in cat.required_channels:
         return users
 
-    default_on = channel in cat.default_channels
-    field = _CHANNEL_FIELD.get(channel)
-
     from apps.notifications.models import NotificationPreference
 
     prefs_by_user_id = {p.user_id: p for p in NotificationPreference.objects.filter(user__in=users, category=category)}
 
-    out = []
-    for u in users:
-        pref = prefs_by_user_id.get(u.pk)
-        if pref is None:
-            if default_on:
-                out.append(u)
-        elif field is None:
-            # Unknown channel — be defensive and allow.
-            out.append(u)
-        elif getattr(pref, field):
-            out.append(u)
-    return out
+    return [user for user in users if _channel_enabled(cat, prefs_by_user_id.get(user.pk), channel)]
 
 
 def should_send(user, category: str, channel: str) -> bool:

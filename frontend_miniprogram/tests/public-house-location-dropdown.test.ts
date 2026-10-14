@@ -136,7 +136,7 @@ test('独立找房页导航栏展示关键词搜索入口和右侧地区入口',
   assert.match(searchPageSource, /navigationBarTitleText:\s*''/)
   assert.match(searchPageSource, /navigation-search-row[\s\S]*navigation-search-bar[\s\S]*PublicHouseRegionTrigger/)
   assert.match(searchPageSource, /class="navigation-search-bar" aria-label="搜索房源" @click="openKeywordSearch"/)
-  assert.match(searchPageSource, /搜索小区、区域或房源/)
+  assert.match(searchPageSource, /搜索地点、小区或房源/)
   assert.match(searchPageSource, /back transparent scroll-mode="sticky"/)
   assert.doesNotMatch(searchPageSource, /class="search-bar"/)
 })

@@ -1181,24 +1181,6 @@ export function houseLeasesDealSigningUsingPost({
   });
 }
 
-/** 创建租约并提交收益分配申请 POST /api/house/leases/with-allocation/ */
-export function houseLeasesWithAllocationUsingPost({
-  body,
-  options,
-}: {
-  body: API.LeaseWithAllocationIn;
-  options?: CustomRequestOptions_;
-}) {
-  return request<API.LeaseAllocationOut>('/api/house/leases/with-allocation/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    data: body,
-    ...(options || {}),
-  });
-}
-
 /** 获取员工房源职责列表 GET /api/house/staff-responsibilities/ */
 export function houseStaffResponsibilitiesUsingGet({
   params,

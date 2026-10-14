@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import HouseH5Map from '@/components/house/HouseH5Map.vue'
+import { useRuntimeStore } from '@/store/runtime'
+import { APP_ROUTES, getOrganizationBuildingFormRoute, getOrganizationEstateFormRoute } from '@/modules/routes'
+
 import type { BuildingMapMarkerOut, EstateMapMarkerOut } from '@/pages-org-rental/api/organization-rental'
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import { getOrganizationUnlocatedBuildingCount, listOrganizationBuildingMap, listOrganizationEstateMap } from '@/pages-org-rental/api/organization-rental'
-import { APP_ROUTES } from '@/modules/routes'
 import AppEmpty from '@/components/app/AppEmpty.vue'
 import AppErrorView from '@/components/app/AppErrorView.vue'
 import AppLoading from '@/components/app/AppLoading.vue'
@@ -14,6 +17,7 @@ import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '房源地图', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
+const runtime = useRuntimeStore()
 const estates = ref<EstateMapMarkerOut[]>([])
 const buildings = ref<BuildingMapMarkerOut[]>([])
 const unlocatedCount = ref(0)
@@ -41,33 +45,22 @@ const markers = computed(() => [
   })),
 ].filter(item => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)))
 
-const coordinateItems = computed(() => [
-  ...estates.value.map(item => ({
-    key: `estate-${item.id}`,
-    name: item.display_name || item.name,
-    address: item.address || '地址未登记',
-    lat: item.location.latitude,
-    lng: item.location.longitude,
-    summary: `${item.building_count} 栋 · ${item.counts.total} 套 · ${item.counts.vacant} 套空置`,
-  })),
-  ...buildings.value.map(item => ({
-    key: `building-${item.id}`,
-    name: item.name,
-    address: item.address || item.estate?.display_name || item.estate?.name || '地址未登记',
-    lat: item.location.latitude,
-    lng: item.location.longitude,
-    summary: `${item.counts.total} 套 · ${item.counts.vacant} 套空置`,
-  })),
-])
-
 const center = computed(() => markers.value[0] || { latitude: 31.2304, longitude: 121.4737 })
 
-function copyCoordinates(lat: string | number, lng: string | number) {
-  uni.setClipboardData({ data: `${lat},${lng}` })
+const h5Markers = computed(() => [
+  ...estates.value.map(item => ({ key: `estate-${item.id}`, city: '', district: '', estate_id: item.id, building_id: null, level: 'estate' as const, name: item.display_name || item.name, address: item.address || '', location: { ...item.location, coordinate_system: 'gcj02' as const }, house_count: item.counts.total, child_count: item.building_count, min_rent: null, target_zoom: 16 })),
+  ...buildings.value.map(item => ({ key: `building-${item.id}`, city: '', district: '', estate_id: item.estate?.id || null, building_id: item.id, level: 'building' as const, name: item.name, address: item.address || '', location: { ...item.location, coordinate_system: 'gcj02' as const }, house_count: item.counts.total, child_count: 0, min_rent: null, target_zoom: 17 })),
+])
+function openMarker(key: string) {
+  const [kind, id] = key.split('-')
+  uni.navigateTo({ url: kind === 'estate' ? getOrganizationEstateFormRoute(Number(id)) : getOrganizationBuildingFormRoute(Number(id)) })
 }
-
+function markerTap(event: { detail: { markerId: number } }) {
+  const id = event.detail.markerId
+  openMarker(id >= 1000000 ? `building-${id - 1000000}` : `estate-${id}`)
+}
 function openBuildings() {
-  uni.navigateTo({ url: APP_ROUTES.organizationBuildings })
+  uni.navigateTo({ url: `${APP_ROUTES.organizationBuildings}?unlocated=1` })
 }
 
 async function loadMap() {
@@ -135,6 +128,7 @@ onPullDownRefresh(loadMap)
         :markers="markers"
         :scale="12"
         show-location
+        @markertap="markerTap"
       />
       <AppEmpty
         v-else
@@ -146,46 +140,29 @@ onPullDownRefresh(loadMap)
       />
       <!-- #endif -->
       <!-- #ifdef H5 -->
-      <view v-if="coordinateItems.length" class="coordinate-list">
-        <view class="coordinate-intro">
-          网页端暂不显示地图底图，下面展示已保存的小区和楼栋位置。
-        </view>
-        <view v-for="item in coordinateItems" :key="item.key" class="coordinate-card">
-          <view class="coordinate-main">
-            <view class="marker-name">
-              {{ item.name }}
-            </view>
-            <view class="marker-address">
-              {{ item.address }}
-            </view>
-            <view class="marker-count">
-              {{ item.summary }}
-            </view>
-            <view class="coordinate-value">
-              {{ item.lat }}, {{ item.lng }}
-            </view>
-          </view>
-          <wd-button size="mini" variant="plain" @click="copyCoordinates(item.lat, item.lng)">
-            复制坐标
-          </wd-button>
-        </view>
-      </view>
-      <AppEmpty
-        v-else
-        title="还没有可显示的位置"
-        description="先为小区或楼栋补充坐标，才能查看位置列表。"
-        icon="no-content"
-        action-text="维护楼栋位置"
-        @action="openBuildings"
+      <HouseH5Map
+        v-if="h5Markers.length"
+        class="map-view"
+        :markers="h5Markers"
+        :api-key="runtime.publicConfig?.amapJsapiKey || ''"
+        :security-js-code="runtime.publicConfig?.amapSecurityJsCode || ''"
+        :center="center"
+        :zoom="12"
+        selected-key=""
+        @select="openMarker"
       />
+      <AppEmpty v-else title="还没有可显示的位置" description="先为小区或楼栋补充坐标。" action-text="维护楼栋位置" @action="openBuildings" />
       <!-- #endif -->
+      <wd-button v-if="unlocatedCount" class="mt-3" block variant="plain" @click="openBuildings">
+        维护 {{ unlocatedCount }} 栋待定位楼栋
+      </wd-button>
       <view class="summary-card">
         <view><strong>{{ estates.length }}</strong><text>小区标点</text></view>
         <view><strong>{{ buildings.length }}</strong><text>楼栋标点</text></view>
         <view><strong>{{ unlocatedCount }}</strong><text>待定位楼栋</text></view>
       </view>
       <view v-if="estates.length" class="marker-list">
-        <view v-for="item in estates" :key="item.id" class="marker-card">
+        <view v-for="item in estates" :key="item.id" class="marker-card app-touchable" @click="openMarker(`estate-${item.id}`)">
           <view class="marker-name">
             {{ item.display_name || item.name }}
           </view>
@@ -215,36 +192,6 @@ onPullDownRefresh(loadMap)
   height: 640rpx;
   overflow: hidden;
   border-radius: 26rpx;
-}
-.coordinate-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-.coordinate-intro {
-  padding: 20rpx 24rpx;
-  border-radius: 18rpx;
-  background: var(--app-bg-warm-soft);
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.6;
-}
-.coordinate-card {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  padding: 24rpx;
-  border-radius: 20rpx;
-  background: var(--app-bg-card);
-}
-.coordinate-main {
-  min-width: 0;
-  flex: 1;
-}
-.coordinate-value {
-  margin-top: 10rpx;
-  color: var(--app-color-primary);
-  font-size: 22rpx;
 }
 .summary-card {
   display: grid;

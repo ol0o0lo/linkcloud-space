@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PropertyLocationField from '@/components/house/PropertyLocationField.vue'
 import type { OrganizationBuildingWriteInput } from '@/pages-org-rental/domain/organization-rental'
 import type { BuildingInventoryOut, EstateDetailOut } from '@/pages-org-rental/api/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
@@ -50,6 +51,7 @@ function fillBuilding(value: BuildingInventoryOut) {
     elevator: value.elevator,
     address: value.address,
     tags: value.tags.join('，'),
+    location: value.location ? { longitude: value.location.longitude, latitude: value.location.latitude, coordinate_system: 'gcj02' } : null,
   })
 }
 
@@ -153,6 +155,7 @@ onLoad((options) => {
       <wd-cell title="所属小区" :value="estateLabel" is-link @click="estateVisible = true" />
       <wd-input v-model="form.name" label="楼栋名称" placeholder="例如 1栋" clearable />
       <wd-input v-model="form.address" label="楼栋地址" placeholder="请输入详细地址" clearable />
+      <PropertyLocationField v-model="form.location" :disabled="saving" :city="selectedEstate?.city" />
       <wd-cell title="配备电梯" center>
         <wd-switch v-model="form.elevator" size="20px" />
       </wd-cell>

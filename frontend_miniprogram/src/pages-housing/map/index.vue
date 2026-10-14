@@ -6,6 +6,7 @@ import type { PublicHouseRadiusM } from '@/domain/public-house-metro'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, nextTick, ref } from 'vue'
 import { buildHouseMapRequestKey, createHouseMapMarkerId, resolveMapIncludePoints, shouldClearHouseMapSelection } from '@/domain/house-map'
+import { parsePublicHouseSearchPreset } from '@/domain/home-content'
 import { formatPublicHouseRadiusLabel, PUBLIC_HOUSE_RADIUS_OPTIONS } from '@/domain/public-house-metro'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import AppErrorView from '@/components/app/AppErrorView.vue'
@@ -635,18 +636,20 @@ function openSelectedLocation() {
 }
 
 onLoad(async (options) => {
-  if (['whole', 'shared', 'apartment', 'short_term'].includes(String(options?.listing_type || '')))
-    listingType.value = options?.listing_type as PublicHousesUsingGetParams['listing_type']
-  const selectedBedrooms = Number(options?.bedrooms)
-  const selectedBedroomsMin = Number(options?.bedrooms_min)
-  bedrooms.value = Number.isInteger(selectedBedrooms) && selectedBedrooms > 0 ? selectedBedrooms : undefined
-  bedroomsMin.value = Number.isInteger(selectedBedroomsMin) && selectedBedroomsMin > 0 ? selectedBedroomsMin : undefined
-  let location: GeoCoordinates | null = null
-  try {
-    location = await getCurrentLocationGcj02()
-  }
-  catch {
-    // 定位不可用时沿用已选城市概览。
+  const preset = parsePublicHouseSearchPreset((options || {}) as Record<string, string | undefined>)
+  listingType.value = preset.listing_type
+  bedrooms.value = preset.bedrooms
+  bedroomsMin.value = preset.bedrooms_min
+  keyword.value = preset.keyword || ''
+  const hasNearbyPreset = preset.nearby === 1 && preset.longitude !== undefined && preset.latitude !== undefined
+  let location: GeoCoordinates | null = hasNearbyPreset ? { longitude: preset.longitude!, latitude: preset.latitude! } : null
+  if (!location) {
+    try {
+      location = await getCurrentLocationGcj02()
+    }
+    catch {
+      // 定位不可用时沿用已选城市概览。
+    }
   }
   if (!pageActive)
     return
@@ -661,9 +664,15 @@ onLoad(async (options) => {
     return
   }
   currentUserLocation.value = location
-  awaitingInitialViewport = true
   mapCenter.value = { ...location }
   mapScale.value = INITIAL_LOCATION_ZOOM
+  if (hasNearbyPreset) {
+    spatialFilter.enterNearby(location, preset.radius_m || 1000)
+    ignoreNextViewportChange()
+    await loadMapMarkers(null, false, false)
+    return
+  }
+  awaitingInitialViewport = true
   initialViewportFallbackTimer = setTimeout(() => {
     awaitingInitialViewport = false
     initialViewportFallbackTimer = null

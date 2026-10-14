@@ -2,8 +2,17 @@ import type { PlatformFilePickerAdapter } from '../contracts/file-picker'
 
 export const weixinFilePickerAdapter: PlatformFilePickerAdapter = {
   pick(options) {
-    if (options.kind !== 'image')
-      return Promise.resolve({ supported: false, reason: '微信通用文件请选择能力尚未启用' })
+    if (options.kind === 'file') {
+      return new Promise((resolve, reject) => {
+        wx.chooseMessageFile({
+          count: options.count,
+          type: 'file',
+          extension: ['pdf', 'doc', 'docx'],
+          success: result => resolve({ supported: true, value: result.tempFiles.map(file => ({ path: file.path, name: file.name, size: file.size })) }),
+          fail: error => error.errMsg.includes('cancel') ? resolve({ supported: true, value: [] }) : reject(error),
+        })
+      })
+    }
     return new Promise((resolve, reject) => {
       uni.chooseMedia({
         count: options.count,

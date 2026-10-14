@@ -6,6 +6,7 @@ import {
   getHomeBannerRoute,
   getHomeEntryDetailRoute,
   getHomeEntryListRoute,
+  getPublicHouseMapRoute,
   getPublicHouseSearchRoute,
   HOME_QUICK_SEARCHES,
   HOME_RANKING_SEARCHES,
@@ -39,6 +40,11 @@ test('首页地铁入口使用结构化筛选而不是关键词', () => {
     bedrooms: undefined,
     bedrooms_min: undefined,
     nearby: undefined,
+    longitude: undefined,
+    latitude: undefined,
+    radius_m: undefined,
+    place_name: undefined,
+    place_city: undefined,
     sort: 'latest',
     location_mode: 'metro',
   })
@@ -69,6 +75,11 @@ test('公共找房参数忽略非法户型和排序', () => {
     bedrooms: undefined,
     bedrooms_min: undefined,
     nearby: undefined,
+    longitude: undefined,
+    latitude: undefined,
+    radius_m: undefined,
+    place_name: undefined,
+    place_city: undefined,
     sort: 'latest',
     location_mode: undefined,
   })
@@ -84,9 +95,54 @@ test('首页分类、三室以上及附近参数进入结构化搜索', () => {
     bedrooms: undefined,
     bedrooms_min: 3,
     nearby: 1,
+    longitude: undefined,
+    latitude: undefined,
+    radius_m: undefined,
+    place_name: undefined,
+    place_city: undefined,
     sort: 'latest',
     location_mode: undefined,
   })
+})
+
+test('地点找房将地点坐标与名称传到结果页，房源关键词保持为空', () => {
+  const route = getPublicHouseSearchRoute({
+    nearby: 1,
+    longitude: 113.33,
+    latitude: 23.14,
+    radius_m: 1000,
+    place_name: '万达广场',
+    place_city: '广州市',
+    listing_type: 'whole',
+  })
+  const options = Object.fromEntries(new URL(route, 'http://localhost').searchParams)
+  const preset = parsePublicHouseSearchPreset(options)
+  assert.equal(preset.keyword, undefined)
+  assert.equal(preset.place_name, '万达广场')
+  assert.equal(preset.place_city, '广州市')
+  assert.equal(preset.longitude, 113.33)
+  assert.equal(preset.latitude, 23.14)
+  assert.equal(preset.radius_m, 1000)
+  assert.equal(preset.listing_type, 'whole')
+})
+
+test('附近找房在列表和地图之间保留同一位置及户型条件', () => {
+  const preset = {
+    nearby: 1 as const,
+    longitude: 113.33,
+    latitude: 23.14,
+    radius_m: 1000 as const,
+    place_name: '广州市 · 天河区',
+    place_city: '广州市',
+    listing_type: 'shared' as const,
+    bedrooms_min: 3,
+  }
+  for (const route of [getPublicHouseSearchRoute(preset), getPublicHouseMapRoute(preset)]) {
+    const parsed = parsePublicHouseSearchPreset(Object.fromEntries(new URL(route, 'http://localhost').searchParams))
+    assert.equal(parsed.keyword, undefined)
+    for (const key of Object.keys(preset) as (keyof typeof preset)[])
+      assert.equal(parsed[key], preset[key])
+  }
 })
 
 test('首页不读取身份模式且运营区不再保留硬编码内容', () => {

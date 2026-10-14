@@ -3,7 +3,7 @@ import type { PublicHouseRadiusM } from '@/domain/public-house-metro'
 import type { PublicHouseFiltersOut, PublicHouseListOut, PublicHousesUsingGetParams } from '@/features/houses/service'
 import type { PublicHouseLocationFilterValue } from '@/features/houses/usePublicHouseSpatialFilter'
 import type { AppliedCommute, CommuteDraft, CommuteProgress } from '@/features/houses/commute'
-import type { CommuteMode } from '@/services/manual/house-commute'
+import type { CommuteMode, CommutePlace } from '@/services/manual/house-commute'
 import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
@@ -82,6 +82,8 @@ const preferredLocationMode = ref<'commute' | null>(null)
 const filterOverlayOpen = computed(() => activeTopFilter.value !== null)
 const pendingLocationMode = ref<'metro' | null>(null)
 const locatingNearby = ref(false)
+const selectedPlaceName = ref('')
+const selectedPlaceCity = ref('')
 const resultsRefreshing = ref(false)
 const nearbyRadiusM = computed<PublicHouseRadiusM | null>(() => spatialFilter.nearbyRadiusM.value)
 const rentRangeOptions = RENT_RANGE_OPTIONS
@@ -252,11 +254,29 @@ function search() {
 
 function openKeywordSearch() {
   activeTopFilter.value = null
+  const nearbyParams = spatialFilter.nearbyLocation.value && nearbyRadiusM.value
+    ? `&nearby=1&longitude=${spatialFilter.nearbyLocation.value.longitude}&latitude=${spatialFilter.nearbyLocation.value.latitude}&radius_m=${nearbyRadiusM.value}`
+    : ''
+  const houseParams = `&listing_type=${query.listingType}&bedrooms=${query.bedrooms}&bedrooms_min=${query.bedroomsMin}`
+  const placeParams = selectedPlaceName.value && nearbyParams
+    ? `&place_name=${encodeURIComponent(selectedPlaceName.value)}&place_city=${encodeURIComponent(selectedPlaceCity.value)}`
+    : ''
   uni.navigateTo({
-    url: `${APP_ROUTES.publicHouseSearchInput}?from=house-search&keyword=${encodeURIComponent(query.keyword)}&city=${encodeURIComponent(regionStore.selection.city)}`,
+    url: `${APP_ROUTES.publicHouseSearchInput}?from=house-search&keyword=${encodeURIComponent(query.keyword)}&city=${encodeURIComponent(nearbyParams ? selectedPlaceCity.value : regionStore.selection.city)}${nearbyParams}${houseParams}${placeParams}`,
     events: {
       applyKeyword: (keyword: string) => {
         query.keyword = keyword
+        void refreshHouses()
+      },
+      applyPlace: (place: CommutePlace) => {
+        if (!Number.isFinite(place.longitude) || !Number.isFinite(place.latitude))
+          return
+        spatialFilter.enterNearby({ longitude: place.longitude!, latitude: place.latitude! }, nearbyRadiusM.value || 1000)
+        selectedPlaceName.value = place.name
+        selectedPlaceCity.value = place.city
+        resetCommute(false)
+        query.keyword = ''
+        query.sort = 'distance_asc'
         void refreshHouses()
       },
     },
@@ -280,6 +300,8 @@ function resetFilters() {
   elevatorDraft.value = null
   pendingLocationMode.value = null
   spatialFilter.reset()
+  selectedPlaceName.value = ''
+  selectedPlaceCity.value = ''
   resetCommute(false)
 }
 
@@ -467,6 +489,8 @@ async function applyNearbyFilter(radiusM: PublicHouseRadiusM) {
 function clearNearbyFilter() {
   const hadNearbyFilter = Boolean(nearbyRadiusM.value)
   spatialFilter.exitNearby()
+  selectedPlaceName.value = ''
+  selectedPlaceCity.value = ''
   if (query.sort === 'distance_asc' && !spatialFilter.hasSpatialCenter.value)
     query.sort = 'latest'
   activeTopFilter.value = null
@@ -476,6 +500,8 @@ function clearNearbyFilter() {
 
 function applyLocationFilter(value: PublicHouseLocationFilterValue) {
   spatialFilter.setLocationFilter(value)
+  selectedPlaceName.value = ''
+  selectedPlaceCity.value = ''
   pendingLocationMode.value = null
   query.sort = spatialFilter.hasSpatialCenter.value ? 'distance_asc' : query.sort === 'distance_asc' ? 'latest' : query.sort
   activeTopFilter.value = null
@@ -548,6 +574,8 @@ function clearListingType() {
 }
 
 function handleRegionChange() {
+  selectedPlaceName.value = ''
+  selectedPlaceCity.value = ''
   if (pendingLocationMode.value === 'metro' && regionStore.selection.city) {
     spatialFilter.setLocationFilter({ mode: 'metro', district: '', stationNames: [] })
     activeTopFilter.value = 'location'
@@ -591,9 +619,20 @@ onLoad(async (options) => {
   }
   await regionStore.initializeDefaultRegion()
   if (preset.nearby) {
-    const applied = await selectNearbyRadius(1000)
+    let applied: boolean
+    if (preset.latitude !== undefined && preset.longitude !== undefined) {
+      spatialFilter.enterNearby({ latitude: preset.latitude, longitude: preset.longitude }, preset.radius_m || 1000)
+      applied = true
+    }
+    else {
+      applied = await selectNearbyRadius(1000)
+    }
     if (applied)
       query.sort = 'distance_asc'
+    if (applied && preset.latitude !== undefined && preset.longitude !== undefined) {
+      selectedPlaceName.value = preset.place_name || ''
+      selectedPlaceCity.value = preset.place_city || ''
+    }
   }
   if (preset.location_mode === 'metro') {
     pendingLocationMode.value = 'metro'
@@ -659,7 +698,7 @@ async function refreshResults() {
           <view class="navigation-search-row">
             <button class="navigation-search-bar" aria-label="搜索房源" @click="openKeywordSearch">
               <view class="i-carbon-search navigation-search-icon" />
-              <text class="navigation-search-keyword" :class="{ 'navigation-search-keyword--placeholder': !query.keyword }">{{ query.keyword || '搜索小区、区域或房源' }}</text>
+              <text class="navigation-search-keyword" :class="{ 'navigation-search-keyword--placeholder': !query.keyword && !selectedPlaceName }">{{ query.keyword || (nearbyRadiusM && selectedPlaceName ? `${selectedPlaceName}附近` : '搜索地点、小区或房源') }}</text>
             </button>
             <view class="navigation-region">
               <PublicHouseRegionTrigger @change="handleRegionChange" />

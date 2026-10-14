@@ -67,32 +67,38 @@ onLoad((options) => {
 
 <template>
   <AppPage variant="plain" gutter="none">
-    <template #navigation><AppCustomNavigation title="电脑登录确认" back scroll-mode="sticky" /></template>
+    <template #navigation>
+      <AppCustomNavigation title="电脑登录确认" back scroll-mode="sticky" />
+    </template>
     <view class="pc-login-page">
-      <view class="phase-heading"><strong>扫码确认状态</strong><text>仅处理当前电脑端登录请求</text></view>
+      <view class="phase-heading">
+        <strong>扫码确认状态</strong><text>仅处理当前电脑端登录请求</text>
+      </view>
       <view class="pc-login-card" :class="`pc-login-card--${phase}`">
-      <view v-if="loading" class="status-icon status-icon--loading">
-        <view class="loading-ring" />
-      </view>
-      <view v-else-if="phase === 'success'" class="status-icon status-icon--success">
-        ✓
-      </view>
-      <view v-else class="status-icon status-icon--error">
-        !
-      </view>
+        <view v-if="loading" class="status-icon status-icon--loading">
+          <view class="loading-ring" />
+        </view>
+        <view v-else-if="phase === 'success'" class="status-icon status-icon--success">
+          ✓
+        </view>
+        <view v-else class="status-icon status-icon--error">
+          !
+        </view>
 
-      <view class="status-title">
-        {{ loading ? '正在确认电脑登录' : phase === 'success' ? '已确认，请返回电脑' : '确认未完成' }}
-      </view>
-      <view class="status-copy">
-        {{ loading ? '正在安全验证本次扫码，请稍候。' : phase === 'success' ? '当前电脑将自动完成登录，你可以关闭此页面。' : errorMessage }}
-      </view>
+        <view class="status-title">
+          {{ loading ? '正在确认电脑登录' : phase === 'success' ? '已确认，请返回电脑' : '确认未完成' }}
+        </view>
+        <view class="status-copy">
+          {{ loading ? '正在安全验证本次扫码，请稍候。' : phase === 'success' ? '当前电脑将自动完成登录，你可以关闭此页面。' : errorMessage }}
+        </view>
 
-      <wd-button v-if="phase === 'error'" block size="large" :loading="loading" @click="confirmLogin">
-        重新确认
-      </wd-button>
+        <wd-button v-if="phase === 'error'" block size="large" :loading="loading" @click="confirmLogin">
+          重新确认
+        </wd-button>
       </view>
-      <view class="security-copy"><view /><view><strong>安全提醒</strong><text>请勿扫描来源不明的登录二维码；H5 打开时会提示改用微信扫码。</text></view></view>
+      <view class="security-copy">
+        <view /><view><strong>安全提醒</strong><text>请勿扫描来源不明的登录二维码；H5 打开时会提示改用微信扫码。</text></view>
+      </view>
     </view>
   </AppPage>
 </template>
@@ -113,8 +119,14 @@ onLoad((options) => {
   gap: 8rpx;
   margin-bottom: 28rpx;
 }
-.phase-heading strong { color: var(--app-text-primary); font-size: 30rpx; }
-.phase-heading text { color: var(--app-text-muted); font-size: 22rpx; }
+.phase-heading strong {
+  color: var(--app-text-primary);
+  font-size: 30rpx;
+}
+.phase-heading text {
+  color: var(--app-text-muted);
+  font-size: 22rpx;
+}
 
 .pc-login-card {
   width: 100%;
@@ -186,10 +198,26 @@ onLoad((options) => {
   border-radius: 28rpx;
   background: #fff8eb;
 }
-.security-copy > view:first-child { width: 8rpx; flex: 0 0 8rpx; border-radius: 999rpx; background: var(--app-color-warning); }
-.security-copy > view:last-child { display: flex; flex-direction: column; gap: 8rpx; }
-.security-copy strong { color: var(--app-text-primary); font-size: 26rpx; }
-.security-copy text { color: var(--app-text-secondary); font-size: 22rpx; line-height: 1.6; }
+.security-copy > view:first-child {
+  width: 8rpx;
+  flex: 0 0 8rpx;
+  border-radius: 999rpx;
+  background: var(--app-color-warning);
+}
+.security-copy > view:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.security-copy strong {
+  color: var(--app-text-primary);
+  font-size: 26rpx;
+}
+.security-copy text {
+  color: var(--app-text-secondary);
+  font-size: 22rpx;
+  line-height: 1.6;
+}
 
 @keyframes loading-spin {
   to {

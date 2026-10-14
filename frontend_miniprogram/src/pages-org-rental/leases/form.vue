@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LeaseContractEditor from '@/pages-org-rental/components/LeaseContractEditor.vue'
 import type { ContactOut, HouseOut, LeaseOut } from '@/pages-org-rental/api/organization-rental'
 import type { OrganizationLeaseWriteInput } from '@/pages-org-rental/domain/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
@@ -25,6 +26,7 @@ const leaseId = ref(0)
 const lease = ref<LeaseOut | null>(null)
 const loading = ref(true)
 const saving = ref(false)
+const uploadingContract = ref(false)
 const loadError = ref('')
 const houseVisible = ref(false)
 const tenantVisible = ref(false)
@@ -144,7 +146,7 @@ async function loadPage() {
 }
 
 async function submit() {
-  if (saving.value)
+  if (saving.value || uploadingContract.value)
     return
   if (!form.house_id || !form.tenant_id || !form.start_date || !form.end_date || form.monthly_rent === '') {
     toast.warning('请完整填写房源、租客、租期和月租金')
@@ -182,7 +184,7 @@ onLoad((options) => {
     loading-text="正在加载租约…"
     error-title="租约资料不可用"
     :submitting="saving"
-    :submit-disabled="saving"
+    :submit-disabled="saving || uploadingContract"
     submit-text="保存租约"
     :show-actions="Boolean(lease)"
     @retry="loadPage"
@@ -213,7 +215,7 @@ onLoad((options) => {
       </wd-cell-group>
 
       <wd-cell-group title="合同与备注" insert>
-        <wd-cell title="合同文件" :value="form.contract_files?.length ? `${form.contract_files.length} 份（本次保留）` : '未上传'" />
+        <LeaseContractEditor :files="form.contract_files || []" :disabled="saving" :organization-slug="appContextStore.organizationSlug" @update:files="form.contract_files = $event" @uploading="uploadingContract = $event" />
         <wd-cell title="备注" layout="vertical">
           <wd-textarea v-model="form.notes" placeholder="补充履约说明" :maxlength="3000" show-word-limit />
         </wd-cell>

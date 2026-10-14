@@ -91,8 +91,7 @@ onPageScroll(handleNavigationScroll)
   <AppPage class="entry-detail-page" :class="{ 'entry-detail-page--guide': entry && !isTopic }" variant="detail" :gutter="entry ? 'none' : 'normal'" safe-area-bottom>
     <template #navigation>
       <AppCustomNavigation
-        v-if="isTopic"
-        :title="title"
+        :title="isTopic ? title : entry?.eyebrow || '租房指南'"
         back
         immersive
         scroll-mode="fade"
@@ -100,7 +99,6 @@ onPageScroll(handleNavigationScroll)
         :scroll-progress="navigationProgress"
         content-opacity-mode="fade-in"
       />
-      <AppCustomNavigation v-else :title="entry?.eyebrow || '租房指南'" back scroll-mode="sticky" scrolled />
     </template>
 
     <AppLoading v-if="loading && !entry" text="正在加载内容…" />
@@ -329,7 +327,7 @@ onPageScroll(handleNavigationScroll)
   position: relative;
   display: flex;
   min-height: 440rpx;
-  padding: 70rpx 72rpx 94rpx;
+  padding: 190rpx 72rpx 94rpx;
   overflow: hidden;
   align-items: flex-end;
   background: linear-gradient(135deg, #152c47 0%, #254969 58%, #52758e 100%);
@@ -620,7 +618,7 @@ onPageScroll(handleNavigationScroll)
 
   .entry-hero {
     min-height: 430rpx;
-    padding: 64rpx 42rpx 94rpx;
+    padding: 190rpx 42rpx 94rpx;
   }
 
   .entry-hero__ornament {

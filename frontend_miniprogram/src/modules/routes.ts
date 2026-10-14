@@ -84,6 +84,7 @@ export const APP_ROUTES = {
   login: '/pages/auth/login',
   pcLogin: '/pages/auth/pc-login',
   register: '/pages/auth/register',
+  switchIdentity: '/pages/auth/switch-identity',
   startupError: '/pages/error/startup',
   forbidden: '/pages/error/forbidden',
   notFound: '/pages/error/not-found',

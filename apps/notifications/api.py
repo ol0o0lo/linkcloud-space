@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from typing import Literal
 
 from django.db.models import Q
@@ -11,7 +10,7 @@ from ninja.pagination import paginate
 
 from apps.accounts.models import User
 from apps.base.ninja_pagination import LegacyPagination
-from apps.notifications.categories import get_categories, get_category
+from apps.notifications.categories import get_categories, get_category, serialize_preference
 from apps.notifications.constants import NotificationChannel, NotificationDispatchScope
 from apps.notifications.models import Notification, NotificationDispatch, NotificationPreference
 from apps.notifications.schemas import (
@@ -57,19 +56,11 @@ def unread_count(request):
     return {"count": _base_qs(request).filter(read_at__isnull=True).count()}
 
 
-def _serialize_category(cat, pref) -> dict:
-    return {
-        **asdict(cat),
-        "in_app": NotificationChannel.IN_APP in cat.required_channels or (pref.in_app if pref is not None else NotificationChannel.IN_APP in cat.default_channels),
-        "email": NotificationChannel.EMAIL in cat.required_channels or (pref.email if pref is not None else NotificationChannel.EMAIL in cat.default_channels),
-    }
-
-
 @router.get("/preferences/", response=list[NotificationPreferenceOut], summary="获取通知偏好设置")
 def list_preferences(request):
     """返回通知类别与当前用户偏好设置的合并结果。"""
     saved = {p.category: p for p in NotificationPreference.objects.filter(user=request.user)}
-    return [_serialize_category(cat, saved.get(cat.key)) for cat in get_categories()]
+    return [serialize_preference(cat, saved.get(cat.key)) for cat in get_categories()]
 
 
 @router.patch("/preferences/{category}/", response=NotificationPreferenceOut, summary="更新通知偏好设置")
@@ -100,7 +91,7 @@ def patch_preference(
         pref.email = payload.email
     if payload.in_app is not None or payload.email is not None:
         pref.save(update_fields=["in_app", "email", "updated_at"])
-    return _serialize_category(cat, pref)
+    return serialize_preference(cat, pref)
 
 
 @router.post("/bulk/", response=BulkResultOut, summary="批量处理通知")

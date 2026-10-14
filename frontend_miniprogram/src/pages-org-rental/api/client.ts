@@ -9,16 +9,17 @@ import type {
   EstateDetailOut,
   EstateIn,
   EstatePatchIn,
+  HouseIn as GeneratedHouseIn,
+  HousePatchIn as GeneratedHousePatchIn,
   HouseBuildingMapUsingGetParams,
   HouseBuildingsUsingGetParams,
   HouseContactsUsingGetParams,
   HouseEstateMapUsingGetParams,
   HouseEstatesUsingGetParams,
   HouseHousesUsingGetParams,
-  HouseIn,
   HouseLeasesUsingGetParams,
-  HousePatchIn,
   HouseViewingRecordsUsingGetParams,
+  IHouseListingType,
   LeaseAllocationReviewIn,
   LeaseAllocationVoidIn,
   LeasePatchIn,
@@ -32,6 +33,7 @@ import { httpGet, httpPost } from '@/http/http'
 import { chooseAndUploadMedia } from '@/infra/upload/client'
 import {
   houseBuildingMapUnlocatedCountUsingGet,
+  houseBuildingMapUnlocatedUsingGet,
   houseBuildingMapUsingGet,
   houseBuildingsBuildingIdUsingGet,
   houseBuildingsBuildingIdUsingPatch,
@@ -74,7 +76,20 @@ import {
 } from '@/services/openapi/shouyifenpei'
 import { organizationWorkspaceMembersUsingGet } from '@/services/openapi/zuzhijiagou'
 
+import { HouseListingType } from '@/services/openapi/types'
+
 export { HouseStatus } from '@/services/openapi/types'
+
+export type HouseIn = Omit<GeneratedHouseIn, 'listing_type'> & { listing_type?: IHouseListingType | null }
+export type HousePatchIn = Omit<GeneratedHousePatchIn, 'listing_type'> & { listing_type?: IHouseListingType | null }
+
+function toGeneratedListingType(value?: IHouseListingType | null): HouseListingType | null | undefined {
+  if (value === undefined)
+    return undefined
+  if (value === null)
+    return null
+  return HouseListingType[value]
+}
 
 export type {
   AllocationCapabilitiesOut,
@@ -84,6 +99,7 @@ export type {
   BuildingIn,
   BuildingInventoryOut,
   BuildingMapMarkerOut,
+  BuildingMapUnlocatedOut,
   BuildingOut,
   BuildingPatchIn,
   ContactIn,
@@ -95,9 +111,7 @@ export type {
   EstateMapMarkerOut,
   EstateOut,
   EstatePatchIn,
-  HouseIn,
   HouseOut,
-  HousePatchIn,
   LeaseAllocationOut,
   LeaseAllocationReviewIn,
   LeaseAllocationVoidIn,
@@ -184,11 +198,13 @@ export function generateOrganizationHouseAIInsightRequest(organizationSlug: stri
 }
 
 export function createOrganizationHouseRequest(organizationSlug: string, payload: HouseIn) {
-  return houseHousesUsingPost({ body: payload, options: buildOrganizationScope(organizationSlug, 'never') })
+  const body = { ...payload, listing_type: toGeneratedListingType(payload.listing_type) }
+  return houseHousesUsingPost({ body, options: buildOrganizationScope(organizationSlug, 'never') })
 }
 
 export function patchOrganizationHouseRequest(organizationSlug: string, houseId: number, payload: HousePatchIn) {
-  return houseHousesHouseIdUsingPatch({ params: { house_id: houseId }, body: payload, options: buildOrganizationScope(organizationSlug, 'never') })
+  const body = { ...payload, listing_type: toGeneratedListingType(payload.listing_type) }
+  return houseHousesHouseIdUsingPatch({ params: { house_id: houseId }, body, options: buildOrganizationScope(organizationSlug, 'never') })
 }
 
 export async function uploadOrganizationHouseImagesRequest(organizationSlug: string, maxCount = 9) {
@@ -347,4 +363,12 @@ export function requestOrganizationAnalyticsOverview(organizationSlug: string, p
 
 export function requestOrganizationAnalyticsTrends(organizationSlug: string, params: AnalyticsTrendsUsingGetParams = {}) {
   return analyticsTrendsUsingGet({ params, options: buildOrganizationScope(organizationSlug) })
+}
+
+export function uploadOrganizationLeaseContractRequest(organizationSlug: string) {
+  return chooseAndUploadMedia({ kind: 'file', scope: { kind: 'organization', organizationSlug }, resourceType: 'lease_contract', mediaScope: 'org', maxCount: 1, extensions: ['pdf', 'doc', 'docx'] })
+}
+
+export function requestOrganizationUnlocatedBuildings(organizationSlug: string, page: number, pageSize: number, keyword?: string) {
+  return houseBuildingMapUnlocatedUsingGet({ params: { page, page_size: pageSize, keyword }, options: buildOrganizationScope(organizationSlug) })
 }

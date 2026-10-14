@@ -1,46 +1,46 @@
 import { request } from '@umijs/max';
 import type { LeaseAllocation } from './allocation';
 import {
-  appsHouseApiCreateBuilding,
-  appsHouseApiCreateContact,
-  appsHouseApiCreateEstate,
-  appsHouseApiCreateHouse,
-  appsHouseApiCreateLease,
-  appsHouseApiCreateViewingRecord,
-  appsHouseApiCheckBuildingDelete,
-  appsHouseApiCheckEstateDelete,
-  appsHouseApiDeleteBuildingEndpoint,
-  appsHouseApiDeleteEstateEndpoint,
-  appsHouseApiGetBuilding,
-  appsHouseApiGetBuildingMapDetail,
-  appsHouseApiGetBuildingMapUnlocatedCount,
-  appsHouseApiGetContact,
-  appsHouseApiGetDefaultBuilding,
-  appsHouseApiGetEstate,
-  appsHouseApiGetHouse,
-  appsHouseApiGetLease,
-  appsHouseApiGetPropertyRentalTagSuggestions,
-  appsHouseApiGetStaffResponsibility,
-  appsHouseApiGetViewingRecord,
-  appsHouseApiListBuildings,
-  appsHouseApiListBuildingMap,
-  appsHouseApiListBuildingMapUnlocated,
-  appsHouseApiListContacts,
-  appsHouseApiListEstateMap,
-  appsHouseApiListEstates,
-  appsHouseApiListHouses,
-  appsHouseApiListLeases,
-  appsHouseApiListStaffResponsibilities,
-  appsHouseApiListViewingRecords,
-  appsHouseApiPatchBuilding,
-  appsHouseApiPatchContact,
-  appsHouseApiPatchEstate,
-  appsHouseApiPatchHouse,
-  appsHouseApiPatchLease,
-  appsHouseApiPatchViewingRecord,
-  appsHouseApiPutDefaultBuilding,
-  appsHouseApiReplaceStaffResponsibilities,
-  appsHouseApiVacancySync,
+  appsHouseApiPropertiesCreateBuilding,
+  appsHouseApiContactsCreateContact,
+  appsHouseApiPropertiesCreateEstate,
+  appsHouseApiPropertiesCreateHouse,
+  appsHouseApiLeasesCreateLease,
+  appsHouseApiViewingsCreateViewingRecord,
+  appsHouseApiPropertiesCheckBuildingDelete,
+  appsHouseApiPropertiesCheckEstateDelete,
+  appsHouseApiPropertiesDeleteBuildingEndpoint,
+  appsHouseApiPropertiesDeleteEstateEndpoint,
+  appsHouseApiPropertiesGetBuilding,
+  appsHouseApiMapsGetBuildingMapDetail,
+  appsHouseApiMapsGetBuildingMapUnlocatedCount,
+  appsHouseApiContactsGetContact,
+  appsHouseApiPropertiesGetDefaultBuilding,
+  appsHouseApiPropertiesGetEstate,
+  appsHouseApiPropertiesGetHouse,
+  appsHouseApiLeasesGetLease,
+  appsHouseApiPropertiesGetPropertyRentalTagSuggestions,
+  appsHouseApiResponsibilitiesGetStaffResponsibility,
+  appsHouseApiViewingsGetViewingRecord,
+  appsHouseApiPropertiesListBuildings,
+  appsHouseApiMapsListBuildingMap,
+  appsHouseApiMapsListBuildingMapUnlocated,
+  appsHouseApiContactsListContacts,
+  appsHouseApiMapsListEstateMap,
+  appsHouseApiPropertiesListEstates,
+  appsHouseApiPropertiesListHouses,
+  appsHouseApiLeasesListLeases,
+  appsHouseApiResponsibilitiesListStaffResponsibilities,
+  appsHouseApiViewingsListViewingRecords,
+  appsHouseApiPropertiesPatchBuilding,
+  appsHouseApiContactsPatchContact,
+  appsHouseApiPropertiesPatchEstate,
+  appsHouseApiPropertiesPatchHouse,
+  appsHouseApiLeasesPatchLease,
+  appsHouseApiViewingsPatchViewingRecord,
+  appsHouseApiPropertiesPutDefaultBuilding,
+  appsHouseApiResponsibilitiesReplaceStaffResponsibilities,
+  appsHouseApiPropertiesVacancySync,
 } from '@/services/openapi/propertyRentalManagement';
 
 export type PageResult<T> = {
@@ -118,7 +118,7 @@ export type HouseAIInsightResponse = {
   source_changed: boolean;
 };
 export type HouseCreateInput = API.HouseIn;
-export type HouseListParams = API.appsHouseApiListHousesParams;
+export type HouseListParams = API.appsHouseApiPropertiesListHousesParams;
 export type HousePatchInput = API.HousePatchIn;
 export type ViewingRecordOut = API.ViewingRecordOut & {
   status__mapping?: string;
@@ -354,42 +354,42 @@ export type DealSigningCreateInput = {
 
 export const houseApi = {
   listEstates: (params?: QueryParams) =>
-    appsHouseApiListEstates((params ?? {}) as API.appsHouseApiListEstatesParams) as Promise<PageResult<EstateOut>>,
-  getEstate: (estateId: number) => appsHouseApiGetEstate({ estate_id: estateId }) as Promise<EstateOut>,
-  createEstate: (data: Payload) => appsHouseApiCreateEstate(data as API.EstateIn) as Promise<EstateOut>,
+    appsHouseApiPropertiesListEstates((params ?? {}) as API.appsHouseApiPropertiesListEstatesParams) as Promise<PageResult<EstateOut>>,
+  getEstate: (estateId: number) => appsHouseApiPropertiesGetEstate({ estate_id: estateId }) as Promise<EstateOut>,
+  createEstate: (data: Payload) => appsHouseApiPropertiesCreateEstate(data as API.EstateIn) as Promise<EstateOut>,
   patchEstate: (estateId: number, data: Payload) =>
-    appsHouseApiPatchEstate({ estate_id: estateId }, data as API.EstatePatchIn) as Promise<EstateOut>,
-  checkEstateDelete: (estateId: number) => appsHouseApiCheckEstateDelete({ estate_id: estateId }) as Promise<DeleteCheckOut>,
-  deleteEstate: (estateId: number) => appsHouseApiDeleteEstateEndpoint({ estate_id: estateId }, { skipErrorHandler: true }),
+    appsHouseApiPropertiesPatchEstate({ estate_id: estateId }, data as API.EstatePatchIn) as Promise<EstateOut>,
+  checkEstateDelete: (estateId: number) => appsHouseApiPropertiesCheckEstateDelete({ estate_id: estateId }) as Promise<DeleteCheckOut>,
+  deleteEstate: (estateId: number) => appsHouseApiPropertiesDeleteEstateEndpoint({ estate_id: estateId }, { skipErrorHandler: true }),
 
   listBuildings: (params?: QueryParams) =>
-    appsHouseApiListBuildings((params ?? {}) as API.appsHouseApiListBuildingsParams) as Promise<PageResult<BuildingOut>>,
-  getBuilding: (buildingId: number) => appsHouseApiGetBuilding({ building_id: buildingId }) as Promise<BuildingOut>,
-  createBuilding: (data: Payload) => appsHouseApiCreateBuilding(data as API.BuildingIn) as Promise<BuildingOut>,
+    appsHouseApiPropertiesListBuildings((params ?? {}) as API.appsHouseApiPropertiesListBuildingsParams) as Promise<PageResult<BuildingOut>>,
+  getBuilding: (buildingId: number) => appsHouseApiPropertiesGetBuilding({ building_id: buildingId }) as Promise<BuildingOut>,
+  createBuilding: (data: Payload) => appsHouseApiPropertiesCreateBuilding(data as API.BuildingIn) as Promise<BuildingOut>,
   patchBuilding: (buildingId: number, data: Payload) =>
-    appsHouseApiPatchBuilding({ building_id: buildingId }, data as API.BuildingPatchIn) as Promise<BuildingOut>,
-  checkBuildingDelete: (buildingId: number) => appsHouseApiCheckBuildingDelete({ building_id: buildingId }) as Promise<DeleteCheckOut>,
-  deleteBuilding: (buildingId: number) => appsHouseApiDeleteBuildingEndpoint({ building_id: buildingId }, { skipErrorHandler: true }),
-  getDefaultBuilding: () => appsHouseApiGetDefaultBuilding() as Promise<DefaultBuildingOut>,
+    appsHouseApiPropertiesPatchBuilding({ building_id: buildingId }, data as API.BuildingPatchIn) as Promise<BuildingOut>,
+  checkBuildingDelete: (buildingId: number) => appsHouseApiPropertiesCheckBuildingDelete({ building_id: buildingId }) as Promise<DeleteCheckOut>,
+  deleteBuilding: (buildingId: number) => appsHouseApiPropertiesDeleteBuildingEndpoint({ building_id: buildingId }, { skipErrorHandler: true }),
+  getDefaultBuilding: () => appsHouseApiPropertiesGetDefaultBuilding() as Promise<DefaultBuildingOut>,
   setDefaultBuilding: (buildingId: number) =>
-    appsHouseApiPutDefaultBuilding({ building_id: buildingId }) as Promise<DefaultBuildingOut>,
+    appsHouseApiPropertiesPutDefaultBuilding({ building_id: buildingId }) as Promise<DefaultBuildingOut>,
   listBuildingMap: (params?: QueryParams) =>
-    appsHouseApiListBuildingMap((params ?? {}) as API.appsHouseApiListBuildingMapParams) as Promise<PageResult<BuildingMapMarkerOut>>,
+    appsHouseApiMapsListBuildingMap((params ?? {}) as API.appsHouseApiMapsListBuildingMapParams) as Promise<PageResult<BuildingMapMarkerOut>>,
   listEstateMap: (params?: QueryParams) =>
-    appsHouseApiListEstateMap((params ?? {}) as API.appsHouseApiListEstateMapParams) as Promise<PageResult<EstateMapMarkerOut>>,
-  getBuildingMapDetail: (buildingId: number) => appsHouseApiGetBuildingMapDetail({ building_id: buildingId }) as Promise<BuildingMapDetailOut>,
-  getBuildingMapUnlocatedCount: () => appsHouseApiGetBuildingMapUnlocatedCount() as Promise<API.BuildingMapUnlocatedCountOut>,
+    appsHouseApiMapsListEstateMap((params ?? {}) as API.appsHouseApiMapsListEstateMapParams) as Promise<PageResult<EstateMapMarkerOut>>,
+  getBuildingMapDetail: (buildingId: number) => appsHouseApiMapsGetBuildingMapDetail({ building_id: buildingId }) as Promise<BuildingMapDetailOut>,
+  getBuildingMapUnlocatedCount: () => appsHouseApiMapsGetBuildingMapUnlocatedCount() as Promise<API.BuildingMapUnlocatedCountOut>,
   listBuildingMapUnlocated: (params?: QueryParams) =>
-    appsHouseApiListBuildingMapUnlocated((params ?? {}) as API.appsHouseApiListBuildingMapUnlocatedParams) as Promise<PageResult<BuildingMapUnlocatedOut>>,
-  getTagSuggestions: () => appsHouseApiGetPropertyRentalTagSuggestions() as Promise<API.TagSuggestionsOut>,
-  vacancySync: (data: VacancySyncInput) => appsHouseApiVacancySync(data) as Promise<VacancySyncResult>,
+    appsHouseApiMapsListBuildingMapUnlocated((params ?? {}) as API.appsHouseApiMapsListBuildingMapUnlocatedParams) as Promise<PageResult<BuildingMapUnlocatedOut>>,
+  getTagSuggestions: () => appsHouseApiPropertiesGetPropertyRentalTagSuggestions() as Promise<API.TagSuggestionsOut>,
+  vacancySync: (data: VacancySyncInput) => appsHouseApiPropertiesVacancySync(data) as Promise<VacancySyncResult>,
 
   listContacts: (params?: QueryParams) =>
-    appsHouseApiListContacts((params ?? {}) as API.appsHouseApiListContactsParams) as Promise<PageResult<ContactOut>>,
-  getContact: (contactId: number) => appsHouseApiGetContact({ contact_id: contactId }) as Promise<ContactOut>,
-  createContact: (data: Payload) => appsHouseApiCreateContact(data as API.ContactIn) as Promise<ContactOut>,
+    appsHouseApiContactsListContacts((params ?? {}) as API.appsHouseApiContactsListContactsParams) as Promise<PageResult<ContactOut>>,
+  getContact: (contactId: number) => appsHouseApiContactsGetContact({ contact_id: contactId }) as Promise<ContactOut>,
+  createContact: (data: Payload) => appsHouseApiContactsCreateContact(data as API.ContactIn) as Promise<ContactOut>,
   patchContact: (contactId: number, data: Payload) =>
-    appsHouseApiPatchContact({ contact_id: contactId }, data as API.ContactPatchIn) as Promise<ContactOut>,
+    appsHouseApiContactsPatchContact({ contact_id: contactId }, data as API.ContactPatchIn) as Promise<ContactOut>,
   inviteLandlord: (
     contactId: number,
     deliveryMethod: LandlordInvitationDelivery = 'sms',
@@ -435,20 +435,20 @@ export const houseApi = {
     ),
 
   listStaffResponsibilities: (params?: QueryParams) =>
-    appsHouseApiListStaffResponsibilities((params ?? {}) as API.appsHouseApiListStaffResponsibilitiesParams) as Promise<PageResult<PropertyResponsibilityOut>>,
+    appsHouseApiResponsibilitiesListStaffResponsibilities((params ?? {}) as API.appsHouseApiResponsibilitiesListStaffResponsibilitiesParams) as Promise<PageResult<PropertyResponsibilityOut>>,
   getStaffResponsibility: (memberId: number) =>
-    appsHouseApiGetStaffResponsibility({ member_id: memberId }) as Promise<PropertyResponsibilityOut>,
+    appsHouseApiResponsibilitiesGetStaffResponsibility({ member_id: memberId }) as Promise<PropertyResponsibilityOut>,
   replaceStaffResponsibilities: (
     memberId: number,
     data: PropertyResponsibilityUpdateIn,
   ) =>
-    appsHouseApiReplaceStaffResponsibilities(
+    appsHouseApiResponsibilitiesReplaceStaffResponsibilities(
       { member_id: memberId },
       data,
     ) as Promise<PropertyResponsibilityOut>,
 
-  listHouses: (params: HouseListParams = {}) => appsHouseApiListHouses(params),
-  getHouse: (houseId: number) => appsHouseApiGetHouse({ house_id: houseId }) as Promise<HouseOut>,
+  listHouses: (params: HouseListParams = {}) => appsHouseApiPropertiesListHouses(params),
+  getHouse: (houseId: number) => appsHouseApiPropertiesGetHouse({ house_id: houseId }) as Promise<HouseOut>,
   getHouseAIInsight: (houseId: number) =>
     request<HouseAIInsightResponse>(`/api/house/houses/${houseId}/ai-insight/`, {
       skipErrorHandler: true,
@@ -458,8 +458,8 @@ export const houseApi = {
       method: 'POST',
       skipErrorHandler: true,
     }),
-  createHouse: (data: HouseCreateInput) => appsHouseApiCreateHouse(data),
-  patchHouse: (houseId: number, data: HousePatchInput) => appsHouseApiPatchHouse({ house_id: houseId }, data),
+  createHouse: (data: HouseCreateInput) => appsHouseApiPropertiesCreateHouse(data),
+  patchHouse: (houseId: number, data: HousePatchInput) => appsHouseApiPropertiesPatchHouse({ house_id: houseId }, data),
   createHouseMatchShare: (data: HouseMatchShareCreateInput) =>
     request<HouseMatchShareCreateResult>('/api/house-match-shares/', {
       method: 'POST',
@@ -485,26 +485,26 @@ export const houseApi = {
     ),
 
   listViewingRecords: (params?: QueryParams) =>
-    appsHouseApiListViewingRecords(
-      (params ?? {}) as API.appsHouseApiListViewingRecordsParams,
+    appsHouseApiViewingsListViewingRecords(
+      (params ?? {}) as API.appsHouseApiViewingsListViewingRecordsParams,
     ) as Promise<PageResult<ViewingRecordOut>>,
-  getViewingRecord: (recordId: number) => appsHouseApiGetViewingRecord({ record_id: recordId }) as Promise<ViewingRecordOut>,
-  createViewingRecord: (data: Payload) => appsHouseApiCreateViewingRecord(data as API.ViewingRecordIn) as Promise<ViewingRecordOut>,
+  getViewingRecord: (recordId: number) => appsHouseApiViewingsGetViewingRecord({ record_id: recordId }) as Promise<ViewingRecordOut>,
+  createViewingRecord: (data: Payload) => appsHouseApiViewingsCreateViewingRecord(data as API.ViewingRecordIn) as Promise<ViewingRecordOut>,
   patchViewingRecord: (recordId: number, data: Payload) =>
-    appsHouseApiPatchViewingRecord(
+    appsHouseApiViewingsPatchViewingRecord(
       { record_id: recordId },
       data as API.ViewingRecordPatchIn,
     ) as Promise<ViewingRecordOut>,
 
   listLeases: (params?: QueryParams) =>
-    appsHouseApiListLeases((params ?? {}) as API.appsHouseApiListLeasesParams) as Promise<PageResult<LeaseOut>>,
-  getLease: (leaseId: number) => appsHouseApiGetLease({ lease_id: leaseId }) as Promise<LeaseOut>,
-  createLease: (data: Payload) => appsHouseApiCreateLease(data as API.LeaseIn) as Promise<LeaseOut>,
+    appsHouseApiLeasesListLeases((params ?? {}) as API.appsHouseApiLeasesListLeasesParams) as Promise<PageResult<LeaseOut>>,
+  getLease: (leaseId: number) => appsHouseApiLeasesGetLease({ lease_id: leaseId }) as Promise<LeaseOut>,
+  createLease: (data: Payload) => appsHouseApiLeasesCreateLease(data as API.LeaseIn) as Promise<LeaseOut>,
   createDealSigning: (data: DealSigningCreateInput) =>
     request<LeaseAllocation>('/api/house/leases/deal-signing/', {
       method: 'POST',
       data,
     }),
   patchLease: (leaseId: number, data: Payload) =>
-    appsHouseApiPatchLease({ lease_id: leaseId }, data as API.LeasePatchIn) as Promise<LeaseOut>,
+    appsHouseApiLeasesPatchLease({ lease_id: leaseId }, data as API.LeasePatchIn) as Promise<LeaseOut>,
 };

@@ -57,6 +57,11 @@ export interface PublicHouseSearchPreset {
   bedrooms?: number
   bedrooms_min?: number
   nearby?: 1
+  longitude?: number
+  latitude?: number
+  radius_m?: 500 | 1000 | 1500 | 2000
+  place_name?: string
+  place_city?: string
   sort?: 'latest' | 'rent_asc'
   location_mode?: 'metro'
 }
@@ -93,6 +98,10 @@ export function getPublicHouseSearchRoute(preset: PublicHouseSearchPreset = {}):
   return appendQuery('/pages-housing/search/index', preset)
 }
 
+export function getPublicHouseMapRoute(preset: PublicHouseSearchPreset = {}): string {
+  return appendQuery('/pages-housing/map/index', preset)
+}
+
 export function getHomeEntryListRoute(kind: HomeEntryKind): string {
   return appendQuery('/pages-housing/home-content/index', { kind })
 }
@@ -124,6 +133,10 @@ export function parsePublicHouseSearchPreset(options: Record<string, string | un
   })) as Record<string, string | undefined>
   const bedrooms = decoded.bedrooms ? Number(decoded.bedrooms) : undefined
   const bedroomsMin = decoded.bedrooms_min ? Number(decoded.bedrooms_min) : undefined
+  const longitude = decoded.longitude ? Number(decoded.longitude) : undefined
+  const latitude = decoded.latitude ? Number(decoded.latitude) : undefined
+  const radius = decoded.radius_m ? Number(decoded.radius_m) : undefined
+  const nearbyLocationValid = decoded.nearby === '1' && Number.isFinite(longitude) && Number.isFinite(latitude) && longitude! >= -180 && longitude! <= 180 && latitude! >= -90 && latitude! <= 90
   return {
     keyword: decoded.keyword || undefined,
     listing_type: ['whole', 'shared', 'apartment', 'short_term'].includes(decoded.listing_type || '') ? decoded.listing_type as PublicHouseSearchPreset['listing_type'] : undefined,
@@ -131,6 +144,11 @@ export function parsePublicHouseSearchPreset(options: Record<string, string | un
     bedrooms: Number.isInteger(bedrooms) && Number(bedrooms) >= 0 ? bedrooms : undefined,
     bedrooms_min: Number.isInteger(bedroomsMin) && Number(bedroomsMin) >= 0 ? bedroomsMin : undefined,
     nearby: decoded.nearby === '1' ? 1 : undefined,
+    longitude: nearbyLocationValid ? longitude : undefined,
+    latitude: nearbyLocationValid ? latitude : undefined,
+    radius_m: nearbyLocationValid && [500, 1000, 1500, 2000].includes(radius || 0) ? radius as PublicHouseSearchPreset['radius_m'] : undefined,
+    place_name: nearbyLocationValid ? decoded.place_name || undefined : undefined,
+    place_city: nearbyLocationValid ? decoded.place_city || undefined : undefined,
     sort: decoded.sort === 'rent_asc' ? 'rent_asc' : 'latest',
     location_mode: decoded.location_mode === 'metro' ? 'metro' : undefined,
   }

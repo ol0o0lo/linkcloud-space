@@ -7,6 +7,8 @@ export interface CommutePlace {
   address: string
   city: string
   token: string
+  longitude?: number
+  latitude?: number
   distance_m?: number | null
   destinationId?: number
 }

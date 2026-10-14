@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LeaseContractFiles from '@/components/house/LeaseContractFiles.vue'
 import type { TenantLeaseOut } from '@/features/tenant-rental/service'
 import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
@@ -96,9 +97,7 @@ onLoad((options) => {
           <view class="detail-row">
             <text>付款日</text><strong>每月 {{ lease.payment_day }} 日</strong>
           </view>
-          <view class="detail-row">
-            <text>合同文件</text><strong>{{ lease.contract_files.length ? `${lease.contract_files.length} 份` : '未上传' }}</strong>
-          </view>
+          <LeaseContractFiles :files="lease.contract_files" />
         </view>
         <view class="detail-card">
           <view class="detail-card__title">

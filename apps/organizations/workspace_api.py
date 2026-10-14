@@ -13,6 +13,7 @@ from apps.access.services import has_permission
 from apps.base.ninja_pagination import LegacyPagination
 from apps.house.models import PropertyResponsibility
 from apps.organizations.models import OrganizationInvite, OrganizationMember
+from apps.organizations.services import filter_members_by_keyword
 from apps.organizations.workspace_schemas import OrganizationNavigationOut, OrganizationSearchOut, WorkspaceMemberOut
 from apps.teams.services import visible_teams_for_request
 
@@ -94,15 +95,7 @@ def list_workspace_members(
 ):
     organization = require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     qs = workspace_members_queryset(request, organization)
-    if keyword:
-        qs = qs.filter(
-            Q(employee_name__icontains=keyword)
-            | Q(job_title__icontains=keyword)
-            | Q(user__first_name__icontains=keyword)
-            | Q(user__last_name__icontains=keyword)
-            | Q(user__username__icontains=keyword)
-            | Q(user__email__icontains=keyword)
-        )
+    qs = filter_members_by_keyword(qs, keyword)
     if team_id is not None:
         team = get_object_or_404(visible_teams_for_request(request, organization), pk=team_id)
         qs = qs.filter(user__teams=team)
@@ -124,16 +117,5 @@ def search_workspace(request, keyword: str = Query("", description="团队名称
     if not normalized:
         return {"teams": [], "members": []}
     teams = visible_teams_for_request(request, organization).filter(name__icontains=normalized).annotate(member_count=Count("members", distinct=True)).order_by("name", "pk")[:10]
-    members = (
-        workspace_members_queryset(request, organization)
-        .filter(
-            Q(employee_name__icontains=normalized)
-            | Q(job_title__icontains=normalized)
-            | Q(user__first_name__icontains=normalized)
-            | Q(user__last_name__icontains=normalized)
-            | Q(user__username__icontains=normalized)
-            | Q(user__email__icontains=normalized)
-        )
-        .distinct()[:20]
-    )
+    members = filter_members_by_keyword(workspace_members_queryset(request, organization), normalized).distinct()[:20]
     return {"teams": list(teams), "members": list(members)}

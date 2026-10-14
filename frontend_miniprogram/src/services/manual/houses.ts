@@ -19,7 +19,7 @@ export interface GeoPoint {
   coordinate_system: 'gcj02'
 }
 
-export type PublicHousesUsingGetParams = Omit<GeneratedPublicHousesUsingGetParams, 'radius_m' | 'sort'> & {
+export type PublicHousesUsingGetParams = Omit<GeneratedPublicHousesUsingGetParams, 'radius_m' | 'sort' | 'listing_type'> & {
   listing_type?: 'whole' | 'shared' | 'apartment' | 'short_term'
   bedrooms_min?: number
   estate_id?: number | null
@@ -64,6 +64,7 @@ export interface PublicHouseSuggestion {
   keyword: string
   category: '区域' | '商圈' | '小区' | '楼栋' | '房号'
   house_count: number
+  address: string
 }
 
 export interface PublicHouseMapParams {
@@ -116,8 +117,18 @@ export function requestPublicHouseFilters() {
   return publicHousesFiltersUsingGet({ options: publicRequestOptions })
 }
 
-export function requestPublicHouseSuggestions(keyword: string, city?: string) {
-  return httpGet<PublicHouseSuggestion[]>('/api/public/houses/suggestions/', { keyword, city }, undefined, publicRequestOptions)
+export function requestPublicHouseSuggestions(params: {
+  keyword: string
+  city?: string
+  longitude?: number
+  latitude?: number
+  radius_m?: PublicHouseRadiusM
+  coordinate_system?: 'gcj02'
+  listing_type?: 'whole' | 'shared' | 'apartment' | 'short_term'
+  bedrooms?: number
+  bedrooms_min?: number
+}) {
+  return httpGet<PublicHouseSuggestion[]>('/api/public/houses/suggestions/', params, undefined, publicRequestOptions)
 }
 
 export function requestPublicHouseMap(params: PublicHouseMapParams) {

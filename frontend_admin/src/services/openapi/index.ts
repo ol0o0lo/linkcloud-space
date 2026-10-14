@@ -30,6 +30,7 @@ import * as propertyRentalLandlord from "./propertyRentalLandlord";
 import * as propertyRentalManagement from "./propertyRentalManagement";
 import * as propertyRentalTenant from "./propertyRentalTenant";
 import * as publicContent from "./publicContent";
+import * as publicHouseCommute from "./publicHouseCommute";
 import * as publicHouseMatchShares from "./publicHouseMatchShares";
 import * as publicHouses from "./publicHouses";
 import * as publicLandlordStore from "./publicLandlordStore";
@@ -96,6 +97,7 @@ export default {
   propertyRentalTenant,
   houseMatchShares,
   propertyRentalLandlord,
+  publicHouseCommute,
   publicHouses,
   publicMetro,
   publicHouseMatchShares,

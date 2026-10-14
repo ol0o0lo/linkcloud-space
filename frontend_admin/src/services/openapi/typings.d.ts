@@ -892,6 +892,12 @@ declare namespace API {
     event_names?: string | null;
   };
 
+  type appsBaseApiCurrentWeatherParams = {
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+    coordinate_system?: string;
+  };
+
   type appsBaseApiListNearbyPoisParams = {
     lat: number | string;
     lng: number | string;
@@ -914,109 +920,115 @@ declare namespace API {
     target_id: string;
   };
 
-  type appsHouseApiAcceptLandlordInviteParams = {
-    token: string;
-  };
-
-  type appsHouseApiCancelTenantViewingRecordParams = {
-    viewing_record_id: number;
-  };
-
-  type appsHouseApiCheckBuildingDeleteParams = {
-    building_id: number;
-  };
-
-  type appsHouseApiCheckEstateDeleteParams = {
-    estate_id: number;
-  };
-
-  type appsHouseApiDeleteBuildingEndpointParams = {
-    building_id: number;
-  };
-
-  type appsHouseApiDeleteEstateEndpointParams = {
-    estate_id: number;
-  };
-
-  type appsHouseApiGenerateHouseAiInsightEndpointParams = {
-    house_id: number;
-  };
-
-  type appsHouseApiGetBuildingMapDetailParams = {
-    building_id: number;
-  };
-
-  type appsHouseApiGetBuildingParams = {
-    building_id: number;
-  };
-
-  type appsHouseApiGetContactParams = {
+  type appsHouseApiContactsGetContactParams = {
     contact_id: number;
   };
 
-  type appsHouseApiGetEstateParams = {
-    estate_id: number;
-  };
-
-  type appsHouseApiGetHouseAiInsightEndpointParams = {
-    house_id: number;
-  };
-
-  type appsHouseApiGetHouseParams = {
-    house_id: number;
-  };
-
-  type appsHouseApiGetLandlordInviteParams = {
-    token: string;
-  };
-
-  type appsHouseApiGetLeaseAllocationRequestParams = {
-    lease_id: number;
-  };
-
-  type appsHouseApiGetLeaseParams = {
-    lease_id: number;
-  };
-
-  type appsHouseApiGetPublicHouseParams = {
-    house_id: number;
-  };
-
-  type appsHouseApiGetPublicLandlordHouseParams = {
-    public_key: string;
-    house_id: number;
-  };
-
-  type appsHouseApiGetPublicLandlordProfileParams = {
-    public_key: string;
-  };
-
-  type appsHouseApiGetStaffResponsibilityParams = {
-    member_id: number;
-  };
-
-  type appsHouseApiGetStaffResponsibilitySummaryParams = {
-    team_id: number;
-  };
-
-  type appsHouseApiGetTenantLeaseParams = {
-    lease_id: number;
-  };
-
-  type appsHouseApiGetTenantViewingRecordParams = {
-    viewing_record_id: number;
-  };
-
-  type appsHouseApiGetViewingRecordParams = {
-    record_id: number;
-  };
-
-  type appsHouseApiInviteLandlordContactParams = {
+  type appsHouseApiContactsInviteLandlordContactParams = {
     contact_id: number;
     delivery_method?: "sms" | "manual";
   };
 
-  type appsHouseApiListBuildingMapParams = {
+  type appsHouseApiContactsListContactsParams = {
+    role?: string | null;
+    task?: string | null;
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiContactsPatchContactParams = {
+    contact_id: number;
+  };
+
+  type appsHouseApiLandlordAcceptLandlordInviteParams = {
+    token: string;
+  };
+
+  type appsHouseApiLandlordGetLandlordInviteParams = {
+    token: string;
+  };
+
+  type appsHouseApiLandlordGetPublicLandlordHouseParams = {
+    public_key: string;
+    house_id: number;
+  };
+
+  type appsHouseApiLandlordGetPublicLandlordProfileParams = {
+    public_key: string;
+  };
+
+  type appsHouseApiLandlordListLandlordContactHousesParams = {
+    contact_id: number;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiLandlordListLandlordContactLeasesParams = {
+    contact_id: number;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiLandlordListMyHousesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiLandlordListMyLeasesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiLandlordListPublicLandlordHousesParams = {
+    public_key: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiLeasesGetLeaseAllocationRequestParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiLeasesGetLeaseParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiLeasesListLeaseAllocationsParams = {
+    status?: string | null;
+    keyword?: string | null;
+    submitted_by_id?: number | null;
+    beneficiary_user_id?: number | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiLeasesListLeasesParams = {
+    house_id?: number | null;
+    status?: string | null;
+    contract_missing?: boolean | null;
+    keyword?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiLeasesPatchLeaseParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiLeasesReviewLeaseAllocationRequestParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiLeasesVoidLeaseAllocationRequestParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiMapsGetBuildingMapDetailParams = {
+    building_id: number;
+  };
+
+  type appsHouseApiMapsListBuildingMapParams = {
     keyword?: string | null;
     estate_id?: number | null;
     house_status?: string | null;
@@ -1030,7 +1042,7 @@ declare namespace API {
     page_size?: number | null;
   };
 
-  type appsHouseApiListBuildingMapUnlocatedParams = {
+  type appsHouseApiMapsListBuildingMapUnlocatedParams = {
     keyword?: string | null;
     estate_id?: number | null;
     house_status?: string | null;
@@ -1038,23 +1050,7 @@ declare namespace API {
     page_size?: number | null;
   };
 
-  type appsHouseApiListBuildingsParams = {
-    estate_id?: number | null;
-    keyword?: string | null;
-    scope?: "all" | "mine" | null;
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsHouseApiListContactsParams = {
-    role?: string | null;
-    task?: string | null;
-    keyword?: string | null;
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsHouseApiListEstateMapParams = {
+  type appsHouseApiMapsListEstateMapParams = {
     keyword?: string | null;
     estate_id?: number | null;
     house_status?: string | null;
@@ -1067,19 +1063,90 @@ declare namespace API {
     page_size?: number | null;
   };
 
-  type appsHouseApiListEstatesParams = {
+  type appsHouseApiMatchingExtendShareParams = {
+    share_id: number;
+  };
+
+  type appsHouseApiMatchingGetShareHouseParams = {
+    share_key: string;
+    house_id: number;
+  };
+
+  type appsHouseApiMatchingGetShareParams = {
+    share_key: string;
+  };
+
+  type appsHouseApiMatchingListShareHousesParams = {
+    share_key: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiMatchingListSharesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiMatchingRevokeShareParams = {
+    share_id: number;
+  };
+
+  type appsHouseApiPropertiesCheckBuildingDeleteParams = {
+    building_id: number;
+  };
+
+  type appsHouseApiPropertiesCheckEstateDeleteParams = {
+    estate_id: number;
+  };
+
+  type appsHouseApiPropertiesDeleteBuildingEndpointParams = {
+    building_id: number;
+  };
+
+  type appsHouseApiPropertiesDeleteEstateEndpointParams = {
+    estate_id: number;
+  };
+
+  type appsHouseApiPropertiesGenerateHouseAiInsightEndpointParams = {
+    house_id: number;
+  };
+
+  type appsHouseApiPropertiesGetBuildingParams = {
+    building_id: number;
+  };
+
+  type appsHouseApiPropertiesGetEstateParams = {
+    estate_id: number;
+  };
+
+  type appsHouseApiPropertiesGetHouseAiInsightEndpointParams = {
+    house_id: number;
+  };
+
+  type appsHouseApiPropertiesGetHouseParams = {
+    house_id: number;
+  };
+
+  type appsHouseApiPropertiesListBuildingsParams = {
+    estate_id?: number | null;
     keyword?: string | null;
     scope?: "all" | "mine" | null;
     page?: number;
     page_size?: number | null;
   };
 
-  type appsHouseApiListHousesParams = {
+  type appsHouseApiPropertiesListEstatesParams = {
+    keyword?: string | null;
+    scope?: "all" | "mine" | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiPropertiesListHousesParams = {
     estate_id?: number | null;
     building_id?: number | null;
     responsible_member_id?: number | null;
     scope?: "all" | "mine" | null;
-    responsibility?: string | null;
     inspection_due?: boolean;
     inspection_reason?: "missing_images" | "missing_videos" | "expired" | null;
     status?: HouseStatus | null;
@@ -1090,53 +1157,37 @@ declare namespace API {
     page_size?: number | null;
   };
 
-  type appsHouseApiListLandlordContactHousesParams = {
-    contact_id: number;
-    page?: number;
-    page_size?: number | null;
+  type appsHouseApiPropertiesPatchBuildingParams = {
+    building_id: number;
   };
 
-  type appsHouseApiListLandlordContactLeasesParams = {
-    contact_id: number;
-    page?: number;
-    page_size?: number | null;
+  type appsHouseApiPropertiesPatchEstateParams = {
+    estate_id: number;
   };
 
-  type appsHouseApiListLeaseAllocationsParams = {
-    status?: string | null;
-    keyword?: string | null;
-    submitted_by_id?: number | null;
-    beneficiary_user_id?: number | null;
-    page?: number;
-    page_size?: number | null;
+  type appsHouseApiPropertiesPatchHouseParams = {
+    house_id: number;
   };
 
-  type appsHouseApiListLeasesParams = {
-    house_id?: number | null;
-    status?: string | null;
-    contract_missing?: boolean | null;
-    keyword?: string | null;
-    page?: number;
-    page_size?: number | null;
+  type appsHouseApiPublicGetPublicHouseParams = {
+    house_id: number;
   };
 
-  type appsHouseApiListMyHousesParams = {
-    page?: number;
-    page_size?: number | null;
+  type appsHouseApiPublicGetPublicHouseSuggestionsParams = {
+    keyword?: string;
+    city?: string | null;
   };
 
-  type appsHouseApiListMyLeasesParams = {
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsHouseApiListPublicHouseMapParams = {
+  type appsHouseApiPublicListPublicHouseMapParams = {
     zoom?: number;
     west?: number | string | null;
     south?: number | string | null;
     east?: number | string | null;
     north?: number | string | null;
     keyword?: string | null;
+    listing_type?: HouseListingType | null;
+    bedrooms?: number | null;
+    bedrooms_min?: number | null;
     province?: string | null;
     city?: string | null;
     district?: string | null;
@@ -1147,8 +1198,9 @@ declare namespace API {
     coordinate_system: string;
   };
 
-  type appsHouseApiListPublicHousesParams = {
+  type appsHouseApiPublicListPublicHousesParams = {
     keyword?: string | null;
+    listing_type?: HouseListingType | null;
     province?: string | null;
     city?: string | null;
     district?: string | null;
@@ -1160,6 +1212,7 @@ declare namespace API {
     min_area?: number | string | null;
     max_area?: number | string | null;
     bedrooms?: number | null;
+    bedrooms_min?: number | null;
     living_rooms?: number | null;
     decoration?: string | null;
     has_elevator_access?: boolean | null;
@@ -1170,42 +1223,72 @@ declare namespace API {
     latitude?: number | string | null;
     radius_m?: number;
     coordinate_system?: string | null;
+    commute_search_id?: string | null;
     sort?:
       | "latest"
       | "rent_asc"
       | "rent_desc"
       | "area_asc"
       | "area_desc"
-      | "distance_asc";
+      | "distance_asc"
+      | "commute_asc";
     page?: number;
     page_size?: number | null;
   };
 
-  type appsHouseApiListPublicLandlordHousesParams = {
-    public_key: string;
-    page?: number;
-    page_size?: number | null;
+  type appsHouseApiPublicResolvePublicHouseRegionParams = {
+    latitude: number | string;
+    longitude: number | string;
+    coordinate_system?: string;
   };
 
-  type appsHouseApiListStaffResponsibilitiesParams = {
+  type appsHouseApiResponsibilitiesGetStaffResponsibilityParams = {
+    member_id: number;
+  };
+
+  type appsHouseApiResponsibilitiesGetStaffResponsibilitySummaryParams = {
+    team_id: number;
+  };
+
+  type appsHouseApiResponsibilitiesListStaffResponsibilitiesParams = {
     keyword?: string | null;
     team_id?: number | null;
     page?: number;
     page_size?: number | null;
   };
 
-  type appsHouseApiListTenantLeasesParams = {
+  type appsHouseApiResponsibilitiesReplaceStaffResponsibilitiesParams = {
+    member_id: number;
+  };
+
+  type appsHouseApiTenantCancelTenantViewingRecordParams = {
+    viewing_record_id: number;
+  };
+
+  type appsHouseApiTenantGetTenantLeaseParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiTenantGetTenantViewingRecordParams = {
+    viewing_record_id: number;
+  };
+
+  type appsHouseApiTenantListTenantLeasesParams = {
     page?: number;
     page_size?: number | null;
   };
 
-  type appsHouseApiListTenantViewingRecordsParams = {
+  type appsHouseApiTenantListTenantViewingRecordsParams = {
     scope?: "current" | "history" | null;
     page?: number;
     page_size?: number | null;
   };
 
-  type appsHouseApiListViewingRecordsParams = {
+  type appsHouseApiViewingsGetViewingRecordParams = {
+    record_id: number;
+  };
+
+  type appsHouseApiViewingsListViewingRecordsParams = {
     house_id?: number | null;
     status?: string | null;
     pending_lease?: boolean | null;
@@ -1215,74 +1298,30 @@ declare namespace API {
     page_size?: number | null;
   };
 
-  type appsHouseApiPatchBuildingParams = {
-    building_id: number;
-  };
-
-  type appsHouseApiPatchContactParams = {
-    contact_id: number;
-  };
-
-  type appsHouseApiPatchEstateParams = {
-    estate_id: number;
-  };
-
-  type appsHouseApiPatchHouseParams = {
-    house_id: number;
-  };
-
-  type appsHouseApiPatchLeaseParams = {
-    lease_id: number;
-  };
-
-  type appsHouseApiPatchViewingRecordParams = {
+  type appsHouseApiViewingsPatchViewingRecordParams = {
     record_id: number;
   };
 
-  type appsHouseApiReplaceStaffResponsibilitiesParams = {
-    member_id: number;
-  };
-
-  type appsHouseApiResolvePublicHouseRegionParams = {
-    latitude: number | string;
-    longitude: number | string;
-    coordinate_system?: string;
-  };
-
-  type appsHouseApiReviewLeaseAllocationRequestParams = {
-    lease_id: number;
-  };
-
-  type appsHouseApiVoidLeaseAllocationRequestParams = {
-    lease_id: number;
-  };
-
-  type appsHouseMatchApiExtendShareParams = {
-    share_id: number;
-  };
-
-  type appsHouseMatchApiGetShareHouseParams = {
-    share_key: string;
+  type appsHouseCommuteApiGetCommuteRouteParams = {
+    route_id: number;
     house_id: number;
   };
 
-  type appsHouseMatchApiGetShareParams = {
-    share_key: string;
+  type appsHouseCommuteApiGetCommuteSearchParams = {
+    search_id: string;
   };
 
-  type appsHouseMatchApiListShareHousesParams = {
-    share_key: string;
+  type appsHouseCommuteApiListCommuteHousesParams = {
+    search_id: string;
     page?: number;
     page_size?: number | null;
   };
 
-  type appsHouseMatchApiListSharesParams = {
-    page?: number;
-    page_size?: number | null;
-  };
-
-  type appsHouseMatchApiRevokeShareParams = {
-    share_id: number;
+  type appsHouseCommuteApiSearchCommutePlacesParams = {
+    keyword?: string;
+    city?: string;
+    lat?: number | null;
+    lng?: number | null;
   };
 
   type appsMediaApiOssTokenParams = {
@@ -2065,6 +2104,151 @@ declare namespace API {
     deleted?: number;
   };
 
+  type CommuteDestinationIn = {
+    /** Place Token */
+    place_token: string;
+  };
+
+  type CommuteDestinationOut = {
+    /** Destination Id */
+    destination_id: number;
+  };
+
+  type CommuteHouseOut = {
+    /** Id */
+    id: number;
+    /** Room Number */
+    room_number: string;
+    listing_type: HouseListingType | null;
+    /** Floor */
+    floor: number | null;
+    /** Area */
+    area: string | null;
+    /** Asking Rent */
+    asking_rent: string | null;
+    /** Deposit Amount */
+    deposit_amount: string | null;
+    /** Bedrooms */
+    bedrooms: number | null;
+    /** Living Rooms */
+    living_rooms: number | null;
+    /** Bathrooms */
+    bathrooms: number | null;
+    /** Orientation */
+    orientation: string | null;
+    /** Orientation  Mapping */
+    orientation__mapping: string;
+    /** Decoration */
+    decoration: string | null;
+    /** Decoration  Mapping */
+    decoration__mapping: string;
+    /** Has Elevator Access */
+    has_elevator_access: boolean;
+    /** Images */
+    images: ResolvedMediaRefOut[];
+    /** Tags */
+    tags: string[];
+    /** Effective Tags */
+    effective_tags: string[];
+    /** Public Description */
+    public_description: string;
+    building: PublicBuildingOut;
+    publisher: PublicPublisherOut;
+    /** Updated At */
+    updated_at: string;
+    /** Distance M */
+    distance_m?: number | null;
+    nearest_metro_station?: NearestMetroStationOut | null;
+    /** Commute Minutes */
+    commute_minutes: number;
+    /** Commute Route Id */
+    commute_route_id: number;
+  };
+
+  type CommutePlaceOut = {
+    /** Name */
+    name: string;
+    /** Address */
+    address: string;
+    /** City */
+    city: string;
+    /** Token */
+    token: string;
+    /** Distance M */
+    distance_m?: number | null;
+  };
+
+  type CommuteProgressOut = {
+    /** Status */
+    status: "pending" | "ready" | "failed";
+    /** Processed */
+    processed: number;
+    /** Total */
+    total: number;
+    /** Error */
+    error: string;
+  };
+
+  type CommuteRouteForHouseIn = {
+    /** House Id */
+    house_id: number;
+    /** Destination Id */
+    destination_id: number;
+    /** Mode */
+    mode: "metro" | "ebike" | "bicycle" | "walking" | "driving";
+  };
+
+  type CommuteRouteOut = {
+    /** Mode */
+    mode: "metro" | "ebike" | "bicycle" | "walking" | "driving";
+    /** Destination Name */
+    destination_name: string;
+    /** Duration Minutes */
+    duration_minutes: number;
+    /** Distance M */
+    distance_m: number;
+    /** Walking Distance M */
+    walking_distance_m: number;
+    /** Steps */
+    steps: string[];
+    /** Transit Segments */
+    transit_segments: CommuteTransitSegmentOut[];
+  };
+
+  type CommuteSearchCreatedOut = {
+    /** Search Id */
+    search_id: string;
+    /** Destination Id */
+    destination_id: number;
+  };
+
+  type CommuteSearchIn = {
+    /** Place Token */
+    place_token?: string | null;
+    /** Destination Id */
+    destination_id?: number | null;
+    /** Mode */
+    mode: "metro" | "ebike" | "bicycle" | "walking" | "driving";
+    /** Max Minutes */
+    max_minutes: number;
+    filters?: PublicHouseSearchFilters;
+    /** Retry */
+    retry?: boolean;
+  };
+
+  type CommuteTransitSegmentOut = {
+    /** Kind */
+    kind: "walk" | "metro";
+    /** Label */
+    label: string;
+    /** Distance M */
+    distance_m: number;
+    /** Duration Seconds */
+    duration_seconds: number | null;
+    /** Color */
+    color?: string;
+  };
+
   type ContactIn = {
     /** Name */
     name: string;
@@ -2335,6 +2519,15 @@ declare namespace API {
     /** Subscription */
     subscription: Record<string, any> | null;
     recommendation: UpgradeRecommendationOut | null;
+  };
+
+  type CurrentWeatherOut = {
+    /** Provider */
+    provider: "amap" | "qweather";
+    location: WeatherLocationOut;
+    current: WeatherNowOut;
+    /** Stale */
+    stale: boolean;
   };
 
   type CustomRoleCreateIn = {
@@ -2878,6 +3071,7 @@ declare namespace API {
     landlord_id?: number | null;
     /** Room Number */
     room_number: string;
+    listing_type?: HouseListingType | null;
     /** Floor */
     floor?: number | null;
     /** Area */
@@ -2913,6 +3107,8 @@ declare namespace API {
     /** Public Description */
     public_description?: string;
   };
+
+  type HouseListingType = "whole" | "shared" | "apartment" | "short_term";
 
   type HouseMatchConsultantOut = {
     /** Id */
@@ -3022,6 +3218,7 @@ declare namespace API {
     landlord: ContactSummaryOut | null;
     /** Room Number */
     room_number: string;
+    listing_type: HouseListingType | null;
     /** Floor */
     floor: number | null;
     /** Area */
@@ -3088,6 +3285,7 @@ declare namespace API {
     landlord_id?: number | null;
     /** Room Number */
     room_number?: string | null;
+    listing_type?: HouseListingType | null;
     /** Floor */
     floor?: number | null;
     /** Area */
@@ -3522,14 +3720,6 @@ declare namespace API {
     notes?: string | null;
     /** Extra */
     extra?: Record<string, any> | null;
-  };
-
-  type LeaseWithAllocationIn = {
-    lease: LeaseIn;
-    /** Team Id */
-    team_id?: number | null;
-    /** Beneficiary User Ids */
-    beneficiary_user_ids: number[];
   };
 
   type ManualAccrualEntryIn = {
@@ -4271,6 +4461,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedCommuteHouseOut = {
+    /** Items */
+    items: CommuteHouseOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedContactOut = {
     /** Items */
     items: ContactOut[];
@@ -4859,6 +5060,7 @@ declare namespace API {
     id: number;
     /** Room Number */
     room_number: string;
+    listing_type: HouseListingType | null;
     /** Floor */
     floor: number | null;
     /** Area */
@@ -4898,6 +5100,10 @@ declare namespace API {
     /** Distance M */
     distance_m?: number | null;
     nearest_metro_station?: NearestMetroStationOut | null;
+    /** Commute Minutes */
+    commute_minutes?: number | null;
+    /** Commute Route Id */
+    commute_route_id?: number | null;
     /** Interior Area */
     interior_area: string | null;
     /** Kitchens */
@@ -4936,6 +5142,7 @@ declare namespace API {
     id: number;
     /** Room Number */
     room_number: string;
+    listing_type: HouseListingType | null;
     /** Floor */
     floor: number | null;
     /** Area */
@@ -4975,6 +5182,10 @@ declare namespace API {
     /** Distance M */
     distance_m?: number | null;
     nearest_metro_station?: NearestMetroStationOut | null;
+    /** Commute Minutes */
+    commute_minutes?: number | null;
+    /** Commute Route Id */
+    commute_route_id?: number | null;
   };
 
   type PublicHouseLocatedRegionOut = {
@@ -5080,6 +5291,65 @@ declare namespace API {
   type PublicHouseRegionSubdistrictOut = {
     /** Subdistrict */
     subdistrict: string;
+    /** House Count */
+    house_count: number;
+  };
+
+  type PublicHouseSearchFilters = {
+    /** Keyword */
+    keyword?: string | null;
+    listing_type?: HouseListingType | null;
+    /** Province */
+    province?: string | null;
+    /** City */
+    city?: string | null;
+    /** District */
+    district?: string | null;
+    /** Subdistrict */
+    subdistrict?: string | null;
+    /** Estate Id */
+    estate_id?: number | null;
+    /** Building Id */
+    building_id?: number | null;
+    /** Min Rent */
+    min_rent?: number | string | null;
+    /** Max Rent */
+    max_rent?: number | string | null;
+    /** Min Area */
+    min_area?: number | string | null;
+    /** Max Area */
+    max_area?: number | string | null;
+    /** Bedrooms */
+    bedrooms?: number | null;
+    /** Bedrooms Min */
+    bedrooms_min?: number | null;
+    /** Living Rooms */
+    living_rooms?: number | null;
+    /** Decoration */
+    decoration?: string | null;
+    /** Has Elevator Access */
+    has_elevator_access?: boolean | null;
+    /** Tags */
+    tags?: string[] | null;
+    /** Publisher Slug */
+    publisher_slug?: string | null;
+    /** Metro Stations */
+    metro_stations?: string[] | null;
+    /** Longitude */
+    longitude?: number | string | null;
+    /** Latitude */
+    latitude?: number | string | null;
+    /** Radius M */
+    radius_m?: number;
+    /** Coordinate System */
+    coordinate_system?: string | null;
+  };
+
+  type PublicHouseSuggestionOut = {
+    /** Keyword */
+    keyword: string;
+    /** Category */
+    category: "区域" | "商圈" | "小区" | "楼栋" | "房号";
     /** House Count */
     house_count: number;
   };
@@ -6441,6 +6711,28 @@ declare namespace API {
     total_income: number;
     /** Total Withdrawn */
     total_withdrawn: number;
+  };
+
+  type WeatherLocationOut = {
+    /** Province */
+    province: string;
+    /** City */
+    city: string;
+    /** District */
+    district: string;
+    /** Source */
+    source: "device" | "default";
+  };
+
+  type WeatherNowOut = {
+    /** Temperature C */
+    temperature_c: number;
+    /** Condition */
+    condition: string;
+    /** Humidity Percent */
+    humidity_percent: number | null;
+    /** Observed At */
+    observed_at: string;
   };
 
   type WechatMiniprogramConnectIn = {

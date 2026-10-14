@@ -18,8 +18,8 @@ export function getPublicHouseFilters() {
   return requestPublicHouseFilters()
 }
 
-export function getPublicHouseSuggestions(keyword: string, city?: string) {
-  return requestPublicHouseSuggestions(keyword, city)
+export function getPublicHouseSuggestions(params: Parameters<typeof requestPublicHouseSuggestions>[0]) {
+  return requestPublicHouseSuggestions(params)
 }
 
 export function getPublicHouseMap(params: PublicHouseMapParams) {

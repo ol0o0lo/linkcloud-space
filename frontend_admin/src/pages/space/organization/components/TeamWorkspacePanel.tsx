@@ -51,7 +51,7 @@ import {
   getWorkspaceMemberJobTitle,
 } from '@/services/manual/organizationMembers';
 import { appsOrganizationsWorkspaceApiListWorkspaceMembers } from '@/services/openapi/organizationWorkspace';
-import { appsHouseApiGetStaffResponsibilitySummary } from '@/services/openapi/propertyRentalManagement';
+import { appsHouseApiResponsibilitiesGetStaffResponsibilitySummary } from '@/services/openapi/propertyRentalManagement';
 import {
   appsTeamsApiAddTeamMember,
   appsTeamsApiCreateTeam,
@@ -414,7 +414,9 @@ export const TeamWorkspacePanel: React.FC<{
       'summary',
     ],
     queryFn: () =>
-      appsHouseApiGetStaffResponsibilitySummary({ team_id: teamId }),
+      appsHouseApiResponsibilitiesGetStaffResponsibilitySummary({
+        team_id: teamId,
+      }),
     enabled: Boolean(workspace.selectedOrgSlug && tab === 'responsibilities'),
   });
 

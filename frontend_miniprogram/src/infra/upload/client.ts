@@ -1,3 +1,4 @@
+import type { PickedFile } from '@/platform/contracts/file-picker'
 import type { MediaFileOut } from '@/services/openapi/types'
 import type { RequestScope } from '@/infra/http/request-scope'
 import { resolveApiUrl } from '@/core/config/runtime'
@@ -8,6 +9,7 @@ import { platform } from '@/platform'
 import { parseUploadResponse, validateUploadFiles } from './upload-contract'
 
 export interface UploadMediaOptions {
+  kind?: 'image' | 'file'
   scope: RequestScope
   resourceType: string
   mediaScope: 'user' | 'org'
@@ -17,11 +19,12 @@ export interface UploadMediaOptions {
   onProgress?: (progress: number, fileIndex: number) => void
 }
 
-function uploadSingle(filePath: string, options: UploadMediaOptions, fileIndex: number): Promise<MediaFileOut[]> {
+function uploadSingle(file: PickedFile, options: UploadMediaOptions, fileIndex: number): Promise<MediaFileOut[]> {
   return new Promise((resolve, reject) => {
     const task = uni.uploadFile({
       url: resolveApiUrl('/api/media/upload/'),
-      filePath,
+      filePath: file.path,
+      file: file.file,
       name: 'files',
       formData: {
         resource_type: options.resourceType,
@@ -48,9 +51,11 @@ function uploadSingle(filePath: string, options: UploadMediaOptions, fileIndex: 
 
 export async function chooseAndUploadMedia(options: UploadMediaOptions): Promise<MediaFileOut[]> {
   const maxCount = options.maxCount || 1
-  const selection = await platform.filePicker.pick({ kind: 'image', count: maxCount })
+  const selection = await platform.filePicker.pick({ kind: options.kind || 'image', count: maxCount })
   if ('reason' in selection)
     throw new AppError({ kind: 'business', message: selection.reason })
+  if (!selection.value.length)
+    return []
   const files = validateUploadFiles(selection.value, {
     maxCount,
     maxSizeBytes: options.maxSizeBytes || 10 * 1024 * 1024,
@@ -58,6 +63,6 @@ export async function chooseAndUploadMedia(options: UploadMediaOptions): Promise
   })
   const results: MediaFileOut[] = []
   for (let index = 0; index < files.length; index += 1)
-    results.push(...await uploadSingle(files[index].path, options, index))
+    results.push(...await uploadSingle(selection.value[index], options, index))
   return results
 }

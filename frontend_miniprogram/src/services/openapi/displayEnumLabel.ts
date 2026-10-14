@@ -10,6 +10,16 @@ export function displayActionEnum(field: API.ActionEnum) {
   }[field];
 }
 
+export function displayCategoryEnum(field: API.CategoryEnum) {
+  return {
+    区域: '区域',
+    商圈: '商圈',
+    小区: '小区',
+    楼栋: '楼栋',
+    房号: '房号',
+  }[field];
+}
+
 export function displayDecisionEnum(field: API.DecisionEnum) {
   return { approve: 'approve', reject: 'reject' }[field];
 }
@@ -21,6 +31,15 @@ export function displayEntryTypeEnum(field: API.Entry_typeEnum) {
   }[field];
 }
 
+export function displayHouseListingTypeEnum(field: API.HouseListingType) {
+  return {
+    whole: 'whole',
+    shared: 'shared',
+    apartment: 'apartment',
+    short_term: 'short_term',
+  }[field];
+}
+
 export function displayHouseStatusEnum(field: API.HouseStatus) {
   return {
     vacant: 'vacant',
@@ -29,6 +48,10 @@ export function displayHouseStatusEnum(field: API.HouseStatus) {
     renovating: 'renovating',
     inactive: 'inactive',
   }[field];
+}
+
+export function displayKindEnum(field: API.KindEnum) {
+  return { walk: 'walk', metro: 'metro' }[field];
 }
 
 export function displayLevelEnum(field: API.LevelEnum) {
@@ -69,6 +92,40 @@ export function displayModeEnum3(field: API.ModeEnum3) {
   return { manual: 'manual', dynamic: 'dynamic' }[field];
 }
 
+export function displayModeEnum4(field: API.ModeEnum4) {
+  return {
+    metro: 'metro',
+    ebike: 'ebike',
+    bicycle: 'bicycle',
+    walking: 'walking',
+    driving: 'driving',
+  }[field];
+}
+
+export function displayModeEnum5(field: API.ModeEnum5) {
+  return {
+    metro: 'metro',
+    ebike: 'ebike',
+    bicycle: 'bicycle',
+    walking: 'walking',
+    driving: 'driving',
+  }[field];
+}
+
+export function displayModeEnum6(field: API.ModeEnum6) {
+  return {
+    metro: 'metro',
+    ebike: 'ebike',
+    bicycle: 'bicycle',
+    walking: 'walking',
+    driving: 'driving',
+  }[field];
+}
+
+export function displayProviderEnum(field: API.ProviderEnum) {
+  return { amap: 'amap', qweather: 'qweather' }[field];
+}
+
 export function displayScopeEnum(field: API.ScopeEnum) {
   return {
     platform: 'platform',
@@ -100,6 +157,10 @@ export function displaySortEnum(field: API.SortEnum) {
   }[field];
 }
 
+export function displaySourceEnum(field: API.SourceEnum) {
+  return { device: 'device', default: 'default' }[field];
+}
+
 export function displayStateEnum(field: API.StateEnum) {
   return { not_generated: 'not_generated', fresh: 'fresh', expired: 'expired' }[
     field
@@ -122,6 +183,10 @@ export function displayStatusEnum2(field: API.StatusEnum2) {
 
 export function displayStatusEnum3(field: API.StatusEnum3) {
   return { active: 'active', expired: 'expired', revoked: 'revoked' }[field];
+}
+
+export function displayStatusEnum4(field: API.StatusEnum4) {
+  return { pending: 'pending', ready: 'ready', failed: 'failed' }[field];
 }
 
 export function displayToneEnum(field: API.ToneEnum) {

@@ -42,6 +42,7 @@ export * from './gerenshezhi';
 export * from './zuke';
 export * from './peifangfenxiang';
 export * from './fangdong';
+export * from './tongqinzhaofang';
 export * from './gongkaipeifangfenxiang';
 export * from './fangdonggongkaidianpu';
 export * from './shoucang';

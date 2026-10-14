@@ -3,9 +3,9 @@
 import { request } from "@umijs/max";
 
 /** 全局搜索公开房源 GET /api/public/houses/ */
-export async function appsHouseApiListPublicHouses(
+export async function appsHouseApiPublicListPublicHouses(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiListPublicHousesParams,
+  params: API.appsHouseApiPublicListPublicHousesParams,
   options?: { [key: string]: any }
 ) {
   return request<API.PagedPublicHouseListOut>("/api/public/houses/", {
@@ -25,9 +25,9 @@ export async function appsHouseApiListPublicHouses(
 }
 
 /** 获取公开房源详情 GET /api/public/houses/${param0}/ */
-export async function appsHouseApiGetPublicHouse(
+export async function appsHouseApiPublicGetPublicHouse(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiGetPublicHouseParams,
+  params: API.appsHouseApiPublicGetPublicHouseParams,
   options?: { [key: string]: any }
 ) {
   const { house_id: param0, ...queryParams } = params;
@@ -39,7 +39,7 @@ export async function appsHouseApiGetPublicHouse(
 }
 
 /** 获取公开房源筛选项 GET /api/public/houses/filters/ */
-export async function appsHouseApiGetPublicHouseFilters(options?: {
+export async function appsHouseApiPublicGetPublicHouseFilters(options?: {
   [key: string]: any;
 }) {
   return request<API.PublicHouseFiltersOut>("/api/public/houses/filters/", {
@@ -49,9 +49,9 @@ export async function appsHouseApiGetPublicHouseFilters(options?: {
 }
 
 /** 按地图视野获取公开房源聚合标点 GET /api/public/houses/map/ */
-export async function appsHouseApiListPublicHouseMap(
+export async function appsHouseApiPublicListPublicHouseMap(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiListPublicHouseMapParams,
+  params: API.appsHouseApiPublicListPublicHouseMapParams,
   options?: { [key: string]: any }
 ) {
   return request<API.PublicHouseMapOut>("/api/public/houses/map/", {
@@ -69,7 +69,7 @@ export async function appsHouseApiListPublicHouseMap(
 }
 
 /** 获取公开房源地区目录 GET /api/public/houses/regions/ */
-export async function appsHouseApiGetPublicHouseRegions(options?: {
+export async function appsHouseApiPublicGetPublicHouseRegions(options?: {
   [key: string]: any;
 }) {
   return request<API.PublicHouseRegionsOut>("/api/public/houses/regions/", {
@@ -79,9 +79,9 @@ export async function appsHouseApiGetPublicHouseRegions(options?: {
 }
 
 /** 根据坐标解析所在地区 GET /api/public/houses/regions/resolve/ */
-export async function appsHouseApiResolvePublicHouseRegion(
+export async function appsHouseApiPublicResolvePublicHouseRegion(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiResolvePublicHouseRegionParams,
+  params: API.appsHouseApiPublicResolvePublicHouseRegionParams,
   options?: { [key: string]: any }
 ) {
   return request<API.PublicHouseLocatedRegionOut>(
@@ -91,6 +91,24 @@ export async function appsHouseApiResolvePublicHouseRegion(
       params: {
         // coordinate_system has a default value: gcj02
         coordinate_system: "gcj02",
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 联想公开房源搜索词 GET /api/public/houses/suggestions/ */
+export async function appsHouseApiPublicGetPublicHouseSuggestions(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiPublicGetPublicHouseSuggestionsParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.PublicHouseSuggestionOut[]>(
+    "/api/public/houses/suggestions/",
+    {
+      method: "GET",
+      params: {
         ...params,
       },
       ...(options || {}),

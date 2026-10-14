@@ -118,6 +118,27 @@ export function publicHousesRegionsResolveUsingGet({
   );
 }
 
+/** 联想公开房源搜索词 GET /api/public/houses/suggestions/ */
+export function publicHousesSuggestionsUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.PublicHousesSuggestionsUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.PublicHouseSuggestionOut[]>(
+    '/api/public/houses/suggestions/',
+    {
+      method: 'GET',
+      params: {
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 获取已开通地铁城市 GET /api/public/metro/cities/ */
 export function publicMetroCitiesUsingGet({
   options,

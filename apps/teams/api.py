@@ -1,5 +1,4 @@
 from django.db import transaction
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 from ninja import Query, Router, Status
@@ -12,6 +11,7 @@ from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_selected
 from apps.organizations.models import OrganizationMember
 from apps.organizations.schemas import MemberOut
+from apps.organizations.services import filter_members_by_keyword
 from apps.teams.models import Team
 from apps.teams.schemas import TeamIn, TeamMemberMutationOut, TeamOut, TeamPatchIn
 from apps.teams.services import visible_teams_for_request
@@ -81,15 +81,7 @@ def list_team_member_candidates(request, team_id: int, keyword: str | None = Que
     """返回目标团队所属组织中尚未加入该团队的成员。"""
     team = require_team_permission(request, team_id, TeamPermission.MEMBER_MANAGE)
     qs = OrganizationMember.objects.filter(organization=team.organization).exclude(user__teams=team).select_related("user")
-    if keyword:
-        qs = qs.filter(
-            Q(employee_name__icontains=keyword)
-            | Q(job_title__icontains=keyword)
-            | Q(user__first_name__icontains=keyword)
-            | Q(user__last_name__icontains=keyword)
-            | Q(user__username__icontains=keyword)
-            | Q(user__email__icontains=keyword)
-        )
+    qs = filter_members_by_keyword(qs, keyword)
     return qs.order_by("user__first_name", "user__last_name", "user__username", "pk")
 
 

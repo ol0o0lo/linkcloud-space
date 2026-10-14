@@ -6,6 +6,7 @@ import pytest
 from model_bakery import baker
 
 from apps.accounts.models import User
+from apps.notifications.categories import filter_recipients
 from apps.notifications.constants import NotificationChannel
 from apps.notifications.models import Notification, NotificationPreference
 from apps.notifications.services import notify
@@ -64,6 +65,14 @@ class TestNotify:
         notify([self.alice], title="must arrive", category="required")
 
         assert Notification.objects.filter(recipient=self.alice, category="required").exists()
+
+    def test_unknown_channel_preserves_default_and_saved_preference_behavior(self, settings):
+        settings.NOTIFICATIONS_CATEGORIES = [COMMENTS_CATEGORY]
+        NotificationPreference.objects.create(user=self.alice, category="comments", in_app=False, email=False)
+
+        assert filter_recipients([self.alice, self.bob], "comments", "unknown") == [self.alice]
+        settings.NOTIFICATIONS_CATEGORIES = [{**COMMENTS_CATEGORY, "default_channels": ("unknown",)}]
+        assert filter_recipients([self.alice, self.bob], "comments", "unknown") == [self.alice, self.bob]
 
     def test_raises_when_recipient_not_in_org(self):
         org = baker.make("organizations.Organization")

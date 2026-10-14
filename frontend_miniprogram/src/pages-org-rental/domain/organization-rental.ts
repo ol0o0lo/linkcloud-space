@@ -1,3 +1,6 @@
+import type { PropertyLocation } from '@/domain/property-location'
+
+export type { PropertyLocation } from '@/domain/property-location'
 export type OrganizationStatusTone = 'default' | 'primary' | 'success' | 'warning' | 'danger'
 export type OrganizationViewingAction = 'viewed' | 'canceled' | 'no_show' | 'converted'
 export type OrganizationHouseLifecycleAction = 'publish' | 'unpublish' | 'disable'
@@ -76,6 +79,7 @@ export interface OrganizationContactWriteInput {
 }
 
 export interface OrganizationEstateWriteInput {
+  location?: PropertyLocation | null
   name: string
   display_name: string
   developer?: string | null
@@ -90,6 +94,7 @@ export interface OrganizationEstateWriteInput {
 }
 
 export interface OrganizationBuildingWriteInput {
+  location?: PropertyLocation | null
   estate_id: number | null
   name: string
   floors: string | number
@@ -322,6 +327,7 @@ export function buildOrganizationEstatePayload(values: OrganizationEstateWriteIn
   return {
     name: values.name.trim(),
     display_name: values.display_name.trim(),
+    ...(values.location !== undefined ? { location: values.location } : {}),
     developer: nullableText(values.developer),
     built_year: nullableIntegerValue(values.built_year),
     property_type: values.property_type,
@@ -338,6 +344,7 @@ export function buildOrganizationBuildingPayload(values: OrganizationBuildingWri
   return {
     estate_id: values.estate_id == null ? null : Number(values.estate_id),
     name: values.name.trim(),
+    ...(values.location !== undefined ? { location: values.location } : {}),
     floors: numericValue(values.floors),
     under_floors: nullableIntegerValue(values.under_floors),
     year_built: nullableIntegerValue(values.year_built),

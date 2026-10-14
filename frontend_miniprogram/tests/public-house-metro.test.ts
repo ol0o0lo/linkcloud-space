@@ -35,7 +35,7 @@ test('附近、地铁和普通地区生成互斥请求参数', () => {
     province: '广东省',
     district: '罗湖区',
     subdistrict: '东门',
-  }), { province: '广东省', city: '深圳市', longitude: 114, latitude: 22.5, radius_m: 1000, coordinate_system: 'gcj02' })
+  }), { longitude: 114, latitude: 22.5, radius_m: 1000, coordinate_system: 'gcj02' })
   assert.deepEqual(buildPublicHouseSpatialParams({
     nearbyEnabled: false,
     nearbyLocation: null,

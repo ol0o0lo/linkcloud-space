@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PropertyLocationField from '@/components/house/PropertyLocationField.vue'
 import type { OrganizationEstateWriteInput } from '@/pages-org-rental/domain/organization-rental'
 import type { OrganizationEstateDetailOut } from '@/pages-org-rental/api/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
@@ -59,6 +60,7 @@ function fillEstate(value: OrganizationEstateDetailOut) {
     subdistrict: value.subdistrict || '',
     address: value.address,
     description: value.description,
+    location: value.location ? { longitude: value.location.longitude, latitude: value.location.latitude, coordinate_system: 'gcj02' } : null,
   })
   propertyTypeSelection.value = [value.property_type]
 }
@@ -155,6 +157,7 @@ onLoad((options) => {
       <wd-input v-model="form.district" label="区县" placeholder="例如 南山区" clearable />
       <wd-input v-model="form.subdistrict" label="街道/板块" placeholder="例如 科技园，可不填" clearable />
       <wd-input v-model="form.address" label="详细地址" placeholder="可稍后补充" clearable />
+      <PropertyLocationField v-model="form.location" :disabled="saving" :city="form.city" />
     </wd-cell-group>
 
     <wd-cell-group title="补充说明" insert>

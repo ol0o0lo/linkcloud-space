@@ -6,8 +6,32 @@ function nameFromPath(path: string): string {
 
 export const h5FilePickerAdapter: PlatformFilePickerAdapter = {
   pick(options) {
-    if (options.kind !== 'image')
-      return Promise.resolve({ supported: false, reason: 'H5 文件选择器尚未启用通用文件模式' })
+    if (options.kind === 'file') {
+      return new Promise((resolve) => {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = '.pdf,.doc,.docx'
+        input.multiple = options.count > 1
+        let settled = false
+        const finish = () => {
+          if (settled)
+            return
+          settled = true
+          resolve({ supported: true, value: Array.from(input.files || []).map(file => ({ path: '', name: file.name, size: file.size, file })) })
+          input.remove()
+          window.removeEventListener('focus', onFocus)
+        }
+        function onFocus() {
+          setTimeout(finish, 500)
+        }
+        input.addEventListener('change', finish, { once: true })
+        input.addEventListener('cancel', finish, { once: true })
+        window.addEventListener('focus', onFocus, { once: true })
+        input.style.display = 'none'
+        document.body.appendChild(input)
+        input.click()
+      })
+    }
     return new Promise((resolve, reject) => {
       uni.chooseImage({
         count: options.count,

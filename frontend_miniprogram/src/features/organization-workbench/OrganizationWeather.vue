@@ -2,10 +2,11 @@
 import type { GeoCoordinates } from '@/domain/geo-coordinates'
 import type { CurrentWeatherOut } from '@/services/manual/weather'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { getCurrentWeather } from '@/services/manual/weather'
+import { getCachedCurrentWeather, getCurrentWeather } from '@/services/manual/weather'
 import { getCurrentLocationGcj02 } from '@/utils/location'
 
-const weather = ref<CurrentWeatherOut | null>(null)
+const cachedWeather = getCachedCurrentWeather()
+const weather = ref<CurrentWeatherOut | null>(cachedWeather?.weather || null)
 const loading = ref(false)
 const district = computed(() => weather.value?.location.district || '天河区')
 const isDefault = computed(() => weather.value?.location.source !== 'device')
@@ -20,8 +21,8 @@ const weatherKind = computed(() => {
     return 'sun'
   return 'cloud'
 })
-let deviceCoordinates: GeoCoordinates | null = null
-let locationAttempted = false
+let deviceCoordinates: GeoCoordinates | null = cachedWeather?.coordinates || null
+let locationAttempted = Boolean(cachedWeather)
 let locationVersion = 0
 let responseVersion = 0
 let pendingWeather: Promise<void> | null = null
@@ -50,7 +51,14 @@ function loadWeather(coordinates?: GeoCoordinates): Promise<void> {
   return request
 }
 
-function refresh(): Promise<void> {
+function refresh(forceLocation = false): Promise<void> {
+  const cache = getCachedCurrentWeather()
+  if (cache && !forceLocation && !pendingWeather) {
+    weather.value = cache.weather
+    deviceCoordinates = cache.coordinates
+    locationAttempted = true
+    return Promise.resolve()
+  }
   if (!locationAttempted) {
     locationAttempted = true
     const version = ++locationVersion
@@ -69,7 +77,7 @@ function retryLocation() {
     return
   locationAttempted = false
   deviceCoordinates = null
-  void refresh()
+  void refresh(true)
 }
 
 onMounted(() => void refresh())

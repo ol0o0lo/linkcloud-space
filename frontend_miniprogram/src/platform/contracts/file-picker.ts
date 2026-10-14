@@ -4,6 +4,7 @@ export interface PickedFile {
   path: string
   name: string
   size: number
+  file?: File
 }
 
 export interface FilePickerOptions {

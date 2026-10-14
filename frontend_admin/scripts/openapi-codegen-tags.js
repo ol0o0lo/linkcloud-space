@@ -44,6 +44,7 @@ const OPENAPI_TAG_CODEGEN_MAP = {
   '房源/管理': 'property-rental-management',
   '房源/配房分享': 'house-match-shares',
   '房源/公开': 'public-houses',
+  '房源/通勤找房': 'public-house-commute',
   '房源/公开配房分享': 'public-house-match-shares',
   '公开/行为采集': 'public-analytics-events',
   经营分析: 'analytics',

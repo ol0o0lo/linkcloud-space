@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import type { BuildingInventoryOut } from '@/pages-org-rental/api/organization-rental'
+import { onLoad } from '@dcloudio/uni-app'
+import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import type { BuildingInventoryOut, BuildingMapUnlocatedOut } from '@/pages-org-rental/api/organization-rental'
 import { computed, ref } from 'vue'
 import BuildingCard from '@/pages-org-rental/buildings/components/BuildingCard.vue'
-import { listOrganizationBuildings } from '@/pages-org-rental/api/organization-rental'
+import { listOrganizationBuildings, listOrganizationUnlocatedBuildings } from '@/pages-org-rental/api/organization-rental'
 import { getOrganizationBuildingFormRoute } from '@/modules/routes'
 import AppListToolbar from '@/components/app/AppListToolbar.vue'
 import AppPage from '@/components/app/AppPage.vue'
@@ -16,10 +18,16 @@ definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '楼栋
 
 const appContextStore = useAppContextStore()
 const keyword = ref('')
+const unlocatedOnly = ref(false)
+onLoad((options) => {
+  unlocatedOnly.value = options?.unlocated === '1'
+})
 const hasSearch = computed(() => Boolean(keyword.value.trim()))
-const list = usePagedPage<BuildingInventoryOut>({
+const list = usePagedPage<BuildingInventoryOut | BuildingMapUnlocatedOut>({
   pageSize: 15,
-  loader: ({ page, pageSize }) => listOrganizationBuildings(appContextStore.organizationSlug, page, pageSize, { keyword: keyword.value.trim() || undefined }),
+  loader: ({ page, pageSize }) => unlocatedOnly.value
+    ? listOrganizationUnlocatedBuildings(appContextStore.organizationSlug, page, pageSize, keyword.value.trim() || undefined)
+    : listOrganizationBuildings(appContextStore.organizationSlug, page, pageSize, { keyword: keyword.value.trim() || undefined }),
 })
 
 function openForm(id?: number) {
@@ -39,7 +47,7 @@ function handleEmptyAction() {
 <template>
   <AppPage variant="list">
     <template #navigation>
-      <AppCustomNavigation title="楼栋管理" back scroll-mode="sticky" />
+      <AppCustomNavigation :title="unlocatedOnly ? '待定位楼栋' : '楼栋管理'" back scroll-mode="sticky" />
     </template>
     <AppListToolbar
       v-model:keyword="keyword"
@@ -58,8 +66,8 @@ function handleEmptyAction() {
         :finished="list.finished.value"
         :error="list.error.value"
         loading-text="正在加载楼栋…"
-        :empty-text="hasSearch ? '没有找到相关楼栋' : '当前组织还没有楼栋'"
-        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : '新增楼栋后，可以继续在楼栋下维护房源。'"
+        :empty-text="hasSearch ? '没有找到相关楼栋' : unlocatedOnly ? '没有待定位楼栋' : '当前组织还没有楼栋'"
+        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : unlocatedOnly ? '楼栋位置已补齐，可返回地图查看。' : '新增楼栋后，可以继续在楼栋下维护房源。'"
         empty-icon="no-result"
         :empty-action-text="hasSearch ? '清除搜索' : '新增楼栋'"
         finished-text="没有更多楼栋了"
@@ -67,7 +75,18 @@ function handleEmptyAction() {
         @empty-action="handleEmptyAction"
       >
         <template #item="{ item }">
-          <BuildingCard :building="item" @click="openForm(item.id)" />
+          <BuildingCard v-if="'floors' in item" :building="item" @click="openForm(item.id)" />
+          <AppRecordCard v-else clickable @click="openForm(item.id)">
+            <template #title>
+              {{ item.name }}
+            </template>
+            <template #description>
+              {{ item.address || '地址未登记' }}
+            </template>
+            <template #footer>
+              待定位 · 点击维护位置
+            </template>
+          </AppRecordCard>
         </template>
       </AppPagedList>
     </view>

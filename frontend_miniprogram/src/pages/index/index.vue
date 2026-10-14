@@ -2,8 +2,8 @@
 import type { PublicHouseFiltersOut, PublicHouseListOut, PublicHousesUsingGetParams } from '@/features/houses/service'
 import type { HomeBanner, HomeContent, HomeEntryKind, PublicHouseSearchPreset } from '@/domain/home-content'
 import { onPageScroll, onShow } from '@dcloudio/uni-app'
-import { computed, reactive, ref } from 'vue'
-import { EMPTY_HOME_CONTENT, getHomeBannerRoute, getHomeEntryDetailRoute, getHomeEntryListRoute, getPublicHouseSearchRoute } from '@/domain/home-content'
+import { computed, reactive, ref, watch } from 'vue'
+import { EMPTY_HOME_CONTENT, getHomeBannerRoute, getHomeEntryDetailRoute, getHomeEntryListRoute, getPublicHouseMapRoute, getPublicHouseSearchRoute } from '@/domain/home-content'
 import HouseCard from '@/components/house/HouseCard.vue'
 import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 import AppHouseCardSkeleton from '@/components/app/AppHouseCardSkeleton.vue'
@@ -12,7 +12,7 @@ import HomeDiscoverySections from '@/features/home/components/HomeDiscoverySecti
 import HomeSearchPanel from '@/features/home/components/HomeSearchPanel.vue'
 import { getHomeContent } from '@/features/home/service'
 import PublicHouseRegionTrigger from '@/features/houses/components/PublicHouseRegionTrigger.vue'
-import { getPublicHouseFilters, listPublicHouses } from '@/features/houses/service'
+import { getLocatedPublicHouseRegion, getPublicHouseFilters, listPublicHouses } from '@/features/houses/service'
 import { usePublicHouseSpatialFilter } from '@/features/houses/usePublicHouseSpatialFilter'
 import { APP_ROUTES, getHouseDetailRoute, getLoginRoute } from '@/modules/routes'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
@@ -37,6 +37,8 @@ definePage({
 const appContextStore = useAppContextStore()
 const regionStore = usePublicHouseRegionStore()
 const homeSearchPreset = ref<PublicHouseSearchPreset>({ listing_type: 'whole' })
+const homeNearbyPreset = ref<PublicHouseSearchPreset>({})
+watch(() => regionStore.scopeKey, () => homeNearbyPreset.value = {}, { flush: 'sync' })
 const spatialFilter = usePublicHouseSpatialFilter(1000)
 const houseFavorites = useHouseCardFavorites()
 const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState()
@@ -172,13 +174,67 @@ function goFindHouse(preset: PublicHouseSearchPreset = {}) {
 
 function openKeywordSearch(preset: PublicHouseSearchPreset = homeSearchPreset.value) {
   const values = [
-    ['city', regionStore.selection.city],
+    ['city', preset.nearby ? preset.place_city : regionStore.selection.city],
     ['listing_type', preset.listing_type],
     ['bedrooms', preset.bedrooms],
     ['bedrooms_min', preset.bedrooms_min],
+    ['nearby', preset.nearby],
+    ['longitude', preset.longitude],
+    ['latitude', preset.latitude],
+    ['radius_m', preset.radius_m],
+    ['location_label', preset.place_name],
+    ['place_name', preset.place_name],
+    ['place_city', preset.place_city],
   ]
   const params = values.filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`).join('&')
   uni.navigateTo({ url: `${APP_ROUTES.publicHouseSearchInput}?${params}` })
+}
+
+async function locateHomeNearby() {
+  if (locatingNearby.value)
+    return
+  locatingNearby.value = true
+  const scopeKey = regionStore.scopeKey
+  let retryAfterSettings = false
+  try {
+    const location = await getCurrentLocationGcj02()
+    if (scopeKey !== regionStore.scopeKey)
+      return
+    homeNearbyPreset.value = { nearby: 1, ...location, radius_m: nearbyRadiusM, place_name: '当前位置' }
+    const locatedPreset = homeNearbyPreset.value
+    void getLocatedPublicHouseRegion({ ...location, coordinate_system: 'gcj02' }).then((located) => {
+      if (homeNearbyPreset.value !== locatedPreset)
+        return
+      homeNearbyPreset.value = {
+        ...locatedPreset,
+        place_name: [located.city, located.district].filter(Boolean).join(' · ') || '当前位置',
+        place_city: located.city,
+      }
+    }).catch(() => undefined)
+  }
+  catch (error) {
+    // #ifdef MP-WEIXIN
+    const settings = await uni.getSetting().catch(() => null)
+    if (settings?.authSetting['scope.userLocation'] === false) {
+      const modal = await uni.showModal({ title: '需要位置权限', content: '开启定位后才能搜索附近房源。', confirmText: '去设置' })
+      if (modal.confirm) {
+        const updatedSettings = await uni.openSetting()
+        retryAfterSettings = updatedSettings.authSetting['scope.userLocation'] === true
+      }
+    }
+    else {
+      uni.showToast({ title: getLocationErrorMessage(error), icon: 'none' })
+    }
+    // #endif
+    // #ifndef MP-WEIXIN
+    uni.showToast({ title: getLocationErrorMessage(error), icon: 'none' })
+    // #endif
+  }
+  finally {
+    locatingNearby.value = false
+    if (retryAfterSettings)
+      void locateHomeNearby()
+  }
 }
 
 function goNearbyFindHouse(preset: PublicHouseSearchPreset = {}) {
@@ -202,13 +258,7 @@ function updateHomeSearchPreset(preset: PublicHouseSearchPreset) {
 }
 
 function goMapFindHouse(preset: PublicHouseSearchPreset = {}) {
-  const values = [
-    ['listing_type', preset.listing_type],
-    ['bedrooms', preset.bedrooms],
-    ['bedrooms_min', preset.bedrooms_min],
-  ]
-  const params = values.filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`).join('&')
-  uni.navigateTo({ url: params ? `${APP_ROUTES.houseMap}?${params}` : APP_ROUTES.houseMap })
+  uni.navigateTo({ url: getPublicHouseMapRoute(preset) })
 }
 
 function openHomeBanner(banner: HomeBanner) {
@@ -309,10 +359,13 @@ onShow(async () => {
       />
       <view class="home-featured__search">
         <HomeSearchPanel
+          :locating-nearby="locatingNearby"
+          :nearby-preset="homeNearbyPreset"
           @change="updateHomeSearchPreset"
           @keyword="openKeywordSearch"
           @search="goFindHouse"
-          @nearby="goNearbyFindHouse"
+          @nearby="locateHomeNearby"
+          @clear-nearby="homeNearbyPreset = {}"
           @map="goMapFindHouse"
         />
       </view>

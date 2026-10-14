@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LeaseContractFiles from '@/components/house/LeaseContractFiles.vue'
 import type { LeaseOut } from '@/features/landlord/service'
 import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
@@ -81,7 +82,7 @@ onLoad((options) => {
           <wd-cell title="租期" :value="`${lease.start_date} 至 ${lease.end_date}`" />
           <wd-cell title="押金" :value="lease.deposit ? `¥${lease.deposit}` : '未登记'" />
           <wd-cell title="付款日" :value="`每月 ${lease.payment_day} 日`" />
-          <wd-cell title="合同文件" :value="lease.contract_files.length ? `${lease.contract_files.length} 份` : '未上传'" />
+          <LeaseContractFiles :files="lease.contract_files" />
         </wd-cell-group>
         <wd-cell-group title="相关内容" insert>
           <wd-cell title="房源详情" is-link @click="openHouse" />

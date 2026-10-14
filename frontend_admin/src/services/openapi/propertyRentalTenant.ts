@@ -3,7 +3,7 @@
 import { request } from "@umijs/max";
 
 /** 租客发送预约联系方式 POST /api/house/tenant/contact/ */
-export async function appsHouseApiCreateTenantContactRequest(
+export async function appsHouseApiTenantCreateTenantContactRequest(
   body: API.TenantContactRequestIn,
   options?: { [key: string]: any }
 ) {
@@ -18,9 +18,9 @@ export async function appsHouseApiCreateTenantContactRequest(
 }
 
 /** 获取租客个人租约 GET /api/house/tenant/leases/ */
-export async function appsHouseApiListTenantLeases(
+export async function appsHouseApiTenantListTenantLeases(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiListTenantLeasesParams,
+  params: API.appsHouseApiTenantListTenantLeasesParams,
   options?: { [key: string]: any }
 ) {
   return request<API.PagedTenantLeaseOut>("/api/house/tenant/leases/", {
@@ -35,9 +35,9 @@ export async function appsHouseApiListTenantLeases(
 }
 
 /** 获取租客个人租约详情 GET /api/house/tenant/leases/${param0}/ */
-export async function appsHouseApiGetTenantLease(
+export async function appsHouseApiTenantGetTenantLease(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiGetTenantLeaseParams,
+  params: API.appsHouseApiTenantGetTenantLeaseParams,
   options?: { [key: string]: any }
 ) {
   const { lease_id: param0, ...queryParams } = params;
@@ -49,9 +49,9 @@ export async function appsHouseApiGetTenantLease(
 }
 
 /** 获取租客个人带看记录 GET /api/house/tenant/viewing-records/ */
-export async function appsHouseApiListTenantViewingRecords(
+export async function appsHouseApiTenantListTenantViewingRecords(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiListTenantViewingRecordsParams,
+  params: API.appsHouseApiTenantListTenantViewingRecordsParams,
   options?: { [key: string]: any }
 ) {
   return request<API.PagedTenantViewingRecordOut>(
@@ -69,7 +69,7 @@ export async function appsHouseApiListTenantViewingRecords(
 }
 
 /** 租客预约看房 POST /api/house/tenant/viewing-records/ */
-export async function appsHouseApiCreateTenantViewingRecord(
+export async function appsHouseApiTenantCreateTenantViewingRecord(
   body: API.TenantViewingRecordIn,
   options?: { [key: string]: any }
 ) {
@@ -87,9 +87,9 @@ export async function appsHouseApiCreateTenantViewingRecord(
 }
 
 /** 获取租客个人带看详情 GET /api/house/tenant/viewing-records/${param0}/ */
-export async function appsHouseApiGetTenantViewingRecord(
+export async function appsHouseApiTenantGetTenantViewingRecord(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiGetTenantViewingRecordParams,
+  params: API.appsHouseApiTenantGetTenantViewingRecordParams,
   options?: { [key: string]: any }
 ) {
   const { viewing_record_id: param0, ...queryParams } = params;
@@ -104,9 +104,9 @@ export async function appsHouseApiGetTenantViewingRecord(
 }
 
 /** 取消租客个人带看预约 POST /api/house/tenant/viewing-records/${param0}/cancel/ */
-export async function appsHouseApiCancelTenantViewingRecord(
+export async function appsHouseApiTenantCancelTenantViewingRecord(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiCancelTenantViewingRecordParams,
+  params: API.appsHouseApiTenantCancelTenantViewingRecordParams,
   options?: { [key: string]: any }
 ) {
   const { viewing_record_id: param0, ...queryParams } = params;

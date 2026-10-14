@@ -67,6 +67,14 @@ def _build_result(default: DefaultSetting, value, is_customized: bool, *, value_
     }
 
 
+def _resolve_setting_result(default: DefaultSetting, overrides: dict, *, value_source: str, inherited_values: dict | None = None) -> dict:
+    if default.pk in overrides:
+        return _build_result(default, overrides[default.pk], is_customized=True, value_source=value_source)
+    if inherited_values is not None and default.pk in inherited_values:
+        return _build_result(default, inherited_values[default.pk], is_customized=False, value_source=SETTING_VALUE_SOURCE_ORGANIZATION)
+    return _build_result(default, default.value, is_customized=False, value_source=SETTING_VALUE_SOURCE_DEFAULT)
+
+
 def validate_location_setting_value(key: str, value) -> None:
     if key != DEFAULT_LOCATION_SETTING_KEY or value is None:
         return
@@ -138,22 +146,15 @@ def get_org_setting(org, key: str) -> dict:
     """获取 org 某个 key 的值，fallback 到 default。"""
     default = _get_default_for_scope(key, SETTING_SCOPE_ORGANIZATION)
     override = OrganizationSetting.objects.filter(organization=org, setting=default).first()
-    if override:
-        return _build_result(default, override.value, is_customized=True, value_source=SETTING_VALUE_SOURCE_ORGANIZATION)
-    return _build_result(default, default.value, is_customized=False, value_source=SETTING_VALUE_SOURCE_DEFAULT)
+    overrides = {default.pk: override.value} if override else {}
+    return _resolve_setting_result(default, overrides, value_source=SETTING_VALUE_SOURCE_ORGANIZATION)
 
 
 def get_all_org_settings(org) -> list[dict]:
     """获取 org 全量设置项（所有 default key，标注是否已覆盖）。"""
     defaults = [setting for setting in DefaultSetting.objects.all() if _setting_supports_scope(setting, SETTING_SCOPE_ORGANIZATION)]
-    overrides = {os.setting_id: os.value for os in OrganizationSetting.objects.filter(organization=org).select_related("setting")}
-    results = []
-    for default in defaults:
-        if default.pk in overrides:
-            results.append(_build_result(default, overrides[default.pk], is_customized=True, value_source=SETTING_VALUE_SOURCE_ORGANIZATION))
-        else:
-            results.append(_build_result(default, default.value, is_customized=False, value_source=SETTING_VALUE_SOURCE_DEFAULT))
-    return results
+    overrides = dict(OrganizationSetting.objects.filter(organization=org).values_list("setting_id", "value"))
+    return [_resolve_setting_result(default, overrides, value_source=SETTING_VALUE_SOURCE_ORGANIZATION) for default in defaults]
 
 
 def set_org_setting(org, key: str, value) -> OrganizationSetting:
@@ -176,53 +177,32 @@ def delete_org_setting(org, key: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Team 设置（fallback 直接到 default，不经过 Org）
+# Team 设置（仅 inherit_org 设置继承组织覆盖）
 # ---------------------------------------------------------------------------
 
 
 def get_team_setting(team, key: str) -> dict:
     default = _get_default_for_scope(key, SETTING_SCOPE_TEAM)
     override = TeamSetting.objects.filter(team=team, setting=default).first()
-    if override:
-        return _build_result(default, override.value, is_customized=True, value_source=SETTING_VALUE_SOURCE_TEAM)
-    if default.ui.get("inherit_org"):
+    overrides = {default.pk: override.value} if override else {}
+    inherited_values = {}
+    if not override and default.ui.get("inherit_org"):
         organization_override = OrganizationSetting.objects.filter(organization=team.organization, setting=default).first()
         if organization_override:
-            return _build_result(
-                default,
-                organization_override.value,
-                is_customized=False,
-                value_source=SETTING_VALUE_SOURCE_ORGANIZATION,
-            )
-    return _build_result(default, default.value, is_customized=False, value_source=SETTING_VALUE_SOURCE_DEFAULT)
+            inherited_values[default.pk] = organization_override.value
+    return _resolve_setting_result(default, overrides, value_source=SETTING_VALUE_SOURCE_TEAM, inherited_values=inherited_values)
 
 
 def get_all_team_settings(team) -> list[dict]:
     defaults = [setting for setting in DefaultSetting.objects.all() if _setting_supports_scope(setting, SETTING_SCOPE_TEAM)]
-    overrides = {ts.setting_id: ts.value for ts in TeamSetting.objects.filter(team=team).select_related("setting")}
-    inherited_org_values = {
-        setting.setting_id: setting.value
-        for setting in OrganizationSetting.objects.filter(
+    overrides = dict(TeamSetting.objects.filter(team=team).values_list("setting_id", "value"))
+    inherited_org_values = dict(
+        OrganizationSetting.objects.filter(
             organization=team.organization,
             setting__in=[default for default in defaults if default.ui.get("inherit_org")],
-        )
-    }
-    results = []
-    for default in defaults:
-        if default.pk in overrides:
-            results.append(_build_result(default, overrides[default.pk], is_customized=True, value_source=SETTING_VALUE_SOURCE_TEAM))
-        elif default.pk in inherited_org_values:
-            results.append(
-                _build_result(
-                    default,
-                    inherited_org_values[default.pk],
-                    is_customized=False,
-                    value_source=SETTING_VALUE_SOURCE_ORGANIZATION,
-                )
-            )
-        else:
-            results.append(_build_result(default, default.value, is_customized=False, value_source=SETTING_VALUE_SOURCE_DEFAULT))
-    return results
+        ).values_list("setting_id", "value")
+    )
+    return [_resolve_setting_result(default, overrides, value_source=SETTING_VALUE_SOURCE_TEAM, inherited_values=inherited_org_values) for default in defaults]
 
 
 def set_team_setting(team, key: str, value) -> TeamSetting:

@@ -88,7 +88,6 @@ export function buildPublicHouseSpatialParams(input: {
     : {}
   if (input.nearbyEnabled && input.nearbyLocation) {
     return {
-      ...globalRegion,
       longitude: input.nearbyLocation.longitude,
       latitude: input.nearbyLocation.latitude,
       radius_m: input.radiusM,

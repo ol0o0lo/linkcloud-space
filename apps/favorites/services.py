@@ -63,6 +63,18 @@ def _serialize_target(adapter, target: Any) -> tuple[dict[str, Any], dict[str, A
     return serialized_target, adapter.serialize_display(target, serialized_target)
 
 
+def _favorite_result(favorite: Favorite, serialized_target, display, *, available: bool) -> dict[str, Any]:
+    return {
+        "id": favorite.pk,
+        "target_type": favorite.target_type,
+        "target_id": favorite.target_id,
+        "created_at": favorite.created_at,
+        "available": available,
+        "display": display,
+        "target": serialized_target,
+    }
+
+
 def resolve_favorites(favorites: Iterable[Favorite]) -> list[dict[str, Any]]:
     favorite_list = list(favorites)
     ids_by_type: dict[str, list[str]] = defaultdict(list)
@@ -79,32 +91,14 @@ def resolve_favorites(favorites: Iterable[Favorite]) -> list[dict[str, Any]]:
         adapter = get_target_adapter(favorite.target_type)
         target = targets_by_type[favorite.target_type].get(favorite.target_id)
         serialized_target, display = _serialize_target(adapter, target) if adapter and target is not None else (None, None)
-        resolved.append(
-            {
-                "id": favorite.pk,
-                "target_type": favorite.target_type,
-                "target_id": favorite.target_id,
-                "created_at": favorite.created_at,
-                "available": target is not None,
-                "display": display,
-                "target": serialized_target,
-            }
-        )
+        resolved.append(_favorite_result(favorite, serialized_target, display, available=target is not None))
     return resolved
 
 
 def serialize_favorite(favorite: Favorite, target: Any) -> dict[str, Any]:
     adapter = ensure_target_type_supported(favorite.target_type)
     serialized_target, display = _serialize_target(adapter, target)
-    return {
-        "id": favorite.pk,
-        "target_type": favorite.target_type,
-        "target_id": favorite.target_id,
-        "created_at": favorite.created_at,
-        "available": True,
-        "display": display,
-        "target": serialized_target,
-    }
+    return _favorite_result(favorite, serialized_target, display, available=True)
 
 
 def put_favorite(user, *, target_type: str, target_id: str | int) -> tuple[Favorite, Any, bool]:

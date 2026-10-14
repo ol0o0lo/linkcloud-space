@@ -3,9 +3,9 @@
 import { request } from "@umijs/max";
 
 /** 获取房东公开店铺 GET /api/public/landlords/${param0}/ */
-export async function appsHouseApiGetPublicLandlordProfile(
+export async function appsHouseApiLandlordGetPublicLandlordProfile(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiGetPublicLandlordProfileParams,
+  params: API.appsHouseApiLandlordGetPublicLandlordProfileParams,
   options?: { [key: string]: any }
 ) {
   const { public_key: param0, ...queryParams } = params;
@@ -20,9 +20,9 @@ export async function appsHouseApiGetPublicLandlordProfile(
 }
 
 /** 获取房东店铺公开房源 GET /api/public/landlords/${param0}/houses/ */
-export async function appsHouseApiListPublicLandlordHouses(
+export async function appsHouseApiLandlordListPublicLandlordHouses(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiListPublicLandlordHousesParams,
+  params: API.appsHouseApiLandlordListPublicLandlordHousesParams,
   options?: { [key: string]: any }
 ) {
   const { public_key: param0, ...queryParams } = params;
@@ -41,9 +41,9 @@ export async function appsHouseApiListPublicLandlordHouses(
 }
 
 /** 获取房东店铺公开房源详情 GET /api/public/landlords/${param0}/houses/${param1}/ */
-export async function appsHouseApiGetPublicLandlordHouse(
+export async function appsHouseApiLandlordGetPublicLandlordHouse(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.appsHouseApiGetPublicLandlordHouseParams,
+  params: API.appsHouseApiLandlordGetPublicLandlordHouseParams,
   options?: { [key: string]: any }
 ) {
   const { public_key: param0, house_id: param1, ...queryParams } = params;

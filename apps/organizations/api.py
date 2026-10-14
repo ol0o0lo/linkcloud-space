@@ -50,6 +50,7 @@ from apps.organizations.schemas import (
     SwitchListItemOut,
     TransferOwnerIn,
 )
+from apps.organizations.services import filter_members_by_keyword
 from apps.organizations.session import remove_org, save_counts, save_org_data
 from apps.subscriptions.constants import SaaSBusinessType, SaaSTeamSizeBand
 from apps.subscriptions.exceptions import SubscriptionRuleException
@@ -256,15 +257,7 @@ def list_members(request, keyword: str | None = Query(None, description="按员�
     """返回当前租户成员列表，支持按员工资料和账号资料搜索。"""
     require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     qs = _members_qs(request)
-    if keyword:
-        qs = qs.filter(
-            Q(employee_name__icontains=keyword)
-            | Q(job_title__icontains=keyword)
-            | Q(user__first_name__icontains=keyword)
-            | Q(user__last_name__icontains=keyword)
-            | Q(user__username__icontains=keyword)
-            | Q(user__email__icontains=keyword)
-        )
+    qs = filter_members_by_keyword(qs, keyword)
     return qs
 
 

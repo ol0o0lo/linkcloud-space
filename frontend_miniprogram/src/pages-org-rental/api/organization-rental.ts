@@ -56,6 +56,7 @@ import {
   requestOrganizationLeases,
   requestOrganizationMonthlyAccrualTotals,
   requestOrganizationUnlocatedBuildingCount,
+  requestOrganizationUnlocatedBuildings,
   requestOrganizationViewing,
   requestOrganizationViewingAssignees,
   requestOrganizationViewings,
@@ -63,6 +64,7 @@ import {
   submitOrganizationDealSigning,
   updateOrganizationViewing,
   uploadOrganizationHouseImagesRequest,
+  uploadOrganizationLeaseContractRequest,
   voidOrganizationAllocationRequest,
 } from './client'
 
@@ -76,6 +78,7 @@ export type {
   BuildingIn,
   BuildingInventoryOut,
   BuildingMapMarkerOut,
+  BuildingMapUnlocatedOut,
   BuildingOut,
   BuildingPatchIn,
   ContactIn,
@@ -268,4 +271,12 @@ export function getOrganizationAnalyticsOverview(organizationSlug: string, start
 
 export function getOrganizationAnalyticsTrends(organizationSlug: string, startDate?: string, endDate?: string) {
   return requestOrganizationAnalyticsTrends(organizationSlug, { start_date: startDate, end_date: endDate })
+}
+
+export function uploadOrganizationLeaseContract(organizationSlug: string) {
+  return uploadOrganizationLeaseContractRequest(organizationSlug)
+}
+
+export function listOrganizationUnlocatedBuildings(organizationSlug: string, page: number, pageSize: number, keyword?: string) {
+  return requestOrganizationUnlocatedBuildings(organizationSlug, page, pageSize, keyword)
 }

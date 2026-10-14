@@ -572,11 +572,11 @@ test('房表输入使用 v-model 更新事件立即清理旧覆盖项与忽略�
   assert.doesNotMatch(pageSource, /wd-textarea[^>]+@change=/)
 })
 
-test('地图按平台渲染，小程序使用原生地图而 H5 展示真实坐标列表', () => {
+test('地图按平台渲染，小程序使用原生地图而 H5 使用高德地图', () => {
   const pageSource = readFileSync(join(sourceRoot, 'pages-org-rental/map/index.vue'), 'utf8')
   assert.match(pageSource, /#ifdef MP-WEIXIN[\s\S]*<map/)
-  assert.match(pageSource, /#ifdef H5[\s\S]*coordinate-list/)
-  assert.match(pageSource, /setClipboardData/)
+  assert.match(pageSource, /#ifdef H5[\s\S]*<HouseH5Map/)
+  assert.match(pageSource, /unlocated=1/)
 })
 
 test('默认业务日期按本地年月日生成，不使用 UTC 字符串切片', async () => {
@@ -627,4 +627,16 @@ test('登记签约入口使用当前 Carbon 图标集中存在的图标', () => 
 
   assert.match(source, /i-carbon-document-signed/)
   assert.doesNotMatch(source, /i-carbon-signature/)
+})
+
+test('坐标维护保留旧值，明确清除才提交 null，未操作时不写 location', () => {
+  const building = { estate_id: null, name: 'A栋', floors: 3, elevator: false, address: '测试地址' }
+  const estate = { name: '测试小区', display_name: '测试小区', property_type: 'residential', province: '广东', city: '广州', district: '天河' }
+  const location = { longitude: 113.3, latitude: 23.1, coordinate_system: 'gcj02' as const }
+  assert.equal(Object.hasOwn(buildOrganizationBuildingPayload(building), 'location'), false)
+  assert.deepEqual(buildOrganizationBuildingPayload({ ...building, location }).location, location)
+  assert.equal(buildOrganizationBuildingPayload({ ...building, location: null }).location, null)
+  assert.equal(Object.hasOwn(buildOrganizationEstatePayload(estate), 'location'), false)
+  assert.deepEqual(buildOrganizationEstatePayload({ ...estate, location }).location, location)
+  assert.equal(buildOrganizationEstatePayload({ ...estate, location: null }).location, null)
 })

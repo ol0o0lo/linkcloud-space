@@ -23,7 +23,7 @@ export interface AmapH5Map {
   destroy: () => void
   getBounds: () => AmapH5Bounds
   getZoom: () => number
-  on: (event: 'click' | 'moveend' | 'zoomend', listener: () => void) => void
+  on: (event: 'click' | 'moveend' | 'zoomend', listener: (event: { lnglat?: AmapH5LngLat }) => void) => void
   panTo: (position: [number, number]) => void
   remove: (overlays: AmapH5Marker | AmapH5Circle | Array<AmapH5Marker | AmapH5Circle>) => void
   resize: () => void

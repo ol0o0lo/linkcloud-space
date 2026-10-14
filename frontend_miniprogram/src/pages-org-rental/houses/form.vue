@@ -117,7 +117,7 @@ function fillHouse(house: HouseOut) {
     building_id: house.building_id,
     landlord_id: house.landlord_id,
     room_number: house.room_number,
-    listing_type: (house as HouseOut & { listing_type?: OrganizationHouseWriteInput['listing_type'] }).listing_type || null,
+    listing_type: house.listing_type || null,
     floor: house.floor ?? '',
     area: house.area ?? '',
     interior_area: house.interior_area ?? '',
