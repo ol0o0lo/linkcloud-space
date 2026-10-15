@@ -1,99 +1,61 @@
 <script setup lang="ts">
-import type { BuildingInventoryOut, ContactOut, EstateDetailOut, PropertyResponsibilityMemberOut } from '@/features/organization-admin/service'
-import { useToast } from '@wot-ui/ui/components/wd-toast'
+import type { PropertyResponsibilityMemberOut } from '@/features/organization-admin/service'
+import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
-import { isEmptyResponsibilitySelection } from '@/domain/organization-admin'
-import {
-  listAllOrganizationResponsibilityBuildings,
-  listAllOrganizationResponsibilityEstates,
-  listAllOrganizationResponsibilityLandlords,
-  listOrganizationResponsibilities,
-  replaceOrganizationResponsibility,
-} from '@/features/organization-admin/service'
-import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
-import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import { formatOrganizationAdminUser } from '@/domain/organization-admin'
+import { listOrganizationResponsibilities } from '@/features/organization-admin/service'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import AppPage from '@/components/app/AppPage.vue'
-import AppRecordCard from '@/components/app/AppRecordCard.vue'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
+import { APP_ROUTES } from '@/modules/routes'
 
 definePage({ style: { navigationBarTitleText: '房源职责', navigationStyle: 'custom', enablePullDownRefresh: true } })
 
-const toast = useToast()
 const appContextStore = useAppContextStore()
 const keyword = ref('')
-const editorVisible = ref(false)
-const editingMember = ref<PropertyResponsibilityMemberOut | null>(null)
-const landlords = ref<ContactOut[]>([])
-const buildings = ref<BuildingInventoryOut[]>([])
-const estates = ref<EstateDetailOut[]>([])
-const landlordIds = ref<number[]>([])
-const buildingIds = ref<number[]>([])
-const estateIds = ref<number[]>([])
-const saving = ref(false)
+const searchKeyword = ref('')
+const memberId = ref<number>()
+onLoad((options) => {
+  const id = Number(options?.memberId)
+  memberId.value = Number.isInteger(id) && id > 0 ? id : undefined
+})
 
 const responsibilityPage = usePagedPage<PropertyResponsibilityMemberOut>({
   loader: ({ page, pageSize }) => listOrganizationResponsibilities(appContextStore.organizationSlug, page, pageSize, {
-    keyword: keyword.value.trim() || undefined,
+    keyword: searchKeyword.value || undefined,
+    member_id: memberId.value,
   }),
   pageSize: 15,
   keyOf: item => item.member_id,
 })
 
 async function refreshList() {
+  searchKeyword.value = keyword.value.trim()
   await responsibilityPage.refresh()
 }
 
-function toggleId(collection: number[], id: number) {
-  const index = collection.indexOf(id)
-  if (index >= 0)
-    collection.splice(index, 1)
-  else
-    collection.push(id)
+function showAllMembers() {
+  memberId.value = undefined
+  void refreshList()
 }
 
-async function openEditor(item: PropertyResponsibilityMemberOut) {
-  editingMember.value = item
-  landlordIds.value = item.landlords.map(value => value.id)
-  buildingIds.value = item.buildings.map(value => value.id)
-  estateIds.value = item.estates.map(value => value.id)
-  try {
-    const [landlordItems, buildingItems, estateItems] = await Promise.all([
-      listAllOrganizationResponsibilityLandlords(appContextStore.organizationSlug),
-      listAllOrganizationResponsibilityBuildings(appContextStore.organizationSlug),
-      listAllOrganizationResponsibilityEstates(appContextStore.organizationSlug),
-    ])
-    landlords.value = landlordItems.filter(value => value.roles.includes('landlord'))
-    buildings.value = buildingItems
-    estates.value = estateItems
-    editorVisible.value = true
-  }
-  catch (error) { toast.error(error instanceof Error ? error.message : '职责候选加载失败') }
+function hasScope(item: PropertyResponsibilityMemberOut) {
+  return Boolean(item.landlords.length || item.buildings.length || item.estates.length)
 }
 
-async function saveResponsibility() {
-  if (saving.value || !editingMember.value)
-    return
-  const payload = { landlord_ids: landlordIds.value, building_ids: buildingIds.value, estate_ids: estateIds.value }
-  const empty = isEmptyResponsibilitySelection(payload)
-  const confirmation = await uni.showModal({
-    title: empty ? '清空房源职责' : '保存房源职责',
-    content: empty ? '保存后该成员将不再负责任何房东、楼栋或小区。' : '新的职责范围会立即用于房源权限判断。',
-    confirmText: empty ? '确认清空' : '确认保存',
-  })
-  if (!confirmation.confirm)
-    return
-  saving.value = true
-  try {
-    await replaceOrganizationResponsibility(appContextStore.organizationSlug, editingMember.value.member_id, payload)
-    toast.success('房源职责已保存')
-    editorVisible.value = false
-    await refreshList()
-  }
-  catch (error) { toast.error(error instanceof Error ? error.message : '房源职责保存失败') }
-  finally { saving.value = false }
+function scopeSummary(item: PropertyResponsibilityMemberOut) {
+  const names = [
+    item.landlords.length ? `房东 ${item.landlords[0].name}${item.landlords.length > 1 ? `等 ${item.landlords.length} 位` : ''}` : '',
+    item.buildings.length ? `${item.buildings[0].estate?.display_name || item.buildings[0].estate?.name || '独立楼栋'} ${item.buildings[0].name}${item.buildings.length > 1 ? `等 ${item.buildings.length} 栋` : ''}` : '',
+    item.estates.length ? `小区 ${item.estates[0].display_name || item.estates[0].name}${item.estates.length > 1 ? `等 ${item.estates.length} 个` : ''}` : '',
+  ]
+  return names.filter(Boolean).join(' · ')
+}
+
+function openEditor(item: PropertyResponsibilityMemberOut) {
+  uni.navigateTo({ url: `${APP_ROUTES.organizationAdminResponsibilityEdit}?id=${item.member_id}` })
 }
 </script>
 
@@ -102,71 +64,163 @@ async function saveResponsibility() {
     <template #navigation>
       <AppCustomNavigation title="房源职责" back scroll-mode="sticky" />
     </template>
-    <wd-toast />
-    <AppListToolbar v-model:keyword="keyword" card search-placeholder="搜索员工姓名、账号或职位" @search="refreshList" @clear="refreshList" />
-    <view class="mt-2.5">
+    <view class="responsibility-tools">
+      <view class="responsibility-search">
+        <wd-search v-model="keyword" variant="filled" placeholder="搜索员工姓名、账号或邮箱" placeholder-left hide-cancel @search="refreshList" @clear="refreshList" />
+      </view>
+    </view>
+    <view class="responsibility-heading">
+      <text>{{ memberId ? '当前员工' : searchKeyword ? '搜索结果' : '员工分工' }}<text v-if="responsibilityPage.loaded.value" class="responsibility-total">{{ responsibilityPage.total.value }} 人</text></text>
+      <wd-button v-if="memberId" size="small" variant="text" @click="showAllMembers">
+        查看全部
+      </wd-button>
+      <text v-else class="responsibility-hint">点击员工即可配置</text>
+    </view>
+    <view class="member-list">
       <AppPagedList
         :items="responsibilityPage.items.value"
         item-key="member_id"
+        layout="cell"
         :loading="responsibilityPage.loading.value"
         :refreshing="responsibilityPage.refreshing.value"
         :loading-more="responsibilityPage.loadingMore.value"
         :finished="responsibilityPage.finished.value"
         :error="responsibilityPage.error.value"
         loading-text="正在加载房源职责…"
-        empty-text="当前没有可配置职责的成员"
+        :empty-text="searchKeyword ? '没有找到相关员工' : '当前没有可配置职责的员工'"
+        :empty-description="searchKeyword ? '试试其他姓名、账号或邮箱。' : ''"
         finished-text="没有更多成员了"
         @retry="refreshList"
       >
-        <template #item="{ item }">
-          <AppRecordCard clickable @click="openEditor(item)">
-            <template #title>
-              {{ ((item.user.first_name || '') + (item.user.last_name || '')) || item.user.username }}
-            </template>
-            <template #status>
-              <view class="text-xs text-app-brand font-semibold">
-                {{ item.responsible_house_count }} 套
+        <template #item="{ item, index }">
+          <wd-cell is-link center :border="index > 0" @click="openEditor(item)">
+            <view class="member-row">
+              <view class="member-avatar" :class="{ 'member-avatar--unassigned': !hasScope(item) }">
+                {{ formatOrganizationAdminUser(item.user).slice(0, 1) }}
               </view>
-            </template>
-            <template #description>
-              {{ item.landlords.length }} 位房东 · {{ item.buildings.length }} 栋楼 · {{ item.estates.length }} 个小区
-            </template>
-          </AppRecordCard>
+              <view class="member-main">
+                <view class="member-heading">
+                  <text class="member-name">{{ formatOrganizationAdminUser(item.user) }}</text>
+                  <text v-if="hasScope(item)" class="member-count">{{ item.responsible_house_count ? `${item.responsible_house_count} 套房源` : '暂无负责房源' }}</text>
+                </view>
+                <view class="member-summary" :class="{ 'member-summary--empty': !hasScope(item) }">
+                  {{ hasScope(item) ? scopeSummary(item) : '尚未分配，点击安排负责范围' }}
+                </view>
+              </view>
+            </view>
+          </wd-cell>
         </template>
       </AppPagedList>
     </view>
-    <AppBottomSheet v-model:visible="editorVisible" title="配置房源职责" height="tall">
-      <view>
-        <view class="mb-1.5 mt-3 text-xs text-content-primary font-semibold">
-          负责房东
-        </view>
-        <view class="flex flex-wrap gap-1.5">
-          <view v-for="item in landlords" :key="item.id" class="app-touchable border border-app-border rounded-full border-solid px-2 py-1.5 text-xs" :class="landlordIds.includes(item.id) ? 'border-app-brand bg-surface-brand-soft text-app-brand' : 'text-content-secondary'" @click="toggleId(landlordIds, item.id)">
-            {{ item.name }}
-          </view>
-        </view>
-        <view class="mb-1.5 mt-3 text-xs text-content-primary font-semibold">
-          负责楼栋
-        </view>
-        <view class="flex flex-wrap gap-1.5">
-          <view v-for="item in buildings" :key="item.id" class="app-touchable border border-app-border rounded-full border-solid px-2 py-1.5 text-xs" :class="buildingIds.includes(item.id) ? 'border-app-brand bg-surface-brand-soft text-app-brand' : 'text-content-secondary'" @click="toggleId(buildingIds, item.id)">
-            {{ item.estate?.display_name || item.estate?.name || '' }} {{ item.name }}
-          </view>
-        </view>
-        <view class="mb-1.5 mt-3 text-xs text-content-primary font-semibold">
-          负责小区
-        </view>
-        <view class="flex flex-wrap gap-1.5">
-          <view v-for="item in estates" :key="item.id" class="app-touchable border border-app-border rounded-full border-solid px-2 py-1.5 text-xs" :class="estateIds.includes(item.id) ? 'border-app-brand bg-surface-brand-soft text-app-brand' : 'text-content-secondary'" @click="toggleId(estateIds, item.id)">
-            {{ item.display_name || item.name }}
-          </view>
-        </view>
-      </view>
-      <template #footer>
-        <wd-button block :loading="saving" :disabled="saving" @click="saveResponsibility">
-          保存职责范围
-        </wd-button>
-      </template>
-    </AppBottomSheet>
   </AppPage>
 </template>
+
+<style scoped lang="scss">
+.responsibility-tools {
+  padding: 12px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--app-bg-card);
+}
+.responsibility-search {
+  --wot-search-padding: 0;
+  --wot-search-bg: transparent;
+  --wot-search-input-radius: 10px;
+  --wot-search-input-height: 40px;
+  --wot-search-input-bg: var(--app-bg-page);
+  --wot-search-cover-bg: var(--app-bg-page);
+  --wot-search-input-font-size: 14px;
+}
+.responsibility-heading {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.responsibility-total {
+  margin-left: 8px;
+  color: var(--app-text-muted);
+}
+.responsibility-hint {
+  color: var(--app-text-muted);
+}
+.member-list {
+  --wot-cell-padding: 16px;
+  --wot-cell-border-color: var(--app-divider-color);
+  --wot-cell-border-margin-horizontal: 16px;
+  --wot-cell-arrow-size: 16px;
+  --wot-cell-arrow-margin-left: 12px;
+
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--app-bg-card);
+}
+.member-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: left;
+}
+.member-avatar {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--app-bg-brand-soft);
+  color: var(--app-color-brand);
+  font-size: 14px;
+  font-weight: 600;
+}
+.member-avatar--unassigned {
+  background: var(--app-bg-subtle);
+  color: var(--app-text-secondary);
+}
+.member-main {
+  min-width: 0;
+  flex: 1;
+}
+.member-heading {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+.member-name {
+  overflow: hidden;
+  color: var(--app-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.member-count {
+  flex-shrink: 0;
+  color: var(--app-color-brand);
+  font-size: 12px;
+  line-height: 18px;
+}
+.member-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.member-summary--empty {
+  color: var(--app-text-muted);
+}
+</style>

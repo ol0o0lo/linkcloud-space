@@ -90,6 +90,27 @@ class PropertyResponsibilityApiTestCase(TestCase):
             [{"media_id": video.pk, "media_type": MediaType.VIDEO}],
         )
 
+    def test_responsibility_filters_keep_counts_and_tenant_scope(self):
+        PropertyResponsibility.objects.create(organization=self.org, member=self.member, estate=self.estate)
+        unassigned = self.client.get("/api/house/staff-responsibilities/", {"unassigned": True, "page": 1, "page_size": 1})
+        self.assertEqual(unassigned.status_code, 200)
+        self.assertEqual(api_data(unassigned)["total"], 2)
+        self.assertEqual(len(api_data(unassigned)["items"]), 1)
+        self.assertNotEqual(api_data(unassigned)["items"][0]["member_id"], self.member.pk)
+
+        selected = self.client.get("/api/house/staff-responsibilities/", {"member_id": self.member.pk})
+        self.assertEqual(selected.status_code, 200)
+        self.assertEqual([item["member_id"] for item in api_data(selected)["items"]], [self.member.pk])
+
+        combined = self.client.get("/api/house/staff-responsibilities/", {"member_id": self.member.pk, "unassigned": True})
+        self.assertEqual(combined.status_code, 200)
+        self.assertEqual(api_data(combined)["total"], 0)
+
+        foreign_member = baker.make("organizations.OrganizationMember", organization=baker.make("organizations.Organization"))
+        foreign = self.client.get("/api/house/staff-responsibilities/", {"member_id": foreign_member.pk})
+        self.assertEqual(foreign.status_code, 200)
+        self.assertEqual(api_data(foreign)["items"], [])
+
     def test_house_scope_defaults_to_all_and_accepts_explicit_all(self):
         expected_ids = {
             self.overlap_house.pk,

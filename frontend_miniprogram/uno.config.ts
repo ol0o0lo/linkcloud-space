@@ -92,6 +92,14 @@ export default defineConfig({
     'i-carbon-search',
     'i-carbon-checkmark',
     'i-carbon-logo-wechat',
+    'i-carbon-user-multiple',
+    'i-carbon-email-new',
+    'i-carbon-collaborate',
+    'i-carbon-user-role',
+    'i-carbon-task-tools',
+    'i-carbon-settings-adjust',
+    'i-carbon-receipt',
+    'i-carbon-notification-new',
   ],
   rules: [
     [

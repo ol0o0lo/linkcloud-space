@@ -168,6 +168,27 @@ test('组织管理危险载荷和支付环境保持租户边界', async () => {
   assert.equal(domain.isEmptyResponsibilitySelection({ landlord_ids: [], building_ids: [], estate_ids: [] }), true)
 })
 
+test('负责范围变更忽略顺序且只核对新增和取消的目标', async () => {
+  const { getResponsibilitySelectionChanges } = await import('../src/domain/organization-admin.ts')
+  const previous = { landlord_ids: [1, 2], building_ids: [3], estate_ids: [4, 5] }
+
+  assert.deepEqual(getResponsibilitySelectionChanges(previous, { landlord_ids: [2, 1, 1], building_ids: [3], estate_ids: [5, 4] }), [
+    { kind: 'landlord_ids', added: [], removed: [] },
+    { kind: 'building_ids', added: [], removed: [] },
+    { kind: 'estate_ids', added: [], removed: [] },
+  ])
+  assert.deepEqual(getResponsibilitySelectionChanges(previous, { landlord_ids: [2, 6], building_ids: [3], estate_ids: [4, 5, 7] }), [
+    { kind: 'landlord_ids', added: [6], removed: [1] },
+    { kind: 'building_ids', added: [], removed: [] },
+    { kind: 'estate_ids', added: [7], removed: [] },
+  ])
+  assert.deepEqual(getResponsibilitySelectionChanges(previous, {}), [
+    { kind: 'landlord_ids', added: [], removed: [1, 2] },
+    { kind: 'building_ids', added: [], removed: [3] },
+    { kind: 'estate_ids', added: [], removed: [4, 5] },
+  ])
+})
+
 test('订阅订单幂等键使用固定短格式并满足后端长度限制', async () => {
   const domain = await import('../src/domain/organization-admin.ts')
   const key = domain.createSubscriptionIdempotencyKey(() => 1_725_600_000_000, () => 0.123456789)
@@ -299,6 +320,7 @@ test('组织管理分包路由完整且唯一', () => {
     organizationAdminTeamDetail: '/pages-org-admin/teams/detail',
     organizationAdminRoles: '/pages-org-admin/roles/index',
     organizationAdminResponsibilities: '/pages-org-admin/responsibilities/index',
+    organizationAdminResponsibilityEdit: '/pages-org-admin/responsibilities/edit',
     organizationAdminSettings: '/pages-org-admin/settings/index',
     organizationAdminSubscription: '/pages-org-admin/subscription/index',
     organizationAdminNotificationDispatches: '/pages-org-admin/notification-dispatches/index',
@@ -309,7 +331,7 @@ test('组织管理分包路由完整且唯一', () => {
   const pagesSource = readFileSync(join(sourceRoot, 'pages.json'), 'utf8')
   const roots = [...pagesSource.matchAll(/"root"\s*:\s*"([^"]+)"/g)].map(match => match[1])
   assert.equal(roots.filter(root => root === 'pages-org-admin').length, 1)
-  for (const page of ['index', 'members/index', 'members/detail', 'invitations/index', 'teams/index', 'teams/detail', 'roles/index', 'responsibilities/index', 'settings/index', 'subscription/index', 'notification-dispatches/index'])
+  for (const page of ['index', 'members/index', 'members/detail', 'invitations/index', 'teams/index', 'teams/detail', 'roles/index', 'responsibilities/index', 'responsibilities/edit', 'settings/index', 'subscription/index', 'notification-dispatches/index'])
     assert.match(pagesSource, new RegExp(`"path"\\s*:\\s*"${page}"`))
 })
 
@@ -323,6 +345,7 @@ test('组织管理页面齐全、无占位并遵守 page 到 feature 到 manual 
     'pages-org-admin/teams/detail.vue',
     'pages-org-admin/roles/index.vue',
     'pages-org-admin/responsibilities/index.vue',
+    'pages-org-admin/responsibilities/edit.vue',
     'pages-org-admin/settings/index.vue',
     'pages-org-admin/subscription/index.vue',
     'pages-org-admin/notification-dispatches/index.vue',
@@ -353,11 +376,12 @@ test('关键安全交互保留在页面，分页统一交给共享模块', () =>
   const invitations = readFileSync(join(sourceRoot, 'pages-org-admin/invitations/index.vue'), 'utf8')
   const teams = readFileSync(join(sourceRoot, 'pages-org-admin/teams/index.vue'), 'utf8')
   const responsibilities = readFileSync(join(sourceRoot, 'pages-org-admin/responsibilities/index.vue'), 'utf8')
+  const responsibilityEditor = readFileSync(join(sourceRoot, 'pages-org-admin/responsibilities/edit.vue'), 'utf8')
   const subscriptions = readFileSync(join(sourceRoot, 'pages-org-admin/subscription/index.vue'), 'utf8')
   const dispatches = readFileSync(join(sourceRoot, 'pages-org-admin/notification-dispatches/index.vue'), 'utf8')
   const pagedPage = readFileSync(join(sourceRoot, 'hooks/usePagedPage.ts'), 'utf8')
 
-  for (const source of [members, invitations, teams, responsibilities, dispatches]) {
+  for (const source of [members, invitations, teams, responsibilities, responsibilityEditor, dispatches]) {
     assert.match(source, /usePagedPage/)
     assert.match(source, /AppPagedList/)
   }
@@ -365,7 +389,7 @@ test('关键安全交互保留在页面，分页统一交给共享模块', () =>
   assert.match(pagedPage, /onReachBottom/)
   assert.doesNotMatch(members, /is_owner\s*:/)
   assert.doesNotMatch(invitations, /is_owner\s*:\s*true/)
-  for (const source of [members, invitations, teams, responsibilities, dispatches]) {
+  for (const source of [members, invitations, teams, responsibilityEditor, dispatches]) {
     assert.match(source, /submitting|creating|deleting|saving/)
     assert.match(source, /showModal/)
   }

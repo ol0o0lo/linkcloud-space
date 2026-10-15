@@ -463,15 +463,29 @@ onShow(() => void loadSubscription())
             企业
           </wd-radio>
         </wd-radio-group>
-        <wd-input v-model="invoiceTitle" label="发票抬头" />
+        <wd-cell title="发票抬头" center>
+          <wd-input v-model="invoiceTitle" compact align-right />
+        </wd-cell>
         <template v-if="invoiceType === 'company'">
-          <wd-input v-model="taxNumber" label="税号" />
-          <wd-input v-model="registeredAddress" label="注册地址" />
-          <wd-input v-model="registeredPhone" label="注册电话" />
-          <wd-input v-model="bankName" label="开户银行" />
-          <wd-input v-model="bankAccount" label="银行账号" />
+          <wd-cell title="税号" center>
+            <wd-input v-model="taxNumber" compact align-right />
+          </wd-cell>
+          <wd-cell title="注册地址" center>
+            <wd-input v-model="registeredAddress" compact align-right />
+          </wd-cell>
+          <wd-cell title="注册电话" center>
+            <wd-input v-model="registeredPhone" compact align-right />
+          </wd-cell>
+          <wd-cell title="开户银行" center>
+            <wd-input v-model="bankName" compact align-right />
+          </wd-cell>
+          <wd-cell title="银行账号" center>
+            <wd-input v-model="bankAccount" compact align-right />
+          </wd-cell>
         </template>
-        <wd-input v-model="recipientEmail" label="接收邮箱" />
+        <wd-cell title="接收邮箱" center>
+          <wd-input v-model="recipientEmail" compact align-right />
+        </wd-cell>
       </view>
       <template #footer>
         <wd-button block :loading="submitting" :disabled="submitting" @click="saveInvoiceProfile">

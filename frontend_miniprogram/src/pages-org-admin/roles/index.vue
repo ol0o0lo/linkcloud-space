@@ -38,6 +38,8 @@ type Binding = OrganizationBindingOut | TeamBindingOut
 const toast = useToast()
 const appContextStore = useAppContextStore()
 const teamId = ref(0)
+const targetUserId = ref(0)
+const targetMemberName = ref('')
 const navigation = ref<RoleManagementNavigationOut | null>(null)
 const roles = ref<AccessRoleOut[]>([])
 const bindings = ref<Binding[]>([])
@@ -79,6 +81,7 @@ const bindingMemberOptions = computed(() => bindingMemberCandidates.value.map(it
 })))
 const selectedBindingRole = computed(() => roles.value.find(role => role.id === Number(bindingRoleSelection.value[0])) || null)
 const selectedBindingMember = computed(() => bindingMemberCandidates.value.find(item => item.user.id === Number(bindingMemberSelection.value[0])) || null)
+const visibleBindings = computed(() => targetUserId.value ? bindings.value.filter(binding => binding.user.id === targetUserId.value) : bindings.value)
 
 async function loadRoles() {
   loading.value = true
@@ -225,6 +228,8 @@ async function selectBindingRole(event: { value: Array<string | number> }) {
     return
   try {
     bindingMemberCandidates.value = await listAllOrganizationRoleMembers(appContextStore.organizationSlug, roleId, 'all', isTeamScope.value ? teamId.value : undefined)
+    if (bindingMemberCandidates.value.some(item => item.user.id === targetUserId.value))
+      bindingMemberSelection.value = [targetUserId.value]
   }
   catch (error) { toast.error(error instanceof Error ? error.message : '授权成员候选加载失败') }
 }
@@ -294,6 +299,8 @@ async function toggleRoleMember(item: RoleMemberOptionOut) {
 
 onLoad((options) => {
   teamId.value = Number(options?.teamId || 0)
+  targetUserId.value = Number(options?.userId || 0)
+  targetMemberName.value = options?.memberName || ''
   void loadRoles()
 })
 onHide(closeRoleMembers)
@@ -304,6 +311,9 @@ onUnload(closeRoleMembers)
   <view class="page-shell">
     <AppCustomNavigation title="角色与授权" back scroll-mode="sticky" />
     <wd-toast />
+    <view v-if="targetUserId" class="my-3 text-xs text-content-secondary">
+      当前配置成员：{{ targetMemberName || targetUserId }}，新增授权时自动选择该成员
+    </view>
     <AppLoading v-if="loading" text="正在加载角色与授权…" />
     <AppErrorView v-else-if="loadError" title="角色与授权加载失败" :message="loadError" @retry="loadRoles" />
     <template v-else>
@@ -340,19 +350,26 @@ onUnload(closeRoleMembers)
         </wd-button>
       </view>
       <view class="card-list">
-        <view v-for="binding in bindings" :key="binding.id" class="record-card">
+        <view v-for="binding in visibleBindings" :key="binding.id" class="record-card">
           <view class="record-main">
             <strong>{{ ((binding.user.first_name || '') + (binding.user.last_name || '')) || binding.user.username }}</strong><text>{{ binding.role.name }}</text>
           </view><wd-button v-if="canManage" size="small" type="danger" variant="plain" :loading="deleting === binding.id" @click="deleteBinding(binding)">
             解除
           </wd-button>
         </view>
+        <view v-if="targetUserId && !visibleBindings.length" class="p-3 text-xs text-content-muted">
+          当前成员在此范围内尚未授权角色
+        </view>
       </view>
     </template>
     <AppBottomSheet v-model:visible="editorVisible" :title="editingRole ? '编辑角色' : '新建角色'" height="tall">
       <view class="flex flex-col gap-2">
-        <wd-input v-model="roleName" label="角色名称" clearable />
-        <wd-input v-model="roleDescription" label="用途说明" clearable />
+        <wd-cell title="角色名称" center>
+          <wd-input v-model="roleName" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="用途说明" center>
+          <wd-input v-model="roleDescription" clearable compact align-right />
+        </wd-cell>
         <wd-checkbox-group v-model="permissionKeys" shape="square">
           <wd-checkbox v-for="permission in permissions" :key="permission.key" :name="permission.key">
             {{ permission.name }}
@@ -379,9 +396,9 @@ onUnload(closeRoleMembers)
         </wd-button>
       </template>
     </AppBottomSheet>
-    <wd-picker v-model="bindingRoleSelection" v-model:visible="bindingRolePickerVisible" :columns="bindingRoleOptions" title="选择角色" @confirm="selectBindingRole" />
-    <wd-picker v-model="bindingMemberSelection" v-model:visible="bindingMemberPickerVisible" :columns="bindingMemberOptions" title="选择成员" />
-    <wd-picker v-model="scopeSelection" v-model:visible="scopePickerVisible" :columns="roleScopeOptions" title="选择角色适用范围" @confirm="switchRoleScope" />
+    <wd-picker v-model="bindingRoleSelection" v-model:visible="bindingRolePickerVisible" root-portal :z-index="1200" :columns="bindingRoleOptions" title="选择角色" @confirm="selectBindingRole" />
+    <wd-picker v-model="bindingMemberSelection" v-model:visible="bindingMemberPickerVisible" root-portal :z-index="1200" :columns="bindingMemberOptions" title="选择成员" />
+    <wd-picker v-model="scopeSelection" v-model:visible="scopePickerVisible" root-portal :z-index="1200" :columns="roleScopeOptions" title="选择角色适用范围" @confirm="switchRoleScope" />
     <AppBottomSheet v-model:visible="membersVisible" :title="`${selectedRole?.name || ''}的成员`" height="tall" @close="closeRoleMembers">
       <view class="flex flex-col gap-1.5">
         <view v-for="item in roleMembers" :key="item.member_id" class="member-row">

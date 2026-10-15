@@ -19,10 +19,12 @@ def list_staff_responsibilities(
     request,
     keyword: str | None = Query(None),
     team_id: int | None = Query(None),
+    unassigned: bool = Query(False),
+    member_id: int | None = Query(None),
 ):
     org = require_org_permission(request, OrganizationPermission.MEMBER_VIEW)
     team = require_team_permission(request, team_id, TeamPermission.VIEW) if team_id is not None else None
-    return list_responsibility_members(organization=org, keyword=keyword, team=team)
+    return list_responsibility_members(organization=org, keyword=keyword, team=team, unassigned=unassigned, member_id=member_id)
 
 
 @router.get("/staff-responsibilities/summary/", response=PropertyResponsibilitySummaryOut, summary="获取团队员工房源职责汇总")

@@ -209,8 +209,12 @@ async function submitDispatch() {
             </view>
           </view>
         </template>
-        <wd-input v-model="category" label="通知类别代码（可选）" placeholder="留空则归为系统通知" />
-        <wd-input v-model="title" label="标题" placeholder="请输入通知标题" />
+        <wd-cell title="通知类别代码（可选）" center>
+          <wd-input v-model="category" placeholder="留空则归为系统通知" compact align-right />
+        </wd-cell>
+        <wd-cell title="标题" center>
+          <wd-input v-model="title" placeholder="请输入通知标题" compact align-right />
+        </wd-cell>
         <wd-textarea v-model="body" placeholder="请输入通知正文" :maxlength="2000" show-word-limit />
       </view>
       <template #footer>

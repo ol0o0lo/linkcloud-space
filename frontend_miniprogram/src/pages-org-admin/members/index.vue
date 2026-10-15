@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { MemberOut, MemberSearchOut } from '@/features/organization-admin/service'
+import type { MemberOut, MemberSearchOut, WorkspaceMemberOut } from '@/features/organization-admin/service'
+import { onLoad } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, ref } from 'vue'
-import { createOrganizationAdminMember, listOrganizationAdminMembers, searchOrganizationAdminMemberCandidates } from '@/features/organization-admin/service'
+import { createOrganizationAdminMember, listOrganizationAdminMembers, listOrganizationWorkspaceMembers, searchOrganizationAdminMemberCandidates } from '@/features/organization-admin/service'
 import { getOrganizationAdminMemberDetailRoute } from '@/modules/routes'
 import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 import AppEmpty from '@/components/app/AppEmpty.vue'
@@ -19,6 +20,8 @@ definePage({ style: { navigationBarTitleText: '成员管理', navigationStyle: '
 const toast = useToast()
 const appContextStore = useAppContextStore()
 const keyword = ref('')
+const ungroupedOnly = ref(false)
+onLoad(options => ungroupedOnly.value = options?.ungrouped === 'true')
 const addVisible = ref(false)
 const candidateKeyword = ref('')
 const candidates = ref<MemberSearchOut[]>([])
@@ -26,12 +29,18 @@ const searching = ref(false)
 const submitting = ref(false)
 const hasSearch = computed(() => Boolean(keyword.value.trim()))
 
-const memberPage = usePagedPage<MemberOut>({
-  loader: ({ page, pageSize }) => listOrganizationAdminMembers(appContextStore.organizationSlug, page, pageSize, {
-    keyword: keyword.value.trim() || undefined,
-  }),
+type MemberItem = MemberOut | WorkspaceMemberOut
+
+function memberId(item: MemberItem) {
+  return 'pk' in item ? item.pk : item.member_id
+}
+
+const memberPage = usePagedPage<MemberItem>({
+  loader: async ({ page, pageSize }) => ungroupedOnly.value
+    ? await listOrganizationWorkspaceMembers(appContextStore.organizationSlug, page, pageSize, { keyword: keyword.value.trim() || undefined, ungrouped: true })
+    : await listOrganizationAdminMembers(appContextStore.organizationSlug, page, pageSize, { keyword: keyword.value.trim() || undefined }),
   pageSize: 15,
-  keyOf: item => item.pk,
+  keyOf: memberId,
 })
 
 async function refreshList() {
@@ -67,15 +76,15 @@ async function addMember(candidate: MemberSearchOut) {
   finally { submitting.value = false }
 }
 
-function openMember(item: MemberOut) {
-  uni.navigateTo({ url: getOrganizationAdminMemberDetailRoute(item.pk) })
+function openMember(item: MemberItem) {
+  uni.navigateTo({ url: getOrganizationAdminMemberDetailRoute(memberId(item)) })
 }
 
-function memberName(item: MemberOut) {
+function memberName(item: MemberItem) {
   return item.employee_name || item.user.username
 }
 
-function memberInitial(item: MemberOut) {
+function memberInitial(item: MemberItem) {
   return memberName(item).slice(0, 1).toUpperCase()
 }
 
@@ -95,6 +104,12 @@ function handleEmptyAction() {
       <AppCustomNavigation title="成员管理" back scroll-mode="sticky" />
     </template>
     <wd-toast />
+    <view v-if="ungroupedOnly" class="mt-3 flex items-center justify-between text-xs text-content-secondary">
+      <text>仅显示未加入团队的成员</text>
+      <wd-button size="small" variant="plain" @click="ungroupedOnly = false; refreshList()">
+        查看全部
+      </wd-button>
+    </view>
     <view class="member-heading">
       <text>共 {{ memberPage.total.value }} 位成员</text>
       <wd-button size="small" @click="addVisible = true">
@@ -107,7 +122,7 @@ function handleEmptyAction() {
     <view class="mt-2.5">
       <AppPagedList
         :items="memberPage.items.value"
-        item-key="pk"
+        :item-key="memberId"
         :loading="memberPage.loading.value"
         :refreshing="memberPage.refreshing.value"
         :loading-more="memberPage.loadingMore.value"

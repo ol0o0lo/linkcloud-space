@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { OrganizationNavigationOut, TeamOut } from '@/features/organization-admin/service'
-import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
+import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, ref } from 'vue'
 import { canManageTeam } from '@/domain/organization-admin'
@@ -27,6 +27,12 @@ const teamPhone = ref('')
 const teamWechat = ref('')
 const creating = ref(false)
 const deleting = ref<number | null>(null)
+const targetUserId = ref(0)
+const targetMemberName = ref('')
+onLoad((options) => {
+  targetUserId.value = Number(options?.userId || 0)
+  targetMemberName.value = options?.memberName || ''
+})
 const canCreate = computed(() => navigation.value?.capabilities.team_create === true)
 const hasSearch = computed(() => Boolean(keyword.value.trim()))
 
@@ -101,7 +107,8 @@ async function deleteTeam(item: TeamOut) {
 }
 
 function openTeam(item: TeamOut) {
-  uni.navigateTo({ url: getOrganizationAdminTeamDetailRoute(item.id) })
+  const route = getOrganizationAdminTeamDetailRoute(item.id)
+  uni.navigateTo({ url: targetUserId.value ? `${route}&userId=${targetUserId.value}&memberName=${encodeURIComponent(targetMemberName.value)}` : route })
 }
 
 function handleEmptyAction() {
@@ -125,6 +132,9 @@ onReachBottom(() => void loadMore())
       <AppCustomNavigation title="团队管理" back scroll-mode="sticky" />
     </template>
     <wd-toast />
+    <view v-if="targetUserId" class="my-3 text-xs text-content-secondary">
+      为 {{ targetMemberName || '当前成员' }} 选择团队，进入后配置成员关系
+    </view>
     <AppListToolbar v-model:keyword="keyword" card search-placeholder="搜索团队名称" :action-text="canCreate ? '创建团队' : ''" @search="refreshList" @clear="refreshList" @action="createVisible = true" />
     <view class="mt-2.5">
       <AppPagedList
@@ -151,6 +161,7 @@ onReachBottom(() => void loadMore())
             </template>
             <template #description>
               {{ item.member_details.length }} 名成员 · {{ item.phone || item.wechat || '未填写联系方式' }}
+              <text v-if="targetUserId && item.members.includes(targetUserId)" class="ml-2 text-app-brand">当前成员已加入</text>
             </template>
             <template v-if="navigation && canManageTeam(navigation.capabilities, item.id, 'delete')" #actions>
               <wd-button type="danger" variant="plain" size="small" :loading="deleting === item.id" :disabled="deleting !== null" @click="deleteTeam(item)">
@@ -163,9 +174,15 @@ onReachBottom(() => void loadMore())
     </view>
     <AppBottomSheet v-model:visible="createVisible" title="创建团队" height="compact">
       <view class="flex flex-col gap-1.5">
-        <wd-input v-model="teamName" label="团队名称" placeholder="请输入团队名称" clearable />
-        <wd-input v-model="teamPhone" label="联系电话" placeholder="可选" clearable />
-        <wd-input v-model="teamWechat" label="客服微信" placeholder="可选" clearable />
+        <wd-cell title="团队名称" center>
+          <wd-input v-model="teamName" placeholder="请输入团队名称" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="联系电话" center>
+          <wd-input v-model="teamPhone" placeholder="可选" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="客服微信" center>
+          <wd-input v-model="teamWechat" placeholder="可选" clearable compact align-right />
+        </wd-cell>
       </view>
       <template #footer>
         <wd-button block :loading="creating" :disabled="creating" @click="submitTeam">

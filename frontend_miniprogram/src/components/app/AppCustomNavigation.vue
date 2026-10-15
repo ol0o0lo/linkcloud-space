@@ -29,6 +29,7 @@ const props = withDefaults(defineProps<{
   back?: boolean
   immersive?: boolean
   fallbackUrl?: string
+  beforeBack?: () => boolean | Promise<boolean>
 }>(), {
   subtitle: '',
   clickable: false,
@@ -104,7 +105,9 @@ function handleClick() {
     emit('click')
 }
 
-function handleBack() {
+async function handleBack() {
+  if (props.beforeBack && !await props.beforeBack())
+    return
   const pages = getCurrentPages()
   if (pages.length > 1) {
     uni.navigateBack()

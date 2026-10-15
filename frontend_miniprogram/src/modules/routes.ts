@@ -66,6 +66,7 @@ export const APP_ROUTES = {
   organizationAdminTeamDetail: buildSubpackageRoute('organization-admin', 'teams/detail'),
   organizationAdminRoles: buildSubpackageRoute('organization-admin', 'roles/index'),
   organizationAdminResponsibilities: buildSubpackageRoute('organization-admin', 'responsibilities/index'),
+  organizationAdminResponsibilityEdit: buildSubpackageRoute('organization-admin', 'responsibilities/edit'),
   organizationAdminSettings: buildSubpackageRoute('organization-admin', 'settings/index'),
   organizationAdminSubscription: buildSubpackageRoute('organization-admin', 'subscription/index'),
   organizationAdminNotificationDispatches: buildSubpackageRoute('organization-admin', 'notification-dispatches/index'),

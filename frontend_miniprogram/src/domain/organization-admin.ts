@@ -104,10 +104,24 @@ export interface OrganizationAdminSection {
   icon: string
 }
 
-interface ResponsibilitySelection {
+export interface ResponsibilitySelection {
   landlord_ids?: number[]
   building_ids?: number[]
   estate_ids?: number[]
+}
+
+export type ResponsibilityKind = keyof ResponsibilitySelection
+
+export function getResponsibilitySelectionChanges(previous: ResponsibilitySelection, next: ResponsibilitySelection) {
+  return (['landlord_ids', 'building_ids', 'estate_ids'] as const).map((kind) => {
+    const before = new Set(previous[kind] || [])
+    const after = new Set(next[kind] || [])
+    return {
+      kind,
+      added: Array.from(after).filter(id => !before.has(id)),
+      removed: Array.from(before).filter(id => !after.has(id)),
+    }
+  })
 }
 
 const sections: Array<OrganizationAdminSection & { visible: (capabilities: OrganizationAdminCapabilities) => boolean }> = [

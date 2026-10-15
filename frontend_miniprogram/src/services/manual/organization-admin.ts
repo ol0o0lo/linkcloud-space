@@ -152,7 +152,7 @@ export type {
 export type OrganizationMemberFilters = Omit<OrganizationMembersUsingGetParams, 'page' | 'page_size'>
 export type OrganizationWorkspaceMemberFilters = Omit<OrganizationWorkspaceMembersUsingGetParams, 'page' | 'page_size'>
 export type OrganizationTeamFilters = Omit<TeamsUsingGetParams, 'page' | 'page_size'>
-export type OrganizationResponsibilityFilters = Omit<HouseStaffResponsibilitiesUsingGetParams, 'page' | 'page_size'>
+export type OrganizationResponsibilityFilters = Omit<HouseStaffResponsibilitiesUsingGetParams, 'page' | 'page_size'> & { unassigned?: boolean, member_id?: number }
 export type MobileMemberPatchIn = Pick<MemberPatchIn, 'employee_name' | 'job_title'>
 export type MobileInviteIn = Omit<InviteIn, 'is_owner'>
 export type TenantNotificationDispatchIn = Omit<NotificationDispatchIn, 'scope'> & { scope: TenantDispatchScope }

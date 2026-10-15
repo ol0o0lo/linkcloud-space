@@ -31,11 +31,13 @@ const loading = ref(true)
 const saving = ref(false)
 const submitting = ref<number | null>(null)
 const loadError = ref('')
+const targetUserId = ref(0)
+const targetMemberName = ref('')
 const canUpdate = computed(() => adminCapabilities.value?.team_update_ids.includes(teamId.value) === true)
 const canManageMembers = computed(() => adminCapabilities.value?.team_member_manage_ids.includes(teamId.value) === true)
 const canViewRoles = computed(() => adminCapabilities.value?.team_role_view_ids.includes(teamId.value) === true || adminCapabilities.value?.team_role_manage_ids.includes(teamId.value) === true)
 const canViewSettings = computed(() => Boolean(adminCapabilities.value?.team_settings_view_ids.includes(teamId.value)))
-const availableMembers = computed(() => memberCandidates.value.filter(item => !team.value?.members.includes(item.user.id)))
+const availableMembers = computed(() => memberCandidates.value.filter(item => !team.value?.members.includes(item.user.id) && (!targetUserId.value || item.user.id === targetUserId.value)))
 
 function fillForm(value: TeamOut) {
   name.value = value.name
@@ -123,7 +125,8 @@ async function removeMember(userId: number, username: string) {
 }
 
 function openTeamRoles() {
-  uni.navigateTo({ url: `${APP_ROUTES.organizationAdminRoles}?teamId=${teamId.value}` })
+  const target = targetUserId.value ? `&userId=${targetUserId.value}&memberName=${encodeURIComponent(targetMemberName.value)}` : ''
+  uni.navigateTo({ url: `${APP_ROUTES.organizationAdminRoles}?teamId=${teamId.value}${target}` })
 }
 
 function openTeamSettings() {
@@ -132,6 +135,8 @@ function openTeamSettings() {
 
 onLoad((options) => {
   teamId.value = Number(options?.id || 0)
+  targetUserId.value = Number(options?.userId || 0)
+  targetMemberName.value = options?.memberName || ''
   void loadTeam()
 })
 </script>
@@ -140,15 +145,28 @@ onLoad((options) => {
   <view class="page-shell">
     <AppCustomNavigation title="团队详情" back scroll-mode="sticky" />
     <wd-toast />
+    <view v-if="targetUserId" class="my-3 text-xs text-content-secondary">
+      当前配置成员：{{ targetMemberName || targetUserId }}
+    </view>
     <AppLoading v-if="loading" text="正在加载团队详情…" />
     <AppErrorView v-else-if="loadError" title="团队详情加载失败" :message="loadError" @retry="loadTeam" />
     <template v-else-if="team">
       <view class="form-card">
-        <wd-input v-model="name" label="团队名称" :readonly="!canUpdate" />
-        <wd-input v-model="phone" label="联系电话" :readonly="!canUpdate" />
-        <wd-input v-model="wechat" label="客服微信" :readonly="!canUpdate" />
-        <wd-input v-model="address" label="地址" :readonly="!canUpdate" />
-        <wd-input v-model="businessHours" label="营业时间" :readonly="!canUpdate" />
+        <wd-cell title="团队名称" center>
+          <wd-input v-model="name" :readonly="!canUpdate" compact align-right />
+        </wd-cell>
+        <wd-cell title="联系电话" center>
+          <wd-input v-model="phone" :readonly="!canUpdate" compact align-right />
+        </wd-cell>
+        <wd-cell title="客服微信" center>
+          <wd-input v-model="wechat" :readonly="!canUpdate" compact align-right />
+        </wd-cell>
+        <wd-cell title="地址" center>
+          <wd-input v-model="address" :readonly="!canUpdate" compact align-right />
+        </wd-cell>
+        <wd-cell title="营业时间" center>
+          <wd-input v-model="businessHours" :readonly="!canUpdate" compact align-right />
+        </wd-cell>
         <wd-button v-if="canUpdate" block :loading="saving" :disabled="saving" @click="saveTeam">
           保存团队资料
         </wd-button>
@@ -187,7 +205,7 @@ onLoad((options) => {
         <AppEmpty
           v-if="!availableMembers.length"
           title="没有可加入的组织成员"
-          description="当前组织成员都已在团队中，或没有可管理的成员。"
+          :description="targetUserId ? '当前成员已在团队中，或不在可添加成员范围内。' : '当前组织成员都已在团队中，或没有可管理的成员。'"
           icon="no-result"
           compact
         />

@@ -365,7 +365,9 @@ onLoad((options) => {
             选择地图位置
           </wd-button>
         </template>
-        <wd-input v-else-if="editingSetting?.widget === 'input' || editingSetting?.widget === 'password'" v-model="editingTextValue" :label="editingSetting.label" :show-password="editingSetting.widget === 'password'" />
+        <wd-cell v-else-if="editingSetting?.widget === 'input' || editingSetting?.widget === 'password'" :title="editingSetting.label" center>
+          <wd-input v-model="editingTextValue" :show-password="editingSetting.widget === 'password'" compact align-right />
+        </wd-cell>
         <wd-textarea v-else-if="editingSetting?.widget === 'tags'" v-model="editingTextValue" placeholder="请输入常用标签，多个标签用逗号分隔" :maxlength="1000" />
         <wd-textarea v-else v-model="editingTextValue" placeholder="请输入设置值" :maxlength="5000" />
       </view>
@@ -375,7 +377,7 @@ onLoad((options) => {
         </wd-button>
       </template>
     </AppBottomSheet>
-    <wd-picker v-model="editingSelectValue" v-model:visible="selectPickerVisible" :columns="settingOptions" title="选择设置值" />
+    <wd-picker v-model="editingSelectValue" v-model:visible="selectPickerVisible" root-portal :z-index="1200" :columns="settingOptions" title="选择设置值" />
   </view>
 </template>
 

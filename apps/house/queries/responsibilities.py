@@ -67,12 +67,16 @@ def responsibility_members(org):
     )
 
 
-def list_responsibility_members(*, organization, keyword=None, team=None):
+def list_responsibility_members(*, organization, keyword=None, team=None, unassigned=False, member_id=None):
     qs = responsibility_members(organization)
     if keyword:
         qs = qs.filter(Q(user__first_name__icontains=keyword) | Q(user__last_name__icontains=keyword) | Q(user__username__icontains=keyword) | Q(user__email__icontains=keyword))
     if team is not None:
         qs = qs.filter(user__teams=team).distinct()
+    if unassigned:
+        qs = qs.filter(property_responsibilities__isnull=True)
+    if member_id is not None:
+        qs = qs.filter(pk=member_id)
     return qs
 
 

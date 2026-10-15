@@ -205,7 +205,9 @@ async function cancelInvite(item: InviteOut) {
             </view>
           </view>
         </template>
-        <wd-input v-else v-model="inviteTarget" :label="inviteType === 'phone' ? '手机号' : '邮箱'" :placeholder="inviteType === 'phone' ? '请输入被邀请人手机号' : '请输入被邀请人邮箱'" clearable />
+        <wd-cell v-else :title="inviteType === 'phone' ? '手机号' : '邮箱'" center>
+          <wd-input v-model="inviteTarget" :placeholder="inviteType === 'phone' ? '请输入被邀请人手机号' : '请输入被邀请人邮箱'" clearable compact align-right />
+        </wd-cell>
         <wd-cell title="预设角色" :value="selectedRole?.name || '不预设角色'" is-link @click="rolePickerVisible = true" />
       </view>
       <template #footer>
@@ -214,6 +216,6 @@ async function cancelInvite(item: InviteOut) {
         </wd-button>
       </template>
     </AppBottomSheet>
-    <wd-picker v-model="roleSelection" v-model:visible="rolePickerVisible" :columns="roleOptions" title="选择预设角色" />
+    <wd-picker v-model="roleSelection" v-model:visible="rolePickerVisible" root-portal :z-index="1200" :columns="roleOptions" title="选择预设角色" />
   </AppPage>
 </template>

@@ -61,6 +61,14 @@ function openSection(key: OrganizationAdminSectionKey) {
   uni.navigateTo({ url: sectionRoutes[key] })
 }
 
+function openMemberFilter() {
+  uni.navigateTo({ url: `${APP_ROUTES.organizationAdminMembers}?ungrouped=true` })
+}
+
+function openResponsibilityFilter() {
+  uni.navigateTo({ url: APP_ROUTES.organizationAdminResponsibilities })
+}
+
 onShow(() => void loadNavigation())
 onPullDownRefresh(loadNavigation)
 </script>
@@ -79,8 +87,12 @@ onPullDownRefresh(loadNavigation)
         <text>{{ navigation.member_count }} 名成员 · {{ navigation.team_count }} 个团队 · {{ navigation.pending_invite_count || 0 }} 条待处理邀请</text>
       </view>
       <view v-if="navigation" class="metric-grid">
-        <view><strong>{{ navigation.ungrouped_member_count }}</strong><text>未分组成员</text></view>
-        <view><strong>{{ navigation.unassigned_responsibility_count }}</strong><text>未配置职责</text></view>
+        <view class="app-touchable" @click="openMemberFilter">
+          <strong>{{ navigation.ungrouped_member_count }}</strong><text>未分组成员 ›</text>
+        </view>
+        <view class="app-touchable" @click="openResponsibilityFilter">
+          <strong>{{ navigation.unassigned_responsibility_count }}</strong><text>未配置职责 ›</text>
+        </view>
       </view>
       <view v-if="sections.length" class="section-groups">
         <view v-for="group in sectionGroups" :key="group.title" class="section-group">
