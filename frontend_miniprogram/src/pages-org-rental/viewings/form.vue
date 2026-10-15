@@ -4,7 +4,7 @@ import type { ContactOut, HouseOut, WorkspaceMemberOut } from '@/pages-org-renta
 import { onLoad } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, reactive, ref } from 'vue'
-import { buildOrganizationViewingCreatePayload, formatOrganizationDateTime } from '@/pages-org-rental/domain/organization-rental'
+import { buildOrganizationViewingCreatePayload } from '@/pages-org-rental/domain/organization-rental'
 import {
   createOrganizationViewing,
   listOrganizationContacts,
@@ -71,7 +71,7 @@ const selectedContact = computed(() => contacts.value.find(item => item.id === f
 const selectedAssignee = computed(() => assignees.value.find(item => item.user.id === form.assigned_to_id))
 const contactLabel = computed(() => selectedContact.value ? `${selectedContact.value.name} · ${selectedContact.value.phone}` : '不关联租客联系人')
 const assigneeLabel = computed(() => selectedAssignee.value ? memberLabel(selectedAssignee.value) : '暂不指定')
-const scheduleLabel = computed(() => formatOrganizationDateTime(new Date(form.scheduled_at).toISOString()))
+const scheduleLabel = computed(() => new Date(form.scheduled_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }))
 
 async function loadHouses() {
   houseLoading.value = true
@@ -194,8 +194,12 @@ onLoad((options) => {
 
     <wd-cell-group title="客户信息" insert>
       <wd-cell title="租客联系人" :value="contactLabel" is-link @click="contactVisible = true" />
-      <wd-input v-model="form.customer_name" label="客户姓名" placeholder="请输入客户姓名" clearable />
-      <wd-input v-model="form.customer_phone" label="手机号" type="number" placeholder="请输入手机号" clearable />
+      <wd-cell title="客户姓名" center>
+        <wd-input v-model="form.customer_name" placeholder="请输入客户姓名" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="手机号" center>
+        <wd-input v-model="form.customer_phone" type="tel" placeholder="请输入手机号" clearable compact align-right />
+      </wd-cell>
       <wd-cell title="备注" layout="vertical">
         <wd-textarea v-model="form.notes" placeholder="补充会面地点或沟通事项" :maxlength="3000" show-word-limit />
       </wd-cell>

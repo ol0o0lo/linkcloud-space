@@ -60,8 +60,12 @@ onPullDownRefresh(loadAnalytics)
     <AppErrorView v-if="!allowed" title="无查看权限" message="当前账号无权查看经营分析" :retryable="false" />
     <template v-else>
       <view class="filter-card">
-        <wd-input v-model="startDate" label="开始日期" placeholder="YYYY-MM-DD" clearable />
-        <wd-input v-model="endDate" label="结束日期" placeholder="YYYY-MM-DD" clearable />
+        <wd-cell title="开始日期" center>
+          <wd-input v-model="startDate" placeholder="YYYY-MM-DD" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="结束日期" center>
+          <wd-input v-model="endDate" placeholder="YYYY-MM-DD" clearable compact align-right />
+        </wd-cell>
         <wd-button block size="small" @click="loadAnalytics">
           查询
         </wd-button>

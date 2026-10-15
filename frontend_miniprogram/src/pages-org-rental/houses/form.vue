@@ -270,24 +270,46 @@ onLoad((options) => {
     <wd-cell-group title="归属与基础" insert>
       <wd-cell title="楼栋" :value="buildingLabel" is-link @click="buildingVisible = true" />
       <wd-cell title="房东" :value="landlordLabel" is-link @click="landlordVisible = true" />
-      <wd-input v-model="form.room_number" label="房号" placeholder="请输入房号" clearable />
+      <wd-cell title="房号" center>
+        <wd-input v-model="form.room_number" placeholder="请输入房号" clearable compact align-right />
+      </wd-cell>
       <wd-cell title="出租分类" :value="listingTypeLabel" is-link @click="listingTypeVisible = true" />
-      <wd-input v-model="form.floor" label="楼层" type="number" placeholder="例如 12" clearable />
+      <wd-cell title="楼层" center>
+        <wd-input v-model="form.floor" type="number" placeholder="例如 12" clearable compact align-right />
+      </wd-cell>
     </wd-cell-group>
 
     <wd-cell-group title="面积与租金" insert>
-      <wd-input v-model="form.area" label="建筑面积" type="digit" placeholder="平方米" clearable />
-      <wd-input v-model="form.interior_area" label="套内面积" type="digit" placeholder="平方米" clearable />
-      <wd-input v-model="form.asking_rent" label="挂牌租金" type="digit" placeholder="元/月" clearable />
-      <wd-input v-model="form.deposit_amount" label="押金" type="digit" placeholder="元" clearable />
+      <wd-cell title="建筑面积" center>
+        <wd-input v-model="form.area" type="digit" placeholder="平方米" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="套内面积" center>
+        <wd-input v-model="form.interior_area" type="digit" placeholder="平方米" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="挂牌租金" center>
+        <wd-input v-model="form.asking_rent" type="digit" placeholder="元/月" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="押金" center>
+        <wd-input v-model="form.deposit_amount" type="digit" placeholder="元" clearable compact align-right />
+      </wd-cell>
     </wd-cell-group>
 
     <wd-cell-group title="户型资料" insert>
-      <wd-input v-model="form.bedrooms" label="卧室" type="number" placeholder="0" clearable />
-      <wd-input v-model="form.living_rooms" label="客厅" type="number" placeholder="0" clearable />
-      <wd-input v-model="form.bathrooms" label="卫生间" type="number" placeholder="0" clearable />
-      <wd-input v-model="form.kitchens" label="厨房" type="number" placeholder="0" clearable />
-      <wd-input v-model="form.balconies" label="阳台" type="number" placeholder="0" clearable />
+      <wd-cell title="卧室" center>
+        <wd-input v-model="form.bedrooms" type="number" placeholder="0" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="客厅" center>
+        <wd-input v-model="form.living_rooms" type="number" placeholder="0" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="卫生间" center>
+        <wd-input v-model="form.bathrooms" type="number" placeholder="0" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="厨房" center>
+        <wd-input v-model="form.kitchens" type="number" placeholder="0" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="阳台" center>
+        <wd-input v-model="form.balconies" type="number" placeholder="0" clearable compact align-right />
+      </wd-cell>
       <wd-cell title="朝向" :value="orientationLabel" is-link @click="orientationVisible = true" />
       <wd-cell title="装修" :value="decorationLabel" is-link @click="decorationVisible = true" />
       <wd-cell title="可使用电梯" center>
@@ -326,7 +348,9 @@ onLoad((options) => {
     </view>
 
     <wd-cell-group title="展示与备注" insert>
-      <wd-input v-model="form.tags" label="标签" placeholder="用逗号分隔" clearable />
+      <wd-cell title="标签" center>
+        <wd-input v-model="form.tags" placeholder="用逗号分隔" clearable compact align-right />
+      </wd-cell>
       <wd-cell title="公开描述" layout="vertical">
         <wd-textarea v-model="form.public_description" placeholder="面向租客展示的房源介绍" :maxlength="3000" show-word-limit />
       </wd-cell>

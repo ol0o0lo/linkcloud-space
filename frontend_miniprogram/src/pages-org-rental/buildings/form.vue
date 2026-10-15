@@ -153,8 +153,12 @@ onLoad((options) => {
     </template>
     <wd-cell-group title="归属与基础" insert>
       <wd-cell title="所属小区" :value="estateLabel" is-link @click="estateVisible = true" />
-      <wd-input v-model="form.name" label="楼栋名称" placeholder="例如 1栋" clearable />
-      <wd-input v-model="form.address" label="楼栋地址" placeholder="请输入详细地址" clearable />
+      <wd-cell title="楼栋名称" center>
+        <wd-input v-model="form.name" placeholder="例如 1栋" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="楼栋地址" center>
+        <wd-input v-model="form.address" placeholder="请输入详细地址" clearable compact align-right />
+      </wd-cell>
       <PropertyLocationField v-model="form.location" :disabled="saving" :city="selectedEstate?.city" />
       <wd-cell title="配备电梯" center>
         <wd-switch v-model="form.elevator" size="20px" />
@@ -162,10 +166,18 @@ onLoad((options) => {
     </wd-cell-group>
 
     <wd-cell-group title="楼层与标签" insert>
-      <wd-input v-model="form.floors" label="地上楼层" type="number" placeholder="必填" clearable />
-      <wd-input v-model="form.under_floors" label="地下楼层" type="number" placeholder="可不填" clearable />
-      <wd-input v-model="form.year_built" label="建成年份" type="number" placeholder="可不填" clearable />
-      <wd-input v-model="form.tags" label="楼栋标签" placeholder="用逗号分隔" clearable />
+      <wd-cell title="地上楼层" center>
+        <wd-input v-model="form.floors" type="number" placeholder="必填" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="地下楼层" center>
+        <wd-input v-model="form.under_floors" type="number" placeholder="可不填" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="建成年份" center>
+        <wd-input v-model="form.year_built" type="number" placeholder="可不填" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="楼栋标签" center>
+        <wd-input v-model="form.tags" placeholder="用逗号分隔" clearable compact align-right />
+      </wd-cell>
     </wd-cell-group>
 
     <template #overlay>

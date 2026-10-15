@@ -224,7 +224,9 @@ onReachBottom(() => void loadMore())
       <view class="flex flex-col gap-2">
         <wd-cell title="公告范围" :value="selectedCreateScopeLabel" is-link @click="createScopePickerVisible = true" />
         <wd-picker v-model="selectedCreateScope" v-model:visible="createScopePickerVisible" :columns="createScopeOptions" title="选择公告范围" @confirm="changeCreateScope" />
-        <wd-input v-model="title" label="公告标题" placeholder="请输入公告标题" :maxlength="120" clearable />
+        <wd-cell title="公告标题" center>
+          <wd-input v-model="title" placeholder="请输入公告标题" :maxlength="120" clearable compact align-right />
+        </wd-cell>
         <wd-textarea v-model="body" placeholder="请输入公告正文" :maxlength="5000" show-word-limit />
         <view class="my-3 app-row-between rounded-app-md bg-surface-subtle p-2.5">
           <view><strong class="block text-sm text-content-primary">要求确认</strong><text class="mt-1 block text-2xs text-content-muted">发布后收件人需要主动确认</text></view><wd-switch v-model="requireAcknowledgement" />

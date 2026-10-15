@@ -241,9 +241,15 @@ async function inviteLandlord(item: ContactOut) {
 
     <AppBottomSheet v-model:visible="editorVisible" :title="editing ? '编辑联系人' : '新建联系人'" height="tall">
       <view class="flex flex-col gap-1.5">
-        <wd-input v-model="contactForm.name" label="姓名" placeholder="请输入姓名" clearable />
-        <wd-input v-model="contactForm.phone" label="手机号" type="tel" placeholder="请输入手机号" clearable />
-        <wd-input v-model="contactForm.email" label="邮箱" placeholder="可不填" clearable />
+        <wd-cell title="姓名" center>
+          <wd-input v-model="contactForm.name" placeholder="请输入姓名" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="手机号" center>
+          <wd-input v-model="contactForm.phone" type="tel" placeholder="请输入手机号" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="邮箱" center>
+          <wd-input v-model="contactForm.email" placeholder="可不填" clearable compact align-right />
+        </wd-cell>
         <view class="border-b border-app-divider border-solid py-3">
           <view class="mb-2 text-xs text-content-secondary">
             联系人角色

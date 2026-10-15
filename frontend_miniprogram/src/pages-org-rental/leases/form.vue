@@ -207,11 +207,21 @@ onLoad((options) => {
       </wd-cell-group>
 
       <wd-cell-group title="租期与金额" insert>
-        <wd-input v-model="form.start_date" label="起租日期" placeholder="YYYY-MM-DD" clearable />
-        <wd-input v-model="form.end_date" label="到期日期" placeholder="YYYY-MM-DD" clearable />
-        <wd-input v-model="form.monthly_rent" label="月租金" type="digit" placeholder="元/月" clearable />
-        <wd-input v-model="form.deposit" label="押金" type="digit" placeholder="可不填" clearable />
-        <wd-input v-model="form.payment_day" label="付款日" type="number" placeholder="1-31" clearable />
+        <wd-cell title="起租日期" center>
+          <wd-input v-model="form.start_date" placeholder="YYYY-MM-DD" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="到期日期" center>
+          <wd-input v-model="form.end_date" placeholder="YYYY-MM-DD" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="月租金" center>
+          <wd-input v-model="form.monthly_rent" type="digit" placeholder="元/月" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="押金" center>
+          <wd-input v-model="form.deposit" type="digit" placeholder="可不填" clearable compact align-right />
+        </wd-cell>
+        <wd-cell title="付款日" center>
+          <wd-input v-model="form.payment_day" type="number" placeholder="1-31" clearable compact align-right />
+        </wd-cell>
       </wd-cell-group>
 
       <wd-cell-group title="合同与备注" insert>

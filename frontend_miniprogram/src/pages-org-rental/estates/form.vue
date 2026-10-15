@@ -144,19 +144,37 @@ onLoad((options) => {
       <wd-toast />
     </template>
     <wd-cell-group title="基础信息" insert>
-      <wd-input v-model="form.name" label="标准名称" placeholder="请输入小区标准名称" clearable />
-      <wd-input v-model="form.display_name" label="展示名称" placeholder="请输入对外展示名称" clearable />
+      <wd-cell title="标准名称" center>
+        <wd-input v-model="form.name" placeholder="请输入小区标准名称" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="展示名称" center>
+        <wd-input v-model="form.display_name" placeholder="请输入对外展示名称" clearable compact align-right />
+      </wd-cell>
       <wd-cell title="物业类型" :value="propertyTypeLabel" is-link @click="propertyTypeVisible = true" />
-      <wd-input v-model="form.developer" label="开发商" placeholder="可不填" clearable />
-      <wd-input v-model="form.built_year" label="建成年份" type="number" placeholder="可不填" clearable />
+      <wd-cell title="开发商" center>
+        <wd-input v-model="form.developer" placeholder="可不填" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="建成年份" center>
+        <wd-input v-model="form.built_year" type="number" placeholder="可不填" clearable compact align-right />
+      </wd-cell>
     </wd-cell-group>
 
     <wd-cell-group title="所在地区" insert>
-      <wd-input v-model="form.province" label="省份" placeholder="例如 广东省" clearable />
-      <wd-input v-model="form.city" label="城市" placeholder="例如 深圳市" clearable />
-      <wd-input v-model="form.district" label="区县" placeholder="例如 南山区" clearable />
-      <wd-input v-model="form.subdistrict" label="街道/板块" placeholder="例如 科技园，可不填" clearable />
-      <wd-input v-model="form.address" label="详细地址" placeholder="可稍后补充" clearable />
+      <wd-cell title="省份" center>
+        <wd-input v-model="form.province" placeholder="例如 广东省" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="城市" center>
+        <wd-input v-model="form.city" placeholder="例如 深圳市" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="区县" center>
+        <wd-input v-model="form.district" placeholder="例如 南山区" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="街道/板块" center>
+        <wd-input v-model="form.subdistrict" placeholder="例如 科技园，可不填" clearable compact align-right />
+      </wd-cell>
+      <wd-cell title="详细地址" center>
+        <wd-input v-model="form.address" placeholder="可稍后补充" clearable compact align-right />
+      </wd-cell>
       <PropertyLocationField v-model="form.location" :disabled="saving" :city="form.city" />
     </wd-cell-group>
 
