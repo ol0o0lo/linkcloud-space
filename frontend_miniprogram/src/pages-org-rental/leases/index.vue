@@ -4,7 +4,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import { computed, reactive, ref } from 'vue'
 import OrganizationLeaseCard from '@/pages-org-rental/leases/components/OrganizationLeaseCard.vue'
 import { listOrganizationLeases } from '@/pages-org-rental/api/organization-rental'
-import { APP_ROUTES, getOrganizationLeaseDetailRoute } from '@/modules/routes'
+import { APP_ROUTES, getOrganizationHouseSigningRoute, getOrganizationLeaseDetailRoute, getOrganizationTasksRoute } from '@/modules/routes'
 import AppListToolbar from '@/components/app/AppListToolbar.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import AppPagedList from '@/components/app/AppPagedList.vue'
@@ -24,6 +24,8 @@ const houseId = ref<number>()
 onLoad((options) => {
   const id = Number(options?.house_id)
   houseId.value = Number.isInteger(id) && id > 0 ? id : undefined
+  if (options?.status === 'pending' || options?.status === 'active' || options?.status === 'expired')
+    statusFilter.value = options.status
 })
 const list = usePagedPage<LeaseOut>({
   pageSize: 15,
@@ -46,12 +48,12 @@ function changeStatus(status: 'all' | 'pending' | 'active' | 'expired') {
   void list.refresh()
 }
 
-function openTasks() {
-  uni.navigateTo({ url: APP_ROUTES.organizationTasks })
+function openTasks(scope: 'mine' | 'team') {
+  uni.navigateTo({ url: getOrganizationTasksRoute(scope) })
 }
 
 function createLease() {
-  uni.navigateTo({ url: APP_ROUTES.organizationSigning })
+  uni.navigateTo({ url: houseId.value ? getOrganizationHouseSigningRoute(houseId.value) : APP_ROUTES.organizationSigning })
 }
 
 function openDetail(id: number) {
@@ -72,7 +74,7 @@ function handleEmptyAction() {
 <template>
   <AppPage variant="list">
     <template #navigation>
-      <AppCustomNavigation title="租约与任务" back scroll-mode="sticky">
+      <AppCustomNavigation title="租约管理" back scroll-mode="sticky">
         <template #action>
           <button class="navigation-action" @click="createLease">
             新建
@@ -83,9 +85,9 @@ function handleEmptyAction() {
     <view class="module-tabs">
       <view class="active">
         租约
-      </view><view @click="openTasks">
+      </view><view @click="openTasks('mine')">
         我的任务
-      </view><view @click="openTasks">
+      </view><view @click="openTasks('team')">
         团队任务
       </view>
     </view>

@@ -17,31 +17,31 @@ definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '带看
 
 const appContextStore = useAppContextStore()
 const keyword = ref('')
-const statusFilter = ref<'all' | 'scheduled' | 'viewed'>('all')
+const statusOptions = [
+  { value: 'all', label: '全部' },
+  { value: 'scheduled', label: '待带看' },
+  { value: 'viewed', label: '已带看' },
+  { value: 'converted', label: '已成交' },
+  { value: 'canceled', label: '已取消' },
+  { value: 'no_show', label: '爽约' },
+] as const
+type ViewingFilter = typeof statusOptions[number]['value']
+const statusFilter = ref<ViewingFilter>('all')
 const houseId = ref<number>()
 const hasFilters = computed(() => Boolean(keyword.value.trim() || statusFilter.value !== 'all'))
-const weekDays = computed(() => {
-  const today = new Date()
-  const mondayOffset = (today.getDay() + 6) % 7
-  return Array.from({ length: 5 }, (_, index) => {
-    const date = new Date(today)
-    date.setDate(today.getDate() - mondayOffset + index)
-    return { label: `周${['一', '二', '三', '四', '五'][index]}`, day: date.getDate(), active: date.toDateString() === today.toDateString() }
-  })
-})
-const todayLabel = computed(() => new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' }))
 onLoad((options) => {
   const id = Number(options?.house_id)
   houseId.value = Number.isInteger(id) && id > 0 ? id : undefined
-  if (options?.status === 'scheduled' || options?.status === 'viewed')
-    statusFilter.value = options.status
+  const option = statusOptions.find(item => item.value === options?.status)
+  if (option)
+    statusFilter.value = option.value
 })
 const list = usePagedPage<ViewingRecordOut>({
   pageSize: 15,
   loader: ({ page, pageSize }) => listOrganizationViewings(appContextStore.organizationSlug, page, pageSize, { keyword: keyword.value.trim() || undefined, house_id: houseId.value, status: statusFilter.value === 'all' ? undefined : statusFilter.value }),
 })
 
-function changeStatus(status: 'all' | 'scheduled' | 'viewed') {
+function changeStatus(status: ViewingFilter) {
   statusFilter.value = status
   void list.refresh()
 }
@@ -68,7 +68,7 @@ function handleEmptyAction() {
 <template>
   <AppPage variant="list">
     <template #navigation>
-      <AppCustomNavigation title="带看排期" back scroll-mode="sticky">
+      <AppCustomNavigation title="带看记录" back scroll-mode="sticky">
         <template #action>
           <button class="navigation-action" @click="createViewing">
             新增
@@ -76,19 +76,9 @@ function handleEmptyAction() {
         </template>
       </AppCustomNavigation>
     </template>
-    <view class="week-card">
-      <view class="week-card__top">
-        <strong>本周排期</strong><text>共 {{ list.total.value }} 场</text>
-      </view>
-      <view class="week-row">
-        <view v-for="day in weekDays" :key="day.label" :class="{ active: day.active }">
-          <text>{{ day.label }}</text><strong>{{ day.day }}</strong>
-        </view>
-      </view>
-    </view>
     <view class="viewing-tabs">
-      <view v-for="item in ([['all', '全部'], ['scheduled', '待带看'], ['viewed', '已完成']] as const)" :key="item[0]" :class="{ active: statusFilter === item[0] }" @click="changeStatus(item[0])">
-        {{ item[1] }}
+      <view v-for="item in statusOptions" :key="item.value" :class="{ active: statusFilter === item.value }" @click="changeStatus(item.value)">
+        {{ item.label }}
       </view>
     </view>
     <AppListToolbar
@@ -98,7 +88,7 @@ function handleEmptyAction() {
       @clear="list.refresh"
     />
     <view class="day-heading">
-      今天 · {{ todayLabel }} · 共 {{ list.total.value }} 场
+      {{ houseId ? '当前房源 · ' : '' }}当前筛选共 {{ list.total.value }} 场
     </view>
     <view class="mt-2.5">
       <AppPagedList
@@ -139,54 +129,9 @@ function handleEmptyAction() {
 .navigation-action::after {
   border: 0;
 }
-.week-card {
-  margin-top: 44rpx;
-  padding: 30rpx 32rpx;
-  border-radius: 32rpx;
-  background: var(--app-bg-card);
-}
-.week-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.week-card__top strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-}
-.week-card__top text {
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-}
-.week-row {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10rpx;
-  margin-top: 26rpx;
-}
-.week-row > view {
-  display: flex;
-  height: 92rpx;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  border-radius: 22rpx;
-  color: var(--app-text-secondary);
-  background: var(--app-bg-subtle);
-}
-.week-row > view.active {
-  color: var(--app-color-brand);
-  background: var(--app-bg-brand-soft);
-}
-.week-row text {
-  font-size: 20rpx;
-}
-.week-row strong {
-  font-size: 23rpx;
-}
 .viewing-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 14rpx;
   margin: 28rpx 0 20rpx;
 }

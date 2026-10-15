@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { OrganizationTaskScope } from '@/domain/organization-work'
 import type { TaskAssignmentOut, TeamOperationsCapabilitiesOut, TeamOut, WorkTaskOut } from '@/features/organization-work/service'
-import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
+import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, ref } from 'vue'
 import { buildOrganizationWorkDueAtIso, buildOrganizationWorkManageScopeOptions, buildTaskScopeOptions, formatOrganizationWorkDateTime, formatOrganizationWorkUser, getAssignmentStatusTone, getPriorityTone, getTaskActions, getTaskStatusTone } from '@/domain/organization-work'
@@ -68,11 +68,12 @@ const selectedCreateTeamId = computed(() => selectedCreateScopeOption.value?.tea
 const selectedCreateScopeLabel = computed(() => selectedCreateScopeOption.value?.label || '请选择任务范围')
 const taskDueAtLabel = computed(() => taskDueAt.value === null ? '不设置' : new Date(taskDueAt.value).toLocaleString('zh-CN', { hour12: false }))
 const statusOptions = computed(() => scope.value === 'mine'
-  ? [{ label: '全部', value: '' }, { label: '待接受', value: 'pending' }, { label: '进行中', value: 'in_progress' }, { label: '已完成', value: 'completed' }]
+  ? [{ label: '全部', value: '' }, { label: '待接受', value: 'pending' }, { label: '进行中', value: 'in_progress' }, { label: '已逾期', value: 'overdue' }, { label: '已完成', value: 'completed' }]
   : [{ label: '全部', value: '' }, { label: '进行中', value: 'active' }, { label: '已完成', value: 'completed' }, { label: '已取消', value: 'cancelled' }])
 const assignmentPage = usePagedPage<TaskAssignmentOut>({
   loader: ({ page, pageSize }) => listOrganizationTaskAssignments(appContextStore.organizationSlug, page, pageSize, {
-    status: status.value || undefined,
+    status: status.value === 'overdue' ? undefined : status.value || undefined,
+    overdue: status.value === 'overdue' ? true : undefined,
     keyword: keyword.value.trim() || undefined,
   }),
   pageSize: 15,
@@ -131,8 +132,10 @@ async function loadMore() {
 async function loadCapabilities() {
   capabilities.value = await getOrganizationWorkCapabilities(appContextStore.organizationSlug)
   organizationTeams.value = canManageTasks.value ? await listOrganizationWorkTeams(appContextStore.organizationSlug) : []
-  if (!canManageTasks.value && scope.value === 'team')
+  if (!canManageTasks.value && scope.value === 'team') {
     scope.value = 'mine'
+    status.value = ''
+  }
 }
 
 async function changeScope(option: SegmentedOption) {
@@ -265,6 +268,12 @@ async function cancelTask(item: WorkTaskOut) {
   finally { cancellingTaskId.value = null }
 }
 
+onLoad((options) => {
+  scope.value = options?.scope === 'team' ? 'team' : 'mine'
+  const requestedStatus = options?.status || ''
+  if (statusOptions.value.some(option => option.value === requestedStatus))
+    status.value = requestedStatus
+})
 onShow(async () => {
   try {
     await loadCapabilities()
@@ -279,28 +288,29 @@ onReachBottom(() => void loadMore())
 <template>
   <AppPage variant="list">
     <template #navigation>
-      <AppCustomNavigation title="团队任务" back scroll-mode="sticky" />
+      <AppCustomNavigation :title="scope === 'mine' ? '我的任务' : '团队任务'" back scroll-mode="sticky" />
     </template>
     <wd-toast />
     <AppListToolbar v-model:keyword="keyword" card search-placeholder="搜索任务标题或描述" @search="refreshList" @clear="refreshList">
       <template #before>
         <view class="flex items-center gap-2">
-          <wd-segmented class="min-w-0 flex-1" :value="scope" :options="scopeOptions" @change="changeScope">
+          <wd-segmented v-if="capabilities" class="min-w-0 flex-1" :value="scope" :options="scopeOptions" @change="changeScope">
             <template #label="{ option }">
               {{ option.label }}
             </template>
           </wd-segmented>
+          <text v-else class="flex-1 text-xs text-content-muted">正在加载任务范围…</text>
           <wd-button v-if="canManageTasks" size="small" @click="openCreate">
             创建任务
           </wd-button>
         </view>
       </template>
       <template #filters>
-        <wd-segmented :value="status" :options="statusOptions" theme="outline" @change="changeStatus">
-          <template #label="{ option }">
+        <view class="task-status-filters">
+          <button v-for="option in statusOptions" :key="option.value" class="task-status-filter" :class="{ 'task-status-filter--active': status === option.value }" @click="changeStatus(option)">
             {{ option.label }}
-          </template>
-        </wd-segmented>
+          </button>
+        </view>
       </template>
     </AppListToolbar>
 
@@ -401,8 +411,10 @@ onReachBottom(() => void loadMore())
     <AppBottomSheet v-model:visible="createVisible" title="创建团队任务" height="tall">
       <view class="flex flex-col gap-2">
         <wd-cell title="任务范围" :value="selectedCreateScopeLabel" is-link @click="createScopePickerVisible = true" />
-        <wd-picker v-model="selectedCreateScope" v-model:visible="createScopePickerVisible" :columns="createScopeOptions" title="选择任务范围" @confirm="changeCreateScope" />
-        <wd-input v-model="taskTitle" label="任务标题" placeholder="请输入任务标题" :maxlength="120" clearable />
+        <wd-picker v-model="selectedCreateScope" v-model:visible="createScopePickerVisible" root-portal :z-index="1200" :columns="createScopeOptions" title="选择任务范围" @confirm="changeCreateScope" />
+        <wd-cell title="任务标题" center>
+          <wd-input v-model="taskTitle" placeholder="请输入任务标题" :maxlength="120" clearable compact align-right />
+        </wd-cell>
         <wd-textarea v-model="taskDescription" placeholder="补充任务目标与交付要求" :maxlength="1000" show-word-limit />
         <wd-cell title="截止时间" :value="taskDueAtLabel" is-link @click="openTaskDueAtPicker" />
         <wd-button v-if="taskDueAt !== null" size="small" variant="plain" @click="taskDueAt = null">
@@ -437,11 +449,36 @@ onReachBottom(() => void loadMore())
         </wd-button>
       </template>
     </AppBottomSheet>
-    <wd-datetime-picker v-model="taskDueAtPickerValue" v-model:visible="taskDueAtPickerVisible" type="datetime" title="选择截止时间" @confirm="changeTaskDueAt" />
+    <wd-datetime-picker v-model="taskDueAtPickerValue" v-model:visible="taskDueAtPickerVisible" root-portal :z-index="1200" type="datetime" title="选择截止时间" @confirm="changeTaskDueAt" />
   </AppPage>
 </template>
 
 <style scoped lang="scss">
+.task-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+.task-status-filter {
+  width: auto;
+  margin: 0;
+  padding: 12rpx 20rpx;
+  border: 1rpx solid var(--app-border-card);
+  border-radius: 14rpx;
+  background: var(--app-bg-card);
+  color: var(--app-text-secondary);
+  font-size: 24rpx;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.task-status-filter::after {
+  border: 0;
+}
+.task-status-filter--active {
+  border-color: var(--app-color-brand);
+  background: var(--app-color-brand);
+  color: #fff;
+}
 .description {
   display: -webkit-box;
   overflow: hidden;

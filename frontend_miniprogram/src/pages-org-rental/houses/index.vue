@@ -18,19 +18,22 @@ definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '组织
 const appContextStore = useAppContextStore()
 const keyword = ref('')
 const statusFilter = ref<'all' | HouseStatus>('all')
+const inspectionOnly = ref(false)
 onLoad((options) => {
+  inspectionOnly.value = options?.inspection_due === 'true'
   const status = options?.status
   if (status === HouseStatus.vacant || status === HouseStatus.listed || status === HouseStatus.rented)
     statusFilter.value = status
 })
 const summaryCounts = reactive({ vacant: 0, inspection: 0 })
-const hasFilters = computed(() => Boolean(keyword.value.trim() || statusFilter.value !== 'all'))
+const hasFilters = computed(() => Boolean(keyword.value.trim() || statusFilter.value !== 'all' || inspectionOnly.value))
 const list = usePagedPage<HouseOut>({
   pageSize: 15,
   loader: async ({ page, pageSize }) => {
     const result = await listOrganizationHouses(appContextStore.organizationSlug, page, pageSize, {
       keyword: keyword.value.trim() || undefined,
       status: statusFilter.value === 'all' ? undefined : statusFilter.value,
+      inspection_due: inspectionOnly.value || undefined,
     })
     if (page === 1) {
       const [vacant, inspection] = await Promise.all([
@@ -45,9 +48,17 @@ const list = usePagedPage<HouseOut>({
 })
 
 function changeStatus(status: 'all' | HouseStatus) {
-  if (statusFilter.value === status)
+  if (statusFilter.value === status && !inspectionOnly.value)
     return
   statusFilter.value = status
+  inspectionOnly.value = false
+  void list.refresh()
+}
+
+function showInspection() {
+  keyword.value = ''
+  statusFilter.value = 'all'
+  inspectionOnly.value = true
   void list.refresh()
 }
 
@@ -70,6 +81,7 @@ function handleEmptyAction() {
   }
   keyword.value = ''
   statusFilter.value = 'all'
+  inspectionOnly.value = false
   void list.refresh()
 }
 </script>
@@ -103,7 +115,17 @@ function handleEmptyAction() {
       </template>
     </AppListToolbar>
     <view class="house-summary">
-      <view><text>空置</text><strong>{{ summaryCounts.vacant }} 套</strong><view class="summary-mark" /></view><view><text>资料异常</text><strong>{{ summaryCounts.inspection }} 套</strong><view class="summary-mark" /></view>
+      <view class="app-touchable" @click="changeStatus(HouseStatus.vacant)">
+        <text>空置</text><strong>{{ summaryCounts.vacant }} 套</strong><view class="summary-mark" />
+      </view><view class="app-touchable" @click="showInspection">
+        <text>资料待完善</text><strong>{{ summaryCounts.inspection }} 套</strong><view class="summary-mark" />
+      </view>
+    </view>
+    <view v-if="inspectionOnly" class="mt-3 flex items-center justify-between text-xs text-content-secondary">
+      <text>仅显示资料待完善的房源</text>
+      <wd-button size="small" variant="plain" @click="handleEmptyAction">
+        清除筛选
+      </wd-button>
     </view>
     <view class="mt-2.5">
       <AppPagedList

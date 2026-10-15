@@ -12,7 +12,6 @@ import { formatTenantHouseTitle } from '@/domain/tenant-rental'
 import HouseCard from '@/components/house/HouseCard.vue'
 import OrganizationWorkbench from '@/features/organization-workbench/OrganizationWorkbench.vue'
 import OrganizationWeather from '@/features/organization-workbench/OrganizationWeather.vue'
-import WeatherAttribution from '@/features/organization-workbench/WeatherAttribution.vue'
 import AppHouseCardSkeleton from '@/components/app/AppHouseCardSkeleton.vue'
 import AppRecordListSkeleton from '@/components/app/AppRecordListSkeleton.vue'
 import { getPublicHouseFilters, listPublicHouses } from '@/features/houses/service'
@@ -593,7 +592,6 @@ onReachBottom(() => {
 
     <template v-else-if="currentMode === 'organization'">
       <OrganizationWorkbench ref="organizationWorkbench" />
-      <WeatherAttribution v-if="organizationWeather?.provider === 'qweather'" />
     </template>
   </AppPage>
 </template>

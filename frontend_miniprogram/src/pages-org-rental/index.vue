@@ -5,7 +5,6 @@ import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import OrganizationWorkbench from '@/features/organization-workbench/OrganizationWorkbench.vue'
 import OrganizationWeather from '@/features/organization-workbench/OrganizationWeather.vue'
-import WeatherAttribution from '@/features/organization-workbench/WeatherAttribution.vue'
 
 definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '中介工作台', enablePullDownRefresh: true } })
 
@@ -36,6 +35,5 @@ onPullDownRefresh(async () => {
       </AppCustomNavigation>
     </template>
     <OrganizationWorkbench ref="workbench" />
-    <WeatherAttribution v-if="weather?.provider === 'qweather'" />
   </AppPage>
 </template>

@@ -8,6 +8,7 @@ import {
   APP_ROUTES,
   getHouseDetailRoute,
   getLoginRoute,
+  getOrganizationTasksRoute,
   getTenantLeaseDetailRoute,
   getTenantViewingDetailRoute,
   isProtectedMessageRoute,
@@ -65,6 +66,12 @@ test('各模式有稳定首页且公开房源深链不继承组织模式', () =>
   assert.equal(isPublicRoute(getHouseDetailRoute(42)), true)
   assert.equal(isPublicRoute('/pages/houses/index'), false)
   assert.equal(isPublicRoute('/pages/favorites/index'), false)
+})
+
+test('中介任务入口保留本人、团队及筛选状态', () => {
+  assert.equal(getOrganizationTasksRoute(), '/pages-org-work/tasks/index?scope=mine')
+  assert.equal(getOrganizationTasksRoute('team'), '/pages-org-work/tasks/index?scope=team')
+  assert.equal(getOrganizationTasksRoute('mine', 'overdue'), '/pages-org-work/tasks/index?scope=mine&status=overdue')
 })
 
 test('登录入口统一构建并保留登录后的返回地址', () => {

@@ -166,6 +166,30 @@ defineExpose({ refresh })
     </view>
 
     <view class="section-heading">
+      <view><strong>优先处理</strong><text>我的紧急协作事项</text></view><text class="section-link" @click="openRoute(APP_ROUTES.organizationTasks)">全部待办 ›</text>
+    </view>
+    <view v-if="urgentItems.length" class="urgent-list">
+      <view v-for="item in urgentItems" :key="item.id" class="urgent-item app-touchable" hover-class="app-touchable--pressed" @click="openRoute(getOrganizationTaskDetailRoute({ assignmentId: item.id }))">
+        <view class="urgent-content">
+          <strong>{{ item.task_title }}</strong><text>{{ item.is_overdue ? '已逾期' : formatOrganizationWorkDateTime(item.due_at) }}</text>
+        </view>
+        <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
+          {{ item.priority__mapping }}
+        </wd-tag>
+      </view>
+    </view>
+    <view v-else class="empty-task" @click="openRoute(APP_ROUTES.organizationTasks)">
+      <view class="empty-task-icon">
+        <view class="i-carbon-task" />
+      </view>
+      <view class="empty-task-copy">
+        <strong>{{ !loaded || loading && !dashboard ? '正在加载待办' : dashboard ? '暂无紧急任务' : '查看我的待办' }}</strong>
+        <text>{{ !loaded || loading && !dashboard ? '马上为你整理需要处理的事项' : dashboard ? '其他协作事项可前往任务中心查看' : '前往任务中心了解当前进度' }}</text>
+      </view>
+      <view class="i-carbon-arrow-right empty-task-arrow" />
+    </view>
+
+    <view class="section-heading">
       <view><strong>快捷操作</strong><text>常用动作一步直达</text></view>
     </view>
     <view class="action-grid">
@@ -185,30 +209,6 @@ defineExpose({ refresh })
       <view class="activation-bottom">
         <text>{{ nextActivationTask.description }}</text><view class="i-carbon-arrow-right" />
       </view>
-    </view>
-
-    <view class="section-heading">
-      <view><strong>优先处理</strong><text>近期需要关注的团队任务</text></view><text class="section-link" @click="openRoute(APP_ROUTES.organizationTasks)">全部待办 ›</text>
-    </view>
-    <view v-if="urgentItems.length" class="urgent-list">
-      <view v-for="item in urgentItems" :key="item.id" class="urgent-item app-touchable" hover-class="app-touchable--pressed" @click="openRoute(getOrganizationTaskDetailRoute({ assignmentId: item.id }))">
-        <view class="urgent-content">
-          <strong>{{ item.task_title }}</strong><text>{{ item.is_overdue ? '已逾期' : formatOrganizationWorkDateTime(item.due_at) }}</text>
-        </view>
-        <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
-          {{ item.priority__mapping }}
-        </wd-tag>
-      </view>
-    </view>
-    <view v-else class="empty-task" @click="openRoute(APP_ROUTES.organizationTasks)">
-      <view class="empty-task-icon">
-        <view class="i-carbon-task" />
-      </view>
-      <view class="empty-task-copy">
-        <strong>{{ !loaded || loading && !dashboard ? '正在加载待办' : dashboard ? '暂无紧急任务' : '查看团队待办' }}</strong>
-        <text>{{ !loaded || loading && !dashboard ? '马上为你整理需要处理的事项' : dashboard ? '其他协作事项可前往任务中心查看' : '前往任务中心了解当前进度' }}</text>
-      </view>
-      <view class="i-carbon-arrow-right empty-task-arrow" />
     </view>
 
     <view class="section-heading">

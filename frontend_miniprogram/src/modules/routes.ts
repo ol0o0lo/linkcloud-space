@@ -213,6 +213,10 @@ export function getOrganizationTaskDetailRoute(target: { assignmentId: number } 
   return `${APP_ROUTES.organizationTaskDetail}?taskId=${encodeURIComponent(String(target.taskId))}`
 }
 
+export function getOrganizationTasksRoute(scope: 'mine' | 'team' = 'mine', status = ''): string {
+  return `${APP_ROUTES.organizationTasks}?scope=${scope}${status ? `&status=${encodeURIComponent(status)}` : ''}`
+}
+
 export function getOrganizationAnnouncementDetailRoute(announcementId: number): string {
   return `${APP_ROUTES.organizationAnnouncementDetail}?id=${encodeURIComponent(String(announcementId))}`
 }

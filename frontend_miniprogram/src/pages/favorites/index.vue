@@ -10,9 +10,9 @@ import { formatOrganizationWorkDateTime, getAssignmentStatusTone, getPriorityTon
 import { formatTenantHouseTitle, getTenantLeaseStatusTone, getTenantViewingStatusTone } from '@/domain/tenant-rental'
 import { listHouseFavorites, unfavoriteHouse } from '@/features/favorites/service'
 import { listLandlordLeases } from '@/features/landlord/service'
-import { getDailyOrganizationWorkDashboard, listOrganizationAnnouncements } from '@/features/organization-work/service'
+import { getDailyOrganizationWorkDashboard, getOrganizationWorkCapabilities, listOrganizationAnnouncements } from '@/features/organization-work/service'
 import { cancelScheduledTenantViewing, listCurrentTenantViewings, listHistoricalTenantViewings } from '@/features/tenant-rental/service'
-import { APP_ROUTES, getHouseDetailRoute, getOrganizationAnnouncementDetailRoute, getOrganizationTaskDetailRoute, getTenantViewingDetailRoute } from '@/modules/routes'
+import { APP_ROUTES, getHouseDetailRoute, getOrganizationAnnouncementDetailRoute, getOrganizationTaskDetailRoute, getOrganizationTasksRoute, getTenantViewingDetailRoute } from '@/modules/routes'
 import { useAppContextStore } from '@/store/app-context-v2'
 import { getTabbarItems } from '@/tabbar/config'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
@@ -54,6 +54,7 @@ const organizationDashboard = ref<DailyDashboardOut | null>(null)
 const organizationAnnouncements = ref<AnnouncementOut[]>([])
 const organizationLoading = ref(false)
 const organizationError = ref('')
+const organizationCanManageTasks = ref(false)
 const activePersonalTab = ref<'favorites' | 'viewings'>('favorites')
 const removingFavoriteIds = ref<Set<number>>(new Set())
 const cancelingViewingId = ref<number | null>(null)
@@ -244,6 +245,7 @@ function openOrganizationRoute(url: string) {
 async function loadOrganizationTasks() {
   const organizationSlug = appContextStore.organizationSlug
   const currentLoadId = ++organizationLoadId
+  organizationCanManageTasks.value = false
   if (!organizationSlug) {
     organizationDashboard.value = null
     organizationAnnouncements.value = []
@@ -254,14 +256,16 @@ async function loadOrganizationTasks() {
   organizationLoading.value = true
   organizationError.value = ''
   try {
-    const [dashboard, announcements] = await Promise.all([
+    const [dashboard, announcements, taskCapabilities] = await Promise.all([
       getDailyOrganizationWorkDashboard(organizationSlug),
       listOrganizationAnnouncements(organizationSlug, 1, 3, { status: 'published' }),
+      getOrganizationWorkCapabilities(organizationSlug).catch(() => null),
     ])
     if (currentLoadId !== organizationLoadId || currentMode.value !== 'organization' || appContextStore.organizationSlug !== organizationSlug)
       return
     organizationDashboard.value = dashboard
     organizationAnnouncements.value = announcements.items
+    organizationCanManageTasks.value = taskCapabilities?.task_organization_manage === true || Boolean(taskCapabilities?.task_team_ids?.length)
   }
   catch (error) {
     if (currentLoadId === organizationLoadId)
@@ -532,20 +536,20 @@ onReachBottom(() => {
     <template v-else-if="currentMode === 'organization'">
       <view class="page-heading">
         <view class="page-title">
-          管理待办
+          我的协作
         </view>
         <view class="page-subtitle">
           {{ appContextStore.currentOrganization?.name }}
         </view>
       </view>
       <view v-if="organizationDashboard" class="todo-summary-grid">
-        <view @click="openOrganizationRoute(APP_ROUTES.organizationTasks)">
+        <view @click="openOrganizationRoute(getOrganizationTasksRoute('mine', 'pending'))">
           <strong>{{ organizationDashboard.pending_acceptance }}</strong><text>待接受</text>
         </view>
-        <view @click="openOrganizationRoute(APP_ROUTES.organizationTasks)">
+        <view @click="openOrganizationRoute(getOrganizationTasksRoute('mine', 'in_progress'))">
           <strong>{{ organizationDashboard.in_progress }}</strong><text>进行中</text>
         </view>
-        <view class="danger" @click="openOrganizationRoute(APP_ROUTES.organizationTasks)">
+        <view class="danger" @click="openOrganizationRoute(getOrganizationTasksRoute('mine', 'overdue'))">
           <strong>{{ organizationDashboard.overdue }}</strong><text>已逾期</text>
         </view>
         <view class="warning" @click="openOrganizationRoute(APP_ROUTES.organizationAnnouncements)">
@@ -567,9 +571,24 @@ onReachBottom(() => {
         正在加载本人任务与公告…
       </view>
 
+      <view class="organization-entry" @click="openOrganizationRoute(`${APP_ROUTES.organizationViewings}?status=scheduled`)">
+        <view class="mode-icon i-carbon-calendar" />
+        <view><strong>待带看</strong><text>查看当前组织的预约与带看记录</text></view>
+        <view class="i-carbon-chevron-right" />
+      </view>
+      <view class="organization-entry" @click="openOrganizationRoute(`${APP_ROUTES.organizationLeases}?status=pending`)">
+        <view class="mode-icon i-carbon-document" />
+        <view><strong>待生效租约</strong><text>查看需要继续跟进的签约记录</text></view>
+        <view class="i-carbon-chevron-right" />
+      </view>
       <view class="organization-entry" @click="openOrganizationRoute(APP_ROUTES.organizationTasks)">
         <view class="mode-icon i-carbon-task" />
         <view><strong>本人任务</strong><text>接受、完成或拒绝当前组织分配给我的任务</text></view>
+        <view class="i-carbon-chevron-right" />
+      </view>
+      <view v-if="organizationCanManageTasks" class="organization-entry" @click="openOrganizationRoute(getOrganizationTasksRoute('team'))">
+        <view class="mode-icon i-carbon-group" />
+        <view><strong>团队任务</strong><text>查看团队执行进度与分配情况</text></view>
         <view class="i-carbon-chevron-right" />
       </view>
 

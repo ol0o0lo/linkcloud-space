@@ -73,7 +73,7 @@ const aiLoading = ref(false)
 const aiGenerating = ref(false)
 const aiError = ref('')
 const aiAccessDenied = ref(false)
-const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState({ threshold: 190, fadeDistance: 190 })
+const { navigationScrolled, navigationProgress, navigationScrollTop, handleNavigationScroll } = useNavigationScrollState({ threshold: 190, fadeDistance: 190 })
 const extraExpanded = ref(false)
 const recordsExpanded = ref(false)
 const recordSearchVisible = ref(false)
@@ -307,6 +307,13 @@ function resetRecordSearch() {
   recordSearchVisible.value = false
 }
 
+function scrollToManagement(section: 'internal' | 'records') {
+  uni.createSelectorQuery().select(`#house-${section}`).boundingClientRect((rect) => {
+    if (rect && !Array.isArray(rect))
+      uni.pageScrollTo({ scrollTop: Math.max(0, navigationScrollTop.value + rect.top - 72), duration: 200 })
+  }).exec()
+}
+
 function toggleRecordSearch() {
   recordSearchVisible.value = !recordSearchVisible.value
   if (!recordSearchVisible.value)
@@ -433,6 +440,14 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
 
     <template v-if="house">
       <HouseDetailSummary :house="house" management />
+      <view class="mx-app-gutter flex flex-wrap gap-2">
+        <wd-button size="small" variant="plain" @click="scrollToManagement('internal')">
+          内部资料
+        </wd-button>
+        <wd-button v-if="showBusinessRecords" size="small" variant="plain" @click="scrollToManagement('records')">
+          业务记录
+        </wd-button>
+      </view>
 
       <view v-if="house.inspection_reasons.length" class="inspection-card">
         <text class="i-carbon-warning-alt inspection-card__icon" />
@@ -458,7 +473,7 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
         <text>内部管理</text>
       </view>
 
-      <view class="section internal-card">
+      <view id="house-internal" class="section internal-card">
         <view class="section-heading">
           <view>
             <view class="section-title">
@@ -507,7 +522,7 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
         </view>
       </view>
 
-      <view v-if="showBusinessRecords" class="section records-card">
+      <view v-if="showBusinessRecords" id="house-records" class="section records-card">
         <view class="section-heading records-heading">
           <view>
             <view class="section-title">

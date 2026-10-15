@@ -44,7 +44,7 @@ const emit = defineEmits<{
 
 function resolveKey(item: T, index: number) {
   const itemKey = props.itemKey || 'id'
-  return typeof itemKey === 'function' ? itemKey(item, index) : String(item[itemKey] ?? index)
+  return typeof itemKey === 'function' ? itemKey(item, index) : item[itemKey] ?? index
 }
 
 function isSelected(item: T, index: number) {

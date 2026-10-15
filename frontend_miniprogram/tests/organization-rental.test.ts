@@ -623,7 +623,7 @@ test('带看状态更新使用全局提交锁阻止并发动作', () => {
 })
 
 test('登记签约入口使用当前 Carbon 图标集中存在的图标', () => {
-  const source = readFileSync(join(sourceRoot, 'pages-org-rental/index.vue'), 'utf8')
+  const source = readFileSync(join(sourceRoot, 'features/organization-workbench/OrganizationWorkbench.vue'), 'utf8')
 
   assert.match(source, /i-carbon-document-signed/)
   assert.doesNotMatch(source, /i-carbon-signature/)
