@@ -124,6 +124,19 @@ test('消息详情仅执行领域解析后的动作', () => {
   assert.doesNotMatch(source, /const url = notification\.value\?\.url/)
 })
 
+test('业务消息继续处理时保留加载消息的组织，公开房源仍使用公开上下文', () => {
+  const workspace = { mode: 'organization' as const, organizationSlug: 'alpha' }
+  const action = resolveNotificationAction({ category: 'team.task.assigned', data: { assignment_id: 8 }, workspace })
+  assert.deepEqual(action, { kind: 'internal', route: `${getOrganizationTaskDetailRoute({ assignmentId: 8 })}&organization_slug=alpha`, label: '查看任务' })
+  assert.deepEqual(resolveNotificationAction({ category: 'subscription.billing', workspace }), {
+    kind: 'internal',
+    route: `${APP_ROUTES.organizationAdminSubscription}?organization_slug=alpha`,
+    label: '查看订阅',
+  })
+  assert.equal(resolveNotificationAction({ category: 'house.contact', data: { house_id: 8 }, workspace })?.kind, 'internal')
+  assert.doesNotMatch(JSON.stringify(resolveNotificationAction({ category: 'house.contact', data: { house_id: 8 }, workspace })), /organization_slug/)
+})
+
 test('通知详情离开页面后进行中的轮询请求不能复活定时器', () => {
   const source = readFileSync(join(sourceRoot, 'pages-org-admin/notification-dispatches/detail.vue'), 'utf8')
 

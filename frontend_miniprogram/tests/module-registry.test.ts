@@ -59,7 +59,7 @@ test('中介模式开放首页、工作台、待办、消息和组织管理分�
 
 test('各模式有稳定首页且公开房源深链不继承组织模式', () => {
   assert.equal(getDefaultRouteForMode('landlord'), '/pages/index/index')
-  assert.equal(getDefaultRouteForMode('organization'), '/pages/index/index')
+  assert.equal(getDefaultRouteForMode('organization'), '/pages/houses/index')
   assert.equal(normalizeAppRoutePath('/'), APP_ROUTES.home)
   assert.equal(isPublicRoute('/'), true)
   assert.equal(isPublicRoute(getHouseDetailRoute(42)), true)
@@ -179,7 +179,7 @@ test('账号手机验证页归属我的模块', () => {
 test('H5 路由守卫等待启动上下文就绪后再判断受保护深页', () => {
   const source = readFileSync(resolve(process.cwd(), 'src/router/permission.ts'), 'utf8')
   const bootstrapIndex = source.indexOf('await appContextStore.bootstrap()')
-  const accessDecisionIndex = source.indexOf('const decision = resolveRouteAccess(path)', bootstrapIndex)
+  const accessDecisionIndex = source.indexOf('const decision = resolveRouteAccess(target)', bootstrapIndex)
 
   assert.ok(bootstrapIndex >= 0)
   assert.ok(accessDecisionIndex > bootstrapIndex)
@@ -191,7 +191,7 @@ test('启动失败路由绕过全局启动边界以避免两次重试', () => {
 
   const source = readFileSync(resolve(process.cwd(), 'src/app/AppStartupBoundary.vue'), 'utf8')
   assert.match(source, /shouldBypassStartupBoundary\(currRoute\(\)\.path\)/)
-  assert.match(source, /bypassStartupBoundary \|\| runtimeStore\.startupState === 'ready'/)
+  assert.match(source, /bypassStartupBoundary \|\| \(runtimeStore\.startupState === 'ready' && routeAccessible\)/)
 })
 
 test('路由元数据尚未初始化时，启动边界仍可安全读取当前路由', () => {

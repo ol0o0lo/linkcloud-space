@@ -87,6 +87,20 @@ export function getRealNameStatusLabel(status?: string, _mapping?: string): stri
   return status ? realNameStatusLabels[status] || '状态未知' : '未认证'
 }
 
+export function getRealNameHint(status?: string): string {
+  if (status === 'verified')
+    return ''
+  if (status === 'unverified')
+    return '完善实名认证'
+  if (status === 'pending' || status === 'manual_review')
+    return `实名认证${getRealNameStatusLabel(status)}`
+  if (status === 'rejected')
+    return '实名认证未通过 · 查看原因'
+  if (status === 'revoked')
+    return '实名认证已撤销 · 重新认证'
+  return '认证状态未知 · 查看'
+}
+
 export function getReferralStatusLabel(status?: string, _mapping?: string): string {
   return status ? referralStatusLabels[status] || '状态未知' : '状态未知'
 }

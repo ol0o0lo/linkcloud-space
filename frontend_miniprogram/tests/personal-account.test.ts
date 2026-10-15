@@ -8,6 +8,7 @@ import {
   createWithdrawalRequestId,
   formatWalletAmount,
   getRealNameAction,
+  getRealNameHint,
   getRealNameStatusLabel,
   getRealNameTone,
   getReferralStatusLabel,
@@ -44,6 +45,17 @@ test('实名认证只在未实名、驳回或撤销时提供提交动作', () =>
   assert.equal(getRealNameStatusLabel('unverified'), '未认证')
   assert.equal(getRealNameStatusLabel('manual_review'), '人工复核中')
   assert.equal(getRealNameStatusLabel('unknown'), '状态未知')
+})
+
+test('实名认证完成后不占用首页常用入口，其它状态提供对应提示', () => {
+  assert.equal(getRealNameHint('verified'), '')
+  assert.equal(getRealNameHint('unverified'), '完善实名认证')
+  assert.equal(getRealNameHint('pending'), '实名认证审核中')
+  assert.equal(getRealNameHint('manual_review'), '实名认证人工复核中')
+  assert.equal(getRealNameHint('rejected'), '实名认证未通过 · 查看原因')
+  assert.equal(getRealNameHint('revoked'), '实名认证已撤销 · 重新认证')
+  assert.equal(getRealNameHint('unknown'), '认证状态未知 · 查看')
+  assert.equal(getRealNameHint(), '认证状态未知 · 查看')
 })
 
 test('推荐、钱包和提现枚举使用面向用户的中文描述', () => {
@@ -100,7 +112,7 @@ test('个人账号适配层只导入个人接口且页面通过 feature 调用',
   }
 
   const meSource = readFileSync(resolve(process.cwd(), 'src/pages/me/me.vue'), 'utf8')
-  for (const route of ['accountSettings', 'realName', 'wallet', 'referrals'])
+  for (const route of ['accountSettings', 'realName', 'wallet', 'referrals', 'notificationPreferences'])
     assert.match(meSource, new RegExp(`APP_ROUTES\\.${route}`))
 
   assert.match(meSource, /AppCustomNavigation[^>]*align="start"[^>]*scroll-mode="fade"/)
@@ -110,14 +122,14 @@ test('个人账号适配层只导入个人接口且页面通过 feature 调用',
   assert.doesNotMatch(meSource, /title="手机号"/)
   assert.doesNotMatch(meSource, /handleLogout/)
   assert.doesNotMatch(meSource, /退出登录/)
-  assert.match(meSource, /i-carbon-building/)
+  assert.match(meSource, /i-carbon-store/)
   assert.match(meSource, /i-carbon-settings-adjust/)
-  assert.match(meSource, /profile-decoration/)
+  assert.doesNotMatch(meSource, /profile-decoration/)
   assert.doesNotMatch(meSource, /profile-context/)
 
   const modeSwitcherSource = readFileSync(resolve(process.cwd(), 'src/pages/me/components/AppModeSwitcher.vue'), 'utf8')
   assert.match(modeSwitcherSource, /v-if="variant !== 'compact' \|\| canSwitch"/)
-  assert.match(modeSwitcherSource, /v-if="variant === 'navigation'"/)
+  assert.match(modeSwitcherSource, /v-if="showTrigger && variant === 'navigation'"/)
   assert.match(modeSwitcherSource, /navigation-trigger--switchable/)
   assert.match(modeSwitcherSource, /navigation-trigger__identity/)
   assert.match(modeSwitcherSource, /navigation-trigger__glyph/)
@@ -130,30 +142,23 @@ test('个人账号适配层只导入个人接口且页面通过 feature 调用',
   assert.match(modeSwitcherSource, /i-carbon-chevron-down/)
   assert.match(modeSwitcherSource, /border-radius: 999rpx/)
   assert.match(modeSwitcherSource, /backdrop-filter: var\(--app-navigation-backdrop-filter\)/)
-  assert.match(modeSwitcherSource, /v-else-if="canSwitch" class="compact-trigger"/)
+  assert.match(modeSwitcherSource, /v-else-if="showTrigger && canSwitch" class="compact-trigger"/)
   assert.match(modeSwitcherSource, /i-carbon-arrows-horizontal/)
   assert.match(modeSwitcherSource, />切换</)
   assert.doesNotMatch(modeSwitcherSource, /compact-trigger--static/)
   assert.match(modeSwitcherSource, /AppBottomSheet/)
   assert.match(modeSwitcherSource, /show-handle/)
   assert.match(modeSwitcherSource, /backdrop-filter: blur/)
-  assert.match(modeSwitcherSource, /current-workspace/)
+  assert.doesNotMatch(modeSwitcherSource, /current-workspace|正在使用/)
   assert.match(modeSwitcherSource, /otherModeOptions/)
   assert.match(modeSwitcherSource, /const canSwitch = computed\(\(\) => otherModeOptions\.value\.length > 0\)/)
   assert.match(modeSwitcherSource, /<view v-if="canSwitch" class="navigation-trigger__arrow i-carbon-chevron-down"/)
-  assert.match(modeSwitcherSource, /organizationModeOptions/)
-  assert.match(modeSwitcherSource, /organizationModeOptions\.value\.length > 1/)
-  assert.match(modeSwitcherSource, /switchableOrganizationModeOptions\.value\.length > 0/)
-  assert.match(modeSwitcherSource, /standaloneModeOptions/)
-  assert.match(modeSwitcherSource, /option\.selection\.mode !== 'organization'/)
-  assert.match(modeSwitcherSource, /organization-group/)
-  assert.match(modeSwitcherSource, /organization-option--active/)
-  assert.match(modeSwitcherSource, /getOrganizationTitle/)
+  assert.match(modeSwitcherSource, /availableOptions\.value\.filter\(option => !option\.active\)/)
+  assert.match(modeSwitcherSource, /v-for="option in otherModeOptions"/)
+  assert.doesNotMatch(modeSwitcherSource, /organization-group|organization-option/)
   assert.doesNotMatch(modeSwitcherSource, /\.sort\(/)
   assert.match(modeSwitcherSource, />选择身份</)
-  assert.match(modeSwitcherSource, />正在使用</)
   assert.match(modeSwitcherSource, /个可切换/)
-  assert.match(modeSwitcherSource, /个可选组织/)
   assert.doesNotMatch(modeSwitcherSource, /WORKSPACE|选择身份后，将进入对应的服务首页|切换身份不会退出当前账号/)
   assert.match(modeSwitcherSource, /workspace-option/)
   assert.doesNotMatch(modeSwitcherSource, /wd-action-sheet/)
@@ -164,6 +169,7 @@ test('账户设置页集中管理资料、通知、安全和退出登录', () =>
   const messagesSource = readFileSync(resolve(process.cwd(), 'src/pages/messages/index.vue'), 'utf8')
 
   assert.match(settingsSource, /APP_ROUTES\.profile/)
+  assert.match(settingsSource, /APP_ROUTES\.realName/)
   assert.match(settingsSource, /APP_ROUTES\.phoneVerification/)
   assert.match(settingsSource, /APP_ROUTES\.notificationPreferences/)
   assert.match(settingsSource, /APP_ROUTES\.accountSecurity/)

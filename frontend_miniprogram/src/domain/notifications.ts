@@ -1,5 +1,6 @@
 import type { RequestScope } from '../infra/http/request-scope.ts'
-import type { AppMode } from './app-mode.ts'
+import type { AppMode, AppModeSelection } from './app-mode.ts'
+import { withRouteWorkspace } from './route-access.ts'
 import {
   APP_ROUTES,
   getHouseDetailRoute,
@@ -24,6 +25,7 @@ export interface NotificationCategoryPresentation {
 }
 
 export interface NotificationActionInput {
+  workspace?: AppModeSelection
   category?: string
   data?: Record<string, unknown> | null
   targetType?: string | null
@@ -131,7 +133,10 @@ export function resolveNotificationAction(input: NotificationActionInput, now = 
 
   if (input.category === 'team.announcement' && input.data?.withdrawn === true)
     return null
-  return resolveStructuredNotificationAction(input) || resolveLegacyNotificationUrl(input.url)
+  const action = resolveStructuredNotificationAction(input) || resolveLegacyNotificationUrl(input.url)
+  if (action?.kind === 'internal' && input.workspace)
+    return { ...action, route: withRouteWorkspace(action.route, input.workspace) }
+  return action
 }
 
 export function resolveNotificationScope(input: NotificationScopeInput): RequestScope {

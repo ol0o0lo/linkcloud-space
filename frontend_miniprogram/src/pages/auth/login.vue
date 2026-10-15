@@ -5,6 +5,7 @@ import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import { executeAppPendingAction } from '@/features/pending-actions/service'
 import { getDefaultRouteForMode } from '@/modules/registry'
 import { APP_ROUTES } from '@/modules/routes'
+import { getNavigationRedirect } from '@/router/permission'
 import { useAppContextStore } from '@/store/app-context-v2'
 import { useSessionStore } from '@/store/session'
 import { isPageTabbar } from '@/tabbar/store'
@@ -168,7 +169,7 @@ function setLoginMode(type: 'phone' | 'password' | null) {
 }
 
 onLoad((options) => {
-  redirect.value = options?.redirect ? decodeURIComponent(String(options.redirect)) : ''
+  redirect.value = getNavigationRedirect(options)
 })
 </script>
 

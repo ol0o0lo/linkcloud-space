@@ -10,7 +10,7 @@ import AppRecordCard from '@/components/app/AppRecordCard.vue'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import { usePagedPage } from '@/hooks/usePagedPage'
 
-definePage({ style: { navigationBarTitleText: '我的推广', navigationStyle: 'custom', enablePullDownRefresh: true } })
+definePage({ style: { navigationBarTitleText: '邀请好友', navigationStyle: 'custom', enablePullDownRefresh: true } })
 
 const summary = ref<ReferralSummaryOut | null>(null)
 const referralPage = usePagedPage<ReferralRecordOut>({
@@ -42,7 +42,7 @@ function copyValue(value: string | null, emptyMessage: string) {
 <template>
   <AppPage variant="list">
     <template #navigation>
-      <AppCustomNavigation title="我的推广" back scroll-mode="sticky" />
+      <AppCustomNavigation title="邀请好友" back scroll-mode="sticky" />
     </template>
     <template v-if="summary">
       <view class="referral-summary app-card">

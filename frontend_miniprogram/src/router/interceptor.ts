@@ -4,11 +4,12 @@
  * 黑、白名单的配置，请看 config.ts 文件， EXCLUDE_LOGIN_PATH_LIST
  */
 import { getDefaultRouteForMode } from '@/modules/registry'
-import { normalizeAppRoutePath } from '@/modules/routes'
-import { resolveRouteAccess } from '@/router/permission'
+import { buildNavigationTarget, parseNavigationTarget } from '@/domain/route-access'
+import { APP_ROUTES, normalizeAppRoutePath } from '@/modules/routes'
+import { bindRouteWorkspace, resolveRouteAccess } from '@/router/permission'
 import { useAppContextStore } from '@/store/app-context-v2'
 import { tabbarStore } from '@/tabbar/store'
-import { getAllPages, getLastPage, parseUrlToObj } from '@/utils/index'
+import { getAllPages, getLastPage } from '@/utils/index'
 import { EXCLUDE_LOGIN_PATH_LIST, LOGIN_PAGE } from './config'
 
 export const FG_LOG_ENABLE = false
@@ -25,11 +26,12 @@ export function judgeIsExcludePath(path: string) {
 export const navigateToInterceptor = {
   // 注意，这里的url是 '/' 开头的，如 '/pages/index/index'，跟 'pages.json' 里面的 path 不同
   // 增加对相对路径的处理，BY 网友 @ideal
-  invoke({ url, query }: { url: string, query?: Record<string, string> }) {
+  invoke(options: { url: string, query?: Record<string, string> }, directEntry = false) {
+    const { url, query } = options
     if (url === undefined) {
       return
     }
-    let { path, query: _query } = parseUrlToObj(url)
+    let { path, query: _query } = parseNavigationTarget(url)
 
     FG_LOG_ENABLE && console.log('\n\n路由拦截器:-------------------------------------')
     FG_LOG_ENABLE && console.log('路由拦截器 1: url->', url, ', query ->', query)
@@ -60,7 +62,6 @@ export const navigateToInterceptor = {
     // }
 
     const appContextStore = useAppContextStore()
-    appContextStore.syncRouteContext(path)
 
     if (appContextStore.startupState !== 'ready')
       return true
@@ -71,13 +72,38 @@ export const navigateToInterceptor = {
       return false
     }
 
-    const decision = resolveRouteAccess(path)
+    const target = buildNavigationTarget(path, myQuery)
+    const decision = resolveRouteAccess(target)
     if (!decision.allowed) {
-      uni.navigateTo({ url: decision.redirect })
+      if (directEntry && getLastPage()?.route === APP_ROUTES.switchIdentity.slice(1))
+        return false
+      if (directEntry)
+        uni.redirectTo({ url: decision.redirect })
+      else
+        uni.navigateTo({ url: decision.redirect })
       return false
     }
+    options.url = bindRouteWorkspace(target)
+    appContextStore.syncRouteContext(path)
     tabbarStore.syncCurrentPath(path)
     return true
+  },
+}
+
+export const navigateBackInterceptor = {
+  invoke(options: { delta?: number }) {
+    const pages = getCurrentPages()
+    const delta = Math.max(1, Math.trunc(options.delta || 1))
+    const page = pages[pages.length - delta - 1] as ReturnType<typeof getLastPage> | undefined
+    if (!page || useAppContextStore().startupState !== 'ready')
+      return true
+    const target = page.$page?.fullPath || buildNavigationTarget(`/${page.route}`, page.options || {})
+    const decision = resolveRouteAccess(target)
+    if (decision.allowed)
+      return true
+    const redirect = decision.identityOptions ? `${decision.redirect}&return_delta=${delta + 1}` : decision.redirect
+    uni.navigateTo({ url: redirect })
+    return false
   },
 }
 
@@ -96,6 +122,7 @@ export const routeInterceptor = {
     uni.addInterceptor('reLaunch', navigateToInterceptor)
     uni.addInterceptor('redirectTo', navigateToInterceptor)
     uni.addInterceptor('switchTab', navigateToInterceptor)
+    uni.addInterceptor('navigateBack', navigateBackInterceptor)
 
     // 添加 chooseLocation 的拦截器，确保直接放行
     uni.addInterceptor('chooseLocation', chooseLocationInterceptor)

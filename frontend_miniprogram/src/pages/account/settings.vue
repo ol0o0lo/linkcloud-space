@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { getRealNameStatusLabel } from '@/domain/personal-account'
+import { useRealNameStatus } from '@/features/account/useRealNameStatus'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import { APP_ROUTES } from '@/modules/routes'
@@ -9,9 +11,24 @@ definePage({ style: { navigationBarTitleText: '设置', navigationStyle: 'custom
 
 const appContextStore = useAppContextStore()
 const sessionStore = useSessionStore()
+const { status: realNameStatus } = useRealNameStatus()
 
 function openProfile() {
   uni.navigateTo({ url: APP_ROUTES.profile })
+}
+
+function openRealName() {
+  uni.navigateTo({ url: APP_ROUTES.realName })
+}
+
+function handleRealNameKeydown(event: KeyboardEvent) {
+  // #ifdef H5
+  if (event.key !== 'Enter' && event.key !== ' ')
+    return
+  event.preventDefault()
+  if (!event.repeat)
+    openRealName()
+  // #endif
 }
 
 function openPhoneVerification() {
@@ -60,6 +77,16 @@ function handleLogout() {
           </view>
           <view class="settings-arrow i-carbon-chevron-right" />
         </view>
+        <button class="settings-row settings-row--action app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openRealName" @keydown="handleRealNameKeydown">
+          <view class="settings-icon">
+            <view class="i-carbon-identification" />
+          </view>
+          <view class="settings-main">
+            <text class="settings-title">实名认证</text>
+          </view>
+          <text class="settings-value">{{ realNameStatus ? getRealNameStatusLabel(realNameStatus) : '状态未知' }}</text>
+          <view class="settings-arrow i-carbon-chevron-right" />
+        </button>
         <view class="settings-row">
           <view class="settings-icon">
             <view class="i-carbon-email" />
@@ -144,6 +171,24 @@ function handleLogout() {
   background: var(--app-border-color);
   content: '';
 }
+.settings-row--action {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+  background: transparent;
+  line-height: 1.5;
+}
+.settings-row--action::after {
+  border: 0;
+}
+/* #ifdef H5 */
+.settings-row--action:focus-visible {
+  outline: 2px solid var(--app-color-brand-active);
+  outline-offset: -4px;
+}
+/* #endif */
 .logout-action {
   margin-top: 12rpx;
   padding: 8rpx 0;

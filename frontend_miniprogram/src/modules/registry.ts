@@ -29,7 +29,7 @@ const defaultRoutes: Record<AppMode, string> = {
   visitor: getCatalogModule('home').mainRoute,
   personal: getCatalogModule('home').mainRoute,
   landlord: getCatalogModule('home').mainRoute,
-  organization: getCatalogModule('home').mainRoute,
+  organization: getCatalogModule('houses').mainRoute,
 }
 
 const publicRoutePrefixes = [

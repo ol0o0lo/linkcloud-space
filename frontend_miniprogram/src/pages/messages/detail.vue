@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NotificationOut } from '@/features/notifications/service'
+import type { AppModeSelection } from '@/domain/app-mode'
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import { getNotificationCategoryPresentation, getNotificationTone, resolveNotificationAction, resolveNotificationScope } from '@/domain/notifications'
@@ -15,6 +16,7 @@ definePage({ style: { navigationBarTitleText: '消息详情', navigationStyle: '
 const appContextStore = useAppContextStore()
 const notificationId = ref(0)
 const notification = ref<NotificationOut | null>(null)
+const notificationWorkspace = ref<AppModeSelection>()
 const loading = ref(true)
 const loadError = ref('')
 const category = computed(() => getNotificationCategoryPresentation(notification.value?.category || ''))
@@ -26,6 +28,7 @@ const action = computed(() => notification.value
       targetId: notification.value.target_id,
       url: notification.value.url,
       expiresAt: notification.value.expires_at,
+      workspace: notificationWorkspace.value,
     })
   : null)
 
@@ -37,8 +40,12 @@ async function loadNotification() {
   loading.value = true
   loadError.value = ''
   try {
-    const result = await getNotification(currentScope(), notificationId.value)
-    notification.value = result.is_read ? result : await updateNotificationReadState(currentScope(), result.id, true)
+    const scope = currentScope()
+    notificationWorkspace.value = scope.kind === 'organization'
+      ? { mode: 'organization', organizationSlug: scope.organizationSlug }
+      : scope.kind === 'landlord' ? { mode: 'landlord', landlordContactId: scope.landlordContactId } : { mode: 'personal' }
+    const result = await getNotification(scope, notificationId.value)
+    notification.value = result.is_read ? result : await updateNotificationReadState(scope, result.id, true)
     if (!result.is_read) {
       void syncNotificationTabbarBadge({
         mode: appContextStore.navigationMode,

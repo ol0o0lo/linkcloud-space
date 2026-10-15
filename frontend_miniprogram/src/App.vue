@@ -6,6 +6,7 @@ import { navigateToInterceptor } from '@/router/interceptor'
 import { tabbarStore } from '@/tabbar/store'
 import { permission } from '@/router/permission'
 import { flushAnalyticsEvents } from '@/infra/analytics/client'
+import { getDefaultRouteForMode } from '@/modules/registry'
 import { useAppContextStore } from '@/store/app-context-v2'
 
 const { proxy } = (getCurrentInstance() || {}) as any
@@ -14,6 +15,7 @@ const router = proxy?.$router
 router && permission.install(router)
 
 const appContextStore = useAppContextStore()
+let initialNavigationHandled = false
 
 function syncMessagesBadge() {
   return syncNotificationTabbarBadge({
@@ -40,11 +42,18 @@ onShow((options) => {
         uni.reLaunch({ url: '/pages/error/startup' })
       return
     }
+    if (!initialNavigationHandled) {
+      initialNavigationHandled = true
+      if (appContextStore.mode === 'organization' && (!options?.path || options.path === 'pages/index/index')) {
+        uni.switchTab({ url: getDefaultRouteForMode('organization') })
+        return
+      }
+    }
     void syncMessagesBadge()
     navigateToInterceptor.invoke({
       url: options?.path ? `/${options.path}` : '/pages/index/index',
       query: options?.query,
-    })
+    }, true)
   })()
 })
 onHide(() => {

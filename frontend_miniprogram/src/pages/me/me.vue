@@ -1,9 +1,8 @@
 <script lang="ts" setup>
-import { onPageScroll, onShow } from '@dcloudio/uni-app'
-import { computed, ref, watch } from 'vue'
-import { getOrganizationAdminSections } from '@/domain/organization-admin'
-import { getRealNameStatusLabel } from '@/domain/personal-account'
-import { getOrganizationAdminNavigation } from '@/features/organization-admin/service'
+import { onHide, onPageScroll, onReady, onShow, onUnload } from '@dcloudio/uni-app'
+import { computed, getCurrentInstance, nextTick, ref } from 'vue'
+import { getRealNameHint, getRealNameTone } from '@/domain/personal-account'
+import { useRealNameStatus } from '@/features/account/useRealNameStatus'
 import { APP_ROUTES, getLoginRoute } from '@/modules/routes'
 import AppModeSwitcher from './components/AppModeSwitcher.vue'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
@@ -19,23 +18,69 @@ definePage({
 })
 
 const appContextStore = useAppContextStore()
+const pageInstance = getCurrentInstance()?.proxy
+const copyrightYear = new Date().getFullYear()
+const copyrightVisible = ref(false)
+let copyrightObserver: UniNamespace.IntersectionObserver | null = null
+let copyrightTimer: ReturnType<typeof setTimeout> | undefined
+let pageReady = false
+
+function resetCopyright() {
+  clearTimeout(copyrightTimer)
+  copyrightTimer = undefined
+  copyrightVisible.value = false
+}
+
+function stopCopyrightObserver() {
+  copyrightObserver?.disconnect()
+  copyrightObserver = null
+  resetCopyright()
+}
+
+function observeCopyright() {
+  stopCopyrightObserver()
+  const windowInfo = uni.getWindowInfo()
+  copyrightObserver = uni.createIntersectionObserver(pageInstance, { thresholds: [0, 1] })
+  copyrightObserver.relativeToViewport({ bottom: -uni.upx2px(100) - (windowInfo.safeAreaInsets?.bottom || 0) }).observe('.me-copyright', (result) => {
+    if (result.intersectionRatio < 1) {
+      resetCopyright()
+      return
+    }
+    if (!copyrightTimer && !copyrightVisible.value) {
+      copyrightTimer = setTimeout(() => {
+        copyrightTimer = undefined
+        copyrightVisible.value = true
+      }, 1000)
+    }
+  })
+}
+
+onReady(() => {
+  pageReady = true
+  observeCopyright()
+})
+onShow(() => {
+  if (pageReady)
+    void nextTick(observeCopyright)
+})
+onHide(stopCopyrightObserver)
+onUnload(stopCopyrightObserver)
 const { navigationScrolled, navigationProgress, handleNavigationScroll } = useNavigationScrollState()
 onPageScroll(handleNavigationScroll)
-const displayName = computed(() => appContextStore.user?.first_name || appContextStore.user?.username || appContextStore.user?.email || '用户')
+const displayName = computed(() => appContextStore.user?.last_name || appContextStore.user?.first_name || appContextStore.user?.username || appContextStore.user?.email || '用户')
 const avatar = computed(() => appContextStore.user?.avatar?.[0]?.thumbnail || appContextStore.user?.avatar?.[0]?.url || '/static/images/default-avatar.png')
-const accountRoleLabel = computed(() => {
-  if (!appContextStore.authenticated)
-    return '访客'
-  if (appContextStore.navigationMode === 'organization')
-    return '中介端'
-  if (appContextStore.mode === 'landlord')
-    return '房东端'
-  return '租客'
-})
-const organizationNavigationAvailable = ref(false)
-let organizationNavigationLoadId = 0
-const organizationAdminSections = computed(() => getOrganizationAdminSections(appContextStore.capabilities))
-const canOpenOrganizationAdmin = computed(() => organizationNavigationAvailable.value || organizationAdminSections.value.length > 0)
+const { status: realNameStatus } = useRealNameStatus()
+const realNameHint = computed(() => getRealNameHint(realNameStatus.value))
+
+function handleActionKeydown(event: KeyboardEvent, action: () => void) {
+  // #ifdef H5
+  if (event.key !== 'Enter' && event.key !== ' ')
+    return
+  event.preventDefault()
+  if (!event.repeat)
+    action()
+  // #endif
+}
 
 function openAccountRoute(url: string, tabbar = false) {
   if (!appContextStore.authenticated) {
@@ -73,12 +118,15 @@ function openTenantLeases() {
 }
 
 function openFavorites() {
-  const personalTab = appContextStore.navigationMode === 'personal' || !appContextStore.authenticated
-  openAccountRoute(personalTab ? APP_ROUTES.favorites : APP_ROUTES.personalFavorites, personalTab)
+  openAccountRoute(APP_ROUTES.favorites, true)
 }
 
 function openAccountSettings() {
   openAccountRoute(APP_ROUTES.accountSettings)
+}
+
+function openNotificationPreferences() {
+  openAccountRoute(APP_ROUTES.notificationPreferences)
 }
 
 function openLandlordStore() {
@@ -87,40 +135,9 @@ function openLandlordStore() {
     uni.navigateTo({ url: `${APP_ROUTES.landlordStore}?key=${encodeURIComponent(key)}` })
 }
 
-function openLandlordHouses() {
-  uni.switchTab({ url: APP_ROUTES.houses })
-}
-
-function openOrganizationRental() {
-  uni.navigateTo({ url: APP_ROUTES.organizationRental })
-}
-
-function openOrganizationAdmin() {
-  uni.navigateTo({ url: APP_ROUTES.organizationAdmin })
-}
-
 function openSaaS() {
   uni.navigateTo({ url: APP_ROUTES.saasHome })
 }
-
-async function refreshOrganizationAdminVisibility() {
-  const organizationSlug = appContextStore.organizationSlug
-  const currentLoadId = ++organizationNavigationLoadId
-  organizationNavigationAvailable.value = false
-  if (appContextStore.navigationMode !== 'organization' || !organizationSlug)
-    return
-  try {
-    await getOrganizationAdminNavigation(organizationSlug)
-    if (currentLoadId === organizationNavigationLoadId && appContextStore.organizationSlug === organizationSlug)
-      organizationNavigationAvailable.value = true
-  }
-  catch {
-    // 组织架构导航要求成员查看权限；其他管理能力仍由 access/navigation 裁剪。
-  }
-}
-
-onShow(() => void refreshOrganizationAdminVisibility())
-watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] as const, () => void refreshOrganizationAdminVisibility())
 </script>
 
 <template>
@@ -133,9 +150,7 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
         </template>
       </AppCustomNavigation>
     </template>
-    <view class="profile-card" @click="openProfile">
-      <view class="profile-decoration profile-decoration--large" />
-      <view class="profile-decoration profile-decoration--small" />
+    <button class="me-action profile-card app-touchable" role="button" tabindex="0" :aria-label="appContextStore.authenticated ? '查看个人资料' : '登录或注册'" hover-class="app-touchable--pressed" @click="openProfile" @keydown="handleActionKeydown($event, openProfile)">
       <view class="profile-summary">
         <view class="avatar-shell">
           <image v-if="appContextStore.authenticated" class="avatar" :src="avatar" mode="aspectFill" />
@@ -145,19 +160,21 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
           <view class="profile-name">
             {{ appContextStore.authenticated ? displayName : '登录 / 注册' }}
           </view>
-          <view v-if="appContextStore.authenticated" class="profile-role">
-            <view class="profile-role__dot" />
-            {{ accountRoleLabel }}
-          </view>
-          <view v-else class="profile-prompt">
-            登录后同步收藏、预约和消息
+          <view class="profile-prompt">
+            {{ appContextStore.authenticated ? '个人资料' : '登录后同步收藏、预约和消息' }}
           </view>
         </view>
         <view class="profile-arrow i-carbon-chevron-right" />
       </view>
-    </view>
+    </button>
 
-    <view class="service-card">
+    <button v-if="appContextStore.authenticated && realNameHint" class="me-action certification-hint app-touchable" :class="`certification-hint--${getRealNameTone(realNameStatus)}`" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openRealName" @keydown="handleActionKeydown($event, openRealName)">
+      <view class="i-carbon-identification" />
+      <text>{{ realNameHint }}</text>
+      <view class="i-carbon-chevron-right" />
+    </button>
+
+    <view v-if="!appContextStore.authenticated || appContextStore.navigationMode === 'personal'" class="service-card">
       <view class="service-heading">
         <view>
           <view class="service-title">
@@ -169,132 +186,86 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
         </view>
       </view>
       <view class="service-grid">
-        <view class="service-item" @click="openFavorites">
+        <button class="me-action service-item app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openFavorites" @keydown="handleActionKeydown($event, openFavorites)">
           <view class="service-icon service-icon--favorite">
             <view class="i-carbon-favorite" />
           </view>
           <text class="service-name">我的收藏</text>
           <text class="service-copy">喜欢的房源</text>
-        </view>
-        <view class="service-item" @click="openTenantViewings">
+        </button>
+        <button class="me-action service-item app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openTenantViewings" @keydown="handleActionKeydown($event, openTenantViewings)">
           <view class="service-icon service-icon--viewing">
             <view class="i-carbon-calendar" />
           </view>
           <text class="service-name">看房预约</text>
           <text class="service-copy">时间与进度</text>
-        </view>
-        <view class="service-item" @click="openTenantLeases">
+        </button>
+        <button class="me-action service-item app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openTenantLeases" @keydown="handleActionKeydown($event, openTenantLeases)">
           <view class="service-icon">
             <view class="i-carbon-document" />
           </view>
           <text class="service-name">我的租约</text>
           <text class="service-copy">合同与履约</text>
-        </view>
+        </button>
       </view>
     </view>
 
-    <view class="feature-card account-service-card">
-      <view class="feature-section-title">
-        账户服务
-      </view>
-      <view class="menu-row menu-row--compact" @click="openRealName">
-        <view class="menu-icon">
-          <view class="i-carbon-identification" />
+    <view v-if="appContextStore.authenticated && appContextStore.mode === 'landlord' && appContextStore.currentLandlordRelationship?.public_key" class="feature-card">
+      <button class="me-action menu-row app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openLandlordStore" @keydown="handleActionKeydown($event, openLandlordStore)">
+        <view class="menu-icon menu-icon--store">
+          <view class="i-carbon-store" />
         </view>
         <view class="menu-main">
-          <text class="menu-title">实名认证</text>
-          <text class="menu-copy">{{ appContextStore.authenticated ? getRealNameStatusLabel(appContextStore.user?.real_name_status, appContextStore.user?.real_name_status__mapping) : '登录后查看认证状态' }}</text>
+          <text class="menu-title">公开店铺</text>
+          <text class="menu-copy">查看与分享公开房源</text>
         </view>
         <view class="menu-arrow i-carbon-chevron-right" />
+      </button>
+    </view>
+
+    <view v-if="appContextStore.authenticated" class="feature-card account-service-card">
+      <view class="feature-section-title">
+        {{ appContextStore.navigationMode === 'organization' ? '个人账户' : '账户服务' }}
       </view>
-      <view class="menu-row menu-row--compact" @click="openWallet">
-        <view class="menu-icon menu-icon--wallet">
+      <button class="me-action menu-row menu-row--compact app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openWallet" @keydown="handleActionKeydown($event, openWallet)">
+        <view class="menu-icon">
           <view class="i-carbon-wallet" />
         </view>
         <view class="menu-main">
           <text class="menu-title">我的钱包</text>
-          <text class="menu-copy">余额与流水</text>
         </view>
         <view class="menu-arrow i-carbon-chevron-right" />
-      </view>
-      <view class="menu-row menu-row--compact" @click="openReferrals">
+      </button>
+      <button class="me-action menu-row menu-row--compact app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openReferrals" @keydown="handleActionKeydown($event, openReferrals)">
         <view class="menu-icon">
           <view class="i-carbon-share" />
         </view>
         <view class="menu-main">
-          <text class="menu-title">我的推广</text>
-          <text class="menu-copy">邀请与奖励</text>
+          <text class="menu-title">邀请好友</text>
         </view>
         <view class="menu-arrow i-carbon-chevron-right" />
-      </view>
-      <view class="menu-row menu-row--compact" @click="openAccountSettings">
-        <view class="menu-icon menu-icon--settings">
+      </button>
+      <button class="me-action menu-row menu-row--compact app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openNotificationPreferences" @keydown="handleActionKeydown($event, openNotificationPreferences)">
+        <view class="menu-icon">
+          <view class="i-carbon-notification" />
+        </view>
+        <view class="menu-main">
+          <text class="menu-title">通知设置</text>
+        </view>
+        <view class="menu-arrow i-carbon-chevron-right" />
+      </button>
+      <button class="me-action menu-row menu-row--compact app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openAccountSettings" @keydown="handleActionKeydown($event, openAccountSettings)">
+        <view class="menu-icon">
           <view class="i-carbon-settings-adjust" />
         </view>
         <view class="menu-main">
           <text class="menu-title">设置</text>
-          <text class="menu-copy">资料、通知与账号安全</text>
         </view>
         <view class="menu-arrow i-carbon-chevron-right" />
-      </view>
+      </button>
     </view>
 
-    <template v-if="appContextStore.mode === 'landlord' && appContextStore.currentLandlordRelationship">
-      <view class="feature-card">
-        <view class="feature-section-title">
-          房东服务
-        </view>
-        <view class="menu-row" @click="openLandlordHouses">
-          <view class="menu-icon">
-            <view class="i-carbon-building" />
-          </view>
-          <view class="menu-main">
-            <text class="menu-title">我的房源</text>
-            <text class="menu-copy">查看名下房源与房态</text>
-          </view>
-          <view class="menu-arrow i-carbon-chevron-right" />
-        </view>
-        <view class="menu-row" @click="openLandlordStore">
-          <view class="menu-icon menu-icon--store">
-            <view class="i-carbon-store" />
-          </view>
-          <view class="menu-main">
-            <text class="menu-title">公开店铺</text>
-            <text class="menu-copy">房东服务 · 查看与分享公开房源</text>
-          </view>
-          <view class="menu-arrow i-carbon-chevron-right" />
-        </view>
-      </view>
-    </template>
-    <template v-if="appContextStore.navigationMode === 'organization'">
-      <view class="feature-card">
-        <view class="feature-section-title">
-          中介服务
-        </view>
-        <view class="menu-row" @click="openOrganizationRental">
-          <view class="menu-icon">
-            <view class="i-carbon-workspace" />
-          </view>
-          <view class="menu-main">
-            <text class="menu-title">组织经营</text>
-            <text class="menu-copy">房源、带看与租约工作台</text>
-          </view>
-          <view class="menu-arrow i-carbon-chevron-right" />
-        </view>
-        <view v-if="canOpenOrganizationAdmin" class="menu-row" @click="openOrganizationAdmin">
-          <view class="menu-icon">
-            <view class="i-carbon-building" />
-          </view>
-          <view class="menu-main">
-            <text class="menu-title">组织管理中心</text>
-            <text class="menu-copy">{{ organizationAdminSections.length ? `组织服务 · ${organizationAdminSections.length} 项可用功能` : '组织服务 · 查看成员与团队' }}</text>
-          </view>
-          <view class="menu-arrow i-carbon-chevron-right" />
-        </view>
-      </view>
-    </template>
-
-    <view v-if="!appContextStore.authenticated || appContextStore.organizations.length === 0" class="saas-entry" @click="openSaaS">
+    <button v-if="!appContextStore.authenticated || appContextStore.organizations.length === 0" class="me-action saas-entry app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openSaaS" @keydown="handleActionKeydown($event, openSaaS)">
       <view class="saas-entry__icon">
         <view class="i-carbon-store" />
       </view>
@@ -303,15 +274,63 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
         <text>14 天试用 · 管理房源、带看与签约</text>
       </view>
       <view class="i-carbon-chevron-right" />
-    </view>
+    </button>
+    <template #footer>
+      <view class="me-copyright">
+        <text class="me-copyright__text" :class="{ 'me-copyright__text--visible': copyrightVisible }" :aria-hidden="!copyrightVisible">
+          © {{ copyrightYear }} 链云空间
+        </text>
+      </view>
+    </template>
   </AppPage>
 </template>
 
 <style scoped lang="scss">
+.me-copyright {
+  padding: 16rpx 24rpx 28rpx;
+  text-align: center;
+  pointer-events: none;
+}
+.me-copyright__text {
+  color: var(--app-text-muted);
+  font-size: 20rpx;
+  line-height: 1.5;
+  opacity: 0;
+  transition: opacity 1200ms ease;
+}
+.me-copyright__text--visible {
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: reduce) {
+  .me-copyright__text {
+    transition-duration: 200ms;
+  }
+}
+.me-action {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+  text-align: left;
+  background: transparent;
+}
+.me-action::after {
+  border: 0;
+}
+/* #ifdef H5 */
+.me-action:focus-visible {
+  outline: 2px solid var(--app-color-brand-active);
+  outline-offset: -4px;
+}
+/* #endif */
 .me-navigation__title {
-  color: var(--app-text-primary);
-  font-size: 30rpx;
-  font-weight: 700;
+  color: var(--app-text-secondary);
+  font-size: 28rpx;
+  font-weight: 500;
   line-height: 1.25;
 }
 .profile-card {
@@ -319,34 +338,30 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
   display: flex;
   overflow: hidden;
   flex-direction: column;
-  gap: 24rpx;
-  padding: 28rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 32rpx;
+  padding: 20rpx 2rpx 32rpx;
+  border-radius: 18rpx;
   box-sizing: border-box;
-  background: var(--app-gradient-profile);
-  box-shadow: var(--app-shadow-profile);
 }
 .saas-entry {
   display: flex;
   align-items: center;
-  gap: 18rpx;
+  gap: 16rpx;
   margin-top: 24rpx;
-  padding: 24rpx;
+  padding: 20rpx;
   border: 1rpx solid var(--app-border-color);
   border-radius: 26rpx;
-  background: var(--app-bg-card);
+  background: transparent;
 }
 .saas-entry__icon {
   display: flex;
-  width: 72rpx;
-  height: 72rpx;
-  flex: 0 0 72rpx;
+  width: 56rpx;
+  height: 56rpx;
+  flex: 0 0 56rpx;
   align-items: center;
   justify-content: center;
-  border-radius: 22rpx;
-  color: var(--app-color-brand-active);
-  font-size: 36rpx;
+  border-radius: 18rpx;
+  color: var(--app-text-secondary);
+  font-size: 28rpx;
   background: var(--app-bg-brand-soft);
 }
 .saas-entry__main {
@@ -358,31 +373,16 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
 }
 .saas-entry__main strong {
   color: var(--app-text-primary);
-  font-size: 26rpx;
+  font-size: 24rpx;
+  overflow-wrap: anywhere;
 }
 .saas-entry__main text {
   color: var(--app-text-secondary);
-  font-size: 21rpx;
+  font-size: 20rpx;
 }
-.profile-decoration {
-  position: absolute;
-  border-radius: 50%;
-  background: var(--app-bg-brand-soft);
-  opacity: 0.72;
-  pointer-events: none;
-}
-.profile-decoration--large {
-  top: -76rpx;
-  right: -48rpx;
-  width: 208rpx;
-  height: 208rpx;
-}
-.profile-decoration--small {
-  top: 90rpx;
-  right: 104rpx;
-  width: 54rpx;
-  height: 54rpx;
-  opacity: 0.46;
+.saas-entry > .i-carbon-chevron-right {
+  flex-shrink: 0;
+  color: var(--app-text-muted);
 }
 .profile-summary {
   position: relative;
@@ -390,23 +390,24 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 20rpx;
+  gap: 28rpx;
 }
 .avatar-shell {
   display: flex;
-  width: 112rpx;
-  height: 112rpx;
-  flex: 0 0 112rpx;
+  width: 116rpx;
+  height: 116rpx;
+  flex: 0 0 116rpx;
   align-items: center;
   justify-content: center;
-  border: 1rpx solid var(--app-border-brand-soft);
+  border: 6rpx solid var(--app-bg-card);
   border-radius: 50%;
-  background: var(--app-bg-elevated);
-  box-shadow: 0 12rpx 28rpx rgb(33 87 143 / 10%);
+  box-sizing: border-box;
+  background: var(--app-bg-subtle);
+  box-shadow: 0 0 0 1rpx var(--app-border-card);
 }
 .avatar {
-  width: 98rpx;
-  height: 98rpx;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background: var(--app-bg-subtle);
 }
@@ -425,33 +426,36 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
 .profile-name {
   overflow: hidden;
   color: var(--app-text-primary);
-  font-size: 34rpx;
-  font-weight: 700;
+  font-size: 48rpx;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.profile-role {
-  display: inline-flex;
-  align-items: center;
-  gap: 8rpx;
-  margin-top: 10rpx;
-  padding: 6rpx 14rpx;
-  border-radius: 999rpx;
-  color: var(--app-color-brand-active);
-  font-size: 20rpx;
-  font-weight: 600;
-  background: var(--app-bg-brand-soft);
-}
-.profile-role__dot {
-  width: 8rpx;
-  height: 8rpx;
-  border-radius: 50%;
-  background: currentColor;
-}
 .profile-prompt {
-  margin-top: 8rpx;
+  margin-top: 12rpx;
   color: var(--app-text-secondary);
-  font-size: 21rpx;
+  font-size: 24rpx;
+}
+.certification-hint {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  min-height: 44px;
+  margin-top: -12rpx;
+  padding: 0 2rpx;
+  border-radius: 12rpx;
+  color: var(--app-text-secondary);
+  font-size: 22rpx;
+}
+.certification-hint--default {
+  color: var(--app-color-brand-active);
+}
+.certification-hint--danger {
+  color: var(--app-color-danger);
+}
+.certification-hint > view {
+  flex-shrink: 0;
+  font-size: 28rpx;
 }
 .service-card {
   margin-top: 24rpx;
@@ -486,6 +490,7 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
   flex: 1;
   align-items: center;
   flex-direction: column;
+  border-radius: 18rpx;
   padding: 4rpx 12rpx;
 }
 .service-item + .service-item::before {
@@ -537,14 +542,15 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
 .feature-card {
   overflow: hidden;
   margin-top: 24rpx;
-  border-radius: 28rpx;
+  border: 1rpx solid var(--app-border-card);
+  border-radius: 36rpx;
   background: var(--app-bg-card);
 }
 .feature-section-title {
-  padding: 24rpx 26rpx 8rpx;
+  padding: 32rpx 32rpx 12rpx;
   color: var(--app-text-muted);
-  font-size: 21rpx;
-  font-weight: 600;
+  font-size: 22rpx;
+  font-weight: 500;
 }
 .menu-row {
   position: relative;
@@ -555,27 +561,28 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
   box-sizing: border-box;
 }
 .menu-row--compact {
-  min-height: 112rpx;
-  padding-top: 16rpx;
-  padding-bottom: 16rpx;
+  height: 106rpx;
+  min-height: 44px;
+  padding: 0 32rpx;
 }
 .feature-card .menu-row + .menu-row::before {
   position: absolute;
   top: 0;
-  right: 26rpx;
-  left: 104rpx;
+  right: 32rpx;
+  left: 96rpx;
   height: 1rpx;
-  background: var(--app-border-color);
+  background: var(--app-divider-color);
   content: '';
 }
 .menu-icon {
   display: flex;
-  width: 64rpx;
-  height: 64rpx;
+  width: 56rpx;
+  height: 56rpx;
+  flex: 0 0 56rpx;
   align-items: center;
   justify-content: center;
   margin-right: 20rpx;
-  border-radius: 20rpx;
+  border-radius: 18rpx;
   color: var(--app-color-brand-active);
   font-size: 32rpx;
   background: var(--app-bg-brand-soft);
@@ -584,13 +591,15 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
   color: #b45f06;
   background: #fff3df;
 }
-.menu-icon--wallet {
-  color: var(--app-color-brand-active);
-  background: var(--app-bg-brand-soft);
-}
-.menu-icon--settings {
-  color: #4c647f;
-  background: #edf2f7;
+.account-service-card .menu-icon {
+  width: 40rpx;
+  height: 40rpx;
+  flex-basis: 40rpx;
+  margin-right: 24rpx;
+  border-radius: 0;
+  color: var(--app-text-secondary);
+  font-size: 40rpx;
+  background: transparent;
 }
 .menu-main {
   display: flex;
@@ -607,14 +616,15 @@ watch(() => [appContextStore.navigationMode, appContextStore.organizationSlug] a
 }
 .menu-title {
   color: var(--app-text-primary);
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: 28rpx;
+  font-weight: 500;
 }
 .menu-copy {
   color: var(--app-text-muted);
   font-size: 21rpx;
 }
 .menu-arrow {
+  flex-shrink: 0;
   margin-left: 16rpx;
   color: var(--app-text-muted);
   font-size: 26rpx;
