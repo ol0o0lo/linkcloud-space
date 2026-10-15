@@ -54,12 +54,25 @@ test('房源卡片统一格式化标题、户型、电梯、月租和押金', ()
   })
 
   assert.equal(card.title, '翡翠名都 3栋 1202')
+  assert.equal(card.heading, '翡翠名都')
+  assert.equal(card.subtitle, '3栋 · 1202')
   assert.equal(card.location, '滨江区 · 精装修')
   assert.equal(card.facts, '二室一厅 · 68㎡ · 有电梯')
   assert.equal(card.rentText, '¥4,600/月')
   assert.equal(card.depositText, '押金 ¥9,200')
   assert.equal(card.coverUrl, 'https://example.com/cover.jpg')
   assert.equal(card.showStatusDot, false)
+})
+
+test('房源分层标题在缺少小区或楼栋与小区同名时不重复信息', () => {
+  const house = { id: 1, room_number: '806', building: { name: '云栖公寓', estate: null } }
+  const withoutEstate = buildHouseCardModel(house)
+  assert.equal(withoutEstate.heading, '云栖公寓')
+  assert.equal(withoutEstate.subtitle, '806')
+
+  const sameName = buildHouseCardModel({ ...house, building: { name: '云栖公寓', estate: { name: '云栖公寓' } } })
+  assert.equal(sameName.heading, '云栖公寓')
+  assert.equal(sameName.subtitle, '806')
 })
 
 test('房源卡片隐藏默认招租状态并标记非默认状态', () => {

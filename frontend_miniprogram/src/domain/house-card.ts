@@ -39,6 +39,8 @@ export interface HouseCardSource {
 export interface HouseCardModel {
   id: number
   title: string
+  heading?: string
+  subtitle?: string
   coverUrl: string
   imageCount: number
   location: string
@@ -134,6 +136,8 @@ export function buildHouseCardModel(house: HouseCardSource): HouseCardModel {
   return {
     id: house.id,
     title: [estateName, buildingName, house.room_number].filter(Boolean).join(' ') || `房源 #${house.id}`,
+    heading: estateName || buildingName || `房源 #${house.id}`,
+    subtitle: [estateName ? buildingName : '', house.room_number].filter(Boolean).join(' · '),
     coverUrl: thumbnail || url,
     imageCount: images.length,
     location: [district, decoration].filter(Boolean).join(' · '),

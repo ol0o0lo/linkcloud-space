@@ -41,7 +41,7 @@ const segmentedStyle = [
   '--wot-segmented-outline-item-padding: 25rpx 0',
   '--wot-segmented-outline-item-color: #3e5467',
   '--wot-segmented-outline-item-bg-active: #fff',
-  '--wot-segmented-outline-item-color-active: #1575c9',
+  '--wot-segmented-outline-item-color-active: var(--app-color-brand)',
 ].join('; ')
 
 const preset = computed<PublicHouseSearchPreset>(() => ({
@@ -123,7 +123,7 @@ watch([
       </view>
 
       <view class="home-search-panel__bedrooms">
-        <wd-radio-group v-model="bedroomChoice" direction="horizontal" checked-color="#1678cf">
+        <wd-radio-group v-model="bedroomChoice" direction="horizontal">
           <wd-radio value="">
             不限
           </wd-radio>
@@ -208,7 +208,7 @@ button::after {
 
 .home-search-panel__keyword--located,
 .home-search-panel__nearby--active {
-  color: #1575c9;
+  color: var(--app-color-brand);
 }
 
 .home-search-panel__clear {
@@ -286,14 +286,14 @@ button::after {
 
 .home-search-panel__submit {
   flex: 1.55;
-  background: #1678cf;
+  background: var(--app-color-brand);
   color: #fff;
 }
 
 .home-search-panel__map {
   flex: 1;
-  background: linear-gradient(125deg, #e9f4fc, #d8eefa);
-  color: #294d68;
+  background: var(--app-bg-brand-soft);
+  color: var(--app-color-brand);
 }
 
 .home-search-panel__map view {

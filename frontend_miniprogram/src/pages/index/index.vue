@@ -401,7 +401,6 @@ onShow(async () => {
     <view class="recommendation-feed">
       <view class="section-heading">
         <view>
-          <text class="section-heading__eyebrow">DISCOVER HOMES</text>
           <text class="section-heading__title">发现好房</text>
           <text class="section-heading__subtitle">{{ recommendationSummary }}</text>
         </view>
@@ -591,7 +590,7 @@ onShow(async () => {
 }
 .home-navigation__search view {
   flex: none;
-  color: #1678cf;
+  color: var(--app-color-brand);
   font-size: 28rpx;
 }
 .home-navigation__search text {
@@ -646,8 +645,8 @@ onShow(async () => {
   align-items: center;
   justify-content: center;
   border-radius: 16rpx;
-  background: #e9f3fb;
-  color: #267ac0;
+  background: var(--app-bg-brand-soft);
+  color: var(--app-color-brand);
 }
 .home-shortcut__icon view {
   font-size: 32rpx;
@@ -690,7 +689,7 @@ onShow(async () => {
   margin: 0 0 2rpx;
   padding: 0 4rpx;
   background: transparent;
-  color: #527c9e;
+  color: var(--app-color-brand);
   font-size: 20rpx;
   font-weight: 600;
   line-height: 50rpx;
@@ -727,9 +726,9 @@ onShow(async () => {
   line-height: 58rpx;
 }
 .recommendation-filter--active {
-  border-color: #b8d9f1;
-  background: #eaf4fb;
-  color: #176eb7;
+  border-color: var(--app-border-brand-soft);
+  background: var(--app-bg-brand-soft);
+  color: var(--app-color-brand);
   font-weight: 700;
 }
 .recommendation-filter view {
@@ -747,7 +746,7 @@ onShow(async () => {
   border: 1rpx solid #dce8f1;
   border-radius: 18rpx;
   background: #fff;
-  color: #176eb7;
+  color: var(--app-color-brand);
   font-size: 22rpx;
   font-weight: 700;
   line-height: 72rpx;

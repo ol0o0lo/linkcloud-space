@@ -73,7 +73,7 @@ function openFeatured(item: typeof featuredItems.value[number]) {
           :indicator="false"
           autoplay
           :interval="5000"
-          height="520rpx"
+          height="440rpx"
           :custom-style="heroSwiperStyle"
         >
           <template #default="{ item }">
@@ -83,7 +83,7 @@ function openFeatured(item: typeof featuredItems.value[number]) {
               @click="openFeatured(item)"
             >
               <image v-if="item.imageUrl" class="hero-banner__image" :src="item.imageUrl" mode="aspectFill" />
-              <view class="hero-banner__shade" />
+              <view v-if="item.imageUrl" class="hero-banner__shade" />
               <view class="hero-banner__copy">
                 <text class="hero-banner__eyebrow">{{ item.eyebrow }}</text>
                 <text class="hero-banner__title">{{ item.title }}</text>
@@ -176,7 +176,7 @@ button::after {
   position: relative;
   display: block;
   width: 100%;
-  height: 520rpx;
+  height: 440rpx;
   overflow: hidden;
   margin: 0;
   padding: 0;
@@ -184,7 +184,12 @@ button::after {
   box-sizing: border-box;
   color: #fff;
   text-align: left;
-  background: linear-gradient(145deg, #093e75 0%, #1373b5 48%, #d9eaf4 100%);
+  background: linear-gradient(
+    145deg,
+    var(--app-color-brand) 0%,
+    var(--app-color-brand-active) 48%,
+    var(--app-bg-brand-soft) 100%
+  );
 }
 .hero-banner__image,
 .hero-banner__shade {
@@ -194,15 +199,15 @@ button::after {
   height: 100%;
 }
 .hero-banner__shade {
-  background: linear-gradient(112deg, rgb(4 48 99 / 92%) 0%, rgb(17 91 157 / 82%) 47%, rgb(201 226 239 / 42%) 100%);
+  background: linear-gradient(112deg, rgb(0 129 255 / 92%) 0%, rgb(0 102 204 / 82%) 47%, rgb(234 244 255 / 42%) 100%);
 }
 .hero-banner__frame {
   position: absolute;
   top: 36rpx;
   right: -42rpx;
-  width: 340rpx;
-  height: 340rpx;
-  border: 24rpx solid rgb(218 241 254 / 24%);
+  width: 280rpx;
+  height: 280rpx;
+  border: 18rpx solid rgb(218 241 254 / 18%);
   border-radius: 25rpx;
   transform: rotate(-8deg);
   pointer-events: none;
@@ -215,8 +220,9 @@ button::after {
   height: 100%;
   flex-direction: column;
   align-items: flex-start;
-  padding: 138rpx 46rpx 132rpx;
+  padding: 112rpx 46rpx 124rpx;
   box-sizing: border-box;
+  line-height: 1.4;
 }
 .hero-banner__eyebrow {
   flex: 0 0 auto;
@@ -230,8 +236,8 @@ button::after {
   overflow: hidden;
   max-width: 100%;
   max-height: 2.4em;
-  margin-top: 20rpx;
-  font-size: 42rpx;
+  margin-top: 14rpx;
+  font-size: 38rpx;
   font-weight: 800;
   line-height: 1.2;
   white-space: normal;
@@ -241,7 +247,7 @@ button::after {
   flex: 0 0 auto;
   align-items: center;
   gap: 8rpx;
-  margin-top: 18rpx;
+  margin-top: 12rpx;
   font-size: 22rpx;
   font-weight: 700;
 }
@@ -343,7 +349,7 @@ button::after {
   gap: 6rpx;
 }
 .guide-card__eyebrow {
-  color: #1383d3;
+  color: var(--app-color-brand);
   font-size: 18rpx;
   font-weight: 700;
 }
