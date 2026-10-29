@@ -33,7 +33,19 @@ bash deploy.sh
 docker compose --env-file .env -f compose.yml exec web python manage.py createsuperuser
 ```
 
+## 2 核 4GB 的轻量默认配置
+
+- Web：1 个 Gunicorn worker、8 个线程，保留流式请求的并发处理能力。
+- Celery：1 个 prefork 子进程，任务串行执行，每次预取 1 个任务；保留进程隔离和任务时间限制。
+- Beat：独立运行一个实例，保留定时任务和调度状态。
+- Nginx：1 个 worker；PostGIS：最多 32 个数据库连接、128MB 共享缓冲区。
+- 健康检查每 30 秒执行一次；每个容器日志最多保留 3 个 10MB 文件。
+
+并发和数据库参数可在 `.env` 中调整。Redis 继续启用 AOF；会话、缓存和任务队列共用 Redis，因此不设置会主动淘汰任务或会话的缓存策略。
+
 ## 更新与排查
+
+部署配置更新时，整体同步本目录并保留服务器已有的 `.env`，再执行部署脚本。
 
 默认应用镜像使用 `latest`。需要固定版本时，将 `APP_IMAGE` 改为 CI 生成的 `ghcr.io/ol0o0lo/linkcloud-space:sha-完整提交SHA`，再运行 `bash deploy.sh`。
 
