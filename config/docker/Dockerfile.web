@@ -138,7 +138,8 @@ RUN set -ex \
 
 COPY --chown=app:app . .
 
-RUN mkdir -p /srv/app/collected_static && chown -R app:app /srv/app/collected_static
+RUN mkdir -p /srv/app/collected_static /srv/app/public/media /srv/app/.private/data-migration /var/lib/celery \
+    && chown -R app:app /srv/app/collected_static /srv/app/public/media /srv/app/.private /var/lib/celery
 
 USER app
 
