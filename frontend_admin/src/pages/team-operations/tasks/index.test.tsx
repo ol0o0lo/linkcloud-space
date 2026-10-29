@@ -9,6 +9,14 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TeamTasksPage from './index';
 
+const locationState = vi.hoisted(() => ({ key: 'initial' }));
+vi.mock('@umijs/max', () => ({
+  useLocation: () => ({
+    search: window.location.search,
+    key: locationState.key,
+  }),
+}));
+
 const {
   mockAcceptTaskAssignment,
   mockGetTaskAssignment,
@@ -120,15 +128,17 @@ function renderPage() {
     defaultOptions: { queries: { retry: false } },
   });
 
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <TeamTasksPage />
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 describe('TeamTasksPage', () => {
   beforeEach(() => {
+    locationState.key = 'initial';
     window.history.replaceState(
       null,
       '',
@@ -236,6 +246,29 @@ describe('TeamTasksPage', () => {
       ).not.toBeInTheDocument();
     });
     expect(window.location.search).not.toContain('assignment_id');
+  });
+
+  it('停留在任务页时，新的通知链接切换到对应任务详情', async () => {
+    const view = renderPage();
+    await screen.findByRole('dialog', { name: '我的任务详情' });
+    mockGetTaskAssignment.mockResolvedValue({
+      ...assignment,
+      id: 3,
+      task_title: '来自新通知的任务',
+    });
+    window.history.replaceState(
+      null,
+      '',
+      '/dashboard/rental/workbench/tasks?assignment_id=3',
+    );
+    locationState.key = 'notification-3';
+    view.rerender(
+      <QueryClientProvider client={view.queryClient}>
+        <TeamTasksPage />
+      </QueryClientProvider>,
+    );
+    await screen.findByText('来自新通知的任务');
+    expect(mockGetTaskAssignment).toHaveBeenCalledWith(3);
   });
 
   it('从 URL 恢复两类任务各自的页码和筛选条件', async () => {

@@ -2,8 +2,13 @@ import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
 import { message } from 'antd';
-import { buildAdminPath, isAuthPagePath, LOGIN_PATH } from './utils/adminRouting';
+import {
+  buildAdminPath,
+  isAuthPagePath,
+  LOGIN_PATH,
+} from './utils/adminRouting';
 import { getSelectedOrgSlug } from './utils/orgSelection';
+
 const ALLAUTH_BROWSER_BASE = '/api/allauth/browser/v1';
 
 function getCookie(name: string) {
@@ -89,7 +94,11 @@ export const errorConfig: RequestConfig = {
         const errorInfo: ApiEnvelope | undefined = error.info;
         if (errorInfo?.code === 401) {
           const currentPath = history.location
-            ? buildAdminPath(history.location.pathname, history.location.search, history.location.hash)
+            ? buildAdminPath(
+                history.location.pathname,
+                history.location.search,
+                history.location.hash,
+              )
             : undefined;
           if (!isAuthPagePath(currentPath)) {
             history.push(
@@ -97,12 +106,19 @@ export const errorConfig: RequestConfig = {
             );
           }
         } else if (errorInfo) {
-          message.error(errorInfo.message || errorInfo.error || 'Request error, please retry.');
+          message.error(
+            errorInfo.message ||
+              errorInfo.error ||
+              'Request error, please retry.',
+          );
         }
       } else if (error.response) {
         // Axios 的错误
         // 请求成功发出且服务器也响应了状态码，但状态代码超出了 2xx 的范围
-        message.error(getApiErrorMessage(error.response.data) || `Response status:${error.response.status}`);
+        message.error(
+          getApiErrorMessage(error.response.data) ||
+            `Response status:${error.response.status}`,
+        );
       } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
         message.error(
           getIntl().formatMessage({
@@ -124,8 +140,8 @@ export const errorConfig: RequestConfig = {
     async (config: RequestOptions) => {
       const selectedOrgSlug = getSelectedOrgSlug();
       const headers = {
-        ...(config.headers || {}),
         ...(selectedOrgSlug ? { 'X-Org-Slug': selectedOrgSlug } : {}),
+        ...(config.headers || {}),
       };
 
       if (isSafeMethod(config.method)) {

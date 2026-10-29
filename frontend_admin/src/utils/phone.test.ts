@@ -2,11 +2,24 @@ import { describe, expect, it } from 'vitest';
 import {
   getAccountPhoneValidationError,
   normalizeAccountPhoneParts,
+  normalizeMainlandPhoneInput,
   normalizeOptionalAccountPhoneParts,
   parseAccountPhoneParts,
 } from './phone';
 
 describe('account phone utilities', () => {
+  it('normalizes autofilled mainland numbers without accepting foreign or malformed input', () => {
+    expect(normalizeMainlandPhoneInput(' +86 (138) 0013-8000 ')).toBe(
+      '13800138000',
+    );
+    expect(normalizeMainlandPhoneInput('+1 202-555-0123')).toBe('+12025550123');
+    expect(normalizeMainlandPhoneInput('+86138001380001')).toBe(
+      '+86138001380001',
+    );
+    expect(normalizeMainlandPhoneInput('13800138000abc')).toBe('13800138000abc');
+    expect(normalizeMainlandPhoneInput('')).toBe('');
+  });
+
   it('validates and normalizes a mainland phone number', () => {
     expect(normalizeAccountPhoneParts('+86', '138-0013-8000')).toEqual({
       countryCode: '+86',

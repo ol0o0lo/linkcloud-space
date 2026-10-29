@@ -109,6 +109,9 @@ export async function appsHouseApiPublicGetPublicHouseSuggestions(
     {
       method: "GET",
       params: {
+        // radius_m has a default value: 1000
+        radius_m: "1000",
+
         ...params,
       },
       ...(options || {}),

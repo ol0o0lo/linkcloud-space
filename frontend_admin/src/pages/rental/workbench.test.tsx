@@ -202,8 +202,8 @@ describe('Property rental workbench', () => {
         landlord: null,
         images: [],
         videos: [],
-        status: 'vacant',
-        status__mapping: '空置',
+        status: 'paused',
+        status__mapping: '暂不出租',
       };
       const publishedHouse = {
         ...houseSummary({ id: 2, roomNumber: '102' }),
@@ -232,8 +232,8 @@ describe('Property rental workbench', () => {
           { media_id: 12, media_type: 'image', image_role: 'living_room' },
         ],
         videos: [{ media_id: 13, media_type: 'video' }],
-        status: 'vacant',
-        status__mapping: '空置',
+        status: 'paused',
+        status__mapping: '暂不出租',
       };
       if (params?.publish_issue)
         return Promise.resolve({ items: [], total: 1, page: 1, page_size: 1 });
@@ -330,7 +330,7 @@ describe('Property rental workbench', () => {
           landlord: null,
           images: [],
           videos: [],
-          status: 'vacant',
+          status: 'paused',
         },
       ] as never[],
       [
@@ -345,7 +345,7 @@ describe('Property rental workbench', () => {
             { media_id: 12, media_type: 'image', image_role: 'living_room' },
           ],
           videos: [{ media_id: 13, media_type: 'video' }],
-          status: 'vacant',
+          status: 'paused',
         },
       ] as never[],
     );
@@ -489,7 +489,7 @@ describe('Property rental workbench', () => {
             landlord: null,
             images: [],
             videos: [],
-            status: 'vacant',
+            status: 'paused',
           },
         ],
         total: 101,
@@ -560,7 +560,7 @@ describe('Property rental workbench', () => {
         asking_rent: '4200.00',
         images: [{ media_id: 1, media_type: 'image', image_role: 'bedroom' }],
         videos: [],
-        status: 'vacant',
+        status: 'paused',
         publish_can_publish: true,
         publish_blocking_issues: [],
         publish_warning_issues: ['缺封面', '图片不足', '缺户型图'],
@@ -585,7 +585,7 @@ describe('Property rental workbench', () => {
             { media_id: 3, media_type: 'image', image_role: 'bedroom' },
           ],
           videos: [],
-          status: 'vacant',
+          status: 'paused',
         } as never,
         {
           landlord: { mode: 'required' },

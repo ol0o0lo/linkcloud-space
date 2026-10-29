@@ -22,6 +22,7 @@ import {
   InputNumber,
   Modal,
   message,
+  Radio,
   Result,
   Row,
   Select,
@@ -64,6 +65,7 @@ import {
   type LeaseOut,
   type ViewingRecordOut,
 } from '@/services/manual/house';
+import { HouseStatusTags } from '../components/HouseStatusTags';
 import MediaRefsUpload from '../components/MediaRefsUpload';
 import {
   getInheritedPropertyTags,
@@ -74,16 +76,18 @@ import {
   buildingLabel,
   contactLabel,
   dateTimeText,
+  displayMedia,
   evaluateHousePublishState,
   HOUSE_MEDIA_RESOURCE_TYPE,
   HOUSE_MEDIA_TYPE,
   HOUSE_STATUS,
+  HOUSE_STATUS_OPTIONS,
   houseBalconyText,
   houseDisplayTags,
   houseKitchenText,
   housePrimaryLayoutText,
   type MediaRefValue,
-  stripDerivedMediaFields,
+  mediaChangePatch,
 } from '../constants';
 import { useHousePublishRules } from '../useHousePublishRules';
 import { usePagedSelectOptions } from '../usePagedSelectOptions';
@@ -613,9 +617,10 @@ const HouseDetailPage: React.FC = () => {
   const { styles, cx } = useStyles();
   const { token } = theme.useToken();
   const [publishConfirmStatus, setPublishConfirmStatus] = useState<
-    'listed' | 'vacant' | null
+    'listed' | 'paused' | null
   >(null);
   const [editForm] = Form.useForm();
+  const [activationConfirmOpen, setActivationConfirmOpen] = useState(false);
   const [editTab, setEditTab] = useState('basic');
   const [draftImages, setDraftImages] = useState<MediaRefValue[]>([]);
   const [draftVideos, setDraftVideos] = useState<MediaRefValue[]>([]);
@@ -769,7 +774,9 @@ const HouseDetailPage: React.FC = () => {
   );
   const isPublished = house.data?.status === HOUSE_STATUS.LISTED;
   const canStartListing =
-    house.data?.status === HOUSE_STATUS.VACANT && canPublish;
+    house.data?.is_active !== false &&
+    house.data?.status === HOUSE_STATUS.PAUSED &&
+    canPublish;
   const orientationOptions = enumSelectOptions(
     houseEnums.data,
     'house.house_orientation',
@@ -778,17 +785,20 @@ const HouseDetailPage: React.FC = () => {
     houseEnums.data,
     'house.house_decoration',
   );
-  const statusOptions = enumSelectOptions(
-    houseEnums.data,
-    'house.house_status',
-  );
+  const statusOptions = HOUSE_STATUS_OPTIONS.map((option) => ({
+    ...option,
+    disabled:
+      house.data?.is_active === false && option.value === HOUSE_STATUS.LISTED,
+  }));
   const publishButtonLabel = isPublished
     ? '下架房源'
-    : canStartListing
-      ? '发布房源'
-      : house.data?.status === HOUSE_STATUS.VACANT
-        ? '待补齐后发布'
-        : '仅空置房源可发布';
+    : house.data?.is_active === false
+      ? '恢复后可发布'
+      : canStartListing
+        ? '发布房源'
+        : house.data?.status === HOUSE_STATUS.PAUSED
+          ? '待补齐后发布'
+          : '仅暂不出租房源可发布';
   const editSectionStyle = {
     border: `1px solid ${token.colorBorderSecondary}`,
     borderRadius: token.borderRadiusLG,
@@ -845,12 +855,13 @@ const HouseDetailPage: React.FC = () => {
     setEditTab('basic');
     clearDetailFocus();
   };
-  const openPublishConfirm = (publishStatus: 'listed' | 'vacant') => {
+  const openPublishConfirm = (publishStatus: 'listed' | 'paused') => {
     setPublishConfirmStatus(publishStatus);
   };
 
   useEffect(() => {
     setPublishConfirmStatus(null);
+    setActivationConfirmOpen(false);
     setActiveInlineField(null);
     setInlineSaving(false);
     pendingInlineActionRef.current = null;
@@ -888,8 +899,12 @@ const HouseDetailPage: React.FC = () => {
   const displayTags = houseDisplayTags(currentHouse);
   const ownTags = normalizePropertyTags(currentHouse?.tags);
   const inheritedTags = getInheritedPropertyTags(ownTags, displayTags);
-  const houseImages = (currentHouse?.images || []) as MediaRefValue[];
-  const houseVideos = (currentHouse?.videos || []) as MediaRefValue[];
+  const houseImages = displayMedia(currentHouse?.images, currentHouse);
+  const houseVideos = displayMedia(
+    currentHouse?.videos,
+    currentHouse,
+    'videos',
+  );
   const customFieldEntries = Object.entries(currentHouse?.extra || {});
   const editInitialValues = currentHouse ? { ...currentHouse } : undefined;
 
@@ -913,6 +928,7 @@ const HouseDetailPage: React.FC = () => {
         },
         {
           key: 'lease',
+          disabled: currentHouse.is_active === false,
           icon: <FileAddOutlined />,
           label: (
             <a href={dashboardHref(`/rental/leases?house_id=${houseId}`)}>
@@ -931,6 +947,12 @@ const HouseDetailPage: React.FC = () => {
           danger: isPublished,
           disabled: !isPublished && !canStartListing,
           label: publishButtonLabel,
+        },
+        {
+          key: 'activation',
+          danger: currentHouse.is_active !== false,
+          disabled: patchHouse.isPending,
+          label: currentHouse.is_active === false ? '恢复房源' : '停用房源',
         },
         { type: 'divider' as const },
         {
@@ -1014,13 +1036,17 @@ const HouseDetailPage: React.FC = () => {
                 menu={{
                   items: quickActionItems,
                   onClick: ({ key }) => {
+                    if (key === 'activation') {
+                      setActivationConfirmOpen(true);
+                      return;
+                    }
                     if (key === 'status') {
                       openEdit('status');
                       return;
                     }
                     if (key === 'publish') {
                       openPublishConfirm(
-                        isPublished ? HOUSE_STATUS.VACANT : HOUSE_STATUS.LISTED,
+                        isPublished ? HOUSE_STATUS.PAUSED : HOUSE_STATUS.LISTED,
                       );
                     }
                   },
@@ -1080,12 +1106,7 @@ const HouseDetailPage: React.FC = () => {
                       />
                     </div>
                     <div className={styles.statusLine}>
-                      <AppStatusTag name="house" state={currentHouse.status}>
-                        {enumMapping(
-                          currentHouse.status,
-                          currentHouse.status__mapping,
-                        )}
-                      </AppStatusTag>
+                      <HouseStatusTags house={currentHouse} />
                     </div>
                     <div className={styles.locationLine}>
                       <AppIcon name="location" style={{ marginTop: 3 }} />
@@ -2626,6 +2647,26 @@ const HouseDetailPage: React.FC = () => {
         <Empty description="未找到房源" />
       )}
       <Modal
+        open={activationConfirmOpen}
+        title={currentHouse?.is_active === false ? '恢复房源' : '停用房源'}
+        okText={currentHouse?.is_active === false ? '确认恢复' : '确认停用'}
+        okButtonProps={{ danger: currentHouse?.is_active !== false }}
+        cancelText="取消"
+        confirmLoading={patchHouse.isPending}
+        onCancel={() => setActivationConfirmOpen(false)}
+        onOk={async () => {
+          if (!currentHouse) return;
+          await patchHouse.mutateAsync({
+            is_active: currentHouse.is_active === false,
+          });
+          setActivationConfirmOpen(false);
+        }}
+      >
+        {currentHouse?.is_active === false
+          ? '恢复后保留当前房态，需要手动发布后才会对外展示。'
+          : '停用后房源将退出日常经营；招租中的房源会转为暂不出租，已出租房态保留，可随时恢复。'}
+      </Modal>
+      <Modal
         open={publishConfirmStatus !== null}
         title={
           publishConfirmStatus === HOUSE_STATUS.LISTED
@@ -2649,7 +2690,7 @@ const HouseDetailPage: React.FC = () => {
         <Typography.Text>
           {publishConfirmStatus === HOUSE_STATUS.LISTED
             ? '确认后房源状态将切换为招租，可继续接受带看预约。'
-            : '确认后房源状态将切换为空置，不再对外展示。'}
+            : '确认后房源状态将切换为暂不出租，不再对外展示。'}
         </Typography.Text>
       </Modal>
       <Drawer
@@ -2676,10 +2717,15 @@ const HouseDetailPage: React.FC = () => {
           initialValues={editInitialValues}
           preserve={false}
           onFinish={(values) => {
+            const {
+              images: _formImages,
+              videos: _formVideos,
+              ...fields
+            } = normalizeHouseEditNumericValues(values);
             const payload = {
-              ...normalizeHouseEditNumericValues(values),
-              images: stripDerivedMediaFields(draftImages),
-              videos: stripDerivedMediaFields(draftVideos),
+              ...fields,
+              ...mediaChangePatch('images', draftImages, currentHouse?.images),
+              ...mediaChangePatch('videos', draftVideos, currentHouse?.videos),
             };
             patchHouse.mutate(payload, { onSuccess: closeEdit });
           }}
@@ -2713,7 +2759,7 @@ const HouseDetailPage: React.FC = () => {
                               notFoundContent={buildings.notFoundContent}
                               onOpenChange={buildings.onOpenChange}
                               onPopupScroll={buildings.onPopupScroll}
-                              placeholder="搜索小区或楼栋"
+                              placeholder="搜索小区、项目或楼栋"
                               options={buildings.options}
                             />
                           </Form.Item>
@@ -2756,9 +2802,12 @@ const HouseDetailPage: React.FC = () => {
                             <Input step="1" type="number" />
                           </Form.Item>
                         </Col>
-                        <Col xs={24} md={12}>
+                        <Col xs={24}>
                           <Form.Item label="房态" name="status">
-                            <Select showSearch options={statusOptions} />
+                            <Radio.Group
+                              optionType="button"
+                              options={statusOptions}
+                            />
                           </Form.Item>
                         </Col>
                       </Row>

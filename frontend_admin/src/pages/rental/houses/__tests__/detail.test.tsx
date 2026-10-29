@@ -74,7 +74,7 @@ vi.mock('@/services/manual/enums', () => ({
   useEnums: () => ({
     data: {
       'house.house_status': [
-        { label: '空置', value: 'vacant' },
+        { label: '暂不出租', value: 'paused' },
         { label: '招租', value: 'listed' },
       ],
       'house.house_orientation': [
@@ -286,7 +286,7 @@ const completeHouse = {
     },
   ],
   videos: [],
-  status: 'vacant',
+  status: 'paused',
 };
 
 const originalMatchMedia = window.matchMedia;
@@ -648,7 +648,11 @@ describe('House detail page', () => {
         ...completeHouse,
         building: {
           ...buildingSummary,
-          location: { latitude: 22.5331, longitude: 113.9304, coordinate_system: 'gcj02' },
+          location: {
+            latitude: 22.5331,
+            longitude: 113.9304,
+            coordinate_system: 'gcj02',
+          },
           address: '科技园 1 栋',
         },
       });
@@ -824,7 +828,7 @@ describe('House detail page', () => {
       expect(mockPatchHouse.mock.calls[0]?.[1]).not.toHaveProperty('extra');
     });
 
-    it('moves a listed house back to vacant when unpublishing', async () => {
+    it('moves a listed house back to paused when unpublishing', async () => {
       mockGetHouse.mockResolvedValue({
         ...completeHouse,
         status: 'listed',
@@ -844,13 +848,79 @@ describe('House detail page', () => {
 
       await waitFor(() =>
         expect(mockPatchHouse).toHaveBeenCalledWith(99, {
-          status: 'vacant',
+          status: 'paused',
         }),
       );
       await waitFor(() =>
         expect(
           screen.queryByRole('dialog', { name: '确认发布房源' }),
         ).not.toBeInTheDocument(),
+      );
+    });
+
+    it('在编辑中切换房源三态', async () => {
+      mockGetHouse.mockResolvedValue({
+        ...completeHouse,
+        is_active: true,
+      });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <HouseDetailPage />
+        </QueryClientProvider>,
+      );
+      await screen.findAllByText('1801');
+      fireEvent.click(screen.getByRole('button', { name: '编辑资料' }));
+      const radios = screen.getAllByRole('radio');
+      expect(radios).toHaveLength(3);
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('装修')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('radio', { name: '已出租' }));
+      fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+      await waitFor(() =>
+        expect(mockPatchHouse).toHaveBeenCalledWith(
+          99,
+          expect.objectContaining({ status: 'rented' }),
+        ),
+      );
+    });
+
+    it('停用已出租房源时只提交启用标记', async () => {
+      mockGetHouse.mockResolvedValue({
+        ...completeHouse,
+        status: 'rented',
+        is_active: true,
+      });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <HouseDetailPage />
+        </QueryClientProvider>,
+      );
+      await screen.findAllByText('1801');
+      await openQuickActions();
+      fireEvent.click(screen.getByRole('menuitem', { name: '停用房源' }));
+      fireEvent.click(await screen.findByRole('button', { name: '确认停用' }));
+      await waitFor(() =>
+        expect(mockPatchHouse).toHaveBeenCalledWith(99, { is_active: false }),
+      );
+    });
+
+    it('恢复房源时不自动发布', async () => {
+      mockGetHouse.mockResolvedValue({ ...completeHouse, is_active: false });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <HouseDetailPage />
+        </QueryClientProvider>,
+      );
+      await screen.findAllByText('1801');
+      expect(screen.getByText('已停用')).toBeInTheDocument();
+      await openQuickActions();
+      expect(
+        screen.getByRole('menuitem', { name: '恢复后可发布' }),
+      ).toHaveAttribute('aria-disabled', 'true');
+      fireEvent.click(screen.getByRole('menuitem', { name: '恢复房源' }));
+      fireEvent.click(await screen.findByRole('button', { name: '确认恢复' }));
+      await waitFor(() =>
+        expect(mockPatchHouse).toHaveBeenCalledWith(99, { is_active: true }),
       );
     });
   });
@@ -944,9 +1014,9 @@ describe('House detail page', () => {
             { media_id: 2, media_type: 'image', image_role: 'floor_plan' },
             { media_id: 3, media_type: 'image', image_role: 'bedroom' },
           ],
-          videos: [],
         }),
       );
+      expect(mockPatchHouse.mock.calls[0]?.[1]).not.toHaveProperty('videos');
     });
   });
 

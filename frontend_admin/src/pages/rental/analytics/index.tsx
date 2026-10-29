@@ -65,10 +65,10 @@ const TREND_EVENTS = [
 ];
 const TREND_FILTER_OPTIONS = [
   { label: '浏览', value: 'house.view' },
-  { label: '电话咨询', value: 'house.phone_click' },
-  { label: '在线咨询', value: 'house.online_consult_click' },
-  { label: '带看', value: 'viewing.requested' },
-  { label: '租约', value: 'lease.created' },
+  { label: '拨号点击', value: 'house.phone_click' },
+  { label: '在线咨询点击', value: 'house.online_consult_click' },
+  { label: '预约带看', value: 'viewing.requested' },
+  { label: '新增租约', value: 'lease.created' },
 ];
 const ANALYTICS_PANEL_CONTENT_HEIGHT = 320;
 const VISITOR_UNAVAILABLE_HINT = '历史汇总无法跨日去重，因此不提供区间访客数';

@@ -633,12 +633,143 @@ export async function appsHouseApiLeasesVoidLeaseAllocationRequest(
   );
 }
 
-/** 登记签约并提交收益分配申请 POST /api/house/leases/deal-signing/ */
-export async function appsHouseApiLeasesDealSigning(
-  body: API.DealSigningWithAllocationIn,
+/** 获取租约全部收益申请历史 GET /api/house/leases/${param0}/allocations/ */
+export async function appsHouseApiLeasesLeaseAllocationHistory(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiLeasesLeaseAllocationHistoryParams,
   options?: { [key: string]: any }
 ) {
-  return request<API.LeaseAllocationOut>("/api/house/leases/deal-signing/", {
+  const { lease_id: param0, ...queryParams } = params;
+  return request<API.PagedLeaseAllocationOut>(
+    `/api/house/leases/${param0}/allocations/`,
+    {
+      method: "GET",
+      params: {
+        // page has a default value: 1
+        page: "1",
+        ...queryParams,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 提交或重提租约收益申请 POST /api/house/leases/${param0}/allocations/ */
+export async function appsHouseApiLeasesPostLeaseAllocation(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiLeasesPostLeaseAllocationParams,
+  body: API.LeaseAllocationSubmitIn,
+  options?: { [key: string]: any }
+) {
+  const { lease_id: param0, ...queryParams } = params;
+  return request<API.LeaseAllocationOut>(
+    `/api/house/leases/${param0}/allocations/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 审核指定收益申请 POST /api/house/leases/${param0}/allocations/${param1}/review/ */
+export async function appsHouseApiLeasesPostReviewAllocation(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiLeasesPostReviewAllocationParams,
+  body: API.LeaseAllocationReviewIn,
+  options?: { [key: string]: any }
+) {
+  const { lease_id: param0, request_id: param1, ...queryParams } = params;
+  return request<API.AllocationRequestOut>(
+    `/api/house/leases/${param0}/allocations/${param1}/review/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 作废指定已确认申请 POST /api/house/leases/${param0}/allocations/${param1}/void/ */
+export async function appsHouseApiLeasesPostVoidAllocation(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiLeasesPostVoidAllocationParams,
+  body: API.LeaseAllocationVoidIn,
+  options?: { [key: string]: any }
+) {
+  const { lease_id: param0, request_id: param1, ...queryParams } = params;
+  return request<API.AllocationRequestOut>(
+    `/api/house/leases/${param0}/allocations/${param1}/void/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 撤回指定待审核申请 POST /api/house/leases/${param0}/allocations/${param1}/withdraw/ */
+export async function appsHouseApiLeasesPostWithdrawAllocation(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiLeasesPostWithdrawAllocationParams,
+  body: API.LeaseAllocationWithdrawIn,
+  options?: { [key: string]: any }
+) {
+  const { lease_id: param0, request_id: param1, ...queryParams } = params;
+  return request<API.AllocationRequestOut>(
+    `/api/house/leases/${param0}/allocations/${param1}/withdraw/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 预览首次或纠错申请金额 POST /api/house/leases/${param0}/allocations/preview/ */
+export async function appsHouseApiLeasesPostPreviewAllocation(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiLeasesPostPreviewAllocationParams,
+  body: API.LeaseAllocationPreviewIn,
+  options?: { [key: string]: any }
+) {
+  const { lease_id: param0, ...queryParams } = params;
+  return request<API.LeaseAllocationPreviewOut>(
+    `/api/house/leases/${param0}/allocations/preview/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 独立登记成交 POST /api/house/leases/register-signing/ */
+export async function appsHouseApiLeasesPostRegisterSigning(
+  body: API.RegisterSigningIn,
+  options?: { [key: string]: any }
+) {
+  return request<API.LeaseOut>("/api/house/leases/register-signing/", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

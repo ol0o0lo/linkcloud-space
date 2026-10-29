@@ -24,7 +24,7 @@ export function AnnouncementSummaryWidget({
     <WorkbenchWidgetFrame
       variant="announcement"
       title="公告摘要"
-      subtitle="需要关注的团队与组织消息"
+      subtitle="需要关注的团队与工作空间消息"
       extra={
         <Button
           type="link"
@@ -83,7 +83,7 @@ export function AnnouncementSummaryWidget({
           </span>
           <span className={styles.announcementSummaryEmptyCopy}>
             <strong>当前没有需要关注的公告</strong>
-            <span>新的团队或组织消息发布后会显示在这里</span>
+            <span>新的团队或工作空间消息发布后会显示在这里</span>
           </span>
         </div>
       )}

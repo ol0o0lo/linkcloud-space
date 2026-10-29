@@ -38,6 +38,7 @@ import {
 } from '@/services/openapi/walletInternal';
 import {
   formatWalletAmount,
+  getWithdrawalAmountLabel,
   IdempotencyFormItem,
   JsonText,
   PayoutModal,
@@ -332,12 +333,12 @@ const WalletWithdrawalsPage: React.FC = () => {
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
           <Typography.Text>{`申请金额 ${formatWalletAmount(record.amount)}`}</Typography.Text>
-          <Typography.Text type="secondary">{`手续费 ${formatWalletAmount(record.fee_amount)} / 到账 ${formatWalletAmount(record.net_amount)}`}</Typography.Text>
+          <Typography.Text type="secondary">{`手续费 ${formatWalletAmount(record.fee_amount)} / ${getWithdrawalAmountLabel(record.status)} ${formatWalletAmount(record.net_amount)}`}</Typography.Text>
         </Space>
       ),
     },
     {
-      title: '收款快照',
+      title: '申请时的收款信息',
       dataIndex: 'payee_account_snapshot',
       width: 260,
       render: (value) => <JsonText value={value} />,

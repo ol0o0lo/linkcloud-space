@@ -196,7 +196,7 @@ export const OrganizationOverviewPanel: React.FC<{
           queryKey: organizationQueryKeys.root(nextSlug),
         }),
       ]);
-      message.success('组织资料已保存');
+      message.success('空间资料已保存');
     },
   });
   const statusMutation = useMutation({
@@ -206,7 +206,7 @@ export const OrganizationOverviewPanel: React.FC<{
         { is_active: isActive },
       ),
     onSuccess: async (_updated, isActive) => {
-      message.success(isActive ? '组织已恢复' : '组织已归档');
+      message.success(isActive ? '工作空间已恢复' : '工作空间已归档');
       await workspace.queryClient.invalidateQueries({
         queryKey: tenantQueryKeys.organizationDetail(workspace.selectedOrgSlug),
       });
@@ -276,7 +276,7 @@ export const OrganizationOverviewPanel: React.FC<{
     {
       id: 'members',
       key: 'all' as const,
-      label: '组织成员',
+      label: '空间成员',
       value: navigation.member_count,
       suffix: '人',
       icon: 'member',
@@ -351,7 +351,7 @@ export const OrganizationOverviewPanel: React.FC<{
         gap="small"
         style={{ marginBottom: 12 }}
       >
-        <Typography.Text strong>组织资料</Typography.Text>
+        <Typography.Text strong>空间资料</Typography.Text>
         {isOwner ? (
           editing ? (
             <Space>
@@ -383,8 +383,8 @@ export const OrganizationOverviewPanel: React.FC<{
         <Alert
           type="error"
           showIcon
-          title="组织资料加载失败"
-          description="组织统计仍可使用，你可以重新加载资料。"
+          title="空间资料加载失败"
+          description="空间统计仍可使用，你可以重新加载资料。"
           action={
             <Button
               onClick={() => {
@@ -402,19 +402,19 @@ export const OrganizationOverviewPanel: React.FC<{
           <Row gutter={16}>
             <Col xs={24} md={8}>
               <Form.Item
-                label="组织名称"
+                label="空间名称"
                 name="name"
-                rules={[{ required: true, message: '请输入组织名称' }]}
+                rules={[{ required: true, message: '请输入空间名称' }]}
               >
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
               <Form.Item
-                label="组织标识"
+                label="空间标识"
                 name="slug"
-                extra="修改后组织相关地址会同步变化。"
-                rules={[{ required: true, message: '请输入组织标识' }]}
+                extra="修改后工作空间相关地址会同步变化。"
+                rules={[{ required: true, message: '请输入空间标识' }]}
               >
                 <Input />
               </Form.Item>
@@ -437,10 +437,10 @@ export const OrganizationOverviewPanel: React.FC<{
           column={responsiveDescriptionColumns}
           style={{ marginBottom: 20 }}
         >
-          <Descriptions.Item label="组织名称">
+          <Descriptions.Item label="空间名称">
             {detailQuery.data?.name || navigation.organization.name}
           </Descriptions.Item>
-          <Descriptions.Item label="组织标识">
+          <Descriptions.Item label="空间标识">
             {detailQuery.data?.slug || navigation.organization.slug}
           </Descriptions.Item>
           <Descriptions.Item label="账单邮箱">
@@ -514,24 +514,24 @@ export const OrganizationOverviewPanel: React.FC<{
                     <div className={styles.dangerActionCopy}>
                       <Typography.Text strong>
                         {detailQuery.data?.is_active === false
-                          ? '恢复组织'
-                          : '归档组织'}
+                          ? '恢复工作空间'
+                          : '归档工作空间'}
                       </Typography.Text>
                       <Typography.Text type="secondary">
                         {detailQuery.data?.is_active === false
-                          ? '恢复后组织可以继续正常开展业务。'
-                          : '归档后组织将视为停用，但不会删除已有数据。'}
+                          ? '恢复后工作空间可以继续正常开展业务。'
+                          : '归档后工作空间将视为停用，但不会删除已有数据。'}
                       </Typography.Text>
                     </div>
                     <Popconfirm
                       title={
                         detailQuery.data?.is_active === false
-                          ? '恢复当前组织？'
-                          : '归档当前组织？'
+                          ? '恢复当前工作空间？'
+                          : '归档当前工作空间？'
                       }
                       description={
                         detailQuery.data?.is_active === false
-                          ? '恢复后组织将重新启用。'
+                          ? '恢复后工作空间将重新启用。'
                           : '归档不会删除数据，之后仍可由所有者恢复。'
                       }
                       okText={
@@ -550,8 +550,8 @@ export const OrganizationOverviewPanel: React.FC<{
                         loading={statusMutation.isPending}
                       >
                         {detailQuery.data?.is_active === false
-                          ? '恢复组织'
-                          : '归档组织'}
+                          ? '恢复工作空间'
+                          : '归档工作空间'}
                       </Button>
                     </Popconfirm>
                   </div>
@@ -559,7 +559,7 @@ export const OrganizationOverviewPanel: React.FC<{
                     <div className={styles.dangerActionCopy}>
                       <Typography.Text strong>转移所有者</Typography.Text>
                       <Typography.Text type="secondary">
-                        转移后你将失去组织资料和危险操作的管理权限。
+                        转移后你将失去空间资料和危险操作的管理权限。
                       </Typography.Text>
                     </div>
                     <Space wrap>
@@ -575,7 +575,7 @@ export const OrganizationOverviewPanel: React.FC<{
                       />
                       <Popconfirm
                         title="确认转移所有者？"
-                        description="转移后你将不再拥有当前组织的所有者权限。"
+                        description="转移后你将不再拥有当前工作空间的所有者权限。"
                         okText="确认转移"
                         disabled={!transferUserId}
                         onConfirm={() =>

@@ -9,6 +9,12 @@ function cleanPart(value?: string | null) {
   return (value || '').trim();
 }
 
+export function normalizeMainlandPhoneInput(value: string): string {
+  return cleanPart(value)
+    .replace(/[\s()-]/g, '')
+    .replace(/^(?:\+?86|0086)(?=1\d{10}$)/, '');
+}
+
 export function parseAccountPhoneParts(
   countryCode?: string | null,
   nationalNumber?: string | null,

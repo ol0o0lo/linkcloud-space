@@ -38,10 +38,10 @@ export const APP_ICON_DEFINITIONS = {
   'house.placeholder': {
     icon: 'solar:bed-outline',
   },
-  'house.vacant': { icon: 'tabler:home-exclamation' },
+  'house.paused': { icon: 'tabler:home-minus' },
   'house.listed': { icon: 'tabler:home-dollar' },
   'house.rented': { icon: 'tabler:home-check' },
-  'house.renovating': { icon: 'tabler:home-cog' },
+  'house-marker': { icon: 'solar:home-2-outline' },
   'house.inactive': { icon: 'tabler:home-off' },
   room: {
     icon: 'solar:bed-line-duotone',
@@ -69,6 +69,7 @@ export const APP_ICON_DEFINITIONS = {
   'allocation-request.expired': {
     icon: 'solar:calendar-mark-outline',
   },
+  'allocation-request.withdrawn': { icon: 'solar:undo-left-outline' },
   'allocation-request.voided': { icon: 'solar:close-circle-outline' },
   viewing: {
     icon: 'solar:calendar-search-outline',

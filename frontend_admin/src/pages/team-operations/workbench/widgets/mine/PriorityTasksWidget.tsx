@@ -46,7 +46,7 @@ function PriorityTaskRow({ assignment }: { assignment: TaskAssignment }) {
             {assignment.status__mapping}
           </Tag>
           <Typography.Text type="secondary">
-            {assignment.team_name || '组织级任务'}
+            {assignment.team_name || '空间级任务'}
           </Typography.Text>
         </Space>
       </div>

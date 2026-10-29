@@ -1,20 +1,25 @@
 import {
+  BellOutlined,
   LogoutOutlined,
+  MessageOutlined,
   SettingOutlined,
   SkinOutlined,
 } from '@ant-design/icons';
 import { history, useModel } from '@umijs/max';
 import type { MenuProps } from 'antd';
-import { Spin } from 'antd';
+import { Badge, Button, Spin } from 'antd';
 import React, { startTransition } from 'react';
+import NotificationBell from '@/components/NotificationBell';
 import { deleteBrowserV1AuthSession } from '@/services/allauth/authSession';
 import {
   buildAdminPath,
   isAuthPagePath,
   LOGIN_PATH,
+  SPACE_PATHS,
 } from '@/utils/adminRouting';
-import { Icon } from '../Icon';
+import { NOTIFICATIONS_PATH } from '@/utils/notificationRouting';
 import HeaderDropdown from '../HeaderDropdown';
+import { Icon } from '../Icon';
 
 type GlobalHeaderRightProps = {
   children?: React.ReactNode;
@@ -66,6 +71,14 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
       history.push('/personal-business/landlord');
       return;
     }
+    if (key === 'messaging') {
+      history.push(SPACE_PATHS.messaging);
+      return;
+    }
+    if (key === 'notifications') {
+      history.push(NOTIFICATIONS_PATH);
+      return;
+    }
     history.push(`/account/${key}`);
   };
 
@@ -106,16 +119,59 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   ];
 
   return (
-    <HeaderDropdown
-      placement="bottomRight"
-      menu={{
-        selectedKeys: [],
-        onClick: onMenuClick,
-        items: menuItems,
-      }}
-      arrow
-    >
-      {children}
-    </HeaderDropdown>
+    <NotificationBell>
+      {({ unreadCount, chatUnreadCount }) => (
+        <HeaderDropdown
+          placement="bottomRight"
+          menu={{
+            selectedKeys: [],
+            onClick: onMenuClick,
+            items: [
+              {
+                key: 'messaging',
+                icon: <MessageOutlined />,
+                label: (
+                  <span className="inline-flex items-center gap-3">
+                    我的聊天
+                    {chatUnreadCount > 0 && <Badge dot title="有未读聊天" />}
+                  </span>
+                ),
+              },
+              {
+                key: 'notifications',
+                icon: <BellOutlined />,
+                label: (
+                  <span className="inline-flex items-center gap-3">
+                    个人通知
+                    {unreadCount > 0 && <Badge dot title="有未读通知" />}
+                  </span>
+                ),
+              },
+              { type: 'divider' },
+              ...menuItems,
+            ],
+          }}
+          arrow
+          trigger={['hover', 'click']}
+        >
+          <Button
+            type="text"
+            aria-label={
+              unreadCount > 0 || chatUnreadCount > 0
+                ? '账号菜单，有未读消息'
+                : '账号菜单'
+            }
+            className="h-auto! p-0!"
+          >
+            <Badge
+              dot={unreadCount > 0 || chatUnreadCount > 0}
+              offset={[-3, 3]}
+            >
+              {children}
+            </Badge>
+          </Button>
+        </HeaderDropdown>
+      )}
+    </NotificationBell>
   );
 };

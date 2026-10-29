@@ -601,7 +601,7 @@ describe('House new page', () => {
       ).toBeGreaterThan(0);
 
       fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
-      fireEvent.mouseDown(screen.getByLabelText('项目小区'));
+      fireEvent.mouseDown(screen.getByLabelText('小区／项目'));
       expect((await screen.findAllByText('星河湾花园')).at(-1)).toBeDefined();
       expect(screen.queryByText('xinghewan')).not.toBeInTheDocument();
       fireEvent.click(
@@ -680,7 +680,7 @@ describe('House new page', () => {
       fireEvent.click(screen.getByRole('button', { name: '保存楼栋' }));
 
       expect(
-        await screen.findByText('非小区楼栋必须填写楼栋地址'),
+        await screen.findByText('独立楼栋必须填写楼栋地址'),
       ).toBeInTheDocument();
       expect(mockCreateBuilding).not.toHaveBeenCalled();
     });

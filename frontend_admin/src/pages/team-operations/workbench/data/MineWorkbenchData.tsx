@@ -98,6 +98,7 @@ export function MineWorkbenchDataProvider({
         page: 1,
         page_size: 5,
         scope: 'mine',
+        is_active: true,
         inspection_due: true,
       }),
     enabled: inspectionEnabled,

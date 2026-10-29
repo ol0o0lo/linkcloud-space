@@ -171,7 +171,7 @@ const estate = {
   location: null,
   images: [],
   building_count: 2,
-  counts: { total: 6, listed: 4, rented: 2, vacant: 0, renovating: 0 },
+  counts: { total: 6, listed: 4, rented: 2, paused: 0 },
 };
 
 const building = {
@@ -187,7 +187,7 @@ const building = {
   address: '科技园路 88 号 1 栋',
   images: [],
   tags: [],
-  counts: { total: 3, listed: 2, rented: 1, vacant: 0, renovating: 0 },
+  counts: { total: 3, listed: 2, rented: 1, paused: 0 },
 };
 
 function renderWorkspace(
@@ -242,7 +242,7 @@ describe('PropertyAssetWorkspace', () => {
     mockPatchBuilding.mockReset().mockResolvedValue(building);
   });
 
-  it('在小区上下文中提供房源、楼栋和项目资料 Tab', async () => {
+  it('在小区上下文中提供房源、楼栋和小区／项目资料 Tab', async () => {
     const EstateHarness = () => {
       const [activeTab, setActiveTab] =
         useState<PropertyAssetWorkspaceTab>('houses');
@@ -347,7 +347,7 @@ describe('PropertyAssetWorkspace', () => {
     expect(buildingLink).toHaveAttribute('rel', 'noreferrer');
   });
 
-  it('在当前工作区编辑小区资料并在编辑时锁定其他 Tab', async () => {
+  it('在当前工作区编辑小区／项目资料并在编辑时锁定其他 Tab', async () => {
     renderWorkspace({ activeTab: 'profile' });
 
     await waitFor(() =>
@@ -356,16 +356,16 @@ describe('PropertyAssetWorkspace', () => {
     expect(
       screen.queryByRole('button', { name: /完整管理/ }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '编辑项目资料' }));
+    fireEvent.click(screen.getByRole('button', { name: '编辑小区／项目资料' }));
 
     expect(screen.getByRole('tab', { name: '房源（6）' })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
-    fireEvent.change(screen.getByLabelText('项目名称'), {
+    fireEvent.change(screen.getByLabelText('小区／项目名称'), {
       target: { value: '云栖花园二期' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '项目位置' }));
+    fireEvent.click(screen.getByRole('button', { name: '小区／项目位置' }));
     fireEvent.click(screen.getByRole('button', { name: /保存/ }));
 
     await waitFor(() =>
@@ -374,7 +374,11 @@ describe('PropertyAssetWorkspace', () => {
         expect.objectContaining({
           name: '云栖花园二期',
           address: '科技园路 99 号',
-          location: { latitude: 22.5, longitude: 113.9, coordinate_system: 'gcj02' },
+          location: {
+            latitude: 22.5,
+            longitude: 113.9,
+            coordinate_system: 'gcj02',
+          },
         }),
       ),
     );
@@ -404,7 +408,11 @@ describe('PropertyAssetWorkspace', () => {
           name: 'A座',
           address: '科技园路 99 号',
           images: [{ media_id: 9 }],
-          location: { latitude: 22.5, longitude: 113.9, coordinate_system: 'gcj02' },
+          location: {
+            latitude: 22.5,
+            longitude: 113.9,
+            coordinate_system: 'gcj02',
+          },
           tags: ['近地铁'],
         }),
       ),
@@ -478,7 +486,7 @@ describe('PropertyAssetWorkspace', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: '编辑楼栋资料' }),
     );
-    fireEvent.mouseDown(screen.getByLabelText('所属项目'));
+    fireEvent.mouseDown(screen.getByLabelText('所属小区／项目'));
     fireEvent.click(await screen.findByText('滨江公馆'));
     fireEvent.click(screen.getByRole('button', { name: /保存/ }));
 
@@ -528,7 +536,7 @@ describe('PropertyAssetWorkspace', () => {
     );
   });
 
-  it('在右侧工作区创建项目并进入新项目上下文', async () => {
+  it('在右侧工作区创建小区／项目并进入新项目上下文', async () => {
     const onAssetSaved = vi.fn();
     renderWorkspace({
       action: { type: 'create-estate' },
@@ -537,9 +545,9 @@ describe('PropertyAssetWorkspace', () => {
     });
 
     expect(
-      await screen.findByRole('heading', { name: '新建项目' }),
+      await screen.findByRole('heading', { name: '新建小区／项目' }),
     ).toBeVisible();
-    fireEvent.change(screen.getByLabelText('项目名称'), {
+    fireEvent.change(screen.getByLabelText('小区／项目名称'), {
       target: { value: '未来社区' },
     });
     fireEvent.change(screen.getByLabelText('省份'), {
@@ -551,7 +559,7 @@ describe('PropertyAssetWorkspace', () => {
     fireEvent.change(screen.getByLabelText('区域'), {
       target: { value: '南山区' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /创建项目/ }));
+    fireEvent.click(screen.getByRole('button', { name: /创建小区／项目/ }));
 
     await waitFor(() =>
       expect(mockCreateEstate).toHaveBeenCalledWith(
@@ -561,11 +569,15 @@ describe('PropertyAssetWorkspace', () => {
     expect(onAssetSaved).toHaveBeenCalledWith('estate', estate);
   });
 
-  it('在项目上下文创建楼栋并继承项目位置', async () => {
+  it('在项目上下文创建楼栋并继承小区／项目位置', async () => {
     mockGetEstate.mockResolvedValue({
       ...estate,
       address: '科技园路 88 号',
-      location: { latitude: 22.4, longitude: 113.8, coordinate_system: 'gcj02' },
+      location: {
+        latitude: 22.4,
+        longitude: 113.8,
+        coordinate_system: 'gcj02',
+      },
     });
     const onAssetSaved = vi.fn();
     renderWorkspace({
@@ -588,7 +600,11 @@ describe('PropertyAssetWorkspace', () => {
       expect(mockCreateBuilding).toHaveBeenCalledWith(
         expect.objectContaining({
           estate_id: 11,
-          location: { latitude: 22.4, longitude: 113.8, coordinate_system: 'gcj02' },
+          location: {
+            latitude: 22.4,
+            longitude: 113.8,
+            coordinate_system: 'gcj02',
+          },
           name: '3栋',
         }),
       ),

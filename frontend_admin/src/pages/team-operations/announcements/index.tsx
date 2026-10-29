@@ -257,7 +257,7 @@ const TeamAnnouncementsPage: React.FC = () => {
     return organizationManage
       ? [
           {
-            label: '全组织',
+            label: '整个工作空间',
             value: 'organization' as AnnouncementScope,
           },
           ...options,
@@ -276,7 +276,7 @@ const TeamAnnouncementsPage: React.FC = () => {
             {record.title}
           </Typography.Text>
           <Typography.Text type="secondary">
-            {record.team_name || '全组织'}
+            {record.team_name || '整个工作空间'}
           </Typography.Text>
         </Space>
       ),
@@ -598,12 +598,12 @@ const TeamAnnouncementsPage: React.FC = () => {
             label="发布范围"
             name="team_id"
             rules={[{ required: true, message: '请选择发布范围' }]}
-            extra="全组织范围仅对具备组织级公告管理权限的用户开放。"
+            extra="整个工作空间范围仅对具备空间级公告管理权限的用户开放。"
           >
             <Select
               loading={teamsQuery.isLoading}
               options={teamOptions}
-              placeholder="选择团队或全组织"
+              placeholder="选择团队或整个工作空间"
             />
           </Form.Item>
           <Form.Item label="过期时间" name="expires_at">
@@ -633,7 +633,7 @@ const TeamAnnouncementsPage: React.FC = () => {
             {detailAnnouncement?.title || '-'}
           </Descriptions.Item>
           <Descriptions.Item label="范围">
-            {detailAnnouncement?.team_name || '全组织'}
+            {detailAnnouncement?.team_name || '整个工作空间'}
           </Descriptions.Item>
           <Descriptions.Item label="状态">
             {detailAnnouncement ? (

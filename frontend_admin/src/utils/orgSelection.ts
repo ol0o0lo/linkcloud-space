@@ -1,6 +1,7 @@
 const ORG_SLUG_STORAGE_KEY = 'frontend-admin-org-slug';
 
 let selectedOrgSlug: string | undefined;
+let orgSelectionRevision = 0;
 
 function getStorage() {
   if (typeof window === 'undefined') {
@@ -25,7 +26,9 @@ export function getSelectedOrgSlug() {
 }
 
 export function setSelectedOrgSlug(slug?: string | null) {
-  selectedOrgSlug = normalizeOrgSlug(slug);
+  const nextSlug = normalizeOrgSlug(slug);
+  if (nextSlug !== getSelectedOrgSlug()) orgSelectionRevision += 1;
+  selectedOrgSlug = nextSlug;
 
   const storage = getStorage();
   if (!storage) {
@@ -41,9 +44,13 @@ export function setSelectedOrgSlug(slug?: string | null) {
   return selectedOrgSlug;
 }
 
-export function resolveSelectedOrgSlug<T extends { slug: string; is_current?: boolean }>(
-  organizations: T[],
-) {
+export function getOrgSelectionRevision() {
+  return orgSelectionRevision;
+}
+
+export function resolveSelectedOrgSlug<
+  T extends { slug: string; is_current?: boolean },
+>(organizations: T[]) {
   const storedSlug = getSelectedOrgSlug();
   if (storedSlug && organizations.some((item) => item.slug === storedSlug)) {
     return storedSlug;

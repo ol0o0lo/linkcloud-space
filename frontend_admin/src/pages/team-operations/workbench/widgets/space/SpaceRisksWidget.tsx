@@ -114,8 +114,8 @@ export function SpaceRisksWidget({ width }: { width: WorkbenchWidgetWidth }) {
             <SafetyCertificateOutlined />
           </span>
           <span className={styles.widgetCompactEmptyCopy}>
-            <strong>暂无关键风险</strong>
-            <small>当前发布与签约流程运行正常</small>
+            <strong>暂无发布或签约待办</strong>
+            <small>当前没有待处理的发布问题、租客关联或签约记录</small>
           </span>
         </div>
       )}

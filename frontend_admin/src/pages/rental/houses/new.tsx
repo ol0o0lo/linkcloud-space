@@ -821,7 +821,7 @@ const HouseNewPage: React.FC = () => {
             })
           }
         >
-          <Form.Item label="项目小区" name="estate_id">
+          <Form.Item label="小区／项目" name="estate_id">
             <Select
               allowClear
               showSearch={estates.showSearch}
@@ -879,7 +879,7 @@ const HouseNewPage: React.FC = () => {
                         getFieldValue('estate_id') === null
                       ) {
                         if (!String(value || '').trim())
-                          throw new Error('非小区楼栋必须填写楼栋地址');
+                          throw new Error('独立楼栋必须填写楼栋地址');
                       }
                     },
                   }),

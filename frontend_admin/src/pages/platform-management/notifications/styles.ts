@@ -1,0 +1,216 @@
+import { createStyles } from 'antd-style';
+
+export const useStyles = createStyles(({ token }) => {
+  const narrow = `@media (max-width: ${token.screenSMMax}px)`;
+  return {
+    toolbar: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: token.marginSM,
+      paddingInline: token.paddingLG,
+      borderBottom: `1px solid ${token.colorBorderSecondary}`,
+      [narrow]: {
+        paddingInline: token.padding,
+        paddingBottom: token.paddingXS,
+        alignItems: 'stretch',
+        flexDirection: 'column',
+        gap: 0,
+      },
+    },
+    filters: {
+      minWidth: 0,
+      '.ant-tabs-nav': { margin: 0 },
+      '.ant-tabs-nav::before': { borderBottom: 0 },
+      '.ant-tabs-tab': { paddingBlock: token.padding },
+    },
+    unreadCount: {
+      display: 'inline-block',
+      marginInlineStart: token.marginXS,
+      paddingInline: token.paddingXS,
+      borderRadius: token.borderRadiusLG,
+      background: token.colorPrimaryBg,
+      color: token.colorPrimaryText,
+      fontSize: token.fontSizeSM,
+      lineHeight: '18px',
+    },
+    workspace: {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(300px, 45%) minmax(0, 1fr)',
+      blockSize: 'clamp(480px, calc(100dvh - 250px), 900px)',
+      [narrow]: { display: 'block', blockSize: 'auto' },
+    },
+    listPane: {
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 0,
+      minWidth: 0,
+      borderInlineEnd: `1px solid ${token.colorBorderSecondary}`,
+      [narrow]: { borderInlineEnd: 0 },
+    },
+    listScroller: {
+      flex: 1,
+      minHeight: 0,
+      overflowY: 'auto',
+      overscrollBehavior: 'contain',
+      scrollbarGutter: 'stable',
+      [narrow]: { overflowY: 'visible' },
+    },
+    groupHeading: {
+      position: 'sticky',
+      top: 0,
+      zIndex: 1,
+      display: 'flex',
+      gap: token.marginXS,
+      padding:
+        token.paddingSM +
+        'px ' +
+        token.paddingLG +
+        'px ' +
+        token.paddingXS +
+        'px',
+      background: token.colorBgContainer,
+      '.ant-typography': { fontSize: token.fontSizeSM },
+      [narrow]: { position: 'static', paddingInline: token.padding },
+    },
+    notificationRow: {
+      display: 'grid',
+      gridTemplateColumns: '8px minmax(0, 1fr)',
+      alignItems: 'start',
+      gap: token.marginSM,
+      width: '100%',
+      border: 0,
+      borderBottom: `1px solid ${token.colorBorderSecondary}`,
+      padding: `${token.padding}px ${token.paddingLG}px`,
+      background: 'transparent',
+      color: token.colorText,
+      font: 'inherit',
+      textAlign: 'start',
+      cursor: 'pointer',
+      '&:hover': { background: token.colorFillQuaternary },
+      '&:focus-visible': {
+        outline: `2px solid ${token.colorPrimary}`,
+        outlineOffset: -3,
+      },
+      [narrow]: { paddingInline: token.padding },
+    },
+    selectedRow: {
+      '& > button': {
+        background: token.colorPrimaryBg,
+        boxShadow: `inset 3px 0 ${token.colorPrimary}`,
+        '&:hover': { background: token.colorPrimaryBg },
+      },
+    },
+    unreadDot: {
+      width: 6,
+      height: 6,
+      marginTop: token.marginXS,
+      borderRadius: '50%',
+      background: token.colorPrimary,
+    },
+    hiddenDot: { visibility: 'hidden' },
+    notificationTitle: { fontSize: token.fontSize, overflowWrap: 'anywhere' },
+    unreadLabel: {
+      color: token.colorPrimaryText,
+      fontSize: token.fontSizeSM,
+      flexShrink: 0,
+    },
+    preview: {
+      display: 'block',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      marginTop: token.marginXXS,
+      fontSize: token.fontSize,
+      color: token.colorTextSecondary,
+      lineHeight: token.lineHeight,
+      [narrow]: {
+        display: '-webkit-box',
+        whiteSpace: 'normal',
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: 'vertical',
+        overflowWrap: 'anywhere',
+      },
+    },
+    rowMeta: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: token.marginXS,
+      marginTop: token.marginXS,
+      color: token.colorTextSecondary,
+      fontSize: token.fontSizeSM,
+      overflowWrap: 'anywhere',
+    },
+    rowTime: { marginInlineStart: 'auto', whiteSpace: 'nowrap' },
+    pagination: {
+      padding: `${token.paddingSM}px ${token.padding}px`,
+      borderTop: `1px solid ${token.colorBorderSecondary}`,
+      '.ant-pagination': {
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-end',
+        rowGap: token.marginXS,
+      },
+      '.ant-pagination-total-text': { marginInlineEnd: 'auto' },
+    },
+    detailPane: {
+      minWidth: 0,
+      padding: token.paddingXL,
+      overflowY: 'auto',
+      overscrollBehavior: 'contain',
+      scrollbarGutter: 'stable',
+    },
+    emptyDetail: { display: 'grid', placeContent: 'center' },
+    detailContent: { minWidth: 0 },
+    detailTitle: {
+      margin: `0 0 ${token.marginSM}px !important`,
+      overflowWrap: 'anywhere',
+    },
+    detailMeta: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: `${token.marginXXS}px ${token.marginSM}px`,
+      '.ant-typography': {
+        fontSize: token.fontSizeSM,
+        overflowWrap: 'anywhere',
+      },
+    },
+    detailReadState: {
+      display: 'block',
+      marginTop: token.marginSM,
+      fontSize: token.fontSizeSM,
+    },
+    detailBody: {
+      marginBlock: token.marginLG,
+      whiteSpace: 'pre-wrap',
+      overflowWrap: 'anywhere',
+      lineHeight: 1.9,
+    },
+    inlineDetail: {
+      padding: token.paddingLG,
+      background: token.colorFillQuaternary,
+      borderBottom: `1px solid ${token.colorBorderSecondary}`,
+    },
+    pinnedDetail: {
+      padding: token.paddingLG,
+      borderBottom: `1px solid ${token.colorBorderSecondary}`,
+      background: token.colorFillQuaternary,
+    },
+    currentLabel: {
+      display: 'block',
+      marginBottom: token.marginSM,
+      fontSize: token.fontSizeSM,
+    },
+    secondaryToolbar: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: token.marginSM,
+      marginTop: token.marginSM,
+      '.ant-typography, .ant-btn': { fontSize: token.fontSizeSM },
+    },
+  };
+});

@@ -19,7 +19,7 @@ const house = {
   landlord: null,
   images: [],
   videos: [],
-  status: 'vacant',
+  status: 'paused',
 };
 
 describe('space workbench model', () => {

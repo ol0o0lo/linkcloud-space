@@ -65,10 +65,9 @@ describe('PropertyAssetNavigator', () => {
           building_count: 2,
           counts: {
             total: 42,
-            vacant: 4,
+            paused: 4,
             listed: 6,
             rented: 30,
-            renovating: 2,
           },
         } as never,
       ],
@@ -87,10 +86,9 @@ describe('PropertyAssetNavigator', () => {
           elevator: true,
           counts: {
             total: 24,
-            vacant: 2,
+            paused: 2,
             listed: 4,
             rented: 18,
-            renovating: 0,
           },
         } as never,
       ],
@@ -168,7 +166,9 @@ describe('PropertyAssetNavigator', () => {
     ).toBeInTheDocument();
 
     const collapseAllButton = screen.getByRole('button', { name: '全部折叠' });
-    const createEstateButton = screen.getByRole('button', { name: '新建项目' });
+    const createEstateButton = screen.getByRole('button', {
+      name: '新建小区／项目',
+    });
     expect(collapseAllButton.nextElementSibling).toBe(createEstateButton);
   });
 
@@ -190,7 +190,7 @@ describe('PropertyAssetNavigator', () => {
     renderNavigator(onScopeChange);
 
     fireEvent.click(
-      await screen.findByRole('button', { name: '选择项目 星河湾' }),
+      await screen.findByRole('button', { name: '选择小区／项目 星河湾' }),
     );
     expect(onScopeChange).toHaveBeenLastCalledWith({ estateId: 1 });
 
@@ -205,7 +205,7 @@ describe('PropertyAssetNavigator', () => {
     renderNavigator(onScopeChange, vi.fn(), { estateId: 1 });
 
     const estateButton = await screen.findByRole('button', {
-      name: '选择项目 星河湾',
+      name: '选择小区／项目 星河湾',
     });
     expect(
       await screen.findByRole('button', { name: '选择楼栋 星河湾 / 1栋' }),
@@ -260,13 +260,15 @@ describe('PropertyAssetNavigator', () => {
     renderNavigator();
 
     fireEvent.click(
-      await screen.findByRole('button', { name: '选择项目 星河湾' }),
+      await screen.findByRole('button', { name: '选择小区／项目 星河湾' }),
     );
     expect(
       await screen.findByRole('button', { name: '选择楼栋 星河湾 / 1栋' }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '选择项目 云栖花园' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: '选择小区／项目 云栖花园' }),
+    );
 
     expect(
       await screen.findByRole('button', { name: '选择楼栋 云栖花园 / 3栋' }),
@@ -314,11 +316,11 @@ describe('PropertyAssetNavigator', () => {
     });
     renderNavigator();
 
-    fireEvent.change(screen.getByLabelText('搜索项目或楼栋'), {
+    fireEvent.change(screen.getByLabelText('搜索小区／项目或楼栋'), {
       target: { value: '云栖' },
     });
     fireEvent.keyDown(
-      screen.getByRole('combobox', { name: '搜索项目或楼栋' }),
+      screen.getByRole('combobox', { name: '搜索小区／项目或楼栋' }),
       {
         key: 'Enter',
         code: 'Enter',
@@ -326,7 +328,7 @@ describe('PropertyAssetNavigator', () => {
     );
 
     expect(
-      await screen.findByRole('button', { name: '选择项目 云栖花园' }),
+      await screen.findByRole('button', { name: '选择小区／项目 云栖花园' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: '选择楼栋 云栖花园 / 3栋' }),
@@ -371,7 +373,7 @@ describe('PropertyAssetNavigator', () => {
     renderNavigator(vi.fn(), onAction);
 
     fireEvent.click(
-      await screen.findByRole('button', { name: '编辑星河湾项目' }),
+      await screen.findByRole('button', { name: '编辑星河湾资料' }),
     );
     expect(onAction).toHaveBeenCalledWith({
       type: 'edit-estate',
@@ -392,7 +394,9 @@ describe('PropertyAssetNavigator', () => {
     const onAction = vi.fn();
     renderNavigator(vi.fn(), onAction);
 
-    fireEvent.click(await screen.findByRole('button', { name: '新建项目' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: '新建小区／项目' }),
+    );
     expect(onAction).toHaveBeenCalledWith({ type: 'create-estate' });
 
     fireEvent.click(screen.getByRole('button', { name: '新建独立楼栋' }));
@@ -405,11 +409,11 @@ describe('PropertyAssetNavigator', () => {
     const onScopeChange = vi.fn();
     renderNavigator(onScopeChange);
     const searchInput = screen.getByRole('combobox', {
-      name: '搜索项目或楼栋',
+      name: '搜索小区／项目或楼栋',
     });
 
     fireEvent.click(
-      await screen.findByRole('button', { name: '选择项目 星河湾' }),
+      await screen.findByRole('button', { name: '选择小区／项目 星河湾' }),
     );
     expect(screen.queryByText('最近使用')).not.toBeInTheDocument();
 
@@ -448,10 +452,9 @@ describe('PropertyAssetNavigator', () => {
           name: '科技路 88 号',
           counts: {
             total: 12,
-            vacant: 2,
+            paused: 2,
             listed: 3,
             rented: 7,
-            renovating: 0,
           },
         } as never,
       ],

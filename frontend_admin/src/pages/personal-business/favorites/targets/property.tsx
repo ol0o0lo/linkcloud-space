@@ -66,7 +66,9 @@ registerFavoriteTargetDefinition({
       subtitle:
         house.building.address || item.display?.subtitle || '地址待补充',
       coverUrl:
-        mediaCoverUrl(house.images) || item.display?.cover_url || undefined,
+        mediaCoverUrl(house.images, house) ||
+        item.display?.cover_url ||
+        undefined,
       publisher: house.publisher?.name,
       description:
         house.public_description || item.display?.description || undefined,
@@ -110,7 +112,9 @@ registerFavoriteTargetDefinition({
         '楼栋收藏',
       subtitle: building.address || item.display?.subtitle || '楼栋地址待补充',
       coverUrl:
-        mediaCoverUrl(building.images) || item.display?.cover_url || undefined,
+        mediaCoverUrl(building.images, building) ||
+        item.display?.cover_url ||
+        undefined,
       publisher: building.publisher?.name,
       description: item.display?.description || undefined,
       tags: uniqueTags(building.tags || item.display?.tags || []),

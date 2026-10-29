@@ -33,7 +33,6 @@ import { createStyles } from 'antd-style';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AdvancedFilterToolbar } from '@/components/AdvancedFilterToolbar';
 import { AppIcon } from '@/components/AppIcon';
-import { AppStatusTag } from '@/components/AppStatus';
 import {
   BuildingPreview,
   ContactPreview,
@@ -60,12 +59,14 @@ import {
   houseApi,
 } from '@/services/manual/house';
 import DealSigningDrawer from '../components/DealSigningDrawer';
+import { HouseStatusTags } from '../components/HouseStatusTags';
 import {
   buildingLabel,
   contactLabel,
   dateTimeText,
   evaluateHousePublishState,
   HOUSE_STATUS,
+  HOUSE_STATUS_OPTIONS,
   houseBalconyText,
   houseDisplayTags,
   houseKitchenText,
@@ -73,6 +74,7 @@ import {
   housePrimaryLayoutText,
   type MediaRefValue,
   mediaCoverUrl,
+  migrationMediaPlaceholder,
   moneyText,
 } from '../constants';
 import { isInitialQueryPending } from '../loading';
@@ -84,6 +86,7 @@ import {
   type HouseMediaEditValue,
   HouseMediaInlineEditorModal,
   HouseRoomLayoutInlineEditor,
+  HouseStatusInlineEditor,
 } from './HouseListInlineEditors';
 import {
   HouseMatchShareModal,
@@ -326,6 +329,7 @@ type HouseAdvancedFilterDraft = {
   inspectionFilter?: HouseInspectionFilter;
   q: string;
   status?: HouseStatus;
+  isActive?: boolean;
 };
 
 type EditableHouseRow = HouseOut & HouseInlineEditableFields;
@@ -333,6 +337,11 @@ type EditableHouseRow = HouseOut & HouseInlineEditableFields;
 function toEditableHouseRow(house: HouseOut): EditableHouseRow {
   return {
     ...house,
+    status_edit: {
+      status: house.status,
+
+      is_active: house.is_active,
+    },
     room_layout_edit: {
       bedrooms: house.bedrooms,
       living_rooms: house.living_rooms,
@@ -346,6 +355,7 @@ function toEditableHouseRow(house: HouseOut): EditableHouseRow {
 
 function getHouseOrderingField(columnKey: string) {
   if (columnKey === 'room_layout_edit') return 'layout';
+  if (columnKey === 'status_edit') return 'status';
   if (columnKey === 'building_id') return 'building';
   if (columnKey === 'landlord_id') return 'landlord';
   return columnKey;
@@ -454,6 +464,10 @@ const HousesPage: React.FC = () => {
   const [status, setStatus] = useState<HouseStatus | undefined>(
     initialListState.current.status,
   );
+  const [isActive, setIsActive] = useState<boolean | undefined>(
+    initialListState.current.isActive,
+  );
+  const [activationHouse, setActivationHouse] = useState<HouseOut | null>(null);
   const [estateId, setEstateId] = useState<number | undefined>(
     initialListState.current.estateId,
   );
@@ -484,7 +498,7 @@ const HousesPage: React.FC = () => {
     number | null
   >(null);
   const [listingConfirmStatus, setListingConfirmStatus] = useState<
-    'listed' | 'vacant' | null
+    'listed' | 'paused' | null
   >(null);
   const [editableKeys, setEditableKeys] = useState<React.Key[]>([]);
   const [selectedHouseIds, setSelectedHouseIds] = useState<number[]>([]);
@@ -495,6 +509,7 @@ const HousesPage: React.FC = () => {
     useState<HouseAdvancedFilterDraft>(() => ({
       q: initialListState.current.q || '',
       status: initialListState.current.status,
+      isActive: initialListState.current.isActive,
       inspectionFilter:
         initialListState.current.inspectionReason ||
         (initialListState.current.inspectionDue ? 'due' : undefined),
@@ -546,6 +561,7 @@ const HousesPage: React.FC = () => {
       pageSize,
       q,
       status,
+      isActive,
       estateId,
       buildingId,
       ordering,
@@ -559,6 +575,7 @@ const HousesPage: React.FC = () => {
         page_size: pageSize,
         keyword: q,
         status,
+        ...(isActive === undefined ? {} : { is_active: isActive }),
         scope,
         ...(inspectionDue ? { inspection_due: true } : {}),
         ...(inspectionDue && inspectionReason
@@ -594,16 +611,13 @@ const HousesPage: React.FC = () => {
       ]);
     },
   });
-  const openListingConfirm = (id: number, nextStatus: 'listed' | 'vacant') => {
+  const openListingConfirm = (id: number, nextStatus: 'listed' | 'paused') => {
     setListingConfirmHouseId(id);
     setListingConfirmStatus(nextStatus);
   };
   const rows = useMemo(() => houses.data?.items || [], [houses.data?.items]);
   const listLoading = isInitialQueryPending(houses);
-  const houseStatusOptions = enumSelectOptions(
-    houseEnums.data,
-    'house.house_status',
-  );
+  const houseStatusOptions = HOUSE_STATUS_OPTIONS;
   const orientationOptions = enumSelectOptions(
     houseEnums.data,
     'house.house_orientation',
@@ -617,10 +631,13 @@ const HousesPage: React.FC = () => {
     setSearchDraft('');
     setQ(undefined);
     setStatus(undefined);
+    setIsActive(undefined);
     setInspectionDue(false);
     setInspectionReason(undefined);
   };
-  const hasActiveFilters = Boolean(q || status || inspectionReason);
+  const hasActiveFilters = Boolean(
+    q || status || isActive !== undefined || inspectionReason,
+  );
   const newHouseHref = buildingId
     ? `/rental/properties/new?building_id=${buildingId}`
     : '/rental/properties/new';
@@ -639,7 +656,7 @@ const HousesPage: React.FC = () => {
               <Typography.Text type="secondary">
                 {isMineScope
                   ? '当前没有需要补充照片、视频或复查资料的负责房源'
-                  : '组织内没有需要补充照片、视频或复查资料的房源'}
+                  : '工作空间内没有需要补充照片、视频或复查资料的房源'}
               </Typography.Text>
             </span>
           }
@@ -779,6 +796,7 @@ const HousesPage: React.FC = () => {
       pageSize,
       q,
       status,
+      isActive,
       estateId,
       buildingId,
       ordering,
@@ -797,6 +815,7 @@ const HousesPage: React.FC = () => {
     pageSize,
     q,
     status,
+    isActive,
     scope,
     inspectionDue,
   ]);
@@ -807,6 +826,7 @@ const HousesPage: React.FC = () => {
       setQ(listState.q);
       setSearchDraft(listState.q || '');
       setStatus(listState.status);
+      setIsActive(listState.isActive);
       setPage(listState.page);
       setPageSize(listState.pageSize);
       setEstateId(listState.estateId);
@@ -855,7 +875,7 @@ const HousesPage: React.FC = () => {
       },
       formItemRender: () => <Input aria-label="房号" style={{ width: 120 }} />,
       render: (_value, record) => {
-        const coverUrl = mediaCoverUrl(record.images);
+        const coverUrl = mediaCoverUrl(record.images, record);
         return (
           <div className={styles.houseIdentity}>
             <Avatar
@@ -879,15 +899,22 @@ const HousesPage: React.FC = () => {
               size={48}
               src={coverUrl}
             />
-            <HousePreview id={record.id}>
-              <Typography.Text>{record.room_number}</Typography.Text>
-            </HousePreview>
+            <Space orientation="vertical" size={0}>
+              <HousePreview id={record.id}>
+                <Typography.Text>{record.room_number}</Typography.Text>
+              </HousePreview>
+              {!coverUrl && migrationMediaPlaceholder(record) && (
+                <Typography.Text type="secondary">
+                  {migrationMediaPlaceholder(record)}
+                </Typography.Text>
+              )}
+            </Space>
           </div>
         );
       },
     },
     {
-      title: '所属项目',
+      title: '所属小区／项目',
       dataIndex: ['building', 'estate'],
       key: 'estate',
       search: false,
@@ -1080,7 +1107,7 @@ const HousesPage: React.FC = () => {
           notFoundContent={editorBuildings.notFoundContent}
           onOpenChange={editorBuildings.onOpenChange}
           onPopupScroll={editorBuildings.onPopupScroll}
-          placeholder="搜索小区或楼栋"
+          placeholder="搜索小区、项目或楼栋"
           style={{ width: 220 }}
           options={editorBuildings.options}
         />
@@ -1305,7 +1332,7 @@ const HousesPage: React.FC = () => {
     },
     {
       title: '房态',
-      dataIndex: 'status',
+      dataIndex: 'status_edit',
       key: 'status',
       sorter: true,
       defaultSortOrder: getHouseColumnSortOrder(ordering, 'status'),
@@ -1313,18 +1340,13 @@ const HousesPage: React.FC = () => {
       width: HOUSE_STATUS_COLUMN_WIDTH,
       search: false,
       align: 'center',
-      formItemRender: () => (
-        <Select
-          aria-label="房态"
-          options={houseStatusOptions}
-          style={{ width: 120 }}
+      formItemRender: (_schema, config) => (
+        <HouseStatusInlineEditor
+          value={config.value}
+          onChange={config.onChange}
         />
       ),
-      render: (_value, record) => (
-        <AppStatusTag name="house" state={record.status}>
-          {enumMapping(record.status, record.status__mapping)}
-        </AppStatusTag>
-      ),
+      render: (_value, record) => <HouseStatusTags house={record} />,
     },
     {
       title: '操作',
@@ -1338,9 +1360,10 @@ const HousesPage: React.FC = () => {
       render: (_value, record, _index, action) => {
         const isListed = record.status === HOUSE_STATUS.LISTED;
         const canToggleListing =
-          isListed || record.status === HOUSE_STATUS.VACANT;
-        const canDealSign = record.status !== HOUSE_STATUS.INACTIVE;
-        const nextStatus = isListed ? HOUSE_STATUS.VACANT : HOUSE_STATUS.LISTED;
+          record.is_active !== false &&
+          (isListed || record.status === HOUSE_STATUS.PAUSED);
+        const canDealSign = record.is_active !== false;
+        const nextStatus = isListed ? HOUSE_STATUS.PAUSED : HOUSE_STATUS.LISTED;
         const inspectionReasons = record.inspection_reasons || [];
         const hasMissingMedia = inspectionReasons.some(
           (reason) =>
@@ -1394,6 +1417,13 @@ const HousesPage: React.FC = () => {
                 trigger={['click']}
                 menu={{
                   items: [
+                    {
+                      key: 'activation',
+                      danger: record.is_active !== false,
+                      disabled: patchHouse.isPending,
+                      label:
+                        record.is_active === false ? '恢复房源' : '停用房源',
+                    },
                     ...(inspectionDue && hasExpiredInspection
                       ? [
                           {
@@ -1417,6 +1447,10 @@ const HousesPage: React.FC = () => {
                     },
                   ],
                   onClick: ({ key }) => {
+                    if (key === 'activation') {
+                      setActivationHouse(record);
+                      return;
+                    }
                     if (key === 'confirm-current') {
                       setConfirmCurrentHouse(record);
                       return;
@@ -1561,6 +1595,7 @@ const HousesPage: React.FC = () => {
       setAdvancedFilterDraft({
         q: q || '',
         status,
+        isActive,
         inspectionFilter,
       });
     }
@@ -1575,6 +1610,7 @@ const HousesPage: React.FC = () => {
       setQ(nextKeyword);
     }
     setStatus(advancedFilterDraft.status);
+    setIsActive(advancedFilterDraft.isActive);
     if (!advancedFilterDraft.inspectionFilter) {
       setInspectionDue(false);
       setInspectionReason(undefined);
@@ -1726,7 +1762,8 @@ const HousesPage: React.FC = () => {
                     key="house-filters"
                     advancedActive={Boolean(
                       (status && status !== HOUSE_STATUS.LISTED) ||
-                        inspectionDue,
+                        inspectionDue ||
+                        isActive !== undefined,
                     )}
                     advancedContent={
                       <Form
@@ -1746,6 +1783,30 @@ const HousesPage: React.FC = () => {
                               setAdvancedFilterDraft((current) => ({
                                 ...current,
                                 status: value,
+                              }))
+                            }
+                          />
+                        </Form.Item>
+                        <Form.Item label="启用状态">
+                          <Select
+                            aria-label="启用状态筛选"
+                            allowClear
+                            options={[{ label: '已启用', value: 'active' }]}
+                            placeholder="全部启用状态"
+                            value={
+                              advancedFilterDraft.isActive === undefined
+                                ? undefined
+                                : advancedFilterDraft.isActive
+                                  ? 'active'
+                                  : 'inactive'
+                            }
+                            onChange={(value) =>
+                              setAdvancedFilterDraft((current) => ({
+                                ...current,
+                                isActive:
+                                  value === undefined
+                                    ? undefined
+                                    : value === 'active',
                               }))
                             }
                           />
@@ -1863,6 +1924,7 @@ const HousesPage: React.FC = () => {
                           ? ''
                           : current.q,
                         status: HOUSE_STATUS.LISTED,
+                        isActive: undefined,
                       }))
                     }
                   />,
@@ -1967,6 +2029,31 @@ const HousesPage: React.FC = () => {
         </Typography.Text>
       </Modal>
       <Modal
+        open={activationHouse !== null}
+        title={activationHouse?.is_active === false ? '恢复房源' : '停用房源'}
+        okText={activationHouse?.is_active === false ? '确认恢复' : '确认停用'}
+        okButtonProps={{ danger: activationHouse?.is_active !== false }}
+        cancelText="取消"
+        confirmLoading={patchHouse.isPending}
+        onCancel={() => setActivationHouse(null)}
+        onOk={async () => {
+          if (!activationHouse) return;
+          await patchHouse.mutateAsync({
+            id: activationHouse.id,
+            values: { is_active: activationHouse.is_active === false },
+            successMessage:
+              activationHouse.is_active === false
+                ? '房源已恢复，需手动发布'
+                : '房源已停用',
+          });
+          setActivationHouse(null);
+        }}
+      >
+        {activationHouse?.is_active === false
+          ? '恢复后保留当前房态，需要手动发布后才会对外展示。'
+          : `停用“${activationHouse?.room_number || ''}”后将退出日常经营；招租中的房源会转为暂不出租，已出租房态保留，可随时恢复。`}
+      </Modal>
+      <Modal
         open={listingConfirmStatus !== null}
         aria-label={
           listingConfirmStatus === HOUSE_STATUS.LISTED
@@ -2003,7 +2090,7 @@ const HousesPage: React.FC = () => {
         <Typography.Text>
           {listingConfirmStatus === HOUSE_STATUS.LISTED
             ? '确认后房源状态将切换为招租，可继续接受带看预约。'
-            : '确认后房源状态将切换为空置，不再对外展示。'}
+            : '确认后房源状态将切换为暂不出租，不再对外展示。'}
         </Typography.Text>
       </Modal>
     </TenantSelectionGuard>

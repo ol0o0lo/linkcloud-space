@@ -21,6 +21,7 @@ import {
   Typography,
   theme,
 } from 'antd';
+import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppStatusTag } from '@/components/AppStatus';
 import {
@@ -57,6 +58,7 @@ import {
   moneyText,
 } from '../constants';
 import { getLoadingAwareEmptyState, isInitialQueryPending } from '../loading';
+import LeaseEarningsCard from './LeaseEarningsCard';
 
 const PAGE_SIZE = 20;
 const SELECT_SEARCH_DEBOUNCE_MS = 300;
@@ -208,6 +210,8 @@ function getLeaseEmptyState(options: { openCreate: () => void }) {
 }
 
 type LeaseFormValues = {
+  deal_signed_date?: string;
+  deal_team_id?: number | null;
   house_id: number;
   tenant_id: number | null;
   source_viewing_record_id?: number | null;
@@ -253,6 +257,18 @@ const LeasesPage: React.FC = () => {
   const editLeaseId = drawerState.editLeaseId;
   const [editing, setEditing] = useState<LeaseOut | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [earningLease, setEarningLease] = useState<LeaseOut>();
+  const customerCapabilities = useQuery({
+    queryKey: ['house', 'customer-capabilities', workspace.selectedOrgSlug],
+    queryFn: houseApi.getCustomerCapabilities,
+    enabled: Boolean(workspace.selectedOrgSlug && drawerOpen && editing),
+  });
+  const canCorrectDeal = customerCapabilities.data?.can_manage === true;
+  const correctionTeams = useQuery({
+    queryKey: ['house', 'correction-teams', workspace.selectedOrgSlug],
+    queryFn: houseApi.listCorrectionTeams,
+    enabled: canCorrectDeal && drawerOpen,
+  });
   const [tenantOpen, setTenantOpen] = useState(false);
   const [createdTenants, setCreatedTenants] = useState<ContactOut[]>([]);
   const [_allocationCapabilities, setAllocationCapabilities] =
@@ -532,10 +548,34 @@ const LeasesPage: React.FC = () => {
 
   const saveLease = useMutation({
     mutationFn: (values: LeaseFormValues) => {
-      if (editing) return houseApi.patchLease(editing.id, values);
+      if (editing) {
+        const {
+          deal_signed_date,
+          deal_team_id,
+          beneficiary_user_ids: _beneficiaries,
+          team_id: _team,
+          ...leaseValues
+        } = values;
+        const patch: Record<string, unknown> = { ...leaseValues };
+        if (
+          canCorrectDeal &&
+          deal_signed_date &&
+          deal_signed_date !== dayjs(editing.sign_at).format('YYYY-MM-DD')
+        )
+          patch.sign_at = new Date(
+            `${deal_signed_date}T12:00:00+08:00`,
+          ).toISOString();
+        if (
+          canCorrectDeal &&
+          deal_team_id !== undefined &&
+          (deal_team_id || null) !== editing.deal_team_id
+        )
+          patch.deal_team_id = deal_team_id || null;
+        return houseApi.patchLease(editing.id, patch);
+      }
       const {
         status: _status,
-        beneficiary_user_ids,
+        beneficiary_user_ids: _beneficiaries,
         team_id,
         tenant_id,
         ...payload
@@ -550,14 +590,11 @@ const LeasesPage: React.FC = () => {
         .createDealSigning({
           lease: normalizedPayload,
           team_id: team_id ?? null,
-          beneficiary_user_ids,
         })
         .then((result) => result.lease);
     },
     onSuccess: async () => {
-      message.success(
-        editing ? '租约已更新' : '签约已登记，收益分配申请正在等待审核',
-      );
+      message.success(editing ? '租约已更新' : '签约已登记，收益待申请');
       closeDrawer();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['house', 'leases'] }),
@@ -656,8 +693,15 @@ const LeasesPage: React.FC = () => {
       ? { tenant_id: sourceViewing.contact_id }
       : {}),
   };
-  const formInitialValues: Partial<LeaseFormValues> =
-    editing || createInitialValues;
+  const formInitialValues: Partial<LeaseFormValues> = editing
+    ? {
+        ...editing,
+        deal_signed_date: editing.sign_at
+          ? dayjs(editing.sign_at).format('YYYY-MM-DD')
+          : undefined,
+        deal_team_id: editing.deal_team_id || 0,
+      }
+    : createInitialValues;
   const columns: ProColumns<LeaseOut>[] = [
     {
       title: '房源',
@@ -756,8 +800,20 @@ const LeasesPage: React.FC = () => {
         }));
         return (
           <ResponsiveActions>
-            <Button type="link" size="small" onClick={() => openEdit(record)}>
+            <Button
+              type="link"
+              size="small"
+              disabled={record.can_maintain === false}
+              onClick={() => openEdit(record)}
+            >
               编辑
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => setEarningLease(record)}
+            >
+              收益申请
             </Button>
             <Dropdown
               menu={{
@@ -884,6 +940,14 @@ const LeasesPage: React.FC = () => {
           scroll={adminTableScroll}
         />
       </Card>
+      <Drawer
+        title="租约收益申请"
+        open={Boolean(earningLease)}
+        onClose={() => setEarningLease(undefined)}
+        destroyOnHidden
+      >
+        {earningLease ? <LeaseEarningsCard lease={earningLease} /> : null}
+      </Drawer>
       <EntityPreviewDetailDrawer
         searchParam="preview"
         title="租约详情"
@@ -907,7 +971,7 @@ const LeasesPage: React.FC = () => {
             htmlType="submit"
             form="lease-form"
             loading={saveLease.isPending}
-            disabled={!editing}
+            disabled={!editing || editing.can_maintain === false}
           >
             保存
           </Button>
@@ -955,6 +1019,41 @@ const LeasesPage: React.FC = () => {
                     <Typography.Text strong>签约信息</Typography.Text>
                   </div>
                   <Row gutter={[16, 0]}>
+                    {editing && canCorrectDeal ? (
+                      <>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="实际签约日期"
+                            name="deal_signed_date"
+                          >
+                            <Input type="date" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item label="成交团队" name="deal_team_id">
+                            <Select
+                              loading={correctionTeams.isFetching}
+                              options={[
+                                { value: 0, label: '空间直属' },
+                                ...(correctionTeams.data?.items || []).map(
+                                  (item) => ({
+                                    value: item.id,
+                                    label: item.name,
+                                  }),
+                                ),
+                              ]}
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24}>
+                          <Alert
+                            type="info"
+                            showIcon
+                            title="已有有效收益申请时，请先撤回或由财务作废；修正成交资料后需填写原因纠错重提。"
+                          />
+                        </Col>
+                      </>
+                    ) : null}
                     <Col xs={24}>
                       <Form.Item
                         label="房源"
@@ -1090,13 +1189,14 @@ const LeasesPage: React.FC = () => {
                     style={{ width: '100%' }}
                   >
                     <div>
-                      <Typography.Text strong>收益归属</Typography.Text>
+                      <Typography.Text strong>成交归属</Typography.Text>
                       <br />
                       <Typography.Text type="secondary">
-                        收益将在审核通过后计入员工流水。
+                        登记后可在租约中独立申请收益。
                       </Typography.Text>
                     </div>
                     <EarningAttributionFields
+                      purpose="signing"
                       enabled={drawerOpen && enabled}
                       form={form}
                       onCapabilitiesChange={handleCapabilitiesChange}

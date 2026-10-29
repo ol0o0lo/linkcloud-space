@@ -264,6 +264,36 @@ describe('OrganizationSettingsPage', () => {
     expect(mockListHouses).not.toHaveBeenCalled();
   });
 
+  it.each(['click', 'mouseEnter', 'focus'] as const)('shows setting descriptions only after help icon %s', async (trigger) => {
+    const description = '房源没有有效负责人时，默认转给空间管理员，也可指定本工作空间成员。';
+    mockListSettings.mockResolvedValueOnce([
+      ...buildSettingsFixture(),
+      {
+        key: 'property_rental.contact_fallback_member_id',
+        label: '房源咨询兜底接待人',
+        value: 0,
+        value_type: 'integer',
+        description,
+        widget: 'select',
+        ui: { options: [{ label: '自动转给空间管理员', value: 0 }] },
+        category: 'property_rental',
+        is_customized: false,
+      },
+    ]);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrganizationSettingsPage />
+      </QueryClientProvider>,
+    );
+
+    const help = await screen.findByRole('button', { name: '房源咨询兜底接待人说明' });
+    expect(screen.queryByText(description)).not.toBeInTheDocument();
+    fireEvent[trigger](help);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(description);
+    expect(mockPutSetting).not.toHaveBeenCalled();
+  });
+
   it('saves text-like setting drafts on blur through organization settings api', async () => {
     render(
       <QueryClientProvider client={queryClient}>
@@ -371,7 +401,7 @@ describe('OrganizationSettingsPage', () => {
     await screen.findByText('房源租赁设置');
     fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
     fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
-    fireEvent.mouseDown(screen.getByLabelText('项目小区'));
+    fireEvent.mouseDown(screen.getByLabelText('所属小区／项目'));
     fireEvent.click(
       (await screen.findAllByText('星河湾')).at(-1) as HTMLElement,
     );
@@ -479,7 +509,7 @@ describe('OrganizationSettingsPage', () => {
     await screen.findByText('房源租赁设置');
     fireEvent.mouseDown(screen.getByLabelText('默认楼栋'));
     fireEvent.click(screen.getByRole('button', { name: '新建楼栋' }));
-    fireEvent.mouseDown(screen.getByLabelText('项目小区'));
+    fireEvent.mouseDown(screen.getByLabelText('所属小区／项目'));
     fireEvent.click(
       (await screen.findAllByText('星河湾')).at(-1) as HTMLElement,
     );

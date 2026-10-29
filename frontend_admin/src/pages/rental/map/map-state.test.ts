@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readMapSearchState } from './map-state';
 
 describe('readMapSearchState 地图视口', () => {
-  it('未指定房态时默认筛选空置房源', () => {
-    expect(readMapSearchState('').houseStatus).toBe('vacant');
+  it('未指定房态时默认筛选暂不出租房源', () => {
+    expect(readMapSearchState('').houseStatus).toBe('paused');
     expect(readMapSearchState('?house_status=rented').houseStatus).toBe(
       'rented',
     );

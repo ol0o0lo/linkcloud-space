@@ -34,21 +34,17 @@ describe('AppStatus', () => {
   });
 
   it.each([
-    ['vacant', 'error'],
+    ['paused', 'secondary'],
     ['listed', 'info'],
     ['rented', 'success'],
-    ['renovating', 'warning'],
-    ['inactive', 'disabled'],
   ] as const)('使用符合经营含义的房源 %s 状态色', (state, tone) => {
     expect(resolveAppStatusDefinition('house', state).tone).toBe(tone);
   });
 
   it.each([
-    ['vacant', '当前为空置状态'],
+    ['paused', '当前暂不对外出租'],
     ['listed', '当前正在对外招租'],
-    ['rented', '当前已有生效租约'],
-    ['renovating', '当前处于装修状态'],
-    ['inactive', '当前已停用'],
+    ['rented', '当前已出租'],
   ] as const)('提供房源 %s 状态的管理说明', (state, description) => {
     expect(resolveAppStatusDefinition('house', state).description).toContain(
       description,
@@ -56,6 +52,7 @@ describe('AppStatus', () => {
   });
 
   it.each([
+    ['house-marker', 'inactive', 'disabled'],
     ['subscription.order', 'pending_payment', 'warning'],
     ['subscription.order', 'paid', 'success'],
     ['subscription.order', 'closed', 'error'],

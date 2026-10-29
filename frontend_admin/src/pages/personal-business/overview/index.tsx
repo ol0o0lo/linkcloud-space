@@ -34,7 +34,10 @@ import {
   WrappedCodeText,
   wrapTextStyle,
 } from '@/pages/_shared/adminLayout';
-import { formatWalletAmount } from '@/pages/wallet-management/shared';
+import {
+  formatWalletAmount,
+  getWithdrawalAmountLabel,
+} from '@/pages/wallet-management/shared';
 import { enumMapping } from '@/services/manual/enums';
 import {
   appsAccountsApiGetMyRealName,
@@ -164,13 +167,13 @@ function buildWithdrawalInsight(
       return {
         ...withdrawal,
         status_label: statusLabel,
-        governance_summary: '申请已经完成打款，后续重点转到到账与对账确认。',
+        governance_summary: '已完成打款，请核对收款记录。',
       };
     default:
       return {
         ...withdrawal,
         status_label: statusLabel,
-        governance_summary: '当前申请处于未归类状态，建议补充统一业务语义。',
+        governance_summary: '暂时无法确认申请状态，请刷新页面重试。',
       };
   }
 }
@@ -362,14 +365,14 @@ const PersonalBusinessPage: React.FC = () => {
       ),
     },
     {
-      title: '金额结果',
+      title: '提现金额',
       dataIndex: 'amount',
       width: 190,
       align: 'right',
       render: (_value, record) => (
         <Space orientation="vertical" size={4}>
           <Typography.Text>{`申请 ${formatWalletAmount(record.amount)}`}</Typography.Text>
-          <Typography.Text type="secondary">{`到账 ${formatWalletAmount(record.net_amount)}`}</Typography.Text>
+          <Typography.Text type="secondary">{`${getWithdrawalAmountLabel(record.status)} ${formatWalletAmount(record.net_amount)}`}</Typography.Text>
         </Space>
       ),
     },
@@ -572,10 +575,10 @@ const PersonalBusinessPage: React.FC = () => {
                     style={fullWidthStyle}
                   >
                     <Space wrap size={[8, 8]}>
-                      <Typography.Text strong>提现推进提醒</Typography.Text>
+                      <Typography.Text strong>提现处理提醒</Typography.Text>
                       <Tag color={failedWithdrawals.length ? 'red' : 'green'}>
                         {failedWithdrawals.length
-                          ? `${failedWithdrawals.length} 条失败待解释`
+                          ? `${failedWithdrawals.length} 条失败待处理`
                           : '暂无失败'}{' '}
                       </Tag>
                     </Space>
@@ -589,7 +592,7 @@ const PersonalBusinessPage: React.FC = () => {
                       <Alert
                         type="success"
                         showIcon
-                        title="当前没有失败提现，资金状态正常。"
+                        title="暂无失败的提现申请。"
                       />
                     )}
                   </Space>
@@ -985,7 +988,9 @@ const PersonalBusinessPage: React.FC = () => {
             <Descriptions.Item label="手续费">
               {formatWalletAmount(withdrawalDetail?.fee_amount || 0)}
             </Descriptions.Item>
-            <Descriptions.Item label="到账金额">
+            <Descriptions.Item
+              label={getWithdrawalAmountLabel(withdrawalDetail?.status)}
+            >
               {formatWalletAmount(withdrawalDetail?.net_amount || 0)}
             </Descriptions.Item>
             <Descriptions.Item label="渠道">
@@ -996,7 +1001,7 @@ const PersonalBusinessPage: React.FC = () => {
                   )
                 : '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="收款快照">
+            <Descriptions.Item label="申请时的收款信息">
               <WrappedCodeText
                 value={withdrawalDetail?.payee_account_snapshot || '-'}
               />

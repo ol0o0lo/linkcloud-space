@@ -53,7 +53,7 @@ export function getBrowserLocationErrorMessage(error: unknown) {
   if (!(error instanceof BrowserLocationError))
     return '暂时无法获取当前位置，请稍后重试。';
   if (error.reason === 'unsupported')
-    return '当前浏览器不支持定位，请检查浏览器设置。';
+    return '当前浏览器不支持定位，可手动搜索地点，或更换浏览器。';
   if (error.reason === 'permission-denied')
     return '定位权限未开启，请在浏览器设置中允许访问位置。';
   if (error.reason === 'timeout') return '定位超时，请稍后重试。';

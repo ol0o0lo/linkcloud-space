@@ -259,6 +259,8 @@ declare namespace API {
   };
 
   type AllocationCapabilitiesOut = {
+    /** Register Signing */
+    register_signing: boolean;
     /** Submit */
     submit: boolean;
     /** Change Beneficiaries */
@@ -323,6 +325,8 @@ declare namespace API {
     currency: string;
     /** Source Snapshot */
     source_snapshot: Record<string, any>;
+    /** Performance Month */
+    performance_month: string | null;
     /** Submitted By Id */
     submitted_by_id: number;
     /** Submitted By Name Snapshot */
@@ -347,6 +351,12 @@ declare namespace API {
     voided_at: string | null;
     /** Void Reason */
     void_reason: string;
+    /** Withdrawn By Id */
+    withdrawn_by_id: number | null;
+    /** Withdrawn At */
+    withdrawn_at: string | null;
+    /** Withdraw Reason */
+    withdraw_reason: string;
     /** Items */
     items: AllocationItemOut[];
     /** Shares */
@@ -903,6 +913,70 @@ declare namespace API {
     lng: number | string;
   };
 
+  type appsDataMigrationApiArchiveDetailParams = {
+    record_id: number;
+  };
+
+  type appsDataMigrationApiArchivesParams = {
+    entity_type?: string | null;
+    search?: string | null;
+    batch_id?: string | null;
+    created_from?: string | null;
+    created_to?: string | null;
+    staff_id?: string | null;
+    bill_number?: string | null;
+    checked?: boolean | null;
+    approved?: boolean | null;
+    source_deleted?: boolean | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsDataMigrationApiAssetsParams = {
+    batch_id: string;
+    status?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsDataMigrationApiBatchDetailParams = {
+    batch_id: string;
+  };
+
+  type appsDataMigrationApiConfirmParams = {
+    batch_id: string;
+  };
+
+  type appsDataMigrationApiListBatchesParams = {
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsDataMigrationApiPreviewParams = {
+    batch_id: string;
+  };
+
+  type appsDataMigrationApiRecordsParams = {
+    batch_id: string;
+    entity_type?: string | null;
+    state?: string | null;
+    search?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsDataMigrationApiReportParams = {
+    batch_id: string;
+  };
+
+  type appsDataMigrationApiRetryAssetParams = {
+    asset_id: string;
+  };
+
+  type appsDataMigrationApiRetryBatchParams = {
+    batch_id: string;
+  };
+
   type appsFavoritesApiDeleteUserFavoriteParams = {
     target_type: string;
     target_id: string;
@@ -918,6 +992,17 @@ declare namespace API {
   type appsFavoritesApiPutUserFavoriteParams = {
     target_type: string;
     target_id: string;
+  };
+
+  type appsGeographyApiListLocationNearbyPoisParams = {
+    lat: number | string;
+    lng: number | string;
+  };
+
+  type appsGeographyApiResolveLocationRegionParams = {
+    latitude: number | string;
+    longitude: number | string;
+    coordinate_system?: string;
   };
 
   type appsHouseApiContactsGetContactParams = {
@@ -939,6 +1024,57 @@ declare namespace API {
 
   type appsHouseApiContactsPatchContactParams = {
     contact_id: number;
+  };
+
+  type appsHouseApiCustomersConvertInquiryParams = {
+    notification_id: number;
+  };
+
+  type appsHouseApiCustomersCustomerDetailParams = {
+    contact_id: number;
+  };
+
+  type appsHouseApiCustomersListCustomersParams = {
+    keyword?: string | null;
+    stage?:
+      | "new"
+      | "contacted"
+      | "viewing"
+      | "negotiating"
+      | "won"
+      | "lost"
+      | null;
+    scope?: "mine" | "all";
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiCustomersPatchCustomerParams = {
+    contact_id: number;
+  };
+
+  type appsHouseApiInquiriesInquiryDetailParams = {
+    inquiry_id: number;
+  };
+
+  type appsHouseApiInquiriesListInquiriesParams = {
+    status?: string | null;
+    keyword?: string | null;
+    contact_id?: number | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type appsHouseApiInquiriesPatchInquiryParams = {
+    inquiry_id: number;
+  };
+
+  type appsHouseApiInquiriesPostAssignInquiryParams = {
+    inquiry_id: number;
+  };
+
+  type appsHouseApiInquiriesPostConvertInquiryParams = {
+    inquiry_id: number;
   };
 
   type appsHouseApiLandlordAcceptLandlordInviteParams = {
@@ -994,6 +1130,12 @@ declare namespace API {
     lease_id: number;
   };
 
+  type appsHouseApiLeasesLeaseAllocationHistoryParams = {
+    lease_id: number;
+    page?: number;
+    page_size?: number | null;
+  };
+
   type appsHouseApiLeasesListLeaseAllocationsParams = {
     status?: string | null;
     keyword?: string | null;
@@ -1014,6 +1156,29 @@ declare namespace API {
 
   type appsHouseApiLeasesPatchLeaseParams = {
     lease_id: number;
+  };
+
+  type appsHouseApiLeasesPostLeaseAllocationParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiLeasesPostPreviewAllocationParams = {
+    lease_id: number;
+  };
+
+  type appsHouseApiLeasesPostReviewAllocationParams = {
+    lease_id: number;
+    request_id: number;
+  };
+
+  type appsHouseApiLeasesPostVoidAllocationParams = {
+    lease_id: number;
+    request_id: number;
+  };
+
+  type appsHouseApiLeasesPostWithdrawAllocationParams = {
+    lease_id: number;
+    request_id: number;
   };
 
   type appsHouseApiLeasesReviewLeaseAllocationRequestParams = {
@@ -1150,7 +1315,12 @@ declare namespace API {
     inspection_due?: boolean;
     inspection_reason?: "missing_images" | "missing_videos" | "expired" | null;
     status?: HouseStatus | null;
+    is_active?: boolean | null;
     keyword?: string | null;
+    min_rent?: number | string | null;
+    max_rent?: number | string | null;
+    bedrooms?: number | null;
+    district?: string | null;
     /** 排序字段，多个字段使用英文逗号分隔，字段前的 - 表示降序，最多 3 项。允许字段：room_number、layout、building、asking_rent、deposit_amount、landlord、has_elevator_access、status、area、floor、created_at、updated_at。 */
     ordering?: string;
     page?: number;
@@ -1176,6 +1346,13 @@ declare namespace API {
   type appsHouseApiPublicGetPublicHouseSuggestionsParams = {
     keyword?: string;
     city?: string | null;
+    longitude?: number | string | null;
+    latitude?: number | string | null;
+    radius_m?: number;
+    coordinate_system?: string | null;
+    listing_type?: HouseListingType | null;
+    bedrooms?: number | null;
+    bedrooms_min?: number | null;
   };
 
   type appsHouseApiPublicListPublicHouseMapParams = {
@@ -1253,6 +1430,8 @@ declare namespace API {
   type appsHouseApiResponsibilitiesListStaffResponsibilitiesParams = {
     keyword?: string | null;
     team_id?: number | null;
+    unassigned?: boolean;
+    member_id?: number | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1284,6 +1463,10 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type appsHouseApiTenantShareContactInConversationParams = {
+    conversation_id: number;
+  };
+
   type appsHouseApiViewingsGetViewingRecordParams = {
     record_id: number;
   };
@@ -1294,6 +1477,9 @@ declare namespace API {
     pending_lease?: boolean | null;
     contact_missing?: boolean | null;
     keyword?: string | null;
+    today?: boolean;
+    unassigned?: boolean;
+    scope?: "mine" | "all" | null;
     page?: number;
     page_size?: number | null;
   };
@@ -1305,6 +1491,7 @@ declare namespace API {
   type appsHouseCommuteApiGetCommuteRouteParams = {
     route_id: number;
     house_id: number;
+    retry?: boolean;
   };
 
   type appsHouseCommuteApiGetCommuteSearchParams = {
@@ -1892,11 +2079,74 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type AssetOut = {
+    /** Id */
+    id: string;
+    /** Status */
+    status: string;
+    /** Source Url */
+    source_url: string;
+    /** Resource Type */
+    resource_type: string;
+    /** Media Type */
+    media_type: string;
+    /** Error Message */
+    error_message: string;
+    /** Attempts */
+    attempts: number;
+    /** Media File Id */
+    media_file_id: number | null;
+    /** Binding State */
+    binding_state?: string;
+    /** Url */
+    url?: string | null;
+  };
+
+  type AssetRetryIn = {
+    /** Source Url */
+    source_url?: string | null;
+    /** Media Id */
+    media_id?: number | null;
+  };
+
+  type BatchOut = {
+    /** Id */
+    id: string;
+    /** Source Team Name */
+    source_team_name: string;
+    /** Source Team Id */
+    source_team_id: string;
+    /** Status */
+    status: string;
+    /** Media Status */
+    media_status: string;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+    /** Error Message */
+    error_message: string;
+    /** Summary */
+    summary: Record<string, any>;
+    /** Media Summary */
+    media_summary: Record<string, any>;
+    /** Preview */
+    preview: Record<string, any>;
+  };
+
   type BuildingIn = {
     /** Estate Id */
     estate_id?: number | null;
     /** Name */
     name: string;
+    /** Province */
+    province?: string;
+    /** City */
+    city?: string;
+    /** District */
+    district?: string;
+    /** Subdistrict */
+    subdistrict?: string;
     /** Floors */
     floors: number;
     /** Under Floors */
@@ -1922,6 +2172,14 @@ declare namespace API {
     estate: EstateSummaryOut | null;
     /** Name */
     name: string;
+    /** Province */
+    province?: string;
+    /** City */
+    city?: string;
+    /** District */
+    district?: string;
+    /** Subdistrict */
+    subdistrict?: string;
     /** Floors */
     floors: number;
     /** Under Floors */
@@ -1937,20 +2195,20 @@ declare namespace API {
     images: Record<string, any>[];
     /** Tags */
     tags: string[];
+    /** Migration Media */
+    migration_media?: Record<string, any>[];
     counts: InventoryCountsOut;
   };
 
   type BuildingMapCountsOut = {
     /** Total */
     total: number;
-    /** Vacant */
-    vacant: number;
+    /** Paused */
+    paused: number;
     /** Listed */
     listed: number;
     /** Rented */
     rented: number;
-    /** Renovating */
-    renovating: number;
   };
 
   type BuildingMapDetailOut = {
@@ -1961,6 +2219,14 @@ declare namespace API {
     estate: EstateSummaryOut | null;
     /** Name */
     name: string;
+    /** Province */
+    province?: string;
+    /** City */
+    city?: string;
+    /** District */
+    district?: string;
+    /** Subdistrict */
+    subdistrict?: string;
     /** Floors */
     floors: number;
     /** Under Floors */
@@ -1976,6 +2242,8 @@ declare namespace API {
     images: Record<string, any>[];
     /** Tags */
     tags: string[];
+    /** Migration Media */
+    migration_media?: Record<string, any>[];
     counts: BuildingMapCountsOut;
     /** Houses */
     houses: BuildingMapHouseOut[];
@@ -1996,6 +2264,8 @@ declare namespace API {
     status: string;
     /** Status  Mapping */
     status__mapping: string;
+    /** Is Active */
+    is_active: boolean;
   };
 
   type BuildingMapMarkerOut = {
@@ -2034,6 +2304,14 @@ declare namespace API {
     estate: EstateSummaryOut | null;
     /** Name */
     name: string;
+    /** Province */
+    province?: string;
+    /** City */
+    city?: string;
+    /** District */
+    district?: string;
+    /** Subdistrict */
+    subdistrict?: string;
     /** Floors */
     floors: number;
     /** Under Floors */
@@ -2049,6 +2327,8 @@ declare namespace API {
     images: Record<string, any>[];
     /** Tags */
     tags: string[];
+    /** Migration Media */
+    migration_media?: Record<string, any>[];
   };
 
   type BuildingPatchIn = {
@@ -2056,6 +2336,14 @@ declare namespace API {
     estate_id?: number | null;
     /** Name */
     name?: string | null;
+    /** Province */
+    province?: string | null;
+    /** City */
+    city?: string | null;
+    /** District */
+    district?: string | null;
+    /** Subdistrict */
+    subdistrict?: string | null;
     /** Floors */
     floors?: number | null;
     /** Under Floors */
@@ -2071,6 +2359,17 @@ declare namespace API {
     images?: Record<string, any>[] | null;
     /** Tags */
     tags?: string[] | null;
+  };
+
+  type BuildingRegionOut = {
+    /** Province */
+    province: string;
+    /** City */
+    city: string;
+    /** District */
+    district: string;
+    /** Subdistrict */
+    subdistrict: string;
   };
 
   type BuildingSummaryOut = {
@@ -2146,6 +2445,8 @@ declare namespace API {
     has_elevator_access: boolean;
     /** Images */
     images: ResolvedMediaRefOut[];
+    /** Migration Media */
+    migration_media?: Record<string, any>[];
     /** Tags */
     tags: string[];
     /** Effective Tags */
@@ -2174,6 +2475,10 @@ declare namespace API {
     city: string;
     /** Token */
     token: string;
+    /** Longitude */
+    longitude: number;
+    /** Latitude */
+    latitude: number;
     /** Distance M */
     distance_m?: number | null;
   };
@@ -2196,6 +2501,8 @@ declare namespace API {
     destination_id: number;
     /** Mode */
     mode: "metro" | "ebike" | "bicycle" | "walking" | "driving";
+    /** Retry */
+    retry?: boolean;
   };
 
   type CommuteRouteOut = {
@@ -2247,6 +2554,11 @@ declare namespace API {
     duration_seconds: number | null;
     /** Color */
     color?: string;
+  };
+
+  type ConfirmIn = {
+    /** Preview Version */
+    preview_version: string;
   };
 
   type ContactIn = {
@@ -2530,6 +2842,154 @@ declare namespace API {
     stale: boolean;
   };
 
+  type CustomerIn = {
+    /** Name */
+    name: string;
+    /** Phone */
+    phone: string;
+    /** Email */
+    email?: string | null;
+    /** Notes */
+    notes?: string | null;
+    /** Is Active */
+    is_active?: boolean | null;
+    /** Stage */
+    stage?:
+      | "new"
+      | "contacted"
+      | "viewing"
+      | "negotiating"
+      | "won"
+      | "lost"
+      | null;
+    /** Assigned To Id */
+    assigned_to_id?: number | null;
+    /** Source */
+    source?: string | null;
+    /** Wechat */
+    wechat?: string | null;
+    /** Min Rent */
+    min_rent?: number | string | null;
+    /** Max Rent */
+    max_rent?: number | string | null;
+    /** Preferred Region */
+    preferred_region?: string | null;
+    /** Bedrooms */
+    bedrooms?: number | null;
+    /** Move In Date */
+    move_in_date?: string | null;
+  };
+
+  type CustomerInquiryConvertIn = {
+    /** Name */
+    name?: string | null;
+    /** Phone */
+    phone?: string | null;
+  };
+
+  type CustomerOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Phone */
+    phone: string;
+    /** Email */
+    email: string;
+    /** Notes */
+    notes: string;
+    /** Is Active */
+    is_active: boolean;
+    /** Stage */
+    stage: string;
+    /** Stage Label */
+    stage_label: string;
+    /** Assigned To Id */
+    assigned_to_id: number | null;
+    /** Assigned To Name */
+    assigned_to_name: string;
+    /** Source */
+    source: string;
+    /** Wechat */
+    wechat: string;
+    /** Min Rent */
+    min_rent: string | null;
+    /** Max Rent */
+    max_rent: string | null;
+    /** Preferred Region */
+    preferred_region: string;
+    /** Bedrooms */
+    bedrooms: number | null;
+    /** Move In Date */
+    move_in_date: string | null;
+  };
+
+  type CustomerPatchIn = {
+    /** Name */
+    name?: string | null;
+    /** Phone */
+    phone?: string | null;
+    /** Email */
+    email?: string | null;
+    /** Notes */
+    notes?: string | null;
+    /** Is Active */
+    is_active?: boolean | null;
+    /** Stage */
+    stage?:
+      | "new"
+      | "contacted"
+      | "viewing"
+      | "negotiating"
+      | "won"
+      | "lost"
+      | null;
+    /** Assigned To Id */
+    assigned_to_id?: number | null;
+    /** Source */
+    source?: string | null;
+    /** Wechat */
+    wechat?: string | null;
+    /** Min Rent */
+    min_rent?: number | string | null;
+    /** Max Rent */
+    max_rent?: number | string | null;
+    /** Preferred Region */
+    preferred_region?: string | null;
+    /** Bedrooms */
+    bedrooms?: number | null;
+    /** Move In Date */
+    move_in_date?: string | null;
+  };
+
+  type CustomerWorkbenchItemOut = {
+    /** Inquiry Id */
+    inquiry_id: number;
+    /** House Id */
+    house_id: number;
+    /** Customer Name */
+    customer_name: string;
+    /** Phone */
+    phone: string;
+    /** Status */
+    status: string;
+  };
+
+  type CustomerWorkbenchOut = {
+    /** New Customers */
+    new_customers: number;
+    /** New Inquiries */
+    new_inquiries: number;
+    /** Today Viewings */
+    today_viewings: number;
+    /** Unassigned Viewings */
+    unassigned_viewings: number;
+    /** Pending Allocations */
+    pending_allocations: number;
+    /** Items */
+    items: CustomerWorkbenchItemOut[];
+  };
+
   type CustomRoleCreateIn = {
     /** Name 角色显示名称，需在当前作用域内唯一。 */
     name: string;
@@ -2570,6 +3030,8 @@ declare namespace API {
   type DealSigningLeaseIn = {
     /** House Id */
     house_id: number;
+    /** Source Inquiry Id */
+    source_inquiry_id?: number | null;
     /** Tenant Id */
     tenant_id?: number | null;
     tenant_identity?: DealSigningTenantIdentityIn | null;
@@ -2600,14 +3062,6 @@ declare namespace API {
     name: string;
     /** Phone */
     phone: string;
-  };
-
-  type DealSigningWithAllocationIn = {
-    lease: DealSigningLeaseIn;
-    /** Team Id */
-    team_id?: number | null;
-    /** Beneficiary User Ids */
-    beneficiary_user_ids: number[];
   };
 
   type DefaultBuildingIn = {
@@ -3252,10 +3706,14 @@ declare namespace API {
     status: HouseStatus;
     /** Status  Mapping */
     status__mapping: string;
+    /** Is Active */
+    is_active: boolean;
     /** Images */
     images: Record<string, any>[];
     /** Videos */
     videos: Record<string, any>[];
+    /** Migration Media */
+    migration_media?: Record<string, any>[];
     /** Tags */
     tags: string[];
     /** Effective Tags */
@@ -3313,6 +3771,8 @@ declare namespace API {
     /** Has Elevator Access */
     has_elevator_access?: boolean | null;
     status?: HouseStatus | null;
+    /** Is Active */
+    is_active?: boolean;
     /** Images */
     images?: Record<string, any>[] | null;
     /** Videos */
@@ -3327,7 +3787,7 @@ declare namespace API {
     extra?: Record<string, any> | null;
   };
 
-  type HouseStatus = "vacant" | "listed" | "rented" | "renovating" | "inactive";
+  type HouseStatus = "listed" | "rented" | "paused";
 
   type HouseSummaryOut = {
     /** Id */
@@ -3339,6 +3799,8 @@ declare namespace API {
     /** Building Id */
     building_id: number;
     building: BuildingSummaryOut;
+    /** Is Active */
+    is_active: boolean;
   };
 
   type ImpersonateUserOut = {
@@ -3365,17 +3827,84 @@ declare namespace API {
     page_size?: number | null;
   };
 
+  type InquiryAssignIn = {
+    /** Assigned To Id */
+    assigned_to_id: number;
+  };
+
+  type InquiryContactOut = {
+    /** Id */
+    id: number;
+    /** Name */
+    name: string;
+    /** Phone */
+    phone: string;
+    /** Wechat */
+    wechat: string;
+  };
+
+  type InquiryOut = {
+    /** Id */
+    id: number;
+    /** House Id */
+    house_id: number;
+    house: HouseSummaryOut;
+    /** Contact Id */
+    contact_id: number | null;
+    /** Customer Name */
+    customer_name: string;
+    /** Phone */
+    phone: string;
+    /** Wechat */
+    wechat: string;
+    /** Assigned To Id */
+    assigned_to_id: number | null;
+    /** Assigned To Name */
+    assigned_to_name: string;
+    /** Status */
+    status: string;
+    /** Status Label */
+    status_label: string;
+    /** Notes */
+    notes: string;
+    /** Viewing Count */
+    viewing_count: number;
+    /** Signed Lease Id */
+    signed_lease_id: number | null;
+    /** Created At */
+    created_at: string;
+    /** Can Manage */
+    can_manage: boolean;
+    /** Can Process */
+    can_process: boolean;
+    /** Viewings */
+    viewings?: ViewingRecordOut[];
+    /** Leases */
+    leases?: LeaseOut[];
+  };
+
+  type InquiryPatchIn = {
+    /** Customer Name */
+    customer_name?: string;
+    /** Phone */
+    phone?: string;
+    /** Wechat */
+    wechat?: string;
+    /** Notes */
+    notes?: string;
+    /** Status */
+    status?: "new" | "processing" | "closed";
+  };
+
   type InventoryCountsOut = {
     /** Total */
     total: number;
-    /** Vacant */
-    vacant: number;
+    /** Paused */
+    paused: number;
     /** Listed */
     listed: number;
     /** Rented */
     rented: number;
-    /** Renovating */
-    renovating: number;
   };
 
   type InviteIn = {
@@ -3552,6 +4081,8 @@ declare namespace API {
     status: string;
     /** Status  Mapping */
     status__mapping: string;
+    /** Is Active */
+    is_active: boolean;
     /** Images */
     images: Record<string, any>[];
     /** Videos */
@@ -3616,6 +4147,40 @@ declare namespace API {
     allocation_request: AllocationRequestOut;
     /** Created At */
     created_at: string;
+    /** Mode */
+    mode: string;
+    /** Previous Request Id */
+    previous_request_id: number | null;
+    /** Reason */
+    reason: string;
+  };
+
+  type LeaseAllocationPreviewIn = {
+    /** Mode */
+    mode?: "initial" | "correction";
+    /** Previous Request Id */
+    previous_request_id?: number | null;
+  };
+
+  type LeaseAllocationPreviewOut = {
+    /** Basis Amount */
+    basis_amount: string;
+    /** Distributable Amount */
+    distributable_amount: string;
+    /** Distribution Method */
+    distribution_method: string;
+    /** Distribution Rate Bp */
+    distribution_rate_bp: number | null;
+    /** Rule Source */
+    rule_source: string;
+    /** Team Id */
+    team_id: number | null;
+    /** Team Name */
+    team_name: string;
+    /** Performance Month */
+    performance_month: string;
+    /** Preview Hash */
+    preview_hash: string;
   };
 
   type LeaseAllocationReviewIn = {
@@ -3623,11 +4188,35 @@ declare namespace API {
     decision: "approve" | "reject";
     /** Reason */
     reason?: string;
+    /** Request Id */
+    request_id?: number | null;
+  };
+
+  type LeaseAllocationSubmitIn = {
+    /** Beneficiary User Ids */
+    beneficiary_user_ids?: number[] | null;
+    /** Client Request Id */
+    client_request_id: string;
+    /** Mode */
+    mode?: "initial" | "resubmit" | "correction";
+    /** Previous Request Id */
+    previous_request_id?: number | null;
+    /** Reason */
+    reason?: string;
+    /** Preview Hash 首次申请和纠错重提必须提交预览返回的确认标识；普通重提不需要。 */
+    preview_hash?: string | null;
   };
 
   type LeaseAllocationVoidIn = {
     /** Reason */
     reason: string;
+    /** Request Id */
+    request_id?: number | null;
+  };
+
+  type LeaseAllocationWithdrawIn = {
+    /** Reason */
+    reason?: string;
   };
 
   type LeaseIn = {
@@ -3635,6 +4224,8 @@ declare namespace API {
     house_id: number;
     /** Tenant Id */
     tenant_id: number;
+    /** Source Inquiry Id */
+    source_inquiry_id?: number | null;
     /** Source Viewing Record Id */
     source_viewing_record_id?: number | null;
     /** Sign At */
@@ -3666,6 +4257,16 @@ declare namespace API {
     /** Tenant Id */
     tenant_id: number;
     tenant: ContactSummaryOut;
+    /** Source Inquiry Id */
+    source_inquiry_id: number | null;
+    /** Registered By Id */
+    registered_by_id: number | null;
+    /** Deal Team Id */
+    deal_team_id: number | null;
+    /** Deal Team Name Snapshot */
+    deal_team_name_snapshot: string;
+    /** Performance Month */
+    performance_month: string | null;
     /** Source Viewing Record Id */
     source_viewing_record_id: number | null;
     source_viewing_record: ViewingRecordSummaryOut | null;
@@ -3691,9 +4292,15 @@ declare namespace API {
     notes: string;
     /** Extra */
     extra: Record<string, any>;
+    /** Can Maintain */
+    can_maintain: boolean;
   };
 
   type LeasePatchIn = {
+    /** Deal Team Id */
+    deal_team_id?: number | null;
+    /** Source Inquiry Id */
+    source_inquiry_id?: number | null;
     /** House Id */
     house_id?: number | null;
     /** Tenant Id */
@@ -3720,6 +4327,15 @@ declare namespace API {
     notes?: string | null;
     /** Extra */
     extra?: Record<string, any> | null;
+  };
+
+  type LocatedRegionOut = {
+    /** Province */
+    province: string;
+    /** City */
+    city: string;
+    /** District */
+    district: string;
   };
 
   type ManualAccrualEntryIn = {
@@ -3907,6 +4523,191 @@ declare namespace API {
     invocation_id: number | null;
     /** Created At */
     created_at: string;
+  };
+
+  type MessagingConversationOut = {
+    /** Id */
+    id: number;
+    organization: MessagingOrganizationOut;
+    /** Namespace */
+    namespace: string;
+    /** Context Key */
+    context_key: string;
+    /** Status */
+    status: "active" | "closed";
+    /** Status  Mapping */
+    status__mapping: string;
+    /** Members */
+    members: MessagingMemberOut[];
+    last_message?: MessagingLastMessageOut | null;
+    /** My Member Id */
+    my_member_id: number;
+    /** My Last Read Seq */
+    my_last_read_seq: number;
+    /** Unread Count */
+    unread_count: number;
+    /** Can Send */
+    can_send: boolean;
+    /** Send Block Reason */
+    send_block_reason: string;
+    /** Send Block Reason  Mapping */
+    send_block_reason__mapping: string;
+  };
+
+  type messagingCreateDirectConversationParams = {
+    organization_slug: string;
+  };
+
+  type MessagingDirectIn = {
+    /** Peer User Id */
+    peer_user_id: number;
+  };
+
+  type messagingGetConversationParams = {
+    organization_slug: string;
+    conversation_id: number;
+  };
+
+  type messagingGetUnreadCountParams = {
+    organization_slug: string;
+    namespace?: string | null;
+  };
+
+  type MessagingLastMessageOut = {
+    /** Id */
+    id: number;
+    /** Seq */
+    seq: number;
+    /** Sender Member Id */
+    sender_member_id: number;
+    /** Preview */
+    preview: string;
+    /** Created At */
+    created_at: string;
+  };
+
+  type messagingListConversationsParams = {
+    organization_slug: string;
+    namespace?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type messagingListMessagesParams = {
+    organization_slug: string;
+    conversation_id: number;
+    before_seq?: number | null;
+    after_seq?: number | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type messagingListPeersParams = {
+    organization_slug: string;
+    keyword?: string;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type messagingListPersonalOrganizationsParams = {
+    namespace?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+  type messagingMarkReadParams = {
+    organization_slug: string;
+    conversation_id: number;
+  };
+
+  type MessagingMemberOut = {
+    /** Id */
+    id: number;
+    /** User Id */
+    user_id: number | null;
+    /** Display Name */
+    display_name: string;
+    /** Avatar Url */
+    avatar_url?: string | null;
+    /** Access Kind */
+    access_kind: "organization_member" | "business_party";
+  };
+
+  type MessagingMessageIn = {
+    /** Client Message Id */
+    client_message_id: string;
+    /** Content */
+    content: string;
+  };
+
+  type MessagingMessageOut = {
+    /** Id */
+    id: number;
+    /** Conversation Id */
+    conversation_id: number;
+    /** Seq */
+    seq: number;
+    /** Sender Member Id */
+    sender_member_id: number;
+    /** Client Message Id */
+    client_message_id: string;
+    /** Content */
+    content: string;
+    /** Created At */
+    created_at: string;
+  };
+
+  type MessagingOrganizationOut = {
+    /** Id */
+    id: number;
+    /** Slug */
+    slug: string;
+    /** Name */
+    name: string;
+  };
+
+  type MessagingPeerOut = {
+    /** User Id */
+    user_id: number;
+    /** Display Name */
+    display_name: string;
+    /** Avatar Url */
+    avatar_url?: string | null;
+  };
+
+  type MessagingPersonalOrganizationOut = {
+    /** Id */
+    id: number;
+    /** Slug */
+    slug: string;
+    /** Name */
+    name: string;
+    /** Unread Count */
+    unread_count: number;
+  };
+
+  type MessagingReadIn = {
+    /** Last Read Seq */
+    last_read_seq: number;
+  };
+
+  type MessagingReadOut = {
+    /** Last Read Seq */
+    last_read_seq: number;
+    /** Unread Count */
+    unread_count: number;
+  };
+
+  type messagingSendMessageParams = {
+    organization_slug: string;
+    conversation_id: number;
+  };
+
+  type MessagingUnreadCountOut = {
+    /** Message Count */
+    message_count: number;
+    /** Conversation Count */
+    conversation_count: number;
   };
 
   type MonthlyAccrualTotalOut = {
@@ -4428,6 +5229,28 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedAssetOut = {
+    /** Items */
+    items: AssetOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedBatchOut = {
+    /** Items */
+    items: BatchOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedBuildingInventoryOut = {
     /** Items */
     items: BuildingInventoryOut[];
@@ -4549,6 +5372,17 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedCustomerOut = {
+    /** Items */
+    items: CustomerOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedEstateDetailOut = {
     /** Items */
     items: EstateDetailOut[];
@@ -4607,6 +5441,17 @@ declare namespace API {
   type PagedHouseOut = {
     /** Items */
     items: HouseOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedInquiryOut = {
+    /** Items */
+    items: InquiryOut[];
     /** Total */
     total: number;
     /** Page */
@@ -4692,6 +5537,50 @@ declare namespace API {
     page_size: number;
   };
 
+  type PagedMessagingConversationOut = {
+    /** Items */
+    items: MessagingConversationOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMessagingMessageOut = {
+    /** Items */
+    items: MessagingMessageOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMessagingPeerOut = {
+    /** Items */
+    items: MessagingPeerOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedMessagingPersonalOrganizationOut = {
+    /** Items */
+    items: MessagingPersonalOrganizationOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
   type PagedMonthlyAccrualTotalOut = {
     /** Items */
     items: MonthlyAccrualTotalOut[];
@@ -4750,6 +5639,17 @@ declare namespace API {
   type PagedPublicHouseListOut = {
     /** Items */
     items: PublicHouseListOut[];
+    /** Total */
+    total: number;
+    /** Page */
+    page: number;
+    /** Page Size */
+    page_size: number;
+  };
+
+  type PagedRecordOut = {
+    /** Items */
+    items: RecordOut[];
     /** Total */
     total: number;
     /** Page */
@@ -4989,6 +5889,15 @@ declare namespace API {
     entitlement: Record<string, any> | null;
   };
 
+  type PreviewIn = {
+    /** Overrides */
+    overrides?: Record<string, any>[];
+    /** Mappings */
+    mappings?: Record<string, any>[];
+    /** Member Mappings */
+    member_mappings?: Record<string, any>;
+  };
+
   type PropertyResponsibilityMemberOut = {
     /** Member Id */
     member_id: number;
@@ -5034,6 +5943,7 @@ declare namespace API {
     address: string;
     location: GeoPointOut | null;
     estate: PublicEstateOut | null;
+    region: BuildingRegionOut;
   };
 
   type PublicEstateOut = {
@@ -5087,6 +5997,8 @@ declare namespace API {
     has_elevator_access: boolean;
     /** Images */
     images: ResolvedMediaRefOut[];
+    /** Migration Media */
+    migration_media?: Record<string, any>[];
     /** Tags */
     tags: string[];
     /** Effective Tags */
@@ -5169,6 +6081,8 @@ declare namespace API {
     has_elevator_access: boolean;
     /** Images */
     images: ResolvedMediaRefOut[];
+    /** Migration Media */
+    migration_media?: Record<string, any>[];
     /** Tags */
     tags: string[];
     /** Effective Tags */
@@ -5352,6 +6266,8 @@ declare namespace API {
     category: "区域" | "商圈" | "小区" | "楼栋" | "房号";
     /** House Count */
     house_count: number;
+    /** Address */
+    address?: string;
   };
 
   type PublicInviteOut = {
@@ -5627,6 +6543,35 @@ declare namespace API {
     diff_count: number;
   };
 
+  type RecordOut = {
+    /** Id */
+    id: number;
+    /** Batch Id */
+    batch_id: string;
+    /** Entity Type */
+    entity_type: string;
+    /** Source Id */
+    source_id: string;
+    /** Data */
+    data: Record<string, any>;
+    /** State */
+    state: string;
+    /** Error Message */
+    error_message: string;
+    /** Target Type */
+    target_type: string;
+    /** Target Id */
+    target_id: number | null;
+    /** Source Deleted */
+    source_deleted: boolean;
+    /** Source Created At */
+    source_created_at: string;
+    /** Source Updated At */
+    source_updated_at: string;
+    /** Media */
+    media?: Record<string, any>[];
+  };
+
   type ReferralRecordOut = {
     /** Id */
     id: number;
@@ -5719,6 +6664,16 @@ declare namespace API {
     proof?: string;
     /** Subscription Action */
     subscription_action: string;
+  };
+
+  type RegisterSigningIn = {
+    lease: DealSigningLeaseIn;
+    /** Source Inquiry Id */
+    source_inquiry_id?: number | null;
+    /** Team Id */
+    team_id?: number | null;
+    /** Client Request Id */
+    client_request_id: string;
   };
 
   type RelatedResourceItemOut = {
@@ -6212,6 +7167,11 @@ declare namespace API {
     members?: number[] | null;
   };
 
+  type TenantChatIn = {
+    /** House Id */
+    house_id: number;
+  };
+
   type TenantContactRequestIn = {
     /** House Id */
     house_id: number;
@@ -6221,11 +7181,28 @@ declare namespace API {
     phone?: string;
     /** Wechat */
     wechat?: string;
+    /** Client Message Id */
+    client_message_id?: string;
   };
 
   type TenantContactRequestOut = {
     /** Notification Id */
-    notification_id: number;
+    notification_id?: number | null;
+    /** Inquiry Id */
+    inquiry_id: number;
+    conversation?: MessagingConversationOut | null;
+    message?: MessagingMessageOut | null;
+  };
+
+  type TenantContactShareIn = {
+    /** Channels */
+    channels: ("phone" | "wechat")[];
+    /** Phone */
+    phone?: string;
+    /** Wechat */
+    wechat?: string;
+    /** Client Message Id */
+    client_message_id: string;
   };
 
   type TenantLeaseOut = {
@@ -6266,6 +7243,13 @@ declare namespace API {
     slug: string;
   };
 
+  type TenantViewingReceptionistOut = {
+    /** Name */
+    name: string;
+    /** Phone */
+    phone: string;
+  };
+
   type TenantViewingRecordIn = {
     /** House Id */
     house_id: number;
@@ -6292,6 +7276,7 @@ declare namespace API {
     status__mapping: string;
     /** Signed Lease Id */
     signed_lease_id?: number | null;
+    receptionist?: TenantViewingReceptionistOut | null;
   };
 
   type TestNotificationIn = {
@@ -6410,6 +7395,8 @@ declare namespace API {
     changes: VacancySyncChangesOut;
     /** Errors */
     errors: VacancySyncErrorOut[];
+    /** Warnings */
+    warnings: string[];
   };
 
   type VacancySyncBuildingCandidateOut = {
@@ -6446,12 +7433,12 @@ declare namespace API {
     create_houses: VacancySyncHouseChangeOut[];
     /** Update Houses */
     update_houses: VacancySyncHouseChangeOut[];
-    /** Mark Vacant */
-    mark_vacant: VacancySyncHouseChangeOut[];
+    /** Mark Paused */
+    mark_paused: VacancySyncHouseChangeOut[];
     /** Mark Rented */
     mark_rented: VacancySyncHouseChangeOut[];
-    /** Preserve Special Status */
-    preserve_special_status: VacancySyncHouseChangeOut[];
+    /** Preserve Ignored */
+    preserve_ignored: VacancySyncHouseChangeOut[];
     /** Inactive Conflicts */
     inactive_conflicts: VacancySyncHouseChangeOut[];
   };
@@ -6467,6 +7454,15 @@ declare namespace API {
     line_number: number | null;
   };
 
+  type VacancySyncFieldChangeOut = {
+    /** Field */
+    field: string;
+    /** Before */
+    before: string | null;
+    /** After */
+    after: string | null;
+  };
+
   type VacancySyncHouseChangeOut = {
     /** House Id */
     house_id: number | null;
@@ -6478,6 +7474,8 @@ declare namespace API {
     after_status: string | null;
     /** Changed Fields */
     changed_fields: string[];
+    /** Field Changes */
+    field_changes?: VacancySyncFieldChangeOut[];
   };
 
   type VacancySyncIn = {
@@ -6527,8 +7525,6 @@ declare namespace API {
     can_apply: boolean;
     /** Plan Hash */
     plan_hash: string | null;
-    /** Force Rented */
-    force_rented: boolean;
     summary: VacancySyncSummaryOut;
     /** Blocks */
     blocks: VacancySyncBlockOut[];
@@ -6551,12 +7547,12 @@ declare namespace API {
     create_houses: number;
     /** Update Houses */
     update_houses: number;
-    /** Mark Vacant */
-    mark_vacant: number;
+    /** Mark Paused */
+    mark_paused: number;
     /** Mark Rented */
     mark_rented: number;
-    /** Preserve Special Status */
-    preserve_special_status: number;
+    /** Preserve Ignored */
+    preserve_ignored: number;
   };
 
   type ViewingRecordIn = {
@@ -6564,6 +7560,8 @@ declare namespace API {
     house_id: number;
     /** Contact Id */
     contact_id?: number | null;
+    /** Source Inquiry Id */
+    source_inquiry_id?: number | null;
     /** Customer Name */
     customer_name: string;
     /** Customer Phone */
@@ -6584,6 +7582,8 @@ declare namespace API {
     house: HouseSummaryOut;
     /** Contact Id */
     contact_id: number | null;
+    /** Source Inquiry Id */
+    source_inquiry_id: number | null;
     contact: ContactSummaryOut | null;
     /** Customer Name */
     customer_name: string;
@@ -6610,6 +7610,8 @@ declare namespace API {
   };
 
   type ViewingRecordPatchIn = {
+    /** Source Inquiry Id */
+    source_inquiry_id?: number | null;
     /** House Id */
     house_id?: number | null;
     /** Contact Id */

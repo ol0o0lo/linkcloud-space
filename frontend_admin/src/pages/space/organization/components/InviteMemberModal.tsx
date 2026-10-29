@@ -86,7 +86,7 @@ export const InviteMemberModal: React.FC<{
       }
     >
       <Typography.Paragraph type="secondary">
-        邀请接受后成员会进入“未分组成员”，不会预设团队；可选预设一个组织级访问角色。
+        邀请接受后成员会进入“未分组成员”，不会预设团队；可选预设一个空间级访问角色。
       </Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item label="邀请方式">
@@ -145,7 +145,7 @@ export const InviteMemberModal: React.FC<{
           </Form.Item>
         ) : null}
         {canViewRoles ? (
-          <Form.Item label="预设组织角色" name="access_role">
+          <Form.Item label="预设空间角色" name="access_role">
             <Select
               allowClear
               placeholder="普通成员"

@@ -261,7 +261,7 @@ const SubscriptionsAdminPage: React.FC = () => {
 
   const orderColumns: ProColumns<AdminOrder>[] = [
     {
-      title: '组织',
+      title: '工作空间',
       dataIndex: 'organization_name',
       width: 220,
       render: (_value, record) => (
@@ -404,7 +404,7 @@ const SubscriptionsAdminPage: React.FC = () => {
 
   const invoiceColumns: ProColumns<AdminInvoiceRequest>[] = [
     {
-      title: '组织',
+      title: '工作空间',
       dataIndex: 'organization_name',
       width: 220,
       render: (_value, record) => (
@@ -556,7 +556,7 @@ const SubscriptionsAdminPage: React.FC = () => {
                 <Input.Search
                   aria-label="订单关键词"
                   allowClear
-                  placeholder="订单号或组织"
+                  placeholder="订单号或工作空间"
                   style={toolbarControlStyle}
                   value={orderKeywordDraft}
                   onChange={(event) => setOrderKeywordDraft(event.target.value)}
@@ -698,7 +698,7 @@ const SubscriptionsAdminPage: React.FC = () => {
                 <Input.Search
                   aria-label="开票关键词"
                   allowClear
-                  placeholder="订单、组织或发票抬头"
+                  placeholder="订单、工作空间或发票抬头"
                   style={toolbarControlStyle}
                   value={invoiceKeywordDraft}
                   onChange={(event) =>

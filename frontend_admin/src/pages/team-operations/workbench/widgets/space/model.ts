@@ -6,10 +6,7 @@ import {
   HOUSE_STATUS,
   houseLabel,
 } from '@/pages/rental/constants';
-import type {
-  HouseOut,
-  ViewingRecordOut,
-} from '@/services/manual/house';
+import type { HouseOut, ViewingRecordOut } from '@/services/manual/house';
 
 const HOUSE_ISSUE_TO_TASK: Record<
   string,
@@ -156,7 +153,8 @@ export function getHouseTaskLink(record: HouseOut, rules?: unknown) {
   if (
     !issues.length &&
     canHousePublish(record, rules) &&
-    record.status === HOUSE_STATUS.VACANT
+    record.is_active !== false &&
+    record.status === HOUSE_STATUS.PAUSED
   ) {
     return { label: '检查后发布', path: basePath };
   }

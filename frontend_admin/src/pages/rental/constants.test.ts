@@ -1,13 +1,91 @@
 import { describe, expect, it } from 'vitest';
+import type { MigrationMediaSource } from '@/services/manual/house';
 import {
   buildingLabel,
+  displayMedia,
   houseBalconyText,
   houseDisplayTags,
   houseKitchenText,
   houseLabel,
   houseLayoutText,
   housePrimaryLayoutText,
+  mediaChangePatch,
+  mediaCoverUrl,
+  stripDerivedMediaFields,
 } from './constants';
+
+describe('迁移媒体只读展示', () => {
+  it('普通资料编辑不回传未改变的媒体，避免旧快照覆盖后台新回填', () => {
+    const images = [
+      { media_id: 11, media_type: 'image', url: '/old-signed.jpg' },
+    ];
+    expect(
+      mediaChangePatch(
+        'images',
+        [{ ...images[0], url: '/refreshed-signed.jpg' }],
+        images,
+      ),
+    ).toEqual({});
+    expect(mediaChangePatch('images', [], images)).toEqual({ images: [] });
+  });
+  it('按原顺序合并旧图、迁移中占位和正式媒体，不修改编辑源数据', () => {
+    const images = [{ media_id: 11, media_type: 'image', url: '/new.jpg' }];
+    const source: MigrationMediaSource = {
+      migration_media: [
+        {
+          id: 'old-cover',
+          field: 'images',
+          position: 0,
+          url: 'https://old.example/cover.jpg',
+          media_type: 'image',
+          status: 'pending',
+        },
+        {
+          id: 'missing',
+          field: 'images',
+          position: 1,
+          url: null,
+          media_type: 'image',
+          status: 'missing',
+        },
+      ],
+    };
+    const result = displayMedia(images, source);
+    expect(result.map((item) => item.url)).toEqual([
+      'https://old.example/cover.jpg',
+      undefined,
+      '/new.jpg',
+    ]);
+    expect(mediaCoverUrl(images, source)).toBe('https://old.example/cover.jpg');
+    expect(result[0].media_id).toBeUndefined();
+    expect(images).toEqual([
+      { media_id: 11, media_type: 'image', url: '/new.jpg' },
+    ]);
+    expect(stripDerivedMediaFields(images)).toEqual([
+      { media_id: 11, media_type: 'image' },
+    ]);
+  });
+
+  it('新媒体回填后复用正式引用，避免图片重复', () => {
+    const source: MigrationMediaSource = {
+      migration_media: [
+        {
+          id: 'copied',
+          field: 'images',
+          position: 0,
+          url: '/new.jpg',
+          media_type: 'image',
+          status: 'succeeded',
+          media_file_id: 11,
+        },
+      ],
+    };
+    expect(
+      displayMedia([{ media_id: 11, url: '/new.jpg' }], source),
+    ).toHaveLength(1);
+    expect(displayMedia([], source, 'videos')).toEqual([]);
+  });
+});
 
 describe('楼栋与房源标签', () => {
   it('绑定小区时以小区和楼栋显示', () => {

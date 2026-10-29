@@ -48,6 +48,7 @@ import {
   VERIFY_PHONE_PATH,
 } from '@/utils/adminRouting';
 import { normalizeEmailLikeInput } from '@/utils/email';
+import { normalizeMainlandPhoneInput } from '@/utils/phone';
 import Settings from '../../../../config/defaultSettings';
 import logoUrl from '../../../../public/logo.svg';
 import WechatMiniprogramLoginModal from './wechat-miniprogram-login-modal';
@@ -93,7 +94,10 @@ function buildAllauthLoginData(body: LoginFormValues) {
     return { email: normalizedEmailIdentifier, password };
   }
 
-  const phone = /^1\d{10}$/.test(identifier) ? `+86${identifier}` : identifier;
+  const nationalNumber = normalizeMainlandPhoneInput(identifier);
+  const phone = /^1\d{10}$/.test(nationalNumber)
+    ? `+86${nationalNumber}`
+    : identifier;
   return { phone, password };
 }
 
@@ -690,7 +694,7 @@ const Login: React.FC = () => {
                   <LoginMessage
                     content={intl.formatMessage({
                       id: 'pages.login.accountLogin.errorMessage',
-                      defaultMessage: '账户或密码错误',
+                      defaultMessage: '账号或密码错误',
                     })}
                   />
                 )}
@@ -815,8 +819,9 @@ const Login: React.FC = () => {
                     <>
                       <ProFormText
                         name="phone"
+                        normalize={normalizeMainlandPhoneInput}
                         fieldProps={{
-                          autoComplete: 'tel',
+                          autoComplete: 'tel-national',
                           inputMode: 'tel',
                           size: 'large',
                           prefix: (
@@ -826,7 +831,9 @@ const Login: React.FC = () => {
                             </span>
                           ),
                           onChange: (event) =>
-                            setLoginCodePhone(event.target.value),
+                            setLoginCodePhone(
+                              normalizeMainlandPhoneInput(event.target.value),
+                            ),
                         }}
                         placeholder="请输入手机号"
                         rules={[

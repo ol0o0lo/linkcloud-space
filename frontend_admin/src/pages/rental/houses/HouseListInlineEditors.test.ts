@@ -28,7 +28,7 @@ describe('buildHouseInlinePatch', () => {
       public_description: '对外描述',
       room_layout_edit: { bedrooms: 2, living_rooms: 1 },
       room_number: 'A-102',
-      status: 'vacant',
+      status: 'paused',
       tags: ['近地铁', '采光好'],
     });
 
@@ -53,11 +53,11 @@ describe('buildHouseInlinePatch', () => {
         living_rooms: 1,
         orientation: 'south',
         room_number: 'A-102',
-        status: 'vacant',
+        status: 'paused',
         tags: ['近地铁', '采光好'],
-        videos: [],
       }),
     );
+    expect(patch).not.toHaveProperty('videos');
     expect(patch).not.toHaveProperty('has_elevator_access');
   });
 
@@ -78,5 +78,21 @@ describe('buildHouseInlinePatch', () => {
       }),
     );
     expect(patch).not.toHaveProperty('has_elevator_access');
+    expect(patch).not.toHaveProperty('images');
+    expect(patch).not.toHaveProperty('videos');
+  });
+  it.each([
+    'listed',
+    'rented',
+    'paused',
+  ] as const)('保存单选房态 %s', (status) => {
+    expect(
+      buildHouseInlinePatch({
+        building_id: 2,
+        room_number: '101',
+        status: 'paused',
+        status_edit: { status, is_active: true },
+      }),
+    ).toMatchObject({ status });
   });
 });

@@ -13,10 +13,9 @@ import {
 
 const counts = {
   total: 8,
-  vacant: 1,
+  paused: 1,
   listed: 2,
   rented: 4,
-  renovating: 1,
 };
 
 const estate: EstateMapMarkerOut = {
@@ -24,7 +23,11 @@ const estate: EstateMapMarkerOut = {
   name: '云栖花园',
   display_name: '云栖花园一期',
   address: '云栖路 88 号',
-  location: { latitude: 23.13512, longitude: 113.36121, coordinate_system: 'gcj02' },
+  location: {
+    latitude: 23.13512,
+    longitude: 113.36121,
+    coordinate_system: 'gcj02',
+  },
   location_source: 'building_centroid',
   building_count: 3,
   located_building_count: 2,
@@ -40,10 +43,9 @@ const independentBuilding: BuildingMapMarkerOut = {
   location: { latitude: 23.13, longitude: 113.36, coordinate_system: 'gcj02' },
   counts: {
     total: 2,
-    vacant: 1,
+    paused: 1,
     listed: 0,
     rented: 1,
-    renovating: 0,
   },
 };
 
@@ -96,9 +98,9 @@ describe('mergeEstateMapDisplayPoints', () => {
 
 describe('地图计数', () => {
   it('按房态选择气泡主指标，未知房态回退到总房源', () => {
-    expect(getMapPrimaryMetric(counts, 'vacant')).toEqual({
-      key: 'vacant',
-      label: '空置',
+    expect(getMapPrimaryMetric(counts, 'paused')).toEqual({
+      key: 'paused',
+      label: '暂不出租',
       value: 1,
     });
     expect(getMapPrimaryMetric(counts, 'unknown')).toEqual({
@@ -122,10 +124,9 @@ describe('地图计数', () => {
       unlocatedBuildingCount: 1,
       counts: {
         total: 10,
-        vacant: 2,
+        paused: 2,
         listed: 2,
         rented: 5,
-        renovating: 1,
       },
     });
   });
@@ -134,14 +135,14 @@ describe('地图计数', () => {
 describe('sortMapItemsByMetric', () => {
   it('按当前房态数量倒序，并用名称和 ID 保持稳定顺序', () => {
     const items = [
-      { id: 3, name: '云岸', counts: { ...counts, vacant: 2 } },
-      { id: 2, name: '滨江', counts: { ...counts, vacant: 2 } },
-      { id: 1, name: '滨江', counts: { ...counts, vacant: 2 } },
-      { id: 4, name: '花城', counts: { ...counts, vacant: 5 } },
+      { id: 3, name: '云岸', counts: { ...counts, paused: 2 } },
+      { id: 2, name: '滨江', counts: { ...counts, paused: 2 } },
+      { id: 1, name: '滨江', counts: { ...counts, paused: 2 } },
+      { id: 4, name: '花城', counts: { ...counts, paused: 5 } },
     ];
 
     expect(
-      sortMapItemsByMetric(items, 'vacant').map((item) => item.id),
+      sortMapItemsByMetric(items, 'paused').map((item) => item.id),
     ).toEqual([4, 1, 2, 3]);
   });
 });

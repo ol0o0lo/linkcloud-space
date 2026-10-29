@@ -152,7 +152,9 @@ describe('backend capability routes', () => {
     expect(tenantGroup?.name).toBe('space-management');
     expect(tenantGroup?.routes?.map((route) => route.path)).toEqual([
       SPACE_PATHS.root,
+      SPACE_PATHS.messaging,
       SPACE_PATHS.organization,
+      SPACE_PATHS.dataMigration,
       SPACE_PATHS.members,
       SPACE_PATHS.invitations,
       SPACE_PATHS.teams,

@@ -1,9 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Descriptions, Image, Space, Tag, Typography } from 'antd';
-import {
-  buildingLabel,
-  mediaCoverUrl,
-} from '@/pages/rental/constants';
+import { buildingLabel, mediaCoverUrl } from '@/pages/rental/constants';
 import { useTenantWorkspace } from '@/pages/space/shared';
 import { houseApi } from '@/services/manual/house';
 import {
@@ -69,7 +66,7 @@ export function BuildingPreviewPanel({ id, variant }: EntityPreviewPanelProps) {
     building.data.estate?.display_name ||
     building.data.estate?.name ||
     '未关联项目';
-  const coverUrl = mediaCoverUrl(building.data.images);
+  const coverUrl = mediaCoverUrl(building.data.images, building.data);
   const title = buildingLabel(building.data);
   const tags = building.data.tags || [];
 

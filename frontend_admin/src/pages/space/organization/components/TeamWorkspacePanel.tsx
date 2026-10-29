@@ -615,7 +615,7 @@ export const TeamWorkspacePanel: React.FC<{
             {canManageMembers ? (
               <Popconfirm
                 title={`从团队移除 ${getWorkspaceMemberEmployeeName(record) || formatPersonLabel(record.user)}？`}
-                description="不会移出组织或清理个人房源分工，但会清理该团队下的角色绑定。"
+                description="不会移出工作空间或清理个人房源分工，但会清理该团队下的角色绑定。"
                 okText="确认移除"
                 onConfirm={() =>
                   memberMutation.mutateAsync({
@@ -789,12 +789,12 @@ export const TeamWorkspacePanel: React.FC<{
                             <div className={styles.dangerActionCopy}>
                               <Typography.Text strong>删除团队</Typography.Text>
                               <Typography.Text type="secondary">
-                                团队资料和团队角色将失效，组织成员及个人房源分工不受影响。
+                                团队资料和团队角色将失效，空间成员及个人房源分工不受影响。
                               </Typography.Text>
                             </div>
                             <Popconfirm
                               title={`删除团队 ${team.name}？`}
-                              description="团队资料不可恢复；组织成员和个人房源分工不会删除，但该团队角色会失效。"
+                              description="团队资料不可恢复；空间成员和个人房源分工不会删除，但该团队角色会失效。"
                               okText="确认删除"
                               okButtonProps={{ danger: true }}
                               onConfirm={() => deleteMutation.mutateAsync()}
@@ -834,7 +834,7 @@ export const TeamWorkspacePanel: React.FC<{
                           onSearch: setCandidateKeyword,
                         }}
                         aria-label="选择成员"
-                        placeholder="搜索组织成员"
+                        placeholder="搜索空间成员"
                         value={candidateMemberId}
                         onChange={setCandidateMemberId}
                         options={candidateOptions}
@@ -930,8 +930,8 @@ export const TeamWorkspacePanel: React.FC<{
                 <Alert
                   type="info"
                   showIcon
-                  title="按成员口径汇总"
-                  description="成员之间的房源负责范围可能重叠，合计数不是团队去重后的唯一覆盖房源数。"
+                  title="按成员分别统计"
+                  description="同一房源可能由多名成员负责，合计数可能包含重复房源。"
                 />
                 {responsibilitySummaryQuery.isError ? (
                   <Alert

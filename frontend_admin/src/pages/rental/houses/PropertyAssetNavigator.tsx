@@ -639,7 +639,7 @@ function EstateNode({
           type="text"
           className={`${styles.labelButton} asset-row-label`}
           disabled={disabled}
-          aria-label={`选择项目 ${name}`}
+          aria-label={`选择小区／项目 ${name}`}
           aria-current={scope.estateId === estate.id ? 'page' : undefined}
           onClick={() => {
             if (scope.estateId === estate.id) {
@@ -676,12 +676,12 @@ function EstateNode({
                 }
               />
             </Tooltip>
-            <Tooltip title={`编辑${name}项目`}>
+            <Tooltip title={`编辑${name}资料`}>
               <Button
                 type="text"
                 size="small"
                 disabled={disabled}
-                aria-label={`编辑${name}项目`}
+                aria-label={`编辑${name}资料`}
                 icon={<EditOutlined />}
                 onClick={() =>
                   onAction({ type: 'edit-estate', estateId: estate.id })
@@ -1063,8 +1063,8 @@ export function PropertyAssetNavigator({
           >
             <Input.Search
               allowClear
-              aria-label="搜索项目或楼栋"
-              placeholder="搜索项目或楼栋"
+              aria-label="搜索小区／项目或楼栋"
+              placeholder="搜索小区／项目或楼栋"
               onSearch={(value) => {
                 setSearchHistoryOpen(false);
                 setSearchKeyword(value.trim() || undefined);
@@ -1075,7 +1075,7 @@ export function PropertyAssetNavigator({
         <div className={styles.body}>
           {searchKeyword ? (
             <div className={styles.searchSection}>
-              <span className={styles.sectionLabel}>项目</span>
+              <span className={styles.sectionLabel}>小区／项目</span>
               {searchedEstates.isPending ? (
                 <Skeleton
                   active
@@ -1096,7 +1096,7 @@ export function PropertyAssetNavigator({
                       type="text"
                       className={`${styles.labelButton} asset-row-label`}
                       disabled={disabled}
-                      aria-label={`选择项目 ${name}`}
+                      aria-label={`选择小区／项目 ${name}`}
                       aria-current={
                         scope.estateId === estate.id ? 'page' : undefined
                       }
@@ -1188,7 +1188,7 @@ export function PropertyAssetNavigator({
               !searchedBuildings.data.items.length ? (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="未找到匹配的项目或楼栋"
+                  description="未找到匹配的小区／项目或楼栋"
                 />
               ) : null}
             </div>
@@ -1214,10 +1214,10 @@ export function PropertyAssetNavigator({
                 </div>
               </div>
               <TreeSectionHeader
-                title="住宅小区"
+                title="小区／项目"
                 createAction={{
                   disabled,
-                  label: '新建项目',
+                  label: '新建小区／项目',
                   onClick: () => onAction({ type: 'create-estate' }),
                 }}
                 collapseAllAction={
@@ -1260,7 +1260,7 @@ export function PropertyAssetNavigator({
               {estates.isSuccess && estateItems.length === 0 ? (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="暂无项目"
+                  description="暂无小区／项目"
                 />
               ) : null}
               {estates.hasNextPage ? (
@@ -1270,7 +1270,7 @@ export function PropertyAssetNavigator({
                   loading={estates.isFetchingNextPage}
                   onClick={() => estates.fetchNextPage()}
                 >
-                  加载更多项目
+                  加载更多小区／项目
                 </Button>
               ) : null}
               <div className={styles.divider} />

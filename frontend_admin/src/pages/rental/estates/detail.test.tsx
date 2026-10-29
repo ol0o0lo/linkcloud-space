@@ -73,15 +73,18 @@ describe('EstateDetailPage', () => {
       city: '广州市',
       district: '天河区',
       address: '科技园路 1 号',
-      location: { latitude: 23.13512, longitude: 113.36121, coordinate_system: 'gcj02' },
+      location: {
+        latitude: 23.13512,
+        longitude: 113.36121,
+        coordinate_system: 'gcj02',
+      },
       images: [],
       building_count: 1,
       counts: {
         total: 10,
-        vacant: 2,
+        paused: 2,
         listed: 1,
         rented: 7,
-        renovating: 0,
       },
     });
     mockListBuildings.mockResolvedValue({
@@ -95,10 +98,9 @@ describe('EstateDetailPage', () => {
           tags: ['近地铁'],
           counts: {
             total: 10,
-            vacant: 2,
+            paused: 2,
             listed: 1,
             rented: 7,
-            renovating: 0,
           },
         },
       ],

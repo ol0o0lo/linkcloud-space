@@ -101,7 +101,7 @@ describe('房东邀请、切换与公开页', () => {
 
     renderPage(<LandlordInvitationAcceptPage />);
     fireEvent.click(
-      await screen.findByRole('button', { name: '接受邀请并绑定' }),
+      await screen.findByRole('button', { name: '接受邀请并关联' }),
     );
 
     expect(

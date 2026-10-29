@@ -39,8 +39,8 @@ describe('house list URL state', () => {
       ),
     ).toMatchObject({ status: undefined, ordering: undefined });
     expect(
-      getHouseListStateFromSearch('?status=vacant&ordering=-asking_rent'),
-    ).toMatchObject({ status: 'vacant', ordering: '-asking_rent' });
+      getHouseListStateFromSearch('?status=paused&ordering=-asking_rent'),
+    ).toMatchObject({ status: 'paused', ordering: '-asking_rent' });
   });
 
   it('preserves unrelated parameters while syncing filters', () => {
@@ -53,12 +53,10 @@ describe('house list URL state', () => {
     syncHouseListSearch({
       ...defaultFilters,
       buildingId: 11,
-      status: 'vacant',
+      status: 'paused',
     });
 
-    expect(window.location.search).toBe(
-      '?foo=x&status=vacant&building_id=11',
-    );
+    expect(window.location.search).toBe('?foo=x&status=paused&building_id=11');
   });
 
   it('serializes non-default scope, inspection, ordering, and pagination', () => {
@@ -75,5 +73,16 @@ describe('house list URL state', () => {
     expect(window.location.search).toBe(
       '?ordering=-asking_rent&scope=mine&inspection_due=true&inspection_reason=expired&page=3&page_size=50',
     );
+  });
+  it('启用状态默认不筛选，支持只查看停用房源', () => {
+    expect(getHouseListStateFromSearch('').isActive).toBeUndefined();
+    expect(getHouseListStateFromSearch('?is_active=false').isActive).toBe(
+      false,
+    );
+    expect(getHouseListStateFromSearch('?is_active=true').isActive).toBe(true);
+    syncHouseListSearch({ ...defaultFilters, isActive: false });
+    expect(window.location.search).toBe('?is_active=false');
+    syncHouseListSearch(defaultFilters);
+    expect(window.location.search).toBe('');
   });
 });

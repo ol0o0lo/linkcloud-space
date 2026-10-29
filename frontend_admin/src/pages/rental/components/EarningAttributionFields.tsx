@@ -34,6 +34,7 @@ type EarningAttributionFieldsProps<
   form: FormInstance<Values>;
   onCapabilitiesChange?: (capabilities?: AllocationCapabilities) => void;
   variant?: 'compact' | 'default';
+  purpose?: 'signing' | 'allocation';
 };
 
 const useStyles = createStyles(({ css, token }) => ({
@@ -117,6 +118,7 @@ function EarningAttributionFields<Values extends EarningAttributionFormValues>({
   form,
   onCapabilitiesChange,
   variant = 'default',
+  purpose = 'allocation',
 }: EarningAttributionFieldsProps<Values>) {
   const { styles } = useStyles();
   const workspace = useTenantWorkspace();
@@ -238,9 +240,22 @@ function EarningAttributionFields<Values extends EarningAttributionFormValues>({
     );
   }
 
-  if (!capabilities?.submit) {
+  if (
+    !capabilities ||
+    !(purpose === 'signing'
+      ? capabilities?.register_signing
+      : capabilities?.submit)
+  ) {
     return (
-      <Alert type="error" showIcon title="你没有提交签约收益分配申请的权限" />
+      <Alert
+        type="error"
+        showIcon
+        title={
+          purpose === 'signing'
+            ? '你没有登记成交的权限'
+            : '你没有提交收益申请的权限'
+        }
+      />
     );
   }
 
@@ -268,6 +283,16 @@ function EarningAttributionFields<Values extends EarningAttributionFormValues>({
       <Typography.Text type="secondary">
         当前未加入团队，本次签约使用空间收益规则。
       </Typography.Text>
+    );
+
+  if (purpose === 'signing')
+    return (
+      <Space orientation="vertical" size={12}>
+        {teamField}
+        <Typography.Text type="secondary">
+          登记后可在租约中申请收益，收益配置不影响本次登记。
+        </Typography.Text>
+      </Space>
     );
 
   const beneficiaryField = capabilities.change_beneficiaries ? (

@@ -31,6 +31,9 @@ describe('房源地图浏览器定位', () => {
       reason: 'unsupported',
     });
     expect(
+      getBrowserLocationErrorMessage(new BrowserLocationError('unsupported')),
+    ).toBe('当前浏览器不支持定位，可手动搜索地点，或更换浏览器。');
+    expect(
       getBrowserLocationErrorMessage(
         new BrowserLocationError('permission-denied'),
       ),

@@ -17,6 +17,13 @@ export function formatWalletAmount(value: number) {
   return value.toLocaleString();
 }
 
+export function getWithdrawalAmountLabel(status?: string) {
+  if (status === 'paid') return '已打款';
+  return status && ['pending_review', 'approved', 'paying'].includes(status)
+    ? '预计到账'
+    : '扣费后金额';
+}
+
 function stringifyJsonValue(value: unknown, pretty = false) {
   if (typeof value === 'string') {
     return value;

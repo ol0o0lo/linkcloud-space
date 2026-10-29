@@ -130,7 +130,7 @@ vi.mock('@ant-design/pro-components', () => {
     );
   };
 
-  const ProFormText = ({ fieldProps, name, placeholder }: any) => {
+  const ProFormText = ({ fieldProps, name, normalize, placeholder }: any) => {
     const { values, setValue } = React.useContext(FormContext);
     return (
       <div>
@@ -140,7 +140,10 @@ vi.mock('@ant-design/pro-components', () => {
           placeholder={placeholder}
           value={String(values[name] || '')}
           onChange={(event) => {
-            setValue(name, event.target.value);
+            setValue(
+              name,
+              normalize ? normalize(event.target.value) : event.target.value,
+            );
             fieldProps?.onChange?.(event);
           }}
         />
@@ -292,7 +295,14 @@ describe('admin 登录 MFA 流程', () => {
     );
   });
 
-  it('请求并确认手机号登录验证码', async () => {
+  it.each([
+    '13800138000',
+    '+8613800138000',
+    '+86 138 0013 8000',
+    '0086 138-0013-8000',
+    '86 138 0013 8000',
+    '138-0013-8000',
+  ])('兼容手机号 %s 请求并确认登录验证码', async (phone) => {
     mockFetchUserInfo
       .mockResolvedValueOnce(undefined)
       .mockResolvedValue(authenticatedUser);
@@ -303,10 +313,14 @@ describe('admin 登录 MFA 流程', () => {
     render(<Login />);
 
     fireEvent.click(await screen.findByRole('tab', { name: '手机号登录' }));
-    fireEvent.change(screen.getByPlaceholderText('请输入手机号'), {
-      target: { value: '13800138000' },
+    const phoneInput = screen.getByPlaceholderText('请输入手机号');
+    fireEvent.change(phoneInput, {
+      target: { value: phone },
     });
-    fireEvent.click(screen.getByRole('button', { name: '获取验证码' }));
+    expect(phoneInput).toHaveValue('13800138000');
+    const requestButton = screen.getByRole('button', { name: '获取验证码' });
+    expect(requestButton).toBeEnabled();
+    fireEvent.click(requestButton);
 
     await waitFor(() =>
       expect(mockRequestPhoneLoginCode).toHaveBeenCalledWith('13800138000'),
@@ -329,6 +343,32 @@ describe('admin 登录 MFA 流程', () => {
     expect(mockSuccess).toHaveBeenCalledWith('登录成功！');
     expect(mockHistoryReplace).toHaveBeenCalledWith(
       '/rental/workbench/overview',
+    );
+  });
+
+  it('账号密码登录兼容自动填充的带区号和分隔符手机号', async () => {
+    mockFetchUserInfo
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(authenticatedUser);
+    mockLogin.mockResolvedValueOnce({});
+
+    const { default: Login } = await import('./index');
+    render(<Login />);
+
+    fireEvent.change(await screen.findByPlaceholderText('邮箱 / 手机号'), {
+      target: { value: '+86 138-0013-8000' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('密码'), {
+      target: { value: 'secret123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '提交' }));
+
+    await waitFor(() =>
+      expect(mockLogin).toHaveBeenCalledWith(
+        { client: 'browser' },
+        { phone: '+8613800138000', password: 'secret123' },
+        { skipErrorHandler: true },
+      ),
     );
   });
 

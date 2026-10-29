@@ -28,6 +28,7 @@ export type HouseScopeFilters = {
   assetTab: PropertyAssetWorkspaceTab;
   q?: string;
   status?: HouseStatus;
+  isActive?: boolean;
   estateId?: number;
   buildingId?: number;
   ordering?: HouseOrdering;
@@ -135,6 +136,7 @@ export function getHouseListStateFromSearch(search: string) {
     pageSize: getHousePageSize(params.get('page_size')),
     q: params.get('keyword') || undefined,
     status: parseHouseStatus(params.get('status')),
+    isActive: params.get('is_active') === 'true' ? true : params.get('is_active') === 'false' ? false : undefined,
     estateId,
     buildingId,
     ordering: parseHouseOrdering(params.get('ordering')),
@@ -153,6 +155,7 @@ export function syncHouseListSearch(
   params.delete('keyword');
   params.delete('asset_tab');
   params.delete('status');
+  params.delete('is_active');
   params.delete('estate_id');
   params.delete('building_id');
   params.delete('ordering');
@@ -177,6 +180,7 @@ export function syncHouseListSearch(
   }
   if (filters.q) params.set('keyword', filters.q);
   if (filters.status) params.set('status', filters.status);
+  if (filters.isActive !== undefined) params.set('is_active', String(filters.isActive));
   if (filters.estateId) params.set('estate_id', String(filters.estateId));
   if (filters.buildingId) params.set('building_id', String(filters.buildingId));
   if (filters.ordering) params.set('ordering', filters.ordering);

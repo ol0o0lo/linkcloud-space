@@ -901,7 +901,7 @@ const MfaManageModal: React.FC<MfaManageModalProps> = ({
           </Space>
         ) : null}
         {hasRecoveryCodes ? (
-          <Alert type="success" showIcon title="系统已为当前账户生成恢复码" />
+          <Alert type="success" showIcon title="系统已为当前账号生成恢复码" />
         ) : null}
         {!totpSetup ? (
           <>

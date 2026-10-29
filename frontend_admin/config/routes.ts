@@ -229,11 +229,26 @@ export default [
         redirect: SPACE_PATHS.organization,
       },
       {
+        name: '我的聊天',
+        locale: false,
+        icon: 'message',
+        path: SPACE_PATHS.messaging,
+        component: './messaging',
+        hideInMenu: true,
+      },
+      {
         name: '组织架构',
         locale: false,
         icon: 'cluster',
         path: SPACE_PATHS.organization,
         component: './space/organization',
+      },
+      {
+        name: '数据迁移',
+        locale: false,
+        icon: 'import',
+        path: SPACE_PATHS.dataMigration,
+        component: './space/data-migration',
       },
       {
         path: SPACE_PATHS.members,

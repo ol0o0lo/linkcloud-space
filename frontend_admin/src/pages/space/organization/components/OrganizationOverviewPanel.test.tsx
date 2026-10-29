@@ -172,13 +172,13 @@ describe('OrganizationOverviewPanel', () => {
     renderPanel(onDirtyStateChange);
 
     expect(await screen.findByText('billing@example.com')).toBeInTheDocument();
-    expect(screen.queryByLabelText('组织名称')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('空间名称')).not.toBeInTheDocument();
     expect(
-      screen.queryByText('归档后组织将视为停用，但不会删除已有数据。'),
+      screen.queryByText('归档后工作空间将视为停用，但不会删除已有数据。'),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /编辑资料/ }));
-    fireEvent.change(screen.getByLabelText('组织名称'), {
+    fireEvent.change(screen.getByLabelText('空间名称'), {
       target: { value: '临时名称' },
     });
 
@@ -189,7 +189,7 @@ describe('OrganizationOverviewPanel', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /取\s*消/ }));
-    expect(screen.queryByLabelText('组织名称')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('空间名称')).not.toBeInTheDocument();
     expect(screen.getAllByText('Acme').length).toBeGreaterThan(0);
   });
 
@@ -198,10 +198,10 @@ describe('OrganizationOverviewPanel', () => {
     await screen.findByText('billing@example.com');
     fireEvent.click(screen.getByRole('button', { name: /编辑资料/ }));
 
-    fireEvent.change(screen.getByLabelText('组织名称'), {
+    fireEvent.change(screen.getByLabelText('空间名称'), {
       target: { value: 'Acme 新组织' },
     });
-    fireEvent.change(screen.getByLabelText('组织标识'), {
+    fireEvent.change(screen.getByLabelText('空间标识'), {
       target: { value: 'acme-new' },
     });
     fireEvent.change(screen.getByLabelText('账单邮箱'), {
@@ -224,7 +224,7 @@ describe('OrganizationOverviewPanel', () => {
       expect(mockSetSelectedOrgSlug).toHaveBeenCalledWith('acme-new');
     });
 
-    expect(screen.queryByLabelText('组织名称')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('空间名称')).not.toBeInTheDocument();
   });
 
   it('危险操作默认收起，展开后才加载 Owner 候选成员', async () => {
@@ -236,7 +236,7 @@ describe('OrganizationOverviewPanel', () => {
 
     await waitFor(() => expect(mockListMembers).toHaveBeenCalled());
     expect(
-      screen.getByText('归档后组织将视为停用，但不会删除已有数据。'),
+      screen.getByText('归档后工作空间将视为停用，但不会删除已有数据。'),
     ).toBeInTheDocument();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });

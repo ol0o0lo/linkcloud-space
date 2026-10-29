@@ -33,12 +33,12 @@ import {
   useState,
 } from 'react';
 import { AppIcon } from '@/components/AppIcon';
-import { AppStatusTag } from '@/components/AppStatus';
 import type {
   BuildingMapMarkerOut,
   BuildingMapUnlocatedOut,
   HouseOut,
 } from '@/services/manual/house';
+import { HouseStatusTags } from '../components/HouseStatusTags';
 import { housePrimaryLayoutText, moneyText } from '../constants';
 import {
   type EstateMapDisplayPoint,
@@ -110,7 +110,7 @@ function taskSummaryText(
 
 function taskTitle(buildingCount: number, houseStatus?: string) {
   const label = getMapPrimaryMetric(
-    { total: 0, vacant: 0, listed: 0, rented: 0, renovating: 0 },
+    { total: 0, paused: 0, listed: 0, rented: 0 },
     houseStatus,
   ).label;
   return `${label === '房源' ? '全部房源' : `${label}房源`} · ${buildingCount} 栋`;
@@ -118,7 +118,7 @@ function taskTitle(buildingCount: number, houseStatus?: string) {
 
 function taskPanelLabel(houseStatus?: string) {
   const label = getMapPrimaryMetric(
-    { total: 0, vacant: 0, listed: 0, rented: 0, renovating: 0 },
+    { total: 0, paused: 0, listed: 0, rented: 0 },
     houseStatus,
   ).label;
   return label === '房源' ? '全部房源' : `${label}房源`;
@@ -141,10 +141,9 @@ export function MapToolbar({
     buildings: number;
     unlocated: number;
     total: number;
-    vacant: number;
+    paused: number;
     listed: number;
     rented: number;
-    renovating: number;
   };
   updating: boolean;
   onKeywordChange: (value: string) => void;
@@ -199,8 +198,9 @@ export function MapToolbar({
               onHouseStatusChange(value === 'all' ? undefined : value)
             }
             options={[
-              { value: 'vacant', label: '空置' },
-              { value: 'listed', label: '招租' },
+              { value: 'paused', label: '暂不出租' },
+              { value: 'listed', label: '招租中' },
+              { value: 'rented', label: '已出租' },
               { value: 'all', label: '全部' },
             ]}
           />
@@ -237,11 +237,11 @@ function EmptyTaskState({
   onShowAllResults?: () => void;
 }) {
   const metric = getMapPrimaryMetric(
-    { total: 0, vacant: 0, listed: 0, rented: 0, renovating: 0 },
+    { total: 0, paused: 0, listed: 0, rented: 0 },
     houseStatus,
   );
   const description = keyword
-    ? `当前组织没有符合“${keyword}”和“${metric.label}”条件的楼栋`
+    ? `当前工作空间没有符合“${keyword}”和“${metric.label}”条件的楼栋`
     : `当前地图范围暂无${metric.label === '房源' ? '' : metric.label}楼栋`;
 
   return (
@@ -843,9 +843,7 @@ export function BuildingResultPanel({
                               </Typography.Text>
                             ) : null}
                           </Space>
-                          <AppStatusTag name="house" state={house.status}>
-                            {house.status__mapping || house.status || '-'}
-                          </AppStatusTag>
+                          <HouseStatusTags house={house} />
                         </div>
                       </Link>
                     </li>

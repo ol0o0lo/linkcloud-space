@@ -619,16 +619,16 @@ export const OrganizationTreePanel: React.FC<{
           </>
         ) : null}
       </div>
-      <nav className={styles.treeFooter} aria-label="组织管理工具">
+      <nav className={styles.treeFooter} aria-label="空间管理工具">
         <Button
           type="text"
           className={styles.treeFooterButton}
           data-active={activeUtility === 'organization'}
-          aria-label="组织资料"
+          aria-label="空间资料"
           icon={<AppIcon name="organization" />}
           onClick={onOpenOrganization}
         >
-          组织资料
+          空间资料
         </Button>
         {canViewRoles ? (
           <Button

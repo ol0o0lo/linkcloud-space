@@ -26,6 +26,7 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: '已驳回' },
   { value: 'expired', label: '已过期' },
   { value: 'voided', label: '已作废' },
+  { value: 'withdrawn', label: '已撤回' },
 ];
 
 function sourceHouseText(request: AllocationRequest) {
@@ -117,9 +118,7 @@ const AllocationReviewTab: React.FC<AllocationReviewTabProps> = ({
             {sourceHouseText(record.allocation_request)}
           </Typography.Text>
           <Typography.Text type="secondary">
-            {record.lease.tenant?.name ||
-              record.allocation_request.source_snapshot.tenant?.name ||
-              '-'}
+            {record.allocation_request.source_snapshot.tenant?.name || '未记录'}
           </Typography.Text>
         </Space>
       ),
@@ -129,11 +128,11 @@ const AllocationReviewTab: React.FC<AllocationReviewTabProps> = ({
       dataIndex: 'sign_at',
       width: 150,
       render: (_value, record) =>
-        dayjs(
-          record.lease.sign_at ||
-            record.allocation_request.source_snapshot.sign_at ||
-            record.allocation_request.submitted_at,
-        ).format('YYYY-MM-DD HH:mm'),
+        record.allocation_request.source_snapshot.sign_at
+          ? dayjs(record.allocation_request.source_snapshot.sign_at).format(
+              'YYYY-MM-DD HH:mm',
+            )
+          : '未记录',
     },
     {
       title: '申请人',

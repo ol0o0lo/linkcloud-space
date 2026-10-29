@@ -14,7 +14,7 @@ describe('organizationMembers manual service', () => {
     request.mockReset();
   });
 
-  it('读取组织成员扩展的员工姓名和职位', () => {
+  it('读取空间成员扩展的员工姓名和职位', () => {
     const member = {
       employee_name: '吴晨',
       job_title: '招商主管',
@@ -24,7 +24,7 @@ describe('organizationMembers manual service', () => {
     expect(getWorkspaceMemberJobTitle(member)).toBe('招商主管');
   });
 
-  it('通过成员更新接口保存组织内员工资料', async () => {
+  it('通过成员更新接口保存工作空间内员工资料', async () => {
     request.mockResolvedValue({ employee_name: '吴晨', job_title: '招商主管' });
 
     await patchOrganizationMemberEmployeeProfile(8, {

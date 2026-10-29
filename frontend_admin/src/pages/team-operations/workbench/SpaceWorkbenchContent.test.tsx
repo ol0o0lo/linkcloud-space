@@ -25,8 +25,8 @@ const readyHouse = {
   asking_rent: '4600.00',
   images: [],
   videos: [],
-  status: 'vacant',
-  status__mapping: '空置',
+  status: 'paused',
+  status__mapping: '暂不出租',
 };
 
 const data: SpaceWorkbenchDataValue = {

@@ -71,8 +71,12 @@ const AllocationDetailDrawer: React.FC<AllocationDetailDrawerProps> = ({
 
   const reviewMutation = useMutation({
     mutationFn: (data: { decision: 'approve' | 'reject'; reason?: string }) => {
-      if (!leaseId) throw new Error('未找到来源租约');
-      return allocationApi.reviewLeaseAllocation(leaseId, data);
+      if (!leaseId || !allocationRequest)
+        throw new Error('未找到来源租约或收益申请');
+      return allocationApi.reviewLeaseAllocation(leaseId, {
+        ...data,
+        allocation_request_id: allocationRequest.id,
+      });
     },
     onSuccess: (nextRequest, variables) => {
       message.success(
@@ -88,8 +92,13 @@ const AllocationDetailDrawer: React.FC<AllocationDetailDrawerProps> = ({
 
   const voidMutation = useMutation({
     mutationFn: (reason: string) => {
-      if (!leaseId) throw new Error('未找到来源租约');
-      return allocationApi.voidLeaseAllocation(leaseId, reason);
+      if (!leaseId || !allocationRequest)
+        throw new Error('未找到来源租约或收益申请');
+      return allocationApi.voidLeaseAllocation(
+        leaseId,
+        reason,
+        allocationRequest.id,
+      );
     },
     onSuccess: (nextRequest) => {
       message.success('申请已作废，冲销流水已经生成');
@@ -109,7 +118,7 @@ const AllocationDetailDrawer: React.FC<AllocationDetailDrawerProps> = ({
           </Button>
           <Popconfirm
             title="确认通过这份收益分配申请？"
-            description="通过后会立即按提交时间生成员工收益流水。"
+            description="通过后按本次成交固定的归属月份生成员工收益记录。"
             okText="确认通过"
             cancelText="取消"
             onConfirm={() => reviewMutation.mutate({ decision: 'approve' })}
@@ -169,9 +178,7 @@ const AllocationDetailDrawer: React.FC<AllocationDetailDrawerProps> = ({
                   key: 'tenant',
                   label: '租客',
                   children:
-                    target?.lease?.tenant?.name ||
-                    allocationRequest.source_snapshot.tenant?.name ||
-                    '-',
+                    allocationRequest.source_snapshot.tenant?.name || '未记录',
                 },
                 {
                   key: 'period',
@@ -182,14 +189,20 @@ const AllocationDetailDrawer: React.FC<AllocationDetailDrawerProps> = ({
                   key: 'rent',
                   label: '月租',
                   children: moneyText(
-                    target?.lease?.monthly_rent ||
-                      allocationRequest.source_snapshot.monthly_rent,
+                    allocationRequest.source_snapshot.monthly_rent,
                   ),
                 },
                 {
                   key: 'team',
                   label: '归属团队',
                   children: allocationRequest.team_name_snapshot || '空间',
+                },
+                {
+                  key: 'performance-month',
+                  label: '业绩归属月',
+                  children:
+                    allocationRequest.performance_month?.slice(0, 7) ||
+                    '未记录',
                 },
                 {
                   key: 'rule-source',

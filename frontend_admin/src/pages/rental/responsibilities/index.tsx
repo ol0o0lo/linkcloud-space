@@ -24,6 +24,7 @@ import {
   drawerWidthXl,
   ResponsiveActions,
 } from '@/pages/_shared/adminLayout';
+import { HouseStatusTags } from '@/pages/rental/components/HouseStatusTags';
 import {
   formatPersonLabel,
   TenantSelectionGuard,
@@ -378,7 +379,7 @@ const StaffResponsibilitiesPage: React.FC = () => {
       dataIndex: 'status__mapping',
       width: 100,
       align: 'center',
-      render: (_value, record) => record.status__mapping || record.status,
+      render: (_value, record) => <HouseStatusTags house={record} />,
     },
   ];
 

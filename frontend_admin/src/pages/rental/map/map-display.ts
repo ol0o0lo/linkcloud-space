@@ -31,10 +31,7 @@ export type EstateMapDisplayPoint = {
 };
 
 export type MapPrimaryMetric = {
-  key: keyof Pick<
-    MapCounts,
-    'total' | 'vacant' | 'listed' | 'rented' | 'renovating'
-  >;
+  key: keyof Pick<MapCounts, 'total' | 'paused' | 'listed' | 'rented'>;
   label: string;
   value: number;
 };
@@ -51,20 +48,18 @@ export type EstateMapSummary = {
 
 const EMPTY_COUNTS: MapCounts = {
   total: 0,
-  vacant: 0,
+  paused: 0,
   listed: 0,
   rented: 0,
-  renovating: 0,
 };
 
 const PRIMARY_METRICS: Record<
   string,
   Pick<MapPrimaryMetric, 'key' | 'label'>
 > = {
-  vacant: { key: 'vacant', label: '空置' },
+  paused: { key: 'paused', label: '暂不出租' },
   listed: { key: 'listed', label: '招租' },
   rented: { key: 'rented', label: '已租' },
-  renovating: { key: 'renovating', label: '装修' },
 };
 
 export function getMapDisplayLevel(zoom: number): MapDisplayLevel {
@@ -184,10 +179,9 @@ export function sumMapCounts(
   return items.reduce(
     (summary, item) => ({
       total: summary.total + item.counts.total,
-      vacant: summary.vacant + item.counts.vacant,
+      paused: summary.paused + item.counts.paused,
       listed: summary.listed + item.counts.listed,
       rented: summary.rented + item.counts.rented,
-      renovating: summary.renovating + item.counts.renovating,
     }),
     { ...EMPTY_COUNTS },
   );

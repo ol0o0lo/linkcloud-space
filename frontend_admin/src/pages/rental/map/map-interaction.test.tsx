@@ -39,26 +39,38 @@ vi.mock('@/services/openapi/organizationSettings', () => ({
   appsSettingsApiListOrgSettings: vi.fn().mockResolvedValue([]),
 }));
 
-const counts = { total: 1, vacant: 1, listed: 0, rented: 0, renovating: 0 };
+const counts = { total: 1, paused: 1, listed: 0, rented: 0 };
 const buildings = [
   {
     id: 1,
     name: 'A座',
-    location: { latitude: 23.13, longitude: 113.36, coordinate_system: 'gcj02' },
+    location: {
+      latitude: 23.13,
+      longitude: 113.36,
+      coordinate_system: 'gcj02',
+    },
     address: '',
     counts,
   },
   {
     id: 2,
     name: 'B座',
-    location: { latitude: 23.13, longitude: 113.3605, coordinate_system: 'gcj02' },
+    location: {
+      latitude: 23.13,
+      longitude: 113.3605,
+      coordinate_system: 'gcj02',
+    },
     address: '',
     counts,
   },
   {
     id: 3,
     name: 'C座',
-    location: { latitude: 23.13, longitude: 113.38, coordinate_system: 'gcj02' },
+    location: {
+      latitude: 23.13,
+      longitude: 113.38,
+      coordinate_system: 'gcj02',
+    },
     address: '',
     counts,
   },
@@ -191,7 +203,10 @@ describe('地图聚合交互', () => {
     listBuildingMap.mockResolvedValue(
       page([
         buildings[0],
-        { ...buildings[1], location: { ...buildings[1].location, longitude: 113.36001 } },
+        {
+          ...buildings[1],
+          location: { ...buildings[1].location, longitude: 113.36001 },
+        },
       ]),
     );
     const { map, overlays } = createMap(zoom);
@@ -215,7 +230,13 @@ describe('地图聚合交互', () => {
     listBuildingMap.mockResolvedValue(
       page([
         buildings[0],
-        { ...buildings[1], location: { ...buildings[1].location, longitude: buildings[0].location.longitude } },
+        {
+          ...buildings[1],
+          location: {
+            ...buildings[1].location,
+            longitude: buildings[0].location.longitude,
+          },
+        },
       ]),
     );
     const { map, overlays } = createMap();

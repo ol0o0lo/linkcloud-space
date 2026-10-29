@@ -9,18 +9,18 @@ import { Button, Carousel, Empty, Image, Tag, Typography } from 'antd';
 import type { CarouselRef } from 'antd/es/carousel';
 import { createStyles } from 'antd-style';
 import { useMemo, useRef, useState } from 'react';
-import type { MediaRefValue } from '../constants';
+import type { DisplayMediaRef } from '../constants';
 
 export type HouseMediaHeroProps = {
-  images?: MediaRefValue[];
-  videos?: MediaRefValue[];
+  images?: DisplayMediaRef[];
+  videos?: DisplayMediaRef[];
 };
 
 type HeroMedia = {
   key: string;
   kind: 'image' | 'video';
   title: string;
-  item: MediaRefValue;
+  item: DisplayMediaRef;
 };
 
 const useStyles = createStyles(({ token, css }) => ({
@@ -202,7 +202,7 @@ const useStyles = createStyles(({ token, css }) => ({
   `,
 }));
 
-function mediaTitle(item: MediaRefValue, fallback: string) {
+function mediaTitle(item: DisplayMediaRef, fallback: string) {
   return item.label || item.original_filename || fallback;
 }
 
@@ -226,13 +226,13 @@ export default function HouseMediaHero({
                 : 0,
         )
         .map((item, index) => ({
-          key: `image-${item.media_id}`,
+          key: `image-${item.media_id || item.migration_id || index}`,
           kind: 'image' as const,
           title: mediaTitle(item, `房源图片 ${index + 1}`),
           item,
         })),
       ...videos.map((item, index) => ({
-        key: `video-${item.media_id}`,
+        key: `video-${item.media_id || item.migration_id || index}`,
         kind: 'video' as const,
         title: mediaTitle(item, `房源视频 ${index + 1}`),
         item,
@@ -281,7 +281,12 @@ export default function HouseMediaHero({
                   <div className={styles.videoFallback}>
                     <VideoCameraOutlined />
                     <Typography.Text type="secondary">
-                      暂无可播放视频
+                      {media.item.migration_id
+                        ? media.item.migration_status === 'missing' ||
+                          media.item.migration_status === 'failed'
+                          ? '旧视频缺失，请处理迁移异常'
+                          : '视频迁移中'
+                        : '暂无可播放视频'}
                     </Typography.Text>
                   </div>
                 )}
@@ -304,7 +309,12 @@ export default function HouseMediaHero({
                 <div className={styles.videoFallback}>
                   <PictureOutlined />
                   <Typography.Text type="secondary">
-                    暂无可预览图片
+                    {media.item.migration_id
+                      ? media.item.migration_status === 'missing' ||
+                        media.item.migration_status === 'failed'
+                        ? '旧图片缺失，请处理迁移异常'
+                        : '图片迁移中'
+                      : '暂无可预览图片'}
                   </Typography.Text>
                 </div>
               )}

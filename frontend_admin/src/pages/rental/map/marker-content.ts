@@ -111,7 +111,7 @@ function createMapBubble(
 }
 
 function formatBubbleMetric(label: string, value: number) {
-  return label === '空置' ? `${value} 套` : `${label} ${value} 套`;
+  return label === '暂不出租' ? `${value} 套` : `${label} ${value} 套`;
 }
 
 export function createEstateMapMarkerContent(options: {

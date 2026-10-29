@@ -47,7 +47,14 @@ import {
 import { appsSettingsApiListOrgSettings } from '@/services/openapi/organizationSettings';
 import MediaRefsUpload from '../components/MediaRefsUpload';
 import { PropertyTagSelect } from '../components/PropertyTagSelect';
-import { HOUSE_MEDIA_RESOURCE_TYPE, HOUSE_MEDIA_TYPE } from '../constants';
+import {
+  displayMedia,
+  HOUSE_MEDIA_RESOURCE_TYPE,
+  HOUSE_MEDIA_TYPE,
+  type MediaRefValue,
+  mediaChangePatch,
+  migrationMediaPlaceholder,
+} from '../constants';
 import {
   type DeleteTarget,
   ResourceDeleteModal,
@@ -531,7 +538,9 @@ export function PropertyAssetWorkspace({
       workspace.selectedOrgSlug && buildingId && pendingBuildingValues,
     ),
   });
-  const buildingImages = buildingImageItems(building?.images);
+  const buildingImages = buildingImageItems(
+    displayMedia(building?.images, building),
+  );
   useEffect(() => {
     setProfileEditing(false);
     setProfileDirty(false);
@@ -600,10 +609,18 @@ export function PropertyAssetWorkspace({
         return { asset, kind: 'estate' as const };
       }
       if (selectedKind === 'building' && buildingId) {
+        const { images, ...fields } = values;
         const asset = await houseApi.patchBuilding(
           buildingId,
           withApiLocation({
-            ...values,
+            ...fields,
+            ...(Array.isArray(images)
+              ? mediaChangePatch(
+                  'images',
+                  images as MediaRefValue[],
+                  building?.images,
+                )
+              : {}),
             estate_id: values.estate_id ?? null,
             floors: Number(values.floors),
           }),
@@ -618,8 +635,8 @@ export function PropertyAssetWorkspace({
       setPendingBuildingValues(null);
       message.success(
         isCreating
-          ? `${kind === 'estate' ? '项目' : '楼栋'}已创建`
-          : `${kind === 'estate' ? '项目' : '楼栋'}资料已保存`,
+          ? `${kind === 'estate' ? '小区／项目' : '楼栋'}已创建`
+          : `${kind === 'estate' ? '小区／项目' : '楼栋'}资料已保存`,
       );
       await Promise.all([
         queryClient.invalidateQueries({
@@ -672,28 +689,28 @@ export function PropertyAssetWorkspace({
   const total = estate?.counts?.total ?? building?.counts?.total;
   const entityName =
     action?.type === 'create-estate'
-      ? '新建项目'
+      ? '新建小区／项目'
       : action?.type === 'create-building'
         ? action.estateId
           ? '新建楼栋'
           : '新建独立楼栋'
         : selectedKind === 'estate'
-          ? estate?.display_name || estate?.name || `小区 #${selectedId}`
+          ? estate?.display_name || estate?.name || `小区／项目 #${selectedId}`
           : building?.name || `楼栋 #${selectedId}`;
   const breadcrumb = isCreating
     ? '房源资产'
     : selectedKind === 'estate'
-      ? '住宅小区'
+      ? '小区／项目'
       : building?.estate
         ? building.estate.display_name || building.estate.name
         : '独立楼栋';
   const metadata = isCreating
     ? [
         action.type === 'create-estate'
-          ? '在当前页面登记项目资料'
+          ? '在当前页面登记小区／项目资料'
           : action.estateId
-            ? `所属项目：${estate?.display_name || estate?.name || `项目 #${action.estateId}`}`
-            : '创建不属于项目的独立楼栋',
+            ? `所属小区／项目：${estate?.display_name || estate?.name || `小区／项目 #${action.estateId}`}`
+            : '创建不属于小区／项目的独立楼栋',
       ]
     : selectedKind === 'estate'
       ? [
@@ -706,7 +723,7 @@ export function PropertyAssetWorkspace({
       : [
           total === undefined ? undefined : `${total} 套房源`,
           building?.counts
-            ? `招租 ${building.counts.listed} · 已租 ${building.counts.rented} · 空置 ${building.counts.vacant}`
+            ? `招租 ${building.counts.listed} · 已租 ${building.counts.rented} · 暂不出租 ${building.counts.paused}`
             : undefined,
           building?.address,
         ].filter(Boolean);
@@ -739,7 +756,7 @@ export function PropertyAssetWorkspace({
     Boolean(action?.type === 'create-building' && action.estateId);
   const profileSubmitLabel =
     action?.type === 'create-estate'
-      ? '创建项目'
+      ? '创建小区／项目'
       : action?.type === 'create-building'
         ? '创建楼栋'
         : '保存';
@@ -750,7 +767,7 @@ export function PropertyAssetWorkspace({
         <Alert
           type="error"
           showIcon
-          title={`${formKind === 'estate' ? '项目' : '楼栋'}资料加载失败`}
+          title={`${formKind === 'estate' ? '小区／项目' : '楼栋'}资料加载失败`}
           description={(detail.error as Error).message}
           action={<Button onClick={() => detail.refetch()}>重试</Button>}
         />
@@ -773,7 +790,7 @@ export function PropertyAssetWorkspace({
                     {isCreating
                       ? '新建'
                       : selectedKind === 'estate'
-                        ? '住宅小区'
+                        ? '小区／项目'
                         : '楼栋'}
                   </Tag>
                 </div>
@@ -808,7 +825,7 @@ export function PropertyAssetWorkspace({
                     查看详情
                   </Button>
                   <Button
-                    aria-label={`编辑${selectedKind === 'estate' ? '项目' : '楼栋'}资料`}
+                    aria-label={`编辑${selectedKind === 'estate' ? '小区／项目' : '楼栋'}资料`}
                     icon={<EditOutlined />}
                     disabled={tabSwitchDisabled}
                     onClick={() => {
@@ -860,14 +877,16 @@ export function PropertyAssetWorkspace({
               {formKind === 'estate' ? (
                 <div className={styles.formGrid}>
                   <Form.Item
-                    label="项目名称"
+                    label="小区／项目名称"
                     name="name"
-                    rules={[{ required: true, message: '请输入项目名称' }]}
+                    rules={[
+                      { required: true, message: '请输入小区／项目名称' },
+                    ]}
                   >
                     <Input />
                   </Form.Item>
                   <Form.Item label="展示名称" name="display_name">
-                    <Input placeholder="不填写时使用项目名称" />
+                    <Input placeholder="不填写时使用小区／项目名称" />
                   </Form.Item>
                   <Form.Item label="物业类型" name="property_type">
                     <Select
@@ -906,9 +925,12 @@ export function PropertyAssetWorkspace({
                   <Form.Item name="lng" hidden>
                     <Input />
                   </Form.Item>
-                  <Form.Item label="项目位置" style={{ gridColumn: '1 / -1' }}>
+                  <Form.Item
+                    label="小区／项目位置"
+                    style={{ gridColumn: '1 / -1' }}
+                  >
                     <LocationPicker
-                      ariaLabel="项目位置"
+                      ariaLabel="小区／项目位置"
                       value={formLocation({
                         address: profileAddress,
                         lat: profileLat,
@@ -933,7 +955,7 @@ export function PropertyAssetWorkspace({
                   >
                     <Input />
                   </Form.Item>
-                  <Form.Item label="所属项目" name="estate_id">
+                  <Form.Item label="所属小区／项目" name="estate_id">
                     <Select
                       allowClear
                       loading={allEstates.isLoading}
@@ -1046,7 +1068,7 @@ export function PropertyAssetWorkspace({
                     ? [
                         {
                           key: 'name',
-                          label: '项目名称',
+                          label: '小区／项目名称',
                           children: displayValue(estate?.name),
                         },
                         {
@@ -1105,7 +1127,7 @@ export function PropertyAssetWorkspace({
                         },
                         {
                           key: 'estate',
-                          label: '所属项目',
+                          label: '所属小区／项目',
                           children: displayValue(
                             building?.estate?.display_name ||
                               building?.estate?.name,
@@ -1190,7 +1212,7 @@ export function PropertyAssetWorkspace({
                       </div>
                     </Image.PreviewGroup>
                   ) : (
-                    displayValue()
+                    displayValue(migrationMediaPlaceholder(building))
                   )}
                 </section>
               ) : null}
@@ -1206,7 +1228,7 @@ export function PropertyAssetWorkspace({
                 </div>
                 <Button
                   danger
-                  aria-label={`删除${selectedKind === 'estate' ? '项目' : '楼栋'}`}
+                  aria-label={`删除${selectedKind === 'estate' ? '小区／项目' : '楼栋'}`}
                   icon={<DeleteOutlined />}
                   onClick={() => {
                     if (!selectedKind || !selectedId) return;
@@ -1217,7 +1239,7 @@ export function PropertyAssetWorkspace({
                     });
                   }}
                 >
-                  删除{selectedKind === 'estate' ? '项目' : '楼栋'}
+                  删除{selectedKind === 'estate' ? '小区／项目' : '楼栋'}
                 </Button>
               </div>
             </>
@@ -1325,7 +1347,7 @@ export function PropertyAssetWorkspace({
               key: 'inventory',
               render: (_value, record) =>
                 record.counts
-                  ? `招租 ${record.counts.listed} · 已租 ${record.counts.rented} · 空置 ${record.counts.vacant}`
+                  ? `招租 ${record.counts.listed} · 已租 ${record.counts.rented} · 暂不出租 ${record.counts.paused}`
                   : '暂无统计',
             },
             {
@@ -1400,7 +1422,7 @@ export function PropertyAssetWorkspace({
       : []),
     {
       key: 'profile',
-      label: selectedKind === 'estate' ? '项目资料' : '楼栋资料',
+      label: selectedKind === 'estate' ? '小区／项目资料' : '楼栋资料',
       children: profilePanel,
     },
   ].map((item) => ({

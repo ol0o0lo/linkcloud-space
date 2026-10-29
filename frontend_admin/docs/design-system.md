@@ -173,7 +173,7 @@
 | `primary` | `#1677FF` | `#E6F4FF` | `#91CAFF` | `colorPrimary` | 当前选中、主对象、品牌主动作，不用于表达业务结果 |
 | `info` | `#1677FF` | `#E6F4FF` | `#91CAFF` | `colorInfo` | 已发布、进行中、等待外部流程，当前正常且无需预警 |
 | `success` | `#52C41A` | `#F6FFED` | `#B7EB8F` | `colorSuccess` | 已生效、已完成、健康、已成交，表示明确的正向结果 |
-| `warning` | `#FAAD14` | `#FFFBE6` | `#FFE58F` | `colorWarning` | 待处理、临期、装修中或需要关注，但尚未失败 |
+| `warning` | `#FAAD14` | `#FFFBE6` | `#FFE58F` | `colorWarning` | 待处理、临期或需要关注，但尚未失败 |
 | `error` | `#FF4D4F` | `#FFF2F0` | `#FFCCC7` | `colorError` | 失败、终止、取消、逾期或异常，需要识别或处理 |
 | `disabled` | `#BFBFBF` | `#F5F5F5` | `#D9D9D9` | `colorTextDisabled` | 停用、归档、不可操作，不代表系统错误或风险 |
 
@@ -189,15 +189,15 @@
 
 | 对象 | API 状态 | 中文含义 | 语义色 | 浅色主题主色 | 图标语义 |
 | --- | --- | --- | --- | --- | --- |
-| 房源 `house` | `vacant` | 空置 | `error` | `#FF4D4F` | 房屋提醒；表示当前没有租约且尚未招租，收益中断并需要优先处理 |
-| 房源 `house` | `listed` | 招租 | `info` | `#1677FF` | 房屋价格；表示正在正常对外展示 |
-| 房源 `house` | `rented` | 已出租 | `success` | `#52C41A` | 房屋确认；表示已完成出租并处于有效占用状态 |
-| 房源 `house` | `renovating` | 装修 | `warning` | `#FAAD14` | 房屋维护；表示暂不可出租且需要关注进度 |
-| 房源 `house` | `inactive` | 已停用 | `disabled` | `#BFBFBF` | 房屋停用；表示已退出日常操作范围 |
+| 房源 `house` | `paused` | 暂不出租 | `secondary` | `#8C8C8C` | 房屋暂停；表示当前暂不对外出租 |
+| 房源 `house` | `listed` | 招租中 | `info` | `#1677FF` | 房屋价格；表示正在正常对外展示 |
+| 房源 `house` | `rented` | 已出租 | `success` | `#52C41A` | 房屋确认；表示当前已出租 |
+| 房源标记 `house-marker` | `inactive`（`!is_active`） | 已停用 | `disabled` | `#BFBFBF` | 房屋停用；停用独立于房态，恢复后不会自动发布 |
 | 合同 `lease` | `pending` | 待生效 | `warning` | `#FAAD14` | 时钟；表示合同已建立但仍等待生效 |
 | 合同 `lease` | `active` | 生效中 | `success` | `#52C41A` | 验证通过；表示合同当前有效且正常履行 |
 | 合同 `lease` | `expired` | 已到期 | `secondary` | `#8C8C8C` | 到期日历；表示合同自然结束并进入历史状态 |
 | 合同 `lease` | `terminated` | 已终止 | `error` | `#FF4D4F` | 终止标记；表示合同被主动提前终止 |
+| 收益申请 `allocation-request` | `withdrawn` | 已撤回 | `secondary` | `#8C8C8C` | 撤回；申请停止审核，原租约保持有效，可纠正资料后重新申请 |
 | 带看 `viewing` | `scheduled` | 已预约 | `info` | `#1677FF` | 日历搜索；表示未来仍有待执行流程 |
 | 带看 `viewing` | `viewed` | 已带看 | `default` | `#262626` | 查看；表示动作完成但尚无转化结果 |
 | 带看 `viewing` | `converted` | 已转合同 | `success` | `#52C41A` | 清单完成；表示带看已产生正向业务结果 |

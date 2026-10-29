@@ -13,8 +13,10 @@ import * as ai from "./ai";
 import * as allocation from "./allocation";
 import * as analytics from "./analytics";
 import * as appSystem from "./appSystem";
+import * as dataMigration from "./dataMigration";
 import * as houseMatchShares from "./houseMatchShares";
 import * as mediaFiles from "./mediaFiles";
+import * as messaging from "./messaging";
 import * as navigationAccess from "./navigationAccess";
 import * as notificationDispatches from "./notificationDispatches";
 import * as notifications from "./notifications";
@@ -26,10 +28,13 @@ import * as organizationSettings from "./organizationSettings";
 import * as organizationWorkspace from "./organizationWorkspace";
 import * as payments from "./payments";
 import * as platformContentAdmin from "./platformContentAdmin";
+import * as propertyRentalCustomers from "./propertyRentalCustomers";
+import * as propertyRentalInquiries from "./propertyRentalInquiries";
 import * as propertyRentalLandlord from "./propertyRentalLandlord";
 import * as propertyRentalManagement from "./propertyRentalManagement";
 import * as propertyRentalTenant from "./propertyRentalTenant";
 import * as publicContent from "./publicContent";
+import * as publicGeography from "./publicGeography";
 import * as publicHouseCommute from "./publicHouseCommute";
 import * as publicHouseMatchShares from "./publicHouseMatchShares";
 import * as publicHouses from "./publicHouses";
@@ -55,6 +60,8 @@ import * as walletInternal from "./walletInternal";
 export default {
   appSystem,
   mediaFiles,
+  dataMigration,
+  messaging,
   platformContentAdmin,
   publicContent,
   navigationAccess,
@@ -94,12 +101,15 @@ export default {
   teamSettings,
   userSettings,
   propertyRentalManagement,
+  propertyRentalCustomers,
+  propertyRentalInquiries,
   propertyRentalTenant,
   houseMatchShares,
   propertyRentalLandlord,
   publicHouseCommute,
   publicHouses,
   publicMetro,
+  publicGeography,
   publicHouseMatchShares,
   publicLandlordStore,
   userFavorites,

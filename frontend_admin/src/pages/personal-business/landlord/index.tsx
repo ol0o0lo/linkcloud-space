@@ -31,7 +31,8 @@ import { AppIcon } from '@/components/AppIcon';
 import { AppStatusTag } from '@/components/AppStatus';
 import { PageContainer } from '@/components/PageContainer';
 import { adminTableScroll } from '@/pages/_shared/adminLayout';
-import { housePrimaryLayoutText } from '@/pages/rental/constants';
+import { HouseStatusTags } from '@/pages/rental/components/HouseStatusTags';
+import { displayMedia, housePrimaryLayoutText } from '@/pages/rental/constants';
 import {
   houseApi,
   type LandlordHouse,
@@ -137,7 +138,7 @@ const LandlordCenterPage: React.FC = () => {
       key: 'house',
       width: 320,
       render: (_value, record) => {
-        const cover = record.images[0];
+        const cover = displayMedia(record.images, record)[0];
         const houseName = `${
           record.building.estate?.display_name ||
           record.building.estate?.name ||
@@ -188,11 +189,7 @@ const LandlordCenterPage: React.FC = () => {
       dataIndex: 'status',
       align: 'center',
       width: 120,
-      render: (status: string, record) => (
-        <AppStatusTag name="house" state={status}>
-          {record.status__mapping || status}
-        </AppStatusTag>
-      ),
+      render: (_status: string, record) => <HouseStatusTags house={record} />,
     },
     {
       title: '户型',
@@ -312,8 +309,8 @@ const LandlordCenterPage: React.FC = () => {
       <PageContainer>
         <Result
           status="info"
-          title="尚未绑定中介房东档案"
-          subTitle="请让中介向您的已验证手机号发送房东邀请，接受后即可在这里查看房源和租约。"
+          title="尚未关联房东档案"
+          subTitle="请联系经纪人向您的已验证手机号发送房东邀请，接受后即可查看房源和租约。"
         />
       </PageContainer>
     );
@@ -376,7 +373,8 @@ const LandlordCenterPage: React.FC = () => {
                       </Typography.Text>
                     </Space>
                     <Typography.Text type="secondary">
-                      {currentRelationship.contact_name} · 资料由当前中介维护
+                      {currentRelationship.contact_name} ·
+                      资料由当前经纪团队维护
                     </Typography.Text>
                   </Space>
                 </Space>
@@ -385,7 +383,9 @@ const LandlordCenterPage: React.FC = () => {
                   className="flex flex-col gap-1.5"
                   style={{ width: screens.md ? 320 : '100%' }}
                 >
-                  <Typography.Text type="secondary">当前中介</Typography.Text>
+                  <Typography.Text type="secondary">
+                    当前经纪团队
+                  </Typography.Text>
                   <Select<number>
                     aria-label="切换房东关系"
                     value={selectedContactId}
@@ -490,7 +490,7 @@ const LandlordCenterPage: React.FC = () => {
                 <div>
                   <Typography.Text strong>当前为只读房东视角</Typography.Text>
                   <Typography.Paragraph type="secondary" className="mb-0!">
-                    房源资料、房态和租约由对应中介维护；切换中介只会切换当前联系人范围，不影响员工组织选择。
+                    房源资料、房态和租约由对应经纪团队维护；切换团队后将展示该团队关联的资料，不影响员工工作台的工作空间选择。
                   </Typography.Paragraph>
                 </div>
               </div>
@@ -531,7 +531,7 @@ const LandlordCenterPage: React.FC = () => {
                             </Button>
                           </Empty>
                         ) : (
-                          <Empty description="当前中介尚未登记您的房源" />
+                          <Empty description="当前经纪团队尚未登记您的房源" />
                         ),
                       }}
                       pagination={{

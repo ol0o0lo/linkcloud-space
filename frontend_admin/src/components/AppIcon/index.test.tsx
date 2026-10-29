@@ -21,10 +21,9 @@ describe('AppIcon', () => {
   });
 
   it.each([
-    ['vacant', 'tabler:home-exclamation'],
+    ['paused', 'tabler:home-minus'],
     ['listed', 'tabler:home-dollar'],
     ['rented', 'tabler:home-check'],
-    ['renovating', 'tabler:home-cog'],
     ['inactive', 'tabler:home-off'],
   ] as const)('使用 Tabler 房屋图标表示 %s 房态', (state, iconName) => {
     const name = `house.${state}`;

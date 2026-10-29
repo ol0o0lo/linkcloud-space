@@ -4,9 +4,9 @@ import React, { type ReactNode } from 'react';
 import { AppIcon } from '@/components/AppIcon';
 import { AppStatusTag } from '@/components/AppStatus';
 import { HousePreview } from '@/components/EntityPreview';
-import { enumMapping } from '@/services/manual/enums';
 import type { HouseOut } from '@/services/manual/house';
 import { HOUSE_STATUS, housePrimaryLayoutText, moneyText } from '../constants';
+import { HouseStatusTags } from './HouseStatusTags';
 
 type DealSigningHeroProps = {
   displayName: string;
@@ -217,11 +217,7 @@ const DealSigningHero: React.FC<DealSigningHeroProps> = ({
                     {house ? `${moneyText(house.asking_rent)} / 月` : '-'}
                   </span>
                 </span>
-                {house?.status ? (
-                  <AppStatusTag name="house" state={house.status}>
-                    {enumMapping(house.status, house.status__mapping)}
-                  </AppStatusTag>
-                ) : null}
+                {house?.status ? <HouseStatusTags house={house} /> : null}
               </div>
             </div>
           </div>
@@ -239,13 +235,11 @@ const DealSigningHero: React.FC<DealSigningHeroProps> = ({
             <AppStatusTag name="house" state={HOUSE_STATUS.RENTED}>
               房态已出租
             </AppStatusTag>
-            <AppStatusTag name="allocation-request" state="pending">
-              收益待审核
-            </AppStatusTag>
+            <Typography.Text type="secondary">收益待申请</Typography.Text>
           </div>
           <Typography.Text type="secondary" className={styles.outcomeNote}>
             {houseId || house
-              ? '一次提交完成业务联动，不需要额外确认；收益审核通过后计入员工流水。'
+              ? '先登记真实成交，再在租约中申请收益；收益配置异常不影响本次登记。'
               : '选择房源后即可继续填写，成交结果由后台事务一次完成。'}
           </Typography.Text>
         </div>

@@ -85,7 +85,7 @@ const PLAN_FALLBACK_DESCRIPTIONS: Record<string, string> = {
   free: '适合个人体验与轻量房源管理。',
   standard: '适合稳定运营中的小型团队，覆盖日常协作与基础经营分析。',
   professional: '为成长型团队提供更高额度、批量处理与经营分析能力。',
-  enterprise: '面向规模化组织，提供开放接口、高级权限与更大业务容量。',
+  enterprise: '面向大型团队，提供开放接口、高级权限与更大业务容量。',
 };
 
 const PLAN_PRESENTATIONS: Record<
@@ -117,7 +117,7 @@ const PRODUCT_CAPABILITIES = [
   },
   {
     key: 'data',
-    title: '经营沉淀',
+    title: '经营记录与分析',
     tone: 'blue',
     icon: <BarChartOutlined />,
     description: '核心业务数据支持导出与分析，帮助团队持续积累经营资料。',
@@ -1995,7 +1995,7 @@ const SubscriptionPage: React.FC = () => {
                     <th scope="col" className={styles.capabilityHeaderCell}>
                       <span className={styles.capabilityHeaderContent}>
                         <span className={styles.capabilityHeaderTitle}>
-                          权益能力
+                          功能与额度
                         </span>
                         <span className={styles.capabilityHeaderSubtitle}>
                           各版本包含内容

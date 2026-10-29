@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Descriptions, Image, Space, Typography } from 'antd';
-import { AppStatusTag } from '@/components/AppStatus';
+import { HouseStatusTags } from '@/pages/rental/components/HouseStatusTags';
 import {
   buildingLabel,
   contactLabel,
@@ -11,7 +11,6 @@ import {
   moneyText,
 } from '@/pages/rental/constants';
 import { useTenantWorkspace } from '@/pages/space/shared';
-import { enumMapping } from '@/services/manual/enums';
 import { type HouseOut, houseApi } from '@/services/manual/house';
 import {
   EntityPreviewCard,
@@ -98,7 +97,7 @@ export function HousePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
     );
   }
 
-  const coverUrl = mediaCoverUrl(house.data.images);
+  const coverUrl = mediaCoverUrl(house.data.images, house.data);
   const landlord = house.data.landlord_id
     ? contactLabel(house.data)
     : '待补房东';
@@ -114,11 +113,7 @@ export function HousePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
       <EntityPreviewCard ariaLabel={`${title}预览`} footerMeta={`房源 #${id}`}>
         <EntityPreviewMedia alt={title} entityLabel="房源" src={coverUrl} />
         <EntityPreviewHeader
-          aside={
-            <AppStatusTag name="house" state={house.data.status}>
-              {enumMapping(house.data.status, house.data.status__mapping)}
-            </AppStatusTag>
-          }
+          aside={<HouseStatusTags house={house.data} />}
           highlight={
             <Space size={8} wrap>
               <Typography.Text strong type="danger" style={{ fontSize: 18 }}>
@@ -205,9 +200,7 @@ export function HousePreviewPanel({ id, variant }: EntityPreviewPanelProps) {
           {moneyText(house.data.asking_rent)}
         </Typography.Text>
         <Space size={4} wrap>
-          <AppStatusTag name="house" state={house.data.status}>
-            {enumMapping(house.data.status, house.data.status__mapping)}
-          </AppStatusTag>
+          <HouseStatusTags house={house.data} />
         </Space>
       </Space>
       <Descriptions

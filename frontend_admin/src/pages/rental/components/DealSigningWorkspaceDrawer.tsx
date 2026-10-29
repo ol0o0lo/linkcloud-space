@@ -49,6 +49,7 @@ import EarningAttributionFields from './EarningAttributionFields';
 import MediaRefsUpload from './MediaRefsUpload';
 
 type DealSigningFormValues = DealSigningTenantValues & {
+  sign_at?: string;
   house_id?: number;
   source_viewing_record_id?: number | null;
   start_date: string;
@@ -339,6 +340,7 @@ function getDealSigningInitialValues(options: {
           name: sourceViewing?.customer_name || undefined,
           phone: sourceViewing?.customer_phone || undefined,
         },
+    sign_at: formatDateInputValue(startDate),
     start_date: formatDateInputValue(startDate),
     end_date: formatDateInputValue(
       startDate.add(12, 'month').subtract(1, 'day'),
@@ -373,6 +375,13 @@ const DealSigningWorkspaceDrawer: React.FC<DealSigningDrawerProps> = ({
   const [leaseTerm, setLeaseTerm] = useState<DealSigningLeaseTerm>('12');
   const [depositMode, setDepositMode] =
     useState<DealSigningDepositMode>('custom');
+  const signingRequestId = useRef(
+    `signing-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  useEffect(() => {
+    if (open)
+      signingRequestId.current = `signing-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }, [open]);
   const [allocationCapabilities, setAllocationCapabilities] =
     useState<AllocationCapabilities>();
   const [sourceViewingExpanded, setSourceViewingExpanded] = useState(false);
@@ -465,7 +474,7 @@ const DealSigningWorkspaceDrawer: React.FC<DealSigningDrawerProps> = ({
     (house?.id === resolvedHouseId ? house : undefined) ||
     houseSelect.items.find((item) => item.id === resolvedHouseId) ||
     houseLookup.data;
-  const inactiveHouse = resolvedHouse?.status === HOUSE_STATUS.INACTIVE;
+  const inactiveHouse = resolvedHouse?.is_active === false;
   const houseDisplayName = resolvedHouse
     ? houseLabel(resolvedHouse)
     : resolvedHouseId
@@ -541,7 +550,7 @@ const DealSigningWorkspaceDrawer: React.FC<DealSigningDrawerProps> = ({
   const saveDealSigning = useMutation({
     mutationFn: (values: DealSigningFormValues) => {
       const {
-        beneficiary_user_ids,
+        beneficiary_user_ids: _beneficiaries,
         house_id,
         team_id,
         tenant_mode,
@@ -565,15 +574,15 @@ const DealSigningWorkspaceDrawer: React.FC<DealSigningDrawerProps> = ({
         };
       }
       const payload: DealSigningCreateInput = {
+        client_request_id: signingRequestId.current,
         lease,
         team_id: team_id ?? null,
-        beneficiary_user_ids,
       };
       return houseApi.createDealSigning(payload);
     },
     onSuccess: async (result) => {
       message.success(
-        '成交签约完成，租约已生效，房态已更新为已出租；收益等待审核。',
+        '成交已登记，租约已生效，房态已更新；可在租约中另行申请收益。',
       );
       form.resetFields();
       setDirty(false);
@@ -740,7 +749,7 @@ const DealSigningWorkspaceDrawer: React.FC<DealSigningDrawerProps> = ({
             !resolvedHouse ||
             inactiveHouse ||
             houseLookup.isError ||
-            !allocationCapabilities?.submit
+            !allocationCapabilities?.register_signing
           }
         >
           确认成交并生效
@@ -923,13 +932,14 @@ const DealSigningWorkspaceDrawer: React.FC<DealSigningDrawerProps> = ({
               <div className={`${styles.slot} ${styles.earningsSlot}`}>
                 <DealSigningSection
                   step="03"
-                  title="收益归属"
-                  description="默认归属当前操作人，可按权限调整"
+                  title="成交归属"
+                  description="确定本次成交的归属团队，收益登记后另行申请"
                   icon={
                     <AppIcon name="allocation-request" width={18} height={18} />
                   }
                 >
                   <EarningAttributionFields
+                    purpose="signing"
                     disabled={saveDealSigning.isPending}
                     enabled={open && enabled}
                     form={form}
@@ -948,6 +958,13 @@ const DealSigningWorkspaceDrawer: React.FC<DealSigningDrawerProps> = ({
                   description="确认周期、租金与押金，付款日自动按起租日"
                   icon={<AppIcon name="lease" width={18} height={18} />}
                 >
+                  <Form.Item
+                    label="实际签约日期"
+                    name="sign_at"
+                    rules={[{ required: true, message: '请选择实际签约日期' }]}
+                  >
+                    <Input type="date" disabled={saveDealSigning.isPending} />
+                  </Form.Item>
                   <DealSigningLeaseFields
                     autoFilledFields={autoFilledFields}
                     depositMode={depositMode}

@@ -293,7 +293,7 @@ export const RolePermissionPanel: React.FC<{
         description={
           isTeam
             ? '当前角色缺少该团队的角色查看权限。'
-            : '当前角色缺少组织角色查看权限。'
+            : '当前角色缺少空间角色查看权限。'
         }
       />
     );
@@ -327,9 +327,9 @@ export const RolePermissionPanel: React.FC<{
         <div>
           <Space wrap>
             <Typography.Title level={4} style={{ margin: 0 }}>
-              {isTeam ? `${teamName || '当前团队'} · 团队级角色` : '组织级角色'}
+              {isTeam ? `${teamName || '当前团队'} · 团队级角色` : '空间级角色'}
             </Typography.Title>
-            <Tag>{isTeam ? '仅在当前团队生效' : '在整个组织生效'}</Tag>
+            <Tag>{isTeam ? '仅在当前团队生效' : '在整个工作空间生效'}</Tag>
           </Space>
           <div>
             <Typography.Text type="secondary">

@@ -18,10 +18,10 @@ export type AppStatusDefinitions = Record<string, AppStatusDefinition>;
 export const APP_STATUS_DEFINITIONS = {
   house: {
     states: {
-      vacant: {
-        description: '当前为空置状态，尚未进入招租流程',
-        icon: 'house.vacant',
-        tone: 'error',
+      paused: {
+        description: '当前暂不对外出租',
+        icon: 'house.paused',
+        tone: 'secondary',
       },
       listed: {
         description: '当前正在对外招租',
@@ -29,15 +29,14 @@ export const APP_STATUS_DEFINITIONS = {
         tone: 'info',
       },
       rented: {
-        description: '当前已有生效租约',
+        description: '当前已出租',
         icon: 'house.rented',
         tone: 'success',
       },
-      renovating: {
-        description: '当前处于装修状态，暂不可出租',
-        icon: 'house.renovating',
-        tone: 'warning',
-      },
+    },
+  },
+  'house-marker': {
+    states: {
       inactive: {
         description: '当前已停用，不参与日常经营',
         icon: 'house.inactive',
@@ -71,8 +70,13 @@ export const APP_STATUS_DEFINITIONS = {
         tone: 'error',
       },
       expired: {
-        description: '超过审核有效期，需要重新登记签约',
+        description: '超过审核有效期，可在原租约重新申请',
         icon: 'allocation-request.expired',
+        tone: 'secondary',
+      },
+      withdrawn: {
+        description: '申请人已撤回，可修改资料后重新申请',
+        icon: 'allocation-request.withdrawn',
         tone: 'secondary',
       },
       voided: {
@@ -96,7 +100,7 @@ export const APP_STATUS_DEFINITIONS = {
   'organization-invite': {
     states: {
       pending: {
-        description: '邀请已发送，等待对方加入组织',
+        description: '邀请已发送，等待对方加入工作空间',
         icon: 'organization-invite.pending',
         tone: 'info',
       },
@@ -288,7 +292,7 @@ export const APP_STATUS_DEFINITIONS = {
   'landlord-binding': {
     states: {
       unbound: {
-        description: '尚未邀请房东绑定平台账号',
+        description: '尚未邀请房东关联档案',
         icon: 'contact',
         tone: 'secondary',
       },
@@ -298,7 +302,7 @@ export const APP_STATUS_DEFINITIONS = {
         tone: 'info',
       },
       bound: {
-        description: '房东已接受邀请并绑定平台账号',
+        description: '房东已接受邀请并关联档案',
         icon: 'member',
         tone: 'success',
       },

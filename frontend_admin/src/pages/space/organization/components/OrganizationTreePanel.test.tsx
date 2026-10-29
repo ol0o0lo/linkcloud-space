@@ -75,7 +75,7 @@ describe('OrganizationTreePanel', () => {
     });
     fireEvent.click(inviteRecordButtons[0]);
     fireEvent.click(screen.getByRole('button', { name: '新建团队' }));
-    fireEvent.click(screen.getByRole('button', { name: '组织资料' }));
+    fireEvent.click(screen.getByRole('button', { name: '空间资料' }));
     const roleManagementButton = screen.getByRole('button', {
       name: '角色管理',
     });

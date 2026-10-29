@@ -136,7 +136,7 @@ function buildAccountInsight(
     return {
       ...account,
       total_balance: totalBalance,
-      governance_label: '冻结待核查',
+      governance_label: '余额全部冻结',
       governance_color: 'red',
     };
   }
@@ -158,7 +158,7 @@ function buildAccountInsight(
     return {
       ...account,
       total_balance: totalBalance,
-      governance_label: '待激活',
+      governance_label: '当前无余额',
       governance_color: 'default',
     };
   }
@@ -167,7 +167,7 @@ function buildAccountInsight(
     return {
       ...account,
       total_balance: totalBalance,
-      governance_label: '余额沉淀中',
+      governance_label: '有可用余额',
       governance_color: 'green',
     };
   }

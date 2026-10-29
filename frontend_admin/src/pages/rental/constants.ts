@@ -1,3 +1,8 @@
+import type {
+  MigrationMediaRef,
+  MigrationMediaSource,
+} from '@/services/manual/house';
+
 export type {
   HousePublishRuleKey,
   HousePublishRuleMode,
@@ -24,12 +29,16 @@ export const CONTACT_ROLE = {
 } as const;
 
 export const HOUSE_STATUS = {
-  VACANT: 'vacant',
+  PAUSED: 'paused',
   LISTED: 'listed',
   RENTED: 'rented',
-  RENOVATING: 'renovating',
-  INACTIVE: 'inactive',
 } as const;
+
+export const HOUSE_STATUS_OPTIONS = [
+  { value: HOUSE_STATUS.LISTED, label: '招租中' },
+  { value: HOUSE_STATUS.RENTED, label: '已出租' },
+  { value: HOUSE_STATUS.PAUSED, label: '暂不出租' },
+];
 
 export const HOUSE_IMAGE_ROLE_OPTIONS = [
   { value: 'cover', label: '封面' },
@@ -112,6 +121,18 @@ export function stripDerivedMediaFields(items: MediaRefValue[]) {
   }));
 }
 
+export function mediaChangePatch(
+  field: 'images' | 'videos',
+  next: MediaRefValue[],
+  original: Record<string, unknown>[] = [],
+) {
+  const value = stripDerivedMediaFields(next);
+  return JSON.stringify(value) ===
+    JSON.stringify(stripDerivedMediaFields(original as MediaRefValue[]))
+    ? {}
+    : { [field]: value };
+}
+
 export function getHouseMediaCompleteness(house: {
   images?: Record<string, unknown>[];
   videos?: Record<string, unknown>[];
@@ -129,9 +150,84 @@ export function getHouseMediaCompleteness(house: {
   };
 }
 
-export function mediaCoverUrl(items?: Record<string, unknown>[]) {
+export type DisplayMediaRef = Partial<MediaRefValue> & {
+  migration_id?: string;
+  migration_status?: string;
+};
+
+// 只供展示使用；迁移占位没有正式 media_id，不能传入媒体编辑与保存逻辑。
+export function displayMedia(
+  items: Record<string, unknown>[] = [],
+  source?: object,
+  field = 'images',
+): DisplayMediaRef[] {
+  const native = items.map((item) => ({ ...item }) as DisplayMediaRef);
+  const result = [...native];
+  const consumed = new Set<DisplayMediaRef>();
+  const migration = (
+    (source as MigrationMediaSource | undefined)?.migration_media || []
+  )
+    .filter(
+      (item): item is MigrationMediaRef =>
+        typeof item.id === 'string' &&
+        typeof item.field === 'string' &&
+        typeof item.position === 'number' &&
+        Number.isFinite(item.position) &&
+        typeof item.media_type === 'string' &&
+        typeof item.status === 'string' &&
+        (item.url === null || typeof item.url === 'string'),
+    )
+    .filter((item) => item.field === field && item.status !== 'detached')
+    .sort((left, right) => left.position - right.position);
+  for (const item of migration) {
+    const existing = native.find(
+      (value) =>
+        !consumed.has(value) &&
+        ((item.media_file_id != null &&
+          value.media_id === item.media_file_id) ||
+          (item.url && value.url === item.url)),
+    );
+    if (existing) {
+      consumed.add(existing);
+      result.splice(result.indexOf(existing), 1);
+    }
+    const display = existing || {
+      migration_id: item.id,
+      migration_status: item.status,
+      media_type: item.media_type,
+      url: item.url || undefined,
+      ...(field === 'images' && item.position === 0
+        ? { image_role: 'cover' }
+        : {}),
+    };
+    result.splice(
+      Math.max(0, Math.min(result.length, item.position)),
+      0,
+      display,
+    );
+  }
+  return result;
+}
+
+export function migrationMediaPlaceholder(source?: object, field = 'images') {
+  const items = displayMedia([], source, field);
+  if (!items?.length) return undefined;
+  return items.some(
+    (item) =>
+      item.migration_status === 'missing' ||
+      (item.migration_status === 'failed' && !item.url),
+  )
+    ? '旧资源缺失，请处理迁移异常'
+    : '媒体迁移中';
+}
+
+export function mediaCoverUrl(
+  items?: Record<string, unknown>[],
+  source?: object,
+) {
+  const display = displayMedia(items, source);
   const image =
-    items?.find((item) => item.image_role === 'cover') || items?.[0];
+    display.find((item) => item.image_role === 'cover') || display[0];
   const url = image?.thumbnail || image?.url;
   return typeof url === 'string' && url ? url : undefined;
 }

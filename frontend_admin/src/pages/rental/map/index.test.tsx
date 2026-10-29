@@ -59,15 +59,19 @@ beforeEach(() => {
   window.history.replaceState(
     {},
     '',
-    '/dashboard/rental/properties/map?selected_building_id=9&house_status=vacant',
+    '/dashboard/rental/properties/map?selected_building_id=9&house_status=paused',
   );
   window.localStorage.clear();
   mockGetBuildingMapDetail.mockResolvedValue({
     id: 9,
     name: '1栋',
     address: '云栖路 88 号',
-    location: { latitude: 23.13, longitude: 113.36, coordinate_system: 'gcj02' },
-    counts: { total: 1, vacant: 1, listed: 0, rented: 0, renovating: 0 },
+    location: {
+      latitude: 23.13,
+      longitude: 113.36,
+      coordinate_system: 'gcj02',
+    },
+    counts: { total: 1, paused: 1, listed: 0, rented: 0 },
   });
   mockListBuildingMap.mockResolvedValue({
     items: [],
@@ -112,7 +116,7 @@ describe('PropertyRentalMapPage', () => {
 
     const firstRender = renderPage();
     expect(
-      await screen.findByRole('button', { name: '展开空置房源结果' }),
+      await screen.findByRole('button', { name: '展开暂不出租房源结果' }),
     ).toBeInTheDocument();
     firstRender.unmount();
 
@@ -142,7 +146,7 @@ describe('PropertyRentalMapPage', () => {
     await waitFor(() =>
       expect(mockListHouses).toHaveBeenCalledWith({
         building_id: 9,
-        status: 'vacant',
+        status: 'paused',
         page: 1,
         page_size: 8,
       }),
@@ -154,12 +158,12 @@ describe('readMapSearchState', () => {
   it('仅接受有效的地图筛选与资源 ID', () => {
     expect(
       readMapSearchState(
-        '?keyword=云岸&estate_id=12&house_status=vacant&selected_building_id=8',
+        '?keyword=云岸&estate_id=12&house_status=paused&selected_building_id=8',
       ),
     ).toEqual({
       keyword: '云岸',
       estateId: 12,
-      houseStatus: 'vacant',
+      houseStatus: 'paused',
       selectedBuildingId: 8,
     });
     expect(

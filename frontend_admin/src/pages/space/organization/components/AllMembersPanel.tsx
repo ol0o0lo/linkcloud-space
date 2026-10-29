@@ -88,7 +88,7 @@ export const AllMembersPanel: React.FC<{
     mutationFn: (values: { user: number }) =>
       appsOrganizationsApiCreateMember({ user: values.user }),
     onSuccess: async () => {
-      message.success('成员已加入组织');
+      message.success('成员已加入工作空间');
       setCreateOpen(false);
       setCandidateKeyword('');
       form.resetFields();
@@ -254,7 +254,7 @@ export const AllMembersPanel: React.FC<{
                     ? '没有找到匹配的成员'
                     : mode === 'ungrouped'
                       ? '当前没有未分组成员'
-                      : '当前组织还没有成员'
+                      : '当前工作空间还没有成员'
                 }
               />
             ),
@@ -285,7 +285,7 @@ export const AllMembersPanel: React.FC<{
           }
         >
           <Typography.Paragraph type="secondary">
-            搜索尚未加入当前组织的站内用户。所有者身份需要通过组织概览中的所有者
+            搜索尚未加入当前工作空间的站内用户。所有者身份需要通过空间概览中的所有者
             转移流程管理。
           </Typography.Paragraph>
           <Form form={form} layout="vertical">

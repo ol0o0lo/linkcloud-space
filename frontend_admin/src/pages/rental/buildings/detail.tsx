@@ -24,14 +24,19 @@ import {
 import { createStyles } from 'antd-style';
 import React, { useState } from 'react';
 import { AppIcon } from '@/components/AppIcon';
-import { AppStatusTag } from '@/components/AppStatus';
+import { HouseStatusTags } from '@/pages/rental/components/HouseStatusTags';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   useFavoriteState,
   useToggleFavorite,
 } from '@/services/manual/favoriteHooks';
 import { houseApi } from '@/services/manual/house';
-import { houseDisplayTags, moneyText } from '../constants';
+import {
+  displayMedia,
+  houseDisplayTags,
+  migrationMediaPlaceholder,
+  moneyText,
+} from '../constants';
 import { safeMapReturnTo } from './detail-utils';
 
 const PAGE_SIZE = 20;
@@ -305,35 +310,36 @@ const BuildingDetailPage: React.FC = () => {
   const counts = building.counts;
   const total = counts?.total || 0;
   const rented = counts?.rented || 0;
-  const rentable = (counts?.vacant || 0) + (counts?.listed || 0) + rented;
+  const rentable = (counts?.paused || 0) + (counts?.listed || 0) + rented;
   const editHref = dashboardHref(
     `/rental/properties/list?building_id=${building.id}&asset_tab=profile&asset_action=edit-building`,
   );
   const workspaceHref = dashboardHref(
     `/rental/properties/list?building_id=${building.id}`,
   );
-  const buildingImages = (building.images || []).flatMap((item, index) => {
-    const source = item.thumbnail || item.url;
-    if (typeof source !== 'string' || !source) return [];
-    return [
-      {
-        key: String(item.media_id || index),
-        src: source,
-        previewSrc:
-          typeof item.url === 'string' && item.url ? item.url : source,
-        alt:
-          typeof item.label === 'string' && item.label
-            ? item.label
-            : `楼栋外观 ${index + 1}`,
-      },
-    ];
-  });
+  const buildingImages = displayMedia(building.images, building).flatMap(
+    (item, index) => {
+      const source = item.thumbnail || item.url;
+      if (typeof source !== 'string' || !source) return [];
+      return [
+        {
+          key: String(item.media_id || index),
+          src: source,
+          previewSrc:
+            typeof item.url === 'string' && item.url ? item.url : source,
+          alt:
+            typeof item.label === 'string' && item.label
+              ? item.label
+              : `楼栋外观 ${index + 1}`,
+        },
+      ];
+    },
+  );
   const summaryFacts = [
-    ['总房源', total],
+    ['启用房源', total],
     ['已租', rented],
-    ['空置', counts?.vacant || 0],
+    ['暂不出租', counts?.paused || 0],
     ['招租', counts?.listed || 0],
-    ['装修', counts?.renovating || 0],
   ];
 
   return (
@@ -440,7 +446,9 @@ const BuildingDetailPage: React.FC = () => {
                 >
                   <Space orientation="vertical" align="center" size={8}>
                     <PictureOutlined className={styles.emptyMediaIcon} />
-                    <Typography.Text strong>楼栋图片待补充</Typography.Text>
+                    <Typography.Text strong>
+                      {migrationMediaPlaceholder(building) || '楼栋图片待补充'}
+                    </Typography.Text>
                     <Button size="small" href={editHref}>
                       添加楼栋图片
                     </Button>
@@ -450,7 +458,9 @@ const BuildingDetailPage: React.FC = () => {
 
               <section aria-label="楼栋名片" className={styles.profileBody}>
                 <div className={styles.profileSection}>
-                  <Typography.Text type="secondary">所属小区</Typography.Text>
+                  <Typography.Text type="secondary">
+                    所属小区／项目
+                  </Typography.Text>
                   <div style={{ marginTop: 4 }}>
                     {building.estate ? (
                       <Link
@@ -615,11 +625,7 @@ const BuildingDetailPage: React.FC = () => {
                 title: '房态',
                 dataIndex: 'status__mapping',
                 align: 'center',
-                render: (value, row) => (
-                  <AppStatusTag name="house" state={row.status}>
-                    {value || row.status || '-'}
-                  </AppStatusTag>
-                ),
+                render: (_value, row) => <HouseStatusTags house={row} />,
               },
               {
                 title: '租金',

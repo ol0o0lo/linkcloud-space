@@ -42,7 +42,7 @@ const LandlordInvitationAcceptPage: React.FC = () => {
         <Result
           status="warning"
           title="邀请无效或已过期"
-          subTitle="请联系中介重新发送房东邀请。"
+          subTitle="请联系经纪人重新发送房东邀请。"
           extra={
             <Button onClick={() => void invitation.refetch()}>重新加载</Button>
           }
@@ -56,8 +56,8 @@ const LandlordInvitationAcceptPage: React.FC = () => {
       <PageContainer>
         <Result
           status="success"
-          title="房东账号已绑定"
-          subTitle={`已与「${acceptInvitation.data.organization_name}」建立房东关系。`}
+          title="房东档案已关联"
+          subTitle={`已关联「${acceptInvitation.data.organization_name}」的房东档案，可查看相关房源与租约。`}
           extra={
             <Button
               type="primary"
@@ -77,7 +77,7 @@ const LandlordInvitationAcceptPage: React.FC = () => {
         <Card>
           <Result
             status="info"
-            title={`绑定「${invitation.data.organization_name}」房东账号`}
+            title={`关联「${invitation.data.organization_name}」的房东档案`}
             subTitle={`联系人：${invitation.data.contact_name}`}
             extra={
               <Button
@@ -85,7 +85,7 @@ const LandlordInvitationAcceptPage: React.FC = () => {
                 loading={acceptInvitation.isPending}
                 onClick={() => void acceptInvitation.mutateAsync()}
               >
-                接受邀请并绑定
+                接受邀请并关联
               </Button>
             }
           />
@@ -100,14 +100,14 @@ const LandlordInvitationAcceptPage: React.FC = () => {
             <Alert
               type="info"
               showIcon
-              title="当前账号必须已验证受邀手机号；手机号不一致时不能绑定。"
+              title="请使用已验证受邀手机号的账号关联房东档案；手机号不一致时无法关联。"
             />
             {acceptInvitation.isError ? (
               <Alert
                 type="error"
                 showIcon
-                title="绑定失败"
-                description="请确认当前账号已验证受邀手机号，或联系中介重新发送邀请。"
+                title="关联失败"
+                description="请确认当前账号已验证受邀手机号，或联系经纪人重新发送邀请。"
               />
             ) : null}
           </Space>

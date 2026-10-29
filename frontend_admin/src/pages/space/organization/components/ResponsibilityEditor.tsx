@@ -17,6 +17,7 @@ import {
 } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminTableScroll, drawerWidthXl } from '@/pages/_shared/adminLayout';
+import { HouseStatusTags } from '@/pages/rental/components/HouseStatusTags';
 import { buildingLabel, houseLabel } from '@/pages/rental/constants';
 import {
   type HouseOut,
@@ -234,7 +235,7 @@ export const ResponsibilityEditor: React.FC<{
       dataIndex: 'status__mapping',
       align: 'center',
       width: 120,
-      render: (_value, record) => record.status__mapping || record.status,
+      render: (_value, record) => <HouseStatusTags house={record} />,
     },
   ];
 

@@ -32,6 +32,8 @@ export const RENTAL_PATHS = {
 export const SPACE_PATHS = {
   root: '/space',
   organization: '/space/organization',
+  messaging: '/space/messaging',
+  dataMigration: '/space/data-migration',
   members: '/space/members',
   invitations: '/space/invitations',
   teams: '/space/teams',

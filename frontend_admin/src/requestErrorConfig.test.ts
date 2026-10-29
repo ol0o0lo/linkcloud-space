@@ -37,7 +37,8 @@ describe('requestErrorConfig', () => {
   const errorThrower = errorConfig.errorConfig!.errorThrower!;
   // biome-ignore lint/style/noNonNullAssertion: config handlers are always defined
   const errorHandler = errorConfig.errorConfig!.errorHandler!;
-  const responseInterceptor = errorConfig.responseInterceptors?.[0] as unknown as (response: {
+  const responseInterceptor = errorConfig
+    .responseInterceptors?.[0] as unknown as (response: {
     data?: unknown;
     status?: number;
   }) => {
@@ -148,7 +149,9 @@ describe('requestErrorConfig', () => {
 
       errorHandler(error, {});
 
-      expect(mockHistoryPush).toHaveBeenCalledWith('/user/login?redirect=%2Frental%2Fworkbench%2Foverview');
+      expect(mockHistoryPush).toHaveBeenCalledWith(
+        '/user/login?redirect=%2Frental%2Fworkbench%2Foverview',
+      );
       expect(message.error).not.toHaveBeenCalled();
     });
 
@@ -207,7 +210,9 @@ describe('requestErrorConfig', () => {
 
       errorHandler(error, {});
 
-      expect(message.error).toHaveBeenCalledWith('角色仍被用户引用，无法删除。');
+      expect(message.error).toHaveBeenCalledWith(
+        '角色仍被用户引用，无法删除。',
+      );
     });
 
     it('should fall back to status for non-envelope error response', () => {
@@ -430,6 +435,39 @@ describe('requestErrorConfig', () => {
       const result = await interceptor(config);
 
       expect(result.headers).toEqual({});
+    });
+
+    it('keeps the explicit organization scope while csrf initialization is pending', async () => {
+      Object.defineProperty(document, 'cookie', {
+        configurable: true,
+        writable: true,
+        value: '',
+      });
+      setSelectedOrgSlug('tenant-b');
+      let finishCsrf: (() => void) | undefined;
+      mockRequest.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishCsrf = () => {
+              Object.defineProperty(document, 'cookie', {
+                configurable: true,
+                writable: true,
+                value: 'csrftoken=fixed-token',
+              });
+              resolve({});
+            };
+          }),
+      );
+      const pending = interceptor({
+        url: '/api/messaging/organizations/tenant-a/conversations/direct/',
+        method: 'POST',
+        headers: { 'X-Org-Slug': 'tenant-a' },
+      });
+      setSelectedOrgSlug('tenant-c');
+      finishCsrf?.();
+      const result = await pending;
+      expect(result.headers?.['X-Org-Slug']).toBe('tenant-a');
+      expect(result.headers?.['X-CSRFToken']).toBe('fixed-token');
     });
   });
 });

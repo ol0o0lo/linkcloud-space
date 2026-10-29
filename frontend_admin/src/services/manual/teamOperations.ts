@@ -200,9 +200,10 @@ export type TaskAssigneeListParams = {
   keyword?: string;
 };
 
-export function getTeamOperationsCapabilities() {
+export function getTeamOperationsCapabilities(organizationSlug?: string) {
   return request<TeamOperationsCapabilities>(`${BASE_PATH}/capabilities/`, {
     method: 'GET',
+    ...(organizationSlug ? { headers: { 'X-Org-Slug': organizationSlug } } : {}),
   });
 }
 

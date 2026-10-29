@@ -9,6 +9,7 @@ export function readMapSearchState(search: string) {
     const value = Number(rawValue);
     return Number.isFinite(value) ? value : undefined;
   };
+  const houseStatus = params.get('house_status');
   const estateId = number('estate_id');
   const selectedBuildingId = number('selected_building_id');
   const centerLat = number('center_lat');
@@ -17,7 +18,11 @@ export function readMapSearchState(search: string) {
   return {
     keyword: params.get('keyword') || '',
     estateId: estateId && estateId > 0 ? estateId : undefined,
-    houseStatus: params.get('house_status') || HOUSE_STATUS.VACANT,
+    houseStatus: Object.values(HOUSE_STATUS).some(
+      (status) => status === houseStatus,
+    )
+      ? houseStatus || HOUSE_STATUS.PAUSED
+      : HOUSE_STATUS.PAUSED,
     selectedBuildingId:
       selectedBuildingId && selectedBuildingId > 0
         ? selectedBuildingId

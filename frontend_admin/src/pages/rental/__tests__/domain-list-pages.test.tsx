@@ -58,6 +58,7 @@ const {
   mockDeleteTableColumns,
   mockGetUserSetting,
   mockPutTableColumns,
+  mockGetCustomerCapabilities,
   mockGetAllocationCapabilities,
   mockListAllocationBeneficiaries,
   mockUseModel,
@@ -93,6 +94,7 @@ const {
   mockDeleteTableColumns: vi.fn(),
   mockGetUserSetting: vi.fn(),
   mockPutTableColumns: vi.fn(),
+  mockGetCustomerCapabilities: vi.fn(),
   mockGetAllocationCapabilities: vi.fn(),
   mockListAllocationBeneficiaries: vi.fn(),
   mockUseModel: vi.fn(),
@@ -664,6 +666,9 @@ vi.mock('@/components/LocationPicker', () => ({
 
 vi.mock('@/services/manual/house', () => ({
   houseApi: {
+    getCustomerCapabilities: mockGetCustomerCapabilities,
+    listCorrectionTeams: () =>
+      Promise.resolve({ items: [], total: 0, page: 1, page_size: 500 }),
     createBuilding: mockCreateBuilding,
     createEstate: mockCreateEstate,
     createContact: mockCreateContact,
@@ -705,11 +710,9 @@ const enumData = {
   ],
   'house.estate_property_type': [{ label: '住宅', value: 'residential' }],
   'house.house_status': [
-    { label: '空置', value: 'vacant' },
+    { label: '暂不出租', value: 'paused' },
     { label: '招租', value: 'listed' },
     { label: '已租', value: 'rented' },
-    { label: '装修', value: 'renovating' },
-    { label: '已停用', value: 'inactive' },
   ],
   'house.viewing_record_status': [
     { label: '已预约', value: 'scheduled' },
@@ -889,8 +892,10 @@ describe('Property rental domain list pages', () => {
         },
       },
     });
+    mockGetCustomerCapabilities.mockResolvedValue({ can_manage: true });
     mockGetAllocationCapabilities.mockResolvedValue({
       submit: true,
+      register_signing: true,
       change_beneficiaries: false,
       view_scope: 'self',
       review: false,
@@ -1048,9 +1053,9 @@ describe('Property rental domain list pages', () => {
     it('creates an estate with the confirmed map coordinates', async () => {
       renderPage(<EstatesPage />);
       fireEvent.click(
-        await screen.findByRole('button', { name: 'plus 新建项目' }),
+        await screen.findByRole('button', { name: 'plus 新建小区／项目' }),
       );
-      fireEvent.change(screen.getByLabelText('项目名称'), {
+      fireEvent.change(screen.getByLabelText('小区／项目名称'), {
         target: { value: '新项目' },
       });
       fireEvent.change(screen.getByLabelText('省份'), {
@@ -1062,13 +1067,17 @@ describe('Property rental domain list pages', () => {
       fireEvent.change(screen.getByLabelText('区域'), {
         target: { value: '南山区' },
       });
-      fireEvent.click(screen.getByRole('button', { name: '项目位置' }));
+      fireEvent.click(screen.getByRole('button', { name: '小区／项目位置' }));
       fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
       await waitFor(() =>
         expect(mockCreateEstate).toHaveBeenCalledWith(
           expect.objectContaining({
-            address: '项目位置地图地址',
-            location: { latitude: 22.54321, longitude: 113.98765, coordinate_system: 'gcj02' },
+            address: '小区／项目位置地图地址',
+            location: {
+              latitude: 22.54321,
+              longitude: 113.98765,
+              coordinate_system: 'gcj02',
+            },
           }),
         ),
       );
@@ -1084,7 +1093,11 @@ describe('Property rental domain list pages', () => {
             city: '深圳市',
             district: '南山区',
             address: '旧项目地址',
-            location: { latitude: 22.5, longitude: 113.9, coordinate_system: 'gcj02' },
+            location: {
+              latitude: 22.5,
+              longitude: 113.9,
+              coordinate_system: 'gcj02',
+            },
             is_active: true,
           },
         ],
@@ -1096,14 +1109,18 @@ describe('Property rental domain list pages', () => {
       fireEvent.click(
         (await screen.findAllByRole('button', { name: '编辑' }))[0],
       );
-      fireEvent.click(screen.getByRole('button', { name: '项目位置' }));
+      fireEvent.click(screen.getByRole('button', { name: '小区／项目位置' }));
       fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
       await waitFor(() =>
         expect(mockPatchEstate).toHaveBeenCalledWith(
           1,
           expect.objectContaining({
-            address: '项目位置地图地址',
-            location: { latitude: 22.54321, longitude: 113.98765, coordinate_system: 'gcj02' },
+            address: '小区／项目位置地图地址',
+            location: {
+              latitude: 22.54321,
+              longitude: 113.98765,
+              coordinate_system: 'gcj02',
+            },
           }),
         ),
       );
@@ -1119,7 +1136,11 @@ describe('Property rental domain list pages', () => {
             city: '深圳',
             district: '南山',
             address: '科技路',
-            location: { latitude: 22.54, longitude: 113.93, coordinate_system: 'gcj02' },
+            location: {
+              latitude: 22.54,
+              longitude: 113.93,
+              coordinate_system: 'gcj02',
+            },
           },
         ],
         total: 1,
@@ -1156,7 +1177,11 @@ describe('Property rental domain list pages', () => {
             estate_id: 1,
             name: '2 栋',
             floors: 28,
-            location: { latitude: 22.54, longitude: 113.93, coordinate_system: 'gcj02' },
+            location: {
+              latitude: 22.54,
+              longitude: 113.93,
+              coordinate_system: 'gcj02',
+            },
           }),
         ),
       );
@@ -1208,7 +1233,11 @@ describe('Property rental domain list pages', () => {
           2,
           expect.objectContaining({
             address: '楼栋位置地图地址',
-            location: { latitude: 22.54321, longitude: 113.98765, coordinate_system: 'gcj02' },
+            location: {
+              latitude: 22.54321,
+              longitude: 113.98765,
+              coordinate_system: 'gcj02',
+            },
           }),
         ),
       );
@@ -1723,7 +1752,7 @@ describe('Property rental domain list pages', () => {
 
       expect(await screen.findByDisplayValue('旧改')).toBeInTheDocument();
       expect(
-        screen.queryByRole('button', { name: 'plus 新建项目' }),
+        screen.queryByRole('button', { name: 'plus 新建小区／项目' }),
       ).not.toBeInTheDocument();
       expect(
         screen.getByRole('radio', { name: '楼栋列表' }),
@@ -1929,7 +1958,7 @@ describe('Property rental domain list pages', () => {
       ).toBeInTheDocument();
       expect(screen.queryByText('完整楼栋')).not.toBeInTheDocument();
       expect(
-        screen.queryByRole('button', { name: 'plus 新建项目' }),
+        screen.queryByRole('button', { name: 'plus 新建小区／项目' }),
       ).not.toBeInTheDocument();
     });
 
@@ -2217,7 +2246,7 @@ describe('Property rental domain list pages', () => {
       expect(screen.queryByText('编辑联系人')).not.toBeInTheDocument();
     });
 
-    it('忽略切换组织后返回的同 ID 旧租户联系人', async () => {
+    it('忽略切换工作空间后返回的同 ID 旧租户联系人', async () => {
       let resolveOrgA!: (contact: typeof defaultLandlord) => void;
       let resolveOrgB!: (contact: typeof defaultLandlord) => void;
       mockGetContact
@@ -2698,6 +2727,52 @@ describe('Property rental domain list pages', () => {
   });
 
   registerTestShard('rental-houses', () => {
+    it('按停用状态筛选房源并同步URL', async () => {
+      window.history.pushState(
+        {},
+        '',
+        '/rental/properties/list?is_active=false',
+      );
+      renderPage(<HousesPage />);
+      await waitFor(() =>
+        expect(mockListHouses).toHaveBeenCalledWith(
+          expect.objectContaining({ is_active: false }),
+        ),
+      );
+      expect(new URLSearchParams(window.location.search).get('is_active')).toBe(
+        'false',
+      );
+    });
+
+    it('恢复已停用房源只提交启用标记', async () => {
+      mockListHouses.mockResolvedValue({
+        items: [
+          houseItem({
+            is_active: false,
+
+            status: 'rented',
+          }),
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20,
+      });
+      renderPage(<HousesPage />);
+      const row = (await screen.findByText('A-101')).closest(
+        'tr',
+      ) as HTMLElement;
+      expect(within(row).getByText('已停用')).toBeInTheDocument();
+      fireEvent.click(within(row).getByRole('button', { name: '更多操作' }));
+      expect(
+        screen.getByRole('menuitem', { name: '成交签约' }),
+      ).toHaveAttribute('aria-disabled', 'true');
+      fireEvent.click(screen.getByRole('menuitem', { name: '恢复房源' }));
+      fireEvent.click(await screen.findByRole('button', { name: '确认恢复' }));
+      await waitFor(() =>
+        expect(mockPatchHouse).toHaveBeenCalledWith(99, { is_active: true }),
+      );
+    });
+
     it('loads house table columns from the unified internal setting', async () => {
       renderPage(<HousesPage />);
 
@@ -2713,7 +2788,7 @@ describe('Property rental domain list pages', () => {
       window.history.pushState(
         {},
         '',
-        '/rental/properties/list?status=vacant&inspection_due=true&inspection_reason=expired',
+        '/rental/properties/list?status=paused&inspection_due=true&inspection_reason=expired',
       );
 
       renderPage(<HousesPage />);
@@ -2726,7 +2801,7 @@ describe('Property rental domain list pages', () => {
       });
       expect(
         within(statusSelect.closest('.ant-select') as HTMLElement).getByText(
-          '招租',
+          '招租中',
         ),
       ).toBeInTheDocument();
       const inspectionSelect = screen.getByRole('combobox', {
@@ -2803,7 +2878,7 @@ describe('Property rental domain list pages', () => {
         await screen.findByRole(
           'button',
           {
-            name: '选择项目 星河湾',
+            name: '选择小区／项目 星河湾',
           },
           { timeout: 5_000 },
         ),
@@ -2835,7 +2910,7 @@ describe('Property rental domain list pages', () => {
       );
 
       const estateButton = await screen.findByRole('button', {
-        name: '选择项目 星河湾',
+        name: '选择小区／项目 星河湾',
       });
       const createBuildingButton = estateButton.parentElement?.querySelector(
         'button[aria-label="新建星河湾楼栋"]',
@@ -2861,7 +2936,7 @@ describe('Property rental domain list pages', () => {
           scope: 'all',
         }),
       );
-      fireEvent.click(screen.getByRole('button', { name: '新建项目' }));
+      fireEvent.click(screen.getByRole('button', { name: '新建小区／项目' }));
       expect(
         new URLSearchParams(window.location.search).get('estate_create'),
       ).toBe('1');
@@ -3013,7 +3088,7 @@ describe('Property rental domain list pages', () => {
         items: [
           houseItem({
             asking_rent: '4200.00',
-            status: 'vacant',
+            status: 'paused',
             images: [
               {
                 media_id: 1,
@@ -3089,7 +3164,7 @@ describe('Property rental domain list pages', () => {
         items: [
           houseItem({
             asking_rent: '4200.00',
-            status: 'vacant',
+            status: 'paused',
             images: [
               { media_id: 1, media_type: 'image', image_role: 'cover' },
               { media_id: 2, media_type: 'image', image_role: 'floor_plan' },
@@ -3134,7 +3209,7 @@ describe('Property rental domain list pages', () => {
 
       expect(await screen.findByText('租客资料')).toBeInTheDocument();
       expect(screen.getByText('租期与金额')).toBeInTheDocument();
-      expect(screen.getAllByText('收益归属').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('成交归属').length).toBeGreaterThan(0);
       expect(mockHistoryPush).not.toHaveBeenCalledWith(
         '/rental/leases?house_id=99&action=deal-signing',
       );
@@ -3217,7 +3292,7 @@ describe('Property rental domain list pages', () => {
       window.history.pushState(
         {},
         '',
-        '/rental/properties/list?keyword=A-101&status=vacant&page=2',
+        '/rental/properties/list?keyword=A-101&status=paused&page=2',
       );
 
       renderPage(<HousesPage />);
@@ -3231,7 +3306,7 @@ describe('Property rental domain list pages', () => {
           expect.objectContaining({
             page: 2,
             keyword: 'A-101',
-            status: 'vacant',
+            status: 'paused',
           }),
         ),
       );
@@ -4540,6 +4615,32 @@ describe('Property rental domain list pages', () => {
       expect(screen.getByDisplayValue('2026-07-01')).toBeInTheDocument();
     });
 
+    it('lets managers correct the deal date through the lease form', async () => {
+      window.history.pushState({}, '', '/rental/leases?edit=5');
+      renderPage(<LeasesPage />);
+      const signedDate = await screen.findByLabelText('实际签约日期');
+      fireEvent.change(signedDate, { target: { value: '2026-05-15' } });
+      fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+      await waitFor(() =>
+        expect(mockPatchLease).toHaveBeenCalledWith(
+          5,
+          expect.objectContaining({ sign_at: '2026-05-15T04:00:00.000Z' }),
+        ),
+      );
+    });
+
+    it('keeps deal date and team correction hidden from ordinary maintainers', async () => {
+      mockGetCustomerCapabilities.mockResolvedValue({ can_manage: false });
+      window.history.pushState({}, '', '/rental/leases?edit=5');
+      renderPage(<LeasesPage />);
+      expect(await screen.findByText('编辑租约')).toBeInTheDocument();
+      await waitFor(() =>
+        expect(mockGetCustomerCapabilities).toHaveBeenCalled(),
+      );
+      expect(screen.queryByLabelText('实际签约日期')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('成交团队')).not.toBeInTheDocument();
+    });
+
     it('clears edit query params when closing the lease edit drawer', async () => {
       window.history.pushState(
         {},
@@ -4781,7 +4882,7 @@ describe('Property rental domain list pages', () => {
               tenant_id: 6,
             }),
             team_id: null,
-            beneficiary_user_ids: [101],
+            client_request_id: expect.any(String),
           }),
         ),
       );
@@ -4841,7 +4942,17 @@ describe('Property rental domain list pages', () => {
       expect(screen.getByLabelText('已有租客')).toBeInTheDocument();
     });
 
-    it('submits a typed tenant identity through dedicated deal signing', async () => {
+    it('registers a typed tenant independently of earnings submission permission', async () => {
+      mockGetAllocationCapabilities.mockResolvedValue({
+        register_signing: true,
+        submit: false,
+        change_beneficiaries: false,
+        view_scope: 'self',
+        review: false,
+        adjust: false,
+        void: false,
+        signing_teams: [],
+      });
       window.history.pushState(
         {},
         '',
@@ -4884,7 +4995,7 @@ describe('Property rental domain list pages', () => {
               start_date: '2026-07-01',
             }),
             team_id: null,
-            beneficiary_user_ids: [101],
+            client_request_id: expect.any(String),
           }),
         ),
       );
@@ -4996,6 +5107,7 @@ describe('Property rental domain list pages', () => {
       mockUseModel.mockReturnValue({ initialState: {} });
       mockGetAllocationCapabilities.mockResolvedValue({
         submit: true,
+        register_signing: true,
         change_beneficiaries: true,
         view_scope: 'self',
         review: false,
@@ -5051,7 +5163,7 @@ describe('Property rental domain list pages', () => {
               start_date: '2026-07-01',
             }),
             team_id: null,
-            beneficiary_user_ids: [101],
+            client_request_id: expect.any(String),
           }),
         ),
       );

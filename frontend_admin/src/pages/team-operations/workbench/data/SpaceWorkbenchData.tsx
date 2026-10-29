@@ -1,16 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { createContext, type ReactNode, useContext, useEffect } from 'react';
-import {
-  canHousePublish,
-  HOUSE_STATUS,
-} from '@/pages/rental/constants';
+import { canHousePublish, HOUSE_STATUS } from '@/pages/rental/constants';
 import { useHousePublishRules } from '@/pages/rental/useHousePublishRules';
 import { useTenantWorkspace } from '@/pages/space/shared';
-import {
-  houseApi,
-  type HouseOut,
-} from '@/services/manual/house';
+import { type HouseOut, houseApi } from '@/services/manual/house';
 import {
   buildPublishWorkbenchRows,
   buildSpaceRisks,
@@ -56,15 +50,13 @@ export type SpaceWorkbenchDataValue = {
   publishing: boolean;
 };
 
-const SpaceWorkbenchDataContext =
-  createContext<SpaceWorkbenchDataValue | null>(null);
+const SpaceWorkbenchDataContext = createContext<SpaceWorkbenchDataValue | null>(
+  null,
+);
 
 type SpaceWorkbenchDataProviderProps = {
   visibleWidgetIds: ReadonlySet<string>;
-  onDataStatusChange?: (
-    isFetching: boolean,
-    updatedAt: string | null,
-  ) => void;
+  onDataStatusChange?: (isFetching: boolean, updatedAt: string | null) => void;
   children: ReactNode;
 };
 
@@ -89,7 +81,8 @@ export function SpaceWorkbenchDataProvider({
 
   const houses = useQuery({
     queryKey: ['house', 'workbench', 'houses', workspace.selectedOrgSlug],
-    queryFn: () => houseApi.listHouses({ page: 1, page_size: 100 }),
+    queryFn: () =>
+      houseApi.listHouses({ page: 1, page_size: 100, is_active: true }),
     enabled: housesEnabled,
     refetchInterval: REFRESH_INTERVAL,
     refetchIntervalInBackground: false,
@@ -144,14 +137,16 @@ export function SpaceWorkbenchDataProvider({
     ? []
     : houseItems.filter(
         (house) =>
-          house.status === HOUSE_STATUS.VACANT &&
+          house.is_active !== false &&
+          house.status === HOUSE_STATUS.PAUSED &&
           !canHousePublish(house, publishRules.rules),
       );
   const readyHouseItems = publishRules.isPending
     ? []
     : houseItems.filter(
         (house) =>
-          house.status === HOUSE_STATUS.VACANT &&
+          house.is_active !== false &&
+          house.status === HOUSE_STATUS.PAUSED &&
           canHousePublish(house, publishRules.rules),
       );
   const missingContactCount = pendingLeaseMissingContacts.data?.total || 0;

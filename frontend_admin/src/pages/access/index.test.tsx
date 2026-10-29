@@ -111,7 +111,7 @@ describe('RoleManagementPage', () => {
     mockListPermissions.mockResolvedValue([
       {
         key: 'organizations.member_view',
-        name: '查看组织成员',
+        name: '查看空间成员',
         app_label: 'organizations',
         codename: 'member_view',
         module_key: 'organization',
@@ -265,7 +265,7 @@ describe('RoleManagementPage', () => {
     mockListPermissions.mockResolvedValue([
       {
         key: 'organizations.member_view',
-        name: '查看组织成员',
+        name: '查看空间成员',
         app_label: 'organizations',
         codename: 'member_view',
         module_key: 'organization',
@@ -273,7 +273,7 @@ describe('RoleManagementPage', () => {
       },
       {
         key: 'organizations.member_manage',
-        name: '管理组织成员',
+        name: '管理空间成员',
         app_label: 'organizations',
         codename: 'member_manage',
         module_key: 'organization',
@@ -293,10 +293,10 @@ describe('RoleManagementPage', () => {
     );
     fireEvent.click(selectAll);
     expect(
-      screen.getByRole('checkbox', { name: '查看组织成员' }),
+      screen.getByRole('checkbox', { name: '查看空间成员' }),
     ).toBeChecked();
     expect(
-      screen.getByRole('checkbox', { name: '管理组织成员' }),
+      screen.getByRole('checkbox', { name: '管理空间成员' }),
     ).toBeChecked();
   });
 });

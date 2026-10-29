@@ -23,7 +23,7 @@ export function OperatingOverviewWidget({
       key: 'total',
       label: '在管房源',
       value: data.totalHouseCount,
-      hint: '当前空间全部在管资产',
+      hint: '当前空间已启用房源',
       icon: <AppIcon name="house" />,
       className: styles.spaceOverviewMetricPrimary,
     },

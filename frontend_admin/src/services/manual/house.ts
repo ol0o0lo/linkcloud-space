@@ -1,5 +1,4 @@
 import { request } from '@umijs/max';
-import type { LeaseAllocation } from './allocation';
 import {
   appsHouseApiPropertiesCreateBuilding,
   appsHouseApiContactsCreateContact,
@@ -52,10 +51,10 @@ export type PageResult<T> = {
 
 export type InventoryCounts = {
   total: number;
-  vacant: number;
+  paused: number;
   listed: number;
   rented: number;
-  renovating: number;
+
 };
 
 export type EstateOut = API.EstateOut & {
@@ -65,6 +64,7 @@ export type EstateOut = API.EstateOut & {
 };
 export type BuildingOut = API.BuildingOut & {
   counts?: InventoryCounts;
+  migration_media?: (MigrationMediaRef | Record<string, unknown>)[];
 };
 export type BuildingMapMarkerOut = API.BuildingMapMarkerOut;
 export type BuildingMapDetailOut = API.BuildingMapDetailOut;
@@ -79,7 +79,12 @@ export type ContactOut = API.ContactOut & {
   roles__mapping?: string[];
   user_id?: number | null;
 };
-export type HouseOut = API.HouseOut;
+export type MigrationMediaRef = { id: string; field: string; position: number; url: string | null; media_type: string; status: string; media_file_id?: number | null; source_meta?: { field_path?: string; related_field?: string } };
+export type MigrationMediaSource = { migration_media?: (MigrationMediaRef | Record<string, unknown>)[] };
+export type HouseOut = API.HouseOut & MigrationMediaSource;
+function withoutMigrationMedia({ migration_media: _migrationMedia, ...data }: Record<string, unknown>) {
+  return data;
+}
 export type HouseAIInsightState = 'not_generated' | 'fresh' | 'expired';
 export type HouseAIInsightFact = {
   id: string;
@@ -218,6 +223,7 @@ export type LandlordRelationship = {
 };
 
 export type LandlordHouse = {
+  migration_media?: MigrationMediaRef[];
   id: number;
   building_id: number;
   building: {
@@ -248,6 +254,8 @@ export type LandlordHouse = {
   decoration__mapping?: string;
   has_elevator_access: boolean;
   status: string;
+  is_active: boolean;
+
   status__mapping?: string;
   images: PublicMediaRef[];
   videos: PublicMediaRef[];
@@ -278,6 +286,7 @@ export type PublicLandlordProfile = {
 };
 
 export type PublicLandlordHouse = {
+  migration_media?: MigrationMediaRef[];
   id: number;
   room_number: string;
   floor?: number | null;
@@ -335,6 +344,7 @@ export type DealSigningTenantInput =
     };
 
 export type DealSigningCreateInput = {
+  client_request_id?: string;
   lease: DealSigningTenantInput & {
     house_id: number;
     source_viewing_record_id?: number | null;
@@ -349,10 +359,11 @@ export type DealSigningCreateInput = {
     extra?: Record<string, unknown>;
   };
   team_id?: number | null;
-  beneficiary_user_ids: number[];
 };
 
 export const houseApi = {
+  getCustomerCapabilities: () => request<{ can_manage: boolean }>('/api/house/customer-capabilities/'),
+  listCorrectionTeams: () => request<PageResult<{ id: number; name: string }>>('/api/teams/', { params: { page: 1, page_size: 500 } }),
   listEstates: (params?: QueryParams) =>
     appsHouseApiPropertiesListEstates((params ?? {}) as API.appsHouseApiPropertiesListEstatesParams) as Promise<PageResult<EstateOut>>,
   getEstate: (estateId: number) => appsHouseApiPropertiesGetEstate({ estate_id: estateId }) as Promise<EstateOut>,
@@ -365,9 +376,9 @@ export const houseApi = {
   listBuildings: (params?: QueryParams) =>
     appsHouseApiPropertiesListBuildings((params ?? {}) as API.appsHouseApiPropertiesListBuildingsParams) as Promise<PageResult<BuildingOut>>,
   getBuilding: (buildingId: number) => appsHouseApiPropertiesGetBuilding({ building_id: buildingId }) as Promise<BuildingOut>,
-  createBuilding: (data: Payload) => appsHouseApiPropertiesCreateBuilding(data as API.BuildingIn) as Promise<BuildingOut>,
+  createBuilding: (data: Payload) => appsHouseApiPropertiesCreateBuilding(withoutMigrationMedia(data) as API.BuildingIn) as Promise<BuildingOut>,
   patchBuilding: (buildingId: number, data: Payload) =>
-    appsHouseApiPropertiesPatchBuilding({ building_id: buildingId }, data as API.BuildingPatchIn) as Promise<BuildingOut>,
+    appsHouseApiPropertiesPatchBuilding({ building_id: buildingId }, withoutMigrationMedia(data) as API.BuildingPatchIn) as Promise<BuildingOut>,
   checkBuildingDelete: (buildingId: number) => appsHouseApiPropertiesCheckBuildingDelete({ building_id: buildingId }) as Promise<DeleteCheckOut>,
   deleteBuilding: (buildingId: number) => appsHouseApiPropertiesDeleteBuildingEndpoint({ building_id: buildingId }, { skipErrorHandler: true }),
   getDefaultBuilding: () => appsHouseApiPropertiesGetDefaultBuilding() as Promise<DefaultBuildingOut>,
@@ -458,8 +469,8 @@ export const houseApi = {
       method: 'POST',
       skipErrorHandler: true,
     }),
-  createHouse: (data: HouseCreateInput) => appsHouseApiPropertiesCreateHouse(data),
-  patchHouse: (houseId: number, data: HousePatchInput) => appsHouseApiPropertiesPatchHouse({ house_id: houseId }, data),
+  createHouse: (data: HouseCreateInput) => appsHouseApiPropertiesCreateHouse(withoutMigrationMedia(data) as HouseCreateInput),
+  patchHouse: (houseId: number, data: HousePatchInput) => appsHouseApiPropertiesPatchHouse({ house_id: houseId }, withoutMigrationMedia(data) as HousePatchInput),
   createHouseMatchShare: (data: HouseMatchShareCreateInput) =>
     request<HouseMatchShareCreateResult>('/api/house-match-shares/', {
       method: 'POST',
@@ -501,10 +512,10 @@ export const houseApi = {
   getLease: (leaseId: number) => appsHouseApiLeasesGetLease({ lease_id: leaseId }) as Promise<LeaseOut>,
   createLease: (data: Payload) => appsHouseApiLeasesCreateLease(data as API.LeaseIn) as Promise<LeaseOut>,
   createDealSigning: (data: DealSigningCreateInput) =>
-    request<LeaseAllocation>('/api/house/leases/deal-signing/', {
+    request<LeaseOut>('/api/house/leases/register-signing/', {
       method: 'POST',
-      data,
-    }),
+      data: { lease: { ...data.lease, ...(data.lease.sign_at && /^\d{4}-\d{2}-\d{2}$/.test(data.lease.sign_at) ? { sign_at: new Date(`${data.lease.sign_at}T12:00:00+08:00`).toISOString() } : {}) }, team_id: data.team_id, client_request_id: data.client_request_id || `signing-${Date.now()}-${Math.random().toString(36).slice(2)}` },
+    }).then((lease) => ({ lease })),
   patchLease: (leaseId: number, data: Payload) =>
     appsHouseApiLeasesPatchLease({ lease_id: leaseId }, data as API.LeasePatchIn) as Promise<LeaseOut>,
 };

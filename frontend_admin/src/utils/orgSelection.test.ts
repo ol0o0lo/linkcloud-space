@@ -1,10 +1,29 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { resolveSelectedOrgSlug, setSelectedOrgSlug } from './orgSelection';
+import {
+  getOrgSelectionRevision,
+  resolveSelectedOrgSlug,
+  setSelectedOrgSlug,
+} from './orgSelection';
 
 describe('orgSelection', () => {
   beforeEach(() => {
     localStorage.clear();
     setSelectedOrgSlug(undefined);
+  });
+
+  it('仅在工作空间选择实际变化时递增版本，切回原组织也保留变化记录', () => {
+    const initialRevision = getOrgSelectionRevision();
+    setSelectedOrgSlug('tenant-a');
+    expect(getOrgSelectionRevision()).toBe(initialRevision + 1);
+    setSelectedOrgSlug(' tenant-a ');
+    expect(getOrgSelectionRevision()).toBe(initialRevision + 1);
+    setSelectedOrgSlug('tenant-c');
+    setSelectedOrgSlug('tenant-a');
+    expect(getOrgSelectionRevision()).toBe(initialRevision + 3);
+    setSelectedOrgSlug(undefined);
+    expect(getOrgSelectionRevision()).toBe(initialRevision + 4);
+    setSelectedOrgSlug(null);
+    expect(getOrgSelectionRevision()).toBe(initialRevision + 4);
   });
 
   it('defaults to the first org when there is only one option', () => {

@@ -76,7 +76,7 @@ const SalesLeadsPage: React.FC = () => {
 
   const columns: ProColumns<SubscriptionSalesLead>[] = [
     {
-      title: '客户与组织',
+      title: '客户与工作空间',
       dataIndex: 'contact_name',
       width: 240,
       render: (_value, record) => (

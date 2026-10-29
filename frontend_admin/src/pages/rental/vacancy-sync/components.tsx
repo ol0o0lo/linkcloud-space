@@ -58,6 +58,7 @@ const CHANGE_FIELD_LABELS: Record<string, string> = {
   living_rooms: '厅数',
   tags: '标签',
   status: '房态',
+  is_active: '启用状态',
 };
 
 const useStyles = createStyles(({ token, css }) => ({
@@ -375,7 +376,7 @@ export function VacancySyncSourcePanel({
                   <Typography.Text
                     style={{ color: 'rgba(255, 255, 255, 0.72)' }}
                   >
-                    房表作为楼栋当前空置清单，未列出的房源会按空间配置更新房态。
+                    房表作为楼栋当前待租清单，未列出的房源会按空间配置更新房态。
                   </Typography.Text>
                 </Space>
               }
@@ -489,18 +490,14 @@ export function VacancySyncSummary({
     },
     { key: 'update', label: '更新资料', value: preview.summary.update_houses },
     {
-      key: 'vacant',
-      label: '改为空置',
-      value: preview.summary.mark_vacant,
+      key: 'paused',
+      label: '改为暂不出租',
+      value: preview.summary.mark_paused,
       tone: 'success',
     },
     { key: 'rented', label: '改为已租', value: preview.summary.mark_rented },
   ];
-  const hasSecondarySummary = Boolean(
-    preview.summary.ignored_lines ||
-      preview.summary.preserve_special_status ||
-      preview.force_rented,
-  );
+  const hasSecondarySummary = Boolean(preview.summary.ignored_lines);
 
   return (
     <>
@@ -524,16 +521,6 @@ export function VacancySyncSummary({
         <Space className={styles.secondaryTags} size={[4, 4]} wrap>
           {preview.summary.ignored_lines ? (
             <Tag>已忽略 {preview.summary.ignored_lines} 行</Tag>
-          ) : null}
-          {preview.summary.preserve_special_status ? (
-            <Tag color="orange">
-              保留特殊房态 {preview.summary.preserve_special_status}
-            </Tag>
-          ) : null}
-          {preview.force_rented ? (
-            <Tag color="orange" icon={<WarningOutlined />}>
-              特殊房态按空间设置覆盖
-            </Tag>
           ) : null}
         </Space>
       ) : null}
@@ -587,7 +574,7 @@ export function VacancySyncBuildingCard({
   const changeCount =
     block.changes.create_houses.length +
     block.changes.update_houses.length +
-    block.changes.mark_vacant.length +
+    block.changes.mark_paused.length +
     block.changes.mark_rented.length;
   const changeItems = [
     {
@@ -603,9 +590,9 @@ export function VacancySyncBuildingCard({
       color: 'blue',
     },
     {
-      key: 'vacant',
-      label: '改为空置',
-      items: block.changes.mark_vacant,
+      key: 'paused',
+      label: '改为暂不出租',
+      items: block.changes.mark_paused,
       color: 'green',
     },
     {
@@ -613,12 +600,6 @@ export function VacancySyncBuildingCard({
       label: '改为已租',
       items: block.changes.mark_rented,
       color: 'blue',
-    },
-    {
-      key: 'special',
-      label: '保留特殊房态',
-      items: block.changes.preserve_special_status,
-      color: 'orange',
     },
     {
       key: 'inactive',

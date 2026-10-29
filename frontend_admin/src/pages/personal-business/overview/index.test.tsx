@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getWithdrawalAmountLabel } from '@/pages/wallet-management/shared';
 
 const {
   mockWalletSummary,
@@ -85,6 +86,24 @@ vi.mock('@ant-design/pro-components', () => ({
 import PersonalBusinessPage from './index';
 
 describe('PersonalBusinessPage', () => {
+  it('提现金额说明区分预计到账、已打款和已终止的申请', async () => {
+    for (const status of ['pending_review', 'approved', 'paying']) {
+      expect(getWithdrawalAmountLabel(status)).toBe('预计到账');
+    }
+    expect(getWithdrawalAmountLabel('paid')).toBe('已打款');
+    for (const status of ['cancelled', 'rejected', 'failed', 'unknown']) {
+      expect(getWithdrawalAmountLabel(status)).toBe('扣费后金额');
+    }
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PersonalBusinessPage />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText('预计到账 500')).toBeInTheDocument();
+    expect(screen.getByText('扣费后金额 300')).toBeInTheDocument();
+  });
+
   let queryClient: QueryClient;
   const writeText = vi.fn();
 

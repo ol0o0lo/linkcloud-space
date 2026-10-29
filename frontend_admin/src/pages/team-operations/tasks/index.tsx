@@ -8,6 +8,7 @@ import {
   SendOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from '@umijs/max';
 import {
   Alert,
   Avatar,
@@ -37,7 +38,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   adminTableScroll,
   drawerWidthMd,
@@ -297,6 +298,8 @@ function syncTaskSearchState(state: TaskSearchState) {
 
 const TeamTasksPage: React.FC = () => {
   const { styles } = useStyles();
+  const location = useLocation();
+  const lastNavigationKey = useRef(location.key);
   const workspace = useTenantWorkspace();
   const queryClient = useQueryClient();
   const initialSearchState = useMemo(readTaskSearchState, []);
@@ -328,6 +331,22 @@ const TeamTasksPage: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<WorkTask>();
   const [selectedAssignment, setSelectedAssignment] =
     useState<TaskAssignment>();
+  useEffect(() => {
+    // 只响应路由跳转；页面自身同步筛选到 URL 不应反向重置界面。
+    if (lastNavigationKey.current === location.key) return;
+    lastNavigationKey.current = location.key;
+    const search = new URLSearchParams(location.search);
+    const assignmentId = positiveInteger(search.get('assignment_id'));
+    const taskId = positiveInteger(search.get('task_id'));
+    setSelectedAssignment(undefined);
+    setSelectedTask(undefined);
+    setRequestedAssignmentId(assignmentId);
+    setRequestedTaskId(taskId);
+    if (assignmentId || taskId)
+      setView(
+        search.get('view') === 'managed' || !assignmentId ? 'managed' : 'mine',
+      );
+  }, [location.key, location.search]);
   const [assignmentAction, setAssignmentAction] = useState<AssignmentAction>();
   const [taskForm] = Form.useForm<TaskFormValues>();
   const [actionForm] = Form.useForm<{ result?: string }>();
@@ -612,7 +631,7 @@ const TeamTasksPage: React.FC = () => {
     selectedOwnership === undefined
       ? '请先选择所属团队'
       : selectedOwnership === 'organization'
-        ? '选择组织成员'
+        ? '选择空间成员'
         : '选择团队成员';
   const memberOptions = useMemo(
     () =>
@@ -731,7 +750,7 @@ const TeamTasksPage: React.FC = () => {
       dataIndex: 'team_name',
       width: 90,
       render: (_value, record) => (
-        <Typography.Text>{record.team_name || '组织级任务'}</Typography.Text>
+        <Typography.Text>{record.team_name || '空间级任务'}</Typography.Text>
       ),
     },
     {
@@ -886,7 +905,7 @@ const TeamTasksPage: React.FC = () => {
       dataIndex: 'team_name',
       width: 90,
       render: (_value, record) => (
-        <Typography.Text>{record.team_name || '组织级任务'}</Typography.Text>
+        <Typography.Text>{record.team_name || '空间级任务'}</Typography.Text>
       ),
     },
     {
@@ -1548,10 +1567,10 @@ const TeamTasksPage: React.FC = () => {
           <div className={styles.taskSection}>
             {organizationManage ? (
               <Form.Item
-                label="组织级任务"
+                label="空间级任务"
                 name="is_organization_task"
                 valuePropName="checked"
-                extra="开启后任务面向整个组织，可从组织成员中选择执行人。"
+                extra="开启后任务面向整个工作空间，可从空间成员中选择执行人。"
                 className={styles.organizationSwitch}
               >
                 <Switch
@@ -1652,7 +1671,7 @@ const TeamTasksPage: React.FC = () => {
             {selectedTask?.title || '-'}
           </Descriptions.Item>
           <Descriptions.Item label="团队">
-            {selectedTask?.team_name || '组织级任务'}
+            {selectedTask?.team_name || '空间级任务'}
           </Descriptions.Item>
           <Descriptions.Item label="状态">
             {selectedTask ? (
@@ -1710,7 +1729,7 @@ const TeamTasksPage: React.FC = () => {
             {selectedAssignment?.task_title || '-'}
           </Descriptions.Item>
           <Descriptions.Item label="团队">
-            {selectedAssignment?.team_name || '组织级任务'}
+            {selectedAssignment?.team_name || '空间级任务'}
           </Descriptions.Item>
           <Descriptions.Item label="创建人">
             {personLabel(selectedAssignment?.creator)}

@@ -2,6 +2,21 @@
 /* eslint-disable */
 import { request } from "@umijs/max";
 
+/** 租客直接开始房源聊天 POST /api/house/tenant/chat/ */
+export async function appsHouseApiTenantStartTenantChat(
+  body: API.TenantChatIn,
+  options?: { [key: string]: any }
+) {
+  return request<API.MessagingConversationOut>("/api/house/tenant/chat/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 租客发送预约联系方式 POST /api/house/tenant/contact/ */
 export async function appsHouseApiTenantCreateTenantContactRequest(
   body: API.TenantContactRequestIn,
@@ -15,6 +30,28 @@ export async function appsHouseApiTenantCreateTenantContactRequest(
     data: body,
     ...(options || {}),
   });
+}
+
+/** 租客向当前房源会话分享联系方式 POST /api/house/tenant/conversations/${param0}/contact/ */
+export async function appsHouseApiTenantShareContactInConversation(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.appsHouseApiTenantShareContactInConversationParams,
+  body: API.TenantContactShareIn,
+  options?: { [key: string]: any }
+) {
+  const { conversation_id: param0, ...queryParams } = params;
+  return request<API.MessagingMessageOut>(
+    `/api/house/tenant/conversations/${param0}/contact/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
 }
 
 /** 获取租客个人租约 GET /api/house/tenant/leases/ */

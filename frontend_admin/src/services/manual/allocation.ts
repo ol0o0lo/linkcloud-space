@@ -6,7 +6,8 @@ export type AllocationRequestStatus =
   | 'approved'
   | 'rejected'
   | 'expired'
-  | 'voided';
+  | 'voided'
+  | 'withdrawn';
 
 export type AccrualEntryType =
   | 'allocation'
@@ -15,6 +16,7 @@ export type AccrualEntryType =
   | 'reversal';
 
 export type AllocationCapabilities = {
+  register_signing?: boolean;
   submit: boolean;
   change_beneficiaries: boolean;
   view_scope: 'self' | 'organization';
@@ -70,6 +72,7 @@ export type LeaseAllocationSourceSnapshot = {
 
 export type AllocationRequest = {
   id: number;
+  performance_month?: string | null;
   organization_id: number;
   team_id: number | null;
   team_name_snapshot: string;
@@ -161,17 +164,21 @@ export const allocationApi = {
     request<AllocationRequest>(`/api/allocation/requests/${requestId}/`),
   reviewLeaseAllocation: (
     leaseId: number,
-    data: { decision: 'approve' | 'reject'; reason?: string },
+    data: { decision: 'approve' | 'reject'; reason?: string; allocation_request_id?: number },
   ) =>
     request<AllocationRequest>(
-      `/api/house/leases/${leaseId}/allocation/review/`,
-      { method: 'POST', data },
+      `/api/house/leases/${leaseId}/allocations/${data.allocation_request_id}/review/`,
+      { method: 'POST', data: { decision: data.decision, reason: data.reason } },
     ),
-  voidLeaseAllocation: (leaseId: number, reason: string) =>
+  voidLeaseAllocation: (leaseId: number, reason: string, requestId?: number) =>
     request<AllocationRequest>(
-      `/api/house/leases/${leaseId}/allocation/void/`,
+      `/api/house/leases/${leaseId}/allocations/${requestId}/void/`,
       { method: 'POST', data: { reason } },
     ),
+  previewLeaseAllocation: (leaseId: number, data: { mode: 'initial' | 'correction'; previous_request_id?: number }) => request<{ basis_amount: string; distributable_amount: string; distribution_method: string; distribution_rate_bp: number | null; team_name: string; performance_month: string; preview_hash: string }>(`/api/house/leases/${leaseId}/allocations/preview/`, { method: 'POST', data }),
+  listLeaseHistory: (leaseId: number) => request<PageResult<LeaseAllocation>>(`/api/house/leases/${leaseId}/allocations/`, { params: { page: 1, page_size: 100 } }),
+  submitLeaseAllocation: (leaseId: number, data: { mode: 'initial' | 'resubmit' | 'correction'; beneficiary_user_ids?: number[]; previous_request_id?: number; reason?: string; client_request_id: string; preview_hash?: string }) => request<LeaseAllocation>(`/api/house/leases/${leaseId}/allocations/`, { method: 'POST', data }),
+  withdrawLeaseAllocation: (leaseId: number, requestId: number) => request<AllocationRequest>(`/api/house/leases/${leaseId}/allocations/${requestId}/withdraw/`, { method: 'POST', data: { reason: '申请人撤回以核对或修正资料' } }),
   listEntries: (params?: QueryParams) =>
     request<PageResult<AccrualEntry>>('/api/allocation/entries/', { params }),
   createManualEntry: (data: {

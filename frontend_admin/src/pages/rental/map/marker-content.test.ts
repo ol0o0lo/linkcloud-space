@@ -21,7 +21,7 @@ describe('地图标点内容', () => {
     });
     const namedMarker = createBuildingLocationMarkerContent({
       name: '南区3栋',
-      primaryLabel: '空置',
+      primaryLabel: '暂不出租',
       primaryValue: 2,
     });
     const cluster = createBuildingClusterMarkerContent(12);
@@ -35,8 +35,8 @@ describe('地图标点内容', () => {
       'true',
     );
     expect(namedMarker.textContent).toContain('南区3栋');
-    expect(namedMarker.textContent).toContain('空置 2 套');
-    expect(namedMarker.getAttribute('aria-label')).toBe('南区3栋，空置2套');
+    expect(namedMarker.textContent).toContain('暂不出租 2 套');
+    expect(namedMarker.getAttribute('aria-label')).toBe('南区3栋，暂不出租2套');
     expect(cluster.textContent).toBe('12 栋');
     expect(cluster.getAttribute('aria-label')).toBe('12 栋楼栋');
   });
@@ -44,7 +44,7 @@ describe('地图标点内容', () => {
   it('生成按缩放层级使用的小区气泡和紧凑楼栋标点', () => {
     const estate = createEstateMapMarkerContent({
       name: '云栖花园',
-      primaryLabel: '空置',
+      primaryLabel: '暂不出租',
       primaryValue: 6,
       buildingCount: 3,
     });
@@ -62,7 +62,7 @@ describe('地图标点内容', () => {
 
     expect(estate.textContent).toContain('云栖花园');
     expect(estate.textContent).toContain('6 套');
-    expect(estate.textContent).not.toContain('空置');
+    expect(estate.textContent).not.toContain('暂不出租');
     expect(cluster.textContent).toContain('4 个项目');
     expect(cluster.textContent).toContain('房源 36 套');
     expect(building.textContent).toContain('1栋');
@@ -74,24 +74,24 @@ describe('地图标点内容', () => {
     const markers = [
       createEstateMapMarkerContent({
         name: '云栖花园',
-        primaryLabel: '空置',
+        primaryLabel: '暂不出租',
         primaryValue: 6,
         buildingCount: 3,
       }),
       createEstateClusterMarkerContent({
         estateCount: 4,
         buildingCount: 12,
-        primaryLabel: '空置',
+        primaryLabel: '暂不出租',
         primaryValue: 9,
       }),
       createBuildingCompactMarkerContent({
         name: '1栋',
-        primaryLabel: '空置',
+        primaryLabel: '暂不出租',
         primaryValue: 2,
       }),
       createBuildingLocationMarkerContent({
         name: '1栋',
-        primaryLabel: '空置',
+        primaryLabel: '暂不出租',
         primaryValue: 2,
       }),
       createBuildingClusterMarkerContent(3),
@@ -109,7 +109,7 @@ describe('地图标点内容', () => {
       estateName: '滨江公馆',
       address: '广州市海珠区阅江中路166号 A座',
       totalValue: 8,
-      primaryLabel: '空置',
+      primaryLabel: '暂不出租',
       primaryValue: 5,
       houseTotal: 5,
       houses: [
@@ -127,7 +127,7 @@ describe('地图标点内容', () => {
     expect(marker.textContent).toContain('A座');
     expect(marker.textContent).toContain('共 8 套房源');
     expect(marker.textContent).toContain('房号');
-    expect(marker.textContent).toContain('房号 · 空置 5 套');
+    expect(marker.textContent).toContain('房号 · 暂不出租 5 套');
     expect(marker.textContent).toContain('月租');
     expect(marker.textContent).toContain('1803');
     expect(marker.textContent).toContain('¥3200.00 / 月');
@@ -135,7 +135,7 @@ describe('地图标点内容', () => {
     expect(marker.textContent).toContain('另有 1 套');
     expect(marker.textContent).not.toContain('1506');
     expect(marker.getAttribute('aria-label')).toContain(
-      'A座，共8套房源，空置5套',
+      'A座，共8套房源，暂不出租5套',
     );
     expect(marker.lastElementChild).toHaveAttribute(
       'data-map-location-pin',
@@ -166,7 +166,7 @@ describe('地图标点内容', () => {
     const common = {
       name: 'A座',
       totalValue: 3,
-      primaryLabel: '空置',
+      primaryLabel: '暂不出租',
       primaryValue: 1,
       houseTotal: 1,
       houses: [],
@@ -199,13 +199,13 @@ describe('地图标点内容', () => {
     const marker = createBuildingOverviewMarkerContent({
       name: 'A座',
       contextName: '滨江公馆',
-      primaryLabel: '空置',
+      primaryLabel: '暂不出租',
       primaryValue: 3,
     });
 
     expect(marker.textContent).toContain('滨江公馆');
     expect(marker.textContent).toContain('A座');
-    expect(marker.textContent).toContain('空置 3 套');
+    expect(marker.textContent).toContain('暂不出租 3 套');
     expect(marker.lastElementChild).toHaveAttribute(
       'data-map-location-pin',
       'true',
@@ -243,9 +243,9 @@ describe('地图标点内容', () => {
       areaName: '滨江公馆',
       buildingCount: 3,
       buildings: [
-        { name: 'A座', primaryLabel: '空置', primaryValue: 1 },
-        { name: 'B座', primaryLabel: '空置', primaryValue: 2 },
-        { name: 'C座', primaryLabel: '空置', primaryValue: 4 },
+        { name: 'A座', primaryLabel: '暂不出租', primaryValue: 1 },
+        { name: 'B座', primaryLabel: '暂不出租', primaryValue: 2 },
+        { name: 'C座', primaryLabel: '暂不出租', primaryValue: 4 },
       ],
     });
 
@@ -254,6 +254,6 @@ describe('地图标点内容', () => {
     expect(marker.textContent).toContain('A座');
     expect(marker.textContent).toContain('B座');
     expect(marker.textContent).toContain('C座');
-    expect(marker.textContent).toContain('空置 4 套');
+    expect(marker.textContent).toContain('暂不出租 4 套');
   });
 });

@@ -23,7 +23,7 @@ import {
 } from 'antd';
 import React from 'react';
 import { PageContainer } from '@/components/PageContainer';
-import { housePrimaryLayoutText } from '@/pages/rental/constants';
+import { displayMedia, housePrimaryLayoutText } from '@/pages/rental/constants';
 import { houseApi } from '@/services/manual/house';
 
 const PublicLandlordHousePage: React.FC = () => {
@@ -81,6 +81,7 @@ const PublicLandlordHousePage: React.FC = () => {
   }
 
   const data = house.data;
+  const images = displayMedia(data.images, data);
   const displayName =
     data.building.estate?.display_name ||
     data.building.estate?.name ||
@@ -97,21 +98,37 @@ const PublicLandlordHousePage: React.FC = () => {
           <Row gutter={[16, 16]}>
             <Col xs={24} lg={15}>
               <Card>
-                {data.images.length ? (
+                {images.length ? (
                   <Image.PreviewGroup>
                     <Row gutter={[8, 8]}>
-                      {data.images.map((item, index) => (
+                      {images.map((item, index) => (
                         <Col
                           span={index === 0 ? 24 : 8}
-                          key={item.media_id || item.url || index}
+                          key={
+                            item.media_id ||
+                            item.migration_id ||
+                            item.url ||
+                            index
+                          }
                         >
-                          <Image
-                            alt={`${displayName} ${data.room_number} 房源图片 ${index + 1}`}
-                            src={item.url}
-                            width="100%"
-                            height={index === 0 ? 420 : 140}
-                            style={{ objectFit: 'cover' }}
-                          />
+                          {item.url ? (
+                            <Image
+                              alt={`${displayName} ${data.room_number} 房源图片 ${index + 1}`}
+                              src={item.url}
+                              width="100%"
+                              height={index === 0 ? 420 : 140}
+                              style={{ objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <Empty
+                              description={
+                                item.migration_status === 'missing' ||
+                                item.migration_status === 'failed'
+                                  ? '旧图片缺失，请处理迁移异常'
+                                  : '图片迁移中'
+                              }
+                            />
+                          )}
                         </Col>
                       ))}
                     </Row>

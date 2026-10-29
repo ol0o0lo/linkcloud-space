@@ -3,10 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { history } from '@umijs/max';
 import { Alert, Modal, message, Space, Typography } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  TenantSelectionGuard,
-  useTenantWorkspace,
-} from '@/pages/space/shared';
+import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
 import {
   houseApi,
   type VacancySyncInput,
@@ -195,7 +192,7 @@ const VacancySyncWorkspacePage: React.FC = () => {
     )
       return;
     modal.confirm({
-      title: '确认执行房表同步',
+      title: '确认更新房源资料和房态',
       icon: <WarningOutlined />,
       width: 580,
       content: (
@@ -206,7 +203,7 @@ const VacancySyncWorkspacePage: React.FC = () => {
           </Typography.Text>
           <Space size={[4, 4]} wrap>
             <Typography.Text type="secondary">
-              改为空置 {preview.summary.mark_vacant}
+              改为暂不出租 {preview.summary.mark_paused}
             </Typography.Text>
             <Typography.Text type="secondary">·</Typography.Text>
             <Typography.Text type="secondary">
@@ -218,7 +215,7 @@ const VacancySyncWorkspacePage: React.FC = () => {
             </Typography.Text>
           </Space>
           <Typography.Text type="secondary">
-            清单内房源会改为空置，清单外房源会按空间配置改为已租。该操作会直接修改房态和房源资料。
+            本次同步范围内，清单内房源会改为暂不出租，清单外房源可能按工作空间设置改为已租。该操作会直接修改房态和房源资料，请核对预览后确认。
           </Typography.Text>
         </Space>
       ),

@@ -11,8 +11,9 @@ export type NavigationAccessCapabilities = {
   notification_dispatches: boolean;
 };
 
-export function getNavigationAccessCapabilities() {
+export function getNavigationAccessCapabilities(organizationSlug?: string) {
   return request<NavigationAccessCapabilities>('/api/access/navigation/', {
     method: 'GET',
+    ...(organizationSlug ? { headers: { 'X-Org-Slug': organizationSlug } } : {}),
   });
 }

@@ -1,8 +1,8 @@
+import { QuestionCircleOutlined } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Divider, Form, Input, InputNumber, Modal, message, Select, Space, Tabs, Typography } from 'antd';
+import { Button, Card, Divider, Form, Input, InputNumber, Modal, message, Select, Space, Tabs, Tooltip, Typography } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { LocationPicker, type LocationValue } from '@/components/LocationPicker';
-import { wrapTextStyle } from '@/pages/_shared/adminLayout';
 import { PropertyTagSelect } from '@/pages/rental/components/PropertyTagSelect';
 import { buildingLabel } from '@/pages/rental/constants';
 import { TenantSelectionGuard, useTenantWorkspace } from '@/pages/space/shared';
@@ -257,12 +257,18 @@ const OrganizationSettingsPage: React.FC = () => {
 
                   return (
                     <div key={setting.key} id={settingAnchorId(setting.key)} style={{ ...settingRowStyle, borderTop: settingIndex === 0 ? 0 : settingRowStyle.borderTop }}>
-                      <Space orientation="vertical" size={4} style={settingMetaStyle}>
+                      <Space align="center" size={4} style={settingMetaStyle}>
                         <Typography.Text strong>{title}</Typography.Text>
                         {description ? (
-                          <Typography.Text type="secondary" style={wrapTextStyle}>
-                            {description}
-                          </Typography.Text>
+                          <Tooltip title={description} trigger={['hover', 'focus', 'click']}>
+                            <Button
+                              type="text"
+                              size="small"
+                              shape="circle"
+                              aria-label={`${title}说明`}
+                              icon={<QuestionCircleOutlined />}
+                            />
+                          </Tooltip>
                         ) : null}
                       </Space>
                       <Form layout="vertical" style={{ ...settingControlStyle, maxWidth: setting.value_type === 'json' ? 900 : 520 }}>
@@ -283,7 +289,7 @@ const OrganizationSettingsPage: React.FC = () => {
           initialValues={{ floors: 1 }}
           onFinish={(values) => createBuildingMutation.mutate({ ...values, estate_id: values.estate_id ?? null, floors: Number(values.floors) })}
         >
-          <Form.Item label="项目小区" name="estate_id">
+          <Form.Item label="所属小区／项目" name="estate_id">
             <Select allowClear loading={estatesQuery.isLoading} options={(estatesQuery.data?.items || []).map((item) => ({ value: item.id, label: item.name }))} />
           </Form.Item>
           <Form.Item label="楼栋名" name="name" rules={[{ required: true, message: '请输入楼栋名' }]}>

@@ -67,13 +67,16 @@ describe('BuildingDetailPage', () => {
       address: '科技园 1 栋',
       floors: 20,
       elevator: true,
-      location: { latitude: 22.5, longitude: 113.9, coordinate_system: 'gcj02' },
+      location: {
+        latitude: 22.5,
+        longitude: 113.9,
+        coordinate_system: 'gcj02',
+      },
       counts: {
         total: 1,
-        vacant: 1,
+        paused: 1,
         listed: 1,
         rented: 0,
-        renovating: 0,
       },
     });
     mockListHouses.mockResolvedValue({
@@ -83,8 +86,8 @@ describe('BuildingDetailPage', () => {
           room_number: '1001',
           floor: 10,
           asking_rent: '4500.00',
-          status: 'vacant',
-          status__mapping: '空置',
+          status: 'paused',
+          status__mapping: '暂不出租',
           effective_tags: ['采光好', '近地铁'],
         },
       ],

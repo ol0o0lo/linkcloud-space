@@ -39,13 +39,13 @@ const SecurityView: React.FC = () => {
     return [
       {
         key: 'password',
-        title: '账户密码',
+        title: '登录密码',
         description: '已设置登录密码',
         actionText: '修改',
       },
       {
         key: 'phone',
-        title: '密保手机',
+        title: '绑定手机号',
         description: maskPhone(
           user?.phone_country_code,
           user?.phone_national_number,

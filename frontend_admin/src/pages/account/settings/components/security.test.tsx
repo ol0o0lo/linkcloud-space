@@ -41,7 +41,7 @@ describe('SecurityView', () => {
       </QueryClientProvider>,
     );
 
-    const passwordTitle = await screen.findByText('账户密码');
+    const passwordTitle = await screen.findByText('登录密码');
     const passwordItem = passwordTitle.closest('.ant-list-item');
     expect(passwordItem).not.toBeNull();
     const action = within(passwordItem as HTMLElement).getByRole('button', {

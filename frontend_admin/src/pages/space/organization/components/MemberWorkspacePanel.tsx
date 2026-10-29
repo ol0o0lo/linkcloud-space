@@ -203,7 +203,7 @@ export const MemberWorkspacePanel: React.FC<{
   const deleteMutation = useMutation({
     mutationFn: () => appsOrganizationsApiDeleteMember({ member_id: memberId }),
     onSuccess: async () => {
-      message.success('成员已移出组织');
+      message.success('成员已移出工作空间');
       await invalidateMember();
       onDeleted();
     },
@@ -456,7 +456,7 @@ export const MemberWorkspacePanel: React.FC<{
                 {capabilities.team_member_manage_ids.includes(team.id) ? (
                   <Popconfirm
                     title={`从 ${team.name} 移除该成员？`}
-                    description="不会将成员移出组织，也不会清理个人房源分工；该团队下的角色绑定会同步清理。"
+                    description="不会将成员移出工作空间，也不会清理个人房源分工；该团队下的角色绑定会同步清理。"
                     okText="确认移除"
                     onConfirm={() =>
                       teamMutation.mutateAsync({
@@ -503,10 +503,10 @@ export const MemberWorkspacePanel: React.FC<{
                 <div className={styles.dangerActionPanel}>
                   <div className={styles.dangerActionCopy}>
                     <Typography.Text strong>
-                      所有者不能直接移出组织
+                      所有者不能直接移出工作空间
                     </Typography.Text>
                     <Typography.Text type="secondary">
-                      如需移除该成员，请先在组织概览的危险操作中完成所有者
+                      如需移除该成员，请先在空间概览的危险操作中完成所有者
                       转移。
                     </Typography.Text>
                   </div>
@@ -520,8 +520,8 @@ export const MemberWorkspacePanel: React.FC<{
                     </Typography.Text>
                   </div>
                   <Popconfirm
-                    title="将成员移出当前组织？"
-                    description="成员将离开当前组织，团队关系、访问角色和房源分工都会失效或清理；当前界面无法直接恢复。"
+                    title="将成员移出当前工作空间？"
+                    description="成员将离开当前工作空间，团队关系、访问角色和房源分工都会失效或清理；当前界面无法直接恢复。"
                     okText="确认移除"
                     cancelText="取消"
                     okButtonProps={{ danger: true }}
@@ -549,7 +549,7 @@ export const MemberWorkspacePanel: React.FC<{
       {capabilities.role_view ? (
         <Card
           size="small"
-          title="组织级访问角色"
+          title="空间级访问角色"
           extra={
             onOpenRoleSettings ? (
               <Button
@@ -567,8 +567,8 @@ export const MemberWorkspacePanel: React.FC<{
             <Alert
               type="info"
               showIcon
-              title="组织级角色为只读"
-              description="当前角色可以查看已有组织授权，但不能新增或移除。"
+              title="空间级角色为只读"
+              description="当前角色可以查看已有空间授权，但不能新增或移除。"
               className="mb-4"
             />
           ) : null}
@@ -576,7 +576,7 @@ export const MemberWorkspacePanel: React.FC<{
             <Alert
               type="error"
               showIcon
-              title="组织级角色加载失败"
+              title="空间级角色加载失败"
               description={
                 ((orgRolesQuery.error || orgBindingsQuery.error) as Error)
                   .message
@@ -601,8 +601,8 @@ export const MemberWorkspacePanel: React.FC<{
               {capabilities.role_manage ? (
                 <Space wrap>
                   <Select
-                    aria-label="组织角色"
-                    placeholder="选择组织角色"
+                    aria-label="空间角色"
+                    placeholder="选择空间角色"
                     value={orgRoleToAdd}
                     onChange={setOrgRoleToAdd}
                     options={(orgRolesQuery.data || [])
@@ -645,7 +645,7 @@ export const MemberWorkspacePanel: React.FC<{
                   ))
                 ) : (
                   <Typography.Text type="secondary">
-                    暂无组织级角色
+                    暂无空间级角色
                   </Typography.Text>
                 )}
               </Space>
@@ -656,8 +656,8 @@ export const MemberWorkspacePanel: React.FC<{
         <Alert
           type="info"
           showIcon
-          title="无法查看组织级角色"
-          description="当前角色缺少组织角色查看权限。"
+          title="无法查看空间级角色"
+          description="当前角色缺少空间角色查看权限。"
         />
       )}
       {member.teams.map((team, index) => {
@@ -865,7 +865,7 @@ export const MemberWorkspacePanel: React.FC<{
         }
       >
         <Typography.Paragraph type="secondary">
-          以下信息仅用于当前组织，不会修改该用户的账号姓名和邮箱。
+          以下信息仅用于当前工作空间，不会修改该用户的账号姓名和邮箱。
         </Typography.Paragraph>
         <Form form={employeeForm} layout="vertical">
           <Form.Item

@@ -19,7 +19,11 @@ import {
 } from 'antd';
 import React, { useState } from 'react';
 import { PageContainer } from '@/components/PageContainer';
-import { housePrimaryLayoutText } from '@/pages/rental/constants';
+import {
+  displayMedia,
+  housePrimaryLayoutText,
+  migrationMediaPlaceholder,
+} from '@/pages/rental/constants';
 import { houseApi } from '@/services/manual/house';
 
 const PAGE_SIZE = 12;
@@ -121,7 +125,7 @@ const PublicLandlordStorePage: React.FC = () => {
           <>
             <Row gutter={[16, 16]}>
               {houses.data.items.map((house) => {
-                const cover = house.images[0];
+                const cover = displayMedia(house.images, house)[0];
                 return (
                   <Col xs={24} sm={12} lg={8} key={house.id}>
                     <Card
@@ -138,7 +142,8 @@ const PublicLandlordStorePage: React.FC = () => {
                         ) : (
                           <div className="flex h-55 items-center justify-center bg-(--ant-color-fill-quaternary)">
                             <Typography.Text type="secondary">
-                              暂无房源图片
+                              {migrationMediaPlaceholder(house) ||
+                                '暂无房源图片'}
                             </Typography.Text>
                           </div>
                         )

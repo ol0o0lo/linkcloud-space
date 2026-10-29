@@ -1,12 +1,14 @@
-import { InputNumber, Modal, Space, Typography } from 'antd';
+import { InputNumber, Modal, Radio, Space, Typography } from 'antd';
 import type { HouseOut, HousePatchInput } from '@/services/manual/house';
 import MediaRefsUpload from '../components/MediaRefsUpload';
 import { normalizePropertyTags } from '../components/PropertyTagSelect';
 import {
   HOUSE_MEDIA_RESOURCE_TYPE,
   HOUSE_MEDIA_TYPE,
+  HOUSE_STATUS,
+  HOUSE_STATUS_OPTIONS,
   type MediaRefValue,
-  stripDerivedMediaFields,
+  mediaChangePatch,
 } from '../constants';
 
 export type HouseMediaEditValue = {
@@ -22,6 +24,7 @@ export type HouseRoomLayoutEditValue = {
 export type HouseInlineEditableFields = {
   room_layout_edit?: HouseRoomLayoutEditValue;
   media_edit?: HouseMediaEditValue;
+  status_edit?: Pick<HouseOut, 'status' | 'is_active'>;
 };
 
 type RoomLayoutEditorProps = {
@@ -38,6 +41,37 @@ type MediaEditorModalProps = {
 
 const numericValue = (value: number | null | undefined) =>
   value === null || value === undefined ? null : Number(value);
+
+export function HouseStatusInlineEditor({
+  value,
+  onChange,
+}: {
+  value?: HouseInlineEditableFields['status_edit'];
+  onChange?: (
+    value: NonNullable<HouseInlineEditableFields['status_edit']>,
+  ) => void;
+}) {
+  if (!value) return null;
+  return (
+    <Radio.Group
+      aria-label="房态"
+      optionType="button"
+      size="small"
+      options={HOUSE_STATUS_OPTIONS.map((option) => ({
+        ...option,
+        disabled:
+          value.is_active === false && option.value === HOUSE_STATUS.LISTED,
+      }))}
+      value={value.status}
+      onChange={(event) =>
+        onChange?.({
+          ...value,
+          status: event.target.value,
+        })
+      }
+    />
+  );
+}
 
 export function HouseRoomLayoutInlineEditor({
   value = {},
@@ -141,7 +175,10 @@ export function buildHouseInlinePatch(
     HouseInlineEditableFields,
 ): HousePatchInput {
   const roomLayout = record.room_layout_edit;
-  const media = record.media_edit || { images: [], videos: [] };
+  const media = record.media_edit || {
+    images: (record.images || []) as MediaRefValue[],
+    videos: (record.videos || []) as MediaRefValue[],
+  };
   return {
     building_id: record.building_id,
     landlord_id: nullableNumber(record.landlord_id),
@@ -160,9 +197,9 @@ export function buildHouseInlinePatch(
     balconies: zeroIfEmpty(record.balconies),
     orientation: nullableString(record.orientation),
     decoration: nullableString(record.decoration),
-    status: record.status,
-    images: stripDerivedMediaFields(media.images),
-    videos: stripDerivedMediaFields(media.videos),
+    status: record.status_edit?.status ?? record.status,
+    ...mediaChangePatch('images', media.images, record.images),
+    ...mediaChangePatch('videos', media.videos, record.videos),
     tags: normalizePropertyTags(record.tags as unknown[] | undefined),
     public_description: record.public_description || '',
     internal_notes: record.internal_notes || '',

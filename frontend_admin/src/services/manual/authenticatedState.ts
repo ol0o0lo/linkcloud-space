@@ -20,6 +20,7 @@ export type AuthenticatedStateSnapshot = {
 export async function loadAuthenticatedState(
   fetchUserInfo?: () => Promise<API.MeOut | undefined>,
   currentUser?: API.MeOut,
+  organizationSlug?: string,
 ): Promise<AuthenticatedStateSnapshot | null> {
   const userInfo = currentUser || (await fetchUserInfo?.());
   if (!userInfo) {
@@ -28,18 +29,27 @@ export async function loadAuthenticatedState(
 
   const organizations = await appsOrganizationsApiSwitchList({
     skipErrorHandler: true,
+    ...(organizationSlug ? { headers: { 'X-Org-Slug': organizationSlug } } : {}),
   }).catch(() => []);
-  const selectedOrgSlug = resolveSelectedOrgSlug(organizations);
+  // 显式作用域仅构建快照，不改变全局请求组织；调用方确认请求仍有效后再提交。
+  const selectedOrgSlug = organizationSlug
+    ? organizations.find((item) => item.slug === organizationSlug)?.slug
+    : resolveSelectedOrgSlug(organizations);
   const [teamOperationsCapabilities, navigationCapabilities] = selectedOrgSlug
     ? await Promise.all([
-        getTeamOperationsCapabilities().catch(() => undefined),
-        getNavigationAccessCapabilities().catch(() => undefined),
+        getTeamOperationsCapabilities(organizationSlug).catch(() => undefined),
+        getNavigationAccessCapabilities(organizationSlug).catch(() => undefined),
       ])
     : [undefined, undefined];
 
   return {
     currentUser: userInfo,
-    organizations,
+    organizations: organizationSlug
+      ? organizations.map((item) => ({
+          ...item,
+          is_current: item.slug === selectedOrgSlug,
+        }))
+      : organizations,
     selectedOrgSlug,
     teamOperationsCapabilities,
     navigationCapabilities,

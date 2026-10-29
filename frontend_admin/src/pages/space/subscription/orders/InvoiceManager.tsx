@@ -270,7 +270,7 @@ export const InvoiceManager: React.FC<InvoiceManagerProps> = ({
             type="info"
             showIcon
             title="申请开票前请先填写开票资料"
-            description="资料会在提交申请时生成快照，后续修改不会影响已提交的申请。"
+            description="申请将使用提交时的开票资料，后续修改不会影响已提交的申请。"
           />
         )}
 

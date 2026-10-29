@@ -30,10 +30,9 @@ vi.mock('@umijs/max', () => ({
 
 const counts = {
   total: 18,
-  vacant: 13,
+  paused: 13,
   listed: 4,
   rented: 1,
-  renovating: 0,
 };
 
 const estatePoint: EstateMapDisplayPoint = {
@@ -58,7 +57,7 @@ const building: BuildingMapMarkerOut = {
   name: '1栋',
   address: '云栖路 88 号',
   location: { latitude: 23.13, longitude: 113.36, coordinate_system: 'gcj02' },
-  counts: { total: 3, vacant: 1, listed: 2, rented: 0, renovating: 0 },
+  counts: { total: 3, paused: 1, listed: 2, rented: 0 },
 };
 
 const house = {
@@ -70,8 +69,8 @@ const house = {
   asking_rent: '4500.00',
   bedrooms: 1,
   living_rooms: 0,
-  status: 'vacant',
-  status__mapping: '空置',
+  status: 'paused',
+  status__mapping: '暂不出租',
 } as HouseOut;
 
 const unlocatedBuildings = Array.from({ length: 6 }, (_, index) => ({
@@ -83,7 +82,7 @@ const unlocatedBuildings = Array.from({ length: 6 }, (_, index) => ({
 })) as BuildingMapUnlocatedOut[];
 
 describe('MapToolbar', () => {
-  it('只在提交搜索时生效，并提供空置、招租、全部快捷切换', () => {
+  it('只在提交搜索时生效，并提供暂不出租、招租中、已出租、全部快捷切换', () => {
     const onKeywordChange = vi.fn();
     const onKeywordSearch = vi.fn();
     const onHouseStatusChange = vi.fn();
@@ -91,7 +90,7 @@ describe('MapToolbar', () => {
     const { rerender } = render(
       <MapToolbar
         keyword=""
-        houseStatus="vacant"
+        houseStatus="paused"
         counts={{
           levelLabel: '楼栋',
           located: 6,
@@ -114,7 +113,7 @@ describe('MapToolbar', () => {
     rerender(
       <MapToolbar
         keyword="云岸"
-        houseStatus="vacant"
+        houseStatus="paused"
         counts={{
           levelLabel: '楼栋',
           located: 6,
@@ -134,11 +133,11 @@ describe('MapToolbar', () => {
       code: 'Enter',
     });
     expect(onKeywordSearch.mock.calls[0]?.[0]).toBe('云岸');
-    fireEvent.click(screen.getByText('招租'));
+    fireEvent.click(screen.getByText('招租中'));
     fireEvent.click(screen.getByText('全部'));
     expect(onHouseStatusChange).toHaveBeenNthCalledWith(1, 'listed');
     expect(onHouseStatusChange).toHaveBeenNthCalledWith(2, undefined);
-    expect(screen.getByText(/13 套空置 · 6 栋/)).toBeInTheDocument();
+    expect(screen.getByText(/13 套暂不出租 · 6 栋/)).toBeInTheDocument();
   });
 });
 
@@ -147,7 +146,7 @@ describe('任务侧栏', () => {
     render(
       <EstateResultPanel
         points={[estatePoint]}
-        houseStatus="vacant"
+        houseStatus="paused"
         collapsed
         loading={false}
         error={false}
@@ -159,8 +158,8 @@ describe('任务侧栏', () => {
     );
 
     expect(
-      screen.getByRole('button', { name: '展开空置房源结果' }),
-    ).toHaveTextContent('空置 13 套');
+      screen.getByRole('button', { name: '展开暂不出租房源结果' }),
+    ).toHaveTextContent('暂不出租 13 套');
   });
 
   it('选中楼栋后以紧凑楼栋上下文承接房源明细', () => {
@@ -172,7 +171,7 @@ describe('任务侧栏', () => {
         collapsed={false}
         selectedId={building.id}
         selectedBuilding={building}
-        houseStatus="vacant"
+        houseStatus="paused"
         loading={false}
         truncated={false}
         locatedError={false}
@@ -181,7 +180,7 @@ describe('任务侧栏', () => {
         houseTotal={1}
         housesLoading={false}
         housesError={false}
-        returnTo="/dashboard/rental/properties/map?house_status=vacant"
+        returnTo="/dashboard/rental/properties/map?house_status=paused"
         pendingListHref="/rental/properties/list?asset_issue=building_location"
         onSelect={vi.fn()}
         onBack={vi.fn()}
@@ -200,14 +199,14 @@ describe('任务侧栏', () => {
     expect(screen.getByText('云栖花园 · 共 3 套房源')).toBeInTheDocument();
     expect(screen.queryByText('装修 0')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: '空置 1 套' }),
+      screen.queryByRole('heading', { name: '暂不出租 1 套' }),
     ).not.toBeInTheDocument();
     const allHousesLink = screen.getByRole('link', {
-      name: '查看 1栋 的空置房源列表',
+      name: '查看 1栋 的暂不出租房源列表',
     });
     expect(allHousesLink).toHaveAttribute(
       'href',
-      '/rental/properties/list?building_id=9&status=vacant',
+      '/rental/properties/list?building_id=9&status=paused',
     );
     expect(allHousesLink).toHaveAttribute('target', '_blank');
     expect(allHousesLink).toHaveAttribute('rel', 'noreferrer');
@@ -256,7 +255,7 @@ describe('任务侧栏', () => {
     expect(screen.getByText('单间')).toBeInTheDocument();
     expect(screen.getByText('32.50㎡')).toBeInTheDocument();
     expect(screen.getByText('¥4500.00 / 月')).toBeInTheDocument();
-    expect(screen.getByText('空置')).toBeInTheDocument();
+    expect(screen.getByText('暂不出租')).toBeInTheDocument();
   });
 
   it('房源预览加载失败时提供局部重试', () => {
@@ -270,7 +269,7 @@ describe('任务侧栏', () => {
         collapsed={false}
         selectedId={building.id}
         selectedBuilding={building}
-        houseStatus="vacant"
+        houseStatus="paused"
         loading={false}
         truncated={false}
         locatedError={false}
@@ -279,7 +278,7 @@ describe('任务侧栏', () => {
         houseTotal={0}
         housesLoading={false}
         housesError
-        returnTo="/dashboard/rental/properties/map?house_status=vacant"
+        returnTo="/dashboard/rental/properties/map?house_status=paused"
         pendingListHref="/rental/properties/list?asset_issue=building_location"
         onSelect={vi.fn()}
         onBack={vi.fn()}
@@ -305,7 +304,7 @@ describe('任务侧栏', () => {
         collapsed={false}
         selectedId={building.id}
         selectedBuilding={building}
-        houseStatus="vacant"
+        houseStatus="paused"
         loading={false}
         truncated={false}
         locatedError={false}
@@ -314,7 +313,7 @@ describe('任务侧栏', () => {
         houseTotal={0}
         housesLoading={false}
         housesError={false}
-        returnTo="/dashboard/rental/properties/map?house_status=vacant"
+        returnTo="/dashboard/rental/properties/map?house_status=paused"
         pendingListHref="/rental/properties/list?asset_issue=building_location"
         onSelect={vi.fn()}
         onBack={vi.fn()}
@@ -340,7 +339,7 @@ describe('任务侧栏', () => {
         collapsed={false}
         selectedId={building.id}
         selectedBuilding={building}
-        houseStatus="vacant"
+        houseStatus="paused"
         loading={false}
         truncated={false}
         locatedError={false}
@@ -349,7 +348,7 @@ describe('任务侧栏', () => {
         houseTotal={0}
         housesLoading
         housesError={false}
-        returnTo="/dashboard/rental/properties/map?house_status=vacant"
+        returnTo="/dashboard/rental/properties/map?house_status=paused"
         pendingListHref="/rental/properties/list?asset_issue=building_location"
         onSelect={vi.fn()}
         onBack={vi.fn()}
@@ -370,7 +369,7 @@ describe('任务侧栏', () => {
         unlocated={[]}
         unlocatedTotal={0}
         collapsed={false}
-        houseStatus="vacant"
+        houseStatus="paused"
         loading={false}
         truncated={false}
         locatedError={false}
@@ -379,7 +378,7 @@ describe('任务侧栏', () => {
         houseTotal={0}
         housesLoading={false}
         housesError={false}
-        returnTo="/dashboard/rental/properties/map?house_status=vacant"
+        returnTo="/dashboard/rental/properties/map?house_status=paused"
         pendingListHref="/rental/properties/list?asset_issue=building_location"
         onSelect={vi.fn()}
         onToggleCollapsed={vi.fn()}
@@ -389,7 +388,7 @@ describe('任务侧栏', () => {
       />,
     );
 
-    expect(screen.getByText('空置 1 套')).toBeInTheDocument();
+    expect(screen.getByText('暂不出租 1 套')).toBeInTheDocument();
     expect(screen.queryByText('招租 2')).not.toBeInTheDocument();
     expect(screen.queryByText('已租 0')).not.toBeInTheDocument();
   });
@@ -401,7 +400,7 @@ describe('任务侧栏', () => {
         unlocated={unlocatedBuildings}
         unlocatedTotal={unlocatedBuildings.length}
         collapsed={false}
-        houseStatus="vacant"
+        houseStatus="paused"
         loading={false}
         truncated={false}
         locatedError={false}
@@ -410,7 +409,7 @@ describe('任务侧栏', () => {
         houseTotal={0}
         housesLoading={false}
         housesError={false}
-        returnTo="/dashboard/rental/properties/map?house_status=vacant"
+        returnTo="/dashboard/rental/properties/map?house_status=paused"
         pendingListHref="/rental/properties/list?asset_issue=building_location"
         onSelect={vi.fn()}
         onToggleCollapsed={vi.fn()}

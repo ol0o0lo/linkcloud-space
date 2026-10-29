@@ -610,7 +610,7 @@ const EstatesPage: React.FC = () => {
   const selectedEstateName =
     selectedEstate?.display_name ||
     selectedEstate?.name ||
-    (estateId ? `小区 #${estateId}` : '');
+    (estateId ? `小区／项目 #${estateId}` : '');
   useEffect(() => {
     if (estateOpen) estateForm.setFieldsValue(estateInitialValues);
   }, [estateForm, estateOpen, editingEstate?.id]);
@@ -743,7 +743,7 @@ const EstatesPage: React.FC = () => {
       ),
     },
     {
-      title: '所属项目',
+      title: '所属小区／项目',
       dataIndex: 'estate',
       render: (_value, record) => (
         <EstatePreview id={record.estate?.id}>
@@ -1015,7 +1015,7 @@ const EstatesPage: React.FC = () => {
                 icon={<PlusOutlined />}
                 onClick={openEstateCreate}
               >
-                新建项目
+                新建小区／项目
               </Button>,
             ]}
             ghost
@@ -1023,10 +1023,10 @@ const EstatesPage: React.FC = () => {
               emptyText: (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="暂无项目资料"
+                  description="暂无小区／项目资料"
                 >
                   <Button type="primary" onClick={openEstateCreate}>
-                    新建项目
+                    新建小区／项目
                   </Button>
                 </Empty>
               ),
@@ -1107,7 +1107,7 @@ const EstatesPage: React.FC = () => {
       />
       <EntityPreviewDetailDrawer
         searchParam="preview_estate"
-        title="项目详情"
+        title="小区／项目详情"
         type="estate"
       />
       <EntityPreviewDetailDrawer
@@ -1116,7 +1116,7 @@ const EstatesPage: React.FC = () => {
         type="building"
       />
       <Drawer
-        title={editingEstate ? '编辑项目' : '新建项目'}
+        title={editingEstate ? '编辑小区／项目' : '新建小区／项目'}
         open={estateOpen}
         size="large"
         onClose={closeEstateDrawer}
@@ -1146,9 +1146,9 @@ const EstatesPage: React.FC = () => {
           }
         >
           <Form.Item
-            label="项目名称"
+            label="小区／项目名称"
             name="name"
-            rules={[{ required: true, message: '请输入项目名称' }]}
+            rules={[{ required: true, message: '请输入小区／项目名称' }]}
           >
             <Input />
           </Form.Item>
@@ -1192,9 +1192,9 @@ const EstatesPage: React.FC = () => {
           <Form.Item name="lng" hidden>
             <Input />
           </Form.Item>
-          <Form.Item label="项目位置">
+          <Form.Item label="小区／项目位置">
             <LocationPicker
-              ariaLabel="项目位置"
+              ariaLabel="小区／项目位置"
               value={formLocation({
                 address: estateAddress,
                 lat: estateLat,
@@ -1257,7 +1257,7 @@ const EstatesPage: React.FC = () => {
             saveBuilding.mutate(values);
           }}
         >
-          <Form.Item label="所属项目" name="estate_id">
+          <Form.Item label="所属小区／项目" name="estate_id">
             <Select
               allowClear
               options={(allEstates.data?.items || []).map((item) => ({
@@ -1345,7 +1345,7 @@ const EstatesPage: React.FC = () => {
           </Form.Item>
         </Form>
         {editingBuilding?.estate ? (
-          <Card size="small" title="所属小区" style={{ marginTop: 16 }}>
+          <Card size="small" title="所属小区／项目" style={{ marginTop: 16 }}>
             {editingBuilding.estate.display_name || editingBuilding.estate.name}
           </Card>
         ) : null}

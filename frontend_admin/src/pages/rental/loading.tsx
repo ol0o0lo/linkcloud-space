@@ -11,10 +11,17 @@ type QueryLike = {
 export function isInitialQueryPending(query?: QueryLike | null) {
   if (!query) return false;
   if (query.isFetched) return false;
-  return query.isLoading || query.isFetching || query.fetchStatus === 'fetching' || query.fetchStatus === 'idle';
+  return (
+    query.isLoading ||
+    query.isFetching ||
+    query.fetchStatus === 'fetching' ||
+    query.fetchStatus === 'idle'
+  );
 }
 
-export function isAnyInitialQueryPending(queries: Array<QueryLike | null | undefined>) {
+export function isAnyInitialQueryPending(
+  queries: Array<QueryLike | null | undefined>,
+) {
   return queries.some((query) => isInitialQueryPending(query));
 }
 
@@ -22,7 +29,11 @@ export function getLoadingSafeCount(value: number, loading: boolean) {
   return loading ? '-' : value;
 }
 
-export function getLoadingSafeText(value: string, loadingText: string, loading: boolean) {
+export function getLoadingSafeText(
+  value: string,
+  loadingText: string,
+  loading: boolean,
+) {
   return loading ? loadingText : value;
 }
 
@@ -37,12 +48,14 @@ export function getLoadingAwareEmptyState(options: {
   return (
     <Empty
       image={Empty.PRESENTED_IMAGE_SIMPLE}
-      description={(
+      description={
         <Space orientation="vertical" size={4}>
           <Typography.Text strong>{loadingTitle}</Typography.Text>
-          <Typography.Text type="secondary">{loadingDescription}</Typography.Text>
+          <Typography.Text type="secondary">
+            {loadingDescription}
+          </Typography.Text>
         </Space>
-      )}
+      }
     />
   );
 }

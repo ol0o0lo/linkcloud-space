@@ -155,7 +155,7 @@ export const InvitationWorkspacePanel: React.FC<{
         record.is_owner ? (
           <Tag color="gold">所有者</Tag>
         ) : record.access_role ? (
-          roleNameById.get(record.access_role) || '组织角色'
+          roleNameById.get(record.access_role) || '空间角色'
         ) : (
           '普通成员'
         ),
@@ -301,7 +301,7 @@ export const InvitationWorkspacePanel: React.FC<{
           </Descriptions.Item>
           <Descriptions.Item label="预设角色">
             {detailQuery.data?.access_role
-              ? roleNameById.get(detailQuery.data.access_role) || '组织角色'
+              ? roleNameById.get(detailQuery.data.access_role) || '空间角色'
               : '普通成员'}
           </Descriptions.Item>
           <Descriptions.Item label="创建时间">

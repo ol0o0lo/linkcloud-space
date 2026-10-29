@@ -221,7 +221,7 @@ describe('经营分析页面', () => {
 
     const area = await screen.findByTestId('analytics-area');
     expect(area).toHaveAttribute('data-event-name', 'house.view');
-    fireEvent.click(screen.getByText('电话咨询', { exact: true }));
+    fireEvent.click(screen.getByText('拨号点击', { exact: true }));
 
     await waitFor(() =>
       expect(screen.getByTestId('analytics-area')).toHaveAttribute(

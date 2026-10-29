@@ -266,7 +266,7 @@ const EstateDetailPage: React.FC = () => {
   const counts = estate.counts;
   const total = counts?.total || 0;
   const rented = counts?.rented || 0;
-  const rentable = (counts?.vacant || 0) + (counts?.listed || 0) + rented;
+  const rentable = (counts?.paused || 0) + (counts?.listed || 0) + rented;
   const region = [estate.province, estate.city, estate.district]
     .filter(Boolean)
     .join(' / ');
@@ -307,11 +307,10 @@ const EstateDetailPage: React.FC = () => {
   });
   const summaryFacts = [
     ['楼栋', estate.building_count || 0],
-    ['总房源', total],
+    ['启用房源', total],
     ['已租', rented],
-    ['空置', counts?.vacant || 0],
+    ['暂不出租', counts?.paused || 0],
     ['招租', counts?.listed || 0],
-    ['装修', counts?.renovating || 0],
   ];
 
   return (
@@ -339,7 +338,7 @@ const EstateDetailPage: React.FC = () => {
             <div className={styles.bannerContent}>
               <div className={styles.bannerMain}>
                 <Typography.Text className={styles.bannerEyebrow}>
-                  小区项目总览
+                  小区／项目总览
                 </Typography.Text>
                 <Typography.Title
                   level={2}
@@ -355,7 +354,7 @@ const EstateDetailPage: React.FC = () => {
                       '物业类型待补充'}
                   </Tag>
                   {estateImages.length ? (
-                    <Tag>{estateImages.length} 张项目图片</Tag>
+                    <Tag>{estateImages.length} 张小区／项目图片</Tag>
                   ) : null}
                 </div>
                 <div className={styles.bannerLocation}>
@@ -409,11 +408,14 @@ const EstateDetailPage: React.FC = () => {
 
         <Row gutter={[16, 16]} align="stretch">
           <Col xs={24} xl={7}>
-            <Card title="项目档案" className={styles.projectCard}>
-              <section aria-label="项目档案" className={styles.projectSection}>
+            <Card title="小区／项目档案" className={styles.projectCard}>
+              <section
+                aria-label="小区／项目档案"
+                className={styles.projectSection}
+              >
                 {[
                   ['展示名称', estateName],
-                  ['项目名称', estate.name || '-'],
+                  ['小区／项目名称', estate.name || '-'],
                   [
                     '物业类型',
                     estate.property_type__mapping ||
@@ -424,9 +426,7 @@ const EstateDetailPage: React.FC = () => {
                   ['详细地址', estate.address || '-'],
                   [
                     '地图位置',
-                    estate.location == null
-                      ? '待补充定位'
-                      : '已维护定位',
+                    estate.location == null ? '待补充定位' : '已维护定位',
                   ],
                 ].map(([label, value]) => (
                   <div key={String(label)} className={styles.projectItem}>
@@ -513,7 +513,7 @@ const EstateDetailPage: React.FC = () => {
                           在管 {row.counts?.total || 0}
                         </Typography.Text>
                         <Typography.Text type="secondary">
-                          空置 {row.counts?.vacant || 0}
+                          暂不出租 {row.counts?.paused || 0}
                         </Typography.Text>
                       </Space>
                     ),
@@ -525,7 +525,7 @@ const EstateDetailPage: React.FC = () => {
                     render: (_value, row) => {
                       const rentedHouses = row.counts?.rented || 0;
                       const rentableHouses =
-                        (row.counts?.vacant || 0) +
+                        (row.counts?.paused || 0) +
                         (row.counts?.listed || 0) +
                         rentedHouses;
                       return (

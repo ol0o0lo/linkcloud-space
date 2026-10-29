@@ -204,7 +204,7 @@ const OrganizationBindingsPage: React.FC = () => {
           locale={{
             emptyText: (
               <Empty
-                description="当前空间还没有任何组织级授权记录，先分配首批全局负责人。"
+                description="当前空间还没有任何空间级授权记录，先分配首批全局负责人。"
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
             ),
