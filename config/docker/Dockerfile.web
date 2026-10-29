@@ -24,9 +24,9 @@ COPY uv.lock pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv,id=linkcloud-space-uv \
     set -ex \
     && if [ "$ENV_NAME" = "prod" ]; then \
-        $VIRTUAL_ENV/bin/uv sync --no-dev; \
+        $VIRTUAL_ENV/bin/uv sync --locked --no-dev; \
     else \
-        $VIRTUAL_ENV/bin/uv sync; \
+        $VIRTUAL_ENV/bin/uv sync --locked; \
     fi
 
 
@@ -65,7 +65,7 @@ ENV LANG=en_US.UTF-8 \
 
 WORKDIR /srv/app
 
-COPY --from=python-requirements --chown=app:app $VIRTUAL_ENV $VIRTUAL_ENV
+COPY --from=python-requirements $VIRTUAL_ENV $VIRTUAL_ENV
 
 
 # ------------------------------------------------------------
@@ -90,22 +90,37 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 
 # ------------------------------------------------------------
-# STAGE 3: Javascript assets layer (built with bun, not npm)
+# STAGE 3: Admin assets (npm) and H5 assets (pnpm)
 # ------------------------------------------------------------
-FROM oven/bun:1 AS js_assets
+FROM node:22-bookworm-slim AS admin_assets
 
-WORKDIR /srv/app
+ENV HUSKY=0
+WORKDIR /build/frontend_admin
 
-COPY package.json bun.lock ./
-COPY frontend frontend
-COPY apps apps
+COPY frontend_admin/ ./
 
-# Install JS packages and build the Vite bundle. --frozen-lockfile guarantees
-# CI/prod builds resolve to exactly what's committed in bun.lock.
-RUN --mount=type=cache,target=/root/.bun/install/cache,id=linkcloud-space-bun \
-    bun install --frozen-lockfile \
-    && bun run build \
-    && ls -la public/static/dist/
+RUN --mount=type=cache,target=/root/.npm,id=linkcloud-space-npm \
+    npm ci && npm run build
+
+
+FROM node:22-bookworm-slim AS h5_assets
+
+WORKDIR /build/frontend_miniprogram
+
+# Build without developer .env files; H5 uses the Django host's /api.
+ENV VITE_APP_TITLE="链云空间" \
+    VITE_APP_PUBLIC_BASE=/public/static/dist/h5/ \
+    VITE_API_MODE=same-origin \
+    VITE_API_BASE_URL=/api \
+    VITE_APP_PROXY_ENABLE=false \
+    VITE_DELETE_CONSOLE=true
+
+RUN corepack enable
+
+COPY frontend_miniprogram/ ./
+
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store,id=linkcloud-space-pnpm \
+    pnpm install --frozen-lockfile && pnpm build:h5
 
 
 # ------------------------------------------------------------
@@ -126,7 +141,8 @@ RUN mkdir -p /srv/app/collected_static && chown -R app:app /srv/app/collected_st
 
 USER app
 
-COPY --from=js_assets --chown=app:app /srv/app/public/static/ ./public/static
+COPY --from=admin_assets --chown=app:app /build/frontend_admin/dist/ ./public/static/dist/admin/
+COPY --from=h5_assets --chown=app:app /build/frontend_miniprogram/dist/build/h5/ ./public/static/dist/h5/
 
 RUN DJANGO_SETTINGS_MODULE=config.settings SECRET_KEY=build-only python manage.py collectstatic --noinput --no-default-ignore
 

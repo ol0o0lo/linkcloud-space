@@ -1,0 +1,50 @@
+name: 构建并发布容器镜像
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 获取代码
+        uses: actions/checkout@v6
+
+      - name: 设置镜像名称
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: 配置 Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: 登录 GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送生产镜像
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: config/docker/Dockerfile.web
+          target: prod
+          platforms: linux/amd64
+          build-args: |
+            ENV_NAME=prod
+            DEBIAN_MIRROR=https://deb.debian.org/debian
+            DEBIAN_SECURITY_MIRROR=https://deb.debian.org/debian-security
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

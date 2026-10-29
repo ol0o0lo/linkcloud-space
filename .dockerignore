@@ -1,4 +1,9 @@
 **/.venv
+**/__pycache__
+**/.codex
+**/.env*
+**/node_modules
+.git
 *console.log
 .coverage
 .env*
@@ -10,6 +15,11 @@ db.sqlite
 docs_site/
 htmlcov
 latest.dump
-node_modules
+frontend_admin/dist
+frontend_admin/src/.umi*
+frontend_miniprogram/dist
+frontend_miniprogram/unpackage
+collected_static
+public/media
 public/static/dist
 .private/
