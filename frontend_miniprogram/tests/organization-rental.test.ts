@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { buildOrganizationScope } from '../src/domain/organization-scope.ts'
 import {
   buildOrganizationBuildingPayload,
   buildOrganizationContactPayload,
@@ -11,7 +12,6 @@ import {
   buildOrganizationHouseCreatePayload,
   buildOrganizationHousePatchPayload,
   buildOrganizationLeasePatchPayload,
-  buildOrganizationScope,
   buildOrganizationViewingCreatePayload,
   canOpenOrganizationCapability,
   formatOrganizationHouseTitle,
@@ -53,7 +53,14 @@ test('组织请求作用域显式携带 slug，且只有读取请求允许安全
     requestScope: { kind: 'organization', organizationSlug: 'alpha' },
     authRetry: 'never',
   })
-  assert.throws(() => buildOrganizationScope(''), /未选择组织/)
+  assert.throws(() => buildOrganizationScope(''), /未选择工作空间/)
+})
+
+test('共享业务服务不得依赖组织经营分包内的领域模块', () => {
+  for (const service of ['organization-customers', 'organization-matches', 'organization-signing', 'rental-closure']) {
+    const source = readFileSync(join(sourceRoot, `services/manual/${service}.ts`), 'utf8')
+    assert.equal(/from ['"]@\/pages-org-rental\/domain\//.test(source), false, `${service} 不得反向引用分包领域模块`)
+  }
 })
 
 test('房表同步和收益规则来源使用清晰中文状态', () => {
@@ -63,7 +70,7 @@ test('房表同步和收益规则来源使用清晰中文状态', () => {
   assert.equal(getVacancyLineStatusLabel('valid'), '可同步')
   assert.equal(getVacancyLineStatusLabel('error'), '有错误')
   assert.equal(getAllocationRuleSourceLabel('default'), '系统默认')
-  assert.equal(getAllocationRuleSourceLabel('organization'), '组织设置')
+  assert.equal(getAllocationRuleSourceLabel('organization'), '空间设置')
   assert.equal(getAllocationRuleSourceLabel('unknown'), '其他规则')
 })
 
@@ -83,8 +90,8 @@ test('多行输入使用可见字段标题，不向 Textarea 传递不存在的 
   ]
   for (const source of pageSources)
     assert.doesNotMatch(source, /<wd-textarea[^>]+\slabel=/)
-  assert.match(pageSources[0], /<wd-cell title="公开描述" layout="vertical">/)
-  assert.match(pageSources[0], /<wd-cell v-if="houseId" title="内部备注" layout="vertical">/)
+  assert.match(pageSources[0], /公开描述[\s\S]*?<wd-textarea v-model="form.public_description"/)
+  assert.match(pageSources[0], /v-if="houseId"[\s\S]*?内部备注[\s\S]*?<wd-textarea v-model="form.internal_notes"/)
   assert.match(pageSources[1], /<wd-cell title="备注" layout="vertical">/)
   assert.match(pageSources[2], /<wd-cell title="备注" layout="vertical">/)
 })
@@ -123,11 +130,11 @@ test('组织经营展示辅助统一房源标题和状态语义', () => {
 })
 
 test('房源生命周期动作与管理端保持一致', () => {
-  assert.deepEqual(getOrganizationHouseLifecycleActions('vacant'), ['publish', 'disable'])
+  assert.deepEqual(getOrganizationHouseLifecycleActions('paused'), ['publish', 'disable'])
   assert.deepEqual(getOrganizationHouseLifecycleActions('listed'), ['unpublish', 'disable'])
   assert.deepEqual(getOrganizationHouseLifecycleActions('rented'), ['disable'])
-  assert.deepEqual(getOrganizationHouseLifecycleActions('renovating'), ['disable'])
-  assert.deepEqual(getOrganizationHouseLifecycleActions('inactive'), [])
+  for (const status of ['paused', 'listed', 'rented'])
+    assert.deepEqual(getOrganizationHouseLifecycleActions(status, false), ['enable'])
   assert.deepEqual(getOrganizationHouseLifecycleActions('unexpected'), [])
 })
 
@@ -162,16 +169,16 @@ test('房源创建与编辑提交值沿用管理端的数字、标签和媒体�
     landlord_id: null,
     room_number: '8A',
     listing_type: 'whole',
-    floor: 0,
+    floor: null,
     area: 68.5,
-    interior_area: 0,
+    interior_area: null,
     asking_rent: 3200,
-    deposit_amount: 0,
+    deposit_amount: null,
     bedrooms: 1,
     living_rooms: 0,
-    bathrooms: 0,
-    kitchens: 0,
-    balconies: 0,
+    bathrooms: null,
+    kitchens: null,
+    balconies: null,
     orientation: null,
     decoration: 'fine',
     has_elevator_access: true,
@@ -184,6 +191,28 @@ test('房源创建与编辑提交值沿用管理端的数字、标签和媒体�
     ...buildOrganizationHouseCreatePayload(values),
     internal_notes: '仅组织可见',
   })
+})
+
+test('资料写入保留装修程度，房态和启停由独立操作维护', () => {
+  const values = { building_id: 1, landlord_id: null, room_number: '101', decoration: 'fine' }
+  for (const payload of [buildOrganizationHouseCreatePayload(values), buildOrganizationHousePatchPayload(values)]) {
+    assert.equal(payload.decoration, 'fine')
+    assert.equal('status' in payload, false)
+    assert.equal('is_active' in payload, false)
+  }
+})
+
+test('普通房源编辑不提交未变媒体快照，显式删图仍提交空数组', () => {
+  const original = { images: [{ media_id: 3, media_type: 'image' as const, url: 'https://example.test/old.jpg' }], videos: [] }
+  const values = { building_id: 1, landlord_id: null, room_number: '101', images: original.images.slice(), videos: [] }
+  const unchanged = buildOrganizationHousePatchPayload({ ...values, public_description: '更新说明' }, original)
+  assert.equal(Object.hasOwn(unchanged, 'images'), false)
+  assert.equal(Object.hasOwn(unchanged, 'videos'), false)
+  const removed = buildOrganizationHousePatchPayload({ ...values, images: [] }, original)
+  assert.deepEqual(removed.images, [])
+  assert.equal(Object.hasOwn(removed, 'videos'), false)
+  const reordered = buildOrganizationHousePatchPayload({ ...values, images: [{ media_id: 4 }, { media_id: 3 }] }, original)
+  assert.deepEqual(reordered.images, [{ media_id: 4, media_type: 'image' }, { media_id: 3, media_type: 'image' }])
 })
 
 test('小区和楼栋写入只提交移动端可维护字段并归一化空值', () => {
@@ -479,12 +508,12 @@ test('组织经营写入页面只经分包 API 调用真实 CRUD、生命周期�
   assert.match(allocationDetailSource, /getOrganizationAllocationActions/)
 })
 
-test('签约表单和带看详情使用真实收益提交能力，不把导航能力当作提交权限', () => {
+test('签约表单和带看详情使用独立登记能力，不受收益提交权限影响', () => {
   const signingSource = readFileSync(join(sourceRoot, 'pages-org-rental/signing/index.vue'), 'utf8')
   const viewingDetailSource = readFileSync(join(sourceRoot, 'pages-org-rental/viewings/detail.vue'), 'utf8')
 
   assert.match(signingSource, /getAllocationCapabilities/)
-  assert.match(signingSource, /allocationCapabilities\.value\?\.submit/)
+  assert.match(signingSource, /register_signing/)
   assert.match(signingSource, /loadSigningContext/)
   assert.match(viewingDetailSource, /getAllocationCapabilities/)
   assert.match(viewingDetailSource, /canSubmitSigning/)
@@ -495,7 +524,7 @@ test('房表同步支持歧义楼栋覆盖、错误行忽略和预览失效保�
   const pageSource = readFileSync(join(sourceRoot, 'pages-org-rental/vacancy-sync/index.vue'), 'utf8')
   const apiSource = readFileSync(join(sourceRoot, 'pages-org-rental/api/organization-rental.ts'), 'utf8')
 
-  assert.match(pageSource, /result\.blocks/)
+  assert.match(pageSource, /isVacancyBlockVisible/)
   assert.match(pageSource, /building_match\.candidates/)
   assert.match(pageSource, /building_overrides/)
   assert.match(pageSource, /ignored_lines/)

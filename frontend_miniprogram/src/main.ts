@@ -4,6 +4,7 @@ import { routeInterceptor } from './router/interceptor'
 
 import { configureHttpRuntime } from './infra/http/runtime'
 import store, { useAppContextStore, useRuntimeStore, useSessionStore } from './store'
+import '@tdesign/uniapp/theme.css'
 import '@/style/index.scss'
 import 'virtual:uno.css'
 import i18n from './locale/index'

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import LeaseContractFiles from '@/components/house/LeaseContractFiles.vue'
+import LeaseEarningsPanel from './components/LeaseEarningsPanel.vue'
 import type { LeaseOut } from '@/pages-org-rental/api/organization-rental'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 import { formatOrganizationDateTime, formatOrganizationHouseTitle, formatOrganizationMoney, getOrganizationLeaseStatusTone } from '@/pages-org-rental/domain/organization-rental'
 import { getOrganizationLease } from '@/pages-org-rental/api/organization-rental'
@@ -48,6 +49,10 @@ function editLease() {
   uni.navigateTo({ url: getOrganizationLeaseFormRoute(leaseId.value) })
 }
 
+onShow(() => {
+  if (lease.value)
+    void loadLease()
+})
 onLoad((options) => {
   leaseId.value = Number(options?.id || 0)
   if (!leaseId.value) {
@@ -65,7 +70,7 @@ onLoad((options) => {
     :error="loadError"
     loading-text="正在加载租约…"
     error-title="租约加载失败"
-    :show-actions="Boolean(lease)"
+    :show-actions="Boolean(lease?.can_maintain)"
     @retry="loadLease"
   >
     <template #navigation>
@@ -98,6 +103,7 @@ onLoad((options) => {
         <wd-cell title="房源详情" is-link @click="openHouse" />
         <wd-cell v-if="lease.source_viewing_record_id" title="来源带看" is-link @click="openViewing" />
       </wd-cell-group>
+      <LeaseEarningsPanel v-if="lease.can_maintain" :lease="lease" />
     </template>
 
     <template #actions>

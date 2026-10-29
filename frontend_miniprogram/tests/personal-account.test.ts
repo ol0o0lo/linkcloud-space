@@ -14,6 +14,7 @@ import {
   getReferralStatusLabel,
   getWalletEntryTypeLabel,
   getWithdrawalActions,
+  getWithdrawalAmountLabel,
   getWithdrawalPayChannelLabel,
   getWithdrawalStatusLabel,
   validateWithdrawalAmount,
@@ -65,7 +66,7 @@ test('推荐、钱包和提现枚举使用面向用户的中文描述', () => {
   assert.equal(getWalletEntryTypeLabel('promotion_reward'), '推广奖励')
   assert.equal(getWalletEntryTypeLabel('unknown'), '其他资金变动')
   assert.equal(getWithdrawalStatusLabel('approved'), '待打款')
-  assert.equal(getWithdrawalStatusLabel('paid'), '已到账')
+  assert.equal(getWithdrawalStatusLabel('paid'), '已打款')
   assert.equal(getWithdrawalPayChannelLabel('wechat'), '微信')
   assert.equal(getWithdrawalPayChannelLabel('unknown'), '其他方式')
 })
@@ -81,6 +82,15 @@ test('钱包金额、提现动作与幂等键保持稳定', () => {
   const requestId = createWithdrawalRequestId(1_788_600_000_000, 0.123456789)
   assert.match(requestId, /^wallet-[a-z0-9]+-[a-z0-9]+$/)
   assert.ok(requestId.length <= 64)
+})
+
+test('提现金额说明区分预计到账、已打款和已终止的申请', () => {
+  for (const status of ['pending_review', 'approved', 'paying'])
+    assert.equal(getWithdrawalAmountLabel(status), '预计到账')
+  assert.equal(getWithdrawalAmountLabel('paid'), '已打款')
+  for (const status of ['cancelled', 'rejected', 'failed', 'unknown'])
+    assert.equal(getWithdrawalAmountLabel(status), '扣费后金额')
+  assert.equal(getWithdrawalAmountLabel(), '扣费后金额')
 })
 
 test('个人账号深页有稳定路由且必须登录', () => {
@@ -140,9 +150,9 @@ test('个人账号适配层只导入个人接口且页面通过 feature 调用',
   assert.match(modeSwitcherSource, /i-carbon-home/)
   assert.match(modeSwitcherSource, /i-carbon-building/)
   assert.match(modeSwitcherSource, /i-carbon-chevron-down/)
-  assert.match(modeSwitcherSource, /border-radius: 999rpx/)
+  assert.match(modeSwitcherSource, /class="navigation-trigger__pill\s[^"]*\brounded-full\b|\.navigation-trigger__pill\s*\{[^}]*(?:border-radius:\s*999rpx|@apply[^;]+\brounded-full\b)/)
   assert.match(modeSwitcherSource, /backdrop-filter: var\(--app-navigation-backdrop-filter\)/)
-  assert.match(modeSwitcherSource, /v-else-if="showTrigger && canSwitch" class="compact-trigger"/)
+  assert.match(modeSwitcherSource, /v-else-if="showTrigger && canSwitch" class="compact-trigger(?:\s[^"]*)?"/)
   assert.match(modeSwitcherSource, /i-carbon-arrows-horizontal/)
   assert.match(modeSwitcherSource, />切换</)
   assert.doesNotMatch(modeSwitcherSource, /compact-trigger--static/)
@@ -152,7 +162,7 @@ test('个人账号适配层只导入个人接口且页面通过 feature 调用',
   assert.doesNotMatch(modeSwitcherSource, /current-workspace|正在使用/)
   assert.match(modeSwitcherSource, /otherModeOptions/)
   assert.match(modeSwitcherSource, /const canSwitch = computed\(\(\) => otherModeOptions\.value\.length > 0\)/)
-  assert.match(modeSwitcherSource, /<view v-if="canSwitch" class="navigation-trigger__arrow i-carbon-chevron-down"/)
+  assert.match(modeSwitcherSource, /<view v-if="canSwitch" class="navigation-trigger__arrow i-carbon-chevron-down(?:\s[^"]*)?"/)
   assert.match(modeSwitcherSource, /availableOptions\.value\.filter\(option => !option\.active\)/)
   assert.match(modeSwitcherSource, /v-for="option in otherModeOptions"/)
   assert.doesNotMatch(modeSwitcherSource, /organization-group|organization-option/)

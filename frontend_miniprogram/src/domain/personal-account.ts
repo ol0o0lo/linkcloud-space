@@ -37,7 +37,7 @@ const walletEntryTypeLabels: Record<string, string> = {
   withdraw_freeze: '提现金额冻结',
   withdraw_cancel: '撤销提现',
   withdraw_unfreeze: '提现金额退回',
-  withdraw_settle: '提现到账',
+  withdraw_settle: '提现已打款',
   withdraw_refund: '提现失败退回',
 }
 
@@ -47,7 +47,7 @@ const withdrawalStatusLabels: Record<string, string> = {
   rejected: '未通过',
   approved: '待打款',
   paying: '打款中',
-  paid: '已到账',
+  paid: '已打款',
   failed: '打款失败',
 }
 
@@ -111,6 +111,12 @@ export function getWalletEntryTypeLabel(entryType?: string, _mapping?: string): 
 
 export function getWithdrawalStatusLabel(status?: string, _mapping?: string): string {
   return status ? withdrawalStatusLabels[status] || '状态未知' : '状态未知'
+}
+
+export function getWithdrawalAmountLabel(status?: string): string {
+  if (status === 'paid')
+    return '已打款'
+  return status && ['pending_review', 'approved', 'paying'].includes(status) ? '预计到账' : '扣费后金额'
 }
 
 export function getWithdrawalPayChannelLabel(channel?: string, _mapping?: string): string {

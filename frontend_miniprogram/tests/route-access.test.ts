@@ -20,6 +20,16 @@ function workspace(overrides: Partial<RouteWorkspace> = {}): RouteWorkspace {
   }
 }
 
+test('独立通知列表要求登录，并保留组织身份上下文', () => {
+  const guest = getRouteAccessDecision(APP_ROUTES.notifications, workspace({ authenticated: false, mode: 'visitor' }))
+  assert.equal(guest.allowed, false)
+  assert.ok(guest.redirect.startsWith(APP_ROUTES.login))
+  assert.equal(withRouteWorkspace(APP_ROUTES.notifications, { mode: 'organization', organizationSlug: 'alpha' }), `${APP_ROUTES.notifications}?organization_slug=alpha`)
+  const scoped = `${APP_ROUTES.notifications}?organization_slug=beta`
+  assert.equal(getRouteAccessDecision(scoped, workspace({ mode: 'organization', organizationSlug: 'beta' })).allowed, true)
+  assert.deepEqual(getRouteAccessDecision(scoped, workspace()).identityOptions?.map(option => option.key), ['organization:beta'])
+})
+
 test('未切换身份时给出可用身份，而不是判为无权限；多组织不默认选第一个', () => {
   const decision = getRouteAccessDecision(APP_ROUTES.organizationRental, workspace())
   assert.equal(decision.allowed, false)
@@ -53,13 +63,13 @@ test('没有对应身份时提示身份要求，游客登录跳转保留深页�
   assert.equal(getRouteAccessDecision(APP_ROUTES.houseDetail, workspace({ authenticated: false, mode: 'visitor' })).allowed, true)
 })
 
-test('当前组织可访问时不切换；消息详情可通过上下文恢复目标组织', () => {
+test('当前工作空间可访问时不切换；消息详情可通过上下文恢复目标工作空间', () => {
   assert.deepEqual(getRouteAccessDecision(APP_ROUTES.organizationRental, workspace({ mode: 'organization', organizationSlug: 'alpha' })), { allowed: true, redirect: '' })
   const url = `${APP_ROUTES.messageDetail}?id=4&organization_slug=beta`
   assert.deepEqual(getRouteAccessDecision(url, workspace()).identityOptions?.map(option => option.key), ['organization:beta'])
 })
 
-test('业务路由绑定当前组织，已声明上下文和公共页面保持原义', () => {
+test('业务路由绑定当前工作空间，已声明上下文和公共页面保持原义', () => {
   const route = `${APP_ROUTES.organizationLeaseDetail}?id=8`
   assert.equal(withRouteWorkspace(route, { mode: 'organization', organizationSlug: 'alpha' }), `${route}&organization_slug=alpha`)
   assert.equal(withRouteWorkspace(`${route}&organization_slug=beta`, { mode: 'organization', organizationSlug: 'alpha' }), `${route}&organization_slug=beta`)

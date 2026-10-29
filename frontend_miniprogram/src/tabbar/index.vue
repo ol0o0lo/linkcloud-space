@@ -57,7 +57,7 @@ onLoad(() => {
     >
       <template #icon="{ active }">
         <view
-          class="app-role-tabbar__icon"
+          class="app-role-tabbar__icon leading-none"
           :class="[item.icon, { 'app-role-tabbar__icon--active': active }]"
         />
       </template>
@@ -71,12 +71,11 @@ onLoad(() => {
   height: 1em;
   color: var(--app-tabbar-inactive-color);
   font-size: var(--app-tabbar-icon-size);
-  line-height: 1;
   transition: color 160ms ease;
 }
 
 .app-role-tabbar__icon--active {
-  color: var(--app-color-brand);
+  @apply text-app-brand;
 }
 
 :deep(.app-role-tabbar .wd-tabbar-item__body) {

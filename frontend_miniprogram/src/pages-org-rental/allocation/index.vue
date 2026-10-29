@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AllocationCapabilitiesOut, AllocationRequestOut, MonthlyAccrualTotalOut } from '@/pages-org-rental/api/organization-rental'
-import { onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import { canOpenOrganizationCapability, formatOrganizationMoney, getOrganizationAllocationStatusTone } from '@/pages-org-rental/domain/organization-rental'
 import { getAllocationCapabilities, listAllocationRequests, listMonthlyAccrualTotals } from '@/pages-org-rental/api/organization-rental'
@@ -20,6 +20,8 @@ definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '收益
 
 const appContextStore = useAppContextStore()
 const capabilities = ref<AllocationCapabilitiesOut | null>(null)
+const statusFilter = ref<string>()
+onLoad(options => statusFilter.value = options?.status === 'pending' ? 'pending' : undefined)
 const allowed = computed(() => canOpenOrganizationCapability(appContextStore.capabilities, 'allocation'))
 const totalPage = usePagedPage<MonthlyAccrualTotalOut>({
   loader: ({ page, pageSize }) => listMonthlyAccrualTotals(appContextStore.organizationSlug, page, pageSize),
@@ -28,7 +30,7 @@ const totalPage = usePagedPage<MonthlyAccrualTotalOut>({
   keyOf: item => `${item.beneficiary_user_id}-${item.effective_month}`,
 })
 const requestPage = usePagedPage<AllocationRequestOut>({
-  loader: ({ page, pageSize }) => listAllocationRequests(appContextStore.organizationSlug, page, pageSize),
+  loader: ({ page, pageSize }) => listAllocationRequests(appContextStore.organizationSlug, page, pageSize, statusFilter.value),
   pageSize: 12,
   enabled: allowed,
   keyOf: item => item.id,
@@ -59,9 +61,15 @@ onShow(() => void loadCapabilities())
     </template>
     <AppErrorView v-if="!allowed" title="无查看权限" message="当前账号无权查看收益分配" :retryable="false" />
     <view v-else class="flex flex-col gap-3.5">
+      <view v-if="statusFilter" class="flex items-center justify-between text-xs text-content-secondary">
+        <text>仅显示待审核申请</text>
+        <wd-button size="mini" variant="plain" @click="statusFilter = undefined; requestPage.refresh()">
+          查看全部
+        </wd-button>
+      </view>
       <view v-if="capabilities" class="grid grid-cols-3 gap-1.5 app-card-plain p-3 text-center">
         <view class="flex flex-col gap-1">
-          <strong class="text-xs text-content-primary">{{ capabilities.view_scope === 'organization' ? '组织范围' : '仅本人' }}</strong><text class="text-2xs text-content-muted">可见范围</text>
+          <strong class="text-xs text-content-primary">{{ capabilities.view_scope === 'organization' ? '空间范围' : '仅本人' }}</strong><text class="text-2xs text-content-muted">可见范围</text>
         </view>
         <view class="flex flex-col gap-1">
           <strong class="text-xs text-content-primary">{{ capabilities.submit ? '可提交' : '只读' }}</strong><text class="text-2xs text-content-muted">申请权限</text>

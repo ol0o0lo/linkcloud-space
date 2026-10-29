@@ -47,21 +47,21 @@ onShareAppMessage(() => ({
 </script>
 
 <template>
-  <view class="store-page">
+  <view class="store-page min-h-screen bg-surface-page px-3 pb-7 pt-0">
     <AppCustomNavigation title="房东公开店铺" back scroll-mode="sticky" />
-    <view v-if="profile" class="profile-card">
-      <image v-if="profile.avatar?.[0]" class="avatar" :src="profile.avatar[0].thumbnail || profile.avatar[0].url || ''" mode="aspectFill" />
-      <view v-else class="avatar avatar--empty">
+    <view v-if="profile" class="profile-card mb-3.5 flex items-center gap-2.5 rounded-3.5 p-3.5 bg-gradient-warm">
+      <image v-if="profile.avatar?.[0]" class="avatar h-12 w-12 flex-none basis-12 rounded-full bg-surface-subtle" :src="profile.avatar[0].thumbnail || profile.avatar[0].url || ''" mode="aspectFill" />
+      <view v-else class="avatar avatar--empty h-12 w-12 flex flex-none basis-12 items-center justify-center rounded-full bg-surface-subtle text-size-2xl text-app-warm">
         <view class="i-carbon-user" />
       </view>
-      <view class="profile-main">
-        <view class="name">
+      <view class="profile-main min-w-0 flex-1">
+        <view class="name text-size-base text-content-primary font-bold">
           {{ profile.name }}
         </view>
-        <view class="organization">
+        <view class="organization mt-1 text-size-2xs text-content-muted">
           {{ profile.organization.name }}
         </view>
-        <view class="summary">
+        <view class="summary mt-1 text-size-2xs text-content-muted">
           {{ profile.house_count }} 套公开房源
         </view>
       </view>
@@ -89,51 +89,8 @@ onShareAppMessage(() => ({
   </view>
 </template>
 
-<style scoped lang="scss">
-.store-page {
-  min-height: 100vh;
-  padding: 0 24rpx 56rpx;
-  background: var(--app-bg-page);
-}
+<style scoped>
 .store-page :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 28rpx;
-}
-.profile-card {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-  margin-bottom: 28rpx;
-  padding: 28rpx;
-  border-radius: 26rpx;
-  background: var(--app-gradient-warm);
-}
-.avatar {
-  width: 96rpx;
-  height: 96rpx;
-  flex: 0 0 96rpx;
-  border-radius: 50%;
-  background: var(--app-bg-subtle);
-}
-.avatar--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--app-color-warm);
-  font-size: 48rpx;
-}
-.profile-main {
-  min-width: 0;
-  flex: 1;
-}
-.name {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
-}
-.organization,
-.summary {
-  margin-top: 8rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply mt-0 -mx-3 mb-3.5;
 }
 </style>

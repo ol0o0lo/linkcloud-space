@@ -283,7 +283,7 @@ async function toggleRoleMember(item: RoleMemberOptionOut) {
   if (submitting.value || !selectedRole.value || !canManage.value)
     return
   if (item.assigned) {
-    const confirmation = await uni.showModal({ title: '移除角色成员', content: '确定解除该成员的角色授权吗？', confirmText: '确认移除' })
+    const confirmation = await uni.showModal({ title: '解除角色授权', content: '确定解除该成员的角色授权吗？仅解除此角色的授权，成员仍保留在当前工作空间或团队中。', confirmText: '确认解除' })
     if (!confirmation.confirm)
       return
   }
@@ -291,9 +291,9 @@ async function toggleRoleMember(item: RoleMemberOptionOut) {
   try {
     await patchOrganizationRoleMembers(appContextStore.organizationSlug, selectedRole.value.id, item.assigned ? { remove_user_ids: [item.user.id] } : { add_user_ids: [item.user.id] }, isTeamScope.value ? teamId.value : undefined)
     item.assigned = !item.assigned
-    toast.success(item.assigned ? '成员已加入角色' : '成员已移出角色')
+    toast.success(item.assigned ? '角色权限已授予' : '角色授权已解除')
   }
-  catch (error) { toast.error(error instanceof Error ? error.message : '角色成员更新失败') }
+  catch (error) { toast.error(error instanceof Error ? error.message : '角色授权更新失败') }
   finally { submitting.value = null }
 }
 
@@ -308,7 +308,7 @@ onUnload(closeRoleMembers)
 </script>
 
 <template>
-  <view class="page-shell">
+  <view class="page-shell box-border min-h-screen bg-surface-page px-3 pb-7 pt-0">
     <AppCustomNavigation title="角色与授权" back scroll-mode="sticky" />
     <wd-toast />
     <view v-if="targetUserId" class="my-3 text-xs text-content-secondary">
@@ -318,24 +318,24 @@ onUnload(closeRoleMembers)
     <AppErrorView v-else-if="loadError" title="角色与授权加载失败" :message="loadError" @retry="loadRoles" />
     <template v-else>
       <wd-cell title="角色适用范围" :value="currentRoleScope?.label || '请选择'" is-link @click="scopePickerVisible = true" />
-      <view class="scope-card">
-        <view><strong>{{ isTeamScope ? '团队级角色' : '组织级角色' }}</strong><text>{{ isTeamScope ? '权限仅在当前团队内生效' : '权限在整个组织内生效' }}</text></view><wd-button v-if="canManage" size="small" @click="openCreateRole">
+      <view class="scope-card flex items-center justify-between gap-2 rounded-3 p-3">
+        <view><strong>{{ isTeamScope ? '团队级角色' : '空间级角色' }}</strong><text>{{ isTeamScope ? '权限仅在当前团队内生效' : '权限在整个工作空间内生效' }}</text></view><wd-button v-if="canManage" size="small" @click="openCreateRole">
           新建角色
         </wd-button>
       </view>
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-2 mt-3.5 flex items-center justify-between gap-2 text-size-sm text-content-primary font-bold">
         角色列表
       </view>
-      <view class="card-list">
-        <view v-for="role in roles" :key="role.id" class="record-card">
+      <view class="card-list flex flex-col gap-2">
+        <view v-for="role in roles" :key="role.id" class="record-card flex items-center gap-2 rounded-3 p-3">
           <view class="record-main" @click="openRoleMembers(role)">
-            <view class="title-line">
+            <view class="title-line flex items-center gap-2">
               <strong>{{ role.name }}</strong><wd-tag v-if="role.is_system" variant="light" size="small">
                 系统角色
               </wd-tag>
             </view><text>{{ role.description || '暂无用途说明' }} · {{ role.permission_count }} 项权限 · {{ role.assigned_member_count || 0 }} 名成员</text>
           </view>
-          <view v-if="canManage && !role.is_system" class="action-row">
+          <view v-if="canManage && !role.is_system" class="action-row flex flex-col items-center gap-2">
             <wd-button size="small" variant="plain" @click="openEditRole(role)">
               编辑
             </wd-button><wd-button size="small" type="danger" variant="plain" :loading="deleting === role.id" @click="deleteRole(role)">
@@ -344,13 +344,13 @@ onUnload(closeRoleMembers)
           </view>
         </view>
       </view>
-      <view class="section-heading">
-        授权绑定 <wd-button v-if="canManage" size="small" variant="plain" @click="openBindingEditor">
+      <view class="section-heading mx-1 mb-2 mt-3.5 flex items-center justify-between gap-2 text-size-sm text-content-primary font-bold">
+        成员授权 <wd-button v-if="canManage" size="small" variant="plain" @click="openBindingEditor">
           新增授权
         </wd-button>
       </view>
-      <view class="card-list">
-        <view v-for="binding in visibleBindings" :key="binding.id" class="record-card">
+      <view class="card-list flex flex-col gap-2">
+        <view v-for="binding in visibleBindings" :key="binding.id" class="record-card flex items-center gap-2 rounded-3 p-3">
           <view class="record-main">
             <strong>{{ ((binding.user.first_name || '') + (binding.user.last_name || '')) || binding.user.username }}</strong><text>{{ binding.role.name }}</text>
           </view><wd-button v-if="canManage" size="small" type="danger" variant="plain" :loading="deleting === binding.id" @click="deleteBinding(binding)">
@@ -401,7 +401,7 @@ onUnload(closeRoleMembers)
     <wd-picker v-model="scopeSelection" v-model:visible="scopePickerVisible" root-portal :z-index="1200" :columns="roleScopeOptions" title="选择角色适用范围" @confirm="switchRoleScope" />
     <AppBottomSheet v-model:visible="membersVisible" :title="`${selectedRole?.name || ''}的成员`" height="tall" @close="closeRoleMembers">
       <view class="flex flex-col gap-1.5">
-        <view v-for="item in roleMembers" :key="item.member_id" class="member-row">
+        <view v-for="item in roleMembers" :key="item.member_id" class="member-row flex items-center gap-2 rounded-3 p-3">
           <view><strong>{{ ((item.user.first_name || '') + (item.user.last_name || '')) || item.user.username }}</strong><text>{{ item.user.email || item.user.username }}</text></view><wd-button size="small" :type="item.assigned ? 'danger' : 'primary'" :variant="item.assigned ? 'plain' : 'base'" :loading="submitting === item.user.id" :disabled="submitting !== null || !canManage" @click="toggleRoleMember(item)">
             {{ item.assigned ? '移出' : '加入' }}
           </wd-button>
@@ -412,34 +412,13 @@ onUnload(closeRoleMembers)
 </template>
 
 <style scoped lang="scss">
-.page-shell {
-  min-height: 100vh;
-  padding: 0 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
 .page-shell :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
-}
-.scope-card,
-.record-card,
-.title-line,
-.action-row,
-.section-heading,
-.member-row {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
+  @apply mt-0 -mx-3 mb-3;
 }
 .scope-card,
 .record-card,
 .member-row {
-  padding: 25rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-.scope-card {
-  justify-content: space-between;
+  @apply bg-surface-card;
 }
 .scope-card strong,
 .scope-card text,
@@ -447,42 +426,23 @@ onUnload(closeRoleMembers)
 .record-main text,
 .member-row strong,
 .member-row text {
-  display: block;
+  @apply block;
 }
 .scope-card strong,
 .record-main strong,
 .member-row strong {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
+  @apply text-content-primary text-size-xs;
 }
 .scope-card text,
 .record-main text,
 .member-row text {
-  margin-top: 6rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.section-heading {
-  justify-content: space-between;
-  margin: 28rpx 6rpx 14rpx;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 650;
-}
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
+  @apply mt-1 text-content-muted text-size-2xs;
 }
 .record-main,
 .member-row > view {
-  min-width: 0;
-  flex: 1;
-}
-.action-row {
-  flex-direction: column;
+  @apply min-w-0 flex-1;
 }
 .member-row {
-  background: var(--app-bg-page);
+  @apply bg-surface-page;
 }
 </style>

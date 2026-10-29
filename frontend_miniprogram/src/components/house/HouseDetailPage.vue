@@ -32,7 +32,7 @@ defineEmits<{ retry: [] }>()
     <template #footer>
       <template v-if="showActions && !loading && !error">
         <view class="house-detail-page__action-space" />
-        <view class="house-detail-page__actions">
+        <view class="house-detail-page__actions fixed bottom-0 left-0 right-0 z-20 box-border border-t-1 border-t-hex-e1e7ee border-t-solid bg-hex-fff">
           <slot name="actions" />
         </view>
       </template>
@@ -50,25 +50,17 @@ defineEmits<{ retry: [] }>()
   --app-text-secondary: #526177;
   --app-text-muted: #78869a;
   --house-line: #e7ecf2;
-  min-height: 100vh;
-  color: #182538;
+  @apply min-h-screen;
+  @apply text-hex-182538;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  line-height: 1.5;
-  background: #f4f6f9;
+  @apply leading-normal;
+  @apply bg-hex-f4f6f9;
 }
 .house-detail-page__action-space {
   height: calc(68px + env(safe-area-inset-bottom));
 }
 .house-detail-page__actions {
-  position: fixed;
-  z-index: 20;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  box-sizing: border-box;
   padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
-  border-top: 1px solid #e1e7ee;
-  background: #fff;
   box-shadow: 0 -4px 14px #243c5504;
 }
 </style>

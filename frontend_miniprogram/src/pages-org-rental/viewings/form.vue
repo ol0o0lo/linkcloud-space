@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { OrganizationViewingCreateInput } from '@/pages-org-rental/domain/organization-rental'
 import type { ContactOut, HouseOut, WorkspaceMemberOut } from '@/pages-org-rental/api/organization-rental'
+import type { OrganizationCustomer } from '@/services/manual/organization-customers'
 import { onLoad } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, reactive, ref } from 'vue'
@@ -17,6 +18,8 @@ import HouseCard from '@/components/house/HouseCard.vue'
 import AppEntityPickerSheet from '@/pages-org-rental/components/AppEntityPickerSheet.vue'
 import AppFormPage from '@/pages-org-rental/components/AppFormPage.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
+import { getOrganizationCustomer } from '@/services/manual/organization-customers'
+import { getOrganizationInquiry } from '@/services/manual/rental-closure'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
@@ -41,6 +44,11 @@ function assigneeItemKey(member: WorkspaceMemberOut): number {
 const toast = useToast()
 const appContextStore = useAppContextStore()
 const loading = ref(true)
+const loadError = ref('')
+const sourceInquiryId = ref(0)
+const sourceCustomerId = ref(0)
+const inquiryContactLabel = ref('')
+const sourceCustomer = ref<OrganizationCustomer | null>(null)
 const saving = ref(false)
 const houseVisible = ref(false)
 const contactVisible = ref(false)
@@ -69,8 +77,8 @@ const form = reactive<OrganizationViewingCreateInput>({
 const selectedHouse = computed(() => houses.value.find(item => item.id === form.house_id))
 const selectedContact = computed(() => contacts.value.find(item => item.id === form.contact_id))
 const selectedAssignee = computed(() => assignees.value.find(item => item.user.id === form.assigned_to_id))
-const contactLabel = computed(() => selectedContact.value ? `${selectedContact.value.name} · ${selectedContact.value.phone}` : '不关联租客联系人')
-const assigneeLabel = computed(() => selectedAssignee.value ? memberLabel(selectedAssignee.value) : '暂不指定')
+const contactLabel = computed(() => selectedContact.value ? `${selectedContact.value.name} · ${selectedContact.value.phone}` : sourceCustomer.value?.id === form.contact_id ? `${sourceCustomer.value.name} · ${sourceCustomer.value.phone}` : sourceInquiryId.value ? inquiryContactLabel.value : '不关联租客联系人')
+const assigneeLabel = computed(() => selectedAssignee.value ? memberLabel(selectedAssignee.value) : form.assigned_to_id === appContextStore.user?.id ? '本人' : '暂不指定')
 const scheduleLabel = computed(() => new Date(form.scheduled_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }))
 
 async function loadHouses() {
@@ -121,6 +129,7 @@ function selectHouse(item: HouseOut) {
 }
 
 function selectContact(item: ContactOut | null) {
+  sourceCustomer.value = null
   form.contact_id = item?.id || null
   if (item) {
     form.customer_name = item.name
@@ -149,7 +158,7 @@ async function submit() {
 
   saving.value = true
   try {
-    const created = await createOrganizationViewing(appContextStore.organizationSlug, buildOrganizationViewingCreatePayload(form))
+    const created = await createOrganizationViewing(appContextStore.organizationSlug, buildOrganizationViewingCreatePayload({ ...form, source_inquiry_id: sourceInquiryId.value || undefined }))
     toast.success('带看已创建')
     setTimeout(() => uni.redirectTo({ url: getOrganizationViewingDetailRoute(created.id) }), 350)
   }
@@ -161,22 +170,56 @@ async function submit() {
   }
 }
 
+async function loadPage() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const [customer, inquiry] = await Promise.all([
+      sourceCustomerId.value ? getOrganizationCustomer(appContextStore.organizationSlug, sourceCustomerId.value) : Promise.resolve(null),
+      sourceInquiryId.value ? getOrganizationInquiry(appContextStore.organizationSlug, sourceInquiryId.value) : Promise.resolve(null),
+      loadHouses(),
+      loadContacts(),
+      loadAssignees(),
+    ])
+    if (inquiry) {
+      inquiryContactLabel.value = `${inquiry.customer_name} · ${inquiry.phone}`
+      form.contact_id = inquiry.contact_id
+      form.customer_name = inquiry.customer_name
+      form.customer_phone = inquiry.phone
+      form.assigned_to_id = inquiry.assigned_to_id
+    }
+    if (customer) {
+      sourceCustomer.value = customer
+      form.contact_id = customer.id
+      form.customer_name = customer.name
+      form.customer_phone = customer.phone
+    }
+  }
+  catch (error) { loadError.value = error instanceof Error ? error.message : '客户资料加载失败' }
+  finally {
+    loading.value = false
+  }
+}
+
 onLoad((options) => {
   form.house_id = Number(options?.houseId || 0)
-  void Promise.all([loadHouses(), loadContacts(), loadAssignees()]).finally(() => {
-    loading.value = false
-  })
+  sourceInquiryId.value = Number(options?.inquiry_id || 0)
+  sourceCustomerId.value = sourceInquiryId.value ? 0 : Number(options?.contact_id || 0)
+  form.assigned_to_id = appContextStore.user?.id || null
+  void loadPage()
 })
 </script>
 
 <template>
   <AppFormPage
     :loading="loading"
+    :error="loadError"
     loading-text="正在加载带看资料…"
     :submitting="saving"
     :submit-disabled="saving"
     submit-text="创建带看"
     @submit="submit"
+    @retry="loadPage"
   >
     <template #navigation>
       <AppCustomNavigation title="新建带看" back scroll-mode="sticky" />
@@ -186,14 +229,14 @@ onLoad((options) => {
     </template>
 
     <wd-cell-group title="预约信息" insert>
-      <HouseCard v-if="selectedHouse" class="mx-3 mb-2.5" :house="selectedHouse" variant="compact" action-text="更换" @click="houseVisible = true" @action="houseVisible = true" />
-      <wd-cell v-else title="房源" value="请选择房源" is-link @click="houseVisible = true" />
+      <HouseCard v-if="selectedHouse" class="mx-3 mb-2.5" :house="selectedHouse" variant="compact" action-text="更换" @click="!sourceInquiryId && (houseVisible = true)" @action="!sourceInquiryId && (houseVisible = true)" />
+      <wd-cell v-else title="房源" value="请选择房源" is-link @click="!sourceInquiryId && (houseVisible = true)" />
       <wd-cell title="预约时间" :value="scheduleLabel" is-link @click="scheduleVisible = true" />
       <wd-cell title="负责人" :value="assigneeLabel" is-link @click="assigneeVisible = true" />
     </wd-cell-group>
 
     <wd-cell-group title="客户信息" insert>
-      <wd-cell title="租客联系人" :value="contactLabel" is-link @click="contactVisible = true" />
+      <wd-cell title="租客联系人" :value="contactLabel" is-link @click="!sourceInquiryId && (contactVisible = true)" />
       <wd-cell title="客户姓名" center>
         <wd-input v-model="form.customer_name" placeholder="请输入客户姓名" clearable compact align-right />
       </wd-cell>
@@ -256,7 +299,7 @@ onLoad((options) => {
         :item-key="assigneeItemKey"
         :selected="form.assigned_to_id ? [form.assigned_to_id] : []"
         :loading="assigneeLoading"
-        empty-text="未找到组织成员"
+        empty-text="未找到空间成员"
         @search="loadAssignees"
         @select="selectAssignee"
       >

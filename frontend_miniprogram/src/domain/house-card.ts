@@ -1,10 +1,12 @@
-import { formatHouseLayout } from './house.ts'
+import { formatHouseLayout, getHouseAuxiliaryLabels } from './house.ts'
+import { getHouseDisplayMedia } from './house-media.ts'
 
 export type HouseCardStatusTone = 'primary' | 'success' | 'warning' | 'muted'
 
 export interface HouseCardMediaSource {
   thumbnail?: unknown
   url?: unknown
+  [key: string]: unknown
 }
 
 export interface HouseCardSource {
@@ -18,8 +20,10 @@ export interface HouseCardSource {
   decoration__mapping?: string | null
   has_elevator_access?: boolean
   images?: HouseCardMediaSource[] | null
+  migration_media?: unknown
   status?: string | null
   status__mapping?: string | null
+  is_active?: boolean
   distance_m?: number | null
   nearest_metro_station?: {
     name: string
@@ -54,6 +58,7 @@ export interface HouseCardModel {
   showStatusDot: boolean
   statusLabel: string
   statusTone: HouseCardStatusTone
+  auxiliaryLabels?: string[]
   distanceText: string
 }
 
@@ -95,12 +100,10 @@ export function formatHouseDistance(value?: number | null, stationName?: string)
 }
 
 function getStatusTone(status?: string | null): HouseCardStatusTone {
-  if (status === 'vacant')
+  if (status === 'listed')
     return 'success'
   if (status === 'rented')
     return 'primary'
-  if (status === 'inactive')
-    return 'muted'
   return 'warning'
 }
 
@@ -122,7 +125,7 @@ function formatDisplayAmount(value: string): string {
 export function buildHouseCardModel(house: HouseCardSource): HouseCardModel {
   const estateName = house.building.estate?.display_name || house.building.estate?.name || ''
   const buildingName = house.building.name === estateName ? '' : house.building.name
-  const images = Array.isArray(house.images) ? house.images : []
+  const images = getHouseDisplayMedia(house, 'image')
   const firstImage = images[0]
   const thumbnail = typeof firstImage?.thumbnail === 'string' ? firstImage.thumbnail : ''
   const url = typeof firstImage?.url === 'string' ? firstImage.url : ''
@@ -152,9 +155,10 @@ export function buildHouseCardModel(house: HouseCardSource): HouseCardModel {
     depositAmountText: hasDeposit ? `¥${formatNumericValue(house.deposit_amount as string | number)}` : '待确认',
     hasRent,
     hasDeposit,
-    showStatusDot: Boolean(status && status !== 'listed'),
+    showStatusDot: Boolean(status && status !== 'listed') || house.is_active === false,
     statusLabel: house.status__mapping || status,
-    statusTone: getStatusTone(status),
+    statusTone: house.is_active === false ? 'muted' : getStatusTone(status),
+    auxiliaryLabels: getHouseAuxiliaryLabels(house),
     distanceText: formatHouseDistance(house.distance_m, house.nearest_metro_station?.name),
   }
 }

@@ -22,7 +22,7 @@ import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import { createLatestRequestGuard } from '@/hooks/useAsyncTask'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '组织设置', navigationStyle: 'custom' } })
+definePage({ style: { navigationBarTitleText: '空间设置', navigationStyle: 'custom' } })
 
 const toast = useToast()
 const appContextStore = useAppContextStore()
@@ -87,7 +87,7 @@ function formatSettingDescription(setting: SettingOut) {
   if (setting.key === 'property_rental.publish_rules')
     return '设置房源资料不完整时，是不允许发布、仅提醒，还是不检查。'
   if (setting.key === 'property_rental.lease_allocation_rule')
-    return '团队未单独设置时使用组织规则；系统默认按成交房源月租的 90% 计算。'
+    return '团队未单独设置时使用空间规则；系统默认按成交房源月租的 90% 计算。'
   return setting.description
 }
 
@@ -275,33 +275,33 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="page-shell">
-    <AppCustomNavigation title="组织设置" back scroll-mode="sticky" />
+  <view class="page-shell box-border min-h-screen bg-surface-page px-3 pb-7 pt-0">
+    <AppCustomNavigation title="空间设置" back scroll-mode="sticky" />
     <wd-toast />
     <AppLoading v-if="loading" text="正在加载设置…" />
     <AppErrorView v-else-if="loadError" title="设置加载失败" :message="loadError" @retry="loadSettings" />
     <template v-else>
-      <scroll-view v-if="capabilities" scroll-x class="scope-strip">
-        <view class="scope-row">
-          <view v-if="capabilities?.organization_settings" class="scope-pill" :class="[{ active: !teamId }]" @click="switchScope(0)">
-            组织级
+      <scroll-view v-if="capabilities" scroll-x class="scope-strip w-full whitespace-nowrap">
+        <view class="scope-row inline-flex gap-1.5 pb-1">
+          <view v-if="capabilities?.organization_settings" class="scope-pill rounded-full bg-surface-card px-2.5 py-1.5 text-size-2xs text-content-secondary" :class="[{ active: !teamId }]" @click="switchScope(0)">
+            空间级
           </view>
-          <view v-for="team in visibleTeams" :key="team.id" class="scope-pill" :class="[{ active: teamId === team.id }]" @click="switchScope(team.id)">
+          <view v-for="team in visibleTeams" :key="team.id" class="scope-pill rounded-full bg-surface-card px-2.5 py-1.5 text-size-2xs text-content-secondary" :class="[{ active: teamId === team.id }]" @click="switchScope(team.id)">
             {{ team.name }}
           </view>
         </view>
       </scroll-view>
-      <view class="scope-title">
-        {{ currentTeam?.name || appContextStore.currentOrganization?.name || '当前组织' }} · {{ isTeamScope ? '仅当前团队生效' : '全组织生效' }}
+      <view class="scope-title mx-1 mb-2 mt-3 text-size-sm text-content-primary font-bold">
+        {{ currentTeam?.name || appContextStore.currentOrganization?.name || '当前工作空间' }} · {{ isTeamScope ? '仅当前团队生效' : '整个工作空间生效' }}
       </view>
-      <view class="card-list">
-        <view v-for="setting in settings" :key="setting.key" class="setting-card" @click="editSetting(setting)">
-          <view class="setting-main">
-            <view class="title-line">
+      <view class="card-list flex flex-col gap-2">
+        <view v-for="setting in settings" :key="setting.key" class="setting-card flex items-center gap-2 rounded-3 bg-surface-card p-3.5" @click="editSetting(setting)">
+          <view class="setting-main min-w-0 flex-1">
+            <view class="title-line flex items-center gap-1.5">
               <strong>{{ setting.label }}</strong><wd-tag v-if="setting.is_customized" type="primary" variant="light" size="small">
                 已单独设置
               </wd-tag>
-            </view><text>{{ formatSettingDescription(setting) }}</text><view class="setting-value">
+            </view><text>{{ formatSettingDescription(setting) }}</text><view class="setting-value mt-1.5 text-size-xs text-content-secondary">
               {{ formatSettingValue(setting) || '未设置' }}
             </view>
           </view>
@@ -310,14 +310,14 @@ onLoad((options) => {
           </wd-button>
         </view>
       </view>
-      <view v-if="!settings.length" class="empty-card">
+      <view v-if="!settings.length" class="empty-card rounded-3 bg-surface-card p-4.5 text-center text-content-muted">
         当前范围没有可见设置项
       </view>
     </template>
     <AppBottomSheet v-model:visible="editorVisible" :title="editingSetting?.label || '编辑设置'" height="tall">
       <view>
         <template v-if="editingSetting?.key === 'property_rental.publish_rules'">
-          <view v-for="row in publishRuleRows" :key="row.key" class="special-row">
+          <view v-for="row in publishRuleRows" :key="row.key" class="special-row mb-2.5 flex flex-col gap-1.5 rounded-2 bg-surface-page p-2.5">
             <text>{{ row.label }}</text>
             <wd-radio-group v-model="publishRulesDraft[row.key].mode" type="button" direction="horizontal">
               <wd-radio value="required">
@@ -339,7 +339,7 @@ onLoad((options) => {
               固定金额
             </wd-radio>
           </wd-radio-group>
-          <view class="special-row">
+          <view class="special-row mb-2.5 flex flex-col gap-1.5 rounded-2 bg-surface-page p-2.5">
             <text>{{ leaseAllocationMethod === 'percentage' ? '员工收益比例（%）' : '每笔固定收益（元）' }}</text>
             <wd-input-number v-model="leaseAllocationAmount" :min="0.01" :max="leaseAllocationMethod === 'percentage' ? 100 : Number.MAX_SAFE_INTEGER" :step="0.01" :precision="2" />
           </view>
@@ -349,7 +349,7 @@ onLoad((options) => {
         </template>
         <template v-else-if="editingSetting?.widget === 'input_number'">
           <wd-input-number v-model="editingNumberValue" :min="numberUi?.min ?? 0" :max="numberUi?.max ?? Number.MAX_SAFE_INTEGER" :step="numberUi?.step ?? 1" />
-          <text v-if="numberUi?.unit" class="value-tip">
+          <text v-if="numberUi?.unit" class="value-tip mb-2.5 leading-relaxed">
             单位：{{ numberUi.unit }}
           </text>
         </template>
@@ -357,7 +357,7 @@ onLoad((options) => {
           <wd-cell :title="editingSetting.label" :value="selectedOptionLabel" is-link @click="selectPickerVisible = true" />
         </template>
         <template v-else-if="editingSetting?.widget === 'location_picker'">
-          <view class="location-card">
+          <view class="location-card mb-2.5 flex flex-col gap-1.5 rounded-2 bg-surface-page p-2.5">
             <text>{{ locationValue?.address || '尚未选择位置' }}</text>
             <text v-if="locationValue">{{ locationValue.lat }}, {{ locationValue.lng }}</text>
           </view>
@@ -382,104 +382,24 @@ onLoad((options) => {
 </template>
 
 <style scoped lang="scss">
-.page-shell {
-  min-height: 100vh;
-  padding: 0 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
 .page-shell :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 20rpx;
-}
-.scope-strip {
-  width: 100%;
-  white-space: nowrap;
-}
-.scope-row {
-  display: inline-flex;
-  gap: 12rpx;
-  padding-bottom: 8rpx;
-}
-.scope-pill {
-  padding: 13rpx 20rpx;
-  border-radius: 999rpx;
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  background: var(--app-bg-card);
+  @apply mt-0 -mx-3 mb-2.5;
 }
 .scope-pill.active {
-  color: var(--app-text-on-brand);
-  background: var(--app-color-primary);
-}
-.scope-title {
-  margin: 22rpx 6rpx 14rpx;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 650;
-}
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-.setting-card {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  padding: 26rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-.setting-main {
-  min-width: 0;
-  flex: 1;
-}
-.title-line {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
+  @apply text-content-on-brand bg-app-brand;
 }
 .setting-main strong {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
+  @apply text-content-primary text-size-xs;
 }
 .setting-main text,
 .value-tip {
-  display: block;
-  margin-top: 7rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
+  @apply block mt-1 text-content-muted text-size-2xs;
 }
 .setting-value {
-  margin-top: 12rpx;
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
   overflow-wrap: anywhere;
-}
-.empty-card {
-  padding: 36rpx;
-  border-radius: 22rpx;
-  color: var(--app-text-muted);
-  text-align: center;
-  background: var(--app-bg-card);
-}
-.value-tip {
-  margin-bottom: 18rpx;
-  line-height: 1.6;
-}
-.special-row,
-.location-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-  margin-bottom: 18rpx;
-  padding: 18rpx;
-  border-radius: 16rpx;
-  background: var(--app-bg-page);
 }
 .special-row > text,
 .location-card text {
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
+  @apply text-content-secondary text-size-2xs;
 }
 </style>

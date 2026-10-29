@@ -9,9 +9,9 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-  <view v-if="placeholder" class="h-[calc(96rpx+env(safe-area-inset-bottom))]" aria-hidden="true" />
+  <view v-if="placeholder" class="h-safe-action" aria-hidden="true" />
   <view
-    class="fixed bottom-0 left-0 right-0 z-20 box-border bg-surface-translucent px-app-gutter pb-[calc(18rpx+env(safe-area-inset-bottom))] pt-2"
+    class="fixed bottom-0 left-0 right-0 z-20 box-border bg-surface-translucent px-app-gutter pt-2 pb-safe-action"
     :class="elevated ? 'shadow-app-bottom' : ''"
   >
     <view class="flex items-center gap-1.5">

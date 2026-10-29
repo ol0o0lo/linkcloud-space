@@ -3,7 +3,7 @@ import type { PropertyLocation } from '@/domain/property-location'
 export type { PropertyLocation } from '@/domain/property-location'
 export type OrganizationStatusTone = 'default' | 'primary' | 'success' | 'warning' | 'danger'
 export type OrganizationViewingAction = 'viewed' | 'canceled' | 'no_show' | 'converted'
-export type OrganizationHouseLifecycleAction = 'publish' | 'unpublish' | 'disable'
+export type OrganizationHouseLifecycleAction = 'publish' | 'unpublish' | 'disable' | 'enable'
 export type OrganizationLeaseStatusAction = 'active' | 'expired' | 'terminated'
 export type OrganizationAllocationAction = 'approve' | 'reject' | 'void'
 export type OrganizationCapabilities = Record<string, unknown> | undefined
@@ -24,7 +24,7 @@ const vacancyLineStatusLabels: Record<string, string> = {
 
 const allocationRuleSourceLabels: Record<string, string> = {
   default: '系统默认',
-  organization: '组织设置',
+  organization: '空间设置',
   team: '团队设置',
 }
 
@@ -34,6 +34,7 @@ const allocationStatusTones: Record<string, OrganizationStatusTone> = {
   rejected: 'danger',
   voided: 'danger',
   expired: 'danger',
+  withdrawn: 'default',
 }
 
 type OrganizationMediaType = 'image' | 'video' | 'file'
@@ -108,6 +109,7 @@ export interface OrganizationBuildingWriteInput {
 export interface OrganizationViewingCreateInput {
   house_id: number
   contact_id?: number | null
+  source_inquiry_id?: number
   customer_name: string
   customer_phone: string
   scheduled_at: string | number | Date
@@ -180,21 +182,9 @@ const leaseStatusTones: Record<string, OrganizationStatusTone> = {
 }
 
 const houseStatusTones: Record<string, OrganizationStatusTone> = {
-  vacant: 'warning',
+  paused: 'warning',
   listed: 'success',
   rented: 'primary',
-  renovating: 'warning',
-  inactive: 'default',
-}
-
-export function buildOrganizationScope(organizationSlug: string, authRetry: 'safe' | 'never' = 'safe') {
-  const normalizedSlug = organizationSlug.trim()
-  if (!normalizedSlug)
-    throw new Error('未选择组织，请先切换到中介端')
-  return {
-    requestScope: { kind: 'organization' as const, organizationSlug: normalizedSlug },
-    authRetry,
-  }
 }
 
 export function getVacancyBuildingMatchStatusLabel(status?: string): string {
@@ -222,12 +212,14 @@ export function getViewingActions(status: string): OrganizationViewingAction[] {
   return status === 'scheduled' ? [...viewingActions] : []
 }
 
-export function getOrganizationHouseLifecycleActions(status: string): OrganizationHouseLifecycleAction[] {
-  if (status === 'vacant')
+export function getOrganizationHouseLifecycleActions(status: string, isActive = true): OrganizationHouseLifecycleAction[] {
+  if (!isActive)
+    return ['enable']
+  if (status === 'paused')
     return ['publish', 'disable']
   if (status === 'listed')
     return ['unpublish', 'disable']
-  if (status === 'rented' || status === 'renovating')
+  if (status === 'rented')
     return ['disable']
   return []
 }
@@ -258,6 +250,15 @@ export function getOrganizationAllocationActions(
 function numericValue(value: unknown): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function optionalHouseNumber(value: unknown): number | null {
+  if (value == null || String(value).trim() === '')
+    return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed))
+    throw new Error('房源数字字段格式不正确')
+  return parsed
 }
 
 function nullableMoneyValue(value: unknown): number | null {
@@ -296,16 +297,16 @@ export function buildOrganizationHouseCreatePayload(values: OrganizationHouseWri
     landlord_id: values.landlord_id == null ? null : Number(values.landlord_id),
     room_number: values.room_number.trim(),
     listing_type: values.listing_type || null,
-    floor: numericValue(values.floor),
-    area: numericValue(values.area),
-    interior_area: numericValue(values.interior_area),
-    asking_rent: numericValue(values.asking_rent),
-    deposit_amount: numericValue(values.deposit_amount),
-    bedrooms: numericValue(values.bedrooms),
-    living_rooms: numericValue(values.living_rooms),
-    bathrooms: numericValue(values.bathrooms),
-    kitchens: numericValue(values.kitchens),
-    balconies: numericValue(values.balconies),
+    floor: optionalHouseNumber(values.floor),
+    area: optionalHouseNumber(values.area),
+    interior_area: optionalHouseNumber(values.interior_area),
+    asking_rent: optionalHouseNumber(values.asking_rent),
+    deposit_amount: optionalHouseNumber(values.deposit_amount),
+    bedrooms: optionalHouseNumber(values.bedrooms),
+    living_rooms: optionalHouseNumber(values.living_rooms),
+    bathrooms: optionalHouseNumber(values.bathrooms),
+    kitchens: optionalHouseNumber(values.kitchens),
+    balconies: optionalHouseNumber(values.balconies),
     orientation: nullableText(values.orientation),
     decoration: nullableText(values.decoration),
     has_elevator_access: values.has_elevator_access === true,
@@ -316,9 +317,12 @@ export function buildOrganizationHouseCreatePayload(values: OrganizationHouseWri
   }
 }
 
-export function buildOrganizationHousePatchPayload(values: OrganizationHouseWriteInput) {
+export function buildOrganizationHousePatchPayload(values: OrganizationHouseWriteInput, originalMedia?: Pick<OrganizationHouseWriteInput, 'images' | 'videos'>) {
+  const { images, videos, ...fields } = buildOrganizationHouseCreatePayload(values)
   return {
-    ...buildOrganizationHouseCreatePayload(values),
+    ...fields,
+    ...(originalMedia && JSON.stringify(images) === JSON.stringify(normalizeMediaRefs(originalMedia.images, 'image')) ? {} : { images }),
+    ...(originalMedia && JSON.stringify(videos) === JSON.stringify(normalizeMediaRefs(originalMedia.videos, 'video')) ? {} : { videos }),
     internal_notes: String(values.internal_notes || '').trim(),
   }
 }
@@ -358,6 +362,7 @@ export function buildOrganizationViewingCreatePayload(values: OrganizationViewin
   return {
     house_id: Number(values.house_id),
     contact_id: values.contact_id == null ? null : Number(values.contact_id),
+    ...(values.source_inquiry_id ? { source_inquiry_id: Number(values.source_inquiry_id) } : {}),
     customer_name: values.customer_name.trim(),
     customer_phone: values.customer_phone.trim(),
     scheduled_at: new Date(values.scheduled_at).toISOString(),

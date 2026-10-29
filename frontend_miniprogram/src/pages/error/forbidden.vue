@@ -14,12 +14,12 @@ const reason = ref('')
 const requiredMode = ref('')
 const presentation = computed(() => {
   if (reason.value === 'identity') {
-    const identity = requiredMode.value === 'landlord' ? '房东' : requiredMode.value === 'organization' ? '中介' : '租客'
+    const identity = requiredMode.value === 'landlord' ? '房东' : requiredMode.value === 'organization' ? '经纪人' : '租客'
     return { title: `此功能需要${identity}身份`, description: `当前账号暂无可用的${identity}身份，请确认账号或身份关联。` }
   }
   if (reason.value === 'context')
-    return { title: '该身份当前不可用', description: '当前账号无法使用目标组织或房东身份，请确认账号及关联关系。' }
-  return { title: '你没有访问权限', description: '当前账号在目标组织中没有此功能所需的权限，请联系组织管理员。' }
+    return { title: '该身份当前不可用', description: '当前账号无法使用目标工作空间或房东身份，请确认账号及关联关系。' }
+  return { title: '暂无访问权限', description: '当前账号在目标工作空间中没有此功能所需的权限，请联系空间管理员。' }
 })
 onLoad((options) => {
   reason.value = String(options?.reason || '')
@@ -35,8 +35,8 @@ function goHome() {
     <template #navigation>
       <AppCustomNavigation title="页面状态" back scroll-mode="sticky" />
     </template>
-    <view class="error-page">
-      <view class="error-heading">
+    <view class="error-page box-border bg-surface-page px-5 py-6 min-h-inherit">
+      <view class="error-heading mb-3.5 flex flex-col gap-1">
         <strong>{{ presentation.title }}</strong><text>{{ presentation.description }}</text>
       </view><AppStateCard tone="warning" icon="i-carbon-locked" :title="reason ? '身份不可用' : '访问受限'" :description="presentation.description">
         <template #action>
@@ -49,25 +49,11 @@ function goHome() {
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.error-page {
-  min-height: inherit;
-  padding: 48rpx 40rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-page);
-}
-.error-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  margin-bottom: 28rpx;
-}
+<style scoped>
 .error-heading strong {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
+  @apply text-content-primary text-size-base;
 }
 .error-heading text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply text-content-muted text-size-2xs;
 }
 </style>

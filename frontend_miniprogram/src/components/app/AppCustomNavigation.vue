@@ -118,49 +118,41 @@ async function handleBack() {
 </script>
 
 <template>
-  <view class="app-custom-navigation" :class="navigationClass" :style="navigationStyle">
-    <view v-if="scrollMode === 'fade' && !transparent" class="app-custom-navigation__fade-background" :style="navigationBackgroundStyle">
-      <view class="app-custom-navigation__fade-tail" />
+  <view class="app-custom-navigation relative z-900 box-border border-b-hairline border-b-transparent border-b-solid bg-transparent" :class="navigationClass" :style="navigationStyle">
+    <view v-if="scrollMode === 'fade' && !transparent" class="app-custom-navigation__fade-background pointer-events-none absolute bottom-0 left-0 right-0 top-0 z-0" :style="navigationBackgroundStyle">
+      <view class="app-custom-navigation__fade-tail absolute left-0 right-0 top-full h-3" />
     </view>
-    <button v-if="back" class="app-custom-navigation__back" aria-label="返回" @click="handleBack">
+    <button v-if="back" class="app-custom-navigation__back absolute bottom-2 left-app-gutter z-3 m-0 h-7 w-7 flex items-center justify-center border-0 rounded-full bg-transparent p-0 text-size-lg text-content-primary leading-none" aria-label="返回" @click="handleBack">
       <view class="i-carbon-chevron-left" />
     </button>
-    <view class="app-custom-navigation__content" :class="navigationContentClass" :style="navigationContentStyle" @click="handleClick">
+    <view class="app-custom-navigation__content absolute bottom-0 left-app-gutter z-1 min-h-7 min-w-0 flex items-center gap-2" :class="navigationContentClass" :style="navigationContentStyle" @click="handleClick">
       <slot name="content">
         <slot name="icon">
-          <view v-if="icon" class="app-custom-navigation__icon" :class="icon" />
+          <view v-if="icon" class="app-custom-navigation__icon flex-none" :class="icon" />
         </slot>
-        <view class="app-custom-navigation__copy">
-          <text class="app-custom-navigation__title">{{ title }}</text>
-          <text v-if="subtitle" class="app-custom-navigation__subtitle">{{ subtitle }}</text>
+        <view class="app-custom-navigation__copy min-w-0 flex flex-1 flex-col gap-0.5">
+          <text class="app-custom-navigation__title overflow-hidden text-ellipsis whitespace-nowrap text-size-lg text-content-primary font-bold leading-tight">{{ title }}</text>
+          <text v-if="subtitle" class="app-custom-navigation__subtitle overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-content-muted leading-tight">{{ subtitle }}</text>
         </view>
-        <view v-if="clickable" class="app-custom-navigation__arrow i-carbon-chevron-down" />
+        <view v-if="clickable" class="app-custom-navigation__arrow i-carbon-chevron-down flex-none" />
       </slot>
     </view>
     <view
       v-if="$slots['scrolled-content']"
-      class="app-custom-navigation__content"
+      class="app-custom-navigation__content absolute bottom-0 left-app-gutter z-1 min-h-7 min-w-0 flex items-center gap-2"
       :class="scrolledNavigationContentClass"
       :style="scrolledNavigationContentStyle"
       @click="handleClick"
     >
       <slot name="scrolled-content" />
     </view>
-    <view v-if="$slots.action" class="app-custom-navigation__action">
-      <slot name="action" />
-    </view>
   </view>
 </template>
 
 <style scoped lang="scss">
 .app-custom-navigation {
-  position: relative;
-  z-index: 900;
   height: var(--app-navigation-height);
   padding: var(--app-navigation-top-inset) var(--app-navigation-right-inset) 8px var(--app-page-gutter);
-  border-bottom: 1rpx solid transparent;
-  background: transparent;
-  box-sizing: border-box;
   transition:
     background-color 180ms ease,
     border-color 180ms ease,
@@ -169,58 +161,25 @@ async function handleBack() {
 .app-custom-navigation__content.app-custom-navigation__content--center {
   right: var(--app-navigation-right-inset);
   left: var(--app-navigation-right-inset);
-  justify-content: center;
-  text-align: center;
+  @apply justify-center text-center;
 }
 .app-custom-navigation__content.app-custom-navigation__content--center .app-custom-navigation__copy {
-  flex: 0 1 auto;
+  @apply flex-initial;
 }
 .app-custom-navigation__content.app-custom-navigation__content--center .app-custom-navigation__title,
 .app-custom-navigation__content.app-custom-navigation__content--center .app-custom-navigation__subtitle {
-  text-align: center;
+  @apply text-center;
 }
 .app-custom-navigation--with-back .app-custom-navigation__content--start {
   left: calc(var(--app-page-gutter) + 72rpx);
 }
-.app-custom-navigation__action {
-  position: absolute;
-  z-index: 2;
-  right: var(--app-navigation-right-inset);
-  bottom: 8px;
-  display: flex;
-  min-height: 56rpx;
-  align-items: center;
-  color: var(--app-color-brand-active);
-  font-size: 24rpx;
-  font-weight: 600;
-}
-.app-custom-navigation__back {
-  position: absolute;
-  z-index: 3;
-  bottom: 8px;
-  left: var(--app-page-gutter);
-  display: flex;
-  width: 56rpx;
-  height: 56rpx;
-  margin: 0;
-  padding: 0;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 50%;
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-  line-height: 1;
-  background: transparent;
-}
 .app-custom-navigation__back::after {
-  border: 0;
+  @apply border-0;
 }
 .app-custom-navigation--sticky,
 .app-custom-navigation--adaptive,
 .app-custom-navigation--fade {
-  position: sticky;
-  top: 0;
+  @apply sticky top-0;
 }
 .app-custom-navigation--sticky,
 .app-custom-navigation--adaptive.app-custom-navigation--scrolled {
@@ -229,13 +188,10 @@ async function handleBack() {
   box-shadow: var(--app-navigation-shadow);
 }
 .app-custom-navigation--immersive {
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
+  @apply fixed top-0 right-0 left-0;
 }
 .app-custom-navigation--immersive .app-custom-navigation__back {
-  color: #fff;
+  @apply text-white;
   background: rgb(8 18 34 / 42%);
   box-shadow: 0 6rpx 18rpx rgb(0 0 0 / 16%);
   backdrop-filter: blur(14rpx);
@@ -243,81 +199,33 @@ async function handleBack() {
 .app-custom-navigation--transparent,
 .app-custom-navigation--transparent.app-custom-navigation--scrolled {
   border-bottom-color: transparent;
-  background: transparent;
-  box-shadow: none;
+  @apply bg-transparent shadow-none;
 }
 .app-custom-navigation__fade-background {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
   background: var(--app-navigation-scrolled-background);
   -webkit-backdrop-filter: var(--app-navigation-backdrop-filter);
   backdrop-filter: var(--app-navigation-backdrop-filter);
-  pointer-events: none;
   transition: opacity var(--app-motion-duration-fast) linear;
 }
 .app-custom-navigation__fade-tail {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: 0;
-  height: 24rpx;
   background: linear-gradient(180deg, var(--app-navigation-scrolled-background) 0, transparent 100%);
 }
 .app-custom-navigation__content {
-  position: absolute;
-  z-index: 1;
   top: var(--app-navigation-top-inset);
   right: var(--app-navigation-right-inset);
-  bottom: 0;
-  left: var(--app-page-gutter);
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-  min-width: 0;
-  min-height: 56rpx;
   transition: opacity var(--app-motion-duration-fast) linear;
 }
 .app-custom-navigation__content--clickable {
-  cursor: pointer;
+  @apply cursor-pointer;
 }
 .app-custom-navigation__content--hidden {
-  pointer-events: none;
+  @apply pointer-events-none;
 }
 .app-custom-navigation__icon,
 .app-custom-navigation__arrow {
-  flex: 0 0 auto;
-  color: var(--app-color-brand);
-  font-size: 36rpx;
-}
-.app-custom-navigation__copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 4rpx;
-}
-.app-custom-navigation__title {
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-  font-weight: 700;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.app-custom-navigation__subtitle {
-  overflow: hidden;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply text-app-brand text-size-lg;
 }
 .app-custom-navigation__arrow {
-  font-size: 28rpx;
+  @apply text-size-sm;
 }
 </style>

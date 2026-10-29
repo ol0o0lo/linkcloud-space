@@ -120,14 +120,14 @@ onLoad((options) => {
     <template #navigation>
       <AppCustomNavigation title="验证手机号" back scroll-mode="sticky" />
     </template>
-    <view class="phone-page">
-      <view class="phone-hero">
-        <view class="phone-icon i-carbon-phone" />
-        <view class="phone-title">
+    <view class="phone-page box-border bg-surface-page px-5 pb-3.5 pt-6 min-h-inherit">
+      <view class="phone-hero box-border min-h-40 flex flex-col items-center justify-center rounded-5 bg-surface-card p-4">
+        <view class="phone-icon i-carbon-phone text-size-4xl text-app-brand" />
+        <view class="phone-title mt-3 text-size-base text-content-primary font-bold">
           继续预约看房
         </view>
-        <view class="phone-copy">
-          完成手机号验证后，将用于建立或匹配当前组织的租客联系人。
+        <view class="phone-copy mt-1.5 text-center text-size-2xs text-content-muted leading-relaxed">
+          完成手机号验证后，将用于建立或匹配当前工作空间的租客联系人。
         </view>
       </view>
 
@@ -135,16 +135,16 @@ onLoad((options) => {
       <wd-button block size="large" open-type="getPhoneNumber" :loading="loading" @getphonenumber="bindWechatPhone">
         使用微信手机号
       </wd-button>
-      <view class="phone-divider">
+      <view class="phone-divider mt-6 text-center text-size-2xs text-content-muted">
         或使用短信验证码
       </view>
       <!-- #endif -->
 
-      <view class="phone-form">
+      <view class="phone-form mt-4 flex flex-col gap-3.5">
         <wd-input v-model="phoneCountryCode" label="区号" readonly />
         <wd-input v-model="phoneNationalNumber" label="手机号" type="number" clearable placeholder="请输入手机号" />
         <wd-input v-if="codeSent" v-model="code" label="验证码" type="number" clearable placeholder="请输入短信验证码" />
-        <view v-if="codeSent" class="resend" @click="sendCode">
+        <view v-if="codeSent" class="resend text-center text-size-xs text-app-brand" @click="sendCode">
           重新发送验证码
         </view>
         <wd-button block size="large" :loading="loading || sending" @click="verifyCode">
@@ -155,64 +155,8 @@ onLoad((options) => {
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.phone-page {
-  min-height: inherit;
-  padding: 48rpx 40rpx 28rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-page);
-}
-.phone-hero {
-  display: flex;
-  min-height: 320rpx;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 32rpx;
-  border-radius: 40rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-card);
-}
-.phone-icon {
-  color: var(--app-color-brand);
-  font-size: 68rpx;
-}
-.phone-title {
-  margin-top: 24rpx;
-  color: var(--app-text-primary);
-  font-size: 34rpx;
-  font-weight: 700;
-}
-.phone-copy {
-  margin-top: 12rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-  text-align: center;
-  line-height: 1.7;
-}
-.phone-form {
-  display: flex;
-  flex-direction: column;
-  gap: 28rpx;
-  margin-top: 32rpx;
-}
-.phone-divider {
-  margin-top: 48rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-  text-align: center;
-}
+<style scoped>
 :deep(.phone-form .wd-input) {
-  min-height: 112rpx;
-  padding: 16rpx 28rpx;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 28rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-card);
-}
-.resend {
-  color: var(--app-color-primary);
-  font-size: 24rpx;
-  text-align: center;
+  @apply min-h-14 py-2 px-3.5 border-hairline border-solid border-app-border rounded-3.5 box-border bg-surface-card;
 }
 </style>

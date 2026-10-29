@@ -23,10 +23,10 @@ const recordRows = [
 </script>
 
 <template>
-  <view class="record-skeleton-list" aria-hidden="true">
-    <view v-for="item in props.count" :key="item" class="record-skeleton-card" :class="`record-skeleton-card--${props.variant}`">
+  <view class="record-skeleton-list flex flex-col gap-2.5" aria-hidden="true">
+    <view v-for="item in props.count" :key="item" class="record-skeleton-card box-border min-h-18 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3.5" :class="`record-skeleton-card--${props.variant}`">
       <wd-skeleton v-if="props.variant === 'member'" animation="gradient" :row-col="avatarRow" />
-      <view class="record-skeleton-content">
+      <view class="record-skeleton-content min-w-0 flex-1">
         <wd-skeleton animation="gradient" :row-col="props.variant === 'member' ? memberRows : recordRows" />
       </view>
     </view>
@@ -34,31 +34,7 @@ const recordRows = [
 </template>
 
 <style scoped lang="scss">
-.record-skeleton-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-}
-
-.record-skeleton-card {
-  min-height: 142rpx;
-  padding: 26rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  box-sizing: border-box;
-  background: var(--app-bg-card);
-}
-
 .record-skeleton-card--member {
-  display: flex;
-  min-height: 116rpx;
-  align-items: center;
-  gap: 20rpx;
-  padding: 22rpx 26rpx;
-}
-
-.record-skeleton-content {
-  min-width: 0;
-  flex: 1;
+  @apply flex min-h-14.5 items-center gap-2.5 py-3 px-3.5;
 }
 </style>

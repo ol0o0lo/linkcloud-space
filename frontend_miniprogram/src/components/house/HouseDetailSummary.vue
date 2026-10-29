@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HouseOut, PublicHouseDetailOut } from '@/features/houses/service'
 import { computed } from 'vue'
-import { formatHouseLayout } from '@/domain/house'
+import { formatHouseLayout, getHouseAuxiliaryLabels } from '@/domain/house'
 
 const props = defineProps<{ house: HouseOut | PublicHouseDetailOut, management?: boolean, prominent?: boolean }>()
 const estateName = computed(() => props.house.building.estate?.display_name || props.house.building.estate?.name || props.house.building.name)
@@ -12,44 +12,47 @@ const location = computed(() => {
 })
 const status = computed(() => 'status__mapping' in props.house ? props.house.status__mapping : '招租中')
 const listed = computed(() => !('status' in props.house) || props.house.status === 'listed')
+const active = computed(() => !('is_active' in props.house) || props.house.is_active)
+const auxiliaryLabels = computed(() => 'is_active' in props.house ? getHouseAuxiliaryLabels(props.house) : [])
 const rent = computed(() => props.house.asking_rent == null ? '面议' : Number(props.house.asking_rent).toLocaleString('zh-CN'))
 </script>
 
 <template>
   <view class="detail-card summary" :class="{ 'summary--prominent': prominent }">
-    <view class="title-line">
-      <view class="house-title">
-        {{ estateName }}<text class="room-label">{{ roomLabel }}</text>
+    <view class="title-line flex items-start justify-between gap-1.5">
+      <view class="house-title min-w-0 text-size-lg font-bold leading-6 tracking-tight">
+        {{ estateName }}<text class="room-label ml-1.5 text-size-sm font-medium tracking-normal">{{ roomLabel }}</text>
       </view>
-      <view class="status-stack">
-        <text class="state" :class="{ 'state--muted': !listed }">{{ status }}</text>
-        <text v-if="management" class="publish-state">{{ listed ? '已发布' : '未发布' }}</text>
+      <view class="status-stack flex items-end gap-1">
+        <text class="state whitespace-nowrap rounded-1.5 bg-hex-edf6ff px-2 py-1 text-size-2xs text-hex-006bcc font-semibold leading-4.5" :class="{ 'state--muted': !listed }">{{ status }}</text>
+        <text v-for="label in auxiliaryLabels" :key="label" class="publish-state text-size-3xs text-hex-78869a">{{ label }}</text>
+        <text v-if="management" class="publish-state text-size-3xs text-hex-78869a">{{ listed && active ? '已发布' : '未发布' }}</text>
       </view>
     </view>
-    <view v-if="location" class="property-sub">
-      <text class="i-carbon-location property-sub-icon" /><text>{{ location }}</text>
+    <view v-if="location" class="property-sub mt-1 flex items-start gap-1 text-size-xs text-hex-526177 leading-4.5">
+      <text class="i-carbon-location property-sub-icon mt-0.5 flex-none text-size-xs" /><text>{{ location }}</text>
     </view>
-    <view v-if="prominent" class="price-caption">
+    <view v-if="prominent" class="price-caption mt-6 text-size-2xs text-hex-66788d font-medium">
       月租金
     </view>
-    <view class="price-line">
-      <text v-if="house.asking_rent != null" class="currency">¥</text>
-      <text class="price">{{ rent }}</text>
+    <view class="price-line mt-3 flex items-baseline gap-1.5">
+      <text v-if="house.asking_rent != null" class="currency text-size-base font-semibold">¥</text>
+      <text class="price text-size-2xl text-hex-182538 font-bold leading-7.5 tracking-tight tabular-nums">{{ rent }}</text>
       <text v-if="house.asking_rent != null" class="price-unit">/ 月</text>
-      <text class="deposit">押金 {{ house.deposit_amount == null ? '待确认' : `¥${Number(house.deposit_amount).toLocaleString('zh-CN')}` }}</text>
+      <text class="deposit ml-auto">押金 {{ house.deposit_amount == null ? '待确认' : `¥${Number(house.deposit_amount).toLocaleString('zh-CN')}` }}</text>
     </view>
-    <view class="param-row">
-      <view class="param">
-        <text class="param-value">{{ formatHouseLayout(house.bedrooms, house.living_rooms) }}</text><text class="param-label">户型</text>
+    <view class="param-row mt-3 flex justify-between border-t-1 border-t-hex-e7ecf2 border-t-solid pt-3">
+      <view class="param min-w-0 flex-1 border-r-1 border-r-hex-e7ecf2 border-r-solid text-center">
+        <text class="param-value block text-size-xs font-semibold leading-4.5">{{ formatHouseLayout(house.bedrooms, house.living_rooms) }}</text><text class="param-label mt-0.5 block text-size-2xs text-hex-78869a leading-4">户型</text>
       </view>
-      <view class="param">
-        <text class="param-value">{{ house.area ? `${Number(house.area)}㎡` : '待完善' }}</text><text class="param-label">建筑面积</text>
+      <view class="param min-w-0 flex-1 border-r-1 border-r-hex-e7ecf2 border-r-solid text-center">
+        <text class="param-value block text-size-xs font-semibold leading-4.5">{{ house.area ? `${Number(house.area)}㎡` : '待完善' }}</text><text class="param-label mt-0.5 block text-size-2xs text-hex-78869a leading-4">建筑面积</text>
       </view>
-      <view class="param">
-        <text class="param-value">{{ house.floor == null ? '待完善' : `${house.floor} 层` }}</text><text class="param-label">楼层</text>
+      <view class="param min-w-0 flex-1 border-r-1 border-r-hex-e7ecf2 border-r-solid text-center">
+        <text class="param-value block text-size-xs font-semibold leading-4.5">{{ house.floor == null ? '待完善' : `${house.floor} 层` }}</text><text class="param-label mt-0.5 block text-size-2xs text-hex-78869a leading-4">楼层</text>
       </view>
-      <view class="param">
-        <text class="param-value">{{ house.has_elevator_access ? '有电梯' : '无电梯' }}</text><text class="param-label">电梯</text>
+      <view class="param min-w-0 flex-1 border-r-1 border-r-hex-e7ecf2 border-r-solid text-center">
+        <text class="param-value block text-size-xs font-semibold leading-4.5">{{ house.has_elevator_access ? '有电梯' : '无电梯' }}</text><text class="param-label mt-0.5 block text-size-2xs text-hex-78869a leading-4">电梯</text>
       </view>
     </view>
   </view>
@@ -58,207 +61,104 @@ const rent = computed(() => props.house.asking_rent == null ? '面议' : Number(
 <style scoped lang="scss">
 @use './detail.scss';
 .summary {
-  margin-top: 12px;
-  padding: 13px 14px 12px;
-}
-.title-line {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-}
-.house-title {
-  min-width: 0;
-  font-size: 18px;
-  font-weight: 680;
-  line-height: 24px;
-  letter-spacing: -0.5px;
-}
-.room-label {
-  margin-left: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0;
+  @apply mt-3;
+  @apply pt-3.5 px-3.5 pb-3;
 }
 .status-stack {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-.state {
-  padding: 3px 7px;
-  border-radius: 5px;
-  color: #006bcc;
-  font-size: 10px;
-  font-weight: 550;
-  line-height: 17px;
-  background: #edf6ff;
-  white-space: nowrap;
+  @apply flex-none;
+  @apply flex-col;
 }
 .state--muted {
-  color: #718095;
-  background: #f0f2f5;
-}
-.publish-state {
-  color: #78869a;
-  font-size: 9px;
-}
-.property-sub {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  margin-top: 3px;
-  color: #526177;
-  font-size: 12px;
-  line-height: 18px;
-}
-.property-sub-icon {
-  flex: none;
-  margin-top: 2px;
-  font-size: 13px;
-}
-.price-line {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  margin-top: 12px;
-}
-.currency {
-  font-size: 16px;
-  font-weight: 600;
-}
-.price {
-  color: #182538;
-  font-size: 27px;
-  font-weight: 720;
-  line-height: 30px;
-  letter-spacing: -0.8px;
-  font-variant-numeric: tabular-nums;
+  @apply text-hex-718095;
+  @apply bg-hex-f0f2f5;
 }
 .price-unit,
 .deposit {
-  color: #526177;
-  font-size: 11px;
-}
-.deposit {
-  margin-left: auto;
-}
-.param-row {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #e7ecf2;
-}
-.param {
-  flex: 1;
-  min-width: 0;
-  border-right: 1px solid #e7ecf2;
-  text-align: center;
+  @apply text-hex-526177;
+  @apply text-size-2xs;
 }
 .param:first-child {
   flex: 1.2;
-  text-align: left;
+  @apply text-left;
 }
 .param:last-child {
-  border: 0;
-  text-align: right;
-}
-.param-value {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 18px;
-}
-.param-label {
-  display: block;
-  margin-top: 2px;
-  color: #78869a;
-  font-size: 10px;
-  line-height: 15px;
+  @apply border-0;
+  @apply text-right;
 }
 .summary--prominent {
-  position: relative;
-  z-index: 2;
-  margin: -18px 12px 0;
-  padding: 22px 18px 20px;
-  border: 1px solid #e4ebf3;
-  border-radius: 16px;
+  @apply relative;
+  @apply z-2;
+  @apply -mt-4.5 mx-3 mb-0;
+  @apply pt-5.5 px-4.5 pb-5;
+  @apply border-1 border-solid border-hex-e4ebf3;
+  @apply rounded-4;
   box-shadow: 0 8px 22px #182b430a;
 }
 .summary--prominent .house-title {
-  font-size: 21px;
-  font-weight: 700;
-  line-height: 29px;
+  @apply text-size-xl;
+  @apply font-bold;
+  @apply leading-7.5;
 }
 .summary--prominent .room-label {
-  display: block;
-  margin: 4px 0 0;
-  color: #495b70;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 19px;
-  letter-spacing: 0;
+  @apply block;
+  @apply mt-1 mx-0 mb-0;
+  @apply text-hex-495b70;
+  @apply text-size-xs;
+  @apply font-medium;
+  @apply leading-5;
+  @apply tracking-normal;
 }
 .summary--prominent .property-sub {
-  margin-top: 7px;
-  color: #66788d;
-  font-size: 12px;
+  @apply mt-2;
+  @apply text-hex-66788d;
+  @apply text-size-xs;
 }
 .summary--prominent .state {
-  padding: 4px 9px;
-  border-radius: 8px;
-  color: #1269db;
-  background: #ebf4ff;
+  @apply py-1 px-2.5;
+  @apply rounded-2;
+  @apply text-hex-1269db;
+  @apply bg-hex-ebf4ff;
 }
 .summary--prominent .state--muted {
-  color: #718095;
-  background: #f0f2f5;
-}
-.price-caption {
-  margin-top: 23px;
-  color: #66788d;
-  font-size: 11px;
-  font-weight: 500;
+  @apply text-hex-718095;
+  @apply bg-hex-f0f2f5;
 }
 .summary--prominent .price-line {
-  margin-top: 2px;
+  @apply mt-0.5;
 }
 .summary--prominent .currency,
 .summary--prominent .price {
-  color: #1269db;
+  @apply text-hex-1269db;
 }
 .summary--prominent .price {
-  font-size: 34px;
-  line-height: 38px;
+  @apply text-size-4xl;
+  @apply leading-9.5;
 }
 .summary--prominent .price-unit {
-  font-size: 12px;
+  @apply text-size-xs;
 }
 .summary--prominent .deposit {
-  color: #66788d;
-  font-size: 11px;
+  @apply text-hex-66788d;
+  @apply text-size-2xs;
 }
 .summary--prominent .param-row {
-  gap: 0;
-  margin-top: 18px;
-  padding: 13px 4px;
-  border: 0;
-  border-radius: 12px;
-  background: #f3f7fc;
+  @apply gap-0;
+  @apply mt-4.5;
+  @apply py-3.5 px-1;
+  @apply border-0;
+  @apply rounded-3;
+  @apply bg-hex-f3f7fc;
 }
 .summary--prominent .param {
-  border-color: #dce6f1;
-  text-align: center;
+  @apply border-hex-dce6f1;
+  @apply text-center;
 }
 .summary--prominent .param-value {
-  font-size: 13px;
-  line-height: 20px;
+  @apply text-size-xs;
+  @apply leading-5;
 }
 .summary--prominent .param-label {
-  margin-top: 3px;
-  font-size: 10px;
+  @apply mt-1;
+  @apply text-size-2xs;
 }
 </style>

@@ -19,12 +19,12 @@ function openLogin() {
 </script>
 
 <template>
-  <view class="login-guide">
-    <view v-if="icon" class="login-guide__icon" :class="icon" />
-    <view class="login-guide__title">
+  <view class="login-guide flex flex-col items-center gap-2.5 rounded-3.5 bg-surface-card px-4.5 py-7 text-center">
+    <view v-if="icon" class="login-guide__icon text-size-4xl text-app-brand" :class="icon" />
+    <view class="login-guide__title text-size-base text-content-primary font-bold">
       {{ title }}
     </view>
-    <view class="login-guide__description">
+    <view class="login-guide__description mb-0.5 text-size-xs text-content-secondary leading-relaxed">
       {{ description }}
     </view>
     <wd-button block @click="openLogin">
@@ -32,34 +32,3 @@ function openLogin() {
     </wd-button>
   </view>
 </template>
-
-<style scoped lang="scss">
-.login-guide {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18rpx;
-  padding: 54rpx 34rpx;
-  border-radius: 28rpx;
-  text-align: center;
-  background: var(--app-bg-card);
-}
-
-.login-guide__icon {
-  color: var(--app-color-brand);
-  font-size: 72rpx;
-}
-
-.login-guide__title {
-  color: var(--app-text-primary);
-  font-size: 31rpx;
-  font-weight: 700;
-}
-
-.login-guide__description {
-  margin-bottom: 4rpx;
-  color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.7;
-}
-</style>

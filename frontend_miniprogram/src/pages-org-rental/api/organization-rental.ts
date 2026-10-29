@@ -3,7 +3,6 @@ import type {
   BuildingPatchIn,
   ContactIn,
   ContactPatchIn,
-  DealSigningWithAllocationIn,
   EstateIn,
   EstatePatchIn,
   HouseIn,
@@ -61,7 +60,6 @@ import {
   requestOrganizationViewingAssignees,
   requestOrganizationViewings,
   reviewOrganizationAllocationRequest,
-  submitOrganizationDealSigning,
   updateOrganizationViewing,
   uploadOrganizationHouseImagesRequest,
   uploadOrganizationLeaseContractRequest,
@@ -84,7 +82,6 @@ export type {
   ContactIn,
   ContactOut,
   ContactPatchIn,
-  DealSigningWithAllocationIn,
   EstateDetailOut,
   EstateIn,
   EstateMapMarkerOut,
@@ -229,10 +226,6 @@ export function patchOrganizationLease(organizationSlug: string, leaseId: number
   return patchOrganizationLeaseRequest(organizationSlug, leaseId, payload)
 }
 
-export function registerOrganizationDeal(organizationSlug: string, payload: DealSigningWithAllocationIn) {
-  return submitOrganizationDealSigning(organizationSlug, payload)
-}
-
 export function previewVacancySync(organizationSlug: string, payload: VacancySyncIn) {
   return previewOrganizationVacancySync(organizationSlug, payload)
 }
@@ -245,8 +238,8 @@ export function getAllocationCapabilities(organizationSlug: string) {
   return requestOrganizationAllocationCapabilities(organizationSlug)
 }
 
-export function listAllocationRequests(organizationSlug: string, page = 1, pageSize = 20) {
-  return requestOrganizationAllocationRequests(organizationSlug, page, pageSize)
+export function listAllocationRequests(organizationSlug: string, page = 1, pageSize = 20, status?: string) {
+  return requestOrganizationAllocationRequests(organizationSlug, page, pageSize, status)
 }
 
 export function getAllocationRequest(organizationSlug: string, allocationRequestId: number) {

@@ -5,6 +5,7 @@ import EstateCard from '@/pages-org-rental/estates/components/EstateCard.vue'
 import { listOrganizationEstates } from '@/pages-org-rental/api/organization-rental'
 import { getOrganizationEstateFormRoute } from '@/modules/routes'
 import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import RentalPageHeading from '../components/RentalPageHeading.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import { usePagedPage } from '@/hooks/usePagedPage'
@@ -12,7 +13,7 @@ import { useAppContextStore } from '@/store/app-context-v2'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
-definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '小区管理', enablePullDownRefresh: true } })
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '小区／项目管理', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
 const keyword = ref('')
@@ -37,18 +38,21 @@ function handleEmptyAction() {
 </script>
 
 <template>
-  <AppPage variant="list">
+  <AppPage class="rental-page" variant="list">
     <template #navigation>
-      <AppCustomNavigation title="小区管理" back scroll-mode="sticky" />
+      <AppCustomNavigation title="小区／项目管理" back scroll-mode="sticky" />
     </template>
-    <AppListToolbar
-      v-model:keyword="keyword"
-      search-placeholder="搜索小区名称"
-      action-text="新增小区"
-      @search="list.refresh"
-      @clear="list.refresh"
-      @action="openForm()"
-    />
+    <RentalPageHeading title="小区档案" description="按小区整理楼栋与房源资料" :total="list.loaded.value ? list.total.value : null" unit="个">
+      <wd-button size="small" @click="openForm()">
+        新增小区
+      </wd-button>
+    </RentalPageHeading>
+    <view class="rental-search">
+      <AppListToolbar v-model:keyword="keyword" search-placeholder="搜索小区／项目名称" @search="list.refresh" @clear="list.refresh" />
+    </view>
+    <view class="rental-results">
+      <strong>小区档案</strong><text>点击档案维护资料</text>
+    </view>
     <view class="mt-2.5">
       <AppPagedList
         :items="list.items.value"
@@ -58,8 +62,8 @@ function handleEmptyAction() {
         :finished="list.finished.value"
         :error="list.error.value"
         loading-text="正在加载小区…"
-        :empty-text="hasSearch ? '没有找到相关小区' : '当前组织还没有小区'"
-        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : '先建立小区档案，后续可关联楼栋和房源。'"
+        :empty-text="hasSearch ? '没有找到相关小区' : '当前工作空间还没有小区'"
+        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : '先建立小区／项目档案，后续可关联楼栋和房源。'"
         empty-icon="no-result"
         :empty-action-text="hasSearch ? '清除搜索' : '新增小区'"
         finished-text="没有更多小区了"
@@ -73,3 +77,7 @@ function handleEmptyAction() {
     </view>
   </AppPage>
 </template>
+
+<style scoped lang="scss">
+@use '../components/management';
+</style>

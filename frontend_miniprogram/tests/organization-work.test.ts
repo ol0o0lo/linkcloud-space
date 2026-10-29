@@ -10,7 +10,7 @@ const testsDirectory = dirname(fileURLToPath(import.meta.url))
 const sourceRoot = join(testsDirectory, '../src')
 const domainPath = join(sourceRoot, 'domain/organization-work.ts')
 
-test('组织协作领域规则严格沿用后端状态与组织请求作用域', async () => {
+test('空间协作领域规则严格沿用后端状态与组织请求作用域', async () => {
   assert.equal(existsSync(domainPath), true, 'domain/organization-work.ts 应存在')
   const domain = await import('../src/domain/organization-work.ts')
 
@@ -22,7 +22,7 @@ test('组织协作领域规则严格沿用后端状态与组织请求作用域',
     requestScope: { kind: 'organization', organizationSlug: 'alpha' },
     authRetry: 'never',
   })
-  assert.throws(() => domain.buildOrganizationWorkScope(''), /未选择组织/)
+  assert.throws(() => domain.buildOrganizationWorkScope(''), /未选择工作空间/)
 
   assert.deepEqual(domain.buildTaskScopeOptions(false), [{ label: '我的任务', value: 'mine' }])
   assert.deepEqual(domain.buildTaskScopeOptions(true), [
@@ -84,7 +84,7 @@ test('组织协作领域规则严格沿用后端状态与组织请求作用域',
   }), [])
 })
 
-test('创建范围包含全组织及全部有权团队，不替用户默认截断为第一个团队', async () => {
+test('创建范围包含整个工作空间及全部有权团队，不替用户默认截断为第一个团队', async () => {
   const domain = await import('../src/domain/organization-work.ts')
   assert.equal(typeof domain.buildOrganizationWorkManageScopeOptions, 'function')
 
@@ -97,7 +97,7 @@ test('创建范围包含全组织及全部有权团队，不替用户默认截�
       { id: 12, name: '重复团队' },
     ],
   }), [
-    { label: '全组织', value: 'organization', teamId: undefined },
+    { label: '整个工作空间', value: 'organization', teamId: undefined },
     { label: '租赁一组', value: 'team:12', teamId: 12 },
     { label: '运营二组', value: 'team:8', teamId: 8 },
   ])
@@ -251,7 +251,7 @@ test('公告过期与个人确认标签使用确定性当前时间判断', async
     assert.equal(domain.shouldShowAnnouncementAcknowledgement(announcement, now), false)
 })
 
-test('组织协作状态 tone 与本地显示辅助提供稳定回退', async () => {
+test('空间协作状态 tone 与本地显示辅助提供稳定回退', async () => {
   assert.equal(existsSync(domainPath), true, 'domain/organization-work.ts 应存在')
   const domain = await import('../src/domain/organization-work.ts')
 
@@ -273,7 +273,7 @@ test('组织协作状态 tone 与本地显示辅助提供稳定回退', async ()
   assert.equal(domain.formatOrganizationWorkUser({ full_name: '', username: 'zhangsan' }), 'zhangsan')
 })
 
-test('组织协作路由和分包声明唯一且完整', () => {
+test('空间协作路由和分包声明唯一且完整', () => {
   assert.equal(routes.APP_ROUTES.organizationWork, '/pages-org-work/index')
   assert.equal(routes.APP_ROUTES.organizationTasks, '/pages-org-work/tasks/index')
   assert.equal(routes.APP_ROUTES.organizationTaskDetail, '/pages-org-work/tasks/detail')
@@ -291,7 +291,7 @@ test('组织协作路由和分包声明唯一且完整', () => {
     assert.match(pagesSource, new RegExp(`"path"\\s*:\\s*"${page}"`))
 })
 
-test('组织协作页面齐全、无占位文案，并遵守 page 到 feature 到 manual 边界', () => {
+test('空间协作页面齐全、无占位文案，并遵守 page 到 feature 到 manual 边界', () => {
   const pagePaths = [
     'pages-org-work/index.vue',
     'pages-org-work/tasks/index.vue',
@@ -488,7 +488,7 @@ test('公告个人确认标签复用领域可见性判断，任务取消使用�
   assert.match(taskSource, /:loading="cancellingTaskId === item\.id"/)
 })
 
-test('组织协作页面从 Wot Toast 直接入口导入，避免根入口拖入无关类型', () => {
+test('空间协作页面从 Wot Toast 直接入口导入，避免根入口拖入无关类型', () => {
   for (const relativePath of [
     'pages-org-work/tasks/index.vue',
     'pages-org-work/tasks/detail.vue',

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import type { TenantViewingRecordOut } from '@/features/tenant-rental/service'
-import { ref } from 'vue'
-import { canCancelTenantViewing, formatTenantHouseTitle, getTenantViewingStatusTone } from '@/domain/tenant-rental'
-import { cancelScheduledTenantViewing, listTenantViewings } from '@/features/tenant-rental/service'
+import { computed, ref } from 'vue'
+import { sortCurrentTenantViewings } from '@/domain/tenant-rental'
+import { cancelScheduledTenantViewing, listCurrentTenantViewings, listHistoricalTenantViewings } from '@/features/tenant-rental/service'
 import { APP_ROUTES, getTenantViewingDetailRoute } from '@/modules/routes'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import AppPage from '@/components/app/AppPage.vue'
-import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import TenantViewingCard from '@/components/house/TenantViewingCard.vue'
 import { usePagedPage } from '@/hooks/usePagedPage'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
@@ -14,22 +14,33 @@ import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 definePage({
   style: {
     navigationStyle: 'custom',
-    navigationBarTitleText: '我的预约',
+    navigationBarTitleText: '我的看房',
     enablePullDownRefresh: true,
   },
 })
 
 const cancelingId = ref<number | null>(null)
+const historyExpanded = ref(false)
 const viewingPage = usePagedPage<TenantViewingRecordOut>({
-  loader: ({ page, pageSize }) => listTenantViewings(page, pageSize),
+  loader: async () => {
+    const items = await listCurrentTenantViewings()
+    return { items, total: items.length, page: 1, page_size: Math.max(items.length, 1) }
+  },
   pageSize: 12,
   keyOf: item => item.id,
 })
+const currentViewings = computed(() => sortCurrentTenantViewings(viewingPage.items.value))
+const historyPage = usePagedPage<TenantViewingRecordOut>({
+  loader: ({ page, pageSize }) => listHistoricalTenantViewings(page, pageSize),
+  pageSize: 12,
+  enabled: () => historyExpanded.value,
+  keyOf: item => item.id,
+})
 
-function formatDateTime(value: string | null) {
-  if (!value)
-    return '--'
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+function toggleHistory() {
+  historyExpanded.value = !historyExpanded.value
+  if (historyExpanded.value && !historyPage.loaded.value)
+    void historyPage.refresh()
 }
 
 function openDetail(id: number) {
@@ -41,13 +52,17 @@ function goFindHouse() {
 }
 
 async function cancelViewing(item: TenantViewingRecordOut) {
-  const confirmation = await uni.showModal({ title: '取消预约', content: '取消后由中介端同步看到该状态，确定继续吗？', confirmText: '确认取消' })
+  if (cancelingId.value !== null)
+    return
+  const confirmation = await uni.showModal({ title: '取消预约', content: '取消后，经纪人将看到预约已取消，确定继续吗？', confirmText: '确认取消' })
   if (!confirmation.confirm)
     return
   cancelingId.value = item.id
   try {
     const updated = await cancelScheduledTenantViewing(item.id)
-    viewingPage.upsert(updated)
+    viewingPage.remove(item)
+    if (historyPage.loaded.value)
+      historyPage.upsert(updated)
     uni.showToast({ title: '预约已取消', icon: 'success' })
   }
   catch (error) {
@@ -62,62 +77,60 @@ async function cancelViewing(item: TenantViewingRecordOut) {
 <template>
   <AppPage variant="list" gutter="loose">
     <template #navigation>
-      <AppCustomNavigation title="我的预约" back scroll-mode="sticky" />
+      <AppCustomNavigation title="我的看房" back scroll-mode="sticky" />
     </template>
+    <view class="mb-3">
+      <text class="text-base text-content-primary font-semibold">待看房</text>
+      <view class="mt-1 text-xs text-content-muted">
+        工作人员确认时间后的看房安排
+      </view>
+    </view>
     <AppPagedList
-      :items="viewingPage.items.value"
+      :items="currentViewings"
       item-key="id"
       :loading="viewingPage.loading.value"
       :refreshing="viewingPage.refreshing.value"
       :loading-more="viewingPage.loadingMore.value"
       :finished="viewingPage.finished.value"
       :error="viewingPage.error.value"
-      loading-text="正在加载预约…"
-      empty-text="还没有看房预约"
-      empty-description="浏览房源并从详情页发起预约，中介会同步处理带看时间。"
+      loading-text="正在加载待看房安排…"
+      empty-text="暂无待看房安排"
+      empty-description="提交联系需求后，工作人员会与你确认看房时间。"
       empty-icon="no-content"
       empty-action-text="去找房"
-      finished-text="没有更多预约了"
+      finished-text="以上是全部待看房安排"
       @retry="viewingPage.refresh"
       @empty-action="goFindHouse"
     >
       <template #item="{ item }">
-        <AppRecordCard clickable @click="openDetail(item.id)">
-          <template #title>
-            {{ formatTenantHouseTitle(item.house) }}
-          </template>
-          <template #status>
-            <wd-tag :type="getTenantViewingStatusTone(item.status)" variant="light" size="small">
-              {{ item.status__mapping }}
-            </wd-tag>
-          </template>
-          <template #description>
-            {{ item.organization.name }}
-          </template>
-          <view class="app-row-between text-xs text-content-muted">
-            <text>预约时间</text>
-            <strong class="text-content-secondary font-medium">{{ formatDateTime(item.scheduled_at) }}</strong>
-          </view>
-          <view v-if="item.viewed_at" class="mt-3 app-row-between text-xs text-content-muted">
-            <text>实际带看</text>
-            <strong class="text-content-secondary font-medium">{{ formatDateTime(item.viewed_at) }}</strong>
-          </view>
-          <template #footer>
-            <text class="text-xs text-app-brand">查看详情</text>
-          </template>
-          <template v-if="canCancelTenantViewing(item.status)" #actions>
-            <wd-button
-              size="mini"
-              type="danger"
-              variant="plain"
-              :loading="cancelingId === item.id"
-              @click.stop="cancelViewing(item)"
-            >
-              取消预约
-            </wd-button>
-          </template>
-        </AppRecordCard>
+        <TenantViewingCard :record="item" :canceling="cancelingId === item.id" @open="openDetail(item.id)" @cancel="cancelViewing(item)" />
       </template>
     </AppPagedList>
+    <view class="mt-6 pt-3">
+      <wd-button variant="text" block @click="toggleHistory">
+        {{ historyExpanded ? '收起历史看房' : '查看历史看房' }}
+      </wd-button>
+      <AppPagedList
+        v-if="historyExpanded"
+        class="mt-3"
+        :items="historyPage.items.value"
+        item-key="id"
+        :loading="historyPage.loading.value"
+        :refreshing="historyPage.refreshing.value"
+        :loading-more="historyPage.loadingMore.value"
+        :finished="historyPage.finished.value"
+        :error="historyPage.error.value"
+        loading-text="正在加载历史看房…"
+        empty-text="暂无历史看房记录"
+        empty-description="已完成、取消或未到场的看房记录会保留在这里。"
+        empty-compact
+        finished-text="没有更多历史看房了"
+        @retry="historyPage.refresh"
+      >
+        <template #item="{ item }">
+          <TenantViewingCard :record="item" @open="openDetail(item.id)" />
+        </template>
+      </AppPagedList>
+    </view>
   </AppPage>
 </template>

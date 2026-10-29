@@ -2,7 +2,7 @@
 import type { LandlordHouseOut } from '@/features/landlord/service'
 import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
-import { formatHouseLayout } from '@/domain/house'
+import { formatHouseLayout, getHouseAuxiliaryLabels } from '@/domain/house'
 import { getLandlordHouseStatusTone } from '@/domain/landlord'
 import { formatTenantHouseTitle } from '@/domain/tenant-rental'
 import { getLandlordHouse } from '@/features/landlord/service'
@@ -20,6 +20,8 @@ const houseId = ref(0)
 const house = ref<LandlordHouseOut | null>(null)
 const loading = ref(true)
 const loadError = ref('')
+const isPublic = computed(() => house.value?.is_active && house.value.status === 'listed')
+const auxiliaryLabels = computed(() => house.value ? getHouseAuxiliaryLabels(house.value) : [])
 const title = computed(() => house.value ? formatTenantHouseTitle(house.value) : '房源详情')
 
 async function loadHouse() {
@@ -43,7 +45,7 @@ async function loadHouse() {
 }
 
 function openPublicHouse() {
-  if (house.value?.status === 'listed')
+  if (isPublic.value && house.value)
     uni.navigateTo({ url: getHouseDetailRoute(house.value.id) })
 }
 
@@ -69,7 +71,7 @@ onLoad((options) => {
 
 onShareAppMessage(() => ({
   title: title.value,
-  path: house.value?.status === 'listed' ? getHouseDetailRoute(house.value.id) : `${APP_ROUTES.landlordStore}?key=${encodeURIComponent(appContextStore.currentLandlordRelationship?.public_key || '')}`,
+  path: isPublic.value && house.value ? getHouseDetailRoute(house.value.id) : `${APP_ROUTES.landlordStore}?key=${encodeURIComponent(appContextStore.currentLandlordRelationship?.public_key || '')}`,
 }))
 </script>
 
@@ -88,49 +90,52 @@ onShareAppMessage(() => ({
     </template>
 
     <template v-if="house">
-      <view class="hero-card">
-        <view class="hero-topline">
-          <view class="title">
+      <view class="hero-card relative mx-app-gutter my-0 rounded-3.5 bg-surface-card p-4">
+        <view class="hero-topline flex items-center justify-between">
+          <view class="title text-size-lg text-content-primary font-bold">
             {{ title }}
           </view><AppStatusTag :text="house.status__mapping" :tone="getLandlordHouseStatusTone(house.status)" />
         </view>
-        <view class="rent">
+        <view v-if="auxiliaryLabels.length" class="mt-2 flex flex-wrap gap-2">
+          <AppStatusTag v-for="label in auxiliaryLabels" :key="label" :text="label" tone="default" />
+        </view>
+        <view class="rent mt-3 text-size-base text-app-price font-bold">
           {{ house.asking_rent ? `¥${house.asking_rent}/月` : '租金面议' }}
         </view>
-        <view class="hero-meta">
+        <view class="hero-meta mt-2 text-size-xs text-content-muted">
           {{ formatHouseLayout(house.bedrooms, house.living_rooms) }} · {{ house.area ? `${house.area}㎡` : '面积未登记' }} · {{ house.floor === null ? '楼层未登记' : `${house.floor}层` }}
         </view>
-        <view class="hero-meta">
-          关联组织：{{ appContextStore.currentLandlordRelationship?.organization_name || '当前组织' }}
+        <view class="hero-meta mt-2 text-size-xs text-content-muted">
+          关联工作空间：{{ appContextStore.currentLandlordRelationship?.organization_name || '当前工作空间' }}
         </view>
       </view>
-      <view class="status-grid">
+      <view class="status-grid grid grid-cols-2 mx-app-gutter my-0 gap-2.5">
         <view><text>房源状态</text><strong>{{ house.status__mapping }}</strong><view /></view>
-        <view><text>公开展示</text><strong>{{ house.status === 'listed' ? '已开启' : '未开启' }}</strong><view /></view>
+        <view><text>公开展示</text><strong>{{ isPublic ? '已开启' : '未开启' }}</strong><view /></view>
       </view>
       <AppNotice
         class="readonly-notice"
         title="只读查看"
-        description="展示组织已登记的房源资料，不提供编辑、发布或经营分析。"
+        description="展示工作空间已登记的房源资料，不提供编辑、发布或经营分析。"
         compact
       />
-      <view class="related-card">
-        <view class="section-title">
+      <view class="related-card rounded-4 bg-surface-card px-4 py-4">
+        <view class="section-title mb-2.5 text-size-sm text-content-primary font-bold">
           关联信息
         </view>
-        <view class="related-copy">
-          所属组织 {{ appContextStore.currentLandlordRelationship?.organization_name || '当前组织' }}
+        <view class="related-copy mt-1.5 text-size-xs text-content-secondary leading-normal">
+          所属工作空间 {{ appContextStore.currentLandlordRelationship?.organization_name || '当前工作空间' }}
         </view>
-        <view class="related-copy">
+        <view class="related-copy mt-1.5 text-size-xs text-content-secondary leading-normal">
           装修 {{ house.decoration__mapping || '未登记' }} · 朝向 {{ house.orientation__mapping || '未登记' }}
         </view>
-        <view class="related-copy">
+        <view class="related-copy mt-1.5 text-size-xs text-content-secondary leading-normal">
           押金 {{ house.deposit_amount ? `¥${house.deposit_amount}` : '未登记' }}
         </view>
-        <view class="related-links">
+        <view class="related-links mt-3 flex gap-2">
           <button @click="openStore">
             公开店铺
-          </button><button v-if="house.status === 'listed'" @click="openPublicHouse">
+          </button><button v-if="isPublic" @click="openPublicHouse">
             公开房源页
           </button>
         </view>
@@ -145,106 +150,27 @@ onShareAppMessage(() => ({
   </AppDetailPage>
 </template>
 
-<style scoped lang="scss">
-.hero-card {
-  margin: 0 var(--app-page-gutter);
-  padding: 32rpx;
-  position: relative;
-  border-radius: 26rpx;
-  background: var(--app-bg-card);
-}
-.hero-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.title {
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-  font-weight: 700;
-}
-.rent {
-  margin-top: 22rpx;
-  color: var(--app-color-price);
-  font-size: 34rpx;
-  font-weight: 700;
-}
-.hero-meta {
-  margin-top: 16rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20rpx;
-  margin: 0 var(--app-page-gutter);
-}
+<style scoped>
 .status-grid > view {
-  position: relative;
-  display: flex;
-  min-height: 128rpx;
-  padding: 24rpx;
-  flex-direction: column;
-  gap: 8rpx;
-  border-radius: 28rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-card);
+  @apply relative flex min-h-16 p-3 flex-col gap-1 rounded-3.5 box-border bg-surface-card;
 }
 .status-grid text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply text-content-muted text-size-2xs;
 }
 .status-grid strong {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
+  @apply text-content-primary text-size-base;
 }
 .status-grid view view {
-  position: absolute;
-  bottom: 0;
-  left: 24rpx;
-  width: 56rpx;
-  height: 7rpx;
-  border-radius: 999rpx;
-  background: var(--app-color-brand);
+  @apply absolute bottom-0 left-3 w-7 h-1 rounded-full bg-app-brand;
 }
 .readonly-notice,
 .related-card {
-  margin: 0 var(--app-page-gutter);
-}
-.related-card {
-  padding: 30rpx 32rpx;
-  border-radius: 32rpx;
-  background: var(--app-bg-card);
-}
-.section-title {
-  margin-bottom: 20rpx;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 700;
-}
-.related-copy {
-  margin-top: 10rpx;
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.55;
-}
-.related-links {
-  display: flex;
-  gap: 16rpx;
-  margin-top: 24rpx;
+  @apply my-0 mx-app-gutter;
 }
 .related-links button {
-  margin: 0;
-  padding: 0 20rpx;
-  border: 0;
-  border-radius: 16rpx;
-  color: var(--app-color-brand);
-  font-size: 22rpx;
-  line-height: 58rpx;
-  background: var(--app-bg-brand-soft);
+  @apply m-0 py-0 px-2.5 border-0 rounded-2 text-app-brand text-size-2xs leading-7.5 bg-surface-brand-soft;
 }
 .related-links button::after {
-  border: 0;
+  @apply border-0;
 }
 </style>

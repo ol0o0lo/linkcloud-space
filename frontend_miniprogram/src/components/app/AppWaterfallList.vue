@@ -81,9 +81,9 @@ function resolveKey(item: T, index: number) {
     />
   </slot>
   <template v-else>
-    <view class="app-waterfall-list" :style="waterfallStyle">
-      <view v-for="(column, columnIndex) in waterfallColumns" :key="columnIndex" class="app-waterfall-list__column" :style="columnStyle">
-        <view v-for="entry in column.items" :key="resolveKey(entry.item, entry.index)" class="app-waterfall-list__item">
+    <view class="app-waterfall-list flex items-start" :style="waterfallStyle">
+      <view v-for="(column, columnIndex) in waterfallColumns" :key="columnIndex" class="app-waterfall-list__column min-w-0 flex flex-1 flex-col" :style="columnStyle">
+        <view v-for="entry in column.items" :key="resolveKey(entry.item, entry.index)" class="app-waterfall-list__item box-border min-w-0 w-full">
           <slot name="item" :item="entry.item" :index="entry.index" :weight="entry.weight" :column="columnIndex" />
         </view>
       </view>
@@ -100,23 +100,3 @@ function resolveKey(item: T, index: number) {
   </template>
   <slot name="after" />
 </template>
-
-<style scoped>
-.app-waterfall-list {
-  display: flex;
-  align-items: flex-start;
-}
-
-.app-waterfall-list__column {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-}
-
-.app-waterfall-list__item {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-</style>

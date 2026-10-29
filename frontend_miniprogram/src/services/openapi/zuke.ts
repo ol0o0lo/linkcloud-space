@@ -5,6 +5,24 @@ import { CustomRequestOptions_ } from '@/http/types';
 
 import * as API from './types';
 
+/** 租客直接开始房源聊天 POST /api/house/tenant/chat/ */
+export function houseTenantChatUsingPost({
+  body,
+  options,
+}: {
+  body: API.TenantChatIn;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.MessagingConversationOut>('/api/house/tenant/chat/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 租客发送预约联系方式 POST /api/house/tenant/contact/ */
 export function houseTenantContactUsingPost({
   body,
@@ -21,6 +39,33 @@ export function houseTenantContactUsingPost({
     data: body,
     ...(options || {}),
   });
+}
+
+/** 租客向当前房源会话分享联系方式 POST /api/house/tenant/conversations/${param0}/contact/ */
+export function houseTenantConversationsConversationIdContactUsingPost({
+  params,
+  body,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.HouseTenantConversationsConversationIdContactUsingPostParams;
+  body: API.TenantContactShareIn;
+  options?: CustomRequestOptions_;
+}) {
+  const { conversation_id: param0, ...queryParams } = params;
+
+  return request<API.MessagingMessageOut>(
+    `/api/house/tenant/conversations/${param0}/contact/`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
 }
 
 /** 获取租客个人租约 GET /api/house/tenant/leases/ */

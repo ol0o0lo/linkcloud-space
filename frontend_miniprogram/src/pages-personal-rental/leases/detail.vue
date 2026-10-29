@@ -63,57 +63,57 @@ onLoad((options) => {
     <template #navigation>
       <AppCustomNavigation title="租约详情" back scroll-mode="sticky" />
     </template>
-    <view class="detail-page">
+    <view class="detail-page min-h-screen bg-surface-page px-5 pb-9 pt-5">
       <AppLoading v-if="loading" text="正在加载租约…" />
       <AppErrorView v-else-if="loadError" title="租约加载失败" :message="loadError" @retry="loadLease" />
       <template v-else-if="lease">
-        <view class="hero-card">
-          <view class="hero-topline">
+        <view class="hero-card mb-3 rounded-4.5 p-4">
+          <view class="hero-topline flex items-center justify-between text-size-xs text-content-muted">
             <wd-tag :type="getTenantLeaseStatusTone(lease.status)" variant="light">
               {{ lease.status__mapping }}
             </wd-tag>
             <text>{{ lease.organization.name }}</text>
           </view>
-          <view class="house-title">
+          <view class="house-title mt-3 text-size-lg text-content-primary font-bold">
             {{ formatTenantHouseTitle(lease.house) }}
           </view>
-          <view class="rent">
+          <view class="rent mt-3.5 text-app-price">
             <strong>¥{{ lease.monthly_rent }}</strong><text>/月</text>
           </view>
         </view>
-        <view class="detail-card">
-          <view class="detail-card__title">
+        <view class="detail-card mt-3 rounded-4 bg-surface-card px-4 pb-1.5 pt-3.5">
+          <view class="detail-card__title mb-2 text-size-sm text-content-primary font-bold">
             租约信息
           </view>
-          <view class="detail-row">
+          <view class="detail-row min-h-11 flex items-center justify-between gap-3 border-t-hairline border-t-app-divider border-t-solid text-size-xs text-content-secondary">
             <text>租期</text><strong>{{ lease.start_date }} 至 {{ lease.end_date }}</strong>
           </view>
-          <view class="detail-row">
+          <view class="detail-row min-h-11 flex items-center justify-between gap-3 border-t-hairline border-t-app-divider border-t-solid text-size-xs text-content-secondary">
             <text>签约时间</text><strong>{{ formatDateTime(lease.sign_at) }}</strong>
           </view>
-          <view class="detail-row">
+          <view class="detail-row min-h-11 flex items-center justify-between gap-3 border-t-hairline border-t-app-divider border-t-solid text-size-xs text-content-secondary">
             <text>押金</text><strong>{{ lease.deposit ? `¥${lease.deposit}` : '未登记' }}</strong>
           </view>
-          <view class="detail-row">
+          <view class="detail-row min-h-11 flex items-center justify-between gap-3 border-t-hairline border-t-app-divider border-t-solid text-size-xs text-content-secondary">
             <text>付款日</text><strong>每月 {{ lease.payment_day }} 日</strong>
           </view>
           <LeaseContractFiles :files="lease.contract_files" />
         </view>
-        <view class="detail-card">
-          <view class="detail-card__title">
+        <view class="detail-card mt-3 rounded-4 bg-surface-card px-4 pb-1.5 pt-3.5">
+          <view class="detail-card__title mb-2 text-size-sm text-content-primary font-bold">
             相关内容
           </view>
-          <view class="detail-row detail-row--link" @click="openHouse">
+          <view class="detail-row detail-row--link min-h-11 flex items-center justify-between gap-3 border-t-hairline border-t-app-divider border-t-solid text-size-xs text-content-secondary" @click="openHouse">
             <text>房源详情</text><strong>查看</strong>
           </view>
-          <view v-if="lease.source_viewing_record_id" class="detail-row detail-row--link" @click="openSourceViewing">
+          <view v-if="lease.source_viewing_record_id" class="detail-row detail-row--link min-h-11 flex items-center justify-between gap-3 border-t-hairline border-t-app-divider border-t-solid text-size-xs text-content-secondary" @click="openSourceViewing">
             <text>来源带看</text><strong>查看</strong>
           </view>
         </view>
         <AppNotice
           class="lease-notice"
-          title="租约由中介组织维护"
-          description="如合同字段有误，请联系签约组织核对。租客端不会直接修改租约。"
+          title="租约由经纪团队维护"
+          description="如租约信息有误，请联系签约经纪团队核对。"
           compact
         />
       </template>
@@ -121,74 +121,24 @@ onLoad((options) => {
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.detail-page {
-  min-height: 100vh;
-  padding: 40rpx 40rpx 72rpx;
-  background: var(--app-bg-page);
-}
+<style scoped>
 .hero-card {
-  margin-bottom: 24rpx;
-  padding: 32rpx;
   border: 1rpx solid #bfe5d6;
-  border-radius: 36rpx;
   background: #ecf9f3;
 }
-.hero-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.house-title {
-  margin-top: 22rpx;
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-  font-weight: 700;
-}
-.rent {
-  margin-top: 28rpx;
-  color: var(--app-color-price);
-}
 .rent strong {
-  font-size: 44rpx;
+  @apply text-size-xl;
 }
 .rent text {
-  margin-left: 4rpx;
-  font-size: 24rpx;
-}
-.detail-card {
-  margin-top: 24rpx;
-  padding: 28rpx 32rpx 10rpx;
-  border-radius: 32rpx;
-  background: var(--app-bg-card);
-}
-.detail-card__title {
-  margin-bottom: 14rpx;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 700;
-}
-.detail-row {
-  display: flex;
-  min-height: 86rpx;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24rpx;
-  border-top: 1rpx solid var(--app-divider-color);
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
+  @apply ml-0.5 text-size-xs;
 }
 .detail-row strong {
-  color: var(--app-text-primary);
-  font-weight: 500;
-  text-align: right;
+  @apply text-content-primary font-medium text-right;
 }
 .detail-row--link strong {
-  color: var(--app-color-brand);
+  @apply text-app-brand;
 }
 .lease-notice {
-  margin-top: 24rpx;
+  @apply mt-3;
 }
 </style>

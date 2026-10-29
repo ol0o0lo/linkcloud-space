@@ -199,8 +199,8 @@ watch(() => props.visible, (visible) => {
     :z-index="1250"
     @update:visible="emit('update:visible', $event)"
   >
-    <view class="region-sheet">
-      <view v-if="!activeCity" class="region-search">
+    <view class="region-sheet px-0 pb-3.5 pt-0.5">
+      <view v-if="!activeCity" class="region-search mb-2.5 block">
         <wd-search
           v-model="keyword"
           custom-style="padding: 0; --wot-search-input-height: 72rpx; --wot-search-input-radius: 20rpx;"
@@ -210,34 +210,34 @@ watch(() => props.visible, (visible) => {
         />
       </view>
 
-      <view class="current-scope">
-        <view class="current-scope__content">
-          <text class="current-scope__eyebrow">当前浏览范围</text>
-          <view class="current-scope__value">
+      <view class="current-scope box-border min-h-14 w-full flex items-center justify-between gap-2.5 border-hairline border-app-border-brand-soft rounded-3 border-solid px-3 py-2.5">
+        <view class="current-scope__content min-w-0 flex gap-1">
+          <text class="current-scope__eyebrow text-size-2xs text-content-muted">当前浏览范围</text>
+          <view class="current-scope__value min-w-0 flex items-center gap-1 text-size-xs text-app-brand-active">
             <view class="i-carbon-location-filled" />
             <strong>{{ currentScopeLabel }}</strong>
           </view>
         </view>
-        <button class="location-action" :disabled="locating" @click="locateCurrentCity">
-          <view class="i-carbon-location-current location-action__icon" />
+        <button class="location-action h-7.5 inline-flex flex-none items-center justify-center gap-1 border-hairline border-app-border-brand-soft rounded-full border-solid bg-surface-card px-2.5 py-0 text-size-2xs text-app-brand-active font-bold" :disabled="locating" @click="locateCurrentCity">
+          <view class="i-carbon-location-current location-action__icon text-size-xs" />
           <text>{{ locating ? '定位中…' : '定位城市' }}</text>
         </button>
       </view>
 
-      <view v-if="regionStore.loading" class="region-state">
+      <view v-if="regionStore.loading" class="region-state flex flex-col items-center justify-center gap-1.5 text-center text-content-muted">
         <AppLoading text="正在加载已开通城市…" />
       </view>
-      <view v-else-if="regionStore.error" class="region-state">
-        <view class="i-carbon-warning-alt region-state__icon" />
+      <view v-else-if="regionStore.error" class="region-state flex flex-col items-center justify-center gap-1.5 text-center text-content-muted">
+        <view class="i-carbon-warning-alt region-state__icon text-size-2xl text-app-brand" />
         <strong>地区列表加载失败</strong>
         <text>你仍可继续浏览当前范围的房源</text>
-        <button class="region-state__retry" @click="loadRegions(true)">
+        <button class="region-state__retry mt-1.5 rounded-3 bg-surface-brand-soft px-3.5 py-2 text-size-xs text-app-brand" @click="loadRegions(true)">
           重新加载
         </button>
       </view>
 
       <template v-else-if="activeCity">
-        <button class="region-back" @click="backToCities">
+        <button class="region-back mt-2.5 h-7.5 inline-flex items-center gap-0.5 bg-transparent px-0.5 py-0 text-size-2xs text-app-brand-active font-semibold" @click="backToCities">
           <view class="i-carbon-chevron-left" />
           <text>返回城市</text>
         </button>
@@ -245,24 +245,24 @@ watch(() => props.visible, (visible) => {
           <strong>选择区域</strong>
           <text>{{ activeCity.districts.length + 1 }} 个范围</text>
         </view>
-        <view class="region-grid">
+        <view class="region-grid grid grid-cols-3 gap-1.5">
           <button
-            class="region-chip"
+            class="region-chip relative h-9.5 min-w-0 w-full flex items-center gap-1 overflow-hidden border-hairline border-transparent rounded-2.5 border-solid bg-surface-subtle text-size-xs text-content-secondary font-semibold"
             :class="{ 'region-chip--active': isCurrentSelection({ province: browsingProvince, city: activeCity.city, district: '' }) }"
             @click="chooseCityWide"
           >
             <text>全城</text>
-            <view v-if="isCurrentSelection({ province: browsingProvince, city: activeCity.city, district: '' })" class="i-carbon-checkmark region-chip__check" />
+            <view v-if="isCurrentSelection({ province: browsingProvince, city: activeCity.city, district: '' })" class="i-carbon-checkmark region-chip__check absolute right-1 top-1 text-size-3xs" />
           </button>
           <button
             v-for="item in activeCity.districts"
             :key="item.district"
-            class="region-chip"
+            class="region-chip relative h-9.5 min-w-0 w-full flex items-center gap-1 overflow-hidden border-hairline border-transparent rounded-2.5 border-solid bg-surface-subtle text-size-xs text-content-secondary font-semibold"
             :class="{ 'region-chip--active': isCurrentSelection({ province: browsingProvince, city: activeCity.city, district: item.district }) }"
             @click="chooseDistrict(item.district)"
           >
             <text>{{ shortDistrictName(item.district) }}</text>
-            <view v-if="isCurrentSelection({ province: browsingProvince, city: activeCity.city, district: item.district })" class="i-carbon-checkmark region-chip__check" />
+            <view v-if="isCurrentSelection({ province: browsingProvince, city: activeCity.city, district: item.district })" class="i-carbon-checkmark region-chip__check absolute right-1 top-1 text-size-3xs" />
           </button>
         </view>
       </template>
@@ -273,39 +273,39 @@ watch(() => props.visible, (visible) => {
           <text>{{ keyword ? `${filteredCityCount} 个匹配城市` : `${availableCityCount} 个城市` }}</text>
         </view>
 
-        <view v-if="!keyword" class="quick-grid">
-          <button class="region-chip region-chip--wide" :class="{ 'region-chip--active': !regionStore.selection.city }" @click="chooseNationwide">
-            <view class="i-carbon-earth-filled region-chip__leading-icon" />
+        <view v-if="!keyword" class="quick-grid grid grid-cols-3 gap-1.5">
+          <button class="region-chip region-chip--wide relative h-9.5 min-w-0 w-full flex items-center gap-1 overflow-hidden border-hairline border-transparent rounded-2.5 border-solid bg-surface-subtle text-size-xs text-content-secondary font-semibold" :class="{ 'region-chip--active': !regionStore.selection.city }" @click="chooseNationwide">
+            <view class="i-carbon-earth-filled region-chip__leading-icon flex-none text-size-xs" />
             <text>全国</text>
-            <view v-if="!regionStore.selection.city" class="i-carbon-checkmark region-chip__check" />
+            <view v-if="!regionStore.selection.city" class="i-carbon-checkmark region-chip__check absolute right-1 top-1 text-size-3xs" />
           </button>
         </view>
 
-        <view v-for="province in filteredRegions" :key="province.province" class="province-section">
-          <view class="province-heading">
+        <view v-for="province in filteredRegions" :key="province.province" class="province-section mt-3.5">
+          <view class="province-heading px-0.5 pb-1.5 pt-0">
             <strong>{{ province.province }}</strong>
           </view>
-          <view class="region-grid">
+          <view class="region-grid grid grid-cols-3 gap-1.5">
             <button
               v-for="city in province.cities"
               :key="city.city"
-              class="region-chip"
+              class="region-chip relative h-9.5 min-w-0 w-full flex items-center gap-1 overflow-hidden border-hairline border-transparent rounded-2.5 border-solid bg-surface-subtle text-size-xs text-content-secondary font-semibold"
               :class="{ 'region-chip--current': isCurrentCity(province.province, city.city) }"
               @click="openCity(province.province, city.city)"
             >
               <text>{{ shortCityName(city.city) }}</text>
-              <view v-if="isCurrentCity(province.province, city.city)" class="region-chip__dot" />
+              <view v-if="isCurrentCity(province.province, city.city)" class="region-chip__dot absolute right-1.5 top-1 h-1 w-1 rounded-full bg-app-brand" />
             </button>
           </view>
         </view>
 
-        <view v-if="keyword && !filteredRegions.length" class="region-state region-state--compact">
-          <view class="i-carbon-search-locate region-state__icon" />
+        <view v-if="keyword && !filteredRegions.length" class="region-state region-state--compact flex flex-col items-center justify-center gap-1.5 text-center text-content-muted">
+          <view class="i-carbon-search-locate region-state__icon text-size-2xl text-app-brand" />
           <strong>没有找到相关城市</strong>
           <text>试试输入城市全称或省份名称</text>
         </view>
-        <view v-else-if="regionStore.loaded && !regionStore.regions.length" class="region-state">
-          <view class="i-carbon-map region-state__icon" />
+        <view v-else-if="regionStore.loaded && !regionStore.regions.length" class="region-state flex flex-col items-center justify-center gap-1.5 text-center text-content-muted">
+          <view class="i-carbon-map region-state__icon text-size-2xl text-app-brand" />
           <strong>暂无已开通城市</strong>
           <text>公开房源发布后会自动出现在这里</text>
         </view>
@@ -315,268 +315,122 @@ watch(() => props.visible, (visible) => {
 </template>
 
 <style scoped lang="scss">
-.region-sheet {
-  padding: 2rpx 0 28rpx;
-}
-
 .location-action,
 .region-chip,
 .region-back,
 .region-state__retry {
-  margin: 0;
-  border: 0;
-  box-sizing: border-box;
-  line-height: 1.3;
+  @apply m-0;
+  @apply border-0;
+  @apply box-border;
+  @apply leading-tight;
 }
 
 .location-action::after,
 .region-chip::after,
 .region-back::after,
 .region-state__retry::after {
-  border: 0;
-}
-
-.region-search {
-  display: block;
-  margin-bottom: 18rpx;
+  @apply border-0;
 }
 
 .current-scope {
-  display: flex;
-  width: 100%;
-  min-height: 112rpx;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  padding: 20rpx 22rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 22rpx;
-  box-sizing: border-box;
   background: linear-gradient(135deg, var(--app-bg-brand-soft), var(--app-bg-card));
 }
 
 .current-scope__content {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 9rpx;
-}
-
-.current-scope__eyebrow {
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-}
-
-.current-scope__value {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8rpx;
-  color: var(--app-color-brand-active);
-  font-size: 26rpx;
+  @apply flex-1;
+  @apply flex-col;
 }
 
 .current-scope__value strong {
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.location-action {
-  display: inline-flex;
-  height: 58rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  gap: 7rpx;
-  padding: 0 18rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 999rpx;
-  color: var(--app-color-brand-active);
-  font-size: 21rpx;
-  font-weight: 700;
-  background: var(--app-bg-card);
+  @apply overflow-hidden;
+  @apply text-content-primary;
+  @apply text-size-sm;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
 }
 
 .location-action[disabled] {
-  opacity: 0.58;
-}
-
-.location-action__icon {
-  font-size: 24rpx;
+  @apply opacity-60;
 }
 
 .region-state {
-  display: flex;
-  min-height: 280rpx;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 12rpx;
-  color: var(--app-text-muted);
-  text-align: center;
+  @apply min-h-35;
 }
 
 .region-state--compact {
-  min-height: 240rpx;
+  @apply min-h-30;
 }
 
 .region-state strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 
 .region-state text {
-  font-size: 22rpx;
-}
-
-.region-state__icon {
-  color: var(--app-color-brand);
-  font-size: 48rpx;
-}
-
-.region-state__retry {
-  margin-top: 10rpx;
-  padding: 14rpx 28rpx;
-  border-radius: 22rpx;
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-  background: var(--app-bg-brand-soft);
+  @apply text-size-2xs;
 }
 
 .section-heading,
 .province-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  @apply flex;
+  @apply items-center;
+  @apply justify-between;
 }
 
 .section-heading {
-  margin: 30rpx 2rpx 14rpx;
+  @apply mt-4 mx-0.5 mb-2;
 }
 
 .city-heading {
-  margin-top: 28rpx;
+  @apply mt-3.5;
 }
 
 .section-heading strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 
 .section-heading text {
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-}
-
-.province-section {
-  margin-top: 26rpx;
-}
-
-.province-heading {
-  padding: 0 2rpx 12rpx;
+  @apply text-content-muted;
+  @apply text-size-2xs;
 }
 
 .province-heading strong {
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 600;
-}
-
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12rpx;
-}
-
-.region-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12rpx;
+  @apply text-content-secondary;
+  @apply text-size-2xs;
+  @apply font-semibold;
 }
 
 .region-chip {
-  position: relative;
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  height: 76rpx;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  padding: 0 12rpx;
-  overflow: hidden;
-  border: 1rpx solid transparent;
-  border-radius: 18rpx;
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-  font-weight: 600;
-  background: var(--app-bg-subtle);
+  @apply justify-center;
+  @apply py-0 px-1.5;
 }
 
 .region-chip text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
 }
 
 .region-chip:active {
   transform: scale(0.98);
-  background: var(--app-bg-brand-soft);
+  @apply bg-surface-brand-soft;
 }
 
 .region-chip--wide {
-  justify-content: flex-start;
-  padding: 0 18rpx;
+  @apply justify-start;
+  @apply py-0 px-2.5;
 }
 
 .region-chip--current {
-  border-color: var(--app-border-brand-soft);
-  color: var(--app-color-brand-active);
-  background: var(--app-bg-card);
+  @apply border-app-border-brand-soft;
+  @apply text-app-brand-active;
+  @apply bg-surface-card;
 }
 
 .region-chip--active {
-  border-color: var(--app-color-brand);
-  color: var(--app-text-on-brand);
-  background: var(--app-color-brand);
-}
-
-.region-chip__leading-icon {
-  flex: 0 0 auto;
-  font-size: 24rpx;
-}
-
-.region-chip__check {
-  position: absolute;
-  top: 6rpx;
-  right: 7rpx;
-  font-size: 18rpx;
-}
-
-.region-chip__dot {
-  position: absolute;
-  top: 9rpx;
-  right: 10rpx;
-  width: 9rpx;
-  height: 9rpx;
-  border-radius: 50%;
-  background: var(--app-color-brand);
-}
-
-.region-back {
-  display: inline-flex;
-  height: 58rpx;
-  align-items: center;
-  gap: 4rpx;
-  margin-top: 18rpx;
-  padding: 0 4rpx;
-  color: var(--app-color-brand-active);
-  font-size: 22rpx;
-  font-weight: 600;
-  background: transparent;
+  @apply border-app-brand;
+  @apply text-content-on-brand;
+  @apply bg-app-brand;
 }
 </style>

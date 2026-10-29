@@ -44,17 +44,21 @@ export function ensureWeixinLocationManifest(): Plugin {
     configResolved(config) {
       outputDir = path.resolve(config.root, config.build.outDir)
     },
-    closeBundle() {
-      if (process.env.UNI_PLATFORM !== 'mp-weixin')
-        return
+    closeBundle: {
+      order: 'post',
+      sequential: true,
+      handler() {
+        if (process.env.UNI_PLATFORM !== 'mp-weixin')
+          return
 
-      const appJsonPath = path.join(outputDir, 'app.json')
-      if (!fs.existsSync(appJsonPath))
-        throw new Error(`微信小程序构建产物不存在：${appJsonPath}`)
+        const appJsonPath = path.join(outputDir, 'app.json')
+        if (!fs.existsSync(appJsonPath))
+          throw new Error(`微信小程序构建产物不存在：${appJsonPath}`)
 
-      const manifest = JSON.parse(fs.readFileSync(appJsonPath, 'utf8')) as JsonObject
-      const mergedManifest = mergeWeixinLocationManifest(manifest)
-      fs.writeFileSync(appJsonPath, `${JSON.stringify(mergedManifest, null, 2)}\n`)
+        const manifest = JSON.parse(fs.readFileSync(appJsonPath, 'utf8')) as JsonObject
+        const mergedManifest = mergeWeixinLocationManifest(manifest)
+        fs.writeFileSync(appJsonPath, `${JSON.stringify(mergedManifest, null, 2)}\n`)
+      },
     },
   }
 }

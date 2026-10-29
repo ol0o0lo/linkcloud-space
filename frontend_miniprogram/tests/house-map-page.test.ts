@@ -19,6 +19,13 @@ function cssBlock(selector: string, source = styleSource): string {
   return source.slice(start, end)
 }
 
+function classTokens(source: string, className: string): string[] {
+  const classes = [...source.matchAll(/class="([^"]*)"/g)].map(match => match[1].split(/\s+/))
+  const tokens = classes.find(items => items.includes(className))
+  assert.ok(tokens, `缺少 ${className} 元素`)
+  return tokens
+}
+
 test('地图找房页不使用微信 WXSS 不支持的逗号参数伪类', () => {
   const unsupportedSelector = styleSource.split('\n').find(line => [':not(', ':is(', ':where('].some(pseudo => line.includes(pseudo)) && line.includes(','))
   assert.equal(unsupportedSelector, undefined)
@@ -28,22 +35,22 @@ test('地图找房页使用全屏地图、透明导航和悬浮操作层', () =>
   const navigationTagStart = pageSource.indexOf('<AppCustomNavigation')
   const navigationTag = pageSource.slice(navigationTagStart, pageSource.indexOf('/>', navigationTagStart))
   assert.ok(navigationTag.includes('transparent'))
-  assert.ok(pageSource.includes('<view class="map-navigation">'))
-  assert.ok(pageSource.includes('class="map-viewport"'))
-  assert.ok(pageSource.includes('class="map-overlay-top"'))
+  assert.match(pageSource, /<view class="map-navigation(?:\s[^"]*)?">/)
+  assert.ok(classTokens(pageSource, 'map-viewport').includes('h-screen'))
+  assert.ok(classTokens(pageSource, 'map-overlay-top').includes('absolute'))
 
   const navigationStyle = cssBlock('.map-navigation')
-  assert.ok(navigationStyle.includes('position: absolute;'))
-  assert.ok(navigationStyle.includes('inset: 0 0 auto;'))
-  assert.ok(navigationStyle.includes('z-index: 90;'))
+  assert.ok(classTokens(pageSource, 'map-navigation').includes('absolute'))
+  assert.match(navigationStyle, /@apply top-0 inset-x-0 bottom-auto;/)
+  assert.ok(classTokens(pageSource, 'map-navigation').includes('z-90'))
 
   const mapStyle = cssBlock('.house-map')
-  assert.ok(mapStyle.includes('position: absolute;'))
-  assert.ok(mapStyle.includes('inset: 0;'))
-  assert.ok(mapStyle.includes('height: 100%;'))
+  assert.match(mapStyle, /@apply absolute;/)
+  assert.match(mapStyle, /@apply inset-0;/)
+  assert.match(mapStyle, /@apply h-full;/)
 
   const panelStyle = cssBlock('.map-result-sheet', resultSheetStyleSource)
-  assert.ok(panelStyle.includes('position: absolute;'))
+  assert.ok(classTokens(resultSheetSource, 'map-result-sheet').includes('absolute'))
   assert.ok(panelStyle.includes('bottom:'))
 })
 
@@ -51,7 +58,7 @@ test('地图找房按视野实时请求并提供缩放定位交互', () => {
   assert.ok(pageSource.includes('getPublicHouseMap'))
   assert.ok(!pageSource.includes('page_size: 500'))
   assert.ok(pageSource.includes('@regionchange="handleMapRegionChange"'))
-  assert.ok(pageSource.includes('class="map-control-button"'))
+  assert.match(pageSource, /class="map-control-button(?:\s[^"]*)?"/)
   assert.ok(pageSource.includes('function zoomIn()'))
   assert.ok(pageSource.includes('function zoomOut()'))
   assert.ok(pageSource.includes('function locateUser()'))
@@ -114,7 +121,7 @@ test('楼栋选中后使用可关闭、可重试的独立房源结果层', () =>
   assert.ok(pageSource.includes('<HouseMapResultSheet'))
   assert.ok(resultSheetSource.includes('emit(\'close\')'))
   assert.ok(resultSheetSource.includes('emit(\'retry\')'))
-  assert.ok(resultSheetSource.includes('class="map-result-sheet"'))
+  assert.match(resultSheetSource, /class="map-result-sheet(?:\s[^"]*)?"/)
   assert.ok(resultSheetSource.includes('<HouseCard'))
 })
 

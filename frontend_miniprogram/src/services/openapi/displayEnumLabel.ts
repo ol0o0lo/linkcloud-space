@@ -2,6 +2,13 @@
 // @ts-ignore
 import * as API from './types';
 
+export function displayAccessKindEnum(field: API.Access_kindEnum) {
+  return {
+    organization_member: 'organization_member',
+    business_party: 'business_party',
+  }[field];
+}
+
 export function displayActionEnum(field: API.ActionEnum) {
   return {
     mark_read: 'mark_read',
@@ -41,13 +48,7 @@ export function displayHouseListingTypeEnum(field: API.HouseListingType) {
 }
 
 export function displayHouseStatusEnum(field: API.HouseStatus) {
-  return {
-    vacant: 'vacant',
-    listed: 'listed',
-    rented: 'rented',
-    renovating: 'renovating',
-    inactive: 'inactive',
-  }[field];
+  return { listed: 'listed', rented: 'rented', paused: 'paused' }[field];
 }
 
 export function displayKindEnum(field: API.KindEnum) {
@@ -89,20 +90,20 @@ export function displayModeEnum2(field: API.ModeEnum2) {
 }
 
 export function displayModeEnum3(field: API.ModeEnum3) {
-  return { manual: 'manual', dynamic: 'dynamic' }[field];
+  return { initial: 'initial', resubmit: 'resubmit', correction: 'correction' }[
+    field
+  ];
 }
 
 export function displayModeEnum4(field: API.ModeEnum4) {
-  return {
-    metro: 'metro',
-    ebike: 'ebike',
-    bicycle: 'bicycle',
-    walking: 'walking',
-    driving: 'driving',
-  }[field];
+  return { initial: 'initial', correction: 'correction' }[field];
 }
 
 export function displayModeEnum5(field: API.ModeEnum5) {
+  return { manual: 'manual', dynamic: 'dynamic' }[field];
+}
+
+export function displayModeEnum6(field: API.ModeEnum6) {
   return {
     metro: 'metro',
     ebike: 'ebike',
@@ -112,7 +113,17 @@ export function displayModeEnum5(field: API.ModeEnum5) {
   }[field];
 }
 
-export function displayModeEnum6(field: API.ModeEnum6) {
+export function displayModeEnum7(field: API.ModeEnum7) {
+  return {
+    metro: 'metro',
+    ebike: 'ebike',
+    bicycle: 'bicycle',
+    walking: 'walking',
+    driving: 'driving',
+  }[field];
+}
+
+export function displayModeEnum8(field: API.ModeEnum8) {
   return {
     metro: 'metro',
     ebike: 'ebike',
@@ -168,6 +179,10 @@ export function displayStateEnum(field: API.StateEnum) {
 }
 
 export function displayStatusEnum(field: API.StatusEnum) {
+  return { active: 'active', closed: 'closed' }[field];
+}
+
+export function displayStatusEnum2(field: API.StatusEnum2) {
   return {
     matched: 'matched',
     overridden: 'overridden',
@@ -177,15 +192,19 @@ export function displayStatusEnum(field: API.StatusEnum) {
   }[field];
 }
 
-export function displayStatusEnum2(field: API.StatusEnum2) {
+export function displayStatusEnum3(field: API.StatusEnum3) {
   return { valid: 'valid', error: 'error', ignored: 'ignored' }[field];
 }
 
-export function displayStatusEnum3(field: API.StatusEnum3) {
+export function displayStatusEnum4(field: API.StatusEnum4) {
+  return { new: 'new', processing: 'processing', closed: 'closed' }[field];
+}
+
+export function displayStatusEnum5(field: API.StatusEnum5) {
   return { active: 'active', expired: 'expired', revoked: 'revoked' }[field];
 }
 
-export function displayStatusEnum4(field: API.StatusEnum4) {
+export function displayStatusEnum6(field: API.StatusEnum6) {
   return { pending: 'pending', ready: 'ready', failed: 'failed' }[field];
 }
 

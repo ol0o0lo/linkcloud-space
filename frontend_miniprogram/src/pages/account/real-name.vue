@@ -153,17 +153,17 @@ onShow(() => void loadRealName())
     <template #navigation>
       <AppCustomNavigation title="实名认证" back scroll-mode="sticky" />
     </template>
-    <view class="account-page">
+    <view class="account-page box-border min-h-screen bg-surface-page px-5 pb-9 pt-5">
       <AppLoading v-if="loading && !status" text="正在加载实名认证状态…" />
       <AppErrorView v-else-if="loadError && !status" :message="loadError" @retry="loadRealName" />
       <template v-else-if="status">
-        <view class="status-card" :class="`status-card--${statusTone}`">
-          <view class="status-topline">
+        <view class="status-card border-hairline border-app-border-brand-soft rounded-4 border-solid p-3.5" :class="`status-card--${statusTone}`">
+          <view class="status-topline flex items-start justify-between gap-2.5">
             <view>
-              <view class="status-title">
+              <view class="status-title text-size-base text-content-primary font-bold">
                 认证状态
               </view>
-              <view class="status-copy">
+              <view class="status-copy mt-1">
                 {{ status.real_name_masked || '尚未提交实名资料' }}
               </view>
             </view>
@@ -171,25 +171,25 @@ onShow(() => void loadRealName())
               {{ getRealNameStatusLabel(status.status, status.status__mapping || status.status_label) }}
             </wd-tag>
           </view>
-          <view v-if="status.id_number_masked" class="status-meta">
+          <view v-if="status.id_number_masked" class="status-meta mt-2.5">
             证件：{{ status.id_number_masked }}
           </view>
-          <view v-if="status.failure_reason || status.review_note" class="status-reason">
+          <view v-if="status.failure_reason || status.review_note" class="status-reason mt-2.5 rounded-2 bg-surface-subtle p-2.5 text-size-xs text-app-danger">
             {{ status.failure_reason || status.review_note }}
           </view>
         </view>
 
-        <view v-if="action" class="form-card">
+        <view v-if="action" class="form-card mt-3.5 flex flex-col gap-3 rounded-4 p-3.5">
           <wd-input v-model="realName" label="真实姓名" clearable placeholder="请输入真实姓名" />
           <wd-input v-model="idNumber" label="身份证号" type="idcard" clearable placeholder="请输入身份证号" />
-          <view class="section-title section-title--inside">
+          <view class="section-title section-title--inside font-semibold">
             身份证照片
           </view>
-          <view class="upload-grid">
-            <view v-for="side in (['front', 'back'] as const)" :key="side" class="upload-card" @click="uploadSide(side)">
-              <image v-if="selectionFor(side)?.url" class="id-card-image" :src="selectionFor(side)?.url" mode="aspectFill" />
-              <view v-else class="upload-placeholder">
-                <view class="i-carbon-cloud-upload upload-icon" /><text>{{ sideLabel(side) }}</text>
+          <view class="upload-grid grid grid-cols-2 mx-0 my-3 gap-2.5">
+            <view v-for="side in (['front', 'back'] as const)" :key="side" class="upload-card min-h-26 flex flex-col items-center justify-center gap-2 rounded-2.5 p-2 text-size-2xs text-content-muted" @click="uploadSide(side)">
+              <image v-if="selectionFor(side)?.url" class="id-card-image h-19 w-full rounded-2" :src="selectionFor(side)?.url" mode="aspectFill" />
+              <view v-else class="upload-placeholder flex flex-col items-center gap-1.5">
+                <view class="i-carbon-cloud-upload upload-icon text-size-2xl text-app-brand" /><text>{{ sideLabel(side) }}</text>
               </view>
               <wd-button size="mini" variant="plain" :loading="uploadingSide === side">
                 {{ selectionFor(side) ? '重新上传' : '选择图片' }}
@@ -206,36 +206,36 @@ onShow(() => void loadRealName())
           class="prerequisite-notice"
           :tone="appContextStore.user?.phone_verified ? 'success' : 'warning'"
           :title="appContextStore.user?.phone_verified ? '可以提交实名资料' : '请先验证手机号'"
-          :description="appContextStore.user?.phone_verified ? '手机号已验证，填写并上传证件资料后即可提交。' : '未验证手机号时无法提交实名资料，请先在账户设置中完成验证。'"
+          :description="appContextStore.user?.phone_verified ? '手机号已验证，填写并上传证件资料后即可提交。' : '未验证手机号时无法提交实名资料，请先在账号设置中完成验证。'"
           compact
         />
 
-        <view v-else-if="status.id_card_media?.length" class="preview-card">
-          <view class="section-title">
+        <view v-else-if="status.id_card_media?.length" class="preview-card mt-3.5 rounded-4 p-3.5">
+          <view class="section-title font-semibold">
             证件资料
           </view>
-          <view class="upload-grid">
-            <view v-for="item in status.id_card_media" :key="`${item.side}-${item.media_id}`" class="upload-card readonly">
-              <image class="id-card-image" :src="item.thumbnail || item.url || ''" mode="aspectFill" />
+          <view class="upload-grid grid grid-cols-2 mx-0 my-3 gap-2.5">
+            <view v-for="item in status.id_card_media" :key="`${item.side}-${item.media_id}`" class="upload-card readonly min-h-26 flex flex-col items-center justify-center gap-2 rounded-2.5 p-2 text-size-2xs text-content-muted">
+              <image class="id-card-image h-19 w-full rounded-2" :src="item.thumbnail || item.url || ''" mode="aspectFill" />
               <text>{{ sideLabel(item.side) }}</text>
             </view>
           </view>
         </view>
 
-        <view class="section-title">
+        <view class="section-title font-semibold">
           认证记录
         </view>
-        <view v-if="logs.length" class="log-list">
-          <view v-for="(item, index) in logs" :key="`${item.created_at}-${index}`" class="log-card">
-            <view class="log-topline">
+        <view v-if="logs.length" class="log-list flex flex-col gap-2">
+          <view v-for="(item, index) in logs" :key="`${item.created_at}-${index}`" class="log-card rounded-4 p-3.5">
+            <view class="log-topline flex items-start justify-between gap-2.5">
               <strong>{{ item.action__mapping || item.action_label }}</strong><text>{{ formatDateTime(item.created_at) }}</text>
             </view>
-            <view v-if="item.note" class="log-note">
+            <view v-if="item.note" class="log-note mt-1.5 leading-relaxed">
               {{ item.note }}
             </view>
           </view>
         </view>
-        <view v-else class="empty-card">
+        <view v-else class="empty-card rounded-4 p-3.5 text-center text-size-xs text-content-muted">
           暂无认证记录
         </view>
       </template>
@@ -243,25 +243,16 @@ onShow(() => void loadRealName())
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.account-page {
-  min-height: 100vh;
-  padding: 40rpx 40rpx 72rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
+<style scoped>
 .status-card,
 .form-card,
 .preview-card,
 .log-card,
 .empty-card {
-  padding: 28rpx;
-  border-radius: 32rpx;
-  background: var(--app-bg-card);
+  @apply bg-surface-card;
 }
 .status-card {
-  border: 1rpx solid var(--app-border-brand-soft);
-  background: var(--app-bg-brand-soft);
+  @apply bg-surface-brand-soft;
 }
 .status-card--warning {
   border-color: #f1d49c;
@@ -275,122 +266,31 @@ onShow(() => void loadRealName())
   border-color: #f1c7c7;
   background: #fff1f1;
 }
-.status-topline,
-.log-topline {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-.status-title {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  font-weight: 700;
-}
 .status-copy,
 .status-meta,
 .log-topline text,
 .log-note {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.status-copy {
-  margin-top: 8rpx;
-}
-.status-meta,
-.status-reason {
-  margin-top: 18rpx;
-}
-.status-reason {
-  padding: 18rpx;
-  border-radius: 16rpx;
-  color: var(--app-color-danger);
-  background: var(--app-bg-subtle);
-  font-size: 23rpx;
-}
-.form-card,
-.preview-card {
-  margin-top: 28rpx;
-}
-.form-card {
-  display: flex;
-  flex-direction: column;
-  gap: 22rpx;
+  @apply text-content-muted text-size-xs;
 }
 :deep(.form-card .wd-input) {
-  min-height: 104rpx;
-  padding: 12rpx 22rpx;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 24rpx;
-  box-sizing: border-box;
-}
-.upload-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18rpx;
-  margin: 24rpx 0;
+  @apply min-h-13 py-1.5 px-3 border-hairline border-solid border-app-border rounded-3 box-border;
 }
 .upload-card {
-  display: flex;
-  min-height: 210rpx;
-  padding: 16rpx;
   border: 1px dashed var(--app-border-color);
-  border-radius: 20rpx;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 14rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
 }
 .upload-card.readonly {
-  border-style: solid;
-}
-.id-card-image {
-  width: 100%;
-  height: 150rpx;
-  border-radius: 14rpx;
-}
-.upload-placeholder {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 10rpx;
-}
-.upload-icon {
-  color: var(--app-color-primary);
-  font-size: 46rpx;
+  @apply border-solid;
 }
 .section-title {
-  margin: 32rpx 8rpx 16rpx;
-  color: var(--app-text-secondary);
-  font-size: 25rpx;
-  font-weight: 600;
+  @apply mt-4 mx-1 mb-2 text-content-secondary text-size-xs;
 }
 .section-title--inside {
-  margin: 10rpx 0 0;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
+  @apply mt-1.5 mx-0 mb-0 text-content-primary text-size-sm;
 }
 .prerequisite-notice {
-  margin-top: 28rpx;
-}
-.log-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
+  @apply mt-3.5;
 }
 .log-topline strong {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
-}
-.log-note {
-  margin-top: 12rpx;
-  line-height: 1.6;
-}
-.empty-card {
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-  text-align: center;
+  @apply text-content-primary text-size-xs;
 }
 </style>

@@ -89,45 +89,30 @@ defineExpose({ refresh, provider })
 </script>
 
 <template>
-  <view class="weather-nav app-touchable" hover-class="app-touchable--pressed" @click="retryLocation">
-    <view class="weather-icon" :class="`weather-icon--${weatherKind}`">
+  <view class="weather-nav max-w-full min-w-0 flex app-touchable items-center gap-1.5 pb-1 pl-0 pr-1.5 pt-1" hover-class="app-touchable--pressed" @click="retryLocation">
+    <view class="weather-icon h-7 w-5 flex flex-none items-center justify-center text-size-base" :class="`weather-icon--${weatherKind}`">
       <view v-if="weatherKind === 'sun'" class="i-carbon-sun" />
       <view v-else-if="weatherKind === 'rain'" class="i-carbon-rain" />
       <view v-else-if="weatherKind === 'snow'" class="i-carbon-snow" />
       <view v-else class="i-carbon-cloud" />
     </view>
-    <view class="weather-copy">
-      <view class="weather-location">
-        <text class="weather-district">{{ district }}</text>
-        <text v-if="isDefault" class="weather-default">默认位置</text>
+    <view class="weather-copy min-w-0 flex flex-col">
+      <view class="weather-location min-w-0 flex items-center gap-1 text-size-2xs text-content-primary font-semibold leading-tight">
+        <text class="weather-district overflow-hidden text-ellipsis whitespace-nowrap">{{ district }}</text>
+        <text v-if="isDefault" class="weather-default flex-none text-size-3xs font-medium">默认位置</text>
       </view>
-      <view class="weather-meta">
-        <text v-if="weather" class="weather-temperature">{{ Math.round(weather.current.temperature_c) }}℃</text>
-        <text class="weather-condition">{{ weather ? weather.current.condition : loading ? '天气加载中…' : '天气暂不可用' }}</text>
-        <text v-if="weather?.stale" class="weather-stale">稍早</text>
+      <view class="weather-meta min-w-0 flex gap-1 leading-tight">
+        <text v-if="weather" class="weather-temperature flex-none text-size-2xs text-content-primary font-bold">{{ Math.round(weather.current.temperature_c) }}℃</text>
+        <text class="weather-condition overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-content-muted">{{ weather ? weather.current.condition : loading ? '天气加载中…' : '天气暂不可用' }}</text>
+        <text v-if="weather?.stale" class="weather-stale flex-none text-size-3xs text-content-muted">稍早</text>
       </view>
     </view>
   </view>
 </template>
 
 <style scoped lang="scss">
-.weather-nav {
-  display: flex;
-  min-width: 0;
-  max-width: 100%;
-  align-items: center;
-  gap: 12rpx;
-  padding: 7rpx 12rpx 7rpx 0;
-}
 .weather-icon {
-  display: flex;
-  width: 40rpx;
-  height: 54rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
   color: #ba7319;
-  font-size: 34rpx;
 }
 .weather-icon--rain {
   color: #2874bc;
@@ -139,55 +124,12 @@ defineExpose({ refresh, provider })
   color: #6a8099;
 }
 .weather-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
   gap: 3rpx;
 }
-.weather-location {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8rpx;
-  color: var(--app-text-primary);
-  font-size: 21rpx;
-  font-weight: 600;
-  line-height: 1.2;
-}
-.weather-district {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .weather-default {
-  flex: 0 0 auto;
   color: #5c7b9d;
-  font-size: 17rpx;
-  font-weight: 500;
 }
 .weather-meta {
-  display: flex;
-  min-width: 0;
   align-items: baseline;
-  gap: 7rpx;
-  line-height: 1.15;
-}
-.weather-temperature {
-  flex: 0 0 auto;
-  color: var(--app-text-primary);
-  font-size: 22rpx;
-  font-weight: 700;
-}
-.weather-condition {
-  overflow: hidden;
-  color: var(--app-text-muted);
-  font-size: 19rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.weather-stale {
-  flex: 0 0 auto;
-  color: var(--app-text-muted);
-  font-size: 17rpx;
 }
 </style>

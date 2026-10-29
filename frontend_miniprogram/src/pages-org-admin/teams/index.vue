@@ -4,6 +4,7 @@ import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, ref } from 'vue'
 import { canManageTeam } from '@/domain/organization-admin'
+import { formatPhoneDisplay } from '@/domain/phone'
 import { createOrganizationAdminTeam, getOrganizationAdminNavigation, listOrganizationAdminTeams, removeOrganizationAdminTeam } from '@/features/organization-admin/service'
 import { getOrganizationAdminTeamDetailRoute } from '@/modules/routes'
 import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
@@ -69,7 +70,7 @@ async function loadMore() {
 async function submitTeam() {
   if (creating.value || !teamName.value.trim())
     return
-  const confirmation = await uni.showModal({ title: '创建团队', content: `将在当前组织内创建团队“${teamName.value.trim()}”。`, confirmText: '确认创建' })
+  const confirmation = await uni.showModal({ title: '创建团队', content: `将在当前工作空间内创建团队“${teamName.value.trim()}”。`, confirmText: '确认创建' })
   if (!confirmation.confirm)
     return
   creating.value = true
@@ -93,7 +94,7 @@ async function submitTeam() {
 async function deleteTeam(item: TeamOut) {
   if (deleting.value || !navigation.value || !canManageTeam(navigation.value.capabilities, item.id, 'delete'))
     return
-  const confirmation = await uni.showModal({ title: '删除团队', content: `删除“${item.name}”后无法恢复，成员仍保留在组织内。`, confirmText: '确认删除' })
+  const confirmation = await uni.showModal({ title: '删除团队', content: `删除“${item.name}”后无法恢复，成员仍保留在工作空间内。`, confirmText: '确认删除' })
   if (!confirmation.confirm)
     return
   deleting.value = item.id
@@ -146,8 +147,8 @@ onReachBottom(() => void loadMore())
         :finished="teamPage.finished.value"
         :error="teamPage.error.value"
         loading-text="正在加载团队…"
-        :empty-text="hasSearch ? '没有找到相关团队' : '当前组织还没有团队'"
-        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : canCreate ? '创建团队后，可以按团队组织成员和业务协作。' : '当前账号没有创建团队的权限。'"
+        :empty-text="hasSearch ? '没有找到相关团队' : '当前工作空间还没有团队'"
+        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : canCreate ? '创建团队后，可分组管理成员，方便日常协作。' : '当前账号没有创建团队的权限。'"
         empty-icon="no-result"
         :empty-action-text="hasSearch ? '清除搜索' : canCreate ? '创建团队' : ''"
         finished-text="没有更多团队了"
@@ -160,7 +161,7 @@ onReachBottom(() => void loadMore())
               {{ item.name }}
             </template>
             <template #description>
-              {{ item.member_details.length }} 名成员 · {{ item.phone || item.wechat || '未填写联系方式' }}
+              {{ item.member_details.length }} 名成员 · {{ formatPhoneDisplay(item.phone) || item.wechat || '未填写联系方式' }}
               <text v-if="targetUserId && item.members.includes(targetUserId)" class="ml-2 text-app-brand">当前成员已加入</text>
             </template>
             <template v-if="navigation && canManageTeam(navigation.capabilities, item.id, 'delete')" #actions>

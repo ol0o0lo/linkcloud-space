@@ -5,7 +5,7 @@ import { computed, ref } from 'vue'
 import OrganizationViewingCard from '@/pages-org-rental/viewings/components/OrganizationViewingCard.vue'
 import { listOrganizationViewings } from '@/pages-org-rental/api/organization-rental'
 import { getOrganizationViewingDetailRoute, getOrganizationViewingFormRoute } from '@/modules/routes'
-import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import AppActionBar from '@/components/app/AppActionBar.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import { usePagedPage } from '@/hooks/usePagedPage'
@@ -28,21 +28,34 @@ const statusOptions = [
 type ViewingFilter = typeof statusOptions[number]['value']
 const statusFilter = ref<ViewingFilter>('all')
 const houseId = ref<number>()
-const hasFilters = computed(() => Boolean(keyword.value.trim() || statusFilter.value !== 'all'))
+const todayOnly = ref(false)
+const unassignedOnly = ref(false)
+const scope = ref<'mine' | 'all'>()
+const hasFilters = computed(() => Boolean(keyword.value.trim() || statusFilter.value !== 'all' || todayOnly.value || unassignedOnly.value || scope.value))
 onLoad((options) => {
   const id = Number(options?.house_id)
   houseId.value = Number.isInteger(id) && id > 0 ? id : undefined
+  todayOnly.value = options?.today === 'true'
+  unassignedOnly.value = options?.unassigned === 'true'
+  scope.value = options?.scope === 'mine' || options?.scope === 'all' ? options.scope : undefined
   const option = statusOptions.find(item => item.value === options?.status)
   if (option)
     statusFilter.value = option.value
 })
 const list = usePagedPage<ViewingRecordOut>({
   pageSize: 15,
-  loader: ({ page, pageSize }) => listOrganizationViewings(appContextStore.organizationSlug, page, pageSize, { keyword: keyword.value.trim() || undefined, house_id: houseId.value, status: statusFilter.value === 'all' ? undefined : statusFilter.value }),
+  loader: ({ page, pageSize }) => listOrganizationViewings(appContextStore.organizationSlug, page, pageSize, {
+    keyword: keyword.value.trim() || undefined,
+    house_id: houseId.value,
+    status: statusFilter.value === 'all' ? undefined : statusFilter.value,
+    today: todayOnly.value || undefined,
+    unassigned: unassignedOnly.value || undefined,
+    scope: scope.value,
+  }),
 })
 
-function changeStatus(status: ViewingFilter) {
-  statusFilter.value = status
+function changeStatus({ name }: { name: string | number }) {
+  statusFilter.value = name as ViewingFilter
   void list.refresh()
 }
 
@@ -61,6 +74,9 @@ function handleEmptyAction() {
   }
   keyword.value = ''
   statusFilter.value = 'all'
+  todayOnly.value = false
+  unassignedOnly.value = false
+  scope.value = undefined
   void list.refresh()
 }
 </script>
@@ -68,29 +84,38 @@ function handleEmptyAction() {
 <template>
   <AppPage variant="list">
     <template #navigation>
-      <AppCustomNavigation title="带看记录" back scroll-mode="sticky">
-        <template #action>
-          <button class="navigation-action" @click="createViewing">
-            新增
-          </button>
-        </template>
-      </AppCustomNavigation>
+      <AppCustomNavigation title="带看记录" back scroll-mode="sticky" />
     </template>
-    <view class="viewing-tabs">
-      <view v-for="item in statusOptions" :key="item.value" :class="{ active: statusFilter === item.value }" @click="changeStatus(item.value)">
-        {{ item.label }}
+    <template #header>
+      <view class="viewing-filters border-b-hairline border-b-app-divider border-b-solid bg-surface-card px-app-gutter py-0">
+        <wd-search
+          v-model="keyword"
+          variant="filled"
+          placeholder="搜索客户、手机号或房源"
+          placeholder-left
+          hide-cancel
+          @search="list.refresh"
+          @clear="list.refresh"
+        />
+        <wd-tabs :model-value="statusFilter" :slidable-num="6" line-width="20" line-height="3" @change="changeStatus">
+          <wd-tab v-for="item in statusOptions" :key="item.value" :name="item.value" :title="item.label" />
+        </wd-tabs>
       </view>
+    </template>
+    <view class="viewing-results min-h-9.5 flex items-center justify-between gap-2">
+      <view class="viewing-results__summary min-w-0 flex flex-wrap gap-1.5 text-size-xs text-content-secondary leading-4.5">
+        <text>{{ houseId ? '当前房源 · ' : '' }}{{ statusOptions.find(item => item.value === statusFilter)?.label }}记录</text>
+        <text v-if="list.loaded.value" class="viewing-results__count text-size-2xs text-content-muted">共 {{ list.total.value }} 场</text>
+      </view>
+      <button v-if="hasFilters" class="viewing-reset m-0 shrink-0 border-0 bg-transparent pb-2 pl-1.5 pr-0 pt-2 text-size-2xs text-app-brand leading-4.5" @click="handleEmptyAction">
+        重置筛选
+      </button>
     </view>
-    <AppListToolbar
-      v-model:keyword="keyword"
-      search-placeholder="搜索客户、手机号或房源"
-      @search="list.refresh"
-      @clear="list.refresh"
-    />
-    <view class="day-heading">
-      {{ houseId ? '当前房源 · ' : '' }}当前筛选共 {{ list.total.value }} 场
+    <view v-if="todayOnly || unassignedOnly || scope === 'mine'" class="viewing-scope mb-2.5 flex items-center gap-1.5 rounded-app-sm bg-surface-brand-soft px-2.5 py-2 text-size-2xs text-content-secondary leading-4">
+      <view class="i-carbon-filter shrink-0" />
+      <text>{{ [todayOnly ? '今日安排' : '', unassignedOnly ? '未分派负责人' : '', scope === 'mine' ? '本人负责' : ''].filter(Boolean).join(' · ') }}</text>
     </view>
-    <view class="mt-2.5">
+    <view class="viewing-list">
       <AppPagedList
         :items="list.items.value"
         :loading="list.loading.value"
@@ -102,8 +127,8 @@ function handleEmptyAction() {
         :empty-text="hasFilters ? '没有符合条件的带看记录' : '当前还没有带看安排'"
         :empty-description="hasFilters ? '试试清空搜索内容或切换到全部状态。' : '新增带看后，可在这里跟进预约、到访和完成状态。'"
         empty-icon="no-result"
-        :empty-action-text="hasFilters ? '清除筛选' : '新增带看'"
-        finished-text="没有更多带看了"
+        :empty-action-text="hasFilters ? '清除筛选' : ''"
+        finished-text="已显示全部带看记录"
         @retry="list.refresh"
         @empty-action="handleEmptyAction"
       >
@@ -112,48 +137,49 @@ function handleEmptyAction() {
         </template>
       </AppPagedList>
     </view>
+    <template #footer>
+      <AppActionBar>
+        <wd-button block @click="createViewing">
+          新增带看
+        </wd-button>
+      </AppActionBar>
+    </template>
   </AppPage>
 </template>
 
 <style scoped lang="scss">
-.navigation-action {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  color: var(--app-color-brand);
-  font-size: 24rpx;
-  font-weight: 600;
-  line-height: 56rpx;
-  background: transparent;
+.viewing-reset::after {
+  @apply border-0;
 }
-.navigation-action::after {
-  border: 0;
+.viewing-filters {
+  --wot-search-padding: 16rpx 0 12rpx;
+  --wot-search-input-height: 80rpx;
+  --wot-search-input-radius: var(--app-radius-md);
+  --wot-search-input-bg: var(--app-bg-page);
+  --wot-search-cover-bg: var(--app-bg-page);
+  --wot-search-input-font-size: 26rpx;
+  --wot-search-placeholder-font-size: 26rpx;
+  --wot-search-placeholder-color: var(--app-text-muted);
+  --wot-search-icon-color: var(--app-text-muted);
+  --wot-search-block-margin-right: 0;
+  --wot-tabs-nav-item-font-size: 26rpx;
+  --wot-tabs-nav-item-line-height: 40rpx;
+  --wot-tabs-nav-item-padding: 24rpx 6rpx;
+  --wot-tabs-nav-color: var(--app-text-secondary);
+  --wot-tabs-nav-color-active: var(--app-color-brand);
+  --wot-tabs-nav-font-weight-active: 600;
+  --wot-tabs-nav-line-bg: var(--app-color-brand);
+  --wot-tabs-nav-line-bottom: 0;
 }
-.viewing-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-  margin: 28rpx 0 20rpx;
+.viewing-results__summary {
+  align-items: baseline;
 }
-.viewing-tabs view {
-  min-width: 120rpx;
-  padding: 14rpx 20rpx;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 18rpx;
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  text-align: center;
-  background: var(--app-bg-card);
-}
-.viewing-tabs view.active {
-  border-color: var(--app-color-brand);
-  color: #fff;
-  background: var(--app-color-brand);
-}
-.day-heading {
-  margin: 28rpx 4rpx 12rpx;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 700;
+.viewing-list {
+  --wot-loadmore-color: var(--app-text-muted);
+  --wot-loadmore-font-size: 22rpx;
+  --wot-divider-font-size-default: 22rpx;
+  --wot-divider-color-default: var(--app-text-muted);
+  --wot-divider-color-line: var(--app-divider-color);
+  --wot-divider-line-height: 1rpx;
 }
 </style>

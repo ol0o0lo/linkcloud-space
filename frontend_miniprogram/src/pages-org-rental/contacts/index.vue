@@ -8,8 +8,12 @@ import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import AppRecordCard from '@/components/app/AppRecordCard.vue'
+import RentalPageHeading from '../components/RentalPageHeading.vue'
+import RentalFilterTabs from '../components/RentalFilterTabs.vue'
 import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
+import { APP_ROUTES } from '@/modules/routes'
+import { formatPhoneDisplay } from '@/domain/phone'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
@@ -20,7 +24,7 @@ const toast = useToast()
 const keyword = ref('')
 const activeRole = ref<'all' | 'landlord' | 'tenant'>('all')
 const hasFilters = computed(() => Boolean(keyword.value.trim() || activeRole.value !== 'all'))
-const summaryCounts = reactive({ all: 0, landlord: 0, tenant: 0, bound: 0, invited: 0 })
+const summaryCounts = reactive({ all: 0, landlord: 0, tenant: 0 })
 const editorVisible = ref(false)
 const editing = ref<ContactOut | null>(null)
 const saving = ref(false)
@@ -42,7 +46,7 @@ const contactPage = usePagedPage<ContactOut>({
     })
     if (page === 1) {
       const [all, landlord, tenant] = await Promise.all([
-        listOrganizationContacts(appContextStore.organizationSlug, 1, 500),
+        listOrganizationContacts(appContextStore.organizationSlug, 1, 1),
         listOrganizationContacts(appContextStore.organizationSlug, 1, 1, { role: 'landlord' }),
         listOrganizationContacts(appContextStore.organizationSlug, 1, 1, { role: 'tenant' }),
       ])
@@ -50,8 +54,6 @@ const contactPage = usePagedPage<ContactOut>({
         all: all.total,
         landlord: landlord.total,
         tenant: tenant.total,
-        bound: all.items.filter(item => item.user_id !== null || item.landlord_binding_status === 'bound').length,
-        invited: all.items.filter(item => item.landlord_binding_status === 'invited').length,
       })
     }
     return result
@@ -71,8 +73,12 @@ function callPhone(phone: string) {
   uni.makePhoneCall({ phoneNumber: phone })
 }
 
+function openCustomers() {
+  uni.navigateTo({ url: APP_ROUTES.organizationCustomers })
+}
+
 function displayPhone(phone: string) {
-  return phone.replace(/^\+86/, '').replace(/(\d{3})\d{4}(\d{4})$/, '$1****$2')
+  return formatPhoneDisplay(phone).replace(/(\d{3})\d{4}(\d{4})$/, '$1****$2')
 }
 
 function openCreate() {
@@ -154,36 +160,34 @@ async function inviteLandlord(item: ContactOut) {
 </script>
 
 <template>
-  <AppPage variant="list">
+  <AppPage class="rental-page" variant="list">
     <template #navigation>
-      <AppCustomNavigation title="联系人" back scroll-mode="sticky">
-        <template #action>
-          <button class="navigation-action" @click="openCreate">
-            新建
-          </button>
-        </template>
-      </AppCustomNavigation>
+      <AppCustomNavigation title="联系人" back scroll-mode="sticky" />
     </template>
     <wd-toast />
-    <view class="role-tabs">
-      <view v-for="role in ([['all', '全部'], ['landlord', '房东'], ['tenant', '租客']] as const)" :key="role[0]" :class="{ active: activeRole === role[0] }" @click="changeRole(role[0])">
-        {{ role[1] }}
+    <RentalPageHeading title="联系人" description="统一维护房东与租客的业务档案">
+      <wd-button size="small" @click="openCreate">
+        新增联系人
+      </wd-button>
+    </RentalPageHeading>
+    <view class="rental-summary">
+      <view class="rental-summary__item" role="button" @click="changeRole('all')">
+        <strong>{{ contactPage.loaded.value ? summaryCounts.all : '—' }}</strong><text>全部联系人</text>
+      </view>
+      <view class="rental-summary__item" role="button" @click="changeRole('landlord')">
+        <strong>{{ contactPage.loaded.value ? summaryCounts.landlord : '—' }}</strong><text>房东</text>
+      </view>
+      <view class="rental-summary__item" role="button" @click="changeRole('tenant')">
+        <strong>{{ contactPage.loaded.value ? summaryCounts.tenant : '—' }}</strong><text>租客</text>
       </view>
     </view>
-    <view class="contact-summary">
-      <view
-        v-for="item in [
-          { label: '全部联系人', value: summaryCounts.all },
-          { label: '房东', value: summaryCounts.landlord },
-          { label: '租客', value: summaryCounts.tenant },
-          { label: '已绑定账号', value: summaryCounts.bound },
-          { label: '待处理邀请', value: summaryCounts.invited },
-        ]" :key="item.label"
-      >
-        <text>{{ item.label }}</text><view><view class="progress-fill" :style="{ width: `${summaryCounts.all ? Math.max(item.value ? 8 : 0, item.value / summaryCounts.all * 100) : 0}%` }" /></view><strong>{{ item.value }} 人</strong>
-      </view>
+    <RentalFilterTabs :model-value="activeRole" :options="[{ value: 'all', label: '全部' }, { value: 'landlord', label: '房东' }, { value: 'tenant', label: '租客' }]" label="联系人角色" @change="changeRole($event as typeof activeRole)" />
+    <view class="rental-search">
+      <wd-search v-model="keyword" placeholder="搜索姓名或手机号" placeholder-left variant="filled" hide-cancel @search="contactPage.refresh" @clear="contactPage.refresh" />
     </view>
-    <wd-search v-model="keyword" placeholder="搜索姓名或手机号" hide-cancel @search="contactPage.refresh" @clear="contactPage.refresh" />
+    <view class="rental-results">
+      <strong>联系人档案</strong><text v-if="contactPage.loaded.value">{{ contactPage.total.value }} 人</text>
+    </view>
     <view class="mt-2.5">
       <AppPagedList
         :items="contactPage.items.value"
@@ -194,7 +198,7 @@ async function inviteLandlord(item: ContactOut) {
         :finished="contactPage.finished.value"
         :error="contactPage.error.value"
         loading-text="正在加载联系人…"
-        :empty-text="hasFilters ? '没有符合条件的联系人' : '当前组织还没有联系人'"
+        :empty-text="hasFilters ? '没有符合条件的联系人' : '当前工作空间还没有联系人'"
         :empty-description="hasFilters ? '试试清空搜索内容或切换到全部角色。' : '先新增房东或租客联系人，再建立后续业务关系。'"
         empty-icon="no-result"
         :empty-action-text="hasFilters ? '清除筛选' : '新建联系人'"
@@ -204,6 +208,11 @@ async function inviteLandlord(item: ContactOut) {
       >
         <template #item="{ item }">
           <AppRecordCard>
+            <template #leading>
+              <view class="contact-avatar h-8.5 w-8.5 flex flex-none basis-8.5 items-center justify-center rounded-2.5 bg-surface-brand-soft text-size-base text-app-brand-active">
+                <view :class="item.roles.includes('landlord') ? 'i-carbon-home' : 'i-carbon-user'" />
+              </view>
+            </template>
             <template #title>
               {{ item.name }}
             </template>
@@ -221,7 +230,7 @@ async function inviteLandlord(item: ContactOut) {
               </wd-tag>
             </view>
             <template #footer>
-              <text class="text-xs text-content-muted">{{ item.landlord_binding_status === 'bound' ? '已绑定房东账号' : item.notes || '暂无备注' }}</text>
+              <text class="text-xs text-content-muted">{{ item.landlord_binding_status === 'bound' ? '房东档案已关联' : item.notes || '暂无备注' }}</text>
             </template>
             <template #actions>
               <wd-button v-if="canInviteLandlord(item)" size="mini" variant="soft" @click.stop="inviteLandlord(item)">
@@ -239,6 +248,9 @@ async function inviteLandlord(item: ContactOut) {
       </AppPagedList>
     </view>
 
+    <view class="rental-note" role="button" @click="openCustomers">
+      <view class="i-carbon-user-follow" /><text class="flex-1">跟进租客需求与咨询</text><view class="i-carbon-chevron-right" />
+    </view>
     <AppBottomSheet v-model:visible="editorVisible" :title="editing ? '编辑联系人' : '新建联系人'" height="tall">
       <view class="flex flex-col gap-1.5">
         <wd-cell title="姓名" center>
@@ -250,7 +262,7 @@ async function inviteLandlord(item: ContactOut) {
         <wd-cell title="邮箱" center>
           <wd-input v-model="contactForm.email" placeholder="可不填" clearable compact align-right />
         </wd-cell>
-        <view class="border-b border-app-divider border-solid py-3">
+        <view class="border-b border-app-divider border-b-solid py-3">
           <view class="mb-2 text-xs text-content-secondary">
             联系人角色
           </view>
@@ -266,7 +278,7 @@ async function inviteLandlord(item: ContactOut) {
         <wd-cell title="备注" layout="vertical">
           <wd-textarea v-model="contactForm.notes" placeholder="补充联系人说明" :maxlength="1000" show-word-limit />
         </wd-cell>
-        <view class="mb-3 app-row-between border-b border-app-divider border-solid py-3">
+        <view class="mb-3 app-row-between border-b border-app-divider border-b-solid py-3">
           <view><strong class="block text-sm text-content-primary">可用于新业务</strong><text class="mt-1 block text-2xs text-content-muted">关闭后不能用于新建房源或带看</text></view>
           <wd-switch v-model="contactForm.is_active" />
         </view>
@@ -281,7 +293,7 @@ async function inviteLandlord(item: ContactOut) {
     <AppBottomSheet
       :visible="Boolean(invitationUrl)"
       title="房东邀请链接"
-      description="链接已复制，可通过微信转发给对应房东。房东登录后需使用与联系人一致的已验证手机号认领。"
+      description="链接已复制，可通过微信转发给对应房东。房东登录后需验证与档案一致的手机号，再接受邀请并关联档案。"
       height="compact"
       @update:visible="!$event && (invitationUrl = '')"
     >
@@ -296,76 +308,5 @@ async function inviteLandlord(item: ContactOut) {
 </template>
 
 <style scoped lang="scss">
-.navigation-action {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  color: var(--app-color-brand);
-  font-size: 24rpx;
-  font-weight: 600;
-  line-height: 56rpx;
-  background: transparent;
-}
-.navigation-action::after {
-  border: 0;
-}
-.role-tabs {
-  display: flex;
-  gap: 18rpx;
-  margin: 44rpx 0 28rpx;
-}
-.role-tabs view {
-  min-width: 128rpx;
-  padding: 17rpx 24rpx;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 18rpx;
-  box-sizing: border-box;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  text-align: center;
-  background: var(--app-bg-card);
-}
-.role-tabs view.active {
-  border-color: var(--app-color-brand);
-  color: #fff;
-  background: var(--app-color-brand);
-}
-.contact-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-bottom: 30rpx;
-}
-.contact-summary > view {
-  display: grid;
-  grid-template-columns: 180rpx 1fr 72rpx;
-  min-height: 82rpx;
-  padding: 0 28rpx;
-  align-items: center;
-  gap: 18rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.contact-summary text {
-  color: var(--app-text-primary);
-  font-size: 24rpx;
-  font-weight: 600;
-}
-.contact-summary strong {
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-  text-align: right;
-}
-.contact-summary > view > view {
-  overflow: hidden;
-  height: 14rpx;
-  border-radius: 999rpx;
-  background: var(--app-border-color);
-}
-.contact-summary .progress-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--app-color-brand-active), var(--app-color-brand));
-}
+@use '../components/management';
 </style>

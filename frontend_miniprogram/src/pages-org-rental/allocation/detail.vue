@@ -4,12 +4,13 @@ import { onLoad } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, ref } from 'vue'
 import { formatOrganizationDateTime, formatOrganizationMoney, getAllocationRuleSourceLabel, getOrganizationAllocationActions, getOrganizationAllocationLeaseId, getOrganizationAllocationStatusTone } from '@/pages-org-rental/domain/organization-rental'
-import { getAllocationCapabilities, getAllocationRequest, reviewOrganizationAllocation, voidOrganizationAllocation } from '@/pages-org-rental/api/organization-rental'
+import { getAllocationCapabilities, getAllocationRequest } from '@/pages-org-rental/api/organization-rental'
 import AppBottomSheet from '@/components/app/AppBottomSheet.vue'
 import AppDetailPage from '@/components/app/AppDetailPage.vue'
 import AppSection from '@/components/app/AppSection.vue'
 import AppStatusTag from '@/components/app/AppStatusTag.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
+import { actOnLeaseAllocation } from '@/services/manual/rental-closure'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
@@ -74,12 +75,12 @@ async function approve() {
     toast.error('未找到来源租约')
     return
   }
-  const confirmation = await uni.showModal({ title: '确认通过收益分配申请', content: '通过后会立即按提交时间生成员工收益流水。', confirmText: '确认通过' })
+  const confirmation = await uni.showModal({ title: '确认通过收益分配申请', content: '通过后按本次成交固定的归属月份生成员工收益记录。', confirmText: '确认通过' })
   if (!confirmation.confirm)
     return
   submitting.value = 'approve'
   try {
-    request.value = await reviewOrganizationAllocation(appContextStore.organizationSlug, leaseId, { decision: 'approve' })
+    request.value = await actOnLeaseAllocation(appContextStore.organizationSlug, leaseId, request.value.id, 'review', { decision: 'approve' })
     toast.success('收益分配申请已通过')
   }
   catch (error) { toast.error(error instanceof Error ? error.message : '收益审核失败') }
@@ -108,8 +109,8 @@ async function submitReasonAction() {
   submitting.value = reasonMode.value
   try {
     request.value = reasonMode.value === 'reject'
-      ? await reviewOrganizationAllocation(appContextStore.organizationSlug, leaseId, { decision: 'reject', reason: normalizedReason })
-      : await voidOrganizationAllocation(appContextStore.organizationSlug, leaseId, { reason: normalizedReason })
+      ? await actOnLeaseAllocation(appContextStore.organizationSlug, leaseId, request.value.id, 'review', { decision: 'reject', reason: normalizedReason })
+      : await actOnLeaseAllocation(appContextStore.organizationSlug, leaseId, request.value.id, 'void', { reason: normalizedReason })
     reasonVisible.value = false
     toast.success(reasonMode.value === 'reject' ? '收益分配申请已驳回' : '申请已作废，冲销流水已生成')
   }
@@ -160,7 +161,8 @@ onLoad((options) => {
         <wd-cell title="租客" :value="tenantLabel" />
         <wd-cell title="租期" :value="`${sourceSnapshot.start_date || '--'} 至 ${sourceSnapshot.end_date || '--'}`" />
         <wd-cell title="月租" :value="formatOrganizationMoney(String(sourceSnapshot.monthly_rent || ''))" />
-        <wd-cell title="归属团队" :value="request.team_name_snapshot || '全组织'" />
+        <wd-cell title="归属团队" :value="request.team_name_snapshot || '整个工作空间'" />
+        <wd-cell title="业绩归属月" :value="request.performance_month?.slice(0, 7) || '未记录'" />
       </wd-cell-group>
 
       <wd-cell-group title="收益计算" insert>
@@ -229,7 +231,7 @@ onLoad((options) => {
       <AppBottomSheet
         v-model:visible="reasonVisible"
         :title="reasonMode === 'reject' ? '驳回收益分配申请' : '作废已生效收益'"
-        :description="reasonMode === 'reject' ? '驳回后关联租约将终止。' : '已有流水不会删除，系统会追加等额负数冲销流水。'"
+        :description="reasonMode === 'reject' ? '驳回后可在原租约重新申请，关联租约保持有效。' : '已有流水保留，系统追加等额负数冲销记录，关联租约保持原状。'"
         height="compact"
       >
         <wd-textarea v-model="reason" :placeholder="reasonMode === 'reject' ? '请填写驳回原因' : '请填写作废原因'" :maxlength="2000" show-word-limit clearable />

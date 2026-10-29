@@ -2,7 +2,7 @@
 import type { WalletLedgerOut, WalletSummaryOut, WithdrawalOut } from '@/features/account/service'
 import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import { ref } from 'vue'
-import { createWithdrawalRequestId, formatWalletAmount, getWalletEntryTypeLabel, getWithdrawalActions, getWithdrawalPayChannelLabel, getWithdrawalStatusLabel, validateWithdrawalAmount } from '@/domain/personal-account'
+import { createWithdrawalRequestId, formatWalletAmount, getWalletEntryTypeLabel, getWithdrawalActions, getWithdrawalAmountLabel, getWithdrawalPayChannelLabel, getWithdrawalStatusLabel, validateWithdrawalAmount } from '@/domain/personal-account'
 import { cancelWithdrawal, createWithdrawal, getWalletLedger, getWalletSummary, getWithdrawals } from '@/features/account/service'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import AppPage from '@/components/app/AppPage.vue'
@@ -130,7 +130,7 @@ onReachBottom(() => void loadMore())
     <template #navigation>
       <AppCustomNavigation title="我的钱包" back scroll-mode="sticky" />
     </template>
-    <view v-if="summary" class="wallet-hero app-card p-4">
+    <view v-if="summary" class="wallet-hero min-h-43 app-card rounded-5 p-4 text-white shadow-app-hero bg-gradient-brand">
       <view class="text-xs">
         可用余额
       </view>
@@ -228,7 +228,7 @@ onReachBottom(() => void loadMore())
             </wd-tag>
           </template>
           <template #description>
-            到账 {{ formatWalletAmount(item.net_amount) }} · {{ getWithdrawalPayChannelLabel(item.pay_channel, item.pay_channel__mapping) }}
+            {{ getWithdrawalAmountLabel(item.status) }} {{ formatWalletAmount(item.net_amount) }} · {{ getWithdrawalPayChannelLabel(item.pay_channel, item.pay_channel__mapping) }}
             <view v-if="item.reject_reason" class="mt-1.5 text-app-danger">
               {{ item.reject_reason }}
             </view>
@@ -247,17 +247,10 @@ onReachBottom(() => void loadMore())
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.wallet-hero {
-  min-height: 340rpx;
-  border-radius: 40rpx;
-  color: #fff;
-  background: var(--app-gradient-brand);
-  box-shadow: var(--app-shadow-hero-brand);
-}
+<style scoped>
 .wallet-hero text,
 .wallet-hero strong,
 .wallet-hero view {
-  color: inherit;
+  @apply text-inherit;
 }
 </style>

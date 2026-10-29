@@ -21,12 +21,12 @@ const metricRows = [
 </script>
 
 <template>
-  <view class="dashboard-skeleton" :class="{ 'dashboard-skeleton--compact': compact }" aria-hidden="true">
-    <view class="dashboard-skeleton__hero">
+  <view class="dashboard-skeleton flex flex-col gap-3" :class="{ 'dashboard-skeleton--compact': compact }" aria-hidden="true">
+    <view class="dashboard-skeleton__hero box-border min-h-33 rounded-app-xl px-4.5 py-5">
       <wd-skeleton animation="gradient" :row-col="heroRows" />
     </view>
-    <view class="dashboard-skeleton__metrics" :class="{ 'dashboard-skeleton__metrics--three': metricCount === 3 }">
-      <view v-for="item in metricCount" :key="item" class="dashboard-skeleton__metric">
+    <view class="dashboard-skeleton__metrics grid gap-2.5" :class="{ 'dashboard-skeleton__metrics--three': metricCount === 3 }">
+      <view v-for="item in metricCount" :key="item" class="dashboard-skeleton__metric box-border min-h-16 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3">
         <wd-skeleton animation="gradient" :row-col="metricRows" />
       </view>
     </view>
@@ -35,51 +35,27 @@ const metricRows = [
 </template>
 
 <style scoped lang="scss">
-.dashboard-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-
 .dashboard-skeleton__hero {
-  min-height: 260rpx;
-  padding: 38rpx 36rpx;
-  border-radius: var(--app-radius-xl);
-  box-sizing: border-box;
   background: linear-gradient(135deg, #e7e3ff, #f2efff);
 }
 
 .dashboard-skeleton__hero :deep(.wd-skeleton__content) {
-  display: flex;
-  min-height: 184rpx;
-  flex-direction: column;
-  justify-content: space-between;
+  @apply flex min-h-23 flex-col justify-between;
 }
 
 .dashboard-skeleton__metrics {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 18rpx;
+  @apply grid-cols-2;
 }
 
 .dashboard-skeleton__metrics--three {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.dashboard-skeleton__metric {
-  min-height: 126rpx;
-  padding: 24rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  box-sizing: border-box;
-  background: var(--app-bg-card);
+  @apply grid-cols-3;
 }
 
 .dashboard-skeleton--compact .dashboard-skeleton__hero {
-  min-height: 156rpx;
+  @apply min-h-20;
 }
 
 .dashboard-skeleton--compact .dashboard-skeleton__hero :deep(.wd-skeleton__content) {
-  min-height: 82rpx;
+  @apply min-h-10.5;
 }
 </style>

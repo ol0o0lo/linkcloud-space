@@ -70,10 +70,10 @@ export function getCommuteProgress(searchId: string) {
   return httpGet<CommuteProgress>(`${base}/searches/${encodeURIComponent(searchId)}/`, undefined, undefined, publicOptions)
 }
 
-export function getCommuteRoute(routeId: number, houseId: number) {
-  return httpGet<CommuteRoute>(`${base}/routes/${routeId}/`, { house_id: houseId }, undefined, publicOptions)
+export function getCommuteRoute(routeId: number, houseId: number, retry = false) {
+  return httpGet<CommuteRoute>(`${base}/routes/${routeId}/`, { house_id: houseId, retry }, undefined, publicOptions)
 }
 
-export function getHouseCommuteRoute(houseId: number, destinationId: number, mode: CommuteMode) {
-  return httpPost<CommuteRoute>(`${base}/routes/for-house/`, { house_id: houseId, destination_id: destinationId, mode }, undefined, undefined, publicOptions)
+export function getHouseCommuteRoute(houseId: number, destinationId: number, mode: CommuteMode, retry = false) {
+  return httpPost<CommuteRoute>(`${base}/routes/for-house/`, { house_id: houseId, destination_id: destinationId, mode, retry }, undefined, undefined, publicOptions)
 }

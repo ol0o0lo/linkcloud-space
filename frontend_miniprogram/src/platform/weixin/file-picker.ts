@@ -7,7 +7,7 @@ export const weixinFilePickerAdapter: PlatformFilePickerAdapter = {
         wx.chooseMessageFile({
           count: options.count,
           type: 'file',
-          extension: ['pdf', 'doc', 'docx'],
+          extension: (options.extensions || ['pdf', 'doc', 'docx']).map(extension => extension.replace(/^\./, '')),
           success: result => resolve({ supported: true, value: result.tempFiles.map(file => ({ path: file.path, name: file.name, size: file.size })) }),
           fail: error => error.errMsg.includes('cancel') ? resolve({ supported: true, value: [] }) : reject(error),
         })

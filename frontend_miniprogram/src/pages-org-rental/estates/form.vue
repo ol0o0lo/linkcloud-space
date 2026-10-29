@@ -12,7 +12,7 @@ import { useAppContextStore } from '@/store/app-context-v2'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
-definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '小区资料' } })
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '小区／项目资料' } })
 
 interface PickerConfirmEvent { value: Array<string | number> }
 
@@ -78,7 +78,7 @@ async function loadPage() {
     fillEstate(await getOrganizationEstate(appContextStore.organizationSlug, estateId.value))
   }
   catch (error) {
-    loadError.value = error instanceof Error ? error.message : '小区资料加载失败'
+    loadError.value = error instanceof Error ? error.message : '小区／项目资料加载失败'
   }
   finally {
     loading.value = false
@@ -107,11 +107,11 @@ async function submit() {
       await patchOrganizationEstate(appContextStore.organizationSlug, estateId.value, payload)
     else
       await createOrganizationEstate(appContextStore.organizationSlug, payload)
-    toast.success(estateId.value ? '小区资料已更新' : '小区已创建')
+    toast.success(estateId.value ? '小区／项目资料已更新' : '小区／项目已创建')
     setTimeout(() => uni.navigateBack(), 350)
   }
   catch (error) {
-    toast.error(error instanceof Error ? error.message : '小区保存失败')
+    toast.error(error instanceof Error ? error.message : '小区／项目保存失败')
   }
   finally {
     saving.value = false
@@ -120,7 +120,7 @@ async function submit() {
 
 onLoad((options) => {
   estateId.value = Number(options?.id || 0)
-  uni.setNavigationBarTitle({ title: estateId.value ? '编辑小区' : '新建小区' })
+  uni.setNavigationBarTitle({ title: estateId.value ? '编辑小区／项目' : '新建小区／项目' })
   void loadPage()
 })
 </script>
@@ -129,23 +129,23 @@ onLoad((options) => {
   <AppFormPage
     :loading="loading"
     :error="loadError"
-    loading-text="正在加载小区资料…"
-    error-title="小区资料不可用"
+    loading-text="正在加载小区／项目资料…"
+    error-title="小区／项目资料不可用"
     :submitting="saving"
     :submit-disabled="saving"
-    :submit-text="estateId ? '保存小区资料' : '创建小区'"
+    :submit-text="estateId ? '保存小区／项目资料' : '创建小区／项目'"
     @retry="loadPage"
     @submit="submit"
   >
     <template #navigation>
-      <AppCustomNavigation title="小区资料" back scroll-mode="sticky" />
+      <AppCustomNavigation title="小区／项目资料" back scroll-mode="sticky" />
     </template>
     <template #feedback>
       <wd-toast />
     </template>
     <wd-cell-group title="基础信息" insert>
       <wd-cell title="标准名称" center>
-        <wd-input v-model="form.name" placeholder="请输入小区标准名称" clearable compact align-right />
+        <wd-input v-model="form.name" placeholder="请输入小区／项目标准名称" clearable compact align-right />
       </wd-cell>
       <wd-cell title="展示名称" center>
         <wd-input v-model="form.display_name" placeholder="请输入对外展示名称" clearable compact align-right />
@@ -179,7 +179,7 @@ onLoad((options) => {
     </wd-cell-group>
 
     <wd-cell-group title="补充说明" insert>
-      <wd-cell title="小区描述" layout="vertical">
+      <wd-cell title="小区／项目描述" layout="vertical">
         <wd-textarea v-model="form.description" placeholder="补充交通、配套等信息" :maxlength="3000" show-word-limit />
       </wd-cell>
     </wd-cell-group>

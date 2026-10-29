@@ -14,6 +14,7 @@ import {
 } from '../src/domain/notifications.ts'
 import {
   APP_ROUTES,
+  getConversationRoute,
   getOrganizationAllocationDetailRoute,
   getOrganizationAnnouncementDetailRoute,
   getOrganizationTaskDetailRoute,
@@ -22,12 +23,12 @@ import {
 const testsDirectory = dirname(fileURLToPath(import.meta.url))
 const sourceRoot = join(testsDirectory, '../src')
 
-test('消息请求按个人、房东关系和组织身份区分', () => {
+test('消息请求按个人、房东关系和经纪人身份区分', () => {
   assert.deepEqual(resolveNotificationScope({ mode: 'personal' }), { kind: 'personal' })
   assert.deepEqual(resolveNotificationScope({ mode: 'landlord', landlordContactId: 8 }), { kind: 'landlord', landlordContactId: 8 })
   assert.deepEqual(resolveNotificationScope({ mode: 'organization', organizationSlug: 'demo' }), { kind: 'organization', organizationSlug: 'demo' })
   assert.throws(() => resolveNotificationScope({ mode: 'visitor' }), /登录/)
-  assert.throws(() => resolveNotificationScope({ mode: 'organization' }), /组织/)
+  assert.throws(() => resolveNotificationScope({ mode: 'organization' }), /工作空间/)
 })
 
 test('消息筛选沿用后端 is_read 字符串契约', () => {
@@ -52,6 +53,12 @@ test('必选通知渠道不能关闭', () => {
 })
 
 test('结构化通知优先映射到小程序可处理业务页', () => {
+  assert.deepEqual(resolveNotificationAction({ category: 'messaging.message', data: { conversation_id: 8, organization_slug: 'alpha' } }), {
+    kind: 'internal',
+    route: getConversationRoute(8, 'alpha', 'organization_member'),
+    label: '查看聊天',
+  })
+  assert.equal(resolveNotificationAction({ category: 'messaging.message', data: { conversation_id: 8 } }), null)
   assert.deepEqual(resolveNotificationAction({ category: 'team.task.assigned', data: { assignment_id: 17, task_id: 9 } }), {
     kind: 'internal',
     route: getOrganizationTaskDetailRoute({ assignmentId: 17 }),

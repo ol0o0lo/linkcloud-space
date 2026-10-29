@@ -17,7 +17,7 @@ import { useAppContextStore } from '@/store/app-context-v2'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
-definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '组织协作', enablePullDownRefresh: true } })
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '空间协作', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
 const dashboard = ref<DailyDashboardOut | null>(null)
@@ -73,44 +73,44 @@ onPullDownRefresh(loadDashboard)
 </script>
 
 <template>
-  <view class="work-page">
-    <AppCustomNavigation title="组织协作" back scroll-mode="sticky" />
+  <view class="work-page box-border min-h-screen bg-surface-page px-5 pb-7 pt-0">
+    <AppCustomNavigation title="空间协作" back scroll-mode="sticky" />
     <AppDashboardSkeleton v-if="loading && !dashboard" />
     <AppErrorView v-else-if="loadError && !dashboard" title="协作看板加载失败" :message="loadError" @retry="loadDashboard" />
     <template v-else-if="dashboard">
-      <view class="hero-card">
-        <view class="hero-decoration hero-decoration--large" />
-        <view class="hero-decoration hero-decoration--small" />
-        <view class="eyebrow">
+      <view class="hero-card relative box-border min-h-46 overflow-hidden rounded-5.5 px-4.5 py-5 text-content-on-brand shadow-app-hero bg-gradient-brand">
+        <view class="hero-decoration hero-decoration--large pointer-events-none absolute h-37 w-37 rounded-full -right-7.5 -top-12.5" />
+        <view class="hero-decoration hero-decoration--small pointer-events-none absolute right-21 h-24 w-24 rounded-full -bottom-11.5" />
+        <view class="eyebrow text-size-xs">
           今日协作
         </view>
-        <view class="hero-title">
+        <view class="hero-title mt-5 text-size-2xl font-bold">
           {{ appContextStore.currentOrganization?.name || appContextStore.organizationSlug }}
         </view>
-        <view class="hero-summary">
+        <view class="hero-summary mt-3.5 text-size-xs">
           {{ dashboard.pending_acceptance + dashboard.in_progress }} 项任务待处理，{{ dashboard.unacknowledged_announcements }} 条公告待确认
         </view>
       </view>
 
-      <view class="metrics-grid">
-        <view class="metric-card">
+      <view class="metrics-grid grid grid-cols-2 mt-6 gap-3">
+        <view class="metric-card box-border min-h-20 flex flex-col gap-1.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3">
           <strong>{{ dashboard.pending_acceptance }}</strong><text>待接受</text>
         </view>
-        <view class="metric-card">
+        <view class="metric-card box-border min-h-20 flex flex-col gap-1.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3">
           <strong>{{ dashboard.in_progress }}</strong><text>进行中</text>
         </view>
-        <view class="metric-card warning">
+        <view class="metric-card warning box-border min-h-20 flex flex-col gap-1.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3">
           <strong>{{ dashboard.due_today }}</strong><text>今日到期</text>
         </view>
-        <view class="metric-card danger">
+        <view class="metric-card danger box-border min-h-20 flex flex-col gap-1.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3">
           <strong>{{ dashboard.overdue }}</strong><text>已逾期</text>
         </view>
       </view>
 
-      <view class="entry-grid">
-        <view class="entry-card app-touchable" hover-class="app-touchable--pressed" @click="openRoute(APP_ROUTES.organizationTasks)">
-          <view class="i-carbon-task entry-icon" />
-          <view class="entry-main">
+      <view class="entry-grid mt-3 flex flex-col gap-2">
+        <view class="entry-card flex app-touchable items-center gap-2.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3.5" hover-class="app-touchable--pressed" @click="openRoute(APP_ROUTES.organizationTasks)">
+          <view class="i-carbon-task entry-icon text-size-xl text-app-brand" />
+          <view class="entry-main min-w-0 flex-1">
             <strong>任务中心</strong><text>我的任务 {{ assignmentSummary?.pending || 0 }} 待接受 · 团队 {{ taskSummary?.active || 0 }} 进行中</text>
           </view>
           <wd-tag v-if="canManageTasks" type="primary" variant="light" size="small">
@@ -118,9 +118,9 @@ onPullDownRefresh(loadDashboard)
           </wd-tag>
           <view class="i-carbon-chevron-right" />
         </view>
-        <view class="entry-card app-touchable" hover-class="app-touchable--pressed" @click="openRoute(APP_ROUTES.organizationAnnouncements)">
-          <view class="i-carbon-volume-up entry-icon" />
-          <view class="entry-main">
+        <view class="entry-card flex app-touchable items-center gap-2.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3.5" hover-class="app-touchable--pressed" @click="openRoute(APP_ROUTES.organizationAnnouncements)">
+          <view class="i-carbon-volume-up entry-icon text-size-xl text-app-brand" />
+          <view class="entry-main min-w-0 flex-1">
             <strong>团队公告</strong><text>{{ dashboard.unacknowledged_announcements ? `${dashboard.unacknowledged_announcements} 条需要确认` : '公告均已处理' }}</text>
           </view>
           <wd-tag v-if="canManageAnnouncements" type="primary" variant="light" size="small">
@@ -130,229 +130,105 @@ onPullDownRefresh(loadDashboard)
         </view>
       </view>
 
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-0 mt-4.5 flex items-center gap-2.5">
         <strong>紧急事项</strong><text @click="openRoute(APP_ROUTES.organizationTasks)">查看全部</text>
       </view>
-      <view v-if="dashboard.urgent_items?.length" class="card-list">
-        <view v-for="item in dashboard.urgent_items" :key="item.id" class="record-card app-touchable" hover-class="app-touchable--pressed" @click="openRoute(getOrganizationTaskDetailRoute({ assignmentId: item.id }))">
-          <view class="card-topline">
+      <view v-if="dashboard.urgent_items?.length" class="card-list mt-3 flex flex-col gap-2">
+        <view v-for="item in dashboard.urgent_items" :key="item.id" class="record-card app-touchable border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3.5" hover-class="app-touchable--pressed" @click="openRoute(getOrganizationTaskDetailRoute({ assignmentId: item.id }))">
+          <view class="card-topline flex items-center gap-2.5">
             <strong>{{ item.task_title }}</strong><wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
               {{ item.priority__mapping }}
             </wd-tag>
           </view>
-          <view class="record-meta">
+          <view class="record-meta mt-2 flex items-center gap-2.5 text-size-2xs text-content-muted">
             <wd-tag :type="getAssignmentStatusTone(item.status)" variant="light" size="small">
               {{ item.status__mapping }}
             </wd-tag><text>{{ item.is_overdue ? '已逾期' : formatOrganizationWorkDateTime(item.due_at) }}</text>
           </view>
         </view>
       </view>
-      <view v-else class="quiet-card">
+      <view v-else class="quiet-card mt-2.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3.5 text-center text-size-xs text-content-muted">
         当前没有紧急任务
       </view>
 
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-0 mt-4.5 flex items-center gap-2.5">
         <strong>近期公告</strong><text @click="openRoute(APP_ROUTES.organizationAnnouncements)">查看全部</text>
       </view>
-      <view v-if="announcements.length" class="card-list">
-        <view v-for="item in announcements" :key="item.id" class="record-card app-touchable" hover-class="app-touchable--pressed" @click="openRoute(getOrganizationAnnouncementDetailRoute(item.id))">
-          <view class="card-topline">
+      <view v-if="announcements.length" class="card-list mt-3 flex flex-col gap-2">
+        <view v-for="item in announcements" :key="item.id" class="record-card app-touchable border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3.5" hover-class="app-touchable--pressed" @click="openRoute(getOrganizationAnnouncementDetailRoute(item.id))">
+          <view class="card-topline flex items-center gap-2.5">
             <strong>{{ item.title }}</strong><wd-tag v-if="shouldShowAnnouncementAcknowledgement(item)" :type="item.is_acknowledged ? 'success' : 'warning'" variant="light" size="small">
               {{ item.is_acknowledged ? '已确认' : '待确认' }}
             </wd-tag>
           </view>
-          <text class="record-body">{{ item.body }}</text>
-          <view class="record-meta">
-            <text>{{ item.team_name || '全组织' }}</text><text>{{ formatOrganizationWorkDateTime(item.published_at) }}</text>
+          <text class="record-body mt-1.5 overflow-hidden text-size-xs text-content-secondary leading-relaxed">{{ item.body }}</text>
+          <view class="record-meta mt-2 flex items-center gap-2.5 text-size-2xs text-content-muted">
+            <text>{{ item.team_name || '整个工作空间' }}</text><text>{{ formatOrganizationWorkDateTime(item.published_at) }}</text>
           </view>
         </view>
       </view>
-      <view v-else class="quiet-card">
+      <view v-else class="quiet-card mt-2.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-3.5 text-center text-size-xs text-content-muted">
         近期没有已发布公告
       </view>
     </template>
   </view>
 </template>
 
-<style scoped lang="scss">
-.work-page {
-  min-height: 100vh;
-  padding: 0 40rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
+<style scoped>
 .work-page :deep(.app-custom-navigation) {
-  margin: 0 -40rpx 40rpx;
-}
-.hero-card {
-  position: relative;
-  overflow: hidden;
-  min-height: 368rpx;
-  padding: 40rpx 36rpx;
-  border-radius: 44rpx;
-  box-sizing: border-box;
-  color: var(--app-text-on-brand);
-  background: var(--app-gradient-brand);
-  box-shadow: var(--app-shadow-hero-brand);
+  @apply mt-0 -mx-5 mb-5;
 }
 .hero-decoration {
-  position: absolute;
   border: 1rpx solid rgb(255 255 255 / 16%);
-  border-radius: 50%;
   background: rgb(255 255 255 / 6%);
-  pointer-events: none;
-}
-.hero-decoration--large {
-  top: -100rpx;
-  right: -60rpx;
-  width: 292rpx;
-  height: 292rpx;
-}
-.hero-decoration--small {
-  right: 164rpx;
-  bottom: -92rpx;
-  width: 188rpx;
-  height: 188rpx;
 }
 .hero-card > view:not(.hero-decoration) {
-  position: relative;
-  z-index: 1;
+  @apply relative z-1;
 }
 .eyebrow,
 .hero-summary {
   color: rgb(255 255 255 / 75%);
-  font-size: 23rpx;
-}
-.hero-title {
-  margin-top: 40rpx;
-  font-size: 54rpx;
-  font-weight: 700;
-}
-.hero-summary {
-  margin-top: 28rpx;
-}
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24rpx;
-  margin-top: 48rpx;
 }
 .metric-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 156rpx;
-  align-items: flex-start;
-  gap: 10rpx;
-  padding: 24rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  box-sizing: border-box;
-  background: var(--app-bg-card);
+  @apply items-center;
+  @apply items-start;
 }
 .metric-card strong {
-  color: var(--app-text-primary);
-  font-size: 40rpx;
+  @apply text-content-primary text-size-xl;
 }
 .metric-card text {
-  color: var(--app-text-muted);
-  font-size: 20rpx;
+  @apply text-content-muted text-size-2xs;
 }
 .metric-card.warning strong {
-  color: var(--app-color-warning);
+  @apply text-app-warning;
 }
 .metric-card.danger strong {
-  color: var(--app-color-danger);
-}
-.entry-grid,
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-top: 24rpx;
-}
-.entry-card {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  padding: 26rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  background: var(--app-bg-card);
-}
-.entry-icon {
-  color: var(--app-color-primary);
-  font-size: 42rpx;
-}
-.entry-main {
-  min-width: 0;
-  flex: 1;
+  @apply text-app-danger;
 }
 .entry-main strong {
-  display: block;
-  color: var(--app-text-primary);
-  font-size: 29rpx;
+  @apply block text-content-primary text-size-sm;
 }
 .entry-main text {
-  display: block;
-  margin-top: 7rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply block mt-1 text-content-muted text-size-2xs;
 }
 .section-heading,
 .card-topline,
 .record-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-.section-heading {
-  margin: 34rpx 8rpx 0;
+  @apply justify-between;
 }
 .section-heading strong {
-  color: var(--app-text-primary);
-  font-size: 29rpx;
+  @apply text-content-primary text-size-sm;
 }
 .section-heading text {
-  color: var(--app-color-primary);
-  font-size: 23rpx;
-}
-.record-card,
-.quiet-card {
-  padding: 26rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  background: var(--app-bg-card);
+  @apply text-app-brand text-size-xs;
 }
 .card-topline strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply min-w-0 overflow-hidden text-content-primary text-size-sm text-ellipsis whitespace-nowrap;
 }
 .record-body {
-  display: -webkit-box;
-  overflow: hidden;
-  margin-top: 13rpx;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.6;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  @apply line-clamp-2;
 }
 .record-meta {
-  justify-content: flex-start;
-  margin-top: 16rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.quiet-card {
-  margin-top: 18rpx;
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-  text-align: center;
+  @apply justify-start;
 }
 </style>

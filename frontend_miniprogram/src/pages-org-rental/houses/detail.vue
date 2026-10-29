@@ -3,6 +3,8 @@ import type { HouseAIInsightOut, HouseOut, LeaseOut, ViewingRecordOut } from '@/
 import { onLoad, onPageScroll, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, ref } from 'vue'
+import { getHouseMigrationMedia } from '@/domain/house-media'
+import { formatPhoneDisplay } from '@/domain/phone'
 import { favoriteHouse, getHouseFavorite, unfavoriteHouse } from '@/features/favorites/service'
 import { AppError } from '@/core/errors/app-error'
 import {
@@ -53,6 +55,7 @@ const appContextStore = useAppContextStore()
 const toast = useToast()
 const houseId = ref(0)
 const house = ref<HouseOut | null>(null)
+const migrationMedia = computed(() => getHouseMigrationMedia(house.value))
 const loading = ref(true)
 const loadError = ref('')
 const submittingAction = ref<string | null>(null)
@@ -92,7 +95,7 @@ const filteredLeases = computed(() => leases.value.filter(item => (leaseFilter.v
 const visibleViewings = computed(() => recordsExpanded.value ? filteredViewings.value : filteredViewings.value.slice(0, 3))
 const visibleLeases = computed(() => recordsExpanded.value ? filteredLeases.value : filteredLeases.value.slice(0, 3))
 
-const lifecycleActions = computed(() => house.value ? getOrganizationHouseLifecycleActions(house.value.status) : [])
+const lifecycleActions = computed(() => house.value ? getOrganizationHouseLifecycleActions(house.value.status, house.value.is_active) : [])
 const title = computed(() => house.value ? formatOrganizationHouseTitle(house.value) : '房源详情')
 const location = computed(() => {
   if (!house.value)
@@ -105,10 +108,9 @@ const showLeaseTab = computed(() => hasCapability(['house_leases', 'lease_record
 const showBusinessRecords = computed(() => showViewingTab.value || showLeaseTab.value)
 const extraEntries = computed(() => Object.entries(house.value?.extra || {}).filter(([, value]) => value !== null && value !== undefined && value !== ''))
 const houseStatusOptions = [
-  { value: HouseStatus.vacant, label: '空置' },
   { value: HouseStatus.listed, label: '招租中' },
   { value: HouseStatus.rented, label: '已出租' },
-  { value: HouseStatus.renovating, label: '维护中' },
+  { value: HouseStatus.paused, label: '暂不出租' },
 ]
 
 const inspectionLabels: Record<string, string> = {
@@ -232,7 +234,7 @@ async function loadLeases() {
 async function loadActionCapabilities() {
   try {
     const capabilities = await getAllocationCapabilities(appContextStore.organizationSlug)
-    canCreateLease.value = capabilities.submit === true
+    canCreateLease.value = (capabilities as { register_signing?: boolean }).register_signing === true
   }
   catch {
     canCreateLease.value = false
@@ -268,7 +270,7 @@ function createViewing() {
 
 async function openMore() {
   moreVisible.value = true
-  if (house.value?.status !== HouseStatus.listed)
+  if (!house.value?.is_active || house.value.status !== HouseStatus.listed)
     return
   try {
     const result = await getHouseFavorite(houseId.value)
@@ -278,7 +280,7 @@ async function openMore() {
 }
 
 async function toggleFavorite() {
-  if (favoriteLoading.value || house.value?.status !== HouseStatus.listed)
+  if (favoriteLoading.value || !house.value?.is_active || house.value.status !== HouseStatus.listed)
     return
   favoriteLoading.value = true
   try {
@@ -326,7 +328,7 @@ function openStatusPicker() {
 }
 
 function createLease() {
-  if (!house.value || !canCreateLease.value)
+  if (!house.value?.is_active || !canCreateLease.value)
     return
   moreVisible.value = false
   uni.navigateTo({ url: getOrganizationHouseSigningRoute(house.value.id) })
@@ -337,7 +339,7 @@ function openViewing(record: ViewingRecordOut) {
     uni.navigateTo({ url: getOrganizationLeaseDetailRoute(record.signed_lease_id) })
     return
   }
-  if (record.status === 'converted' && canCreateLease.value) {
+  if (record.status === 'converted' && canCreateLease.value && house.value?.is_active) {
     uni.navigateTo({ url: getOrganizationSigningRoute(record.id) })
     return
   }
@@ -347,7 +349,7 @@ function openViewing(record: ViewingRecordOut) {
 function viewingActionLabel(record: ViewingRecordOut): string {
   if (record.signed_lease_id)
     return '查看租约'
-  if (record.status === 'converted' && canCreateLease.value)
+  if (record.status === 'converted' && canCreateLease.value && house.value?.is_active)
     return '去签约'
   return '查看带看'
 }
@@ -367,6 +369,10 @@ function openAllLeases() {
 async function setHouseStatus(status: HouseStatus) {
   if (!house.value || submittingAction.value || status === house.value.status)
     return
+  if (!house.value.is_active && status === HouseStatus.listed) {
+    toast.warning('请先恢复房源，再发布招租')
+    return
+  }
   statusVisible.value = false
   moreVisible.value = false
   const statusLabel = houseStatusOptions.find(item => item.value === status)?.label || '新状态'
@@ -382,21 +388,22 @@ async function setHouseStatus(status: HouseStatus) {
   finally { submittingAction.value = null }
 }
 
-async function updateStatus(action: 'publish' | 'unpublish' | 'disable') {
-  if (!house.value || submittingAction.value)
+async function updateStatus(action: 'publish' | 'unpublish' | 'disable' | 'enable') {
+  if (!house.value || submittingAction.value || !lifecycleActions.value.includes(action))
     return
   moreVisible.value = false
   const actionConfig = {
-    publish: { title: '确认发布房源', content: '确认后房源状态将切换为招租，继续承接带看。', confirmText: '确认发布', status: HouseStatus.listed, success: '房源已发布' },
-    unpublish: { title: '确认下架房源', content: '确认后房源状态将切换为空置，不再对外展示。', confirmText: '确认下架', status: HouseStatus.vacant, success: '房源已下架' },
-    disable: { title: '确认停用房源', content: '停用后不再参与日常经营筛选，历史业务关联仍会保留。', confirmText: '确认停用', status: HouseStatus.inactive, success: '房源已停用' },
+    publish: { title: '确认发布房源', content: '确认后房源状态将切换为招租，继续承接带看。', confirmText: '确认发布', payload: { status: HouseStatus.listed }, success: '房源已发布' },
+    unpublish: { title: '确认下架房源', content: '确认后房源状态将切换为暂不出租，不再对外展示。', confirmText: '确认下架', payload: { status: HouseStatus.paused }, success: '房源已下架' },
+    disable: { title: '确认停用房源', content: '停用后不可发布或签约，招租中的房源将转为暂不出租，已出租房态与历史记录保留。', confirmText: '确认停用', payload: { is_active: false }, success: '房源已停用' },
+    enable: { title: '确认恢复房源', content: '恢复后可继续经营，房态保持不变；需要招租时请另行发布。', confirmText: '确认恢复', payload: { is_active: true }, success: '房源已恢复' },
   }[action]
   const confirmation = await uni.showModal({ title: actionConfig.title, content: actionConfig.content, confirmText: actionConfig.confirmText })
   if (!confirmation.confirm)
     return
   submittingAction.value = action
   try {
-    house.value = await patchOrganizationHouse(appContextStore.organizationSlug, house.value.id, { status: actionConfig.status })
+    house.value = await patchOrganizationHouse(appContextStore.organizationSlug, house.value.id, actionConfig.payload)
     toast.success(actionConfig.success)
   }
   catch (error) { toast.error(error instanceof Error ? error.message : '房源状态更新失败') }
@@ -435,7 +442,7 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
     </template>
 
     <template #hero>
-      <HouseMediaGallery v-if="house" :videos="house.videos" :images="house.images" />
+      <HouseMediaGallery v-if="house" :videos="house.videos" :images="house.images" :migration-media="migrationMedia" />
     </template>
 
     <template v-if="house">
@@ -449,16 +456,206 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
         </wd-button>
       </view>
 
-      <view v-if="house.inspection_reasons.length" class="inspection-card">
-        <text class="i-carbon-warning-alt inspection-card__icon" />
+      <view v-if="house.inspection_reasons.length" class="inspection-card mx-3 mb-0 mt-2.5 flex items-start gap-2 rounded-3 px-3 py-3">
+        <text class="i-carbon-warning-alt inspection-card__icon mt-0.5 text-size-base" />
         <view>
-          <view class="inspection-card__title">
+          <view class="inspection-card__title text-size-xs font-semibold">
             房源资料待完善
           </view>
-          <view class="inspection-card__copy">
+          <view class="inspection-card__copy mt-1 text-size-2xs leading-4.5">
             {{ house.inspection_reasons.map(item => inspectionLabels[item] || item).join('、') }}
           </view>
         </view>
+      </view>
+
+      <view class="section-eyebrow flex items-center gap-2 px-3.5 pb-0 pt-4.5 text-size-2xs">
+        <text>内部管理</text>
+      </view>
+
+      <view id="house-internal" class="section internal-card mx-3 mb-0 mt-2.5 box-border overflow-hidden rounded-3.5">
+        <view class="section-heading min-h-6.5 flex items-center justify-between gap-2">
+          <view>
+            <view class="section-title text-size-sm font-bold leading-5.5">
+              内部资料
+            </view>
+          </view>
+          <view class="private-badge flex items-center gap-1 rounded-1 px-1.5 py-0.5 text-size-3xs leading-3.5">
+            <text class="i-carbon-locked" />
+            仅内部可见
+          </view>
+        </view>
+        <view class="data-list">
+          <view class="data-row flex items-start justify-between gap-5 px-0 py-2.5 text-size-xs leading-5">
+            <text>所属工作空间</text><text class="detail-value">{{ appContextStore.currentOrganization?.name || '当前工作空间' }}</text>
+          </view>
+          <view class="data-row flex items-start justify-between gap-5 px-0 py-2.5 text-size-xs leading-5">
+            <text>归属房东</text><text class="detail-value">{{ house.landlord ? `${house.landlord.name} · ${house.landlord.phone}` : '未关联房东' }}</text>
+          </view>
+          <view class="data-row flex items-start justify-between gap-5 px-0 py-2.5 text-size-xs leading-5">
+            <text>所属楼栋</text><text class="detail-value">{{ house.building.name }}</text>
+          </view>
+          <view class="data-row flex items-start justify-between gap-5 px-0 py-2.5 text-size-xs leading-5">
+            <text>房源编号</text><text class="detail-value">#{{ house.id }}</text>
+          </view>
+          <view class="data-row flex items-start justify-between gap-5 px-0 py-2.5 text-size-xs leading-5">
+            <text>资料更新</text><text class="detail-value">{{ formatOrganizationDateTime(house.updated_at) }}</text>
+          </view>
+        </view>
+        <view class="notes-box mt-3.5 text-size-xs leading-5.5">
+          <view class="notes-box__label mb-1.5 text-size-2xs">
+            内部备注
+          </view>
+          <view :class="{ 'notes-box__empty': !house.internal_notes }">
+            {{ house.internal_notes || '尚未填写内部备注' }}
+          </view>
+        </view>
+        <view v-if="extraEntries.length" class="extra-fields">
+          <button class="extra-toggle m-0 min-h-12 w-full flex items-center gap-2 border-0 p-0 text-size-xs font-semibold" :aria-expanded="extraExpanded" @click="extraExpanded = !extraExpanded">
+            <text>内部补充资料</text><text class="detail-meta">{{ extraEntries.length }} 项</text><text :class="extraExpanded ? 'i-carbon-chevron-up' : 'i-carbon-chevron-down'" />
+          </button>
+          <template v-if="extraExpanded">
+            <view v-for="entry in extraEntries" :key="entry[0]" class="data-row flex items-start justify-between gap-5 px-0 py-2.5 text-size-xs leading-5">
+              <text>{{ entry[0] }}</text><text class="detail-value">{{ formatExtraValue(entry[1]) }}</text>
+            </view>
+          </template>
+        </view>
+      </view>
+
+      <view v-if="showBusinessRecords" id="house-records" class="section records-card mx-3 mb-0 mt-2.5 box-border overflow-hidden rounded-3.5">
+        <view class="section-heading records-heading min-h-6.5 flex items-center justify-between gap-2 px-3.5 py-0">
+          <view>
+            <view class="section-title text-size-sm font-bold leading-5.5">
+              业务记录
+            </view>
+          </view>
+          <view class="private-badge flex items-center gap-1 rounded-1 px-1.5 py-0.5 text-size-3xs leading-3.5">
+            <text class="i-carbon-locked" />
+            内部
+          </view>
+        </view>
+        <wd-tabs v-model="recordTab" color="#006bcc" inactive-color="#526177" line-theme="text" :line-height="3" @change="resetRecordSearch">
+          <wd-tab v-if="showViewingTab" name="viewings" :title="`带看记录 ${viewingsTotal}`">
+            <view class="record-panel px-3.5 pb-0.5 pt-3">
+              <view class="record-filters mb-2.5 flex items-center gap-1.5">
+                <button v-for="filter in viewingFilters" :key="filter.value" class="record-filter m-0 min-h-9 border-0 rounded-2 px-3 py-2 text-size-2xs leading-5.5" :class="{ 'record-filter--active': viewingFilter === filter.value }" @click="viewingFilter = filter.value; recordsExpanded = false">
+                  {{ filter.label }} {{ filter.value === 'all' ? viewings.length : viewings.filter(item => item.status === filter.value).length }}
+                </button><button class="record-search-toggle mb-0 ml-auto mr-0 mt-0 h-9 w-9 flex items-center justify-center rounded-2 p-0 text-size-base" aria-label="搜索带看记录" @click="toggleRecordSearch">
+                  <text class="i-carbon-search" />
+                </button>
+              </view>
+              <input v-if="recordSearchVisible" v-model="recordKeyword" class="record-search mb-2.5 box-border h-9.5 rounded-2 px-2.5 py-0 text-size-xs" placeholder="搜索姓名或手机号">
+              <view class="record-caption flex justify-between gap-2 text-size-2xs">
+                <text>最近 {{ viewings.length }} 条带看记录</text><text>姓名 · 时间 · 业务状态</text>
+              </view>
+              <view v-if="viewingsLoading" class="section-state min-h-30 flex items-center justify-center gap-2 text-size-xs">
+                正在加载带看记录…
+              </view>
+              <view v-else-if="viewingsError" class="record-empty min-h-30 flex items-center justify-center gap-2 text-size-xs">
+                <text>{{ viewingsError }}</text>
+                <button class="text-button m-0 min-h-9 inline-flex items-center justify-center gap-1 whitespace-nowrap border-0 px-0.5 py-0 text-size-xs font-semibold leading-normal" @click="loadViewings">
+                  重新加载
+                </button>
+              </view>
+              <view v-else-if="!filteredViewings.length" class="record-empty min-h-30 flex items-center justify-center gap-2 text-size-xs">
+                暂无带看记录
+              </view>
+              <template v-else>
+                <view v-for="record in visibleViewings" :key="record.id" class="record-row px-0 pb-0 pt-3">
+                  <view class="record-row__head flex items-center gap-2.5">
+                    <view class="avatar h-8.5 w-8.5 flex items-center justify-center rounded-2.5 text-size-xs font-semibold">
+                      {{ record.customer_name.slice(0, 1) || '客' }}
+                    </view>
+                    <view class="record-row__person min-w-0">
+                      <text class="detail-value">{{ record.customer_name }}</text>
+                      <text>{{ formatPhoneDisplay(record.customer_phone) }}</text>
+                    </view>
+                    <AppStatusTag :text="record.status__mapping" :tone="getOrganizationViewingStatusTone(record.status)" />
+                  </view>
+                  <view class="record-row__date mx-0 my-2 flex items-center gap-1.5 rounded-1.5 px-2.5 py-2 text-size-2xs">
+                    <text class="i-carbon-calendar" />
+                    <text>{{ formatOrganizationDateTime(record.scheduled_at) }}</text>
+                  </view>
+                  <view class="record-row__foot min-h-11 flex items-center justify-between gap-2">
+                    <text>{{ record.contact ? `已关联租客：${record.contact.name}` : '尚未关联租客联系人' }}</text>
+                    <button class="text-button m-0 min-h-9 inline-flex items-center justify-center gap-1 whitespace-nowrap border-0 px-0.5 py-0 text-size-xs font-semibold leading-normal" @click="openViewing(record)">
+                      {{ viewingActionLabel(record) }} <text class="i-carbon-chevron-right" />
+                    </button>
+                  </view>
+                </view>
+              </template>
+              <view v-if="viewings.length" class="records-footer flex items-center justify-between gap-2 pt-2">
+                <button v-if="filteredViewings.length > 3" class="text-button m-0 min-h-9 inline-flex items-center justify-center gap-1 whitespace-nowrap border-0 px-0.5 py-0 text-size-xs font-semibold leading-normal" @click="recordsExpanded = !recordsExpanded">
+                  {{ recordsExpanded ? '收起记录' : `展开其余 ${filteredViewings.length - 3} 条` }}<text :class="recordsExpanded ? 'i-carbon-chevron-up' : 'i-carbon-chevron-down'" />
+                </button><button class="text-button m-0 min-h-9 inline-flex items-center justify-center gap-1 whitespace-nowrap border-0 px-0.5 py-0 text-size-xs font-semibold leading-normal" @click="openAllViewings">
+                  全部带看 <text class="i-carbon-chevron-right" />
+                </button>
+              </view>
+            </view>
+          </wd-tab>
+
+          <wd-tab v-if="showLeaseTab" name="leases" :title="`租约记录 ${leasesTotal}`">
+            <view class="record-panel px-3.5 pb-0.5 pt-3">
+              <view class="record-filters mb-2.5 flex items-center gap-1.5">
+                <button v-for="filter in leaseFilters" :key="filter.value" class="record-filter m-0 min-h-9 border-0 rounded-2 px-3 py-2 text-size-2xs leading-5.5" :class="{ 'record-filter--active': leaseFilter === filter.value }" @click="leaseFilter = filter.value; recordsExpanded = false">
+                  {{ filter.label }} {{ filter.value === 'all' ? leases.length : leases.filter(item => item.status === filter.value).length }}
+                </button><button class="record-search-toggle mb-0 ml-auto mr-0 mt-0 h-9 w-9 flex items-center justify-center rounded-2 p-0 text-size-base" aria-label="搜索租约记录" @click="toggleRecordSearch">
+                  <text class="i-carbon-search" />
+                </button>
+              </view>
+              <input v-if="recordSearchVisible" v-model="recordKeyword" class="record-search mb-2.5 box-border h-9.5 rounded-2 px-2.5 py-0 text-size-xs" placeholder="搜索姓名或手机号">
+              <view class="record-caption flex justify-between gap-2 text-size-2xs">
+                <text>最近 {{ leases.length }} 条租约记录</text><text>租期 · 租金 · 合同状态</text>
+              </view>
+              <view v-if="leasesLoading" class="section-state min-h-30 flex items-center justify-center gap-2 text-size-xs">
+                正在加载租约记录…
+              </view>
+              <view v-else-if="leasesError" class="record-empty min-h-30 flex items-center justify-center gap-2 text-size-xs">
+                <text>{{ leasesError }}</text>
+                <button class="text-button m-0 min-h-9 inline-flex items-center justify-center gap-1 whitespace-nowrap border-0 px-0.5 py-0 text-size-xs font-semibold leading-normal" @click="loadLeases">
+                  重新加载
+                </button>
+              </view>
+              <view v-else-if="!filteredLeases.length" class="record-empty min-h-30 flex items-center justify-center gap-2 text-size-xs">
+                暂无租约记录
+              </view>
+              <template v-else>
+                <view v-for="lease in visibleLeases" :key="lease.id" class="record-row px-0 pb-0 pt-3">
+                  <view class="record-row__head flex items-center gap-2.5">
+                    <view class="avatar avatar--lease h-8.5 w-8.5 flex items-center justify-center rounded-2.5 text-size-xs font-semibold">
+                      {{ lease.tenant.name.slice(0, 1) || '租' }}
+                    </view>
+                    <view class="record-row__person min-w-0">
+                      <text class="detail-value">{{ lease.tenant.name }}</text>
+                      <text>{{ formatPhoneDisplay(lease.tenant.phone) }}</text>
+                    </view>
+                    <AppStatusTag :text="lease.status__mapping" :tone="getOrganizationLeaseStatusTone(lease.status)" />
+                  </view>
+                  <view class="lease-amount mx-0 mb-2 mt-2.5 flex gap-1">
+                    <text class="detail-value">{{ formatOrganizationMoney(lease.monthly_rent) }}</text><text>/月</text>
+                    <text class="lease-deposit">押金 {{ formatOrganizationMoney(lease.deposit) }}</text>
+                  </view>
+                  <view class="record-row__date mx-0 my-2 flex items-center gap-1.5 rounded-1.5 px-2.5 py-2 text-size-2xs">
+                    <text class="i-carbon-calendar" />
+                    <text>{{ lease.start_date }} 至 {{ lease.end_date }}</text>
+                  </view>
+                  <view class="record-row__foot min-h-11 flex items-center justify-between gap-2">
+                    <text>{{ lease.contract_files.length ? `${lease.contract_files.length} 份合同文件` : '未上传合同文件' }}</text>
+                    <button class="text-button m-0 min-h-9 inline-flex items-center justify-center gap-1 whitespace-nowrap border-0 px-0.5 py-0 text-size-xs font-semibold leading-normal" @click="openLease(lease)">
+                      查看租约 <text class="i-carbon-chevron-right" />
+                    </button>
+                  </view>
+                </view>
+              </template>
+              <view v-if="leases.length" class="records-footer flex items-center justify-between gap-2 pt-2">
+                <button v-if="filteredLeases.length > 3" class="text-button m-0 min-h-9 inline-flex items-center justify-center gap-1 whitespace-nowrap border-0 px-0.5 py-0 text-size-xs font-semibold leading-normal" @click="recordsExpanded = !recordsExpanded">
+                  {{ recordsExpanded ? '收起记录' : `展开其余 ${filteredLeases.length - 3} 条` }}<text :class="recordsExpanded ? 'i-carbon-chevron-up' : 'i-carbon-chevron-down'" />
+                </button><button class="text-button m-0 min-h-9 inline-flex items-center justify-center gap-1 whitespace-nowrap border-0 px-0.5 py-0 text-size-xs font-semibold leading-normal" @click="openAllLeases">
+                  全部租约 <text class="i-carbon-chevron-right" />
+                </button>
+              </view>
+            </view>
+          </wd-tab>
+        </wd-tabs>
       </view>
 
       <HouseInsightCard v-if="!aiAccessDenied" :insight="aiInsight" :loading="aiLoading" :generating="aiGenerating" :error="aiError" can-generate @generate="generateAIInsight" @retry="loadAIInsight" />
@@ -469,195 +666,6 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
         :latitude="house.building.location?.latitude"
         :longitude="house.building.location?.longitude"
       />
-      <view class="section-eyebrow">
-        <text>内部管理</text>
-      </view>
-
-      <view id="house-internal" class="section internal-card">
-        <view class="section-heading">
-          <view>
-            <view class="section-title">
-              内部资料
-            </view>
-          </view>
-          <view class="private-badge">
-            <text class="i-carbon-locked" />
-            仅内部可见
-          </view>
-        </view>
-        <view class="data-list">
-          <view class="data-row">
-            <text>所属组织</text><text class="detail-value">{{ appContextStore.currentOrganization?.name || '当前组织' }}</text>
-          </view>
-          <view class="data-row">
-            <text>归属房东</text><text class="detail-value">{{ house.landlord ? `${house.landlord.name} · ${house.landlord.phone}` : '未关联房东' }}</text>
-          </view>
-          <view class="data-row">
-            <text>所属楼栋</text><text class="detail-value">{{ house.building.name }}</text>
-          </view>
-          <view class="data-row">
-            <text>房源编号</text><text class="detail-value">#{{ house.id }}</text>
-          </view>
-          <view class="data-row">
-            <text>资料更新</text><text class="detail-value">{{ formatOrganizationDateTime(house.updated_at) }}</text>
-          </view>
-        </view>
-        <view class="notes-box">
-          <view class="notes-box__label">
-            内部备注
-          </view>
-          <view :class="{ 'notes-box__empty': !house.internal_notes }">
-            {{ house.internal_notes || '尚未填写内部备注' }}
-          </view>
-        </view>
-        <view v-if="extraEntries.length" class="extra-fields">
-          <button class="extra-toggle" :aria-expanded="extraExpanded" @click="extraExpanded = !extraExpanded">
-            <text>内部扩展字段</text><text class="detail-meta">{{ extraEntries.length }} 项</text><text :class="extraExpanded ? 'i-carbon-chevron-up' : 'i-carbon-chevron-down'" />
-          </button>
-          <template v-if="extraExpanded">
-            <view v-for="entry in extraEntries" :key="entry[0]" class="data-row">
-              <text>{{ entry[0] }}</text><text class="detail-value">{{ formatExtraValue(entry[1]) }}</text>
-            </view>
-          </template>
-        </view>
-      </view>
-
-      <view v-if="showBusinessRecords" id="house-records" class="section records-card">
-        <view class="section-heading records-heading">
-          <view>
-            <view class="section-title">
-              业务记录
-            </view>
-          </view>
-          <view class="private-badge">
-            <text class="i-carbon-locked" />
-            内部
-          </view>
-        </view>
-        <wd-tabs v-model="recordTab" color="#006bcc" inactive-color="#526177" line-theme="text" :line-height="3" @change="resetRecordSearch">
-          <wd-tab v-if="showViewingTab" name="viewings" :title="`带看记录 ${viewingsTotal}`">
-            <view class="record-panel">
-              <view class="record-filters">
-                <button v-for="filter in viewingFilters" :key="filter.value" class="record-filter" :class="{ 'record-filter--active': viewingFilter === filter.value }" @click="viewingFilter = filter.value; recordsExpanded = false">
-                  {{ filter.label }} {{ filter.value === 'all' ? viewings.length : viewings.filter(item => item.status === filter.value).length }}
-                </button><button class="record-search-toggle" aria-label="搜索带看记录" @click="toggleRecordSearch">
-                  <text class="i-carbon-search" />
-                </button>
-              </view>
-              <input v-if="recordSearchVisible" v-model="recordKeyword" class="record-search" placeholder="搜索姓名或手机号">
-              <view class="record-caption">
-                <text>最近 {{ viewings.length }} 条带看记录</text><text>姓名 · 时间 · 业务状态</text>
-              </view>
-              <view v-if="viewingsLoading" class="section-state">
-                正在加载带看记录…
-              </view>
-              <view v-else-if="viewingsError" class="record-empty">
-                <text>{{ viewingsError }}</text>
-                <button class="text-button" @click="loadViewings">
-                  重新加载
-                </button>
-              </view>
-              <view v-else-if="!filteredViewings.length" class="record-empty">
-                暂无带看记录
-              </view>
-              <template v-else>
-                <view v-for="record in visibleViewings" :key="record.id" class="record-row">
-                  <view class="record-row__head">
-                    <view class="avatar">
-                      {{ record.customer_name.slice(0, 1) || '客' }}
-                    </view>
-                    <view class="record-row__person">
-                      <text class="detail-value">{{ record.customer_name }}</text>
-                      <text>{{ record.customer_phone }}</text>
-                    </view>
-                    <AppStatusTag :text="record.status__mapping" :tone="getOrganizationViewingStatusTone(record.status)" />
-                  </view>
-                  <view class="record-row__date">
-                    <text class="i-carbon-calendar" />
-                    <text>{{ formatOrganizationDateTime(record.scheduled_at) }}</text>
-                  </view>
-                  <view class="record-row__foot">
-                    <text>{{ record.contact ? `已关联租客：${record.contact.name}` : '尚未关联租客联系人' }}</text>
-                    <button class="text-button" @click="openViewing(record)">
-                      {{ viewingActionLabel(record) }} <text class="i-carbon-chevron-right" />
-                    </button>
-                  </view>
-                </view>
-              </template>
-              <view v-if="viewings.length" class="records-footer">
-                <button v-if="filteredViewings.length > 3" class="text-button" @click="recordsExpanded = !recordsExpanded">
-                  {{ recordsExpanded ? '收起记录' : `展开其余 ${filteredViewings.length - 3} 条` }}<text :class="recordsExpanded ? 'i-carbon-chevron-up' : 'i-carbon-chevron-down'" />
-                </button><button class="text-button" @click="openAllViewings">
-                  全部带看 <text class="i-carbon-chevron-right" />
-                </button>
-              </view>
-            </view>
-          </wd-tab>
-
-          <wd-tab v-if="showLeaseTab" name="leases" :title="`租约记录 ${leasesTotal}`">
-            <view class="record-panel">
-              <view class="record-filters">
-                <button v-for="filter in leaseFilters" :key="filter.value" class="record-filter" :class="{ 'record-filter--active': leaseFilter === filter.value }" @click="leaseFilter = filter.value; recordsExpanded = false">
-                  {{ filter.label }} {{ filter.value === 'all' ? leases.length : leases.filter(item => item.status === filter.value).length }}
-                </button><button class="record-search-toggle" aria-label="搜索租约记录" @click="toggleRecordSearch">
-                  <text class="i-carbon-search" />
-                </button>
-              </view>
-              <input v-if="recordSearchVisible" v-model="recordKeyword" class="record-search" placeholder="搜索姓名或手机号">
-              <view class="record-caption">
-                <text>最近 {{ leases.length }} 条租约记录</text><text>租期 · 租金 · 合同状态</text>
-              </view>
-              <view v-if="leasesLoading" class="section-state">
-                正在加载租约记录…
-              </view>
-              <view v-else-if="leasesError" class="record-empty">
-                <text>{{ leasesError }}</text>
-                <button class="text-button" @click="loadLeases">
-                  重新加载
-                </button>
-              </view>
-              <view v-else-if="!filteredLeases.length" class="record-empty">
-                暂无租约记录
-              </view>
-              <template v-else>
-                <view v-for="lease in visibleLeases" :key="lease.id" class="record-row">
-                  <view class="record-row__head">
-                    <view class="avatar avatar--lease">
-                      {{ lease.tenant.name.slice(0, 1) || '租' }}
-                    </view>
-                    <view class="record-row__person">
-                      <text class="detail-value">{{ lease.tenant.name }}</text>
-                      <text>{{ lease.tenant.phone }}</text>
-                    </view>
-                    <AppStatusTag :text="lease.status__mapping" :tone="getOrganizationLeaseStatusTone(lease.status)" />
-                  </view>
-                  <view class="lease-amount">
-                    <text class="detail-value">{{ formatOrganizationMoney(lease.monthly_rent) }}</text><text>/月</text>
-                    <text class="lease-deposit">押金 {{ formatOrganizationMoney(lease.deposit) }}</text>
-                  </view>
-                  <view class="record-row__date">
-                    <text class="i-carbon-calendar" />
-                    <text>{{ lease.start_date }} 至 {{ lease.end_date }}</text>
-                  </view>
-                  <view class="record-row__foot">
-                    <text>{{ lease.contract_files.length ? `${lease.contract_files.length} 份合同文件` : '未上传合同文件' }}</text>
-                    <button class="text-button" @click="openLease(lease)">
-                      查看租约 <text class="i-carbon-chevron-right" />
-                    </button>
-                  </view>
-                </view>
-              </template>
-              <view v-if="leases.length" class="records-footer">
-                <button v-if="filteredLeases.length > 3" class="text-button" @click="recordsExpanded = !recordsExpanded">
-                  {{ recordsExpanded ? '收起记录' : `展开其余 ${filteredLeases.length - 3} 条` }}<text :class="recordsExpanded ? 'i-carbon-chevron-up' : 'i-carbon-chevron-down'" />
-                </button><button class="text-button" @click="openAllLeases">
-                  全部租约 <text class="i-carbon-chevron-right" />
-                </button>
-              </view>
-            </view>
-          </wd-tab>
-        </wd-tabs>
-      </view>
 
       <view class="detail-page-end">
         房源编号 #{{ house.id }} · 资料更新于 {{ formatOrganizationDateTime(house.updated_at) }}<view>当前房源内容已展示完毕</view>
@@ -685,24 +693,24 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
     <template #overlay>
       <template v-if="house">
         <AppBottomSheet v-model:visible="moreVisible" :z-index="1200" title="房源管理" :description="title" height="tall" show-handle custom-style="--wot-popup-radius:22px;--wot-popup-close-margin:24px;--wot-popup-close-size:20px">
-          <view class="management-menu">
-            <button v-if="showViewingTab" class="management-menu__tile" @click="createViewing">
+          <view class="management-menu grid grid-cols-3 gap-2">
+            <button v-if="showViewingTab" class="management-menu__tile m-0 box-border min-h-21 flex flex-col items-center justify-center gap-1.5 rounded-2.5 px-1.5 py-3 text-size-xs leading-4.5" @click="createViewing">
               <text class="i-carbon-calendar text-xl text-app-brand" />
               <text>登记带看</text>
             </button>
-            <button v-if="canCreateLease" class="management-menu__tile" @click="createLease">
+            <button v-if="canCreateLease && house.is_active" class="management-menu__tile m-0 box-border min-h-21 flex flex-col items-center justify-center gap-1.5 rounded-2.5 px-1.5 py-3 text-size-xs leading-4.5" @click="createLease">
               <text class="i-carbon-document-add text-xl text-app-brand" />
               <text>新建租约</text>
             </button>
-            <button class="management-menu__tile" @click="editHouse">
+            <button class="management-menu__tile m-0 box-border min-h-21 flex flex-col items-center justify-center gap-1.5 rounded-2.5 px-1.5 py-3 text-size-xs leading-4.5" @click="editHouse">
               <text class="i-carbon-edit text-xl text-app-brand" />
               <text>编辑资料</text>
             </button>
           </view>
-          <view class="management-menu__label">
+          <view class="management-menu__label mx-0 mb-2 mt-4.5 text-size-2xs">
             房态与发布
           </view>
-          <view class="management-menu__list">
+          <view class="management-menu__list overflow-hidden rounded-3">
             <AppActionSheetRow title="修改房态" :description="`当前：${house.status__mapping}`" @click="openStatusPicker">
               <template #icon>
                 <text class="i-carbon-home" />
@@ -719,12 +727,12 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
               </template>
             </AppActionSheetRow>
           </view>
-          <template v-if="house.status === HouseStatus.listed">
-            <view class="management-menu__label">
+          <template v-if="house.is_active && house.status === HouseStatus.listed">
+            <view class="management-menu__label mx-0 mb-2 mt-4.5 text-size-2xs">
               分享与收藏
             </view>
-            <view class="management-menu__list">
-              <button class="management-share" open-type="share" @click="shareHouse">
+            <view class="management-menu__list overflow-hidden rounded-3">
+              <button class="management-share m-0 min-h-14.5 w-full flex items-center gap-2.5 rounded-0 p-3 text-left text-size-lg leading-5" open-type="share" @click="shareHouse">
                 <text class="i-carbon-share" /><view><text>分享公开房源</text><text>分享页仅包含租客可见内容</text></view><text class="i-carbon-chevron-right" />
               </button>
               <AppActionSheetRow :title="favorited ? '取消收藏' : '收藏房源'" :disabled="favoriteLoading" @click="toggleFavorite">
@@ -734,14 +742,19 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
               </AppActionSheetRow>
             </view>
           </template>
-          <template v-if="lifecycleActions.includes('disable')">
-            <view class="management-menu__label">
+          <template v-if="lifecycleActions.includes('disable') || lifecycleActions.includes('enable')">
+            <view class="management-menu__label mx-0 mb-2 mt-4.5 text-size-2xs">
               其他操作
             </view>
-            <view class="management-menu__list">
-              <AppActionSheetRow title="停用房源" description="停止新业务，保留历史记录" danger @click="updateStatus('disable')">
+            <view class="management-menu__list overflow-hidden rounded-3">
+              <AppActionSheetRow v-if="lifecycleActions.includes('disable')" title="停用房源" description="停止新业务，保留历史记录" danger @click="updateStatus('disable')">
                 <template #icon>
                   <text class="i-carbon-stop-outline" />
+                </template>
+              </AppActionSheetRow>
+              <AppActionSheetRow v-if="lifecycleActions.includes('enable')" title="恢复房源" description="恢复经营，不会自动发布招租" @click="updateStatus('enable')">
+                <template #icon>
+                  <text class="i-carbon-play-outline" />
                 </template>
               </AppActionSheetRow>
             </view>
@@ -752,12 +765,13 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
         </AppBottomSheet>
 
         <AppBottomSheet v-model:visible="statusVisible" :z-index="1200" title="修改房态" :description="`当前状态：${house.status__mapping}`" height="compact" show-handle custom-style="--wot-popup-radius:22px;--wot-popup-close-margin:24px;--wot-popup-close-size:20px">
-          <view class="management-menu__list">
+          <view class="management-menu__list overflow-hidden rounded-3">
             <AppActionSheetRow
               v-for="option in houseStatusOptions"
               :key="option.value"
               :title="option.label"
               :selected="option.value === house.status"
+              :disabled="submittingAction !== null || (!house.is_active && option.value === HouseStatus.listed)"
               @click="setHouseStatus(option.value)"
             />
           </view>
@@ -773,217 +787,117 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
 <style scoped lang="scss">
 @use '@/components/house/detail.scss';
 .detail-action-secondary--wide {
-  flex: 1;
-}
-.management-menu {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  @apply flex-1;
 }
 .management-menu__tile {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 83px;
-  margin: 0;
-  padding: 11px 5px;
   border: 1px solid #e8eef4;
-  border-radius: 10px;
   background: #f6f8fb;
   color: #526177;
-  font-size: 12px;
-  line-height: 18px;
 }
 .management-menu__tile::after,
 .management-share::after {
-  border: 0;
+  @apply border-0;
 }
 .management-menu__label {
-  margin: 17px 0 7px;
   color: #78869a;
-  font-size: 10px;
 }
 .management-menu__list {
-  overflow: hidden;
   border: 1px solid #e7ecf2;
-  border-radius: 12px;
 }
 .management-menu__list :deep(button) {
-  min-height: 57px;
-  padding: 12px;
-  line-height: 1.5;
+  @apply min-h-14.5 p-3 leading-normal;
 }
 .management-share {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 57px;
-  margin: 0;
-  padding: 12px;
-  border: 0;
+  @apply border-0;
   border-bottom: 1px solid #e7ecf2;
-  border-radius: 0;
-  background: #fff;
+  @apply bg-white;
   color: #58738f;
-  font-size: 19px;
-  text-align: left;
-  line-height: 19px;
 }
 .management-share > view {
-  flex: 1;
+  @apply flex-1;
   color: #182538;
-  font-size: 13px;
+  @apply text-size-xs;
 }
 .management-share > view > text {
-  display: block;
+  @apply block;
 }
 .management-share > view > text + text {
-  margin-top: 2px;
+  @apply mt-0.5;
   color: #78869a;
-  font-size: 10px;
+  @apply text-size-2xs;
 }
 .management-share > text:last-child {
   color: #91a0b1;
-  font-size: 15px;
+  @apply text-size-sm;
 }
 
 .section {
-  box-sizing: border-box;
-  margin: 10px 12px 0;
-  padding: 14px;
-  overflow: hidden;
+  @apply p-3.5;
   border: 1px solid #e7ecf2;
-  border-radius: 14px;
-  background: #fff;
+  @apply bg-white;
 }
 .section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 26px;
-  margin-bottom: 8px;
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 22px;
+  @apply mb-2;
 }
 .section-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 18px 13px 0;
   color: #8592a5;
-  font-size: 10px;
 }
 .section-eyebrow::before,
 .section-eyebrow::after {
   height: 1px;
-  flex: 1;
+  @apply flex-1;
   background: #dce4ee;
   content: '';
 }
 .private-badge {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 5px;
-  border-radius: 4px;
   color: #758398;
-  font-size: 9px;
-  line-height: 14px;
   background: #f2f4f7;
 }
 .data-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 10px 0;
   border-bottom: 1px solid #eef1f5;
-  font-size: 12px;
-  line-height: 20px;
 }
 .data-row > text:not(.detail-value) {
-  flex: none;
+  @apply flex-none;
   color: #78869a;
 }
 .data-row > .detail-value {
   color: #3d4d63;
-  font-weight: 500;
-  text-align: right;
+  @apply font-medium text-right;
   overflow-wrap: anywhere;
 }
 .notes-box {
-  margin-top: 14px;
   color: #526177;
-  font-size: 12px;
-  line-height: 21px;
 }
 .notes-box__label {
-  margin-bottom: 6px;
   color: #78869a;
-  font-size: 10px;
 }
 .notes-box > view:last-child {
-  padding: 9px 10px;
+  @apply py-2.5 px-2.5;
   border: 1px solid #e9edf3;
-  border-radius: 8px;
+  @apply rounded-2;
   background: #f8f9fb;
-  white-space: pre-wrap;
+  @apply whitespace-pre-wrap;
 }
 .notes-box__empty {
   color: #78869a;
 }
 .extra-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 48px;
-  margin: 0;
-  padding: 0;
-  border: 0;
   color: #182538;
-  font-size: 13px;
-  font-weight: 600;
-  background: transparent;
+  @apply bg-transparent;
 }
 .extra-toggle > text:nth-child(2) {
-  margin-left: auto;
+  @apply ml-auto;
 }
 .extra-toggle::after {
-  border: 0;
+  @apply border-0;
 }
 .inspection-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 10px 12px 0;
-  padding: 11px 12px;
   border: 1px solid #f0ddb8;
-  border-radius: 12px;
   color: #8a5a11;
   background: #fff8ec;
 }
 .inspection-card__icon {
-  flex: none;
-  margin-top: 2px;
-  font-size: 16px;
-}
-.inspection-card__title {
-  font-size: 12px;
-  font-weight: 600;
-}
-.inspection-card__copy {
-  margin-top: 3px;
-  font-size: 11px;
-  line-height: 18px;
+  @apply flex-none;
 }
 .records-card {
   --wot-tabs-nav-item-font-size: 13px;
@@ -991,30 +905,13 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
   --wot-tabs-nav-item-line-height: 20px;
   --wot-tabs-nav-line-bottom: 0px;
   --wot-tabs-nav-line-bg: #0081ff;
-  padding: 12px 0 0;
+  @apply pt-3 px-0 pb-0;
 }
 .records-heading {
-  padding: 0 14px;
-  margin: 0;
-}
-.record-panel {
-  padding: 12px 14px 2px;
-}
-.record-filters {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 9px;
+  @apply m-0;
 }
 .record-filter {
-  min-height: 36px;
-  margin: 0;
-  padding: 7px 11px;
-  border: 0;
-  border-radius: 7px;
   color: #526177;
-  font-size: 11px;
-  line-height: 22px;
   background: #e9edf3;
 }
 .record-filter--active {
@@ -1024,58 +921,25 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
 }
 .record-filter::after,
 .record-search-toggle::after {
-  border: 0;
+  @apply border-0;
 }
 .record-search-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  margin: 0 0 0 auto;
-  padding: 0;
   border: 1px solid #dee5ee;
-  border-radius: 8px;
   color: #526177;
-  font-size: 16px;
-  background: #fff;
+  @apply bg-white;
 }
 .record-search {
-  box-sizing: border-box;
-  height: 38px;
-  margin-bottom: 10px;
-  padding: 0 10px;
   border: 1px solid #dce4ed;
-  border-radius: 8px;
-  font-size: 12px;
 }
 .record-caption {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
   color: #78869a;
-  font-size: 10px;
 }
 .record-row {
-  padding: 12px 0 0;
   border-bottom: 1px solid #e7ecf2;
 }
-.record-row__head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
 .avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  flex: none;
-  border-radius: 10px;
+  @apply flex-none;
   color: #547797;
-  font-size: 12px;
-  font-weight: 600;
   background: #edf4fc;
 }
 .avatar--lease {
@@ -1083,101 +947,57 @@ onShareAppMessage(() => ({ title: title.value, path: getHouseDetailRoute(houseId
   background: #f6f0e8;
 }
 .record-row__person {
-  min-width: 0;
-  flex: 1;
+  @apply flex-1;
 }
 .record-row__person .detail-value {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
+  @apply block text-size-sm font-semibold;
 }
 .record-row__person > text:not(.detail-value) {
-  display: block;
+  @apply block;
   margin-top: 1px;
   color: #78869a;
-  font-size: 11px;
+  @apply text-size-2xs;
 }
 .record-row__date {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px 0;
-  padding: 7px 9px;
-  border-radius: 6px;
   color: #526177;
-  font-size: 11px;
   background: #f7f9fb;
 }
 .record-row__date > text:first-child {
   color: #78869a;
-  font-size: 14px;
+  @apply text-size-sm;
 }
 .record-row__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 44px;
   border-top: 1px solid #e7ecf2;
 }
 .record-row__foot > text {
   color: #78869a;
-  font-size: 10px;
+  @apply text-size-2xs;
 }
 .text-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-height: 36px;
-  margin: 0;
-  padding: 0 2px;
-  border: 0;
   color: #006bcc;
-  font-size: 12px;
-  font-weight: 550;
-  line-height: 1.5;
-  background: transparent;
-  white-space: nowrap;
+  @apply bg-transparent;
 }
 .text-button::after {
-  border: 0;
-}
-.records-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-top: 8px;
+  @apply border-0;
 }
 .records-footer > button:last-child {
-  margin-left: auto;
+  @apply ml-auto;
 }
 .section-state,
 .record-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 120px;
   color: #78869a;
-  font-size: 12px;
 }
 .lease-amount {
-  display: flex;
   align-items: baseline;
-  gap: 4px;
-  margin: 10px 0 8px;
 }
 .lease-amount .detail-value {
-  font-size: 20px;
-  font-weight: 650;
+  @apply text-size-xl font-bold;
 }
 .lease-amount > text:not(.detail-value) {
   color: #526177;
-  font-size: 11px;
+  @apply text-size-2xs;
 }
 .lease-amount .lease-deposit {
-  margin-left: auto;
+  @apply ml-auto;
 }
 </style>

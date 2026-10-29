@@ -1,5 +1,9 @@
 const CHINESE_NUMBERS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
 
+export function getHouseAuxiliaryLabels(house: { is_active?: boolean }): string[] {
+  return house.is_active === false ? ['已停用'] : []
+}
+
 function formatRoomCount(value: number): string {
   return CHINESE_NUMBERS[value] || String(value)
 }

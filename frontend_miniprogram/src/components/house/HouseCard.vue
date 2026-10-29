@@ -2,6 +2,7 @@
 import type { HouseCardModel, HouseCardSource } from '@/domain/house-card'
 import { computed } from 'vue'
 import { buildHouseCardModel } from '@/domain/house-card'
+import AppStatusTag from '@/components/app/AppStatusTag.vue'
 
 const props = withDefaults(defineProps<{
   house?: HouseCardSource
@@ -59,35 +60,35 @@ function handleClick() {
 
 <template>
   <view
-    class="house-card"
+    class="house-card relative box-border min-h-32 min-w-0 flex gap-2.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-2.5 shadow-app-card"
     :class="rootClass"
     :hover-class="disabled ? 'none' : 'house-card--pressed'"
     :hover-stay-time="80"
     :aria-disabled="disabled"
     @click="handleClick"
   >
-    <view class="house-card__media" :class="{ 'house-card__media--empty': !model.coverUrl }">
-      <image v-if="model.coverUrl" class="house-card__cover" :src="model.coverUrl" mode="aspectFill" lazy-load />
-      <view v-else class="house-card__cover house-card__cover--empty">
-        <view class="house-card__empty-symbol" aria-hidden="true">
-          <view class="house-card__empty-icon i-carbon-image" />
+    <view class="house-card__media relative h-26 w-26 shrink-0 grow-0 basis-26 overflow-hidden rounded-3 bg-surface-subtle" :class="{ 'house-card__media--empty': !model.coverUrl }">
+      <image v-if="model.coverUrl" class="house-card__cover h-full w-full" :src="model.coverUrl" mode="aspectFill" lazy-load />
+      <view v-else class="house-card__cover house-card__cover--empty h-full w-full">
+        <view class="house-card__empty-symbol h-9 w-9 flex flex-none items-center justify-center rounded-full bg-hex-ffffff/86" aria-hidden="true">
+          <view class="house-card__empty-icon i-carbon-image text-size-xl text-app-brand-active opacity-65" />
         </view>
         <text>暂无图片</text>
       </view>
-      <view v-if="model.coverUrl" class="house-card__cover-shade" />
+      <view v-if="model.coverUrl" class="house-card__cover-shade pointer-events-none absolute bottom-0 left-0 right-0 h-11" />
       <view
         v-if="model.showStatusDot"
-        class="house-card__status-dot"
+        class="house-card__status-dot absolute bottom-2 right-2 z-2 h-2 w-2 border-1.5 border-hex-ffffff/92 rounded-full border-solid bg-app-warning"
         :class="`house-card__status-dot--${model.statusTone}`"
         :aria-label="model.statusLabel"
       />
-      <view v-if="model.imageCount" class="house-card__media-count">
+      <view v-if="model.imageCount" class="house-card__media-count absolute bottom-1.5 left-1.5 h-5 flex items-center gap-1 border-hairline border-hex-ffffff/28 rounded-2.5 border-solid bg-hex-0c1b31/48 px-1.5 py-0 text-size-2xs text-hex-fff leading-5 backdrop-blur-4">
         <view class="i-carbon-image" />
         <text>{{ model.imageCount }}</text>
       </view>
       <button
         v-if="favoriteVisible && !selectable"
-        class="house-card__favorite"
+        class="house-card__favorite absolute right-1.5 top-1.5 m-0 h-7.5 w-7.5 flex items-center justify-center border-hairline border-hex-ffffff/56 rounded-full border-solid bg-hex-0c1b31/42 p-0 text-size-sm text-hex-fff leading-none backdrop-blur-6"
         :class="{ 'house-card__favorite--active': favorited, 'house-card__favorite--loading': favoriteLoading }"
         :disabled="favoriteLoading"
         :aria-label="favorited ? '取消收藏' : '收藏房源'"
@@ -97,7 +98,7 @@ function handleClick() {
       </button>
       <view
         v-if="selectable && !disabled"
-        class="house-card__selection"
+        class="house-card__selection absolute right-2 top-2 z-3 box-border h-6 w-6 flex items-center justify-center border-1.5 border-hex-ffffff/94 rounded-full border-solid bg-hex-14263f/26 text-size-sm text-hex-fff backdrop-blur-4"
         :class="{ 'house-card__selection--selected': selected }"
         :aria-label="selected ? '已选择' : '未选择'"
       >
@@ -105,38 +106,41 @@ function handleClick() {
       </view>
     </view>
 
-    <view class="house-card__body">
-      <view class="house-card__title">
+    <view class="house-card__body min-w-0 flex">
+      <view class="house-card__title line-clamp-1 overflow-hidden text-size-sm text-content-primary font-bold leading-snug">
         {{ variant === 'waterfall' ? model.heading || model.title : model.title }}
       </view>
-      <view v-if="variant === 'waterfall' && model.subtitle" class="house-card__subtitle">
+      <view v-if="model.auxiliaryLabels?.length" class="mt-1 flex flex-wrap gap-1">
+        <AppStatusTag v-for="label in model.auxiliaryLabels" :key="label" :text="label" tone="default" />
+      </view>
+      <view v-if="variant === 'waterfall' && model.subtitle" class="house-card__subtitle mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-content-secondary leading-normal">
         {{ model.subtitle }}
       </view>
-      <view v-if="model.location && variant !== 'compact'" class="house-card__location">
+      <view v-if="model.location && variant !== 'compact'" class="house-card__location mt-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-content-muted leading-normal">
         {{ model.location }}
       </view>
-      <view v-if="model.distanceText" class="house-card__distance">
+      <view v-if="model.distanceText" class="house-card__distance mt-1 flex items-center gap-1 text-size-2xs text-app-brand-active leading-snug">
         <view class="i-carbon-location-current" />
         <text>{{ model.distanceText }}</text>
       </view>
-      <view v-if="commuteMinutes != null" class="house-card__commute">
+      <view v-if="commuteMinutes != null" class="house-card__commute mt-1 flex items-center gap-1 text-size-2xs text-app-brand-active leading-snug">
         <view class="i-carbon-time" />
         <text>{{ commuteModeLabel || '通勤' }}约 {{ commuteMinutes }} 分钟</text>
       </view>
-      <view class="house-card__facts">
+      <view class="house-card__facts mt-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-content-secondary leading-normal">
         {{ model.facts }}
       </view>
-      <view class="house-card__price-area">
-        <view class="house-card__rent">
-          <text v-if="model.hasRent">¥</text><text class="house-card__amount">{{ model.rentAmountText }}</text><text v-if="model.hasRent">/月</text>
+      <view class="house-card__price-area mt-auto min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-1.5">
+        <view class="house-card__rent whitespace-nowrap text-size-2xs text-app-price font-medium">
+          <text v-if="model.hasRent">¥</text><text class="house-card__amount mx-0.5 my-0 text-size-base font-bold tracking-tight">{{ model.rentAmountText }}</text><text v-if="model.hasRent">/月</text>
         </view>
-        <view class="house-card__deposit">
+        <view class="house-card__deposit whitespace-nowrap text-size-2xs text-content-muted">
           押金 <text>{{ model.depositAmountText }}</text>
         </view>
       </view>
     </view>
 
-    <button v-if="actionText && !selectable" class="house-card__action" @click.stop="$emit('action')">
+    <button v-if="actionText && !selectable" class="house-card__action mx-0 mb-0 mt-auto h-6.5 min-w-11 flex-none self-end border-0 rounded-2 bg-surface-brand-soft px-2 py-0 text-size-2xs text-app-brand leading-6.5" @click.stop="$emit('action')">
       {{ actionText }}
     </button>
   </view>
@@ -144,17 +148,6 @@ function handleClick() {
 
 <style scoped lang="scss">
 .house-card {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  gap: 20rpx;
-  min-height: 252rpx;
-  padding: 20rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  box-sizing: border-box;
-  background: var(--app-bg-card);
-  box-shadow: var(--app-shadow-card);
   transform: translateZ(0);
   transition:
     transform var(--app-motion-duration-fast) var(--app-motion-ease-out),
@@ -163,410 +156,204 @@ function handleClick() {
 }
 
 .house-card--pressed {
-  opacity: 0.88;
+  @apply opacity-90;
   box-shadow: 0 2rpx 8rpx rgb(23 35 61 / 3%);
   transform: scale(0.988);
 }
 
 .house-card--selected {
-  border-color: var(--app-color-brand);
+  @apply border-app-brand;
   background: linear-gradient(135deg, var(--app-bg-brand-soft), var(--app-bg-card) 52%);
   box-shadow: 0 8rpx 24rpx rgb(0 129 255 / 10%);
 }
 
 .house-card--disabled {
-  opacity: 0.5;
-  box-shadow: none;
-}
-
-.house-card__media {
-  position: relative;
-  flex: 0 0 210rpx;
-  width: 210rpx;
-  height: 210rpx;
-  overflow: hidden;
-  border-radius: 22rpx;
-  background: var(--app-bg-subtle);
+  @apply opacity-50;
+  @apply shadow-none;
 }
 
 .house-card__cover {
-  width: 100%;
-  height: 100%;
-  background: var(--app-bg-subtle);
+  @apply bg-surface-subtle;
 }
 
 .house-card__cover--empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10rpx;
+  @apply flex;
+  @apply flex-col;
+  @apply items-center;
+  @apply justify-center;
+  @apply gap-1.5;
   background: linear-gradient(135deg, var(--app-bg-brand-soft), var(--app-bg-page));
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.4;
-}
-
-.house-card__empty-symbol {
-  display: flex;
-  width: 72rpx;
-  height: 72rpx;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 86%);
-}
-
-.house-card__empty-icon {
-  color: var(--app-color-brand-active);
-  font-size: 40rpx;
-  opacity: 0.65;
+  @apply text-content-secondary;
+  @apply text-size-2xs;
+  @apply leading-snug;
 }
 
 .house-card__cover-shade {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 88rpx;
   background: linear-gradient(180deg, transparent, rgb(12 27 49 / 46%));
-  pointer-events: none;
 }
 
 .house-card__status-dot {
-  position: absolute;
-  right: 15rpx;
-  bottom: 16rpx;
-  z-index: 2;
-  width: 15rpx;
-  height: 15rpx;
-  border: 3rpx solid rgb(255 255 255 / 92%);
-  border-radius: 50%;
   box-shadow: 0 2rpx 8rpx rgb(12 27 49 / 24%);
-  background: var(--app-color-warning);
 }
 
 .house-card__status-dot--primary {
-  background: var(--app-color-brand);
+  @apply bg-app-brand;
 }
 
 .house-card__status-dot--success {
-  background: var(--app-color-success);
+  @apply bg-app-success;
 }
 
 .house-card__status-dot--muted {
-  background: var(--app-text-muted);
-}
-
-.house-card__media-count {
-  position: absolute;
-  bottom: 12rpx;
-  left: 12rpx;
-  display: flex;
-  height: 38rpx;
-  align-items: center;
-  gap: 7rpx;
-  padding: 0 13rpx;
-  border: 1rpx solid rgb(255 255 255 / 28%);
-  border-radius: 19rpx;
-  color: #fff;
-  font-size: 19rpx;
-  line-height: 38rpx;
-  background: rgb(12 27 49 / 48%);
-  backdrop-filter: blur(8rpx);
-}
-
-.house-card__favorite {
-  position: absolute;
-  top: 12rpx;
-  right: 12rpx;
-  display: flex;
-  width: 58rpx;
-  height: 58rpx;
-  margin: 0;
-  padding: 0;
-  align-items: center;
-  justify-content: center;
-  border: 1rpx solid rgb(255 255 255 / 56%);
-  border-radius: 50%;
-  color: #fff;
-  font-size: 29rpx;
-  line-height: 1;
-  background: rgb(12 27 49 / 42%);
-  backdrop-filter: blur(12rpx);
+  @apply bg-content-muted;
 }
 
 .house-card__favorite::after {
-  border: 0;
+  @apply border-0;
 }
 
 .house-card__favorite--active {
-  color: #fff;
-  background: var(--app-color-brand);
+  @apply text-hex-fff;
+  @apply bg-app-brand;
 }
 
 .house-card__media--empty .house-card__favorite:not(.house-card__favorite--active) {
-  border-color: var(--app-border-card);
-  background: var(--app-bg-card);
-  color: var(--app-text-secondary);
+  @apply border-app-card;
+  @apply bg-surface-card;
+  @apply text-content-secondary;
 }
 
 .house-card__favorite--loading {
-  opacity: 0.6;
+  @apply opacity-60;
 }
 
 .house-card__selection {
-  position: absolute;
-  top: 14rpx;
-  right: 14rpx;
-  z-index: 3;
-  display: flex;
-  width: 46rpx;
-  height: 46rpx;
-  align-items: center;
-  justify-content: center;
-  border: 3rpx solid rgb(255 255 255 / 94%);
-  border-radius: 50%;
-  box-sizing: border-box;
-  color: #fff;
-  font-size: 27rpx;
-  background: rgb(20 38 63 / 26%);
   box-shadow: 0 3rpx 12rpx rgb(12 27 49 / 18%);
-  backdrop-filter: blur(8rpx);
 }
 
 .house-card__selection--selected {
-  border-color: var(--app-color-brand);
-  background: var(--app-color-brand);
+  @apply border-app-brand;
+  @apply bg-app-brand;
 }
 
 .house-card__body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-}
-
-.house-card__title {
-  display: -webkit-box;
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 29rpx;
-  font-weight: 700;
-  line-height: 1.42;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-}
-
-.house-card__location {
-  margin-top: 10rpx;
-  overflow: hidden;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.house-card__subtitle {
-  margin-top: 8rpx;
-  overflow: hidden;
-  color: var(--app-text-secondary);
-  font-size: 20rpx;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.house-card__distance {
-  display: flex;
-  align-items: center;
-  gap: 6rpx;
-  margin-top: 8rpx;
-  color: var(--app-color-brand-active);
-  font-size: 20rpx;
-  line-height: 1.4;
-}
-
-.house-card__commute {
-  display: flex;
-  align-items: center;
-  gap: 6rpx;
-  margin-top: 8rpx;
-  color: var(--app-color-brand-active);
-  font-size: 20rpx;
-  line-height: 1.4;
-}
-
-.house-card__facts {
-  margin-top: 10rpx;
-  overflow: hidden;
-  color: var(--app-text-secondary);
-  font-size: 21rpx;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.house-card__price-area {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 5rpx 14rpx;
-  margin-top: auto;
-  padding-top: 12rpx;
-}
-
-.house-card__rent {
-  color: var(--app-color-price);
-  font-size: 20rpx;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.house-card__amount {
-  margin: 0 2rpx;
-  font-size: 34rpx;
-  font-weight: 700;
-  letter-spacing: -1rpx;
-}
-
-.house-card__deposit {
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-  white-space: nowrap;
+  @apply flex-1;
+  @apply flex-col;
 }
 
 .house-card__deposit text {
-  color: var(--app-text-secondary);
-  font-weight: 600;
-}
-
-.house-card__action {
-  align-self: flex-end;
-  flex: 0 0 auto;
-  min-width: 88rpx;
-  height: 52rpx;
-  margin: auto 0 0;
-  padding: 0 16rpx;
-  border: 0;
-  border-radius: 16rpx;
-  color: var(--app-color-brand);
-  font-size: 21rpx;
-  line-height: 52rpx;
-  background: var(--app-bg-brand-soft);
+  @apply text-content-secondary;
+  @apply font-semibold;
 }
 
 .house-card__action::after {
-  border: 0;
+  @apply border-0;
 }
 
 .house-card--waterfall {
-  display: block;
-  min-height: 0;
-  padding: 0;
-  overflow: hidden;
+  @apply block;
+  @apply min-h-0;
+  @apply p-0;
+  @apply overflow-hidden;
 }
 
 .house-card--waterfall .house-card__media {
-  width: 100%;
-  height: 224rpx;
-  border-radius: 0;
+  @apply w-full;
+  @apply h-28;
+  @apply rounded-0;
 }
 
 .house-card--waterfall.house-card--image-tall .house-card__media {
-  height: 286rpx;
+  @apply h-36;
 }
 
 .house-card--waterfall .house-card__body {
-  padding: 18rpx 18rpx 20rpx;
+  @apply pt-2.5 px-2.5 pb-2.5;
 }
 
 .house-card--waterfall .house-card__title {
-  font-size: 27rpx;
-  line-height: 1.42;
-  -webkit-line-clamp: 2;
+  @apply text-size-sm;
+  @apply leading-snug;
+  @apply line-clamp-2;
 }
 
 .house-card--waterfall .house-card__location,
 .house-card--waterfall .house-card__facts {
-  margin-top: 9rpx;
-  font-size: 20rpx;
+  @apply mt-1;
+  @apply text-size-2xs;
 }
 
 .house-card--waterfall .house-card__price-area {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 4rpx;
-  margin-top: 14rpx;
-  padding-top: 0;
+  @apply items-start;
+  @apply flex-col;
+  @apply gap-0.5;
+  @apply mt-2;
+  @apply pt-0;
 }
 
 .house-card--waterfall .house-card__amount {
-  font-size: 32rpx;
+  @apply text-size-base;
 }
 
 .house-card--waterfall .house-card__media-count {
-  bottom: 13rpx;
+  @apply bottom-1.5;
 }
 
 .house-card--compact {
-  gap: 16rpx;
-  min-height: 176rpx;
-  padding: 16rpx;
-  border-radius: 24rpx;
-  box-shadow: none;
+  @apply gap-2;
+  @apply min-h-22;
+  @apply p-2;
+  @apply rounded-3;
+  @apply shadow-none;
 }
 
 .house-card--compact .house-card__media {
-  flex-basis: 152rpx;
-  width: 152rpx;
-  height: 142rpx;
-  border-radius: 18rpx;
+  @apply basis-19;
+  @apply w-19;
+  @apply h-18;
+  @apply rounded-2.5;
 }
 
 .house-card--compact .house-card__cover-shade,
 .house-card--compact .house-card__media-count {
-  display: none;
+  @apply hidden;
 }
 
 .house-card--compact .house-card__title {
-  font-size: 26rpx;
-  -webkit-line-clamp: 1;
+  @apply text-size-xs;
+  @apply line-clamp-1;
 }
 
 .house-card--compact .house-card__facts {
-  margin-top: 8rpx;
-  font-size: 20rpx;
+  @apply mt-1;
+  @apply text-size-2xs;
 }
 
 .house-card--compact .house-card__price-area {
-  gap: 4rpx 12rpx;
-  padding-top: 8rpx;
+  @apply gap-y-0.5 gap-x-1.5;
+  @apply pt-1;
 }
 
 .house-card--compact .house-card__amount {
-  font-size: 29rpx;
+  @apply text-size-sm;
 }
 
 .house-card--compact .house-card__rent,
 .house-card--compact .house-card__deposit {
-  font-size: 19rpx;
+  @apply text-size-2xs;
 }
 
 .house-card--compact .house-card__status-dot {
-  right: 11rpx;
-  bottom: 11rpx;
+  @apply right-1.5;
+  @apply bottom-1.5;
 }
 
 .house-card--compact .house-card__selection {
-  top: 10rpx;
-  right: 10rpx;
-  width: 42rpx;
-  height: 42rpx;
-  font-size: 24rpx;
+  @apply top-1.5;
+  @apply right-1.5;
+  @apply w-5.5;
+  @apply h-5.5;
+  @apply text-size-xs;
 }
 
 @media (prefers-reduced-motion: reduce) {

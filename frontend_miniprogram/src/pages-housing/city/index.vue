@@ -157,8 +157,8 @@ onLoad(() => {
 </script>
 
 <template>
-  <view class="city-selector-page">
-    <view class="city-search">
+  <view class="city-selector-page flex flex-col overflow-hidden bg-surface-card">
+    <view class="city-search flex-none bg-surface-card px-4 pb-2.5 pt-3">
       <wd-search
         v-model="keyword"
         custom-style="padding: 0; --wot-search-input-height: 76rpx; --wot-search-input-radius: 999rpx; --wot-search-bg: var(--app-bg-card); --wot-search-input-bg: var(--city-neutral-bg); --wot-search-cover-bg: var(--city-neutral-bg); --wot-search-block-margin-right: 0;"
@@ -169,42 +169,42 @@ onLoad(() => {
       />
     </view>
 
-    <view v-if="regionStore.loading" class="city-state">
+    <view v-if="regionStore.loading" class="city-state flex items-center justify-center gap-1.5 p-5 text-center text-content-muted">
       <AppLoading text="正在加载已开通城市…" />
     </view>
-    <view v-else-if="regionStore.error" class="city-state">
-      <view class="i-carbon-warning-alt city-state__icon" />
+    <view v-else-if="regionStore.error" class="city-state flex items-center justify-center gap-1.5 p-5 text-center text-content-muted">
+      <view class="i-carbon-warning-alt city-state__icon text-size-2xl text-app-brand" />
       <strong>城市列表加载失败</strong>
       <text>请检查网络后重新加载</text>
-      <button class="city-state__action" @click="loadCities(true)">
+      <button class="city-state__action mt-1 rounded-full bg-surface-brand-soft px-3.5 py-2 text-size-2xs text-app-brand-active" @click="loadCities(true)">
         重新加载
       </button>
     </view>
-    <view v-else class="city-index" :class="{ 'city-index--compact': !showIndexSidebar }">
+    <view v-else class="city-index min-h-0 flex-1" :class="{ 'city-index--compact': !showIndexSidebar }">
       <wd-index-bar sticky>
-        <view v-if="!keyword" class="city-overview">
-          <button class="located-city" :disabled="locating" @click="chooseLocatedCity">
-            <view class="located-city__content">
+        <view v-if="!keyword" class="city-overview pb-4 pl-4 pr-6.5 pt-2">
+          <button class="located-city min-h-9.5 w-full flex items-center justify-between gap-2.5 rounded-0 bg-surface-card p-0 text-left" :disabled="locating" @click="chooseLocatedCity">
+            <view class="located-city__content min-w-0 flex flex-1 items-center gap-0.5">
               <text>当前定位：</text>
-              <view class="located-city__value">
+              <view class="located-city__value min-w-0 flex items-center gap-1 text-size-xs text-content-muted">
                 <view class="i-carbon-location-filled" />
                 <strong>{{ locatedCityLabel }}</strong>
               </view>
             </view>
-            <view class="located-city__action" @click.stop="locateCurrentCity(true)">
+            <view class="located-city__action flex flex-none items-center gap-1 text-size-2xs text-app-brand-active font-medium" @click.stop="locateCurrentCity(true)">
               <view class="i-carbon-renew" :class="{ 'located-city__loading': locating }" />
               <text>{{ locatedSelection ? '重新定位' : '定位' }}</text>
             </view>
           </button>
 
-          <view class="popular-section">
-            <view class="popular-section__heading">
+          <view class="popular-section mt-3.5">
+            <view class="popular-section__heading mb-2 flex items-center justify-between">
               <strong>热门城市</strong>
               <button :class="{ active: !regionStore.selection.city }" @click="chooseNationwide">
                 全国房源
               </button>
             </view>
-            <view class="popular-grid" :class="{ 'popular-grid--compact': popularCities.length < 3 }">
+            <view class="popular-grid grid grid-cols-3 gap-2" :class="{ 'popular-grid--compact': popularCities.length < 3 }">
               <button
                 v-for="item in popularCities"
                 :key="`${item.province}-${item.city.city}`"
@@ -222,7 +222,7 @@ onLoad(() => {
           <button
             v-for="item in group.cities"
             :key="`${item.province}-${item.city.city}`"
-            class="city-list-item"
+            class="city-list-item min-h-11.5 flex items-center justify-between rounded-0 bg-surface-card px-4 py-0 text-left text-size-sm text-content-primary"
             :class="{ 'city-list-item--active': regionStore.selection.province === item.province && regionStore.selection.city === item.city.city }"
             @click="chooseCity(item)"
           >
@@ -231,8 +231,8 @@ onLoad(() => {
           </button>
         </view>
 
-        <view v-if="!filteredCityGroups.length" class="city-state city-state--inside">
-          <view class="i-carbon-search-locate city-state__icon" />
+        <view v-if="!filteredCityGroups.length" class="city-state city-state--inside flex items-center justify-center gap-1.5 p-5 text-center text-content-muted">
+          <view class="i-carbon-search-locate city-state__icon text-size-2xl text-app-brand" />
           <strong>{{ keyword ? '没有找到相关城市' : '暂无已开通城市' }}</strong>
           <text>{{ keyword ? '试试输入城市全称或省份名称' : '公开房源发布后会自动出现在这里' }}</text>
         </view>
@@ -245,20 +245,9 @@ onLoad(() => {
 .city-selector-page {
   --city-neutral-bg: #f5f6f8;
   --city-section-bg: #f6f7f9;
-
-  display: flex;
-  height: 100vh;
+  @apply h-screen;
   height: calc(100vh - var(--window-top));
   height: calc(100vh - var(--window-top) - env(safe-area-inset-bottom));
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--app-bg-card);
-}
-
-.city-search {
-  flex: 0 0 auto;
-  padding: 22rpx 32rpx 20rpx;
-  background: var(--app-bg-card);
 }
 
 .city-index {
@@ -274,137 +263,74 @@ onLoad(() => {
   --wot-index-anchor-padding: 10rpx 32rpx;
   --wot-index-anchor-font-size: 22rpx;
   --wot-index-anchor-color: var(--app-text-muted);
-  min-height: 0;
-  flex: 1;
-}
-
-.city-overview {
-  padding: 16rpx 52rpx 30rpx 32rpx;
 }
 
 .city-index--compact :deep(.wd-index-bar__sidebar) {
-  display: none;
+  @apply hidden;
 }
 
 .city-index--compact .city-overview {
-  padding-right: 32rpx;
+  @apply pr-4;
 }
 
 .located-city,
 .popular-section button,
 .city-list-item,
 .city-state__action {
-  margin: 0;
-  border: 0;
-  box-sizing: border-box;
-  line-height: 1.3;
+  @apply m-0;
+  @apply border-0;
+  @apply box-border;
+  @apply leading-tight;
 }
 
 .located-city::after,
 .popular-section button::after,
 .city-list-item::after,
 .city-state__action::after {
-  border: 0;
-}
-
-.located-city {
-  display: flex;
-  width: 100%;
-  min-height: 76rpx;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  padding: 0;
-  border-radius: 0;
-  text-align: left;
-  background: var(--app-bg-card);
+  @apply border-0;
 }
 
 .located-city[disabled] {
-  opacity: 0.7;
-}
-
-.located-city__content {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 2rpx;
+  @apply opacity-70;
 }
 
 .located-city__content > text {
-  flex: 0 0 auto;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  font-weight: 600;
-}
-
-.located-city__value {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8rpx;
-  color: var(--app-text-muted);
-  font-size: 26rpx;
+  @apply flex-none;
+  @apply text-content-primary;
+  @apply text-size-sm;
+  @apply font-semibold;
 }
 
 .located-city__value strong {
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.located-city__action {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6rpx;
-  color: var(--app-color-brand-active);
-  font-size: 22rpx;
-  font-weight: 500;
+  @apply overflow-hidden;
+  @apply text-content-primary;
+  @apply text-size-sm;
+  @apply font-semibold;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
 }
 
 .located-city__loading {
   animation: location-spin 900ms linear infinite;
 }
 
-.popular-section {
-  margin-top: 26rpx;
-}
-
-.popular-section__heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16rpx;
-}
-
 .popular-section__heading strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 
 .popular-section__heading button {
-  width: auto;
-  padding: 8rpx 0 8rpx 18rpx;
-  border-radius: 0;
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-  background: transparent;
+  @apply w-auto;
+  @apply pt-1 pr-0 pb-1 pl-2.5;
+  @apply rounded-0;
+  @apply text-content-muted;
+  @apply text-size-2xs;
+  @apply bg-transparent;
 }
 
 .popular-section__heading button.active {
-  color: var(--app-color-brand-active);
-  background: transparent;
-}
-
-.popular-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14rpx;
+  @apply text-app-brand-active;
+  @apply bg-transparent;
 }
 
 .popular-grid--compact {
@@ -412,96 +338,65 @@ onLoad(() => {
 }
 
 .popular-grid button {
-  display: flex;
-  height: 74rpx;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12rpx;
-  overflow: hidden;
-  border: 0;
-  border-radius: 12rpx;
-  color: var(--app-text-primary);
-  font-size: 24rpx;
-  background: var(--city-neutral-bg);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply flex;
+  @apply h-9.5;
+  @apply items-center;
+  @apply justify-center;
+  @apply py-0 px-1.5;
+  @apply overflow-hidden;
+  @apply border-0;
+  @apply rounded-1.5;
+  @apply text-content-primary;
+  @apply text-size-xs;
+  @apply bg-$city-neutral-bg;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
 }
 
 .popular-grid button.active {
-  color: var(--app-color-brand-active);
-  background: var(--city-neutral-bg);
+  @apply text-app-brand-active;
+  @apply bg-$city-neutral-bg;
 }
 
 .city-list-item {
-  display: flex;
   width: calc(100% - 52rpx);
-  min-height: 92rpx;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 32rpx;
-  border-radius: 0;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  text-align: left;
-  background: var(--app-bg-card);
 }
 
 .city-list-item + .city-list-item {
-  border-top: 1rpx solid var(--app-divider-color);
+  @apply border-t-hairline border-t-solid border-t-app-divider;
 }
 
 .city-list-item--active {
-  color: var(--app-color-brand-active);
-  font-weight: 600;
+  @apply text-app-brand-active;
+  @apply font-semibold;
 }
 
 .city-index--compact .city-list-item {
-  width: 100%;
+  @apply w-full;
 }
 
 .city-list-item--active view {
-  color: var(--app-color-brand);
-  font-size: 25rpx;
+  @apply text-app-brand;
+  @apply text-size-xs;
 }
 
 .city-state {
-  display: flex;
-  min-height: 420rpx;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  flex-direction: column;
-  gap: 12rpx;
-  padding: 40rpx;
-  color: var(--app-text-muted);
-  text-align: center;
+  @apply min-h-53;
+  @apply flex-1;
+  @apply flex-col;
 }
 
 .city-state--inside {
-  min-height: 360rpx;
-}
-
-.city-state__icon {
-  color: var(--app-color-brand);
-  font-size: 50rpx;
+  @apply min-h-45;
 }
 
 .city-state strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 
 .city-state text {
-  font-size: 22rpx;
-}
-
-.city-state__action {
-  margin-top: 8rpx;
-  padding: 14rpx 28rpx;
-  border-radius: 999rpx;
-  color: var(--app-color-brand-active);
-  font-size: 22rpx;
-  background: var(--app-bg-brand-soft);
+  @apply text-size-2xs;
 }
 
 @keyframes location-spin {

@@ -84,6 +84,14 @@ export function getRouteAccessDecision(url: string, workspace: RouteWorkspace): 
   const landlordContactId = query.landlord_contact_id
   const hasOrganization = 'organization_slug' in query || 'organization_id' in query
   const hasLandlord = 'landlord_contact_id' in query
+  const hasChatTenant = 'chat_tenant_slug' in query
+  if (path === APP_ROUTES.conversation && (!/^\d+$/.test(query.id || '') || Number(query.id) <= 0 || (!hasChatTenant && !hasOrganization)))
+    return { allowed: false, redirect: `${APP_ROUTES.forbidden}?reason=context` }
+  if (hasChatTenant) {
+    if (path !== APP_ROUTES.conversation || !query.chat_tenant_slug.trim() || hasOrganization || hasLandlord)
+      return { allowed: false, redirect: `${APP_ROUTES.forbidden}?reason=context` }
+    return { allowed: true, redirect: '' }
+  }
   if ((hasOrganization && (!organizationSlug || (query.organization_id && (!organization || organization.slug !== organizationSlug))))
     || (hasLandlord && (!/^\d+$/.test(landlordContactId) || Number(landlordContactId) <= 0))
     || (hasOrganization && hasLandlord)) {
@@ -122,6 +130,8 @@ export function getRouteAccessDecision(url: string, workspace: RouteWorkspace): 
 export function withRouteWorkspace(url: string, selection: AppModeSelection): string {
   const { path, query } = parseNavigationTarget(url)
   if (isPublicRoute(path) || shellRoutes.includes(path))
+    return url
+  if ('chat_tenant_slug' in query)
     return url
   const module = findModuleByRoute(path)
   if (!module || (!isProtectedMessageRoute(path) && module.modes.length !== 1))

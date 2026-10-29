@@ -13,8 +13,8 @@ function goHome() {
   <AppPage variant="plain" gutter="none">
     <template #navigation>
       <AppCustomNavigation title="页面状态" back scroll-mode="sticky" />
-    </template><view class="error-page">
-      <view class="error-heading">
+    </template><view class="error-page box-border bg-surface-page px-5 py-6 min-h-inherit">
+      <view class="error-heading mb-3.5 flex flex-col gap-1">
         <strong>没有找到这个页面</strong><text>页面可能已调整，或对应模块尚未开放。</text>
       </view><AppStateCard tone="info" icon="i-carbon-search-locate" title="页面不存在" description="请检查访问链接，或返回首页继续浏览。">
         <template #action>
@@ -27,25 +27,11 @@ function goHome() {
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.error-page {
-  min-height: inherit;
-  padding: 48rpx 40rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-page);
-}
-.error-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  margin-bottom: 28rpx;
-}
+<style scoped>
 .error-heading strong {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
+  @apply text-content-primary text-size-base;
 }
 .error-heading text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply text-content-muted text-size-2xs;
 }
 </style>

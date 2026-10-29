@@ -11,6 +11,7 @@ import AppRecordCard from '@/components/app/AppRecordCard.vue'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 import { usePagedPage } from '@/hooks/usePagedPage'
 import { useAppContextStore } from '@/store/app-context-v2'
+import { formatPhoneDisplay } from '@/domain/phone'
 
 definePage({ style: { navigationBarTitleText: '邀请管理', navigationStyle: 'custom', enablePullDownRefresh: true } })
 
@@ -49,7 +50,7 @@ async function submitInvite() {
     toast.warning(inviteType.value === 'user' ? '请选择站内用户' : inviteType.value === 'phone' ? '请输入手机号' : '请输入邮箱')
     return
   }
-  const confirmation = await uni.showModal({ title: '发送组织邀请', content: `邀请将发送到 ${target}，确定继续吗？`, confirmText: '确认发送' })
+  const confirmation = await uni.showModal({ title: '发送空间邀请', content: `邀请将发送到 ${target}，确定继续吗？`, confirmText: '确认发送' })
   if (!confirmation.confirm)
     return
   creating.value = true
@@ -148,7 +149,7 @@ async function cancelInvite(item: InviteOut) {
         :finished="invitePage.finished.value"
         :error="invitePage.error.value"
         loading-text="正在加载邀请…"
-        empty-text="当前组织还没有邀请记录"
+        empty-text="当前工作空间还没有邀请记录"
         empty-description="通过站内用户、手机号或邮箱发起邀请后，处理状态会显示在这里。"
         empty-icon="no-content"
         empty-action-text="发起邀请"
@@ -159,7 +160,7 @@ async function cancelInvite(item: InviteOut) {
         <template #item="{ item }">
           <AppRecordCard>
             <template #title>
-              {{ item.invitee_phone || item.invitee_email || (`用户 ${item.invitee}`) }}
+              {{ formatPhoneDisplay(item.invitee_phone) || item.invitee_email || (`用户 ${item.invitee}`) }}
             </template>
             <template #status>
               <wd-tag :type="item.is_expired ? 'danger' : 'success'" variant="light" size="small">
@@ -181,7 +182,7 @@ async function cancelInvite(item: InviteOut) {
         </template>
       </AppPagedList>
     </view>
-    <AppBottomSheet v-model:visible="createVisible" title="发起组织邀请" height="tall">
+    <AppBottomSheet v-model:visible="createVisible" title="发起空间邀请" height="tall">
       <view class="flex flex-col gap-2">
         <wd-segmented v-model:value="inviteType" :options="[{ label: '站内用户', value: 'user' }, { label: '手机号', value: 'phone' }, { label: '邮箱', value: 'email' }]" />
         <template v-if="inviteType === 'user'">

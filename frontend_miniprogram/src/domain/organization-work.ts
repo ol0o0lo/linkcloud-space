@@ -78,7 +78,7 @@ const priorityTones: Record<string, OrganizationWorkStatusTone> = {
 export function buildOrganizationWorkScope(organizationSlug: string, authRetry: 'safe' | 'never' = 'safe') {
   const normalizedSlug = organizationSlug.trim()
   if (!normalizedSlug)
-    throw new Error('未选择组织，请先切换到中介端')
+    throw new Error('未选择工作空间，请先切换到经纪人身份')
   return {
     requestScope: { kind: 'organization' as const, organizationSlug: normalizedSlug },
     authRetry,
@@ -95,7 +95,7 @@ export function buildTaskScopeOptions(canManage: boolean): Array<{ label: string
 export function buildOrganizationWorkManageScopeOptions(input: OrganizationWorkManageScopeInput): OrganizationWorkManageScopeOption[] {
   const options: OrganizationWorkManageScopeOption[] = []
   if (input.organizationManage)
-    options.push({ label: '全组织', value: 'organization', teamId: undefined })
+    options.push({ label: '整个工作空间', value: 'organization', teamId: undefined })
   const teamNames = new Map<number, string>()
   for (const team of input.teams || []) {
     if (!teamNames.has(team.id))

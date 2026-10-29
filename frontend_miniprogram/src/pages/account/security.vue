@@ -40,39 +40,39 @@ onShow(() => void loadOverview())
     <AppLoading v-if="loading && !overview" text="正在加载安全信息…" />
     <AppErrorView v-else-if="loadError && !overview" title="安全信息加载失败" :message="loadError" @retry="loadOverview" />
     <template v-else-if="overview">
-      <view class="security-hero">
-        <view class="security-hero__icon">
+      <view class="security-hero box-border min-h-28 flex items-center gap-3 rounded-5 bg-surface-card p-4">
+        <view class="security-hero__icon flex items-center justify-center">
           <view class="i-carbon-security" />
         </view>
         <view><strong>多因素验证</strong><text>为登录和敏感操作增加额外保护</text></view>
         <wd-tag :type="overview.totpEnabled ? 'success' : 'warning'" variant="light">
-          {{ overview.totpEnabled ? '已保护' : '待设置' }}
+          {{ overview.totpEnabled ? '动态验证码已启用' : '动态验证码未启用' }}
         </wd-tag>
       </view>
 
-      <view class="section-title">
+      <view class="section-title mx-0 mb-2.5 mt-6.5 text-size-base font-bold">
         验证方式
       </view>
-      <view class="security-list">
-        <view class="security-item">
-          <view class="security-item__icon security-item__icon--green">
+      <view class="security-list flex flex-col gap-3">
+        <view class="security-item box-border min-h-19 flex items-center gap-3 rounded-4 bg-surface-card p-3">
+          <view class="security-item__icon security-item__icon--green flex items-center justify-center">
             <view class="i-carbon-two-factor-authentication" />
           </view>
-          <view><strong>动态验证码（TOTP）</strong><text>{{ overview.totpEnabled ? '已启用，可在网页安全中心更新绑定' : '尚未启用，可在网页安全中心完成绑定' }}</text></view>
+          <view><strong>动态验证码（TOTP）</strong><text>{{ overview.totpEnabled ? '已启用，可在 PC 管理端的“账号安全”更新绑定' : '尚未启用，可在 PC 管理端的“账号安全”完成绑定' }}</text></view>
           <text class="security-item__arrow">›</text>
         </view>
-        <view class="security-item">
-          <view class="security-item__icon security-item__icon--orange">
+        <view class="security-item box-border min-h-19 flex items-center gap-3 rounded-4 bg-surface-card p-3">
+          <view class="security-item__icon security-item__icon--orange flex items-center justify-center">
             <view class="i-carbon-key" />
           </view>
           <view><strong>恢复码</strong><text>{{ overview.totpEnabled ? '用于无法获取动态验证码时恢复登录' : '启用动态验证码后生成恢复码' }}</text></view>
           <text class="security-item__arrow">›</text>
         </view>
-        <view class="security-item">
-          <view class="security-item__icon">
+        <view class="security-item box-border min-h-19 flex items-center gap-3 rounded-4 bg-surface-card p-3">
+          <view class="security-item__icon flex items-center justify-center">
             <view class="i-carbon-fingerprint-recognition" />
           </view>
-          <view><strong>通行密钥（Passkey）</strong><text>小程序暂不支持管理，网页端可用</text></view>
+          <view><strong>通行密钥（Passkey）</strong><text>请前往 PC 管理端的“账号安全”管理</text></view>
           <text class="security-item__arrow">›</text>
         </view>
       </view>
@@ -81,7 +81,7 @@ onShow(() => void loadOverview())
         class="security-notice"
         tone="warning"
         title="修改前需要重新验证"
-        description="修改验证方式前需要输入当前密码；安全网页端也可使用已绑定通行密钥。"
+        description="修改验证方式前需要重新验证身份，可使用当前密码或已绑定的通行密钥。"
         compact
       />
       <AppNotice
@@ -98,83 +98,35 @@ onShow(() => void loadOverview())
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.security-hero,
-.security-item {
-  display: flex;
-  align-items: center;
-  gap: 24rpx;
-  background: var(--app-bg-card);
-}
-.security-hero {
-  min-height: 224rpx;
-  padding: 32rpx;
-  border-radius: 40rpx;
-  box-sizing: border-box;
-}
+<style scoped>
 .security-hero__icon,
 .security-item__icon {
-  display: flex;
-  width: 128rpx;
-  height: 128rpx;
-  flex: 0 0 128rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 32rpx;
+  @apply w-16 h-16 flex-none basis-16 rounded-4;
   color: #176fdb;
-  font-size: 52rpx;
+  @apply text-size-2xl;
   background: #eaf3ff;
   box-shadow: inset 0 0 0 1rpx rgba(23, 111, 219, 0.08);
 }
 .security-hero > view:nth-child(2),
 .security-item > view:nth-child(2) {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 10rpx;
+  @apply flex min-w-0 flex-1 flex-col gap-1.5;
 }
 .security-hero strong,
 .security-item strong {
-  color: var(--app-text-primary);
-  font-size: 29rpx;
+  @apply text-content-primary text-size-sm;
 }
 .security-hero text,
 .security-item text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-  line-height: 1.5;
-}
-.section-title {
-  margin: 52rpx 0 20rpx;
-  font-size: 34rpx;
-  font-weight: 700;
-}
-.security-list {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-.security-item {
-  min-height: 148rpx;
-  padding: 24rpx;
-  border-radius: 32rpx;
-  box-sizing: border-box;
+  @apply text-content-muted text-size-2xs leading-normal;
 }
 .security-item__icon {
-  width: 88rpx;
-  height: 88rpx;
-  flex-basis: 88rpx;
-  border-radius: 24rpx;
-  font-size: 40rpx;
+  @apply w-11 h-11 basis-11 rounded-3 text-size-xl;
 }
 .security-hero__icon > view {
-  width: 52rpx;
-  height: 52rpx;
+  @apply w-6.5 h-6.5;
 }
 .security-item__icon > view {
-  width: 40rpx;
-  height: 40rpx;
+  @apply w-5 h-5;
 }
 .security-item__icon--green {
   color: #0b9a6e;
@@ -187,13 +139,13 @@ onShow(() => void loadOverview())
   box-shadow: inset 0 0 0 1rpx rgba(215, 118, 0, 0.1);
 }
 .security-item__arrow {
-  color: var(--app-color-brand) !important;
-  font-size: 36rpx !important;
+  @apply text-app-brand !important;
+  @apply text-size-lg !important;
 }
 .security-notice {
-  margin-top: 48rpx;
+  @apply mt-6;
 }
 .security-refresh-notice {
-  margin-top: 28rpx;
+  @apply mt-3.5;
 }
 </style>

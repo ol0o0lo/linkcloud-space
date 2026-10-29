@@ -3,6 +3,7 @@ import type { PublicHouseDetailOut, PublicHouseMatchShare } from '@/features/hou
 import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import { formatHouseLayout } from '@/domain/house'
+import { getHouseDisplayMedia } from '@/domain/house-media'
 import { getHouseMatchErrorCopy, resolveHouseMatchError } from '@/domain/house-match'
 import type { HouseMatchErrorKind } from '@/domain/house-match'
 import { getHouseMatchDetailRoute } from '@/modules/routes'
@@ -24,6 +25,7 @@ const shareKey = ref('')
 const houseId = ref(0)
 const share = ref<PublicHouseMatchShare | null>(null)
 const house = ref<PublicHouseDetailOut | null>(null)
+const displayImages = computed(() => house.value ? getHouseDisplayMedia(house.value, 'image').map((item, index) => ({ id: String(item.media_id || item.id || index), url: String(item.url || item.thumbnail || '') })) : [])
 const loading = ref(true)
 const errorKind = ref<HouseMatchErrorKind | null>(null)
 
@@ -85,15 +87,9 @@ onShareAppMessage(() => ({
 <template>
   <AppPage variant="detail" gutter="none">
     <template #navigation>
-      <AppCustomNavigation title="推荐房源详情" back scroll-mode="sticky">
-        <template #action>
-          <button class="navigation-action" open-type="share">
-            分享
-          </button>
-        </template>
-      </AppCustomNavigation>
+      <AppCustomNavigation title="推荐房源详情" back scroll-mode="sticky" />
     </template>
-    <view class="detail-page">
+    <view class="detail-page bg-surface-page pb-7.5 min-h-inherit">
       <AppLoading v-if="loading" text="正在加载推荐房源…" />
       <AppErrorView
         v-else-if="errorCopy"
@@ -103,58 +99,65 @@ onShareAppMessage(() => ({
         @retry="loadDetail"
       />
       <template v-else-if="house">
-        <swiper v-if="house.images.length" class="gallery" indicator-dots circular>
-          <swiper-item v-for="image in house.images" :key="image.media_id">
-            <image class="gallery__image" :src="image.url || image.thumbnail || ''" mode="aspectFill" />
+        <swiper v-if="displayImages.length" class="gallery" indicator-dots circular>
+          <swiper-item v-for="image in displayImages" :key="image.id">
+            <image class="gallery__image h-full w-full" :src="image.url" mode="aspectFill" />
           </swiper-item>
         </swiper>
         <view v-else class="gallery gallery--empty">
           暂无房源图片
         </view>
 
-        <view class="section hero-card">
-          <view class="price-row">
-            <view class="price">
-              <text class="price__amount">{{ house.asking_rent || '面议' }}</text><text v-if="house.asking_rent"> 元/月</text>
+        <view class="section hero-card relative z-1 rounded-3 bg-surface-card p-3.5">
+          <view class="price-row flex flex-wrap items-center justify-between gap-2">
+            <view class="price text-size-xs text-app-price">
+              <text class="price__amount text-size-xl font-bold">{{ house.asking_rent || '面议' }}</text><text v-if="house.asking_rent"> 元/月</text>
             </view>
-            <wd-tag v-if="house.has_elevator_access" type="success" variant="light">
-              有电梯
-            </wd-tag>
+            <view class="flex shrink-0 items-center gap-2">
+              <wd-tag v-if="house.has_elevator_access" type="success" variant="light">
+                有电梯
+              </wd-tag>
+              <!-- #ifdef MP-WEIXIN -->
+              <wd-button size="small" variant="soft" open-type="share">
+                分享房源
+              </wd-button>
+              <!-- #endif -->
+            </view>
           </view>
-          <view class="title">
+          <view class="title mt-2 text-size-lg text-content-primary font-bold">
             {{ title }}
           </view>
-          <view class="location">
+          <view class="location text-size-xs text-content-secondary">
             {{ location }}
           </view>
-          <view class="facts">
+          <view class="facts grid grid-cols-3 mt-4 rounded-2.5 bg-surface-subtle px-1.5 py-2.5 text-center">
             <view><strong>{{ formatHouseLayout(house.bedrooms, house.living_rooms) }}</strong></view>
             <view><strong>{{ house.interior_area || house.area || '--' }}㎡</strong></view>
             <view><strong>{{ house.floor ?? '--' }} 层</strong></view>
           </view>
         </view>
 
-        <view v-if="share?.remark" class="recommendation-note">
-          <view class="recommendation-note__bar" />
+        <view v-if="share?.remark" class="recommendation-note mx-3 mb-0 mt-2.5 flex gap-3 border-hairline border-app-border-brand-soft rounded-3.5 border-solid bg-surface-brand-soft px-3.5 py-3.5">
+          <view class="recommendation-note__bar w-1 shrink-0 grow-0 basis-1 rounded-full bg-app-brand" />
           <view><strong>推荐说明</strong><text>{{ share.remark }}</text></view>
         </view>
 
-        <view v-if="house.effective_tags.length" class="section">
-          <view class="section-title">
+        <view v-if="house.effective_tags.length" class="section rounded-3 bg-surface-card p-3.5">
+          <view class="section-title mb-3 text-size-sm text-content-primary font-bold">
             房源亮点
           </view>
-          <view class="tags">
+          <view class="tags flex flex-wrap gap-2">
             <wd-tag v-for="tag in house.effective_tags" :key="tag" variant="light" type="primary">
               {{ tag }}
             </wd-tag>
           </view>
         </view>
 
-        <view class="section">
-          <view class="section-title">
+        <view class="section rounded-3 bg-surface-card p-3.5">
+          <view class="section-title mb-3 text-size-sm text-content-primary font-bold">
             房源信息
           </view>
-          <view class="info-grid">
+          <view class="info-grid grid grid-cols-2 gap-x-4.5 gap-y-3">
             <view><text>朝向</text><strong>{{ house.orientation__mapping || '待完善' }}</strong></view>
             <view><text>装修</text><strong>{{ house.decoration__mapping || '待完善' }}</strong></view>
             <view><text>卫生间</text><strong>{{ house.bathrooms ?? '--' }}</strong></view>
@@ -164,25 +167,25 @@ onShareAppMessage(() => ({
           </view>
         </view>
 
-        <view v-if="house.public_description" class="section">
-          <view class="section-title">
+        <view v-if="house.public_description" class="section rounded-3 bg-surface-card p-3.5">
+          <view class="section-title mb-3 text-size-sm text-content-primary font-bold">
             房源介绍
           </view>
-          <view class="description">
+          <view class="description whitespace-pre-wrap text-size-sm text-content-secondary leading-relaxed">
             {{ house.public_description }}
           </view>
         </view>
 
-        <view v-if="share?.consultant" class="section consultant-card">
-          <image v-if="share.consultant.avatar_url" class="consultant-avatar" :src="share.consultant.avatar_url" mode="aspectFill" />
-          <view v-else class="consultant-avatar consultant-avatar--empty">
+        <view v-if="share?.consultant" class="section consultant-card flex items-center gap-2.5 rounded-3 bg-surface-card p-3.5">
+          <image v-if="share.consultant.avatar_url" class="consultant-avatar h-10.5 w-10.5 shrink-0 grow-0 basis-10.5 rounded-full bg-$app-color-brand-soft" :src="share.consultant.avatar_url" mode="aspectFill" />
+          <view v-else class="consultant-avatar consultant-avatar--empty h-10.5 w-10.5 shrink-0 grow-0 basis-10.5 rounded-full bg-$app-color-brand-soft">
             {{ share.consultant.name.slice(0, 1) }}
           </view>
-          <view class="consultant-info">
-            <view class="consultant-name">
+          <view class="consultant-info min-w-0 flex-1">
+            <view class="consultant-name text-size-sm text-content-primary font-semibold">
               {{ share.consultant.name }}
             </view>
-            <view class="consultant-label">
+            <view class="consultant-label mt-1 text-size-xs text-content-muted">
               本次配房顾问
             </view>
           </view>
@@ -196,220 +199,84 @@ onShareAppMessage(() => ({
 </template>
 
 <style scoped lang="scss">
-.detail-page {
-  min-height: inherit;
-  padding-bottom: 60rpx;
-  background: var(--app-bg-page);
-}
-.navigation-action {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  color: var(--app-color-brand);
-  font-size: 24rpx;
-  font-weight: 600;
-  line-height: 56rpx;
-  background: transparent;
-}
-.navigation-action::after {
-  border: 0;
-}
-
 .gallery {
-  width: 100%;
-  height: 520rpx;
-  background: var(--app-bg-subtle);
-}
-
-.gallery__image {
-  width: 100%;
-  height: 100%;
+  @apply w-full;
+  @apply h-65;
+  @apply bg-surface-subtle;
 }
 
 .gallery--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--app-text-muted);
+  @apply flex;
+  @apply items-center;
+  @apply justify-center;
+  @apply text-content-muted;
 }
 
 .section {
-  margin: 20rpx 24rpx 0;
-  padding: 28rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
+  @apply mt-2.5 mx-3 mb-0;
 }
 
 .hero-card {
-  position: relative;
-  z-index: 1;
-  margin-top: -24rpx;
-}
-
-.price-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.price {
-  color: var(--app-color-price);
-  font-size: 24rpx;
-}
-
-.price__amount {
-  font-size: 44rpx;
-  font-weight: 700;
-}
-
-.title {
-  margin-top: 14rpx;
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-  font-weight: 700;
-}
-
-.facts {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin-top: 30rpx;
-  padding: 20rpx 12rpx;
-  border-radius: 20rpx;
-  background: var(--app-bg-subtle);
-  text-align: center;
+  @apply -mt-3;
 }
 
 .facts view {
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--app-divider-color);
+  @apply flex;
+  @apply flex-col;
+  @apply border-r-1 border-r-solid border-r-app-divider;
 }
 
 .facts view:last-child {
-  border-right: 0;
+  @apply border-r-0;
 }
 
 .facts strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 
 .location {
-  margin-top: 14rpx;
-  margin-bottom: 22rpx;
-  color: var(--app-text-secondary);
-  font-size: 25rpx;
-}
-.recommendation-note {
-  display: flex;
-  gap: 22rpx;
-  margin: 20rpx 24rpx 0;
-  padding: 26rpx 28rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 28rpx;
-  background: var(--app-bg-brand-soft);
-}
-.recommendation-note__bar {
-  width: 8rpx;
-  flex: 0 0 8rpx;
-  border-radius: 999rpx;
-  background: var(--app-color-brand);
+  @apply mt-2;
+  @apply mb-3;
 }
 .recommendation-note > view:last-child {
-  display: flex;
-  flex-direction: column;
-  gap: 10rpx;
+  @apply flex;
+  @apply flex-col;
+  @apply gap-1.5;
 }
 .recommendation-note strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 .recommendation-note text {
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.65;
-  white-space: pre-wrap;
-}
-
-.section-title {
-  margin-bottom: 22rpx;
-  color: var(--app-text-primary);
-  font-size: 30rpx;
-  font-weight: 700;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24rpx 36rpx;
+  @apply text-content-secondary;
+  @apply text-size-xs;
+  @apply leading-relaxed;
+  @apply whitespace-pre-wrap;
 }
 
 .info-grid view {
-  display: flex;
-  justify-content: space-between;
-  gap: 12rpx;
-  font-size: 25rpx;
+  @apply flex;
+  @apply justify-between;
+  @apply gap-1.5;
+  @apply text-size-xs;
 }
 
 .info-grid text {
-  color: var(--app-text-muted);
+  @apply text-content-muted;
 }
 
 .info-grid strong {
-  color: var(--app-text-primary);
-  font-weight: 500;
-}
-
-.description {
-  color: var(--app-text-secondary);
-  font-size: 27rpx;
-  line-height: 1.8;
-  white-space: pre-wrap;
-}
-
-.consultant-card {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-}
-
-.consultant-avatar {
-  width: 84rpx;
-  height: 84rpx;
-  flex: 0 0 84rpx;
-  border-radius: 50%;
-  background: var(--app-color-brand-soft);
+  @apply text-content-primary;
+  @apply font-medium;
 }
 
 .consultant-avatar--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--app-color-brand);
-  font-size: 32rpx;
-  font-weight: 700;
-}
-
-.consultant-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.consultant-name {
-  color: var(--app-text-primary);
-  font-size: 29rpx;
-  font-weight: 600;
-}
-
-.consultant-label {
-  margin-top: 7rpx;
-  color: var(--app-text-muted);
-  font-size: 24rpx;
+  @apply flex;
+  @apply items-center;
+  @apply justify-center;
+  @apply text-app-brand;
+  @apply text-size-base;
+  @apply font-bold;
 }
 </style>

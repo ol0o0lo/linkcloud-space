@@ -6,12 +6,12 @@ function organizationScope(organizationSlug: string) {
 }
 
 export async function getListedHouseCount(organizationSlug: string): Promise<number> {
-  const result = await houseHousesUsingGet({ params: { page: 1, page_size: 1, status: HouseStatus.listed }, options: organizationScope(organizationSlug) })
+  const result = await houseHousesUsingGet({ params: { page: 1, page_size: 1, is_active: true, status: HouseStatus.listed }, options: organizationScope(organizationSlug) })
   return result.total
 }
 
-export async function getVacantHouseCount(organizationSlug: string): Promise<number> {
-  const result = await houseHousesUsingGet({ params: { page: 1, page_size: 1, status: HouseStatus.vacant }, options: organizationScope(organizationSlug) })
+export async function getPausedHouseCount(organizationSlug: string): Promise<number> {
+  const result = await houseHousesUsingGet({ params: { page: 1, page_size: 1, is_active: true, status: HouseStatus.paused }, options: organizationScope(organizationSlug) })
   return result.total
 }
 

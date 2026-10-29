@@ -10,6 +10,7 @@ export interface PickedFile {
 export interface FilePickerOptions {
   kind: 'image' | 'file'
   count: number
+  extensions?: string[]
 }
 
 export interface PlatformFilePickerAdapter {

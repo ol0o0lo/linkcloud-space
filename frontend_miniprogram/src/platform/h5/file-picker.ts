@@ -10,7 +10,7 @@ export const h5FilePickerAdapter: PlatformFilePickerAdapter = {
       return new Promise((resolve) => {
         const input = document.createElement('input')
         input.type = 'file'
-        input.accept = '.pdf,.doc,.docx'
+        input.accept = (options.extensions || ['pdf', 'doc', 'docx']).map(extension => `.${extension.replace(/^\./, '')}`).join(',')
         input.multiple = options.count > 1
         let settled = false
         const finish = () => {

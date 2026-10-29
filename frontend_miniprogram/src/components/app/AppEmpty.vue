@@ -32,12 +32,12 @@ const emptyStyle = computed(() => [
 </script>
 
 <template>
-  <view class="app-empty" :class="{ 'app-empty--compact': compact }">
+  <view class="app-empty box-border flex items-center justify-center" :class="{ 'app-empty--compact': compact }">
     <wd-empty :icon="icon" :icon-size="resolvedIconSize" :tip="title" :custom-style="emptyStyle">
       <!-- @vue-ignore Wot UI 运行时支持 bottom 插槽，但当前组件类型未声明插槽。 -->
       <template #bottom>
-        <view v-if="description || actionText || $slots.default" class="app-empty__bottom">
-          <text v-if="description" class="app-empty__description">{{ description }}</text>
+        <view v-if="description || actionText || $slots.default" class="app-empty__bottom mt-2 max-w-70 w-full flex flex-col items-center gap-2.5">
+          <text v-if="description" class="app-empty__description text-center text-size-xs text-content-muted leading-relaxed">{{ description }}</text>
           <slot />
           <wd-button v-if="actionText" custom-class="app-empty__action" size="small" round @click="$emit('action')">
             {{ actionText }}
@@ -50,40 +50,16 @@ const emptyStyle = computed(() => [
 
 <style scoped lang="scss">
 .app-empty {
-  display: flex;
-  min-height: 360rpx;
-  align-items: center;
-  justify-content: center;
-  padding: 36rpx 24rpx;
-  box-sizing: border-box;
+  @apply min-h-45 py-4.5 px-3;
 }
 
 .app-empty--compact {
-  min-height: 240rpx;
-  padding: 24rpx;
-}
-
-.app-empty__bottom {
-  display: flex;
-  width: 100%;
-  max-width: 560rpx;
-  align-items: center;
-  flex-direction: column;
-  gap: 20rpx;
-  margin-top: 14rpx;
-}
-
-.app-empty__description {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-  line-height: 1.65;
-  text-align: center;
+  @apply min-h-30 p-3;
 }
 
 :deep(.app-empty__action) {
-  min-width: 176rpx;
-  padding-right: 28rpx;
-  padding-left: 28rpx;
+  @apply min-w-22 pr-3.5;
+  @apply pl-3.5;
   box-shadow: 0 10rpx 24rpx rgb(0 129 255 / 14%);
 }
 </style>

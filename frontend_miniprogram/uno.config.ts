@@ -77,7 +77,7 @@ export default defineConfig({
       'app-stack-list': 'flex flex-col gap-3',
       'app-section-title': 'text-base font-semibold text-content-primary',
       'app-muted': 'text-xs text-content-muted',
-      'app-touchable': 'transform-gpu transition-all duration-150 ease-out active:scale-[0.985] active:opacity-75',
+      'app-touchable': 'transform-gpu transition-all duration-150 ease-out active:scale-98.5 active:opacity-75',
     },
   ],
   // 动态图标需要在这里配置，或者写在vue页面中注释掉
@@ -111,12 +111,19 @@ export default defineConfig({
     ],
     ['pt-safe', { 'padding-top': 'env(safe-area-inset-top)' }],
     ['pb-safe', { 'padding-bottom': 'env(safe-area-inset-bottom)' }],
+    ['pb-safe-gutter', { 'padding-bottom': 'calc(var(--app-page-gutter) + env(safe-area-inset-bottom))' }],
+    ['pb-safe-footer', { 'padding-bottom': 'calc(124rpx + env(safe-area-inset-bottom))' }],
+    ['pb-safe-action', { 'padding-bottom': 'calc(16rpx + env(safe-area-inset-bottom))' }],
+    ['h-safe-action', { height: 'calc(96rpx + env(safe-area-inset-bottom))' }],
+    ['min-h-inherit', { 'min-height': 'inherit' }],
+    [/^bg-gradient-(brand|profile|auth|warm)$/, ([, name]) => ({ 'background-image': `var(--app-gradient-${name})` })],
   ],
   theme: {
     colors: {
       /** 主题色，用法如: text-primary */
       'primary': 'var(--wot-color-theme,#0957DE)',
       'app-brand': 'var(--app-color-brand)',
+      'app-brand-active': 'var(--app-color-brand-active)',
       'app-success': 'var(--app-color-success)',
       'app-warning': 'var(--app-color-warning)',
       'app-danger': 'var(--app-color-danger)',
@@ -135,6 +142,7 @@ export default defineConfig({
       'content-disabled': 'var(--app-text-disabled)',
       'content-on-brand': 'var(--app-text-on-brand)',
       'app-border': 'var(--app-border-color)',
+      'app-border-brand-soft': 'var(--app-border-brand-soft)',
       'app-card': 'var(--app-border-card)',
       'app-divider': 'var(--app-divider-color)',
     },
@@ -144,9 +152,16 @@ export default defineConfig({
       'app-lg': 'var(--app-radius-lg)',
       'app-xl': 'var(--app-radius-xl)',
     },
+    lineWidth: {
+      hairline: '1rpx',
+    },
     boxShadow: {
       'app-card': 'var(--app-shadow-card)',
       'app-bottom': 'var(--app-shadow-bottom-action)',
+      'app-raised': 'var(--app-shadow-card-raised)',
+      'app-hero': 'var(--app-shadow-hero-brand)',
+      'app-profile': 'var(--app-shadow-profile)',
+      'app-auth': 'var(--app-shadow-auth-card)',
     },
     spacing: {
       'app-gutter': 'var(--app-page-gutter)',
@@ -154,6 +169,7 @@ export default defineConfig({
     fontSize: {
       /** 提供更小号的字体，用法如：text-2xs */
       '2xs': ['20rpx', '28rpx'],
+      '3xs': ['16rpx', '24rpx'],
     },
   },
   // windows 系统会报错：[plugin:unocss:transformers:pre] Cannot overwrite a zero-length range - use append Left or prependRight instead.

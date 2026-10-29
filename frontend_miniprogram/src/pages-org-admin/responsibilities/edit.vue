@@ -268,12 +268,12 @@ onLoad((query) => {
     <AppLoading v-if="loading" text="正在加载员工负责范围…" />
     <AppErrorView v-else-if="loadError" title="负责范围加载失败" :message="loadError" @retry="loadMember" />
     <template v-else-if="member">
-      <view class="scope-overview">
+      <view class="scope-overview flex items-center justify-between gap-3 px-0 pb-4 pt-3">
         <view>
-          <view class="scope-overview-title">
+          <view class="scope-overview-title text-size-base text-content-primary font-semibold leading-6">
             选择负责范围
           </view>
-          <view class="scope-caption">
+          <view class="scope-caption mt-1 text-size-xs text-content-muted leading-4.5">
             当前负责 {{ member.responsible_house_count }} 套房源，修改后需保存
           </view>
         </view>
@@ -281,18 +281,18 @@ onLoad((query) => {
           分工规则
         </wd-button>
       </view>
-      <view class="scope-controls" :style="{ top: `${navigationHeight}px` }">
+      <view class="scope-controls sticky z-30 border-b-1 border-b-app-divider border-b-solid" :style="{ top: `${navigationHeight}px` }">
         <wd-tabs v-model="activeKind" :slidable-num="4">
           <wd-tab v-for="category in categories" :key="category.kind" :name="category.kind" :title="`${category.label} ${selection[category.kind].length}`" />
         </wd-tabs>
-        <view class="scope-search">
+        <view class="scope-search px-3 pb-0 pt-2">
           <wd-search v-model="keywords[activeKind]" variant="filled" :placeholder="activeCategory.placeholder" placeholder-left hide-cancel @search="searchCandidates" @clear="searchCandidates" />
         </view>
-        <view class="scope-description">
+        <view class="scope-description px-4 pb-3 pt-2.5 text-size-xs text-content-secondary leading-4.5">
           {{ activeCategory.description }}
         </view>
       </view>
-      <view class="scope-panel">
+      <view class="scope-panel overflow-hidden">
         <AppPagedList
           :items="candidates.items.value"
           item-key="id"
@@ -308,7 +308,7 @@ onLoad((query) => {
           @retry="candidates.error.value && candidates.items.value.length ? candidates.loadMore() : candidates.refresh()"
         >
           <template #item="{ item }">
-            <view class="scope-row" :class="{ 'scope-row--selected': selection[activeKind].includes(item.id) }">
+            <view class="scope-row border-b-1 border-b-app-divider border-b-solid px-4 py-0" :class="{ 'scope-row--selected': selection[activeKind].includes(item.id) }">
               <wd-checkbox
                 :model-value="selection[activeKind].includes(item.id)"
                 :disabled="saving"
@@ -317,10 +317,10 @@ onLoad((query) => {
                 custom-label-class="scope-option-label"
                 @change="toggleOption(activeKind, item.id)"
               >
-                <view class="scope-option-title">
+                <view class="scope-option-title text-size-sm text-content-primary font-medium leading-5.5">
                   {{ item.title }}
                 </view>
-                <view v-if="item.description" class="scope-option-description">
+                <view v-if="item.description" class="scope-option-description mt-1 text-size-xs text-content-muted leading-4.5">
                   {{ item.description }}
                 </view>
               </wd-checkbox>
@@ -328,17 +328,17 @@ onLoad((query) => {
           </template>
         </AppPagedList>
       </view>
-      <view class="scope-footnote">
+      <view class="scope-footnote mt-3.5 text-size-xs text-content-muted leading-5">
         已选内容会保留，可在底部统一查看和调整。
       </view>
     </template>
     <template #footer>
       <AppBottomAction v-if="member && !loading && !loadError">
-        <view class="scope-footer">
+        <view class="scope-footer flex items-center gap-6">
           <wd-button variant="text" custom-style="height: auto; padding: 0;" :disabled="saving" @click="selectedVisible = true">
-            <view class="scope-selection-trigger">
-              <view>已选 <text class="scope-selection-count">{{ selectedCount }}</text> 项</view>
-              <view class="scope-selection-caption">
+            <view class="scope-selection-trigger min-w-22 text-left text-size-xs leading-5">
+              <view>已选 <text class="scope-selection-count text-size-base font-semibold">{{ selectedCount }}</text> 项</view>
+              <view class="scope-selection-caption text-size-2xs text-content-muted leading-4">
                 查看并调整
               </view>
             </view>
@@ -353,10 +353,10 @@ onLoad((query) => {
     </template>
     <AppBottomSheet v-model:visible="rulesVisible" title="分工规则" height="compact">
       <AppNotice title="房东 → 楼栋 → 小区" description="先按房东分工；房东未分工时按楼栋；前两项均未分工时按小区。同一层级允许多名员工负责。" compact />
-      <view class="scope-rule-example">
+      <view class="scope-rule-example mt-3.5 text-size-xs text-content-muted leading-5">
         例如，小区归刘雅负责，但张女士已分给吴晨，张女士的房源由吴晨负责。
       </view>
-      <view class="scope-rule-example">
+      <view class="scope-rule-example mt-3.5 text-size-xs text-content-muted leading-5">
         已选范围的数量不等于实际负责房源套数，保存后会重新计算。
       </view>
     </AppBottomSheet>
@@ -367,7 +367,7 @@ onLoad((query) => {
           <view class="mb-1 mt-3 text-sm text-content-primary font-semibold">
             {{ category.label }} · {{ selection[category.kind].length }}
           </view>
-          <view v-for="id in selection[category.kind]" :key="id" class="scope-row">
+          <view v-for="id in selection[category.kind]" :key="id" class="scope-row border-b-1 border-b-app-divider border-b-solid px-4 py-0">
             <wd-checkbox :model-value="true" type="square" custom-style="width: 100%; margin: 0; padding: 14px 0;" :disabled="saving" @change="toggleOption(category.kind, id)">
               <view class="text-sm text-content-primary leading-relaxed">
                 {{ optionTitle(category.kind, id) }}
@@ -387,7 +387,7 @@ onLoad((query) => {
           <view class="mb-2 mt-4 text-sm text-content-primary font-semibold">
             {{ categories[index].label }}
           </view>
-          <view v-for="id in change.added" :key="`add-${id}`" class="review-row">
+          <view v-for="id in change.added" :key="`add-${id}`" class="review-row flex gap-3 px-0 py-2 text-size-xs text-content-secondary leading-relaxed">
             <text class="shrink-0 text-app-brand">新增</text>
             <view class="min-w-0 flex-1">
               <view>{{ optionTitle(change.kind, id) }}</view>
@@ -396,7 +396,7 @@ onLoad((query) => {
               </view>
             </view>
           </view>
-          <view v-for="id in change.removed" :key="`remove-${id}`" class="review-row">
+          <view v-for="id in change.removed" :key="`remove-${id}`" class="review-row flex gap-3 px-0 py-2 text-size-xs text-content-secondary leading-relaxed">
             <text class="shrink-0 text-app-danger">取消</text>
             <view class="min-w-0 flex-1">
               <view>{{ optionTitle(change.kind, id) }}</view>
@@ -429,31 +429,9 @@ onLoad((query) => {
 </template>
 
 <style scoped lang="scss">
-.scope-overview {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 0 16px;
-}
-.scope-overview-title {
-  color: var(--app-text-primary);
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 24px;
-}
-.scope-caption {
-  margin-top: 4px;
-  color: var(--app-text-muted);
-  font-size: 12px;
-  line-height: 18px;
-}
 .scope-controls {
-  position: sticky;
-  z-index: 30;
   border-radius: 14px 14px 0 0;
-  background: var(--app-bg-card);
-  border-bottom: 1px solid var(--app-divider-color);
+  @apply bg-surface-card;
 }
 .scope-search {
   --wot-search-padding: 0;
@@ -462,78 +440,21 @@ onLoad((query) => {
   --wot-search-cover-bg: var(--app-bg-page);
   --wot-search-input-radius: 10px;
   --wot-search-input-height: 40px;
-
-  padding: 8px 12px 0;
-}
-.scope-description {
-  padding: 10px 16px 12px;
-  color: var(--app-text-secondary);
-  font-size: 12px;
-  line-height: 18px;
 }
 .scope-panel {
-  overflow: hidden;
   border-radius: 0 0 14px 14px;
-  background: var(--app-bg-card);
-}
-.scope-row {
-  padding: 0 16px;
-  border-bottom: 1px solid var(--app-divider-color);
+  @apply bg-surface-card;
 }
 .scope-row--selected {
-  background: var(--app-bg-brand-soft);
+  @apply bg-surface-brand-soft;
 }
 .scope-row :deep(.scope-option-label) {
-  flex: 1;
-  min-width: 0;
+  @apply flex-1 min-w-0;
 }
 .scope-option-title {
-  color: var(--app-text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
   overflow-wrap: anywhere;
 }
 .scope-option-description {
-  margin-top: 4px;
-  color: var(--app-text-muted);
-  font-size: 12px;
-  line-height: 18px;
   overflow-wrap: anywhere;
-}
-.scope-footnote,
-.scope-rule-example {
-  margin-top: 14px;
-  color: var(--app-text-muted);
-  font-size: 12px;
-  line-height: 20px;
-}
-.scope-footer {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-.scope-selection-trigger {
-  min-width: 88px;
-  text-align: left;
-  font-size: 13px;
-  line-height: 20px;
-}
-.scope-selection-count {
-  font-size: 17px;
-  font-weight: 600;
-}
-.scope-selection-caption {
-  color: var(--app-text-muted);
-  font-size: 11px;
-  line-height: 16px;
-}
-.review-row {
-  display: flex;
-  gap: 12px;
-  padding: 8px 0;
-  color: var(--app-text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
 }
 </style>

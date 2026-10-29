@@ -88,41 +88,33 @@ function goBack() {
 </script>
 
 <template>
-  <view class="house-detail-navigation" :class="{ 'house-detail-navigation--scrolled': effectiveScrollProgress >= 1 }" :style="navigationStyle">
+  <view class="house-detail-navigation pointer-events-none fixed left-0 right-0 top-0 z-8 box-border bg-transparent" :class="{ 'house-detail-navigation--scrolled': effectiveScrollProgress >= 1 }" :style="navigationStyle">
     <view class="house-detail-navigation__hero-background" :style="heroBackgroundStyle" />
-    <view class="house-detail-navigation__scrolled-background" :style="scrolledBackgroundStyle" />
-    <button class="house-detail-navigation__back app-touchable" aria-label="返回上一页" @click="goBack">
+    <view class="house-detail-navigation__scrolled-background border-b-1 border-b-hex-e7ecf2 border-b-solid bg-hex-fff" :style="scrolledBackgroundStyle" />
+    <button class="house-detail-navigation__back pointer-events-auto absolute left-3 z-2 m-0 h-8.5 w-8.5 flex flex-none app-touchable items-center justify-center border-hairline border-hex-ffffff/70 rounded-full border-solid bg-hex-ffffff/94 p-0 text-size-xl text-hex-17212b leading-none backdrop-blur-6" aria-label="返回上一页" @click="goBack">
       <text class="i-carbon-chevron-left" />
     </button>
-    <view class="house-detail-navigation__title">
-      房源详情<text v-if="management" class="house-detail-navigation__badge">管理</text>
+    <view class="house-detail-navigation__title absolute bottom-0 z-1 min-h-8.5 flex items-center justify-center gap-2 overflow-hidden whitespace-nowrap text-center text-size-base text-$house-detail-navigation-title-color font-bold leading-6">
+      房源详情<text v-if="management" class="house-detail-navigation__badge border-l-1 border-l-$house-detail-navigation-badge-border-color border-l-solid pl-2 text-size-2xs text-$house-detail-navigation-badge-color font-normal leading-4">管理</text>
     </view>
   </view>
 </template>
 
 <style scoped lang="scss">
 .house-detail-navigation {
-  position: fixed;
-  z-index: 8;
-  top: 0;
-  right: 0;
-  left: 0;
   height: var(--house-detail-navigation-height);
   padding: calc(var(--house-detail-navigation-top-inset) + 8px) var(--house-detail-navigation-right-inset) 8px 24rpx;
-  box-sizing: border-box;
-  pointer-events: none;
-  background: transparent;
 }
 
 .house-detail-navigation__hero-background,
 .house-detail-navigation__scrolled-background {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  pointer-events: none;
+  @apply absolute;
+  @apply z-0;
+  @apply top-0;
+  @apply right-0;
+  @apply bottom-0;
+  @apply left-0;
+  @apply pointer-events-none;
   transition: opacity var(--app-motion-duration-fast) linear;
 }
 
@@ -130,63 +122,16 @@ function goBack() {
   background: linear-gradient(180deg, rgba(4, 18, 32, 0.5), rgba(4, 18, 32, 0));
 }
 
-.house-detail-navigation__scrolled-background {
-  border-bottom: 1px solid #e7ecf2;
-  background: #fff;
-}
-
 .house-detail-navigation__back {
-  position: absolute;
-  z-index: 2;
   top: var(--house-detail-navigation-control-top);
-  left: 24rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  margin: 0;
-  padding: 0;
-  border: 1rpx solid rgba(255, 255, 255, 0.7);
-  border-radius: 999rpx;
-  color: #17212b;
-  font-size: 20px;
-  line-height: 1;
-  pointer-events: auto;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(12rpx);
 }
 
 .house-detail-navigation__back::after {
-  border: 0;
+  @apply border-0;
 }
 .house-detail-navigation__title {
-  position: absolute;
-  z-index: 1;
   top: var(--house-detail-navigation-top-inset);
   right: var(--house-detail-navigation-right-inset);
-  bottom: 0;
   left: var(--house-detail-navigation-right-inset);
-  display: flex;
-  min-height: 34px;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  overflow: hidden;
-  color: var(--house-detail-navigation-title-color);
-  font-size: 16px;
-  font-weight: 650;
-  line-height: 24px;
-  text-align: center;
-  white-space: nowrap;
-}
-.house-detail-navigation__badge {
-  padding-left: 8px;
-  border-left: 1px solid var(--house-detail-navigation-badge-border-color);
-  color: var(--house-detail-navigation-badge-color);
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 16px;
 }
 </style>

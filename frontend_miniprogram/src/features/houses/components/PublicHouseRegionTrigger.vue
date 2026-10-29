@@ -41,6 +41,6 @@ function openRegionSelector() {
 
 <style scoped lang="scss">
 .public-house-region-trigger::after {
-  border: 0;
+  @apply border-0;
 }
 </style>

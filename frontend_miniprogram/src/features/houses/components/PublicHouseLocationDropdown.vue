@@ -234,46 +234,46 @@ watch(() => regionStore.scopeKey, () => {
 </script>
 
 <template>
-  <view v-if="visible" class="location-popover-host">
-    <view class="location-popover__mask" @touchmove.stop.prevent @wheel.stop.prevent @click="closeWithoutApply" />
+  <view v-if="visible" class="location-popover-host absolute left-0 top-full z-2">
+    <view class="location-popover__mask fixed inset-0 z-1 bg-hex-0f172a/28 backdrop-blur-1.5" @touchmove.stop.prevent @wheel.stop.prevent @click="closeWithoutApply" />
     <view class="location-popover" :class="{ 'location-popover--nearby': draftMode === 'nearby' }" @click.stop>
-      <view class="location-popover__header">
-        <view class="location-popover__header-icon" :class="headerContent.icon" />
-        <view class="location-popover__heading">
+      <view class="location-popover__header box-border min-h-11 flex items-center gap-2 bg-hex-fff pb-1.5 pl-3.5 pr-2.5 pt-1.5">
+        <view class="location-popover__header-icon flex-none text-size-sm text-$location-filter-primary" :class="headerContent.icon" />
+        <view class="location-popover__heading min-w-0 flex flex-1 items-center">
           <strong>{{ headerContent.title }}</strong>
         </view>
-        <button class="location-popover__close" aria-label="关闭" @click="closeWithoutApply">
+        <button class="location-popover__close m-0 h-7 w-7 flex items-center justify-center border-0 rounded-full bg-surface-page p-0 text-size-sm text-content-muted leading-none" aria-label="关闭" @click="closeWithoutApply">
           <view class="i-carbon-close" />
         </button>
       </view>
 
-      <view class="location-dropdown">
+      <view class="location-dropdown min-h-0 flex flex-col overflow-hidden">
         <template v-if="regionStore.selection.city || draftMode === 'commute' || draftMode === 'nearby'">
-          <view class="location-dropdown__columns" :class="{ 'location-dropdown__columns--wide': draftMode === 'commute' || draftMode === 'nearby' }">
+          <view class="location-dropdown__columns grid min-h-0 flex-1 overflow-hidden border-t-hairline border-t-app-divider border-t-solid" :class="{ 'location-dropdown__columns--wide': draftMode === 'commute' || draftMode === 'nearby' }">
             <view class="location-dropdown__column location-dropdown__column--mode">
-              <button v-if="showNearby" class="location-dropdown__mode" :class="{ active: draftMode === 'nearby' }" @click="setDraftMode('nearby')">
+              <button v-if="showNearby" class="location-dropdown__mode m-0 min-h-11 w-full flex items-center justify-center rounded-0 bg-transparent px-0.5 py-0 text-size-xs text-content-secondary font-medium leading-none" :class="{ active: draftMode === 'nearby' }" @click="setDraftMode('nearby')">
                 附近
               </button>
-              <button v-if="regionStore.selection.city" class="location-dropdown__mode" :class="{ active: draftMode === 'region' }" @click="setDraftMode('region')">
+              <button v-if="regionStore.selection.city" class="location-dropdown__mode m-0 min-h-11 w-full flex items-center justify-center rounded-0 bg-transparent px-0.5 py-0 text-size-xs text-content-secondary font-medium leading-none" :class="{ active: draftMode === 'region' }" @click="setDraftMode('region')">
                 区域
               </button>
-              <button v-if="regionStore.selection.city" class="location-dropdown__mode" :class="{ active: draftMode === 'metro' }" @click="setDraftMode('metro')">
+              <button v-if="regionStore.selection.city" class="location-dropdown__mode m-0 min-h-11 w-full flex items-center justify-center rounded-0 bg-transparent px-0.5 py-0 text-size-xs text-content-secondary font-medium leading-none" :class="{ active: draftMode === 'metro' }" @click="setDraftMode('metro')">
                 地铁
               </button>
-              <button class="location-dropdown__mode" :class="{ active: draftMode === 'commute' }" @click="setDraftMode('commute')">
+              <button class="location-dropdown__mode m-0 min-h-11 w-full flex items-center justify-center rounded-0 bg-transparent px-0.5 py-0 text-size-xs text-content-secondary font-medium leading-none" :class="{ active: draftMode === 'commute' }" @click="setDraftMode('commute')">
                 通勤
               </button>
             </view>
 
             <scroll-view v-if="draftMode === 'region' || draftMode === 'metro'" class="location-dropdown__column location-dropdown__column--secondary" scroll-y enhanced :show-scrollbar="false">
               <template v-if="draftMode === 'region'">
-                <button class="location-dropdown__option location-dropdown__option--secondary" :class="{ active: !draftDistrict }" @click="selectDraftDistrict('')">
+                <button class="location-dropdown__option location-dropdown__option--secondary m-0 box-border min-h-11 w-full flex items-center rounded-0 bg-transparent text-left leading-snug" :class="{ active: !draftDistrict }" @click="selectDraftDistrict('')">
                   全区
                 </button>
                 <button
                   v-for="item in activeCity?.districts || []"
                   :key="item.district"
-                  class="location-dropdown__option location-dropdown__option--secondary"
+                  class="location-dropdown__option location-dropdown__option--secondary m-0 box-border min-h-11 w-full flex items-center rounded-0 bg-transparent text-left leading-snug"
                   :class="{ active: draftDistrict === item.district }"
                   @click="selectDraftDistrict(item.district)"
                 >
@@ -284,11 +284,11 @@ watch(() => regionStore.scopeKey, () => {
                 <button
                   v-for="line in metroCity?.lines || []"
                   :key="line.name"
-                  class="location-dropdown__option location-dropdown__option--secondary location-dropdown__line"
+                  class="location-dropdown__option location-dropdown__option--secondary location-dropdown__line m-0 box-border min-h-11 w-full flex items-center rounded-0 bg-transparent text-left leading-snug"
                   :class="{ active: activeLine?.name === line.name }"
                   @click="activeLineName = line.name"
                 >
-                  <i class="location-dropdown__line-color" :style="{ backgroundColor: line.color || 'var(--location-filter-primary)' }" />
+                  <i class="location-dropdown__line-color h-1.5 w-1.5 flex-none rounded-full" :style="{ backgroundColor: line.color || 'var(--location-filter-primary)' }" />
                   <text>{{ line.name }}</text>
                 </button>
               </template>
@@ -296,14 +296,14 @@ watch(() => regionStore.scopeKey, () => {
 
             <scroll-view v-if="draftMode === 'region' || draftMode === 'metro'" class="location-dropdown__column location-dropdown__column--content" scroll-y enhanced :show-scrollbar="false">
               <template v-if="draftMode === 'region'">
-                <button class="location-dropdown__option location-dropdown__option--place" :class="{ active: !draftSubdistrict }" @click="selectDraftSubdistrict('')">
+                <button class="location-dropdown__option location-dropdown__option--place m-0 box-border min-h-11 w-full flex items-center rounded-0 bg-transparent text-left leading-snug" :class="{ active: !draftSubdistrict }" @click="selectDraftSubdistrict('')">
                   <text>{{ draftDistrict ? `${shortRegionName(draftDistrict)}全区` : '全区' }}</text>
                   <view v-if="!draftSubdistrict" class="i-carbon-checkmark" />
                 </button>
                 <button
                   v-for="item in activeDistrict?.subdistricts || []"
                   :key="item.subdistrict"
-                  class="location-dropdown__option location-dropdown__option--place"
+                  class="location-dropdown__option location-dropdown__option--place m-0 box-border min-h-11 w-full flex items-center rounded-0 bg-transparent text-left leading-snug"
                   :class="{ active: draftSubdistrict === item.subdistrict }"
                   @click="selectDraftSubdistrict(item.subdistrict)"
                 >
@@ -315,18 +315,18 @@ watch(() => regionStore.scopeKey, () => {
                 <AppLoading text="正在加载地铁线路…" />
               </view>
               <view v-else-if="metroError" class="location-dropdown__state">
-                <view class="i-carbon-warning-alt location-dropdown__state-icon" />
+                <view class="i-carbon-warning-alt location-dropdown__state-icon text-size-2xl text-$location-filter-primary" />
                 <strong>地铁数据加载失败</strong>
                 <button @click="loadMetroCity">
                   重新加载
                 </button>
               </view>
               <view v-else-if="!metroCity?.lines.length" class="location-dropdown__state">
-                <view class="i-carbon-train location-dropdown__state-icon" />
+                <view class="i-carbon-train location-dropdown__state-icon text-size-2xl text-$location-filter-primary" />
                 <strong>该城市暂未提供地铁筛选</strong>
                 <text>仍可继续使用区域条件找房</text>
               </view>
-              <view v-else class="location-dropdown__stations">
+              <view v-else class="location-dropdown__stations pb-2.5">
                 <wd-checkbox-group v-model="draftStationNames" :max="5" placement="right" custom-class="location-dropdown__checkbox-group">
                   <wd-checkbox
                     v-for="station in activeLine?.stations || []"
@@ -337,8 +337,8 @@ watch(() => regionStore.scopeKey, () => {
                   >
                     {{ station.name }}
                     <template #icon="{ isChecked }">
-                      <view class="location-dropdown__station-check" :class="{ 'location-dropdown__station-check--active': isChecked }">
-                        <view v-if="isChecked" class="i-carbon-checkmark location-dropdown__station-check-icon" />
+                      <view class="location-dropdown__station-check box-border h-4.5 w-4.5 flex items-center justify-center border-1 border-hex-cbd5e3 rounded-full border-solid bg-hex-fff text-hex-fff" :class="{ 'location-dropdown__station-check--active': isChecked }">
+                        <view v-if="isChecked" class="i-carbon-checkmark location-dropdown__station-check-icon text-size-2xs" />
                       </view>
                     </template>
                   </wd-checkbox>
@@ -360,19 +360,19 @@ watch(() => regionStore.scopeKey, () => {
         </template>
 
         <view v-else class="location-dropdown__empty-city">
-          <view class="i-carbon-map location-dropdown__state-icon" />
+          <view class="i-carbon-map location-dropdown__state-icon text-size-2xl text-$location-filter-primary" />
           <strong>请先从页面右上角选择城市</strong>
           <text>{{ showNearby ? '选择城市后可按区域或地铁找房，也可直接使用附近或通勤筛选' : '选择城市后可按区域或地铁找房，也可直接使用通勤筛选' }}</text>
-          <button v-if="showNearby" class="location-dropdown__commute-entry" @click="setDraftMode('nearby')">
+          <button v-if="showNearby" class="location-dropdown__commute-entry mt-2.5 text-size-xs text-app-brand" @click="setDraftMode('nearby')">
             附近找房
           </button>
-          <button class="location-dropdown__commute-entry" @click="setDraftMode('commute')">
+          <button class="location-dropdown__commute-entry mt-2.5 text-size-xs text-app-brand" @click="setDraftMode('commute')">
             使用通勤筛选
           </button>
         </view>
       </view>
 
-      <view class="location-popover__footer">
+      <view class="location-popover__footer grid box-border w-full gap-1.5 border-t-hairline border-t-app-divider border-t-solid bg-hex-fff px-3 pb-3 pt-2.5">
         <wd-button block variant="plain" custom-class="location-dropdown__reset" @click="resetDraft">
           {{ draftMode === 'nearby' ? '不限附近' : draftMode === 'commute' ? '清空通勤' : '清空选择' }}
         </wd-button>
@@ -392,149 +392,72 @@ watch(() => regionStore.scopeKey, () => {
 }
 
 .location-popover-host {
-  position: absolute;
-  z-index: 2;
-  top: 100%;
-  left: 0;
   width: calc(100vw - var(--app-page-gutter) * 2);
   max-width: var(--public-house-filter-popover-width, 680rpx);
 }
 
 .location-popover-host::before {
-  position: absolute;
-  z-index: 3;
-  top: 6rpx;
+  @apply absolute;
+  @apply z-3;
+  @apply top-1;
   left: var(--filter-pointer-x, 50%);
-  width: 20rpx;
-  height: 20rpx;
-  margin-left: -10rpx;
-  border-top: 1rpx solid rgb(255 255 255 / 80%);
-  border-left: 1rpx solid rgb(255 255 255 / 80%);
-  background: #fff;
+  @apply w-2.5;
+  @apply h-2.5;
+  @apply -ml-1;
+  @apply border-t-hairline border-t-solid border-t-hex-ffffff/80;
+  @apply border-l-hairline border-l-solid border-l-hex-ffffff/80;
+  @apply bg-hex-fff;
   content: '';
   transform: rotate(45deg);
 }
 
-.location-popover__mask {
-  position: fixed;
-  z-index: 1;
-  inset: 0;
-  background: rgb(15 23 42 / 28%);
-  backdrop-filter: blur(3rpx);
-}
-
 .location-popover {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  width: 100%;
+  @apply relative;
+  @apply z-2;
+  @apply grid;
+  @apply w-full;
   height: min(68vh, 760rpx);
-  margin-top: 14rpx;
-  overflow: hidden;
-  border: 1rpx solid rgb(255 255 255 / 80%);
-  border-radius: 28rpx;
-  box-sizing: border-box;
+  @apply mt-2;
+  @apply overflow-hidden;
+  @apply border-hairline border-solid border-hex-ffffff/80;
+  @apply rounded-3.5;
+  @apply box-border;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  background: #fff;
+  @apply bg-hex-fff;
   box-shadow: 0 26rpx 68rpx rgb(26 79 145 / 18%);
-  animation: location-popover-in 180ms ease-out;
 }
 
 .location-popover--nearby {
-  height: auto;
+  @apply h-auto;
   grid-template-rows: auto auto auto;
 }
 
-.location-popover__header {
-  display: flex;
-  min-height: 88rpx;
-  align-items: center;
-  gap: 14rpx;
-  padding: 10rpx 18rpx 10rpx 28rpx;
-  box-sizing: border-box;
-  background: #fff;
-}
-
-.location-popover__header-icon {
-  flex: 0 0 auto;
-  color: var(--location-filter-primary);
-  font-size: 30rpx;
-}
-
-.location-popover__heading {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-}
-
 .location-popover__heading strong {
-  color: var(--app-text-primary);
-  font-size: 29rpx;
-  line-height: 1.2;
-}
-
-.location-popover__close {
-  display: flex;
-  width: 56rpx;
-  height: 56rpx;
-  margin: 0;
-  padding: 0;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 50%;
-  color: var(--app-text-muted);
-  font-size: 30rpx;
-  line-height: 1;
-  background: var(--app-bg-page);
-}
-
-.location-dropdown {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
+  @apply text-content-primary;
+  @apply text-size-sm;
+  @apply leading-tight;
 }
 
 .location-dropdown__option::after,
 .location-dropdown__mode::after,
 .location-dropdown__state button::after,
 .location-popover__close::after {
-  border: 0;
+  @apply border-0;
 }
 
 .location-dropdown__mode {
-  display: flex;
-  width: 100%;
-  min-height: 88rpx;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0 4rpx;
-  border: 0;
-  border-bottom: 1rpx solid var(--app-divider-color);
-  border-radius: 0;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  font-weight: 500;
-  line-height: 1;
-  background: transparent;
+  @apply border-0;
+  @apply border-b-hairline border-b-solid border-b-app-divider;
 }
 
 .location-dropdown__mode.active {
-  color: var(--location-filter-primary);
-  font-weight: 600;
-  background: var(--location-filter-primary-soft);
+  @apply text-$location-filter-primary;
+  @apply font-semibold;
+  @apply bg-$location-filter-primary-soft;
 }
 
 .location-dropdown__columns {
-  display: grid;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
   grid-template-columns: 19% 32% 49%;
-  border-top: 1rpx solid var(--app-divider-color);
 }
 
 .location-dropdown__columns--wide {
@@ -542,25 +465,25 @@ watch(() => regionStore.scopeKey, () => {
 }
 
 .location-dropdown__column--commute {
-  background: #fff;
+  @apply bg-hex-fff;
 }
 
 .location-dropdown__column--nearby {
-  padding: 28rpx 20rpx;
-  box-sizing: border-box;
-  background: #fff;
+  @apply py-3.5 px-2.5;
+  @apply box-border;
+  @apply bg-hex-fff;
 }
 
 .location-dropdown__column--nearby strong {
-  color: var(--app-text-primary);
-  font-size: 25rpx;
+  @apply text-content-primary;
+  @apply text-size-xs;
 }
 
 :deep(.location-dropdown__nearby-options) {
-  display: grid;
-  margin-top: 24rpx;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12rpx;
+  @apply grid;
+  @apply mt-3;
+  @apply grid-cols-2;
+  @apply gap-1.5;
   --wot-radio-button-margin: 0;
   --wot-radio-button-min-width: 0;
   --wot-radio-checked-color: var(--location-filter-primary);
@@ -569,25 +492,19 @@ watch(() => regionStore.scopeKey, () => {
   --wot-radio-button-border-radius: 18rpx;
 }
 
-.location-dropdown__commute-entry {
-  margin-top: 20rpx;
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-}
-
 .location-dropdown__column {
-  min-width: 0;
-  height: 100%;
-  overflow: hidden;
+  @apply min-w-0;
+  @apply h-full;
+  @apply overflow-hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
 .location-dropdown__column::-webkit-scrollbar,
 :deep(.location-dropdown__column .uni-scroll-view::-webkit-scrollbar) {
-  display: none;
-  width: 0;
-  height: 0;
+  @apply hidden;
+  @apply w-0;
+  @apply h-0;
 }
 
 :deep(.location-dropdown__column .uni-scroll-view) {
@@ -596,168 +513,121 @@ watch(() => regionStore.scopeKey, () => {
 }
 
 .location-dropdown__column--mode {
-  box-sizing: border-box;
-  border-right: 1rpx solid var(--app-divider-color);
-  background: var(--app-bg-page);
+  @apply box-border;
+  @apply border-r-hairline border-r-solid border-r-app-divider;
+  @apply bg-surface-page;
 }
 
 .location-dropdown__column--secondary {
-  border-right: 1rpx solid var(--app-divider-color);
-  background: var(--app-bg-page);
+  @apply border-r-hairline border-r-solid border-r-app-divider;
+  @apply bg-surface-page;
 }
 
 .location-dropdown__column--content {
-  background: #fff;
+  @apply bg-hex-fff;
 }
 
 .location-dropdown__option {
-  display: flex;
-  width: 100%;
-  min-height: 88rpx;
-  margin: 0;
-  padding: 15rpx 24rpx;
-  align-items: center;
-  gap: 12rpx;
-  border: 0;
-  border-bottom: 1rpx solid var(--app-divider-color);
-  border-radius: 0;
-  box-sizing: border-box;
-  color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.35;
-  text-align: left;
-  background: transparent;
+  @apply py-2 px-3;
+  @apply gap-1.5;
+  @apply border-0;
+  @apply border-b-hairline border-b-solid border-b-app-divider;
+  @apply text-content-secondary;
+  @apply text-size-xs;
 }
 
 .location-dropdown__option--secondary {
-  padding-right: 10rpx;
-  padding-left: 17rpx;
-  gap: 9rpx;
-  font-size: 24rpx;
+  @apply pr-1.5;
+  @apply pl-2;
+  @apply gap-1;
+  @apply text-size-xs;
 }
 
 .location-dropdown__option--place {
-  padding-right: 16rpx;
-  padding-left: 17rpx;
-  font-size: 25rpx;
+  @apply pr-2;
+  @apply pl-2;
+  @apply text-size-xs;
 }
 
 .location-dropdown__option--secondary.active {
-  color: var(--location-filter-primary);
-  font-weight: 600;
-  background: var(--location-filter-primary-soft);
+  @apply text-$location-filter-primary;
+  @apply font-semibold;
+  @apply bg-$location-filter-primary-soft;
 }
 
 .location-dropdown__option--place {
-  justify-content: space-between;
-  color: var(--app-text-primary);
+  @apply justify-between;
+  @apply text-content-primary;
 }
 
 .location-dropdown__option--place.active {
-  color: var(--location-filter-primary);
-  font-weight: 600;
-  background: var(--location-filter-primary-soft);
+  @apply text-$location-filter-primary;
+  @apply font-semibold;
+  @apply bg-$location-filter-primary-soft;
 }
 
 .location-dropdown__option--place .i-carbon-checkmark {
-  flex: 0 0 auto;
-  font-size: 25rpx;
-}
-
-.location-dropdown__line-color {
-  width: 13rpx;
-  height: 13rpx;
-  flex: 0 0 auto;
-  border-radius: 50%;
-}
-
-.location-dropdown__stations {
-  padding-bottom: 18rpx;
+  @apply flex-none;
+  @apply text-size-xs;
 }
 
 :deep(.location-dropdown__checkbox-group) {
-  display: flex;
-  flex-direction: column;
+  @apply flex;
+  @apply flex-col;
 }
 
 .location-dropdown__station-check {
-  display: flex;
-  width: 36rpx;
-  height: 36rpx;
-  align-items: center;
-  justify-content: center;
-  border: 2rpx solid #cbd5e3;
-  border-radius: 50%;
-  box-sizing: border-box;
-  color: #fff;
-  background: #fff;
   transition:
     border-color 160ms ease,
     background-color 160ms ease;
 }
 
 .location-dropdown__station-check--active {
-  border-color: var(--location-filter-primary);
-  background: var(--location-filter-primary);
+  @apply border-$location-filter-primary;
+  @apply bg-$location-filter-primary;
   box-shadow: 0 3rpx 9rpx rgb(22 119 255 / 20%);
-}
-
-.location-dropdown__station-check-icon {
-  font-size: 22rpx;
 }
 
 .location-dropdown__state,
 .location-dropdown__empty-city {
-  display: flex;
-  min-height: 300rpx;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 14rpx;
-  padding: 32rpx;
-  box-sizing: border-box;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-  text-align: center;
+  @apply flex;
+  @apply min-h-38;
+  @apply items-center;
+  @apply justify-center;
+  @apply flex-col;
+  @apply gap-2;
+  @apply p-4;
+  @apply box-border;
+  @apply text-content-muted;
+  @apply text-size-2xs;
+  @apply text-center;
 }
 
 .location-dropdown__state strong,
 .location-dropdown__empty-city strong {
-  color: var(--app-text-primary);
-  font-size: 25rpx;
-}
-
-.location-dropdown__state-icon {
-  color: var(--location-filter-primary);
-  font-size: 48rpx;
+  @apply text-content-primary;
+  @apply text-size-xs;
 }
 
 .location-dropdown__state button {
-  margin: 8rpx 0 0;
-  padding: 14rpx 24rpx;
-  border: 0;
-  border-radius: 999rpx;
-  color: var(--location-filter-primary);
-  font-size: 22rpx;
-  line-height: 1;
-  background: var(--location-filter-primary-soft);
+  @apply mt-1 mx-0 mb-0;
+  @apply py-2 px-3;
+  @apply border-0;
+  @apply rounded-full;
+  @apply text-$location-filter-primary;
+  @apply text-size-2xs;
+  @apply leading-none;
+  @apply bg-$location-filter-primary-soft;
 }
 
 .location-popover__footer {
-  display: grid;
-  width: 100%;
-  padding: 18rpx 24rpx 22rpx;
-  box-sizing: border-box;
   grid-template-columns: 1fr 1.6fr;
-  gap: 12rpx;
-  border-top: 1rpx solid var(--app-divider-color);
-  background: #fff;
 }
 
 :deep(.location-dropdown__reset),
 :deep(.location-dropdown__apply) {
   --wot-button-height-medium: 78rpx;
-  border-radius: 16rpx;
+  @apply rounded-2;
 }
 
 :deep(.location-dropdown__reset) {
@@ -770,22 +640,5 @@ watch(() => regionStore.scopeKey, () => {
 :deep(.location-dropdown__apply) {
   --wot-button-primary-bg: var(--location-filter-primary);
   --wot-button-primary-bg-active: var(--location-filter-primary-active);
-}
-
-@keyframes location-popover-in {
-  from {
-    opacity: 0;
-    transform: translateY(-12rpx) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .location-popover {
-    animation: none;
-  }
 }
 </style>

@@ -19,6 +19,8 @@ export type CustomRequestOptions = Omit<UniApp.RequestOptions, 'method'> & {
   skipAuthRedirect?: boolean
   /** 会话恢复后是否允许重放请求；GET 默认为 safe，写请求默认为 never。 */
   authRetry?: 'safe' | 'never'
+  /** 允许重放的请求在恢复后再次核对原账号。 */
+  authReplayGuard?: () => boolean
 } & IUniUploadFileOptions // 添加uni.uploadFile参数类型
 
 /** 主要提供给 openapi-ts-request 生成的代码使用 */

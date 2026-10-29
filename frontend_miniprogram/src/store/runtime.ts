@@ -3,8 +3,12 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getRuntimeAppConfig } from '@/core/config/runtime'
 import { AppError } from '@/core/errors/app-error'
+import { recoverAuthenticatedSession } from '@/core/auth/session-recovery'
 import { createSingleFlight } from '@/core/lifecycle/single-flight'
 import { getPublicAppContext } from '@/services/manual/app-context'
+// #ifdef H5
+import { syncH5MapConfig } from '@/platform/h5/map-config'
+// #endif
 import { useSessionStore } from './session'
 import { useWorkspaceStore } from './workspace'
 
@@ -35,6 +39,9 @@ export const useRuntimeStore = defineStore('app-runtime', () => {
     try {
       getRuntimeAppConfig()
       publicConfig.value = await getPublicAppContext()
+      // #ifdef H5
+      syncH5MapConfig(publicConfig.value)
+      // #endif
     }
     catch (error) {
       startupError.value = toRuntimeError(error, '应用配置加载失败')
@@ -63,13 +70,16 @@ export const useRuntimeStore = defineStore('app-runtime', () => {
   const runSessionRecovery = createSingleFlight(async () => {
     const sessionStore = useSessionStore()
     const workspaceStore = useWorkspaceStore()
-    sessionStore.clearSession()
-    workspaceStore.resetToVisitor()
-    if (!await sessionStore.tryAutomaticWechatLogin()) {
+    const recovered = await recoverAuthenticatedSession({
+      clearSession: sessionStore.clearSession,
+      resetToVisitor: workspaceStore.resetToVisitor,
+      tryAutomaticLogin: sessionStore.tryAutomaticWechatLogin,
+      refreshAuthenticatedContext,
+    })
+    if (!recovered) {
       startupState.value = 'ready'
       return false
     }
-    await refreshAuthenticatedContext()
     return true
   })
 

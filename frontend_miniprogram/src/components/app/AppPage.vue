@@ -45,8 +45,8 @@ const contentClass = computed(() => [
   props.gutter === 'normal' && props.variant === 'list' ? 'px-app-gutter pb-7 pt-2' : '',
   props.gutter === 'normal' && props.variant !== 'list' ? 'p-app-gutter' : '',
   props.gutter === 'loose' ? 'p-5' : '',
-  props.safeAreaBottom && !props.reserveFooterSpace ? 'pb-[calc(var(--app-page-gutter)+env(safe-area-inset-bottom))]' : '',
-  props.reserveFooterSpace ? 'pb-[calc(124rpx+env(safe-area-inset-bottom))]' : '',
+  props.safeAreaBottom && !props.reserveFooterSpace ? 'pb-safe-gutter' : '',
+  props.reserveFooterSpace ? 'pb-safe-footer' : '',
 ])
 </script>
 
@@ -54,13 +54,13 @@ const contentClass = computed(() => [
   <view class="app-page app-page-shell" :class="pageClass" :data-variant="variant" :data-mode="appContextStore.navigationMode">
     <slot name="navigation" />
     <slot name="header" />
-    <view class="app-page__content box-border min-h-[inherit]" :class="contentClass">
+    <view class="app-page__content box-border min-h-inherit" :class="contentClass">
       <slot name="before" />
       <slot />
       <slot name="after" />
     </view>
     <slot name="footer" />
-    <view v-if="tabbar" class="app-page__tabbar-spacer" />
+    <view v-if="tabbar" class="app-page__tabbar-spacer pointer-events-none" />
     <slot name="overlay" />
   </view>
 </template>
@@ -71,12 +71,10 @@ const contentClass = computed(() => [
 }
 
 .app-page--ai-background {
-  position: relative;
-  background: transparent;
+  @apply relative bg-transparent;
 }
 
 .app-page__tabbar-spacer {
   height: calc(var(--app-tabbar-height) + env(safe-area-inset-bottom));
-  pointer-events: none;
 }
 </style>

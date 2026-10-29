@@ -2,6 +2,9 @@
 import type { NearbyPoiCategory, NearbyPois } from '@/services/manual/nearby-pois'
 import { computed, ref, watch } from 'vue'
 import { getNearbyPois } from '@/services/manual/nearby-pois'
+// #ifndef MP-WEIXIN
+import houseMapSchematic from '@/static/images/house-map-schematic.png'
+// #endif
 
 const props = defineProps<{
   name: string
@@ -10,6 +13,7 @@ const props = defineProps<{
   longitude?: string | number | null
   previewCount?: number
   hideNearbyHint?: boolean
+  compact?: boolean
 }>()
 const categories = [
   { key: 'bus', label: '公交' },
@@ -77,52 +81,52 @@ function openLocation() {
 </script>
 
 <template>
-  <view class="detail-card">
-    <view class="detail-heading">
-      <text>位置与周边</text><button v-if="hasCoordinates" class="detail-text-button" @click="openLocation">
+  <view class="detail-card location-card" :class="{ 'location-card--compact': compact }">
+    <view class="detail-heading" :class="{ 'location-card__header': compact }">
+      <text :class="{ 'location-card__label': compact }">位置与周边</text>
+      <button v-if="hasCoordinates" class="detail-text-button" @click="openLocation">
         打开地图 <text class="i-carbon-chevron-right" />
       </button>
     </view>
-    <view class="address">
-      <text class="i-carbon-location address-icon" /><text>{{ address || '暂未登记详细地址' }}</text>
+    <view v-if="!compact" class="address flex items-start gap-1 text-size-xs text-hex-526177 leading-4.5">
+      <text class="i-carbon-location address-icon mt-0.5 flex-none text-size-xs" /><text>{{ address || '暂未登记详细地址' }}</text>
     </view>
     <!-- #ifdef MP-WEIXIN -->
-    <map v-if="hasCoordinates" class="map" :latitude="Number(latitude)" :longitude="Number(longitude)" :markers="markers" :scale="15" @markertap="openLocation" @callouttap="openLocation" />
-    <view v-else class="map map--empty">
+    <map v-if="hasCoordinates" class="map relative mx-0 mb-3 mt-2.5 h-38 w-full overflow-hidden border-0 rounded-2.5 bg-hex-edf2ef p-0" :latitude="Number(latitude)" :longitude="Number(longitude)" :markers="markers" :scale="15" @markertap="openLocation" @callouttap="openLocation" />
+    <view v-else class="map map--empty relative mx-0 mb-3 mt-2.5 h-38 w-full overflow-hidden border-0 rounded-2.5 bg-hex-edf2ef p-0">
       位置待完善
     </view>
     <!-- #endif -->
     <!-- #ifndef MP-WEIXIN -->
-    <button class="map map--schematic" :disabled="!hasCoordinates" @click="openLocation">
-      <image class="map-background" src="/static/images/house-map-schematic.png" mode="scaleToFill" />
-      <text class="map-marker">{{ name }}</text>
-      <text class="map-caption">{{ hasCoordinates ? '位置示意 · 点击查看地图' : '位置待完善' }}</text>
+    <button class="map map--schematic relative mx-0 mb-3 mt-2.5 h-38 w-full overflow-hidden border-0 rounded-2.5 bg-hex-edf2ef p-0" :style="{ backgroundImage: `url(${houseMapSchematic})` }" :disabled="!hasCoordinates" @click="openLocation">
+      <text class="map-marker absolute left-1/2 top-1/2 rounded-2 bg-hex-0081ff px-2.5 py-2 text-size-2xs text-hex-fff font-semibold leading-4.5">{{ name }}</text>
+      <text class="map-caption absolute bottom-2 left-2 rounded-1 bg-hex-ffffffdf px-1.5 py-0.5 text-size-2xs text-hex-526177 leading-4">{{ hasCoordinates ? '位置示意 · 点击查看地图' : '位置待完善' }}</text>
     </button>
     <!-- #endif -->
-    <view class="poi-tabs" role="tablist" aria-label="周边类型">
-      <button v-for="item in categories" :key="item.key" class="poi-tab" :class="{ 'poi-tab--active': category === item.key }" role="tab" :aria-selected="category === item.key" @click="category = item.key">
+    <view class="poi-tabs flex gap-1.5 border-b-1 border-b-hex-e7ecf2 border-b-solid pb-2.5" role="tablist" aria-label="周边类型">
+      <button v-for="item in categories" :key="item.key" class="poi-tab m-0 min-h-9 flex-1 border-0 rounded-2 bg-transparent px-1 py-1.5 text-size-2xs text-hex-182538 leading-6" :class="{ 'poi-tab--active': category === item.key }" role="tab" :aria-selected="category === item.key" @click="category = item.key">
         {{ item.label }}
       </button>
     </view>
-    <view v-if="poiLoading" class="poi-empty">
+    <view v-if="poiLoading" class="poi-empty px-0 py-6 text-center text-size-xs text-hex-78869a">
       正在获取周边设施
     </view>
-    <view v-else-if="poiError" class="poi-empty">
+    <view v-else-if="poiError" class="poi-empty px-0 py-6 text-center text-size-xs text-hex-78869a">
       {{ poiError }}
     </view>
-    <view v-else-if="pois.length" class="poi-list">
-      <view v-for="poi in visiblePois" :key="poi.id" class="poi-item">
-        <view class="poi-main">
-          <text class="poi-name">{{ poi.name }}</text>
-          <text class="poi-address">{{ poi.address }}</text>
+    <view v-else-if="pois.length" class="poi-list flex flex-col">
+      <view v-for="poi in visiblePois" :key="poi.id" class="poi-item flex items-start justify-between gap-2.5 border-b-1 border-b-hex-eff2f6 border-b-solid px-0 py-2.5">
+        <view class="poi-main min-w-0 flex gap-1">
+          <text class="poi-name text-size-xs text-hex-182538 font-semibold leading-4.5">{{ poi.name }}</text>
+          <text v-if="!compact || category !== 'bus'" class="poi-address overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-hex-78869a leading-4">{{ poi.address }}</text>
         </view>
-        <text class="poi-distance">{{ distanceText(poi.distance) }}</text>
+        <text class="poi-distance flex-none text-size-2xs text-hex-526177 leading-4.5">{{ distanceText(poi.distance) }}</text>
       </view>
     </view>
-    <view v-else class="poi-empty">
+    <view v-else class="poi-empty px-0 py-6 text-center text-size-xs text-hex-78869a">
       2 公里内暂无{{ activeCategory.label }}地点信息
     </view>
-    <view v-if="!hideNearbyHint" class="poi-hint">
+    <view v-if="!hideNearbyHint" class="poi-hint border-t-1 border-t-hex-eff2f6 border-t-solid pt-2.5 text-size-2xs text-hex-78869a leading-4.5">
       {{ hasCoordinates ? '2 公里内周边配套' : '房源位置以工作人员确认为准' }}
     </view>
   </view>
@@ -130,145 +134,102 @@ function openLocation() {
 
 <style scoped lang="scss">
 @use './detail.scss';
-.address {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  color: #526177;
-  font-size: 12px;
-  line-height: 18px;
+.location-card__header > .detail-text-button {
+  @apply flex-none;
 }
-.address-icon {
-  flex: none;
-  margin-top: 2px;
-  font-size: 13px;
+.location-card__label {
+  @apply block;
+  @apply text-hex-66788d;
+  @apply text-size-xs;
+  @apply font-medium;
+  @apply leading-4.5;
 }
 .map {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 152px;
-  margin: 9px 0 12px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 10px;
-  background: #edf2ef;
+  @apply block;
 }
 .map::after {
-  border: 0;
+  @apply border-0;
 }
-.map-background {
-  width: 100%;
-  height: 100%;
+.location-card--compact .map {
+  height: calc(50vw - 30px);
+  @apply mt-1.5 mx-0 mb-2;
+  @apply rounded-3;
+}
+.map--schematic {
+  @apply bg-center;
+  @apply bg-cover;
 }
 .map-marker {
-  position: absolute;
-  top: 49px;
-  left: 50%;
   max-width: 80%;
-  padding: 7px 10px;
-  border-radius: 7px;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 17px;
-  background: #0081ff;
-  transform: translateX(-50%);
-}
-.map-caption {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  padding: 2px 5px;
-  border-radius: 4px;
-  color: #526177;
-  font-size: 10px;
-  line-height: 16px;
-  background: #ffffffdf;
+  transform: translate(-50%, -50%);
 }
 .map--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #78869a;
-  font-size: 12px;
+  @apply flex;
+  @apply items-center;
+  @apply justify-center;
+  @apply text-hex-78869a;
+  @apply text-size-xs;
 }
-.poi-tabs {
-  display: flex;
-  gap: 5px;
-  padding-bottom: 9px;
-  border-bottom: 1px solid #e7ecf2;
-}
-.poi-tab {
-  flex: 1;
-  min-height: 36px;
-  margin: 0;
-  padding: 6px 3px;
-  border: 0;
-  border-radius: 7px;
-  color: #182538;
-  font-size: 11px;
-  line-height: 24px;
-  background: transparent;
+.location-card--compact .poi-tabs {
+  @apply gap-0;
+  @apply p-0;
+  @apply border-b-1 border-b-solid border-b-hex-e7ecf2;
+  @apply rounded-0;
+  @apply bg-transparent;
 }
 .poi-tab::after {
-  border: 0;
+  @apply border-0;
+}
+.location-card--compact .poi-tab {
+  @apply relative;
+  @apply min-h-10;
+  @apply py-2 px-1;
+  @apply rounded-0;
+  @apply text-hex-526177;
+  @apply text-size-xs;
 }
 .poi-tab--active {
-  color: #006bcc;
-  background: #edf6ff;
+  @apply text-hex-006bcc;
+  @apply bg-hex-edf6ff;
 }
-.poi-empty {
-  padding: 24px 0;
-  color: #78869a;
-  font-size: 12px;
-  text-align: center;
+.location-card--compact .poi-tab--active {
+  @apply text-hex-1269db;
+  @apply bg-transparent;
 }
-.poi-list {
-  display: flex;
-  flex-direction: column;
+.location-card--compact .poi-tab--active::before {
+  @apply absolute;
+  @apply bottom-0;
+  @apply left-1/2;
+  @apply w-5;
+  @apply h-0.5;
+  @apply rounded-0.5;
+  @apply bg-current;
+  content: '';
+  transform: translateX(-50%);
 }
-.poi-item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid #eff2f6;
+.location-card--compact .poi-list {
+  @apply mt-1;
+}
+.location-card--compact .poi-item {
+  @apply gap-3;
+  @apply py-3 px-0;
+}
+.location-card--compact .poi-item:last-child {
+  @apply border-b-0;
 }
 .poi-main {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 3px;
+  @apply flex-1;
+  @apply flex-col;
 }
-.poi-name {
-  color: #182538;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 18px;
+.location-card--compact .poi-name {
+  @apply text-size-xs;
+  @apply font-medium;
+  @apply leading-5;
 }
-.poi-address {
-  overflow: hidden;
-  color: #78869a;
-  font-size: 10px;
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.poi-distance {
-  flex: none;
-  color: #526177;
-  font-size: 10px;
-  line-height: 18px;
-}
-.poi-hint {
-  padding-top: 9px;
-  border-top: 1px solid #eff2f6;
-  color: #78869a;
-  font-size: 10px;
-  line-height: 18px;
+.location-card--compact .poi-distance {
+  @apply text-size-2xs;
+  @apply leading-5;
+  @apply tabular-nums;
+  @apply whitespace-nowrap;
 }
 </style>

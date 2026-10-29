@@ -29,7 +29,7 @@ const markers = computed(() => [
     id: item.id,
     latitude: Number(item.location.latitude),
     longitude: Number(item.location.longitude),
-    title: `${item.display_name || item.name} · ${item.counts.vacant} 套空置`,
+    title: `${item.display_name || item.name} · ${item.counts.paused} 套暂不出租`,
     iconPath: '/static/tabbar/home.png',
     width: 28,
     height: 28,
@@ -114,7 +114,7 @@ onPullDownRefresh(loadMap)
 </script>
 
 <template>
-  <view class="map-page">
+  <view class="map-page min-h-screen bg-surface-page px-3 pb-7 pt-0">
     <AppCustomNavigation title="房源地图" back scroll-mode="sticky" />
     <AppLoading v-if="loading" text="正在加载地图标点…" />
     <AppErrorView v-else-if="loadError" title="地图加载失败" :message="loadError" @retry="loadMap" />
@@ -156,21 +156,21 @@ onPullDownRefresh(loadMap)
       <wd-button v-if="unlocatedCount" class="mt-3" block variant="plain" @click="openBuildings">
         维护 {{ unlocatedCount }} 栋待定位楼栋
       </wd-button>
-      <view class="summary-card">
+      <view class="summary-card grid grid-cols-3 mt-2.5 gap-1.5 rounded-3 bg-surface-card p-3 text-center">
         <view><strong>{{ estates.length }}</strong><text>小区标点</text></view>
         <view><strong>{{ buildings.length }}</strong><text>楼栋标点</text></view>
         <view><strong>{{ unlocatedCount }}</strong><text>待定位楼栋</text></view>
       </view>
-      <view v-if="estates.length" class="marker-list">
-        <view v-for="item in estates" :key="item.id" class="marker-card app-touchable" @click="openMarker(`estate-${item.id}`)">
-          <view class="marker-name">
+      <view v-if="estates.length" class="marker-list mt-2.5 flex flex-col gap-2">
+        <view v-for="item in estates" :key="item.id" class="marker-card app-touchable rounded-2.5 bg-surface-card p-3" @click="openMarker(`estate-${item.id}`)">
+          <view class="marker-name text-size-sm text-content-primary font-bold">
             {{ item.display_name || item.name }}
           </view>
-          <view class="marker-address">
+          <view class="marker-address mt-1 text-size-2xs text-content-muted">
             {{ item.address || '地址未登记' }}
           </view>
-          <view class="marker-count">
-            {{ item.building_count }} 栋 · {{ item.counts.total }} 套 · {{ item.counts.vacant }} 套空置
+          <view class="marker-count mt-1 text-size-2xs text-content-muted">
+            {{ item.building_count }} 栋 · {{ item.counts.total }} 套 · {{ item.counts.paused }} 套暂不出租
           </view>
         </view>
       </view>
@@ -179,63 +179,20 @@ onPullDownRefresh(loadMap)
 </template>
 
 <style scoped lang="scss">
-.map-page {
-  min-height: 100vh;
-  padding: 0 24rpx 56rpx;
-  background: var(--app-bg-page);
-}
 .map-page :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
+  @apply mt-0 -mx-3 mb-3;
 }
 .map-view {
-  width: 100%;
-  height: 640rpx;
-  overflow: hidden;
-  border-radius: 26rpx;
-}
-.summary-card {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rpx;
-  margin-top: 20rpx;
-  padding: 24rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-  text-align: center;
+  @apply w-full h-80 overflow-hidden rounded-3.5;
 }
 .summary-card strong,
 .summary-card text {
-  display: block;
+  @apply block;
 }
 .summary-card strong {
-  color: var(--app-text-primary);
-  font-size: 34rpx;
+  @apply text-content-primary text-size-base;
 }
 .summary-card text {
-  margin-top: 6rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.marker-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  margin-top: 20rpx;
-}
-.marker-card {
-  padding: 24rpx;
-  border-radius: 20rpx;
-  background: var(--app-bg-card);
-}
-.marker-name {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 650;
-}
-.marker-address,
-.marker-count {
-  margin-top: 8rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply mt-1 text-content-muted text-size-2xs;
 }
 </style>

@@ -55,11 +55,11 @@ onPullDownRefresh(loadAnalytics)
 </script>
 
 <template>
-  <view class="analytics-page">
+  <view class="analytics-page min-h-screen bg-surface-page px-3 pb-7 pt-0">
     <AppCustomNavigation title="经营分析" back scroll-mode="sticky" />
     <AppErrorView v-if="!allowed" title="无查看权限" message="当前账号无权查看经营分析" :retryable="false" />
     <template v-else>
-      <view class="filter-card">
+      <view class="filter-card border-hairline border-app-card rounded-app-lg border-solid bg-surface-card px-3 pb-3.5 pt-1.5">
         <wd-cell title="开始日期" center>
           <wd-input v-model="startDate" placeholder="YYYY-MM-DD" clearable compact align-right />
         </wd-cell>
@@ -73,41 +73,41 @@ onPullDownRefresh(loadAnalytics)
       <AppDashboardSkeleton v-if="loading" :metric-count="3" compact />
       <AppErrorView v-else-if="loadError" title="分析加载失败" :message="loadError" @retry="loadAnalytics" />
       <template v-else-if="overview">
-        <view class="overview-card">
+        <view class="overview-card grid grid-cols-3 mt-2.5 gap-1.5 rounded-3 p-3.5 text-center text-white bg-gradient-brand">
           <view><strong>{{ overview.total_events }}</strong><text>行为总量</text></view>
           <view><strong>{{ overview.unique_visitors ?? '--' }}</strong><text>独立访客</text></view>
           <view><strong>{{ overview.metrics.length }}</strong><text>指标数量</text></view>
         </view>
-        <view class="section">
-          <view class="section-title">
+        <view class="section mt-3.5">
+          <view class="section-title mx-1 mb-2 mt-0 text-size-xs text-content-secondary font-bold">
             指标概览
           </view>
-          <view v-if="overview.metrics.length" class="metric-list">
-            <view v-for="item in overview.metrics" :key="item.event_name" class="metric-card">
+          <view v-if="overview.metrics.length" class="metric-list flex flex-col gap-2">
+            <view v-for="item in overview.metrics" :key="item.event_name" class="metric-card flex items-center justify-between gap-2.5 border-hairline border-app-card rounded-app-md border-solid bg-surface-card p-3">
               <view>
-                <view class="metric-name">
+                <view class="metric-name text-size-sm text-content-primary font-bold">
                   {{ item.label }}
                 </view>
               </view>
-              <view class="metric-value">
+              <view class="metric-value text-size-base text-app-brand font-bold">
                 {{ item.count }}
               </view>
             </view>
           </view>
           <AppEmpty
             v-else
-            title="所选日期内暂无经营事件"
-            description="调整开始和结束日期后重新查询，或等待新的经营事件产生。"
+            title="所选日期内暂无经营数据"
+            description="可调整日期范围后重新查询。"
             icon="no-content"
             compact
           />
         </view>
-        <view v-if="trends.length" class="section">
-          <view class="section-title">
+        <view v-if="trends.length" class="section mt-3.5">
+          <view class="section-title mx-1 mb-2 mt-0 text-size-xs text-content-secondary font-bold">
             最近趋势
           </view>
-          <view class="trend-list">
-            <view v-for="(item, index) in trends" :key="`${item.date}-${item.event_name}-${index}`" class="trend-row">
+          <view class="trend-list flex flex-col gap-2">
+            <view v-for="(item, index) in trends" :key="`${item.date}-${item.event_name}-${index}`" class="trend-row flex items-center justify-between gap-2.5 border-hairline border-app-card rounded-app-md border-solid bg-surface-card p-3 text-size-xs text-content-secondary">
               <text>{{ item.date }} · {{ metricLabel(item.event_name) }}</text><strong>{{ item.count }}</strong>
             </view>
           </view>
@@ -118,84 +118,20 @@ onPullDownRefresh(loadAnalytics)
 </template>
 
 <style scoped lang="scss">
-.analytics-page {
-  min-height: 100vh;
-  padding: 0 24rpx 56rpx;
-  background: var(--app-bg-page);
-}
 .analytics-page :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
-}
-.filter-card {
-  padding: 12rpx 24rpx 26rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  background: var(--app-bg-card);
-}
-.overview-card {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rpx;
-  margin-top: 20rpx;
-  padding: 28rpx;
-  border-radius: 22rpx;
-  background: var(--app-gradient-brand);
-  color: #fff;
-  text-align: center;
+  @apply mt-0 -mx-3 mb-3;
 }
 .overview-card strong,
 .overview-card text {
-  display: block;
+  @apply block;
 }
 .overview-card strong {
-  font-size: 38rpx;
+  @apply text-size-lg;
 }
 .overview-card text {
-  margin-top: 7rpx;
-  font-size: 21rpx;
-  opacity: 0.78;
-}
-.section {
-  margin-top: 28rpx;
-}
-.section-title {
-  margin: 0 6rpx 14rpx;
-  color: var(--app-text-secondary);
-  font-size: 26rpx;
-  font-weight: 650;
-}
-.metric-list,
-.trend-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-.metric-card,
-.trend-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  padding: 24rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-md);
-  background: var(--app-bg-card);
-}
-.metric-name {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  font-weight: 650;
-}
-.metric-value {
-  color: var(--app-color-primary);
-  font-size: 34rpx;
-  font-weight: 700;
-}
-.trend-row {
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
+  @apply mt-1 text-size-2xs opacity-78;
 }
 .trend-row strong {
-  color: var(--app-text-primary);
+  @apply text-content-primary;
 }
 </style>

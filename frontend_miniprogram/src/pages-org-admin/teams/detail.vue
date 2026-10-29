@@ -111,7 +111,7 @@ async function addMember(item: MemberOut) {
 async function removeMember(userId: number, username: string) {
   if (submitting.value || !team.value)
     return
-  const confirmation = await uni.showModal({ title: '移出团队', content: `确定将 ${username} 移出当前团队吗？组织成员关系不会被移除。`, confirmText: '确认移出' })
+  const confirmation = await uni.showModal({ title: '移出团队', content: `确定将 ${username} 移出当前团队吗？空间成员关系不会被移除。`, confirmText: '确认移出' })
   if (!confirmation.confirm)
     return
   submitting.value = userId
@@ -142,7 +142,7 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="page-shell">
+  <view class="page-shell box-border min-h-screen bg-surface-page px-3 pb-7 pt-0">
     <AppCustomNavigation title="团队详情" back scroll-mode="sticky" />
     <wd-toast />
     <view v-if="targetUserId" class="my-3 text-xs text-content-secondary">
@@ -151,7 +151,7 @@ onLoad((options) => {
     <AppLoading v-if="loading" text="正在加载团队详情…" />
     <AppErrorView v-else-if="loadError" title="团队详情加载失败" :message="loadError" @retry="loadTeam" />
     <template v-else-if="team">
-      <view class="form-card">
+      <view class="form-card rounded-3 bg-surface-card p-3.5">
         <wd-cell title="团队名称" center>
           <wd-input v-model="name" :readonly="!canUpdate" compact align-right />
         </wd-cell>
@@ -171,23 +171,23 @@ onLoad((options) => {
           保存团队资料
         </wd-button>
       </view>
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-2 mt-3.5 flex items-center justify-between gap-2">
         <strong>团队成员</strong><wd-button v-if="canManageMembers" size="small" variant="plain" @click="openMemberEditor">
           添加成员
         </wd-button>
       </view>
-      <view class="card-list">
-        <view v-for="member in team.member_details" :key="member.id" class="member-card">
+      <view class="card-list flex flex-col gap-2">
+        <view v-for="member in team.member_details" :key="member.id" class="member-card flex items-center justify-between gap-2 rounded-3 bg-surface-card p-3.5">
           <view><strong>{{ ((member.first_name || '') + (member.last_name || '')) || member.username }}</strong><text>{{ member.username }}</text></view>
           <wd-button v-if="canManageMembers" type="danger" variant="plain" size="small" :loading="submitting === member.id" :disabled="submitting !== null" @click="removeMember(member.id, member.username)">
             移出
           </wd-button>
         </view>
       </view>
-      <view v-if="canViewRoles" class="link-card" @click="openTeamRoles">
-        <view><strong>团队角色与授权</strong><text>维护团队级角色和成员绑定</text></view><view class="i-carbon-chevron-right" />
+      <view v-if="canViewRoles" class="link-card mt-2 flex items-center justify-between gap-2 rounded-3 bg-surface-card p-3.5" @click="openTeamRoles">
+        <view><strong>团队角色与授权</strong><text>设置团队角色并为成员分配权限</text></view><view class="i-carbon-chevron-right" />
       </view>
-      <view v-if="canViewSettings" class="link-card" @click="openTeamSettings">
+      <view v-if="canViewSettings" class="link-card mt-2 flex items-center justify-between gap-2 rounded-3 bg-surface-card p-3.5" @click="openTeamSettings">
         <view><strong>团队设置</strong><text>维护当前团队业务设置</text></view><view class="i-carbon-chevron-right" />
       </view>
     </template>
@@ -204,8 +204,8 @@ onLoad((options) => {
         </view>
         <AppEmpty
           v-if="!availableMembers.length"
-          title="没有可加入的组织成员"
-          :description="targetUserId ? '当前成员已在团队中，或不在可添加成员范围内。' : '当前组织成员都已在团队中，或没有可管理的成员。'"
+          title="没有可加入的空间成员"
+          :description="targetUserId ? '当前成员已在团队中，或不在可添加成员范围内。' : '当前工作空间成员都已在团队中，或没有可管理的成员。'"
           icon="no-result"
           compact
         />
@@ -215,68 +215,31 @@ onLoad((options) => {
 </template>
 
 <style scoped lang="scss">
-.page-shell {
-  min-height: 100vh;
-  padding: 0 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
 .page-shell :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
-}
-.form-card,
-.member-card,
-.link-card {
-  padding: 26rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
+  @apply mt-0 -mx-3 mb-3;
 }
 .form-card :deep(.wd-button) {
-  margin-top: 24rpx;
-}
-.section-heading,
-.member-card,
-.link-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-.section-heading {
-  margin: 28rpx 6rpx 14rpx;
+  @apply mt-3;
 }
 .section-heading strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-}
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
+  @apply text-content-primary text-size-sm;
 }
 .member-card > view,
 .link-card > view {
-  min-width: 0;
-  flex: 1;
+  @apply min-w-0 flex-1;
 }
 .member-card strong,
 .member-card text,
 .link-card strong,
 .link-card text {
-  display: block;
+  @apply block;
 }
 .member-card strong,
 .link-card strong {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
+  @apply text-content-primary text-size-xs;
 }
 .member-card text,
 .link-card text {
-  margin-top: 6rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.link-card {
-  margin-top: 16rpx;
+  @apply mt-1 text-content-muted text-size-2xs;
 }
 </style>

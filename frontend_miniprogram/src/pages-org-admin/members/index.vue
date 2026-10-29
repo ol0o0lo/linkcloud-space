@@ -61,7 +61,7 @@ async function searchCandidates() {
 async function addMember(candidate: MemberSearchOut) {
   if (submitting.value)
     return
-  const confirmation = await uni.showModal({ title: '添加组织成员', content: `确定添加 ${candidate.username} 到当前组织吗？`, confirmText: '确认添加' })
+  const confirmation = await uni.showModal({ title: '添加空间成员', content: `确定添加 ${candidate.username} 到当前工作空间吗？`, confirmText: '确认添加' })
   if (!confirmation.confirm)
     return
   submitting.value = true
@@ -110,13 +110,13 @@ function handleEmptyAction() {
         查看全部
       </wd-button>
     </view>
-    <view class="member-heading">
+    <view class="member-heading mx-0 mb-3 mt-2.5 flex items-center justify-between">
       <text>共 {{ memberPage.total.value }} 位成员</text>
       <wd-button size="small" @click="addVisible = true">
         添加成员
       </wd-button>
     </view>
-    <view class="member-search app-card-plain">
+    <view class="member-search app-card-plain px-2 py-1.5">
       <wd-search v-model="keyword" placeholder="搜索员工姓名、账号或邮箱" hide-cancel @search="refreshList" @clear="refreshList" />
     </view>
     <view class="mt-2.5">
@@ -129,8 +129,8 @@ function handleEmptyAction() {
         :finished="memberPage.finished.value"
         :error="memberPage.error.value"
         loading-text="正在加载成员…"
-        :empty-text="hasSearch ? '没有找到相关成员' : '当前组织还没有成员'"
-        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : '添加成员后，可以继续配置团队、角色和房源职责。'"
+        :empty-text="hasSearch ? '没有找到相关成员' : '当前工作空间还没有成员'"
+        :empty-description="hasSearch ? '试试清空搜索内容后重新查看。' : '添加成员后，可以继续配置团队、角色和房源分工。'"
         empty-icon="no-result"
         :empty-action-text="hasSearch ? '清除搜索' : '添加成员'"
         finished-text="没有更多成员了"
@@ -141,17 +141,17 @@ function handleEmptyAction() {
           <AppRecordListSkeleton variant="member" />
         </template>
         <template #item="{ item }">
-          <view class="member-card app-touchable" hover-class="app-touchable--pressed" @click="openMember(item)">
-            <view class="member-avatar">
+          <view class="member-card box-border min-h-14.5 flex app-touchable items-center gap-2.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card px-3.5 py-3" hover-class="app-touchable--pressed" @click="openMember(item)">
+            <view class="member-avatar h-9 w-9 flex flex-none basis-9 items-center justify-center rounded-3 bg-surface-brand-soft text-size-sm text-app-brand-active font-bold">
               {{ memberInitial(item) }}
             </view>
-            <view class="member-copy">
+            <view class="member-copy min-w-0 flex flex-1 flex-col gap-1">
               <strong>{{ memberName(item) }}</strong><text>账号 {{ item.user.username }} · {{ item.job_title || item.user.email || '未填写职位' }}</text>
             </view>
             <wd-tag v-if="item.is_owner" type="warning" variant="light" size="small">
               所有者
             </wd-tag>
-            <view class="member-arrow i-carbon-chevron-right" />
+            <view class="member-arrow i-carbon-chevron-right flex-none text-size-sm" />
           </view>
         </template>
       </AppPagedList>
@@ -187,68 +187,19 @@ function handleEmptyAction() {
 </template>
 
 <style scoped lang="scss">
-.member-heading {
-  display: flex;
-  margin: 20rpx 0 22rpx;
-  align-items: center;
-  justify-content: space-between;
-}
 .member-heading text {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
+  @apply text-content-muted text-size-xs;
 }
 .member-search {
-  padding: 10rpx 14rpx;
-  border-radius: 24rpx;
-}
-.member-card {
-  display: flex;
-  min-height: 116rpx;
-  padding: 24rpx 26rpx;
-  align-items: center;
-  gap: 20rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  background: var(--app-bg-card);
-  box-sizing: border-box;
-}
-.member-avatar {
-  display: flex;
-  width: 72rpx;
-  height: 72rpx;
-  flex: 0 0 72rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 22rpx;
-  color: var(--app-color-brand-active);
-  font-size: 29rpx;
-  font-weight: 700;
-  background: var(--app-bg-brand-soft);
-}
-.member-copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 8rpx;
+  @apply rounded-3;
 }
 .member-copy strong {
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-content-primary text-size-sm text-ellipsis whitespace-nowrap;
 }
 .member-copy text {
-  overflow: hidden;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-content-muted text-size-2xs text-ellipsis whitespace-nowrap;
 }
 .member-arrow {
-  flex: 0 0 auto;
   color: #8a98aa;
-  font-size: 30rpx;
 }
 </style>

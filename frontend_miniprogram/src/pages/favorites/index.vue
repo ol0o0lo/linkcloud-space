@@ -7,7 +7,7 @@ import { onPageScroll, onPullDownRefresh, onReachBottom, onShow } from '@dcloudi
 import { computed, ref } from 'vue'
 import { buildFavoriteHouseCardModel } from '@/domain/house-card'
 import { formatOrganizationWorkDateTime, getAssignmentStatusTone, getPriorityTone, shouldShowAnnouncementAcknowledgement } from '@/domain/organization-work'
-import { formatTenantHouseTitle, getTenantLeaseStatusTone, getTenantViewingStatusTone } from '@/domain/tenant-rental'
+import { formatTenantHouseTitle, getTenantLeaseStatusTone, getTenantViewingStatusTone, sortCurrentTenantViewings } from '@/domain/tenant-rental'
 import { listHouseFavorites, unfavoriteHouse } from '@/features/favorites/service'
 import { listLandlordLeases } from '@/features/landlord/service'
 import { getDailyOrganizationWorkDashboard, getOrganizationWorkCapabilities, listOrganizationAnnouncements } from '@/features/organization-work/service'
@@ -24,6 +24,7 @@ import AppPagedList from '@/components/app/AppPagedList.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import AppRecordCard from '@/components/app/AppRecordCard.vue'
 import HouseCard from '@/components/house/HouseCard.vue'
+import TenantViewingCard from '@/components/house/TenantViewingCard.vue'
 import { useNavigationScrollState } from '@/hooks/useNavigationScrollState'
 import { usePagedPage } from '@/hooks/usePagedPage'
 
@@ -94,19 +95,7 @@ const historicalViewingPage = usePagedPage<TenantViewingRecordOut>({
   keyOf: item => item.id,
 })
 
-const currentViewings = computed(() => {
-  const now = Date.now()
-  return [...currentViewingPage.items.value]
-    .sort((left, right) => {
-      const leftTime = Date.parse(left.scheduled_at)
-      const rightTime = Date.parse(right.scheduled_at)
-      const leftPast = leftTime < now
-      const rightPast = rightTime < now
-      if (leftPast !== rightPast)
-        return leftPast ? 1 : -1
-      return leftPast ? rightTime - leftTime : leftTime - rightTime
-    })
-})
+const currentViewings = computed(() => sortCurrentTenantViewings(currentViewingPage.items.value))
 
 const historicalViewings = computed(() => [...historicalViewingPage.items.value]
   .sort((left, right) => Date.parse(right.scheduled_at) - Date.parse(left.scheduled_at)))
@@ -174,10 +163,6 @@ function formatViewingDateTime(value: string | null) {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
-function isPastScheduledViewing(item: TenantViewingRecordOut) {
-  return item.status === 'scheduled' && Date.parse(item.scheduled_at) < Date.now()
-}
-
 function toggleHistory() {
   historyExpanded.value = !historyExpanded.value
   if (historyExpanded.value && !historicalViewingPage.loaded.value)
@@ -190,7 +175,9 @@ function handlePersonalTabChange({ name }: { name: number | string }) {
 }
 
 async function cancelViewing(item: TenantViewingRecordOut) {
-  const confirmation = await uni.showModal({ title: '取消预约', content: '取消后由中介端同步看到该状态，确定继续吗？', confirmText: '确认取消' })
+  if (cancelingViewingId.value !== null)
+    return
+  const confirmation = await uni.showModal({ title: '取消预约', content: '取消后，经纪人将看到预约已取消，确定继续吗？', confirmText: '确认取消' })
   if (!confirmation.confirm)
     return
 
@@ -249,7 +236,7 @@ async function loadOrganizationTasks() {
   if (!organizationSlug) {
     organizationDashboard.value = null
     organizationAnnouncements.value = []
-    organizationError.value = '未选择组织，请先切换到中介端'
+    organizationError.value = '未选择工作空间，请先切换到经纪人身份'
     uni.stopPullDownRefresh()
     return
   }
@@ -311,11 +298,11 @@ onReachBottom(() => {
       <AppCustomNavigation title="" scroll-mode="fade" :scrolled="navigationScrolled" content-opacity-mode="fade-in" :scroll-progress="navigationProgress" />
     </template>
     <template v-if="currentMode === 'personal'">
-      <view class="personal-tabs-shell">
+      <view class="personal-tabs-shell bg-transparent">
         <wd-tabs v-model="activePersonalTab" custom-class="personal-tabs" line-theme="text" :line-height="3" @change="handlePersonalTabChange">
           <wd-tab name="favorites" title="我的收藏" :lazy="false">
-            <view class="personal-tab-panel">
-              <view class="personal-tab-summary">
+            <view class="personal-tab-panel pt-3">
+              <view class="personal-tab-summary mx-0.5 mb-2.5 mt-0 text-size-2xs text-content-muted">
                 共 {{ favoritePage.total.value }} 套收藏房源
               </view>
               <AppPagedList
@@ -361,77 +348,44 @@ onReachBottom(() => {
             </view>
           </wd-tab>
 
-          <wd-tab name="viewings" title="我的预约">
-            <view class="personal-tab-panel">
+          <wd-tab name="viewings" title="我的看房">
+            <view class="personal-tab-panel pt-3">
               <AppLoading v-if="currentViewingPage.loading.value && !currentViewingPage.items.value.length" text="正在加载当前预约…" />
               <AppErrorView v-else-if="currentViewingPage.error.value && !currentViewingPage.items.value.length" :error="currentViewingPage.error.value" @retry="currentViewingPage.refresh" />
               <template v-else>
-                <view class="viewing-section-heading">
+                <view class="viewing-section-heading mx-0.5 mb-2.5 mt-0 flex items-center justify-between gap-3">
                   <view>
-                    <strong>当前预约</strong>
-                    <text>优先展示仍在生效的看房安排</text>
+                    <strong>待看房</strong>
+                    <text>工作人员确认时间后的看房安排</text>
                   </view>
-                  <view v-if="currentViewings.length" class="viewing-section-count">
+                  <view v-if="currentViewings.length" class="viewing-section-count flex-none rounded-full bg-surface-brand-soft px-2 py-1 text-size-2xs text-app-brand-active font-semibold">
                     {{ currentViewings.length }} 条
                   </view>
                 </view>
 
                 <view v-if="currentViewings.length" class="app-stack-list">
-                  <AppRecordCard v-for="item in currentViewings" :key="item.id" clickable variant="prominent" @click="openTenantViewing(item.id)">
-                    <template #title>
-                      {{ formatTenantHouseTitle(item.house) }}
-                    </template>
-                    <template #status>
-                      <wd-tag :type="getTenantViewingStatusTone(item.status)" variant="light" size="small">
-                        {{ item.status__mapping }}
-                      </wd-tag>
-                    </template>
-                    <template #description>
-                      {{ item.organization.name }}
-                    </template>
-                    <view class="app-row-between text-xs text-content-muted">
-                      <text>预约时间</text>
-                      <strong class="text-content-secondary font-medium">{{ formatViewingDateTime(item.scheduled_at) }}</strong>
-                    </view>
-                    <view v-if="isPastScheduledViewing(item)" class="viewing-overdue">
-                      <view class="i-carbon-warning-alt" /><text>预约时间已过，等待状态更新</text>
-                    </view>
-                    <template #footer>
-                      <text class="text-xs text-app-brand">查看详情</text>
-                    </template>
-                    <template #actions>
-                      <wd-button
-                        size="mini"
-                        type="danger"
-                        variant="plain"
-                        :loading="cancelingViewingId === item.id"
-                        @click.stop="cancelViewing(item)"
-                      >
-                        取消预约
-                      </wd-button>
-                    </template>
-                  </AppRecordCard>
+                  <TenantViewingCard v-for="item in currentViewings" :key="item.id" :record="item" :canceling="cancelingViewingId === item.id" @open="openTenantViewing(item.id)" @cancel="cancelViewing(item)" />
                 </view>
-                <view v-else class="viewing-current-empty">
-                  <view class="viewing-current-empty__icon i-carbon-calendar" />
-                  <view class="viewing-current-empty__copy">
-                    <strong>暂无生效预约</strong>
-                    <text>发现心仪房源后，可以直接预约看房</text>
+                <view v-else class="viewing-current-empty flex flex-col items-center gap-1 border-hairline border-app-border-brand-soft rounded-3 border-solid px-3 pb-2.5 pt-3 text-center">
+                  <view class="viewing-current-empty__icon i-carbon-calendar h-6.5 w-6.5 flex flex-none basis-6.5 items-center justify-center border-hairline border-app-border-brand-soft rounded-2 border-solid text-size-xs" />
+                  <view class="viewing-current-empty__copy min-w-0 flex flex-col items-center gap-1">
+                    <strong>暂无待看房安排</strong>
+                    <text>提交联系需求后，工作人员会与你确认时间</text>
                   </view>
-                  <view class="viewing-current-empty__action app-touchable" hover-class="app-touchable--pressed" @click="goFindHouse">
+                  <view class="viewing-current-empty__action mt-0.5 flex flex-none app-touchable items-center gap-0.5 border-hairline border-app-border-brand-soft rounded-full border-solid px-2.5 py-1 text-size-2xs text-app-brand-active font-semibold" hover-class="app-touchable--pressed" @click="goFindHouse">
                     <text>去找房</text>
                     <view class="i-carbon-chevron-right" />
                   </view>
                 </view>
 
-                <view class="viewing-history">
-                  <view class="viewing-history-toggle app-touchable" hover-class="app-touchable--pressed" @click="toggleHistory">
-                    <view class="viewing-history-copy">
-                      <view class="viewing-history-icon i-carbon-time" />
+                <view class="viewing-history mt-3 border-t-hairline border-t-app-card border-t-solid">
+                  <view class="viewing-history-toggle flex app-touchable items-center justify-between gap-2 px-0.5 pb-1 pt-3 text-content-muted" hover-class="app-touchable--pressed" @click="toggleHistory">
+                    <view class="viewing-history-copy min-w-0 flex flex-1 items-center gap-1.5">
+                      <view class="viewing-history-icon i-carbon-time flex-none text-size-xs" />
                       <text>历史预约</text>
                       <text v-if="historyExpanded && historicalViewingPage.loaded.value" class="viewing-history-count">{{ historicalViewingPage.total.value }} 条</text>
                     </view>
-                    <view class="viewing-history-action">
+                    <view class="viewing-history-action flex flex-none items-center gap-1 text-size-2xs text-content-disabled">
                       <text v-if="!historyExpanded">查看</text>
                       <text v-else-if="historicalViewingPage.loading.value && !historicalViewingPage.loaded.value">加载中</text>
                       <text v-else>收起</text>
@@ -493,11 +447,11 @@ onReachBottom(() => {
     </template>
 
     <template v-else-if="currentMode === 'landlord'">
-      <view class="page-heading">
-        <view class="page-title">
+      <view class="page-heading px-0.5 pb-3.5 pt-1">
+        <view class="page-title text-size-xl text-content-primary font-bold">
           关联租约
         </view>
-        <view class="page-subtitle">
+        <view class="page-subtitle mt-1.5 text-size-xs text-content-muted">
           {{ appContextStore.currentLandlordRelationship?.organization_name }} · {{ appContextStore.currentLandlordRelationship?.contact_name }}
         </view>
       </view>
@@ -515,17 +469,17 @@ onReachBottom(() => {
         @retry="landlordLeasePage.refresh"
       >
         <template #item="{ item }">
-          <view class="landlord-lease-card" @click="openLandlordLease(item.id)">
-            <view class="landlord-lease-topline">
+          <view class="landlord-lease-card rounded-3 bg-surface-card p-3.5" @click="openLandlordLease(item.id)">
+            <view class="landlord-lease-topline flex items-start justify-between gap-2">
               <strong>{{ formatTenantHouseTitle(item.house) }}</strong>
               <wd-tag :type="getTenantLeaseStatusTone(item.status)" variant="light" size="small">
                 {{ item.status__mapping }}
               </wd-tag>
             </view>
-            <view class="landlord-rent">
+            <view class="landlord-rent mt-3 text-size-base text-app-price font-bold">
               ¥{{ item.monthly_rent }} / 月
             </view>
-            <view class="landlord-term">
+            <view class="landlord-term mt-1.5 text-size-xs text-content-muted">
               {{ item.start_date }} 至 {{ item.end_date }}
             </view>
           </view>
@@ -534,15 +488,15 @@ onReachBottom(() => {
     </template>
 
     <template v-else-if="currentMode === 'organization'">
-      <view class="page-heading">
-        <view class="page-title">
+      <view class="page-heading px-0.5 pb-3.5 pt-1">
+        <view class="page-title text-size-xl text-content-primary font-bold">
           我的协作
         </view>
-        <view class="page-subtitle">
+        <view class="page-subtitle mt-1.5 text-size-xs text-content-muted">
           {{ appContextStore.currentOrganization?.name }}
         </view>
       </view>
-      <view v-if="organizationDashboard" class="todo-summary-grid">
+      <view v-if="organizationDashboard" class="todo-summary-grid grid grid-cols-4 gap-1.5">
         <view @click="openOrganizationRoute(getOrganizationTasksRoute('mine', 'pending'))">
           <strong>{{ organizationDashboard.pending_acceptance }}</strong><text>待接受</text>
         </view>
@@ -567,43 +521,43 @@ onReachBottom(() => {
         compact
         @action="loadOrganizationTasks"
       />
-      <view v-else-if="organizationLoading && !organizationDashboard" class="scope-loading">
+      <view v-else-if="organizationLoading && !organizationDashboard" class="scope-loading rounded-2.5 bg-surface-brand-soft p-3.5 text-size-xs text-content-secondary leading-relaxed">
         正在加载本人任务与公告…
       </view>
 
-      <view class="organization-entry" @click="openOrganizationRoute(`${APP_ROUTES.organizationViewings}?status=scheduled`)">
-        <view class="mode-icon i-carbon-calendar" />
-        <view><strong>待带看</strong><text>查看当前组织的预约与带看记录</text></view>
+      <view class="organization-entry mt-3 flex items-center gap-2.5 rounded-3 bg-surface-card p-3.5" @click="openOrganizationRoute(`${APP_ROUTES.organizationViewings}?status=scheduled`)">
+        <view class="mode-icon i-carbon-calendar flex-none text-size-2xl text-app-brand" />
+        <view><strong>待带看</strong><text>查看当前工作空间的预约与带看记录</text></view>
         <view class="i-carbon-chevron-right" />
       </view>
-      <view class="organization-entry" @click="openOrganizationRoute(`${APP_ROUTES.organizationLeases}?status=pending`)">
-        <view class="mode-icon i-carbon-document" />
+      <view class="organization-entry mt-3 flex items-center gap-2.5 rounded-3 bg-surface-card p-3.5" @click="openOrganizationRoute(`${APP_ROUTES.organizationLeases}?status=pending`)">
+        <view class="mode-icon i-carbon-document flex-none text-size-2xl text-app-brand" />
         <view><strong>待生效租约</strong><text>查看需要继续跟进的签约记录</text></view>
         <view class="i-carbon-chevron-right" />
       </view>
-      <view class="organization-entry" @click="openOrganizationRoute(APP_ROUTES.organizationTasks)">
-        <view class="mode-icon i-carbon-task" />
-        <view><strong>本人任务</strong><text>接受、完成或拒绝当前组织分配给我的任务</text></view>
+      <view class="organization-entry mt-3 flex items-center gap-2.5 rounded-3 bg-surface-card p-3.5" @click="openOrganizationRoute(APP_ROUTES.organizationTasks)">
+        <view class="mode-icon i-carbon-task flex-none text-size-2xl text-app-brand" />
+        <view><strong>本人任务</strong><text>接受、完成或拒绝当前工作空间分配给我的任务</text></view>
         <view class="i-carbon-chevron-right" />
       </view>
-      <view v-if="organizationCanManageTasks" class="organization-entry" @click="openOrganizationRoute(getOrganizationTasksRoute('team'))">
-        <view class="mode-icon i-carbon-group" />
+      <view v-if="organizationCanManageTasks" class="organization-entry mt-3 flex items-center gap-2.5 rounded-3 bg-surface-card p-3.5" @click="openOrganizationRoute(getOrganizationTasksRoute('team'))">
+        <view class="mode-icon i-carbon-group flex-none text-size-2xl text-app-brand" />
         <view><strong>团队任务</strong><text>查看团队执行进度与分配情况</text></view>
         <view class="i-carbon-chevron-right" />
       </view>
 
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-2 mt-4.5 flex items-center justify-between">
         <strong>优先处理</strong><text @click="openOrganizationRoute(APP_ROUTES.organizationTasks)">查看全部</text>
       </view>
-      <view v-if="organizationDashboard?.urgent_items?.length" class="organization-list">
-        <view v-for="item in organizationDashboard.urgent_items" :key="item.id" class="organization-record" @click="openOrganizationRoute(getOrganizationTaskDetailRoute({ assignmentId: item.id }))">
-          <view class="organization-record-topline">
+      <view v-if="organizationDashboard?.urgent_items?.length" class="organization-list flex flex-col gap-2">
+        <view v-for="item in organizationDashboard.urgent_items" :key="item.id" class="organization-record rounded-3 bg-surface-card p-3.5" @click="openOrganizationRoute(getOrganizationTaskDetailRoute({ assignmentId: item.id }))">
+          <view class="organization-record-topline flex items-center justify-between gap-2">
             <strong>{{ item.task_title }}</strong>
             <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
               {{ item.priority__mapping }}
             </wd-tag>
           </view>
-          <view class="organization-record-meta">
+          <view class="organization-record-meta mt-2 flex items-center justify-between gap-2 text-size-2xs text-content-muted">
             <wd-tag :type="getAssignmentStatusTone(item.status)" variant="light" size="small">
               {{ item.status__mapping }}
             </wd-tag>
@@ -611,55 +565,40 @@ onReachBottom(() => {
           </view>
         </view>
       </view>
-      <view v-else-if="organizationDashboard" class="quiet-card">
+      <view v-else-if="organizationDashboard" class="quiet-card rounded-3 bg-surface-card p-3.5 text-center text-content-muted">
         当前没有紧急任务
       </view>
 
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-2 mt-4.5 flex items-center justify-between">
         <strong>近期公告</strong><text @click="openOrganizationRoute(APP_ROUTES.organizationAnnouncements)">查看全部</text>
       </view>
-      <view v-if="organizationAnnouncements.length" class="organization-list">
-        <view v-for="item in organizationAnnouncements" :key="item.id" class="organization-record" @click="openOrganizationRoute(getOrganizationAnnouncementDetailRoute(item.id))">
-          <view class="organization-record-topline">
+      <view v-if="organizationAnnouncements.length" class="organization-list flex flex-col gap-2">
+        <view v-for="item in organizationAnnouncements" :key="item.id" class="organization-record rounded-3 bg-surface-card p-3.5" @click="openOrganizationRoute(getOrganizationAnnouncementDetailRoute(item.id))">
+          <view class="organization-record-topline flex items-center justify-between gap-2">
             <strong>{{ item.title }}</strong>
             <wd-tag v-if="shouldShowAnnouncementAcknowledgement(item)" :type="item.is_acknowledged ? 'success' : 'warning'" variant="light" size="small">
               {{ item.is_acknowledged ? '已确认' : '待确认' }}
             </wd-tag>
           </view>
-          <text class="organization-record-body">{{ item.body }}</text>
-          <view class="organization-record-meta">
-            <text>{{ item.team_name || '全组织' }}</text><text>{{ formatOrganizationWorkDateTime(item.published_at) }}</text>
+          <text class="organization-record-body mt-2 overflow-hidden text-size-xs text-content-secondary leading-relaxed">{{ item.body }}</text>
+          <view class="organization-record-meta mt-2 flex items-center justify-between gap-2 text-size-2xs text-content-muted">
+            <text>{{ item.team_name || '整个工作空间' }}</text><text>{{ formatOrganizationWorkDateTime(item.published_at) }}</text>
           </view>
         </view>
       </view>
-      <view v-else-if="organizationDashboard" class="quiet-card">
+      <view v-else-if="organizationDashboard" class="quiet-card rounded-3 bg-surface-card p-3.5 text-center text-content-muted">
         近期没有已发布公告
       </view>
     </template>
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.page-heading {
-  padding: 8rpx 4rpx 28rpx;
-}
-.page-title {
-  color: var(--app-text-primary);
-  font-size: 40rpx;
-  font-weight: 700;
-}
-.page-subtitle {
-  margin-top: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 25rpx;
-}
+<style scoped>
 .personal-tabs-shell {
   --wot-tabs-nav-bg: transparent;
   --wot-tabs-nav-item-font-size: 30rpx;
   --wot-tabs-nav-item-padding: 20rpx 24rpx;
   --wot-tabs-nav-line-bg: var(--app-color-brand);
-
-  background: transparent;
 }
 .personal-tabs-shell :deep(.personal-tabs),
 .personal-tabs-shell :deep(.personal-tabs .wd-tabs__nav),
@@ -668,343 +607,106 @@ onReachBottom(() => {
 .personal-tabs-shell :deep(.personal-tabs .wd-tabs__body),
 .personal-tabs-shell :deep(.personal-tabs .wd-tab),
 .personal-tabs-shell :deep(.personal-tabs .wd-tab__body) {
-  background: transparent;
-}
-.personal-tab-panel {
-  padding-top: 24rpx;
-}
-.personal-tab-summary {
-  margin: 0 4rpx 18rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.viewing-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24rpx;
-  margin: 0 4rpx 20rpx;
+  @apply bg-transparent;
 }
 .viewing-section-heading > view:first-child {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8rpx;
+  @apply flex min-w-0 flex-col gap-1;
 }
 .viewing-section-heading strong {
-  color: var(--app-text-primary);
-  font-size: 30rpx;
-  font-weight: 700;
+  @apply text-content-primary text-size-sm font-bold;
 }
 .viewing-section-heading text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.viewing-section-count {
-  flex: 0 0 auto;
-  padding: 8rpx 16rpx;
-  border-radius: 999rpx;
-  color: var(--app-color-brand-active);
-  font-size: 21rpx;
-  font-weight: 600;
-  background: var(--app-bg-brand-soft);
+  @apply text-content-muted text-size-2xs;
 }
 .viewing-overdue {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  margin-top: 18rpx;
-  padding: 14rpx 16rpx;
-  border-radius: 16rpx;
-  color: var(--app-color-warning);
-  font-size: 21rpx;
-  background: var(--app-bg-warm-soft);
+  @apply flex items-center gap-1 mt-2.5 py-2 px-2 rounded-2 text-app-warning text-size-2xs bg-surface-warm-soft;
 }
 .viewing-current-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8rpx;
-  padding: 22rpx 24rpx 20rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 22rpx;
-  text-align: center;
   background: linear-gradient(145deg, rgb(255 255 255 / 82%), rgb(234 244 255 / 72%));
   box-shadow: 0 10rpx 30rpx rgb(58 102 163 / 6%);
 }
 .viewing-current-empty__icon {
-  display: flex;
-  width: 52rpx;
-  height: 52rpx;
-  flex: 0 0 52rpx;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 2rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 16rpx;
-  color: var(--app-color-brand) !important;
-  font-size: 26rpx;
-  background: var(--app-color-brand-soft);
-}
-.viewing-current-empty__copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6rpx;
-  align-items: center;
+  @apply mb-0;
+  @apply text-app-brand !important;
+  @apply bg-surface-brand-soft;
 }
 .viewing-current-empty strong {
-  color: var(--app-text-primary);
-  font-size: 24rpx;
+  @apply text-content-primary text-size-xs;
 }
 .viewing-current-empty__copy text {
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-  line-height: 1.45;
+  @apply text-content-muted text-size-2xs leading-normal;
 }
 .viewing-current-empty__action {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 4rpx;
-  margin-top: 4rpx;
-  padding: 8rpx 18rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 999rpx;
-  color: var(--app-color-brand-active);
-  font-size: 21rpx;
-  font-weight: 600;
   background: rgb(255 255 255 / 72%);
 }
-.viewing-history {
-  margin-top: 24rpx;
-  border-top: 1rpx solid var(--app-border-card);
-}
-.viewing-history-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  padding: 22rpx 4rpx 8rpx;
-  color: var(--app-text-muted);
-}
-.viewing-history-icon {
-  flex: 0 0 auto;
-  font-size: 24rpx;
-}
-.viewing-history-copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 10rpx;
-}
 .viewing-history-copy > text {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
+  @apply text-content-muted text-size-xs;
 }
 .viewing-history-copy .viewing-history-count {
-  color: var(--app-text-disabled);
-  font-size: 20rpx;
-}
-.viewing-history-action {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6rpx;
-  color: var(--app-text-disabled);
-  font-size: 21rpx;
+  @apply text-content-disabled text-size-2xs;
 }
 .viewing-history-list {
-  margin-top: 14rpx;
+  @apply mt-2;
 }
 .favorite-notice {
-  margin-top: 32rpx;
+  @apply mt-4;
 }
 .mode-card {
-  display: flex;
-  align-items: center;
-  gap: 22rpx;
-  padding: 30rpx 28rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
+  @apply flex items-center gap-3 py-4 px-3.5 rounded-3 bg-surface-card;
 }
 .mode-card > view:last-child {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 10rpx;
+  @apply flex min-w-0 flex-col gap-1.5;
 }
 .mode-card strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
+  @apply text-content-primary text-size-sm;
 }
 .mode-card text {
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-  line-height: 1.6;
-}
-.mode-icon {
-  flex: 0 0 auto;
-  color: var(--app-color-brand);
-  font-size: 50rpx;
-}
-.todo-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12rpx;
+  @apply text-content-muted text-size-xs leading-relaxed;
 }
 .todo-summary-grid view {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8rpx;
-  padding: 22rpx 8rpx;
-  border-radius: 20rpx;
-  background: var(--app-bg-card);
+  @apply flex flex-col items-center gap-1 py-3 px-1 rounded-2.5 bg-surface-card;
 }
 .todo-summary-grid strong {
-  color: var(--app-color-primary);
-  font-size: 34rpx;
+  @apply text-app-brand text-size-base;
 }
 .todo-summary-grid text {
-  color: var(--app-text-muted);
-  font-size: 19rpx;
-  text-align: center;
+  @apply text-content-muted text-size-2xs text-center;
 }
 .todo-summary-grid .warning strong {
-  color: var(--app-color-warning);
+  @apply text-app-warning;
 }
 .todo-summary-grid .danger strong {
-  color: var(--app-color-danger);
-}
-.organization-entry {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-  margin-top: 22rpx;
-  padding: 28rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
+  @apply text-app-danger;
 }
 .organization-entry > view:nth-child(2) {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 8rpx;
+  @apply flex min-w-0 flex-1 flex-col gap-1;
 }
 .organization-entry strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
+  @apply text-content-primary text-size-sm;
 }
 .organization-entry text {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-  line-height: 1.5;
-}
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 34rpx 6rpx 16rpx;
+  @apply text-content-muted text-size-xs leading-normal;
 }
 .section-heading strong {
-  color: var(--app-text-primary);
-  font-size: 29rpx;
+  @apply text-content-primary text-size-sm;
 }
 .section-heading text {
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-}
-.organization-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-.organization-record {
-  padding: 26rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-.organization-record-topline,
-.organization-record-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
+  @apply text-app-brand text-size-xs;
 }
 .organization-record-topline strong {
-  min-width: 0;
-  flex: 1;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-}
-.organization-record-meta {
-  margin-top: 16rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
+  @apply min-w-0 flex-1 text-content-primary text-size-sm;
 }
 .organization-record-body {
-  display: -webkit-box;
-  overflow: hidden;
-  margin-top: 14rpx;
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.6;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-.quiet-card {
-  padding: 28rpx;
-  border-radius: 22rpx;
-  color: var(--app-text-muted);
-  text-align: center;
-  background: var(--app-bg-card);
+  @apply line-clamp-2;
 }
 .scope-notice,
 .scope-loading {
-  margin-top: 24rpx;
-}
-.scope-loading {
-  padding: 26rpx;
-  border-radius: 20rpx;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.7;
-  background: var(--app-bg-brand-soft);
+  @apply mt-3;
 }
 .landlord-lease-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-}
-.landlord-lease-card {
-  padding: 28rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
-}
-.landlord-lease-topline {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16rpx;
+  @apply flex flex-col gap-2.5;
 }
 .landlord-lease-topline strong {
-  min-width: 0;
-  flex: 1;
-  color: var(--app-text-primary);
-  font-size: 29rpx;
-}
-.landlord-rent {
-  margin-top: 24rpx;
-  color: var(--app-color-price);
-  font-size: 32rpx;
-  font-weight: 700;
-}
-.landlord-term {
-  margin-top: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
+  @apply min-w-0 flex-1 text-content-primary text-size-sm;
 }
 </style>

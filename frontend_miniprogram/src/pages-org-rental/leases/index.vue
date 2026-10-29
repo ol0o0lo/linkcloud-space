@@ -4,8 +4,10 @@ import { onLoad } from '@dcloudio/uni-app'
 import { computed, reactive, ref } from 'vue'
 import OrganizationLeaseCard from '@/pages-org-rental/leases/components/OrganizationLeaseCard.vue'
 import { listOrganizationLeases } from '@/pages-org-rental/api/organization-rental'
-import { APP_ROUTES, getOrganizationHouseSigningRoute, getOrganizationLeaseDetailRoute, getOrganizationTasksRoute } from '@/modules/routes'
+import { APP_ROUTES, getOrganizationHouseSigningRoute, getOrganizationLeaseDetailRoute } from '@/modules/routes'
 import AppListToolbar from '@/components/app/AppListToolbar.vue'
+import RentalPageHeading from '../components/RentalPageHeading.vue'
+import RentalFilterTabs from '../components/RentalFilterTabs.vue'
 import AppPage from '@/components/app/AppPage.vue'
 import AppPagedList from '@/components/app/AppPagedList.vue'
 import { usePagedPage } from '@/hooks/usePagedPage'
@@ -13,7 +15,7 @@ import { useAppContextStore } from '@/store/app-context-v2'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
-definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '组织租约', enablePullDownRefresh: true } })
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '工作空间租约', enablePullDownRefresh: true } })
 
 const appContextStore = useAppContextStore()
 const keyword = ref('')
@@ -48,10 +50,6 @@ function changeStatus(status: 'all' | 'pending' | 'active' | 'expired') {
   void list.refresh()
 }
 
-function openTasks(scope: 'mine' | 'team') {
-  uni.navigateTo({ url: getOrganizationTasksRoute(scope) })
-}
-
 function createLease() {
   uni.navigateTo({ url: houseId.value ? getOrganizationHouseSigningRoute(houseId.value) : APP_ROUTES.organizationSigning })
 }
@@ -72,39 +70,30 @@ function handleEmptyAction() {
 </script>
 
 <template>
-  <AppPage variant="list">
+  <AppPage class="rental-page" variant="list">
     <template #navigation>
-      <AppCustomNavigation title="租约管理" back scroll-mode="sticky">
-        <template #action>
-          <button class="navigation-action" @click="createLease">
-            新建
-          </button>
-        </template>
-      </AppCustomNavigation>
+      <AppCustomNavigation title="租约管理" back scroll-mode="sticky" />
     </template>
-    <view class="module-tabs">
-      <view class="active">
-        租约
-      </view><view @click="openTasks('mine')">
-        我的任务
-      </view><view @click="openTasks('team')">
-        团队任务
+    <RentalPageHeading title="租约台账" description="跟进签约、履约与到期状态">
+      <wd-button size="small" @click="createLease">
+        登记签约
+      </wd-button>
+    </RentalPageHeading>
+    <view class="rental-summary">
+      <view class="rental-summary__item" role="button" @click="changeStatus('pending')">
+        <strong>{{ list.loaded.value ? summaryCounts.pending : '—' }}</strong><text>待生效</text>
+      </view>
+      <view class="rental-summary__item rental-summary__item--active" role="button" @click="changeStatus('active')">
+        <strong>{{ list.loaded.value ? summaryCounts.active : '—' }}</strong><text>履约中</text>
       </view>
     </view>
-    <view class="lease-summary">
-      <view><text>待生效</text><strong>{{ summaryCounts.pending }} 份</strong><view /></view><view><text>履约中</text><strong>{{ summaryCounts.active }} 份</strong><view /></view>
+    <RentalFilterTabs :model-value="statusFilter" :options="[{ value: 'all', label: '全部' }, { value: 'pending', label: '待生效' }, { value: 'active', label: '履约中' }, { value: 'expired', label: '已到期' }]" @change="changeStatus($event as typeof statusFilter)" />
+    <view class="rental-search">
+      <AppListToolbar v-model:keyword="keyword" search-placeholder="搜索租客或房源" @search="list.refresh" @clear="list.refresh" />
     </view>
-    <view class="status-tabs">
-      <view v-for="item in ([['all', '全部'], ['pending', '待生效'], ['active', '履约中'], ['expired', '已到期']] as const)" :key="item[0]" :class="{ active: statusFilter === item[0] }" @click="changeStatus(item[0])">
-        {{ item[1] }}
-      </view>
+    <view class="rental-results">
+      <strong>{{ houseId ? '当前房源的租约' : '租约记录' }}</strong><text>{{ list.loaded.value ? `共 ${list.total.value} 份` : '正在加载…' }}</text>
     </view>
-    <AppListToolbar
-      v-model:keyword="keyword"
-      search-placeholder="搜索租客或房源"
-      @search="list.refresh"
-      @clear="list.refresh"
-    />
     <view class="mt-2.5">
       <AppPagedList
         :items="list.items.value"
@@ -114,7 +103,7 @@ function handleEmptyAction() {
         :finished="list.finished.value"
         :error="list.error.value"
         loading-text="正在加载租约…"
-        :empty-text="hasFilters ? '没有符合条件的租约' : '当前组织还没有租约'"
+        :empty-text="hasFilters ? '没有符合条件的租约' : '当前工作空间还没有租约'"
         :empty-description="hasFilters ? '试试清空搜索内容或切换到全部状态。' : '完成登记签约后，可在这里跟进租约状态和履约信息。'"
         empty-icon="no-result"
         :empty-action-text="hasFilters ? '清除筛选' : '登记签约'"
@@ -131,79 +120,5 @@ function handleEmptyAction() {
 </template>
 
 <style scoped lang="scss">
-.navigation-action {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  color: var(--app-color-brand);
-  font-size: 24rpx;
-  font-weight: 600;
-  line-height: 56rpx;
-  background: transparent;
-}
-.navigation-action::after {
-  border: 0;
-}
-.module-tabs,
-.status-tabs {
-  display: flex;
-  gap: 14rpx;
-}
-.module-tabs {
-  margin-top: 84rpx;
-}
-.module-tabs view,
-.status-tabs view {
-  min-width: 124rpx;
-  padding: 14rpx 20rpx;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 18rpx;
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  text-align: center;
-  background: var(--app-bg-card);
-}
-.module-tabs view.active,
-.status-tabs view.active {
-  border-color: var(--app-color-brand);
-  color: #fff;
-  background: var(--app-color-brand);
-}
-.lease-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20rpx;
-  margin-top: 30rpx;
-}
-.lease-summary > view {
-  position: relative;
-  display: flex;
-  min-height: 128rpx;
-  padding: 24rpx;
-  flex-direction: column;
-  gap: 8rpx;
-  border-radius: 28rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-card);
-}
-.lease-summary text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.lease-summary strong {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-}
-.lease-summary > view > view {
-  position: absolute;
-  bottom: 0;
-  left: 24rpx;
-  width: 56rpx;
-  height: 7rpx;
-  border-radius: 999rpx;
-  background: var(--app-color-brand);
-}
-.status-tabs {
-  margin: 28rpx 0 20rpx;
-}
+@use '../components/management';
 </style>

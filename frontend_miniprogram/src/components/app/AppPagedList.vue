@@ -77,7 +77,7 @@ function resolveKey(item: T, index: number) {
         'grid grid-cols-2 gap-2': layout === 'grid',
       }"
     >
-      <view v-for="(item, index) in items" :key="resolveKey(item, index)" class="app-paged-list__item">
+      <view v-for="(item, index) in items" :key="resolveKey(item, index)" class="app-paged-list__item box-border min-w-0 w-full">
         <slot name="item" :item="item" :index="index" />
       </view>
     </view>
@@ -93,11 +93,3 @@ function resolveKey(item: T, index: number) {
   </template>
   <slot name="after" />
 </template>
-
-<style scoped>
-.app-paged-list__item {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-</style>

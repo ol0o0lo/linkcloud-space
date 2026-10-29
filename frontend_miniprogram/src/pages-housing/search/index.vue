@@ -29,6 +29,7 @@ import { getCurrentLocationGcj02, getLocationErrorMessage } from '@/utils/locati
 
 type TopFilter = 'location' | 'rent' | 'bedroom' | 'more'
 type HouseSort = NonNullable<PublicHousesUsingGetParams['sort']>
+type HouseListingType = NonNullable<PublicHousesUsingGetParams['listing_type']>
 
 interface QuickRangeOption {
   label: string
@@ -53,6 +54,14 @@ const AREA_RANGE_OPTIONS: QuickRangeOption[] = [
   { label: '70-90㎡', min: '70', max: '90' },
   { label: '90㎡以上', min: '90', max: '' },
 ]
+
+const LISTING_TYPE_OPTIONS = [
+  { label: '不限', value: '' },
+  { label: '整租', value: 'whole' },
+  { label: '合租', value: 'shared' },
+  { label: '公寓', value: 'apartment' },
+  { label: '短租', value: 'short_term' },
+] as const
 
 definePage({
   style: {
@@ -98,10 +107,11 @@ const baseSearchNavigationHeight = resolveCustomNavigationLayout({
 }).height
 const rentDraft = reactive({ min: '', max: '' })
 const areaDraft = reactive({ min: '', max: '' })
+const listingTypeDraft = ref<HouseListingType | ''>('')
 const elevatorDraft = ref<boolean | null>(null)
 const query = reactive({
   keyword: '',
-  listingType: '' as '' | 'whole' | 'shared' | 'apartment' | 'short_term',
+  listingType: '' as HouseListingType | '',
   minRent: '',
   maxRent: '',
   minArea: '',
@@ -137,16 +147,15 @@ const locationFilterText = computed(() => {
 })
 const rentFilterText = computed(() => {
   if (query.minRent && query.maxRent)
-    return `¥${query.minRent}-${query.maxRent}`
+    return `${Number(query.minRent) / 1000}-${Number(query.maxRent) / 1000}k`
   if (query.minRent)
-    return `¥${query.minRent}以上`
+    return `${Number(query.minRent) / 1000}k以上`
   if (query.maxRent)
-    return `¥${query.maxRent}以下`
+    return `${Number(query.maxRent) / 1000}k以下`
   return '租金'
 })
 const bedroomFilterText = computed(() => query.bedrooms !== '' ? `${query.bedrooms}室` : query.bedroomsMin !== '' ? `${query.bedroomsMin}室+` : '户型')
-const listingTypeLabel = computed(() => ({ whole: '整租', shared: '合租', apartment: '公寓', short_term: '短租' })[query.listingType] || '')
-const moreFilterCount = computed(() => Number(Boolean(query.minArea || query.maxArea)) + Number(query.elevator !== null))
+const hasMoreFilters = computed(() => Boolean(query.listingType || query.minArea || query.maxArea || query.elevator !== null))
 const bedroomOptions = computed(() => filters.value?.bedrooms.length ? filters.value.bedrooms : [1, 2, 3, 4])
 
 function requestParams(page: number, pageSize: number): PublicHousesUsingGetParams {
@@ -297,6 +306,7 @@ function resetFilters() {
   })
   Object.assign(rentDraft, { min: '', max: '' })
   Object.assign(areaDraft, { min: '', max: '' })
+  listingTypeDraft.value = ''
   elevatorDraft.value = null
   pendingLocationMode.value = null
   spatialFilter.reset()
@@ -424,6 +434,7 @@ function toggleTopFilter(filter: TopFilter) {
     Object.assign(rentDraft, { min: query.minRent, max: query.maxRent })
   if (filter === 'more') {
     Object.assign(areaDraft, { min: query.minArea, max: query.maxArea })
+    listingTypeDraft.value = query.listingType
     elevatorDraft.value = query.elevator
   }
   if (filter === 'bedroom' && !filters.value)
@@ -544,6 +555,7 @@ function clearRentFilter() {
 function applyMoreFilters() {
   if (!isValidRange(areaDraft.min, areaDraft.max, '面积'))
     return
+  query.listingType = listingTypeDraft.value
   query.minArea = areaDraft.min
   query.maxArea = areaDraft.max
   query.elevator = elevatorDraft.value
@@ -553,7 +565,9 @@ function applyMoreFilters() {
 
 function clearMoreFilters() {
   Object.assign(areaDraft, { min: '', max: '' })
+  listingTypeDraft.value = ''
   elevatorDraft.value = null
+  query.listingType = ''
   query.minArea = ''
   query.maxArea = ''
   query.elevator = null
@@ -565,11 +579,6 @@ function selectBedroomFilter(value: string | number) {
   query.bedrooms = value
   query.bedroomsMin = ''
   activeTopFilter.value = null
-  void refreshHouses()
-}
-
-function clearListingType() {
-  query.listingType = ''
   void refreshHouses()
 }
 
@@ -695,12 +704,12 @@ async function refreshResults() {
     <template #navigation>
       <AppCustomNavigation title="" align="start" back transparent scroll-mode="sticky" :fallback-url="APP_ROUTES.home">
         <template #content>
-          <view class="navigation-search-row">
-            <button class="navigation-search-bar" aria-label="搜索房源" @click="openKeywordSearch">
-              <view class="i-carbon-search navigation-search-icon" />
-              <text class="navigation-search-keyword" :class="{ 'navigation-search-keyword--placeholder': !query.keyword && !selectedPlaceName }">{{ query.keyword || (nearbyRadiusM && selectedPlaceName ? `${selectedPlaceName}附近` : '搜索地点、小区或房源') }}</text>
+          <view class="navigation-search-row min-w-0 w-full flex items-center gap-1">
+            <button class="navigation-search-bar m-0 box-border h-8 min-w-0 w-auto flex flex-1 items-center gap-1 border-hairline border-hex-ffffff/76 rounded-4.5 border-solid bg-hex-ffffff/78 px-2 py-0 backdrop-blur-10" aria-label="搜索房源" @click="openKeywordSearch">
+              <view class="i-carbon-search navigation-search-icon flex-none text-size-sm text-content-muted" />
+              <text class="navigation-search-keyword min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-size-xs text-content-primary leading-snug" :class="{ 'navigation-search-keyword--placeholder': !query.keyword && !selectedPlaceName }">{{ query.keyword || (nearbyRadiusM && selectedPlaceName ? `${selectedPlaceName}附近` : '搜索地点、小区或房源') }}</text>
             </button>
-            <view class="navigation-region">
+            <view class="navigation-region max-w-24 min-w-0 flex-none overflow-hidden">
               <PublicHouseRegionTrigger @change="handleRegionChange" />
             </view>
           </view>
@@ -708,88 +717,89 @@ async function refreshResults() {
       </AppCustomNavigation>
     </template>
 
-    <view class="quick-filter-shell" :class="{ 'quick-filter-shell--open': activeTopFilter }" :style="{ '--filter-pointer-x': filterPointerX }">
-      <view class="quick-filter-row">
-        <view class="quick-filter" :class="{ 'quick-filter--active': nearbyRadiusM || spatialFilter.hasLocationFilter.value || commute, 'quick-filter--open': activeTopFilter === 'location' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('location')">
-          <text class="quick-filter__label">{{ locationFilterText }}</text>
+    <view class="quick-filter-shell relative z-20 mt-0 w-full flex-none" :class="{ 'quick-filter-shell--open': activeTopFilter }" :style="{ '--filter-pointer-x': filterPointerX }">
+      <view class="quick-filter-row grid grid-cols-4 gap-1.5">
+        <view class="quick-filter relative box-border h-7.5 min-w-0 flex items-center justify-center gap-0.5 overflow-hidden border-hairline border-app-border rounded-3 border-solid bg-surface-card px-1 py-0 text-size-xs text-content-secondary leading-7.5" :class="{ 'quick-filter--active': nearbyRadiusM || spatialFilter.hasLocationFilter.value || commute, 'quick-filter--open': activeTopFilter === 'location' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('location')">
+          <text class="quick-filter__label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{ locationFilterText }}</text>
           <view class="i-carbon-chevron-down" />
         </view>
-        <view class="quick-filter" :class="{ 'quick-filter--active': query.minRent || query.maxRent, 'quick-filter--open': activeTopFilter === 'rent' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('rent')">
-          <text class="quick-filter__label">{{ rentFilterText }}</text>
+        <view class="quick-filter relative box-border h-7.5 min-w-0 flex items-center justify-center gap-0.5 overflow-hidden border-hairline border-app-border rounded-3 border-solid bg-surface-card px-1 py-0 text-size-xs text-content-secondary leading-7.5" :class="{ 'quick-filter--active': query.minRent || query.maxRent, 'quick-filter--open': activeTopFilter === 'rent' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('rent')">
+          <text class="quick-filter__label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{ rentFilterText }}</text>
           <view class="i-carbon-chevron-down" />
         </view>
-        <view class="quick-filter" :class="{ 'quick-filter--active': query.bedrooms !== '', 'quick-filter--open': activeTopFilter === 'bedroom' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('bedroom')">
-          <text class="quick-filter__label">{{ bedroomFilterText }}</text>
+        <view class="quick-filter relative box-border h-7.5 min-w-0 flex items-center justify-center gap-0.5 overflow-hidden border-hairline border-app-border rounded-3 border-solid bg-surface-card px-1 py-0 text-size-xs text-content-secondary leading-7.5" :class="{ 'quick-filter--active': query.bedrooms !== '', 'quick-filter--open': activeTopFilter === 'bedroom' }" hover-class="quick-filter--pressed" @click="toggleTopFilter('bedroom')">
+          <text class="quick-filter__label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{ bedroomFilterText }}</text>
           <view class="i-carbon-chevron-down" />
         </view>
-        <view class="quick-filter" :class="{ 'quick-filter--active': moreFilterCount > 0, 'quick-filter--open': activeTopFilter === 'more' }" hover-class="quick-filter--pressed" aria-label="筛选条件" @click="toggleTopFilter('more')">
-          <text class="quick-filter__label">筛选</text>
-          <text v-if="moreFilterCount" class="quick-filter__count">{{ moreFilterCount }}</text>
-          <view class="i-carbon-chevron-down" />
-        </view>
+        <wd-badge is-dot :hidden="!hasMoreFilters" type="primary" top="6rpx" right="8rpx" border custom-style="display: block;">
+          <view class="quick-filter relative box-border h-7.5 min-w-0 flex items-center justify-center gap-0.5 overflow-hidden border-hairline border-app-border rounded-3 border-solid bg-surface-card px-1 py-0 text-size-xs text-content-secondary leading-7.5" :class="{ 'quick-filter--active': hasMoreFilters, 'quick-filter--open': activeTopFilter === 'more' }" hover-class="quick-filter--pressed" :aria-label="hasMoreFilters ? '筛选条件，已有条件生效' : '筛选条件'" @click="toggleTopFilter('more')">
+            <text class="quick-filter__label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">筛选</text>
+            <view class="i-carbon-chevron-down" />
+          </view>
+        </wd-badge>
       </view>
 
-      <view v-if="activeTopFilter && activeTopFilter !== 'location'" class="top-filter-popover-host">
-        <view class="top-filter-mask" @touchmove.stop.prevent @wheel.stop.prevent @click="closeTopFilter" />
-        <view class="top-filter-popover" @wheel.stop.prevent>
+      <view v-if="activeTopFilter && activeTopFilter !== 'location'" class="top-filter-popover-host absolute left-0 top-full z-1">
+        <view class="top-filter-mask fixed inset-0 z-1 bg-hex-0f172a/28 backdrop-blur-1.5" @touchmove.stop.prevent @wheel.stop.prevent @click="closeTopFilter" />
+        <view class="top-filter-popover relative z-2 mt-2 box-border overflow-y-auto border-hairline border-hex-ffffff/80 rounded-3.5 border-solid p-3.5" :class="{ 'top-filter-popover--more': activeTopFilter === 'more' }" @wheel.stop>
           <template v-if="activeTopFilter === 'rent'">
-            <view class="top-filter-popover__heading">
-              <view class="top-filter-popover__heading-main">
+            <view class="top-filter-popover__heading flex items-center justify-between gap-2.5">
+              <view class="top-filter-popover__heading-main flex items-center gap-2">
                 <view class="i-carbon-currency-yen" />
-                <view class="top-filter-popover__heading-copy">
+                <view class="top-filter-popover__heading-copy flex flex-col gap-1">
                   <strong>租金</strong>
                   <text>元 / 月</text>
                 </view>
               </view>
             </view>
-            <view class="top-filter-popover__choice-grid">
+            <view class="top-filter-popover__choice-grid grid gap-1.5">
               <button
                 v-for="option in rentRangeOptions"
                 :key="option.label"
-                class="top-filter-popover__choice"
+                class="top-filter-popover__choice m-0 h-8.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-1.5 py-0 text-size-2xs text-content-secondary leading-8.5"
                 :class="{ 'top-filter-popover__choice--active': isRangeSelected(option, rentDraft) }"
                 @click="selectRangeOption(rentDraft, option)"
               >
                 {{ option.label }}
               </button>
             </view>
-            <view class="top-filter-popover__range">
-              <view class="top-filter-popover__field">
+            <view class="top-filter-popover__range grid mt-2.5 items-center gap-1.5 text-center text-size-2xs text-content-muted">
+              <view class="top-filter-popover__field min-w-0 border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-2 py-1.5">
                 <wd-input v-model="rentDraft.min" type="number" placeholder="最低租金" />
               </view>
               <text>—</text>
-              <view class="top-filter-popover__field">
+              <view class="top-filter-popover__field min-w-0 border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-2 py-1.5">
                 <wd-input v-model="rentDraft.max" type="number" placeholder="最高租金" />
               </view>
             </view>
-            <view class="top-filter-popover__footer">
-              <button class="top-filter-popover__reset" @click="clearRentFilter">
+            <view class="top-filter-popover__footer grid mt-3 gap-2">
+              <button class="top-filter-popover__reset border-hairline border-hex-1677ff/24 border-solid bg-hex-fff text-$filter-popover-primary" @click="clearRentFilter">
                 不限租金
               </button>
-              <button class="top-filter-popover__apply" @click="applyRentFilter">
+              <button class="top-filter-popover__apply text-hex-fff font-bold" @click="applyRentFilter">
                 确定
               </button>
             </view>
           </template>
 
           <template v-else-if="activeTopFilter === 'bedroom'">
-            <view class="top-filter-popover__heading">
-              <view class="top-filter-popover__heading-main">
+            <view class="top-filter-popover__heading flex items-center justify-between gap-2.5">
+              <view class="top-filter-popover__heading-main flex items-center gap-2">
                 <view class="i-carbon-hotel" />
-                <view class="top-filter-popover__heading-copy">
+                <view class="top-filter-popover__heading-copy flex flex-col gap-1">
                   <strong>户型</strong>
                   <text>选择卧室数量</text>
                 </view>
               </view>
             </view>
-            <view class="top-filter-popover__choice-grid top-filter-popover__choice-grid--compact">
-              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': query.bedrooms === '' }" @click="selectBedroomFilter('')">
+            <view class="top-filter-popover__choice-grid top-filter-popover__choice-grid--compact grid gap-1.5">
+              <button class="top-filter-popover__choice m-0 h-8.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-1.5 py-0 text-size-2xs text-content-secondary leading-8.5" :class="{ 'top-filter-popover__choice--active': query.bedrooms === '' }" @click="selectBedroomFilter('')">
                 不限
               </button>
               <button
                 v-for="item in bedroomOptions"
                 :key="item"
-                class="top-filter-popover__choice"
+                class="top-filter-popover__choice m-0 h-8.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-1.5 py-0 text-size-2xs text-content-secondary leading-8.5"
                 :class="{ 'top-filter-popover__choice--active': query.bedrooms === item }"
                 @click="selectBedroomFilter(item)"
               >
@@ -799,56 +809,79 @@ async function refreshResults() {
           </template>
 
           <template v-else-if="activeTopFilter === 'more'">
-            <view class="top-filter-popover__heading">
-              <view class="top-filter-popover__heading-main">
-                <view class="i-carbon-ruler" />
-                <view class="top-filter-popover__heading-copy">
-                  <strong>筛选</strong>
-                  <text>建筑面积 · ㎡</text>
+            <scroll-view class="top-filter-popover__body" scroll-y :show-scrollbar="false">
+              <view class="top-filter-popover__content box-border pb-3">
+                <view class="top-filter-popover__heading flex items-center justify-between gap-2.5">
+                  <view class="top-filter-popover__heading-main flex items-center gap-2">
+                    <view class="i-carbon-filter" />
+                    <view class="top-filter-popover__heading-copy flex flex-col gap-1">
+                      <strong>筛选</strong>
+                      <text>出租类型 · 面积 · 电梯</text>
+                    </view>
+                  </view>
+                </view>
+                <view class="top-filter-popover__section-title mt-3 flex items-center gap-1.5 text-size-xs text-content-primary">
+                  <view class="i-carbon-home" />
+                  <strong>出租类型</strong>
+                </view>
+                <view class="top-filter-popover__choice-grid grid gap-1.5">
+                  <button
+                    v-for="option in LISTING_TYPE_OPTIONS"
+                    :key="option.value"
+                    class="top-filter-popover__choice m-0 h-8.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-1.5 py-0 text-size-2xs text-content-secondary leading-8.5"
+                    :class="{ 'top-filter-popover__choice--active': listingTypeDraft === option.value }"
+                    @click="listingTypeDraft = option.value"
+                  >
+                    {{ option.label }}
+                  </button>
+                </view>
+                <view class="top-filter-popover__section-title mt-3 flex items-center gap-1.5 text-size-xs text-content-primary">
+                  <view class="i-carbon-ruler" />
+                  <strong>建筑面积 · ㎡</strong>
+                </view>
+                <view class="top-filter-popover__choice-grid grid gap-1.5">
+                  <button
+                    v-for="option in areaRangeOptions"
+                    :key="option.label"
+                    class="top-filter-popover__choice m-0 h-8.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-1.5 py-0 text-size-2xs text-content-secondary leading-8.5"
+                    :class="{ 'top-filter-popover__choice--active': isRangeSelected(option, areaDraft) }"
+                    @click="selectRangeOption(areaDraft, option)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </view>
+                <view class="top-filter-popover__range grid mt-2.5 items-center gap-1.5 text-center text-size-2xs text-content-muted">
+                  <view class="top-filter-popover__field min-w-0 border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-2 py-1.5">
+                    <wd-input v-model="areaDraft.min" type="digit" placeholder="最小面积" />
+                  </view>
+                  <text>—</text>
+                  <view class="top-filter-popover__field min-w-0 border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-2 py-1.5">
+                    <wd-input v-model="areaDraft.max" type="digit" placeholder="最大面积" />
+                  </view>
+                </view>
+                <view class="top-filter-popover__section-title mt-3 flex items-center gap-1.5 text-size-xs text-content-primary">
+                  <view class="i-carbon-building" />
+                  <strong>电梯</strong>
+                </view>
+                <view class="top-filter-popover__choice-grid top-filter-popover__choice-grid--elevator grid gap-1.5">
+                  <button class="top-filter-popover__choice m-0 h-8.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-1.5 py-0 text-size-2xs text-content-secondary leading-8.5" :class="{ 'top-filter-popover__choice--active': elevatorDraft === null }" @click="elevatorDraft = null">
+                    不限
+                  </button>
+                  <button class="top-filter-popover__choice m-0 h-8.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-1.5 py-0 text-size-2xs text-content-secondary leading-8.5" :class="{ 'top-filter-popover__choice--active': elevatorDraft === true }" @click="elevatorDraft = true">
+                    有电梯
+                  </button>
+                  <button class="top-filter-popover__choice m-0 h-8.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-hairline border-transparent rounded-2.5 border-solid bg-hex-f5f8fc px-1.5 py-0 text-size-2xs text-content-secondary leading-8.5" :class="{ 'top-filter-popover__choice--active': elevatorDraft === false }" @click="elevatorDraft = false">
+                    无电梯
+                  </button>
                 </view>
               </view>
-            </view>
-            <view class="top-filter-popover__choice-grid">
-              <button
-                v-for="option in areaRangeOptions"
-                :key="option.label"
-                class="top-filter-popover__choice"
-                :class="{ 'top-filter-popover__choice--active': isRangeSelected(option, areaDraft) }"
-                @click="selectRangeOption(areaDraft, option)"
-              >
-                {{ option.label }}
+            </scroll-view>
+            <view class="top-filter-popover__footer grid mt-3 gap-2">
+              <button class="top-filter-popover__reset border-hairline border-hex-1677ff/24 border-solid bg-hex-fff text-$filter-popover-primary" @click="clearMoreFilters">
+                重置
               </button>
-            </view>
-            <view class="top-filter-popover__range">
-              <view class="top-filter-popover__field">
-                <wd-input v-model="areaDraft.min" type="digit" placeholder="最小面积" />
-              </view>
-              <text>—</text>
-              <view class="top-filter-popover__field">
-                <wd-input v-model="areaDraft.max" type="digit" placeholder="最大面积" />
-              </view>
-            </view>
-            <view class="top-filter-popover__section-title">
-              <view class="i-carbon-building" />
-              <strong>电梯</strong>
-            </view>
-            <view class="top-filter-popover__choice-grid top-filter-popover__choice-grid--elevator">
-              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': elevatorDraft === null }" @click="elevatorDraft = null">
-                不限
-              </button>
-              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': elevatorDraft === true }" @click="elevatorDraft = true">
-                有电梯
-              </button>
-              <button class="top-filter-popover__choice" :class="{ 'top-filter-popover__choice--active': elevatorDraft === false }" @click="elevatorDraft = false">
-                无电梯
-              </button>
-            </view>
-            <view class="top-filter-popover__footer">
-              <button class="top-filter-popover__reset" @click="clearMoreFilters">
-                清空筛选
-              </button>
-              <button class="top-filter-popover__apply" @click="applyMoreFilters">
-                查看房源
+              <button class="top-filter-popover__apply text-hex-fff font-bold" @click="applyMoreFilters">
+                确定
               </button>
             </view>
           </template>
@@ -873,21 +906,14 @@ async function refreshResults() {
       />
     </view>
 
-    <view v-if="listingTypeLabel" class="selected-listing-type">
-      <text>出租分类</text>
-      <button @click="clearListingType">
-        {{ listingTypeLabel }} · 清除
-      </button>
-    </view>
-
-    <view class="sort-row">
-      <button v-if="commute" class="sort-row__single" :class="{ 'sort-row__single--active': query.sort === 'commute_asc' }" @click="selectSort('commute_asc')">
+    <view class="sort-row flex flex-none items-center justify-end gap-4 whitespace-nowrap px-0 py-1.5 text-content-secondary">
+      <button v-if="commute" class="sort-row__single m-0 h-8 border-0 bg-transparent p-0 text-size-sm text-content-secondary leading-8" :class="{ 'sort-row__single--active': query.sort === 'commute_asc' }" @click="selectSort('commute_asc')">
         通勤
       </button>
-      <button v-if="spatialFilter.hasSpatialCenter.value" class="sort-row__single" :class="{ 'sort-row__single--active': query.sort === 'distance_asc' }" @click="selectSort('distance_asc')">
+      <button v-if="spatialFilter.hasSpatialCenter.value" class="sort-row__single m-0 h-8 border-0 bg-transparent p-0 text-size-sm text-content-secondary leading-8" :class="{ 'sort-row__single--active': query.sort === 'distance_asc' }" @click="selectSort('distance_asc')">
         距离
       </button>
-      <button class="sort-row__single" :class="{ 'sort-row__single--active': query.sort === 'latest' }" @click="selectSort('latest')">
+      <button class="sort-row__single m-0 h-8 border-0 bg-transparent p-0 text-size-sm text-content-secondary leading-8" :class="{ 'sort-row__single--active': query.sort === 'latest' }" @click="selectSort('latest')">
         最新
       </button>
       <wd-sort-button :model-value="rentSortDirection" title="租金" desc-first allow-reset @change="selectRentSort" />
@@ -906,16 +932,16 @@ async function refreshResults() {
       @scrolltolower="housePage.loadMore()"
     >
       <view class="house-results-scroll__content">
-        <view v-if="commute" class="commute-entry commute-entry--applied" @click="openCommuteSearch">
-          <view class="i-carbon-train commute-entry__icon" />
-          <view class="commute-entry__copy">
+        <view v-if="commute" class="commute-entry commute-entry--applied mt-3 flex items-center gap-2.5 border-hairline border-hex-1677ff/20 rounded-3 border-solid p-3 text-app-brand" @click="openCommuteSearch">
+          <view class="i-carbon-train commute-entry__icon text-size-lg" />
+          <view class="commute-entry__copy min-w-0 flex gap-0.5">
             <strong>到{{ commute.place.name }} · {{ commuteModeLabel(commute.mode) }} {{ commute.maxMinutes }} 分钟内</strong>
             <text>已应用通勤条件 · 点击修改</text>
           </view>
           <view class="i-carbon-chevron-right" />
         </view>
 
-        <view v-if="commute && (commuteProgress?.status === 'pending' || !commuteProgress || commuteError)" class="commute-status">
+        <view v-if="commute && (commuteProgress?.status === 'pending' || !commuteProgress || commuteError)" class="commute-status flex flex-col gap-2 border-hairline border-app-card rounded-3 border-solid bg-surface-card p-4">
           <template v-if="commuteError">
             <strong>{{ commuteError }}</strong>
             <button @click="refreshHouses(true)">
@@ -976,204 +1002,89 @@ async function refreshResults() {
 .public-house-search-page {
   --house-search-navigation-height: max(var(--house-search-base-navigation-height), calc(64rpx + 8px));
 
-  display: flex;
-  height: 100vh;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
+  @apply flex;
+  @apply h-screen;
+  @apply min-h-0;
+  @apply flex-col;
+  @apply overflow-hidden;
 }
 :deep(.public-house-search-page .app-custom-navigation) {
   height: var(--house-search-navigation-height);
-  flex: 0 0 auto;
+  @apply flex-none;
 }
 :deep(.public-house-search-page .app-page__content) {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-.commute-status {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-  padding: 30rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
+  @apply flex;
+  @apply min-h-0;
+  @apply flex-1;
+  @apply flex-col;
+  @apply overflow-hidden;
+  @apply pt-0;
+  @apply pb-0;
 }
 .commute-status strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 .commute-status text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply text-content-muted;
+  @apply text-size-2xs;
 }
 .commute-status button {
-  margin: 0;
-  color: var(--app-color-brand);
-  font-size: 23rpx;
+  @apply m-0;
+  @apply text-app-brand;
+  @apply text-size-xs;
 }
 .commute-entry {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  margin-top: 22rpx;
-  padding: 24rpx;
-  border: 1rpx solid rgb(22 119 255 / 20%);
-  border-radius: 24rpx;
-  color: var(--app-color-brand);
   background: linear-gradient(120deg, #edf5ff, #fff);
 }
-.commute-entry__icon {
-  font-size: 36rpx;
-}
 .commute-entry__copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 4rpx;
+  @apply flex-1;
+  @apply flex-col;
 }
 .commute-entry__copy strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 .commute-entry__copy text {
-  overflow: hidden;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden;
+  @apply text-content-muted;
+  @apply text-size-2xs;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
 }
 button::after {
-  border: 0;
-}
-
-.navigation-search-row {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 8rpx;
+  @apply border-0;
 }
 .navigation-search-bar {
-  display: flex;
-  height: 64rpx;
-  width: auto;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 8rpx;
-  margin: 0;
-  padding: 0 14rpx;
-  border: 1rpx solid rgb(255 255 255 / 76%);
-  border-radius: 34rpx;
-  box-sizing: border-box;
-  background: rgb(255 255 255 / 78%);
   box-shadow: 0 10rpx 30rpx rgb(31 91 161 / 9%);
-  backdrop-filter: blur(20rpx);
-}
-.navigation-search-icon {
-  flex: 0 0 auto;
-  color: var(--app-text-muted);
-  font-size: 28rpx;
-}
-.navigation-search-keyword {
-  min-width: 0;
-  flex: 1;
-  color: var(--app-text-primary);
-  font-size: 23rpx;
-  line-height: 1.4;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  overflow: hidden;
 }
 .navigation-search-keyword--placeholder {
-  color: var(--app-text-muted);
-}
-.navigation-region {
-  min-width: 0;
-  max-width: 192rpx;
-  flex: 0 0 auto;
-  overflow: hidden;
+  @apply text-content-muted;
 }
 :deep(.navigation-region .public-house-region-trigger) {
-  max-width: 192rpx;
-  padding-right: 4rpx;
-  padding-left: 4rpx;
+  @apply max-w-24;
+  @apply pr-0.5;
+  @apply pl-0.5;
 }
 .quick-filter-shell {
   --public-house-filter-popover-width: 680rpx;
-
-  position: relative;
-  z-index: 20;
-  width: 100%;
-  flex: 0 0 auto;
-  margin-top: 0;
 }
 .quick-filter-shell--open {
-  z-index: 1100;
-}
-.quick-filter-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12rpx;
-}
-.quick-filter {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  height: 58rpx;
-  box-sizing: border-box;
-  align-items: center;
-  justify-content: center;
-  gap: 4rpx;
-  padding: 0 8rpx;
-  overflow: hidden;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 24rpx;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 58rpx;
-  background: var(--app-bg-card);
-}
-.quick-filter__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.quick-filter__count {
-  display: flex;
-  width: 26rpx;
-  height: 26rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 18rpx;
-  line-height: 1;
-  background: var(--app-color-brand);
+  @apply z-1100;
 }
 .quick-filter > .i-carbon-chevron-down {
-  flex: 0 0 auto;
-  font-size: 20rpx;
+  @apply flex-none;
+  @apply text-size-2xs;
 }
 .quick-filter--active {
-  border-color: rgb(22 119 255 / 24%);
-  color: #1677ff;
-  font-weight: 600;
-  background: #eef5ff;
+  @apply border-hex-1677ff/24;
+  @apply text-hex-1677ff;
+  @apply font-semibold;
+  @apply bg-hex-eef5ff;
 }
 .quick-filter--open {
-  border-color: #1677ff;
-  color: #0f63d8;
+  @apply border-hex-1677ff;
+  @apply text-hex-0f63d8;
   box-shadow: 0 8rpx 22rpx rgb(22 119 255 / 12%);
 }
 .quick-filter > .i-carbon-chevron-down {
@@ -1183,213 +1094,119 @@ button::after {
   transform: rotate(180deg);
 }
 .quick-filter--pressed {
-  opacity: 0.72;
+  @apply opacity-70;
 }
 .top-filter-popover-host {
-  position: absolute;
-  z-index: 1;
-  top: 100%;
-  left: 0;
   width: calc(100vw - var(--app-page-gutter) * 2);
   max-width: var(--public-house-filter-popover-width);
 }
 .top-filter-popover-host::before {
-  position: absolute;
-  z-index: 3;
-  top: 6rpx;
+  @apply absolute;
+  @apply z-3;
+  @apply top-1;
   left: var(--filter-pointer-x);
-  width: 20rpx;
-  height: 20rpx;
-  margin-left: -10rpx;
-  border-top: 1rpx solid rgb(255 255 255 / 80%);
-  border-left: 1rpx solid rgb(255 255 255 / 80%);
-  background: #fff;
+  @apply w-2.5;
+  @apply h-2.5;
+  @apply -ml-1;
+  @apply border-t-hairline border-t-solid border-t-hex-ffffff/80;
+  @apply border-l-hairline border-l-solid border-l-hex-ffffff/80;
+  @apply bg-hex-fff;
   content: '';
   transform: rotate(45deg);
-}
-.top-filter-mask {
-  position: fixed;
-  z-index: 1;
-  inset: 0;
-  background: rgb(15 23 42 / 28%);
-  backdrop-filter: blur(3rpx);
 }
 .top-filter-popover {
   --filter-popover-primary: #1677ff;
   --filter-popover-primary-active: #0f63d8;
   --filter-popover-primary-soft: #eef5ff;
-
-  position: relative;
-  z-index: 2;
-  margin-top: 14rpx;
-  padding: 28rpx;
-  border: 1rpx solid rgb(255 255 255 / 80%);
-  border-radius: 28rpx;
+  --filter-popover-max-height: min(
+    72vh,
+    calc(100vh - var(--house-search-navigation-height) - 174rpx - env(safe-area-inset-bottom))
+  );
+  max-height: var(--filter-popover-max-height);
   background: linear-gradient(145deg, rgb(255 255 255 / 99%), #f2f7ff);
   box-shadow: 0 26rpx 68rpx rgb(26 79 145 / 18%);
-  animation: top-filter-dropdown-in 180ms ease-out;
 }
-.top-filter-popover__heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
+.top-filter-popover--more {
+  @apply flex;
+  @apply flex-col;
+  @apply overflow-hidden;
 }
-.top-filter-popover__heading-main {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
+.top-filter-popover__body {
+  @apply min-h-0;
+  max-height: calc(var(--filter-popover-max-height) - 168rpx);
+  @apply flex-1;
 }
 .top-filter-popover__heading-main > view:first-child {
-  flex: 0 0 auto;
-  color: var(--filter-popover-primary);
-  font-size: 30rpx;
-}
-.top-filter-popover__heading-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
+  @apply flex-none;
+  @apply text-$filter-popover-primary;
+  @apply text-size-sm;
 }
 .top-filter-popover__heading strong {
-  color: var(--app-text-primary);
-  font-size: 29rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 .top-filter-popover__heading text {
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.top-filter-popover__section-title {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  margin-top: 24rpx;
-  color: var(--app-text-primary);
-  font-size: 25rpx;
+  @apply text-content-muted;
+  @apply text-size-2xs;
 }
 .top-filter-popover__section-title > view {
-  color: var(--filter-popover-primary);
-  font-size: 28rpx;
+  @apply text-$filter-popover-primary;
+  @apply text-size-sm;
 }
 .top-filter-popover__choice-grid {
-  display: grid;
-  margin-top: 24rpx;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12rpx;
+  @apply mt-3;
+  @apply grid-cols-3;
 }
 .top-filter-popover__choice-grid--compact {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  @apply grid-cols-4;
 }
 .top-filter-popover__choice-grid--elevator {
-  margin-top: 14rpx;
-}
-.top-filter-popover__choice {
-  min-width: 0;
-  height: 66rpx;
-  margin: 0;
-  padding: 0 10rpx;
-  overflow: hidden;
-  border: 1rpx solid transparent;
-  border-radius: 18rpx;
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 66rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: #f5f8fc;
+  @apply mt-2;
 }
 .top-filter-popover__choice--active {
-  border-color: rgb(22 119 255 / 25%);
-  color: var(--filter-popover-primary-active);
-  font-weight: 700;
-  background: var(--filter-popover-primary-soft);
+  @apply border-hex-1677ff/25;
+  @apply text-$filter-popover-primary-active;
+  @apply font-bold;
+  @apply bg-$filter-popover-primary-soft;
 }
 .top-filter-popover__range {
-  display: grid;
-  margin-top: 20rpx;
-  align-items: center;
   grid-template-columns: minmax(0, 1fr) 28rpx minmax(0, 1fr);
-  gap: 10rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-  text-align: center;
-}
-.top-filter-popover__field {
-  min-width: 0;
-  padding: 10rpx 16rpx;
-  border: 1rpx solid transparent;
-  border-radius: 18rpx;
-  background: #f5f8fc;
 }
 :deep(.top-filter-popover__field .wd-input) {
-  padding: 0;
-  background: transparent;
+  @apply p-0;
+  @apply bg-transparent;
   --wot-input-bg: transparent;
   --wot-input-padding: 0;
   --wot-input-inner-height: 44rpx;
   --wot-input-inner-font-size: 23rpx;
 }
 .top-filter-popover__footer {
-  display: grid;
-  margin-top: 24rpx;
   grid-template-columns: 1fr 2fr;
-  gap: 16rpx;
+}
+.top-filter-popover--more .top-filter-popover__footer {
+  @apply flex-none;
+  @apply mt-0;
+  @apply pt-2.5;
+  @apply pb-1;
+  @apply border-t-hairline border-t-solid border-t-hex-e3ebf6;
 }
 .top-filter-popover__reset,
 .top-filter-popover__apply {
-  height: 76rpx;
-  margin: 0;
-  border: 0;
-  border-radius: 18rpx;
-  font-size: 25rpx;
-  line-height: 76rpx;
-}
-.top-filter-popover__reset {
-  border: 1rpx solid rgb(22 119 255 / 24%);
-  color: var(--filter-popover-primary);
-  background: #fff;
+  @apply h-9.5;
+  @apply m-0;
+  @apply border-0;
+  @apply rounded-2.5;
+  @apply text-size-xs;
+  @apply leading-9.5;
 }
 .top-filter-popover__apply {
-  color: #fff;
-  font-weight: 700;
   background: linear-gradient(135deg, var(--filter-popover-primary), #3b8fff);
   box-shadow: 0 12rpx 24rpx rgb(22 119 255 / 20%);
 }
 .top-filter-popover__apply[disabled] {
-  opacity: 0.6;
+  @apply opacity-60;
 }
-.selected-listing-type {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 16rpx 0 0;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-
-.selected-listing-type button {
-  height: 48rpx;
-  margin: 0;
-  padding: 0 18rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-brand-soft);
-  color: var(--app-color-brand);
-  font-size: 22rpx;
-  line-height: 48rpx;
-}
-
-.selected-listing-type button::after {
-  border: 0;
-}
-
 .sort-row {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 30rpx;
-  padding: 12rpx 0;
-  color: var(--app-text-secondary);
-  white-space: nowrap;
   --wot-sort-button-height: 64rpx;
   --wot-sort-button-text-font-size: 28rpx;
   --wot-sort-button-arrow-icon-size: 36rpx;
@@ -1399,41 +1216,16 @@ button::after {
   --wot-sort-button-icon-color-active: var(--app-color-brand);
   --wot-sort-button-font-weight-active: 600;
 }
-.sort-row__single {
-  height: 64rpx;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  color: var(--app-text-secondary);
-  font-size: 28rpx;
-  line-height: 64rpx;
-  background: transparent;
-}
 .sort-row__single--active {
-  color: var(--app-color-brand);
-  font-weight: 700;
+  @apply text-app-brand;
+  @apply font-bold;
 }
 .house-results-scroll {
-  height: 0;
-  min-height: 0;
-  flex: 1;
+  @apply h-0;
+  @apply min-h-0;
+  @apply flex-1;
 }
 .house-results-scroll__content {
   padding-bottom: calc(var(--app-page-gutter) + env(safe-area-inset-bottom));
-}
-@keyframes top-filter-dropdown-in {
-  from {
-    opacity: 0;
-    transform: translateY(-16rpx);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .top-filter-popover {
-    animation: none;
-  }
 }
 </style>

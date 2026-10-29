@@ -38,6 +38,6 @@ test('组织请求必须同时具备会话和明确的组织 slug', () => {
 
   assert.throws(
     () => buildScopeHeaders({ scope: { kind: 'organization', organizationSlug: '' }, sessionToken: 'session-1' }),
-    /未选择组织/,
+    /未选择工作空间/,
   )
 })

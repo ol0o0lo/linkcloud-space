@@ -51,7 +51,7 @@ function uploadSingle(file: PickedFile, options: UploadMediaOptions, fileIndex: 
 
 export async function chooseAndUploadMedia(options: UploadMediaOptions): Promise<MediaFileOut[]> {
   const maxCount = options.maxCount || 1
-  const selection = await platform.filePicker.pick({ kind: options.kind || 'image', count: maxCount })
+  const selection = await platform.filePicker.pick({ kind: options.kind || 'image', count: maxCount, extensions: options.extensions })
   if ('reason' in selection)
     throw new AppError({ kind: 'business', message: selection.reason })
   if (!selection.value.length)

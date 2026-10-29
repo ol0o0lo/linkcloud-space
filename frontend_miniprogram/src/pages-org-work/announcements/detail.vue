@@ -119,7 +119,7 @@ onUnload(stopNowTimer)
           {{ announcement.title }}
         </view>
         <view class="mt-1.5 text-xs text-content-muted">
-          {{ announcement.team_name || '全组织' }} · {{ formatOrganizationWorkDateTime(announcement.published_at || announcement.created_at) }}
+          {{ announcement.team_name || '整个工作空间' }} · {{ formatOrganizationWorkDateTime(announcement.published_at || announcement.created_at) }}
         </view>
         <text class="mt-3.5 block whitespace-pre-wrap text-sm text-content-secondary leading-relaxed">{{ announcement.body }}</text>
       </view>

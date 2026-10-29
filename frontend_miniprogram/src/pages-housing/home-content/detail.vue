@@ -104,20 +104,20 @@ onPageScroll(handleNavigationScroll)
     <AppLoading v-if="loading && !entry" text="正在加载内容…" />
     <AppErrorView v-else-if="error && !entry" :error="error" @retry="loadEntry" />
     <template v-else-if="entry">
-      <view v-if="isTopic" class="topic-immersive">
-        <view class="topic-hero" :class="`topic-hero--${entry.tone}`">
-          <image v-if="coverUrl" class="topic-hero__image" :src="coverUrl" mode="aspectFill" />
+      <view v-if="isTopic" class="topic-immersive bg-surface-card">
+        <view class="topic-hero relative max-h-115 min-h-85 overflow-hidden" :class="`topic-hero--${entry.tone}`">
+          <image v-if="coverUrl" class="topic-hero__image block" :src="coverUrl" mode="aspectFill" />
           <view class="topic-hero__wash" />
-          <view class="topic-hero__content">
-            <text class="topic-hero__eyebrow">{{ entry.eyebrow || '精选专题' }}</text>
-            <text class="topic-hero__title">{{ entry.title }}</text>
-            <text class="topic-hero__summary">{{ entry.summary }}</text>
+          <view class="topic-hero__content absolute bottom-0 left-0 right-0 flex flex-col px-app-gutter pb-11.5 pt-0">
+            <text class="topic-hero__eyebrow self-start border-hairline border-hex-ffffff/35 rounded-full border-solid bg-hex-ffffff/12 px-2.5 py-1 text-size-2xs text-hex-ffffff/92 font-bold tracking-widest backdrop-blur-8">{{ entry.eyebrow || '精选专题' }}</text>
+            <text class="topic-hero__title mt-3 text-size-2xl text-hex-fff font-extrabold leading-tight tracking-tight">{{ entry.title }}</text>
+            <text class="topic-hero__summary mt-3 text-size-xs text-hex-ffffff/82 leading-relaxed">{{ entry.summary }}</text>
           </view>
         </view>
-        <view class="topic-story">
-          <view class="topic-story__inner">
-            <view class="topic-story__marker">
-              <view class="topic-story__line" />
+        <view class="topic-story relative z-2 bg-surface-card px-app-gutter pb-7.5 pt-6 -mt-6">
+          <view class="topic-story__inner mx-auto my-0 max-w-178">
+            <view class="topic-story__marker mb-4 flex items-center gap-2 text-size-2xs text-content-muted font-bold tracking-widest">
+              <view class="topic-story__line h-0.5 w-6 rounded-full bg-app-brand" />
               <text>专题内容</text>
             </view>
             <rich-text class="entry-body topic-story__body" :nodes="entry.body_html" />
@@ -125,20 +125,20 @@ onPageScroll(handleNavigationScroll)
         </view>
       </view>
 
-      <view v-else class="entry-article">
-        <view class="entry-hero" :class="`entry-hero--${entry.tone}`">
-          <image v-if="coverUrl" class="entry-hero__image" :src="coverUrl" mode="aspectFill" />
+      <view v-else class="entry-article mx-auto mb-0 mt-6 max-w-230 overflow-hidden rounded-4.5 bg-surface-card">
+        <view class="entry-hero relative box-border min-h-55 flex items-end overflow-hidden px-9 pb-12 pt-24" :class="`entry-hero--${entry.tone}`">
+          <image v-if="coverUrl" class="entry-hero__image block" :src="coverUrl" mode="aspectFill" />
           <view class="entry-hero__wash" />
-          <view v-if="!coverUrl" class="entry-hero__ornament" />
-          <view class="entry-hero__content">
-            <text class="entry-hero__eyebrow">{{ entry.eyebrow || '实用指南' }}</text>
-            <text class="entry-hero__title">{{ entry.title }}</text>
-            <text class="entry-hero__summary">{{ entry.summary }}</text>
+          <view v-if="!coverUrl" class="entry-hero__ornament absolute h-81 w-81 border-hairline border-hex-ffffff/19 rounded-full border-solid -right-12 -top-27" />
+          <view class="entry-hero__content relative z-1 w-full flex flex-col">
+            <text class="entry-hero__eyebrow self-start border-hairline border-hex-ffffff/27 rounded-full border-solid bg-hex-ffffff/10 px-2.5 py-1 text-size-2xs text-hex-ffffff/92 font-bold tracking-wider">{{ entry.eyebrow || '实用指南' }}</text>
+            <text class="entry-hero__title mt-3.5 max-w-170 text-balance text-hex-fff font-extrabold leading-tight tracking-tight">{{ entry.title }}</text>
+            <text class="entry-hero__summary mt-3 max-w-155 text-size-sm text-hex-ffffff/81 leading-relaxed">{{ entry.summary }}</text>
           </view>
         </view>
-        <view class="entry-article__paper">
-          <view class="entry-reading-label">
-            <view class="entry-reading-label__line" />
+        <view class="entry-article__paper relative bg-surface-card px-9 pb-13 pt-8 -mt-3.5">
+          <view class="entry-reading-label mb-4 flex items-center gap-2 text-size-2xs text-content-muted font-bold tracking-widest">
+            <view class="entry-reading-label__line h-0.5 w-5 rounded-full bg-app-brand" />
             <text>正文</text>
           </view>
           <rich-text class="entry-body entry-article__body" :nodes="articleBodyHtml" />
@@ -146,9 +146,9 @@ onPageScroll(handleNavigationScroll)
       </view>
 
       <view v-if="isTopic" class="topic-houses topic-houses--immersive">
-        <view class="section-heading">
-          <text class="section-heading__title">专题房源</text>
-          <text class="section-heading__subtitle">仅展示当前仍在公开招租的房源</text>
+        <view class="section-heading mb-2.5 flex flex-col gap-1">
+          <text class="section-heading__title text-size-base text-content-primary font-extrabold">专题房源</text>
+          <text class="section-heading__subtitle text-size-2xs text-content-muted">仅展示当前仍在公开招租的房源</text>
         </view>
         <AppPagedList
           :items="housePage.items.value"
@@ -167,8 +167,8 @@ onPageScroll(handleNavigationScroll)
             <AppHouseCardSkeleton :count="4" />
           </template>
           <template #item="{ item }">
-            <view class="topic-house-item">
-              <view v-if="item.recommendation_reason" class="recommendation-reason">
+            <view class="topic-house-item flex flex-col gap-1.5">
+              <view v-if="item.recommendation_reason" class="recommendation-reason flex items-start gap-1.5 rounded-app-md bg-surface-brand-soft px-2.5 py-2 text-size-2xs text-app-brand-active leading-normal">
                 <view class="i-carbon-recommend" />
                 <text>{{ item.recommendation_reason }}</text>
               </view>
@@ -190,24 +190,16 @@ onPageScroll(handleNavigationScroll)
 
 <style scoped lang="scss">
 .entry-detail-page {
-  min-height: 100vh;
-  background: var(--app-bg-page);
+  @apply min-h-screen;
+  @apply bg-surface-page;
 }
 
 .entry-detail-page--guide {
   background: linear-gradient(180deg, #edf2f7 0, var(--app-bg-page) 560rpx);
 }
 
-.topic-immersive {
-  background: var(--app-bg-card);
-}
-
 .topic-hero {
-  position: relative;
   height: 72vh;
-  min-height: 680rpx;
-  max-height: 920rpx;
-  overflow: hidden;
   background: linear-gradient(145deg, #194f48 0%, #327d6d 48%, #82b99e 100%);
 }
 
@@ -225,14 +217,10 @@ onPageScroll(handleNavigationScroll)
 
 .topic-hero__image,
 .topic-hero__wash {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.topic-hero__image {
-  display: block;
+  @apply absolute;
+  @apply inset-0;
+  @apply w-full;
+  @apply h-full;
 }
 
 .topic-hero__wash {
@@ -241,97 +229,22 @@ onPageScroll(handleNavigationScroll)
     linear-gradient(180deg, transparent 34%, rgb(7 15 27 / 82%) 100%);
 }
 
-.topic-hero__content {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: flex;
-  padding: 0 var(--app-page-gutter) 92rpx;
-  flex-direction: column;
-}
-
-.topic-hero__eyebrow {
-  align-self: flex-start;
-  padding: 9rpx 18rpx;
-  border: 1rpx solid rgb(255 255 255 / 35%);
-  border-radius: 999rpx;
-  color: rgb(255 255 255 / 92%);
-  font-size: 20rpx;
-  font-weight: 700;
-  letter-spacing: 3rpx;
-  background: rgb(255 255 255 / 12%);
-  backdrop-filter: blur(16rpx);
-}
-
 .topic-hero__title {
-  margin-top: 24rpx;
-  color: #fff;
-  font-size: 54rpx;
-  font-weight: 800;
-  line-height: 1.18;
-  letter-spacing: -1rpx;
   text-shadow: 0 6rpx 20rpx rgb(0 0 0 / 22%);
 }
 
-.topic-hero__summary {
-  margin-top: 22rpx;
-  color: rgb(255 255 255 / 82%);
-  font-size: 25rpx;
-  line-height: 1.65;
-}
-
 .topic-story {
-  position: relative;
-  z-index: 2;
-  margin-top: -48rpx;
-  padding: 48rpx var(--app-page-gutter) 58rpx;
-  border-radius: 42rpx 42rpx 0 0;
-  background: var(--app-bg-card);
-}
-
-.topic-story__inner {
-  max-width: 710px;
-  margin: 0 auto;
-}
-
-.topic-story__marker {
-  display: flex;
-  margin-bottom: 30rpx;
-  align-items: center;
-  gap: 16rpx;
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-  font-weight: 700;
-  letter-spacing: 3rpx;
-}
-
-.topic-story__line {
-  width: 46rpx;
-  height: 5rpx;
-  border-radius: 999rpx;
-  background: var(--app-color-brand);
+  @apply rounded-t-5;
+  @apply rounded-b-0;
 }
 
 .entry-article {
   width: calc(100% - var(--app-page-gutter) * 2);
-  max-width: 920px;
-  margin: 48rpx auto 0;
-  overflow: hidden;
-  border-radius: 36rpx;
-  background: var(--app-bg-card);
   box-shadow: 0 28rpx 90rpx rgb(38 61 86 / 9%);
 }
 
 .entry-hero {
-  position: relative;
-  display: flex;
-  min-height: 440rpx;
-  padding: 190rpx 72rpx 94rpx;
-  overflow: hidden;
-  align-items: flex-end;
   background: linear-gradient(135deg, #152c47 0%, #254969 58%, #52758e 100%);
-  box-sizing: border-box;
 }
 
 .entry-hero--sage {
@@ -348,14 +261,10 @@ onPageScroll(handleNavigationScroll)
 
 .entry-hero__image,
 .entry-hero__wash {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.entry-hero__image {
-  display: block;
+  @apply absolute;
+  @apply inset-0;
+  @apply w-full;
+  @apply h-full;
 }
 
 .entry-hero__wash {
@@ -363,270 +272,172 @@ onPageScroll(handleNavigationScroll)
 }
 
 .entry-hero__ornament {
-  position: absolute;
-  top: -220rpx;
-  right: -100rpx;
-  width: 650rpx;
-  height: 650rpx;
-  border: 1rpx solid rgb(255 255 255 / 19%);
-  border-radius: 50%;
   box-shadow:
     0 0 0 110rpx rgb(255 255 255 / 5%),
     0 0 0 220rpx rgb(255 255 255 / 3%);
 }
 
-.entry-hero__content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-}
-
-.entry-hero__eyebrow {
-  align-self: flex-start;
-  padding: 9rpx 18rpx;
-  border: 1rpx solid rgb(255 255 255 / 27%);
-  border-radius: 999rpx;
-  color: rgb(255 255 255 / 92%);
-  font-size: 21rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-  background: rgb(255 255 255 / 10%);
-}
-
 .entry-hero__title {
-  max-width: 680px;
-  margin-top: 28rpx;
-  color: #fff;
   font-size: clamp(54rpx, 4vw, 76rpx);
-  font-weight: 800;
-  line-height: 1.22;
-  letter-spacing: -1rpx;
-  text-wrap: balance;
-}
-
-.entry-hero__summary {
-  max-width: 620px;
-  margin-top: 24rpx;
-  color: rgb(255 255 255 / 81%);
-  font-size: 28rpx;
-  line-height: 1.65;
 }
 
 .entry-article__paper {
-  position: relative;
-  margin-top: -30rpx;
-  padding: 62rpx 72rpx 100rpx;
-  border-radius: 32rpx 32rpx 0 0;
-  background: var(--app-bg-card);
+  @apply rounded-t-4;
+  @apply rounded-b-0;
 }
 
 .entry-reading-label,
 .entry-article__body {
-  max-width: 710px;
-  margin-right: auto;
-  margin-left: auto;
-}
-
-.entry-reading-label {
-  display: flex;
-  margin-bottom: 32rpx;
-  align-items: center;
-  gap: 14rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-  font-weight: 700;
-  letter-spacing: 3rpx;
-}
-
-.entry-reading-label__line {
-  width: 38rpx;
-  height: 5rpx;
-  border-radius: 999rpx;
-  background: var(--app-color-brand);
+  @apply max-w-178;
+  @apply mr-auto;
+  @apply ml-auto;
 }
 
 .entry-body {
-  display: block;
-  padding: 0 32rpx 36rpx;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  line-height: 1.8;
-  overflow-wrap: anywhere;
+  @apply block;
+  @apply pt-0 px-4 pb-4.5;
+  @apply text-content-primary;
+  @apply text-size-sm;
+  @apply leading-relaxed;
+  @apply break-anywhere;
 }
 
 .entry-article__body {
-  padding: 0;
-  color: #465363;
-  font-size: 31rpx;
-  line-height: 1.9;
+  @apply p-0;
+  @apply text-hex-465363;
+  @apply text-size-base;
+  @apply leading-loose;
 }
 
 .entry-article__body :deep(h1) {
-  margin: 0 0 26rpx;
-  color: var(--app-text-primary);
-  font-size: 42rpx;
-  line-height: 1.4;
+  @apply mt-0 mx-0 mb-3.5;
+  @apply text-content-primary;
+  @apply text-size-xl;
+  @apply leading-snug;
 }
 
 .entry-article__body :deep(h2) {
-  margin: 50rpx 0 18rpx;
-  padding-top: 42rpx;
-  border-top: 1rpx solid var(--app-border-card);
-  color: var(--app-text-primary);
-  font-size: 37rpx;
-  font-weight: 750;
-  line-height: 1.45;
+  @apply mt-6.5 mx-0 mb-2.5;
+  @apply pt-5.5;
+  @apply border-t-hairline border-t-solid border-t-app-card;
+  @apply text-content-primary;
+  @apply text-size-lg;
+  @apply font-extrabold;
+  @apply leading-normal;
 }
 
 .entry-article__body :deep(h2:first-child) {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
+  @apply mt-0;
+  @apply pt-0;
+  @apply border-t-0;
 }
 
 .entry-article__body :deep(h3) {
-  margin: 36rpx 0 16rpx;
-  color: var(--app-text-primary);
-  font-size: 33rpx;
-  line-height: 1.5;
+  @apply mt-4.5 mx-0 mb-2;
+  @apply text-content-primary;
+  @apply text-size-base;
+  @apply leading-normal;
 }
 
 .entry-article__body :deep(p) {
-  margin: 0 0 26rpx;
+  @apply mt-0 mx-0 mb-3.5;
 }
 
 .entry-article__body :deep(p:last-child) {
-  margin-bottom: 0;
+  @apply mb-0;
 }
 
 .entry-article__body :deep(ul),
 .entry-article__body :deep(ol) {
-  margin: 0 0 30rpx;
-  padding-left: 42rpx;
+  @apply mt-0 mx-0 mb-4;
+  @apply pl-5.5;
 }
 
 .entry-article__body :deep(li) {
-  margin: 10rpx 0;
+  @apply my-1.5 mx-0;
 }
 
 .entry-article__body :deep(blockquote) {
-  margin: 32rpx 0;
-  padding: 20rpx 28rpx;
-  border-left: 6rpx solid var(--app-color-brand);
-  border-radius: 0 14rpx 14rpx 0;
-  background: var(--app-bg-brand-soft);
+  @apply my-4 mx-0;
+  @apply py-2.5 px-3.5;
+  @apply border-l-3 border-l-solid border-l-app-brand;
+  @apply rounded-l-0;
+  @apply rounded-r-2;
+  @apply bg-surface-brand-soft;
 }
 
 .entry-article__body :deep(img) {
-  max-width: 100%;
-  height: auto;
-  border-radius: 18rpx;
+  @apply max-w-full;
+  @apply h-auto;
+  @apply rounded-2.5;
 }
 
 .entry-article__body :deep(a) {
-  color: var(--app-color-brand-active);
-  text-decoration: underline;
+  @apply text-app-brand-active;
+  @apply underline;
 }
 
 .topic-story__body {
-  padding: 0;
-  color: #465363;
-  font-size: 31rpx;
-  line-height: 1.9;
+  @apply p-0;
+  @apply text-hex-465363;
+  @apply text-size-base;
+  @apply leading-loose;
 }
 
 .topic-story__body :deep(h2) {
-  margin: 42rpx 0 16rpx;
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-  line-height: 1.45;
+  @apply mt-5.5 mx-0 mb-2;
+  @apply text-content-primary;
+  @apply text-size-lg;
+  @apply leading-normal;
 }
 
 .topic-story__body :deep(p) {
-  margin: 0 0 26rpx;
+  @apply mt-0 mx-0 mb-3.5;
 }
 
 .topic-story__body :deep(p:last-child) {
-  margin-bottom: 0;
+  @apply mb-0;
 }
 
 .topic-story__body :deep(li) {
-  margin: 10rpx 0;
+  @apply my-1.5 mx-0;
 }
 
 .topic-houses {
-  margin-top: 42rpx;
+  @apply mt-5.5;
 }
 
 .topic-houses--immersive {
-  margin-top: 0;
-  padding: 54rpx var(--app-page-gutter) 0;
-  border-top: 16rpx solid var(--app-bg-page);
-  background: var(--app-bg-page);
-}
-
-.section-heading {
-  display: flex;
-  margin-bottom: 20rpx;
-  flex-direction: column;
-  gap: 7rpx;
-}
-
-.section-heading__title {
-  color: var(--app-text-primary);
-  font-size: 31rpx;
-  font-weight: 750;
-}
-
-.section-heading__subtitle {
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-
-.topic-house-item {
-  display: flex;
-  flex-direction: column;
-  gap: 10rpx;
-}
-
-.recommendation-reason {
-  display: flex;
-  padding: 14rpx 18rpx;
-  align-items: flex-start;
-  gap: 10rpx;
-  border-radius: var(--app-radius-md);
-  color: var(--app-color-brand-active);
-  font-size: 21rpx;
-  line-height: 1.45;
-  background: var(--app-bg-brand-soft);
+  @apply mt-0;
+  @apply pt-7 px-app-gutter pb-0;
+  @apply border-t-8 border-t-solid border-t-surface-page;
+  @apply bg-surface-page;
 }
 
 .recommendation-reason > view {
-  flex: 0 0 auto;
-  margin-top: 3rpx;
+  @apply flex-none;
+  @apply mt-0.5;
 }
 
 @media (max-width: 700px) {
   .entry-article {
-    width: 100%;
-    margin-top: 0;
-    border-radius: 0;
-    box-shadow: none;
+    @apply w-full;
+    @apply mt-0;
+    @apply rounded-0;
+    @apply shadow-none;
   }
 
   .entry-hero {
-    min-height: 430rpx;
-    padding: 190rpx 42rpx 94rpx;
+    @apply min-h-54;
+    @apply pt-24 px-5.5 pb-12;
   }
 
   .entry-hero__ornament {
-    right: -320rpx;
+    @apply -right-40;
   }
 
   .entry-article__paper {
-    padding: 50rpx 42rpx 90rpx;
+    @apply pt-6.5 px-5.5 pb-11.5;
   }
 }
 </style>

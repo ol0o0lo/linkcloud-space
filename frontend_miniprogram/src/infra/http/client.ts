@@ -8,6 +8,8 @@ export interface HttpRequest<TBody = unknown> {
   url: string
   method?: HttpMethod
   authRetry?: 'safe' | 'never'
+  /** 恢复后的账号必须仍符合原请求，才允许重放。 */
+  authReplayGuard?: () => boolean
   scope: RequestScope
   query?: Record<string, unknown>
   body?: TBody
@@ -127,6 +129,8 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
   }
 
   async function request<TResponse, TBody = unknown>(input: HttpRequest<TBody>): Promise<TResponse> {
+    if (input.authReplayGuard && !input.authReplayGuard())
+      throw new AppError({ kind: 'cancelled', message: '当前账号已切换，原请求未发送' })
     let response = await execute(input)
 
     let envelope = getEnvelope(response.data)
@@ -134,6 +138,8 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     const recovered = unauthenticated ? await recoverSession() : false
     const method = input.method || 'GET'
     const shouldReplay = input.authRetry === 'safe' || (input.authRetry === undefined && method === 'GET')
+    if (recovered && shouldReplay && input.authReplayGuard && !input.authReplayGuard())
+      throw new AppError({ kind: 'cancelled', message: '当前账号已切换，原请求未重试' })
     const replayed = recovered && shouldReplay
     if (replayed) {
       response = await execute(input)

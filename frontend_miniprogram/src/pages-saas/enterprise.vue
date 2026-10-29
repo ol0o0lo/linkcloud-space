@@ -55,32 +55,32 @@ function backToPlans() {
 </script>
 
 <template>
-  <view class="enterprise-page">
+  <view class="enterprise-page box-border min-h-screen bg-surface-page px-3 pb-8 pt-0">
     <AppCustomNavigation title="企业版咨询" back scroll-mode="sticky" />
     <wd-toast />
-    <view v-if="submitted" class="success-card">
-      <view class="success-icon i-carbon-checkmark-filled" />
-      <strong>需求已提交</strong>
-      <text>销售顾问将根据团队、房源规模和实施需求与你联系。请保持电话畅通。</text>
+    <view v-if="submitted" class="success-card flex flex-col items-center gap-2.5 rounded-xl bg-surface-card px-3.5 pb-3.5 pt-7 text-center">
+      <view class="success-icon i-carbon-checkmark-filled text-size-5xl text-app-success" />
+      <strong class="text-size-base text-content-primary leading-snug">需求已提交</strong>
+      <text class="text-size-xs text-content-secondary leading-relaxed">销售顾问将根据团队、房源规模和实施需求与你联系。请保持电话畅通。</text>
       <wd-button block @click="backToPlans">
         返回套餐页
       </wd-button>
     </view>
     <template v-else>
-      <view class="enterprise-hero">
+      <view class="enterprise-hero flex flex-col gap-1.5 border-hairline border-app-border-brand-soft rounded-xl border-solid bg-surface-card p-3.5">
         <wd-tag type="warning" variant="soft">
           企业版
         </wd-tag>
-        <strong>多门店、高级权限和接口集成，需要先做需求评估</strong>
-        <text>提交后进入平台销售线索池，跟进状态和备注由运营团队统一管理。</text>
+        <strong class="text-size-base text-content-primary leading-snug">多门店、高级权限和接口集成，需要先做需求评估</strong>
+        <text class="text-size-xs text-content-secondary leading-relaxed">提交后进入平台销售线索池，跟进状态和备注由运营团队统一管理。</text>
       </view>
-      <view class="form-card">
+      <view class="form-card mt-2.5 flex flex-col gap-3 rounded-xl bg-surface-card p-3.5">
         <wd-input v-model="contactName" label="联系人" clearable placeholder="请填写姓名" />
         <wd-input v-model="contactPhone" label="联系电话" type="number" clearable placeholder="手机或座机" />
         <wd-input v-model="companyName" label="公司/门店" clearable placeholder="请填写主体名称" />
         <wd-input v-model="cityName" label="所在城市" clearable placeholder="例如：杭州" />
-        <view class="field-block">
-          <view class="field-label">
+        <view class="field-block flex flex-col gap-1.5">
+          <view class="field-label text-size-xs text-content-primary font-semibold">
             团队规模
           </view>
           <wd-radio-group v-model="teamSize" type="button" direction="vertical">
@@ -92,8 +92,8 @@ function backToPlans() {
             </wd-radio>
           </wd-radio-group>
         </view>
-        <view class="field-block">
-          <view class="field-label">
+        <view class="field-block flex flex-col gap-1.5">
+          <view class="field-label text-size-xs text-content-primary font-semibold">
             在管房源
           </view>
           <wd-radio-group v-model="houseScale" type="button" direction="vertical">
@@ -108,8 +108,8 @@ function backToPlans() {
             </wd-radio>
           </wd-radio-group>
         </view>
-        <view class="field-block">
-          <view class="field-label">
+        <view class="field-block flex flex-col gap-1.5">
+          <view class="field-label text-size-xs text-content-primary font-semibold">
             重点需求
           </view>
           <wd-textarea v-model="needs" :maxlength="500" show-word-limit auto-height placeholder="例如：多门店数据隔离、总部看板、开放 API、历史数据迁移" />
@@ -123,66 +123,7 @@ function backToPlans() {
 </template>
 
 <style scoped lang="scss">
-.enterprise-page {
-  min-height: 100vh;
-  padding: 0 24rpx 64rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
 .enterprise-page :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
-}
-.enterprise-hero,
-.form-card,
-.success-card {
-  padding: 30rpx;
-  border-radius: 28rpx;
-  background: var(--app-bg-card);
-}
-.enterprise-hero {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-}
-.enterprise-hero strong,
-.success-card strong {
-  color: var(--app-text-primary);
-  font-size: 32rpx;
-  line-height: 1.4;
-}
-.enterprise-hero text,
-.success-card text {
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.6;
-}
-.form-card {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-  margin-top: 20rpx;
-}
-.field-block {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-.field-label {
-  color: var(--app-text-primary);
-  font-size: 25rpx;
-  font-weight: 650;
-}
-.success-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20rpx;
-  padding-top: 60rpx;
-  text-align: center;
-}
-.success-icon {
-  color: var(--app-color-success);
-  font-size: 86rpx;
+  @apply mt-0 mb-3 -mx-3;
 }
 </style>

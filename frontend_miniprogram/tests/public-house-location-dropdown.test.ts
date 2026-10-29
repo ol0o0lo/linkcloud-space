@@ -8,6 +8,13 @@ const mapPageSource = readFileSync(new URL('../src/pages-housing/map/index.vue',
 const searchPageSource = readFileSync(new URL('../src/pages-housing/search/index.vue', import.meta.url), 'utf8')
 const housesPageSource = readFileSync(new URL('../src/pages/houses/index.vue', import.meta.url), 'utf8')
 
+function classTokens(source: string, className: string): string[] {
+  const classes = [...source.matchAll(/class="([^"]*)"/g)].map(match => match[1].split(/\s+/))
+  const tokens = classes.find(items => items.includes(className))
+  assert.ok(tokens, `缺少 ${className} 元素`)
+  return tokens
+}
+
 test('区域、地铁与通勤作为限定宽高的气泡弹窗打开', () => {
   assert.doesNotMatch(source, /AppBottomSheet/)
   assert.match(source, /location-popover-host/)
@@ -51,7 +58,10 @@ test('区域地铁模式使用纯文字入口且线路使用小圆点标识', ()
   assert.doesNotMatch(source, /<view class="i-carbon-map" \/>\s*<text>区域<\/text>/)
   assert.doesNotMatch(source, /<view class="i-carbon-train" \/>\s*<text>地铁<\/text>/)
   assert.doesNotMatch(source, /location-dropdown__option--mode\.active::before/)
-  assert.match(source, /\.location-dropdown__line-color\s*\{[^}]*width:\s*13rpx[^}]*height:\s*13rpx[^}]*border-radius:\s*50%/)
+  const markerClasses = classTokens(source, 'location-dropdown__line-color')
+  assert.ok(markerClasses.includes('w-1.5'))
+  assert.ok(markerClasses.includes('h-1.5'))
+  assert.ok(markerClasses.includes('rounded-full'))
 })
 
 test('三级筛选使用气泡操作区并限制五个站点', () => {
@@ -102,24 +112,24 @@ test('所有轻量筛选气泡使用统一宽度并标记当前打开入口', ()
     assert.match(pageSource, /--public-house-filter-popover-width:\s*680rpx/)
     assert.match(pageSource, /\.quick-filter--open > \.i-carbon-chevron-down\s*\{[^}]*transform:\s*rotate\(180deg\)/)
   }
-  assert.match(searchPageSource, /\.top-filter-popover-host::before\s*\{[^}]*border-top:/)
-  assert.match(housesPageSource, /\.quick-filter--open::after\s*\{[^}]*border-top:\s*8rpx solid/)
+  assert.match(searchPageSource, /\.top-filter-popover-host::before\s*\{[^}]*@apply\s[^;]*\bborder-t-hairline\b/)
+  assert.match(housesPageSource, /\.quick-filter--open::after\s*\{[^}]*@apply\s[^;]*\bborder-t-4\s+border-t-solid\b/)
   assert.match(housesPageSource, /\.nearby-dropdown-host\s*\{[^}]*width:\s*calc\(100vw - var\(--app-page-gutter\) \* 2\)[^}]*max-width:\s*var\(--public-house-filter-popover-width\)/)
   assert.match(source, /max-width:\s*var\(--public-house-filter-popover-width, 680rpx\)/)
 })
 
 test('独立找房页顶部筛选打开时遮罩层覆盖页面内容', () => {
   assert.match(searchPageSource, /quick-filter-shell--open/)
-  assert.match(searchPageSource, /\.quick-filter-shell--open\s*\{[^}]*z-index:\s*1100/)
+  assert.match(searchPageSource, /\.quick-filter-shell--open\s*\{[^}]*@apply\s+z-1100;/)
 })
 
 test('所有房源筛选浮层打开时锁定页面并阻断遮罩滑动穿透', () => {
   for (const pageSource of [searchPageSource, housesPageSource]) {
     assert.match(pageSource, /const filterOverlayOpen = computed/)
     assert.match(pageSource, /<template>\s*<page-meta :page-style="`overflow:\$\{filterOverlayOpen \? '(?:hidden|clip)' : 'visible'\};`" \/>/)
-    assert.match(pageSource, /class="top-filter-mask" @touchmove\.stop\.prevent(?: @wheel\.stop\.prevent)? @click="closeTopFilter"/)
+    assert.match(pageSource, /class="top-filter-mask(?:\s[^"]*)?" @touchmove\.stop\.prevent(?: @wheel\.stop\.prevent)? @click="closeTopFilter"/)
   }
-  assert.match(source, /class="location-popover__mask" @touchmove\.stop\.prevent @wheel\.stop\.prevent @click="closeWithoutApply"/)
+  assert.match(source, /class="location-popover__mask(?:\s[^"]*)?" @touchmove\.stop\.prevent @wheel\.stop\.prevent @click="closeWithoutApply"/)
 })
 
 test('公开找房页面导航栏统一使用全局地区入口', () => {
@@ -135,7 +145,7 @@ test('公开找房页面首次加载会先初始化当前位置地区', () => {
 test('独立找房页导航栏展示关键词搜索入口和右侧地区入口', () => {
   assert.match(searchPageSource, /navigationBarTitleText:\s*''/)
   assert.match(searchPageSource, /navigation-search-row[\s\S]*navigation-search-bar[\s\S]*PublicHouseRegionTrigger/)
-  assert.match(searchPageSource, /class="navigation-search-bar" aria-label="搜索房源" @click="openKeywordSearch"/)
+  assert.match(searchPageSource, /class="navigation-search-bar(?:\s[^"]*)?" aria-label="搜索房源" @click="openKeywordSearch"/)
   assert.match(searchPageSource, /搜索地点、小区或房源/)
   assert.match(searchPageSource, /back transparent scroll-mode="sticky"/)
   assert.doesNotMatch(searchPageSource, /class="search-bar"/)

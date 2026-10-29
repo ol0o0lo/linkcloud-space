@@ -33,19 +33,19 @@ const resolvedIcon = computed(() => props.icon || defaultIcons[props.tone])
 </script>
 
 <template>
-  <view class="app-notice" :class="[`app-notice--${tone}`, { 'app-notice--compact': compact }]">
-    <view class="app-notice__icon">
+  <view class="app-notice box-border w-full flex items-start" :class="[`app-notice--${tone}`, { 'app-notice--compact': compact }]">
+    <view class="app-notice__icon h-7 w-7 flex flex-none basis-7 items-center justify-center text-size-sm">
       <view :class="resolvedIcon" />
     </view>
-    <view class="app-notice__body">
-      <view class="app-notice__title">
+    <view class="app-notice__body min-w-0 flex-1">
+      <view class="app-notice__title text-size-sm text-content-primary font-bold leading-normal">
         {{ title }}
       </view>
-      <view v-if="description" class="app-notice__description">
+      <view v-if="description" class="app-notice__description mt-1 text-size-xs text-content-secondary leading-relaxed">
         {{ description }}
       </view>
       <slot />
-      <view v-if="actionText || $slots.action" class="app-notice__action">
+      <view v-if="actionText || $slots.action" class="app-notice__action mt-2 flex justify-end">
         <slot name="action">
           <wd-button size="mini" variant="text" :type="tone === 'info' ? 'primary' : tone" @click="$emit('action')">
             {{ actionText }}
@@ -62,15 +62,9 @@ const resolvedIcon = computed(() => props.icon || defaultIcons[props.tone])
   --app-notice-icon-bg: rgb(37 99 235 / 12%);
   --app-notice-bg: #f4f8ff;
   --app-notice-border: #cfe0fb;
-
-  display: flex;
-  width: 100%;
-  padding: 26rpx;
-  align-items: flex-start;
-  gap: 20rpx;
+  @apply p-3.5 gap-2.5;
   border: 1rpx solid var(--app-notice-border);
-  border-radius: 24rpx;
-  box-sizing: border-box;
+  @apply rounded-3;
   background: var(--app-notice-bg);
 }
 
@@ -96,63 +90,24 @@ const resolvedIcon = computed(() => props.icon || defaultIcons[props.tone])
 }
 
 .app-notice--compact {
-  padding: 20rpx 22rpx;
-  gap: 16rpx;
-  border-radius: 20rpx;
+  @apply py-2.5 px-3 gap-2 rounded-2.5;
 }
 
 .app-notice__icon {
-  display: flex;
-  width: 56rpx;
-  height: 56rpx;
-  flex: 0 0 56rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16rpx;
+  @apply rounded-2;
   color: var(--app-notice-color);
-  font-size: 30rpx;
   background: var(--app-notice-icon-bg);
 }
 
 .app-notice--compact .app-notice__icon {
-  width: 48rpx;
-  height: 48rpx;
-  flex-basis: 48rpx;
-  border-radius: 14rpx;
-  font-size: 26rpx;
-}
-
-.app-notice__body {
-  min-width: 0;
-  flex: 1;
-}
-
-.app-notice__title {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  font-weight: 700;
-  line-height: 1.45;
+  @apply w-6 h-6 basis-6 rounded-2 text-size-xs;
 }
 
 .app-notice--compact .app-notice__title {
-  font-size: 25rpx;
-}
-
-.app-notice__description {
-  margin-top: 8rpx;
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.65;
+  @apply text-size-xs;
 }
 
 .app-notice--compact .app-notice__description {
-  margin-top: 4rpx;
-  font-size: 21rpx;
-}
-
-.app-notice__action {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16rpx;
+  @apply mt-0.5 text-size-2xs;
 }
 </style>

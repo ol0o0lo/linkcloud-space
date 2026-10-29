@@ -43,6 +43,10 @@ export const APP_ROUTES = {
   organizationMap: buildSubpackageRoute('organization-rental', 'map/index'),
   organizationVacancySync: buildSubpackageRoute('organization-rental', 'vacancy-sync/index'),
   organizationContacts: buildSubpackageRoute('organization-rental', 'contacts/index'),
+  organizationCustomers: buildSubpackageRoute('organization-rental', 'customers/index'),
+  organizationCustomerDetail: buildSubpackageRoute('organization-rental', 'customers/detail'),
+  organizationInquiryDetail: buildSubpackageRoute('organization-rental', 'inquiries/detail'),
+  organizationMatches: buildSubpackageRoute('organization-rental', 'matches/index'),
   organizationViewings: buildSubpackageRoute('organization-rental', 'viewings/index'),
   organizationViewingForm: buildSubpackageRoute('organization-rental', 'viewings/form'),
   organizationViewingDetail: buildSubpackageRoute('organization-rental', 'viewings/detail'),
@@ -71,8 +75,14 @@ export const APP_ROUTES = {
   organizationAdminSubscription: buildSubpackageRoute('organization-admin', 'subscription/index'),
   organizationAdminNotificationDispatches: buildSubpackageRoute('organization-admin', 'notification-dispatches/index'),
   organizationAdminNotificationDispatchDetail: buildSubpackageRoute('organization-admin', 'notification-dispatches/detail'),
+  organizationAdminDataMigration: buildSubpackageRoute('organization-admin', 'data-migration/index'),
+  organizationAdminDataMigrationDetail: buildSubpackageRoute('organization-admin', 'data-migration/detail'),
+  organizationAdminMigrationArchives: buildSubpackageRoute('organization-admin', 'data-migration/archives'),
   messages: getCatalogModule('messages').mainRoute,
+  notifications: '/pages/messages/notifications',
   messageDetail: '/pages/messages/detail',
+  conversation: '/pages/messages/conversation',
+  messagingPeers: '/pages/messages/peers',
   notificationPreferences: '/pages/messages/preferences',
   me: getCatalogModule('me').mainRoute,
   accountSettings: '/pages/account/settings',
@@ -91,6 +101,10 @@ export const APP_ROUTES = {
   notFound: '/pages/error/not-found',
 } as const
 
+export function getOrganizationCustomerDetailRoute(contactId: number): string {
+  return `${APP_ROUTES.organizationCustomerDetail}?id=${encodeURIComponent(String(contactId))}`
+}
+
 const protectedAccountRoutes: readonly string[] = [
   APP_ROUTES.accountSettings,
   APP_ROUTES.phoneVerification,
@@ -103,7 +117,10 @@ const protectedAccountRoutes: readonly string[] = [
 ]
 
 const protectedMessageRoutes: readonly string[] = [
+  APP_ROUTES.notifications,
   APP_ROUTES.messageDetail,
+  APP_ROUTES.conversation,
+  APP_ROUTES.messagingPeers,
 ]
 
 export function isProtectedAccountRoute(path: string): boolean {
@@ -231,4 +248,10 @@ export function getOrganizationAdminTeamDetailRoute(teamId: number): string {
 
 export function getNotificationDetailRoute(notificationId: number): string {
   return `${APP_ROUTES.messageDetail}?id=${encodeURIComponent(String(notificationId))}`
+}
+
+/** 外部参与人仅定位聊天组织，不改变应用当前工作身份。 */
+export function getConversationRoute(conversationId: number, organizationSlug: string, accessKind: 'organization_member' | 'business_party'): string {
+  const context = accessKind === 'organization_member' ? 'organization_slug' : 'chat_tenant_slug'
+  return `${APP_ROUTES.conversation}?id=${encodeURIComponent(String(conversationId))}&${context}=${encodeURIComponent(organizationSlug)}`
 }

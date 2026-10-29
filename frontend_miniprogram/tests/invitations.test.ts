@@ -52,10 +52,10 @@ test('组织与房东邀请归一化为同一展示模型并隐藏完整联系�
     expires_at: '2026-09-16T10:00:00+08:00',
   })
 
-  assert.equal(organization.title, '甲中介邀请你加入组织')
+  assert.equal(organization.title, '甲中介邀请你加入工作空间')
   assert.equal(organization.recipientLabel, '+86*******8000')
   assert.equal(organization.organizationSlug, 'alpha')
-  assert.equal(landlord.title, '乙中介邀请你认领房东关系')
+  assert.equal(landlord.title, '乙中介邀请你关联房东档案')
   assert.equal(landlord.recipientLabel, '+86****8001')
   assert.equal(landlord.contactName, '李房东')
 })

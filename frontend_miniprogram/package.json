@@ -43,6 +43,8 @@
     "@dcloudio/uni-components": "3.0.0-4070620250821001",
     "@dcloudio/uni-h5": "3.0.0-4070620250821001",
     "@dcloudio/uni-mp-weixin": "3.0.0-4070620250821001",
+    "@tdesign/uniapp": "1.0.0",
+    "@tdesign/uniapp-chat": "1.0.0",
     "@wot-ui/ui": "2.0.8",
     "dayjs": "1.11.10",
     "pinia": "2.0.36",

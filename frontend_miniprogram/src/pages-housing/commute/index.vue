@@ -70,17 +70,17 @@ onLoad((options) => {
       <AppCustomNavigation title="通勤找房" back scroll-mode="sticky" />
     </template>
 
-    <view class="commute-hero">
-      <view class="i-carbon-location-star commute-hero__icon" />
-      <view class="commute-hero__title">
+    <view class="commute-hero mx-0 mb-3.5 mt-1 rounded-3.5 p-4.5 text-hex-fff">
+      <view class="i-carbon-location-star commute-hero__icon text-size-xl" />
+      <view class="commute-hero__title mt-1.5 text-size-lg font-bold">
         住得近一点，生活多一点
       </view>
-      <view class="commute-hero__subtitle">
+      <view class="commute-hero__subtitle mt-1 text-size-xs opacity-90">
         选一个常去的地方，用通勤时间筛选房源
       </view>
     </view>
 
-    <view class="commute-section">
+    <view class="commute-section mb-3 border-hairline border-app-card rounded-3.5 border-solid bg-surface-card p-3.5">
       <CommutePicker v-model="draft" />
     </view>
 
@@ -92,30 +92,6 @@ onLoad((options) => {
 
 <style scoped lang="scss">
 .commute-hero {
-  margin: 6rpx 0 28rpx;
-  padding: 34rpx;
-  border-radius: 28rpx;
-  color: #fff;
   background: linear-gradient(130deg, #1669dc, #54a7fc);
-}
-.commute-hero__icon {
-  font-size: 42rpx;
-}
-.commute-hero__title {
-  margin-top: 12rpx;
-  font-size: 36rpx;
-  font-weight: 700;
-}
-.commute-hero__subtitle {
-  margin-top: 8rpx;
-  font-size: 23rpx;
-  opacity: 0.92;
-}
-.commute-section {
-  margin-bottom: 24rpx;
-  padding: 28rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: 26rpx;
-  background: var(--app-bg-card);
 }
 </style>

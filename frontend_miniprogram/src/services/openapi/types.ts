@@ -1,6 +1,13 @@
 /* eslint-disable */
 // @ts-ignore
 
+export enum Access_kindEnum {
+  'organization_member' = 'organization_member',
+  'business_party' = 'business_party',
+}
+
+export type IAccess_kindEnum = keyof typeof Access_kindEnum;
+
 export type AccessNavigationUsingGetResponses = {
   /**
    * OK
@@ -1020,6 +1027,8 @@ export type AllocationBeneficiaryOut = {
 };
 
 export type AllocationCapabilitiesOut = {
+  /** Register Signing */
+  register_signing: boolean;
   /** Submit */
   submit: boolean;
   /** Change Beneficiaries */
@@ -1129,6 +1138,8 @@ export type AllocationRequestOut = {
   currency: string;
   /** Source Snapshot */
   source_snapshot: Record<string, unknown>;
+  /** Performance Month */
+  performance_month: string | null;
   /** Submitted By Id */
   submitted_by_id: number;
   /** Submitted By Name Snapshot */
@@ -1153,6 +1164,12 @@ export type AllocationRequestOut = {
   voided_at: string | null;
   /** Void Reason */
   void_reason: string;
+  /** Withdrawn By Id */
+  withdrawn_by_id: number | null;
+  /** Withdrawn At */
+  withdrawn_at: string | null;
+  /** Withdraw Reason */
+  withdraw_reason: string;
   /** Items */
   items: AllocationItemOut[];
   /** Shares */
@@ -1551,11 +1568,74 @@ export type AppContextUsingGetResponses = {
   200: AppContextOut;
 };
 
+export type AssetOut = {
+  /** Id */
+  id: string;
+  /** Status */
+  status: string;
+  /** Source Url */
+  source_url: string;
+  /** Resource Type */
+  resource_type: string;
+  /** Media Type */
+  media_type: string;
+  /** Error Message */
+  error_message: string;
+  /** Attempts */
+  attempts: number;
+  /** Media File Id */
+  media_file_id: number | null;
+  /** Binding State */
+  binding_state?: string;
+  /** Url */
+  url?: string | null;
+};
+
+export type AssetRetryIn = {
+  /** Source Url */
+  source_url?: string | null;
+  /** Media Id */
+  media_id?: number | null;
+};
+
+export type BatchOut = {
+  /** Id */
+  id: string;
+  /** Source Team Name */
+  source_team_name: string;
+  /** Source Team Id */
+  source_team_id: string;
+  /** Status */
+  status: string;
+  /** Media Status */
+  media_status: string;
+  /** Created At */
+  created_at: string;
+  /** Updated At */
+  updated_at: string;
+  /** Error Message */
+  error_message: string;
+  /** Summary */
+  summary: Record<string, number>;
+  /** Media Summary */
+  media_summary: Record<string, number>;
+  /** Preview */
+  preview: Record<string, unknown>;
+};
+
 export type BuildingIn = {
   /** Estate Id */
   estate_id?: number | null;
   /** Name */
   name: string;
+  /** Province */
+  province?: string;
+  /** City */
+  city?: string;
+  /** District */
+  district?: string;
+  /** Subdistrict */
+  subdistrict?: string;
   /** Floors */
   floors: number;
   /** Under Floors */
@@ -1581,6 +1661,14 @@ export type BuildingInventoryOut = {
   estate: EstateSummaryOut | null;
   /** Name */
   name: string;
+  /** Province */
+  province?: string;
+  /** City */
+  city?: string;
+  /** District */
+  district?: string;
+  /** Subdistrict */
+  subdistrict?: string;
   /** Floors */
   floors: number;
   /** Under Floors */
@@ -1596,20 +1684,20 @@ export type BuildingInventoryOut = {
   images: Record<string, unknown>[];
   /** Tags */
   tags: string[];
+  /** Migration Media */
+  migration_media?: Record<string, unknown>[];
   counts: InventoryCountsOut;
 };
 
 export type BuildingMapCountsOut = {
   /** Total */
   total: number;
-  /** Vacant */
-  vacant: number;
+  /** Paused */
+  paused: number;
   /** Listed */
   listed: number;
   /** Rented */
   rented: number;
-  /** Renovating */
-  renovating: number;
 };
 
 export type BuildingMapDetailOut = {
@@ -1620,6 +1708,14 @@ export type BuildingMapDetailOut = {
   estate: EstateSummaryOut | null;
   /** Name */
   name: string;
+  /** Province */
+  province?: string;
+  /** City */
+  city?: string;
+  /** District */
+  district?: string;
+  /** Subdistrict */
+  subdistrict?: string;
   /** Floors */
   floors: number;
   /** Under Floors */
@@ -1635,6 +1731,8 @@ export type BuildingMapDetailOut = {
   images: Record<string, unknown>[];
   /** Tags */
   tags: string[];
+  /** Migration Media */
+  migration_media?: Record<string, unknown>[];
   counts: BuildingMapCountsOut;
   /** Houses */
   houses: BuildingMapHouseOut[];
@@ -1655,6 +1753,8 @@ export type BuildingMapHouseOut = {
   status: string;
   /** Status  Mapping */
   status__mapping: string;
+  /** Is Active */
+  is_active: boolean;
 };
 
 export type BuildingMapMarkerOut = {
@@ -1693,6 +1793,14 @@ export type BuildingOut = {
   estate: EstateSummaryOut | null;
   /** Name */
   name: string;
+  /** Province */
+  province?: string;
+  /** City */
+  city?: string;
+  /** District */
+  district?: string;
+  /** Subdistrict */
+  subdistrict?: string;
   /** Floors */
   floors: number;
   /** Under Floors */
@@ -1708,6 +1816,8 @@ export type BuildingOut = {
   images: Record<string, unknown>[];
   /** Tags */
   tags: string[];
+  /** Migration Media */
+  migration_media?: Record<string, unknown>[];
 };
 
 export type BuildingPatchIn = {
@@ -1715,6 +1825,14 @@ export type BuildingPatchIn = {
   estate_id?: number | null;
   /** Name */
   name?: string | null;
+  /** Province */
+  province?: string | null;
+  /** City */
+  city?: string | null;
+  /** District */
+  district?: string | null;
+  /** Subdistrict */
+  subdistrict?: string | null;
   /** Floors */
   floors?: number | null;
   /** Under Floors */
@@ -1730,6 +1848,17 @@ export type BuildingPatchIn = {
   images?: Record<string, unknown>[] | null;
   /** Tags */
   tags?: string[] | null;
+};
+
+export type BuildingRegionOut = {
+  /** Province */
+  province: string;
+  /** City */
+  city: string;
+  /** District */
+  district: string;
+  /** Subdistrict */
+  subdistrict: string;
 };
 
 export type BuildingSummaryOut = {
@@ -1815,6 +1944,8 @@ export type CommuteHouseOut = {
   has_elevator_access: boolean;
   /** Images */
   images: ResolvedMediaRefOut[];
+  /** Migration Media */
+  migration_media?: Record<string, unknown>[];
   /** Tags */
   tags: string[];
   /** Effective Tags */
@@ -1843,6 +1974,10 @@ export type CommutePlaceOut = {
   city: string;
   /** Token */
   token: string;
+  /** Longitude */
+  longitude: number;
+  /** Latitude */
+  latitude: number;
   /** Distance M */
   distance_m?: number | null;
 };
@@ -1865,6 +2000,8 @@ export type CommuteRouteForHouseIn = {
   destination_id: number;
   /** Mode */
   mode: 'metro' | 'ebike' | 'bicycle' | 'walking' | 'driving';
+  /** Retry */
+  retry?: boolean;
 };
 
 export type CommuteRouteOut = {
@@ -1916,6 +2053,11 @@ export type CommuteTransitSegmentOut = {
   duration_seconds: number | null;
   /** Color */
   color?: string;
+};
+
+export type ConfirmIn = {
+  /** Preview Version */
+  preview_version: string;
 };
 
 export type ContactIn = {
@@ -2199,6 +2341,154 @@ export type CurrentWeatherOut = {
   stale: boolean;
 };
 
+export type CustomerIn = {
+  /** Name */
+  name: string;
+  /** Phone */
+  phone: string;
+  /** Email */
+  email?: string | null;
+  /** Notes */
+  notes?: string | null;
+  /** Is Active */
+  is_active?: boolean | null;
+  /** Stage */
+  stage?:
+    | 'new'
+    | 'contacted'
+    | 'viewing'
+    | 'negotiating'
+    | 'won'
+    | 'lost'
+    | null;
+  /** Assigned To Id */
+  assigned_to_id?: number | null;
+  /** Source */
+  source?: string | null;
+  /** Wechat */
+  wechat?: string | null;
+  /** Min Rent */
+  min_rent?: number | string | null;
+  /** Max Rent */
+  max_rent?: number | string | null;
+  /** Preferred Region */
+  preferred_region?: string | null;
+  /** Bedrooms */
+  bedrooms?: number | null;
+  /** Move In Date */
+  move_in_date?: string | null;
+};
+
+export type CustomerInquiryConvertIn = {
+  /** Name */
+  name?: string | null;
+  /** Phone */
+  phone?: string | null;
+};
+
+export type CustomerOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Phone */
+  phone: string;
+  /** Email */
+  email: string;
+  /** Notes */
+  notes: string;
+  /** Is Active */
+  is_active: boolean;
+  /** Stage */
+  stage: string;
+  /** Stage Label */
+  stage_label: string;
+  /** Assigned To Id */
+  assigned_to_id: number | null;
+  /** Assigned To Name */
+  assigned_to_name: string;
+  /** Source */
+  source: string;
+  /** Wechat */
+  wechat: string;
+  /** Min Rent */
+  min_rent: string | null;
+  /** Max Rent */
+  max_rent: string | null;
+  /** Preferred Region */
+  preferred_region: string;
+  /** Bedrooms */
+  bedrooms: number | null;
+  /** Move In Date */
+  move_in_date: string | null;
+};
+
+export type CustomerPatchIn = {
+  /** Name */
+  name?: string | null;
+  /** Phone */
+  phone?: string | null;
+  /** Email */
+  email?: string | null;
+  /** Notes */
+  notes?: string | null;
+  /** Is Active */
+  is_active?: boolean | null;
+  /** Stage */
+  stage?:
+    | 'new'
+    | 'contacted'
+    | 'viewing'
+    | 'negotiating'
+    | 'won'
+    | 'lost'
+    | null;
+  /** Assigned To Id */
+  assigned_to_id?: number | null;
+  /** Source */
+  source?: string | null;
+  /** Wechat */
+  wechat?: string | null;
+  /** Min Rent */
+  min_rent?: number | string | null;
+  /** Max Rent */
+  max_rent?: number | string | null;
+  /** Preferred Region */
+  preferred_region?: string | null;
+  /** Bedrooms */
+  bedrooms?: number | null;
+  /** Move In Date */
+  move_in_date?: string | null;
+};
+
+export type CustomerWorkbenchItemOut = {
+  /** Inquiry Id */
+  inquiry_id: number;
+  /** House Id */
+  house_id: number;
+  /** Customer Name */
+  customer_name: string;
+  /** Phone */
+  phone: string;
+  /** Status */
+  status: string;
+};
+
+export type CustomerWorkbenchOut = {
+  /** New Customers */
+  new_customers: number;
+  /** New Inquiries */
+  new_inquiries: number;
+  /** Today Viewings */
+  today_viewings: number;
+  /** Unassigned Viewings */
+  unassigned_viewings: number;
+  /** Pending Allocations */
+  pending_allocations: number;
+  /** Items */
+  items: CustomerWorkbenchItemOut[];
+};
+
 export type CustomRoleCreateIn = {
   /** Name 角色显示名称，需在当前作用域内唯一。 */
   name: string;
@@ -2236,9 +2526,170 @@ export type DailyDashboardOut = {
   urgent_items?: TaskAssignmentOut[];
 };
 
+export type DataMigrationArchivesRecordIdUsingGetParams = {
+  record_id: number;
+};
+
+export type DataMigrationArchivesRecordIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: RecordOut;
+};
+
+export type DataMigrationArchivesUsingGetParams = {
+  entity_type?: string | null;
+  search?: string | null;
+  batch_id?: string | null;
+  created_from?: string | null;
+  created_to?: string | null;
+  staff_id?: string | null;
+  bill_number?: string | null;
+  checked?: boolean | null;
+  approved?: boolean | null;
+  source_deleted?: boolean | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type DataMigrationArchivesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedRecordOut;
+};
+
+export type DataMigrationAssetsAssetIdRetryUsingPostParams = {
+  asset_id: string;
+};
+
+export type DataMigrationAssetsAssetIdRetryUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: AssetOut;
+};
+
+export type DataMigrationBatchesBatchIdAssetsUsingGetParams = {
+  batch_id: string;
+  status?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type DataMigrationBatchesBatchIdAssetsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedAssetOut;
+};
+
+export type DataMigrationBatchesBatchIdConfirmUsingPostParams = {
+  batch_id: string;
+};
+
+export type DataMigrationBatchesBatchIdConfirmUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: BatchOut;
+};
+
+export type DataMigrationBatchesBatchIdPreviewUsingPostParams = {
+  batch_id: string;
+};
+
+export type DataMigrationBatchesBatchIdPreviewUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: BatchOut;
+};
+
+export type DataMigrationBatchesBatchIdRecordsUsingGetParams = {
+  batch_id: string;
+  entity_type?: string | null;
+  state?: string | null;
+  search?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type DataMigrationBatchesBatchIdRecordsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedRecordOut;
+};
+
+export type DataMigrationBatchesBatchIdReportUsingGetParams = {
+  batch_id: string;
+};
+
+export type DataMigrationBatchesBatchIdReportUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, unknown>;
+};
+
+export type DataMigrationBatchesBatchIdRetryUsingPostParams = {
+  batch_id: string;
+};
+
+export type DataMigrationBatchesBatchIdRetryUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: BatchOut;
+};
+
+export type DataMigrationBatchesBatchIdUsingGetParams = {
+  batch_id: string;
+};
+
+export type DataMigrationBatchesBatchIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: BatchOut;
+};
+
+export type DataMigrationBatchesUsingGetParams = {
+  page?: number;
+  page_size?: number | null;
+};
+
+export type DataMigrationBatchesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedBatchOut;
+};
+
+export type DataMigrationBatchesUsingPostBody = {
+  file: string;
+};
+
+export type DataMigrationBatchesUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: BatchOut;
+};
+
+export type DataMigrationOptionsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, unknown>;
+};
+
 export type DealSigningLeaseIn = {
   /** House Id */
   house_id: number;
+  /** Source Inquiry Id */
+  source_inquiry_id?: number | null;
   /** Tenant Id */
   tenant_id?: number | null;
   tenant_identity?: DealSigningTenantIdentityIn | null;
@@ -2269,14 +2720,6 @@ export type DealSigningTenantIdentityIn = {
   name: string;
   /** Phone */
   phone: string;
-};
-
-export type DealSigningWithAllocationIn = {
-  lease: DealSigningLeaseIn;
-  /** Team Id */
-  team_id?: number | null;
-  /** Beneficiary User Ids */
-  beneficiary_user_ids: number[];
 };
 
 export enum DecisionEnum {
@@ -2531,6 +2974,31 @@ export type FavoriteTargetTypeOut = {
 export type ForceLogoutOut = {
   /** Deleted Sessions */
   deleted_sessions: number;
+};
+
+export type GeographyNearbyPoisUsingGetParams = {
+  lat: number | string;
+  lng: number | string;
+};
+
+export type GeographyNearbyPoisUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: NearbyPoisOut;
+};
+
+export type GeographyRegionsResolveUsingGetParams = {
+  latitude: number | string;
+  longitude: number | string;
+  coordinate_system?: string;
+};
+
+export type GeographyRegionsResolveUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: LocatedRegionOut;
 };
 
 export type GeoPointIn = {
@@ -2930,6 +3398,82 @@ export type HouseContactsUsingPostResponses = {
   201: ContactOut;
 };
 
+export type HouseCustomerCapabilitiesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: Record<string, boolean>;
+};
+
+export type HouseCustomerInquiriesNotificationIdConvertUsingPostParams = {
+  notification_id: number;
+};
+
+export type HouseCustomerInquiriesNotificationIdConvertUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: InquiryContactOut;
+};
+
+export type HouseCustomersContactIdUsingGetParams = {
+  contact_id: number;
+};
+
+export type HouseCustomersContactIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: CustomerOut;
+};
+
+export type HouseCustomersContactIdUsingPatchParams = {
+  contact_id: number;
+};
+
+export type HouseCustomersContactIdUsingPatchResponses = {
+  /**
+   * OK
+   */
+  200: CustomerOut;
+};
+
+export type HouseCustomersUsingGetParams = {
+  keyword?: string | null;
+  stage?:
+    | 'new'
+    | 'contacted'
+    | 'viewing'
+    | 'negotiating'
+    | 'won'
+    | 'lost'
+    | null;
+  scope?: 'mine' | 'all';
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseCustomersUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedCustomerOut;
+};
+
+export type HouseCustomersUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: CustomerOut;
+};
+
+export type HouseCustomerWorkbenchUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: CustomerWorkbenchOut;
+};
+
 export type HouseDefaultBuildingUsingGetResponses = {
   /**
    * OK
@@ -3081,7 +3625,12 @@ export type HouseHousesUsingGetParams = {
   inspection_due?: boolean;
   inspection_reason?: 'missing_images' | 'missing_videos' | 'expired' | null;
   status?: HouseStatus | null;
+  is_active?: boolean | null;
   keyword?: string | null;
+  min_rent?: number | string | null;
+  max_rent?: number | string | null;
+  bedrooms?: number | null;
+  district?: string | null;
   /** 排序字段，多个字段使用英文逗号分隔，字段前的 - 表示降序，最多 3 项。允许字段：room_number、layout、building、asking_rent、deposit_amount、landlord、has_elevator_access、status、area、floor、created_at、updated_at。 */
   ordering?: string;
   page?: number;
@@ -3144,6 +3693,65 @@ export type HouseIn = {
   tags?: string[];
   /** Public Description */
   public_description?: string;
+};
+
+export type HouseInquiriesInquiryIdAssignUsingPostParams = {
+  inquiry_id: number;
+};
+
+export type HouseInquiriesInquiryIdAssignUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: InquiryOut;
+};
+
+export type HouseInquiriesInquiryIdConvertUsingPostParams = {
+  inquiry_id: number;
+};
+
+export type HouseInquiriesInquiryIdConvertUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: InquiryContactOut;
+};
+
+export type HouseInquiriesInquiryIdUsingGetParams = {
+  inquiry_id: number;
+};
+
+export type HouseInquiriesInquiryIdUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: InquiryOut;
+};
+
+export type HouseInquiriesInquiryIdUsingPatchParams = {
+  inquiry_id: number;
+};
+
+export type HouseInquiriesInquiryIdUsingPatchResponses = {
+  /**
+   * OK
+   */
+  200: InquiryOut;
+};
+
+export type HouseInquiriesUsingGetParams = {
+  status?: string | null;
+  keyword?: string | null;
+  contact_id?: number | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseInquiriesUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedInquiryOut;
 };
 
 export type HouseLandlordContactsContactIdHousesUsingGetParams = {
@@ -3241,13 +3849,6 @@ export type HouseLeaseAllocationsUsingGetResponses = {
   200: PagedLeaseAllocationOut;
 };
 
-export type HouseLeasesDealSigningUsingPostResponses = {
-  /**
-   * Created
-   */
-  201: LeaseAllocationOut;
-};
-
 export type HouseLeasesLeaseIdAllocationOpenApiVoidUsingPostParams = {
   lease_id: number;
 };
@@ -3268,6 +3869,78 @@ export type HouseLeasesLeaseIdAllocationReviewUsingPostResponses = {
    * OK
    */
   200: AllocationRequestOut;
+};
+
+export type HouseLeasesLeaseIdAllocationsPreviewUsingPostParams = {
+  lease_id: number;
+};
+
+export type HouseLeasesLeaseIdAllocationsPreviewUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: LeaseAllocationPreviewOut;
+};
+
+export type HouseLeasesLeaseIdAllocationsRequestIdOpenApiVoidUsingPostParams = {
+  lease_id: number;
+  request_id: number;
+};
+
+export type HouseLeasesLeaseIdAllocationsRequestIdOpenApiVoidUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: AllocationRequestOut;
+  };
+
+export type HouseLeasesLeaseIdAllocationsRequestIdReviewUsingPostParams = {
+  lease_id: number;
+  request_id: number;
+};
+
+export type HouseLeasesLeaseIdAllocationsRequestIdReviewUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: AllocationRequestOut;
+};
+
+export type HouseLeasesLeaseIdAllocationsRequestIdWithdrawUsingPostParams = {
+  lease_id: number;
+  request_id: number;
+};
+
+export type HouseLeasesLeaseIdAllocationsRequestIdWithdrawUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: AllocationRequestOut;
+};
+
+export type HouseLeasesLeaseIdAllocationsUsingGetParams = {
+  lease_id: number;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type HouseLeasesLeaseIdAllocationsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedLeaseAllocationOut;
+};
+
+export type HouseLeasesLeaseIdAllocationsUsingPostParams = {
+  lease_id: number;
+};
+
+export type HouseLeasesLeaseIdAllocationsUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: LeaseAllocationOut;
 };
 
 export type HouseLeasesLeaseIdAllocationUsingGetParams = {
@@ -3301,6 +3974,13 @@ export type HouseLeasesLeaseIdUsingPatchResponses = {
    * OK
    */
   200: LeaseOut;
+};
+
+export type HouseLeasesRegisterSigningUsingPostResponses = {
+  /**
+   * Created
+   */
+  201: LeaseOut;
 };
 
 export type HouseLeasesUsingGetParams = {
@@ -3473,6 +4153,31 @@ export type HouseMatchSharesUsingPostResponses = {
   201: HouseMatchShareCreateOut;
 };
 
+export type HouseMessageIn = {
+  /** House Id */
+  house_id: number;
+  /** Client Message Id */
+  client_message_id: string;
+};
+
+export type HouseMessagingOrganizationsOrganizationSlugConversationsConversationIdHouseUsingPostParams =
+  {
+    organization_slug: string;
+    conversation_id: number;
+  };
+
+export type HouseMessagingOrganizationsOrganizationSlugConversationsConversationIdHouseUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: MessagingMessageOut;
+    /**
+     * Created
+     */
+    201: MessagingMessageOut;
+  };
+
 export type HouseOut = {
   /** Id */
   id: number;
@@ -3518,10 +4223,14 @@ export type HouseOut = {
   status: HouseStatus;
   /** Status  Mapping */
   status__mapping: string;
+  /** Is Active */
+  is_active: boolean;
   /** Images */
   images: Record<string, unknown>[];
   /** Videos */
   videos: Record<string, unknown>[];
+  /** Migration Media */
+  migration_media?: Record<string, unknown>[];
   /** Tags */
   tags: string[];
   /** Effective Tags */
@@ -3579,6 +4288,8 @@ export type HousePatchIn = {
   /** Has Elevator Access */
   has_elevator_access?: boolean | null;
   status?: HouseStatus | null;
+  /** Is Active */
+  is_active?: boolean;
   /** Images */
   images?: Record<string, unknown>[] | null;
   /** Videos */
@@ -3629,6 +4340,8 @@ export type HouseStaffResponsibilitiesSummaryUsingGetResponses = {
 export type HouseStaffResponsibilitiesUsingGetParams = {
   keyword?: string | null;
   team_id?: number | null;
+  unassigned?: boolean;
+  member_id?: number | null;
   page?: number;
   page_size?: number | null;
 };
@@ -3641,11 +4354,9 @@ export type HouseStaffResponsibilitiesUsingGetResponses = {
 };
 
 export enum HouseStatus {
-  'vacant' = 'vacant',
   'listed' = 'listed',
   'rented' = 'rented',
-  'renovating' = 'renovating',
-  'inactive' = 'inactive',
+  'paused' = 'paused',
 }
 
 export type IHouseStatus = keyof typeof HouseStatus;
@@ -3660,6 +4371,8 @@ export type HouseSummaryOut = {
   /** Building Id */
   building_id: number;
   building: BuildingSummaryOut;
+  /** Is Active */
+  is_active: boolean;
 };
 
 export type HouseTagSuggestionsUsingGetResponses = {
@@ -3669,11 +4382,29 @@ export type HouseTagSuggestionsUsingGetResponses = {
   200: TagSuggestionsOut;
 };
 
+export type HouseTenantChatUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: MessagingConversationOut;
+};
+
 export type HouseTenantContactUsingPostResponses = {
   /**
    * Created
    */
   201: TenantContactRequestOut;
+};
+
+export type HouseTenantConversationsConversationIdContactUsingPostParams = {
+  conversation_id: number;
+};
+
+export type HouseTenantConversationsConversationIdContactUsingPostResponses = {
+  /**
+   * OK
+   */
+  200: MessagingMessageOut;
 };
 
 export type HouseTenantLeasesLeaseIdUsingGetParams = {
@@ -3776,6 +4507,9 @@ export type HouseViewingRecordsUsingGetParams = {
   pending_lease?: boolean | null;
   contact_missing?: boolean | null;
   keyword?: string | null;
+  today?: boolean;
+  unassigned?: boolean;
+  scope?: 'mine' | 'all' | null;
   page?: number;
   page_size?: number | null;
 };
@@ -3818,6 +4552,75 @@ export type Input = {
   page_size?: number | null;
 };
 
+export type InquiryAssignIn = {
+  /** Assigned To Id */
+  assigned_to_id: number;
+};
+
+export type InquiryContactOut = {
+  /** Id */
+  id: number;
+  /** Name */
+  name: string;
+  /** Phone */
+  phone: string;
+  /** Wechat */
+  wechat: string;
+};
+
+export type InquiryOut = {
+  /** Id */
+  id: number;
+  /** House Id */
+  house_id: number;
+  house: HouseSummaryOut;
+  /** Contact Id */
+  contact_id: number | null;
+  /** Customer Name */
+  customer_name: string;
+  /** Phone */
+  phone: string;
+  /** Wechat */
+  wechat: string;
+  /** Assigned To Id */
+  assigned_to_id: number | null;
+  /** Assigned To Name */
+  assigned_to_name: string;
+  /** Status */
+  status: string;
+  /** Status Label */
+  status_label: string;
+  /** Notes */
+  notes: string;
+  /** Viewing Count */
+  viewing_count: number;
+  /** Signed Lease Id */
+  signed_lease_id: number | null;
+  /** Created At */
+  created_at: string;
+  /** Can Manage */
+  can_manage: boolean;
+  /** Can Process */
+  can_process: boolean;
+  /** Viewings */
+  viewings?: ViewingRecordOut[];
+  /** Leases */
+  leases?: LeaseOut[];
+};
+
+export type InquiryPatchIn = {
+  /** Customer Name */
+  customer_name?: string;
+  /** Phone */
+  phone?: string;
+  /** Wechat */
+  wechat?: string;
+  /** Notes */
+  notes?: string;
+  /** Status */
+  status?: 'new' | 'processing' | 'closed';
+};
+
 export type InternalWalletReconcileUsingPostResponses = {
   /**
    * OK
@@ -3839,14 +4642,12 @@ export type InternalWalletWithdrawalsWithdrawalIdRetryUsingPostResponses = {
 export type InventoryCountsOut = {
   /** Total */
   total: number;
-  /** Vacant */
-  vacant: number;
+  /** Paused */
+  paused: number;
   /** Listed */
   listed: number;
   /** Rented */
   rented: number;
-  /** Renovating */
-  renovating: number;
 };
 
 export type InviteByKeyKeyAcceptUsingPostParams = {
@@ -4066,6 +4867,8 @@ export type LandlordHouseOut = {
   status: string;
   /** Status  Mapping */
   status__mapping: string;
+  /** Is Active */
+  is_active: boolean;
   /** Images */
   images: Record<string, unknown>[];
   /** Videos */
@@ -4130,6 +4933,40 @@ export type LeaseAllocationOut = {
   allocation_request: AllocationRequestOut;
   /** Created At */
   created_at: string;
+  /** Mode */
+  mode: string;
+  /** Previous Request Id */
+  previous_request_id: number | null;
+  /** Reason */
+  reason: string;
+};
+
+export type LeaseAllocationPreviewIn = {
+  /** Mode */
+  mode?: 'initial' | 'correction';
+  /** Previous Request Id */
+  previous_request_id?: number | null;
+};
+
+export type LeaseAllocationPreviewOut = {
+  /** Basis Amount */
+  basis_amount: string;
+  /** Distributable Amount */
+  distributable_amount: string;
+  /** Distribution Method */
+  distribution_method: string;
+  /** Distribution Rate Bp */
+  distribution_rate_bp: number | null;
+  /** Rule Source */
+  rule_source: string;
+  /** Team Id */
+  team_id: number | null;
+  /** Team Name */
+  team_name: string;
+  /** Performance Month */
+  performance_month: string;
+  /** Preview Hash */
+  preview_hash: string;
 };
 
 export type LeaseAllocationReviewIn = {
@@ -4137,11 +4974,35 @@ export type LeaseAllocationReviewIn = {
   decision: 'approve' | 'reject';
   /** Reason */
   reason?: string;
+  /** Request Id */
+  request_id?: number | null;
+};
+
+export type LeaseAllocationSubmitIn = {
+  /** Beneficiary User Ids */
+  beneficiary_user_ids?: number[] | null;
+  /** Client Request Id */
+  client_request_id: string;
+  /** Mode */
+  mode?: 'initial' | 'resubmit' | 'correction';
+  /** Previous Request Id */
+  previous_request_id?: number | null;
+  /** Reason */
+  reason?: string;
+  /** Preview Hash 首次申请和纠错重提必须提交预览返回的确认标识；普通重提不需要。 */
+  preview_hash?: string | null;
 };
 
 export type LeaseAllocationVoidIn = {
   /** Reason */
   reason: string;
+  /** Request Id */
+  request_id?: number | null;
+};
+
+export type LeaseAllocationWithdrawIn = {
+  /** Reason */
+  reason?: string;
 };
 
 export type LeaseIn = {
@@ -4149,6 +5010,8 @@ export type LeaseIn = {
   house_id: number;
   /** Tenant Id */
   tenant_id: number;
+  /** Source Inquiry Id */
+  source_inquiry_id?: number | null;
   /** Source Viewing Record Id */
   source_viewing_record_id?: number | null;
   /** Sign At */
@@ -4180,6 +5043,16 @@ export type LeaseOut = {
   /** Tenant Id */
   tenant_id: number;
   tenant: ContactSummaryOut;
+  /** Source Inquiry Id */
+  source_inquiry_id: number | null;
+  /** Registered By Id */
+  registered_by_id: number | null;
+  /** Deal Team Id */
+  deal_team_id: number | null;
+  /** Deal Team Name Snapshot */
+  deal_team_name_snapshot: string;
+  /** Performance Month */
+  performance_month: string | null;
   /** Source Viewing Record Id */
   source_viewing_record_id: number | null;
   source_viewing_record: ViewingRecordSummaryOut | null;
@@ -4205,9 +5078,15 @@ export type LeaseOut = {
   notes: string;
   /** Extra */
   extra: Record<string, unknown>;
+  /** Can Maintain */
+  can_maintain: boolean;
 };
 
 export type LeasePatchIn = {
+  /** Deal Team Id */
+  deal_team_id?: number | null;
+  /** Source Inquiry Id */
+  source_inquiry_id?: number | null;
   /** House Id */
   house_id?: number | null;
   /** Tenant Id */
@@ -4253,6 +5132,15 @@ export enum LevelEnum2 {
 }
 
 export type ILevelEnum2 = keyof typeof LevelEnum2;
+
+export type LocatedRegionOut = {
+  /** Province */
+  province: string;
+  /** City */
+  city: string;
+  /** District */
+  district: string;
+};
 
 export enum Location_sourceEnum {
   'estate' = 'estate',
@@ -4495,6 +5383,277 @@ export type MessageOut = {
   created_at: string;
 };
 
+export type MessagingConversationOut = {
+  /** Id */
+  id: number;
+  organization: MessagingOrganizationOut;
+  /** Namespace */
+  namespace: string;
+  /** Context Key */
+  context_key: string;
+  /** Status */
+  status: 'active' | 'closed';
+  /** Status  Mapping */
+  status__mapping: string;
+  /** Members */
+  members: MessagingMemberOut[];
+  last_message?: MessagingLastMessageOut | null;
+  /** My Member Id */
+  my_member_id: number;
+  /** My Last Read Seq */
+  my_last_read_seq: number;
+  /** Unread Count */
+  unread_count: number;
+  /** Can Send */
+  can_send: boolean;
+  /** Send Block Reason */
+  send_block_reason: string;
+  /** Send Block Reason  Mapping */
+  send_block_reason__mapping: string;
+};
+
+export type MessagingDirectIn = {
+  /** Peer User Id */
+  peer_user_id: number;
+};
+
+export type MessagingLastMessageOut = {
+  /** Id */
+  id: number;
+  /** Seq */
+  seq: number;
+  /** Sender Member Id */
+  sender_member_id: number;
+  /** Preview */
+  preview: string;
+  /** Created At */
+  created_at: string;
+};
+
+export type MessagingMemberOut = {
+  /** Id */
+  id: number;
+  /** User Id */
+  user_id: number | null;
+  /** Display Name */
+  display_name: string;
+  /** Avatar Url */
+  avatar_url?: string | null;
+  /** Access Kind */
+  access_kind: 'organization_member' | 'business_party';
+};
+
+export type MessagingMessageIn = {
+  /** Client Message Id */
+  client_message_id: string;
+  /** Content */
+  content: string;
+};
+
+export type MessagingMessageOut = {
+  /** Id */
+  id: number;
+  /** Conversation Id */
+  conversation_id: number;
+  /** Seq */
+  seq: number;
+  /** Sender Member Id */
+  sender_member_id: number;
+  /** Client Message Id */
+  client_message_id: string;
+  /** Content */
+  content: string;
+  /** Message Type */
+  message_type?: string;
+  /** Payload */
+  payload?: Record<string, unknown>;
+  /** Media */
+  media?: ResolvedMediaRefOut[];
+  /** Created At */
+  created_at: string;
+};
+
+export type MessagingOrganizationOut = {
+  /** Id */
+  id: number;
+  /** Slug */
+  slug: string;
+  /** Name */
+  name: string;
+};
+
+export type MessagingOrganizationsOrganizationSlugConversationsConversationIdMessagesUsingGetParams =
+  {
+    organization_slug: string;
+    conversation_id: number;
+    before_seq?: number | null;
+    after_seq?: number | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsConversationIdMessagesUsingGetResponses =
+  {
+    /**
+     * OK
+     */
+    200: PagedMessagingMessageOut;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsConversationIdMessagesUsingPostParams =
+  {
+    organization_slug: string;
+    conversation_id: number;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsConversationIdMessagesUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: MessagingMessageOut;
+    /**
+     * Created
+     */
+    201: MessagingMessageOut;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsConversationIdReadUsingPatchParams =
+  {
+    organization_slug: string;
+    conversation_id: number;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsConversationIdReadUsingPatchResponses =
+  {
+    /**
+     * OK
+     */
+    200: MessagingReadOut;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsConversationIdUsingGetParams =
+  {
+    organization_slug: string;
+    conversation_id: number;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsConversationIdUsingGetResponses =
+  {
+    /**
+     * OK
+     */
+    200: MessagingConversationOut;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsDirectUsingPostParams =
+  {
+    organization_slug: string;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsDirectUsingPostResponses =
+  {
+    /**
+     * OK
+     */
+    200: MessagingConversationOut;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsUsingGetParams =
+  {
+    organization_slug: string;
+    namespace?: string | null;
+    page?: number;
+    page_size?: number | null;
+  };
+
+export type MessagingOrganizationsOrganizationSlugConversationsUsingGetResponses =
+  {
+    /**
+     * OK
+     */
+    200: PagedMessagingConversationOut;
+  };
+
+export type MessagingOrganizationsOrganizationSlugPeersUsingGetParams = {
+  organization_slug: string;
+  keyword?: string;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type MessagingOrganizationsOrganizationSlugPeersUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMessagingPeerOut;
+};
+
+export type MessagingOrganizationsOrganizationSlugUnreadCountUsingGetParams = {
+  organization_slug: string;
+  namespace?: string | null;
+};
+
+export type MessagingOrganizationsOrganizationSlugUnreadCountUsingGetResponses =
+  {
+    /**
+     * OK
+     */
+    200: MessagingUnreadCountOut;
+  };
+
+export type MessagingPeerOut = {
+  /** User Id */
+  user_id: number;
+  /** Display Name */
+  display_name: string;
+  /** Avatar Url */
+  avatar_url?: string | null;
+};
+
+export type MessagingPersonalOrganizationOut = {
+  /** Id */
+  id: number;
+  /** Slug */
+  slug: string;
+  /** Name */
+  name: string;
+  /** Unread Count */
+  unread_count: number;
+};
+
+export type MessagingPersonalOrganizationsUsingGetParams = {
+  namespace?: string | null;
+  page?: number;
+  page_size?: number | null;
+};
+
+export type MessagingPersonalOrganizationsUsingGetResponses = {
+  /**
+   * OK
+   */
+  200: PagedMessagingPersonalOrganizationOut;
+};
+
+export type MessagingReadIn = {
+  /** Last Read Seq */
+  last_read_seq: number;
+};
+
+export type MessagingReadOut = {
+  /** Last Read Seq */
+  last_read_seq: number;
+  /** Unread Count */
+  unread_count: number;
+};
+
+export type MessagingUnreadCountOut = {
+  /** Message Count */
+  message_count: number;
+  /** Conversation Count */
+  conversation_count: number;
+};
+
 export enum ModeEnum {
   'preview' = 'preview',
   'apply' = 'apply',
@@ -4510,28 +5669,23 @@ export enum ModeEnum2 {
 export type IModeEnum2 = keyof typeof ModeEnum2;
 
 export enum ModeEnum3 {
-  'manual' = 'manual',
-  'dynamic' = 'dynamic',
+  'initial' = 'initial',
+  'resubmit' = 'resubmit',
+  'correction' = 'correction',
 }
 
 export type IModeEnum3 = keyof typeof ModeEnum3;
 
 export enum ModeEnum4 {
-  'metro' = 'metro',
-  'ebike' = 'ebike',
-  'bicycle' = 'bicycle',
-  'walking' = 'walking',
-  'driving' = 'driving',
+  'initial' = 'initial',
+  'correction' = 'correction',
 }
 
 export type IModeEnum4 = keyof typeof ModeEnum4;
 
 export enum ModeEnum5 {
-  'metro' = 'metro',
-  'ebike' = 'ebike',
-  'bicycle' = 'bicycle',
-  'walking' = 'walking',
-  'driving' = 'driving',
+  'manual' = 'manual',
+  'dynamic' = 'dynamic',
 }
 
 export type IModeEnum5 = keyof typeof ModeEnum5;
@@ -4545,6 +5699,26 @@ export enum ModeEnum6 {
 }
 
 export type IModeEnum6 = keyof typeof ModeEnum6;
+
+export enum ModeEnum7 {
+  'metro' = 'metro',
+  'ebike' = 'ebike',
+  'bicycle' = 'bicycle',
+  'walking' = 'walking',
+  'driving' = 'driving',
+}
+
+export type IModeEnum7 = keyof typeof ModeEnum7;
+
+export enum ModeEnum8 {
+  'metro' = 'metro',
+  'ebike' = 'ebike',
+  'bicycle' = 'bicycle',
+  'walking' = 'walking',
+  'driving' = 'driving',
+}
+
+export type IModeEnum8 = keyof typeof ModeEnum8;
 
 export type MonthlyAccrualTotalOut = {
   /** Beneficiary User Id */
@@ -5500,6 +6674,28 @@ export type PagedAnnouncementOut = {
   page_size: number;
 };
 
+export type PagedAssetOut = {
+  /** Items */
+  items: AssetOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedBatchOut = {
+  /** Items */
+  items: BatchOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedBuildingInventoryOut = {
   /** Items */
   items: BuildingInventoryOut[];
@@ -5621,6 +6817,17 @@ export type PagedConversationOut = {
   page_size: number;
 };
 
+export type PagedCustomerOut = {
+  /** Items */
+  items: CustomerOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedEstateDetailOut = {
   /** Items */
   items: EstateDetailOut[];
@@ -5679,6 +6886,17 @@ export type PagedHouseMatchShareOut = {
 export type PagedHouseOut = {
   /** Items */
   items: HouseOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedInquiryOut = {
+  /** Items */
+  items: InquiryOut[];
   /** Total */
   total: number;
   /** Page */
@@ -5764,6 +6982,50 @@ export type PagedMessageOut = {
   page_size: number;
 };
 
+export type PagedMessagingConversationOut = {
+  /** Items */
+  items: MessagingConversationOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMessagingMessageOut = {
+  /** Items */
+  items: MessagingMessageOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMessagingPeerOut = {
+  /** Items */
+  items: MessagingPeerOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedMessagingPersonalOrganizationOut = {
+  /** Items */
+  items: MessagingPersonalOrganizationOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
 export type PagedMonthlyAccrualTotalOut = {
   /** Items */
   items: MonthlyAccrualTotalOut[];
@@ -5822,6 +7084,17 @@ export type PagedPropertyResponsibilityMemberOut = {
 export type PagedPublicHouseListOut = {
   /** Items */
   items: PublicHouseListOut[];
+  /** Total */
+  total: number;
+  /** Page */
+  page: number;
+  /** Page Size */
+  page_size: number;
+};
+
+export type PagedRecordOut = {
+  /** Items */
+  items: RecordOut[];
   /** Total */
   total: number;
   /** Page */
@@ -6075,6 +7348,15 @@ export type PlanOut = {
   entitlement: Record<string, unknown> | null;
 };
 
+export type PreviewIn = {
+  /** Overrides */
+  overrides?: Record<string, unknown>[];
+  /** Mappings */
+  mappings?: Record<string, unknown>[];
+  /** Member Mappings */
+  member_mappings?: Record<string, number>;
+};
+
 export type PropertyResponsibilityMemberOut = {
   /** Member Id */
   member_id: number;
@@ -6127,6 +7409,7 @@ export type PublicBuildingOut = {
   address: string;
   location: GeoPointOut | null;
   estate: PublicEstateOut | null;
+  region: BuildingRegionOut;
 };
 
 export type PublicContentEntriesSlugHousesUsingGetParams = {
@@ -6224,6 +7507,8 @@ export type PublicHouseDetailOut = {
   has_elevator_access: boolean;
   /** Images */
   images: ResolvedMediaRefOut[];
+  /** Migration Media */
+  migration_media?: Record<string, unknown>[];
   /** Tags */
   tags: string[];
   /** Effective Tags */
@@ -6306,6 +7591,8 @@ export type PublicHouseListOut = {
   has_elevator_access: boolean;
   /** Images */
   images: ResolvedMediaRefOut[];
+  /** Migration Media */
+  migration_media?: Record<string, unknown>[];
   /** Tags */
   tags: string[];
   /** Effective Tags */
@@ -6499,6 +7786,7 @@ export type PublicHousesCommuteRoutesForHouseUsingPostResponses = {
 export type PublicHousesCommuteRoutesRouteIdUsingGetParams = {
   route_id: number;
   house_id: number;
+  retry?: boolean;
 };
 
 export type PublicHousesCommuteRoutesRouteIdUsingGetResponses = {
@@ -6657,6 +7945,13 @@ export type PublicHousesRegionsUsingGetResponses = {
 export type PublicHousesSuggestionsUsingGetParams = {
   keyword?: string;
   city?: string | null;
+  longitude?: number | string | null;
+  latitude?: number | string | null;
+  radius_m?: number;
+  coordinate_system?: string | null;
+  listing_type?: HouseListingType | null;
+  bedrooms?: number | null;
+  bedrooms_min?: number | null;
 };
 
 export type PublicHousesSuggestionsUsingGetResponses = {
@@ -6673,6 +7968,8 @@ export type PublicHouseSuggestionOut = {
   category: '区域' | '商圈' | '小区' | '楼栋' | '房号';
   /** House Count */
   house_count: number;
+  /** Address */
+  address?: string;
 };
 
 export type PublicHousesUsingGetParams = {
@@ -7061,6 +8358,35 @@ export type ReconcileOut = {
   diff_count: number;
 };
 
+export type RecordOut = {
+  /** Id */
+  id: number;
+  /** Batch Id */
+  batch_id: string;
+  /** Entity Type */
+  entity_type: string;
+  /** Source Id */
+  source_id: string;
+  /** Data */
+  data: Record<string, unknown>;
+  /** State */
+  state: string;
+  /** Error Message */
+  error_message: string;
+  /** Target Type */
+  target_type: string;
+  /** Target Id */
+  target_id: number | null;
+  /** Source Deleted */
+  source_deleted: boolean;
+  /** Source Created At */
+  source_created_at: string;
+  /** Source Updated At */
+  source_updated_at: string;
+  /** Media */
+  media?: Record<string, unknown>[];
+};
+
 export type ReferralRecordOut = {
   /** Id */
   id: number;
@@ -7172,6 +8498,16 @@ export type RefundIn = {
   proof?: string;
   /** Subscription Action */
   subscription_action: string;
+};
+
+export type RegisterSigningIn = {
+  lease: DealSigningLeaseIn;
+  /** Source Inquiry Id */
+  source_inquiry_id?: number | null;
+  /** Team Id */
+  team_id?: number | null;
+  /** Client Request Id */
+  client_request_id: string;
 };
 
 export type RelatedResourceItemOut = {
@@ -7700,6 +9036,13 @@ export enum StateEnum {
 export type IStateEnum = keyof typeof StateEnum;
 
 export enum StatusEnum {
+  'active' = 'active',
+  'closed' = 'closed',
+}
+
+export type IStatusEnum = keyof typeof StatusEnum;
+
+export enum StatusEnum2 {
   'matched' = 'matched',
   'overridden' = 'overridden',
   'ambiguous' = 'ambiguous',
@@ -7707,31 +9050,39 @@ export enum StatusEnum {
   'created' = 'created',
 }
 
-export type IStatusEnum = keyof typeof StatusEnum;
+export type IStatusEnum2 = keyof typeof StatusEnum2;
 
-export enum StatusEnum2 {
+export enum StatusEnum3 {
   'valid' = 'valid',
   'error' = 'error',
   'ignored' = 'ignored',
 }
 
-export type IStatusEnum2 = keyof typeof StatusEnum2;
+export type IStatusEnum3 = keyof typeof StatusEnum3;
 
-export enum StatusEnum3 {
+export enum StatusEnum4 {
+  'new' = 'new',
+  'processing' = 'processing',
+  'closed' = 'closed',
+}
+
+export type IStatusEnum4 = keyof typeof StatusEnum4;
+
+export enum StatusEnum5 {
   'active' = 'active',
   'expired' = 'expired',
   'revoked' = 'revoked',
 }
 
-export type IStatusEnum3 = keyof typeof StatusEnum3;
+export type IStatusEnum5 = keyof typeof StatusEnum5;
 
-export enum StatusEnum4 {
+export enum StatusEnum6 {
   'pending' = 'pending',
   'ready' = 'ready',
   'failed' = 'failed',
 }
 
-export type IStatusEnum4 = keyof typeof StatusEnum4;
+export type IStatusEnum6 = keyof typeof StatusEnum6;
 
 export type SubscriptionsCurrentUsingGetResponses = {
   /**
@@ -8367,6 +9718,11 @@ export type TeamsUsingPostResponses = {
   201: TeamOut;
 };
 
+export type TenantChatIn = {
+  /** House Id */
+  house_id: number;
+};
+
 export type TenantContactRequestIn = {
   /** House Id */
   house_id: number;
@@ -8376,11 +9732,28 @@ export type TenantContactRequestIn = {
   phone?: string;
   /** Wechat */
   wechat?: string;
+  /** Client Message Id */
+  client_message_id?: string;
 };
 
 export type TenantContactRequestOut = {
   /** Notification Id */
-  notification_id: number;
+  notification_id?: number | null;
+  /** Inquiry Id */
+  inquiry_id: number;
+  conversation?: MessagingConversationOut | null;
+  message?: MessagingMessageOut | null;
+};
+
+export type TenantContactShareIn = {
+  /** Channels */
+  channels: ('phone' | 'wechat')[];
+  /** Phone */
+  phone?: string;
+  /** Wechat */
+  wechat?: string;
+  /** Client Message Id */
+  client_message_id: string;
 };
 
 export type TenantLeaseOut = {
@@ -8421,6 +9794,13 @@ export type TenantOrganizationSummaryOut = {
   slug: string;
 };
 
+export type TenantViewingReceptionistOut = {
+  /** Name */
+  name: string;
+  /** Phone */
+  phone: string;
+};
+
 export type TenantViewingRecordIn = {
   /** House Id */
   house_id: number;
@@ -8447,6 +9827,7 @@ export type TenantViewingRecordOut = {
   status__mapping: string;
   /** Signed Lease Id */
   signed_lease_id?: number | null;
+  receptionist?: TenantViewingReceptionistOut | null;
 };
 
 export type TestNotificationIn = {
@@ -8826,6 +10207,8 @@ export type VacancySyncBlockOut = {
   changes: VacancySyncChangesOut;
   /** Errors */
   errors: VacancySyncErrorOut[];
+  /** Warnings */
+  warnings: string[];
 };
 
 export type VacancySyncBuildingCandidateOut = {
@@ -8862,12 +10245,12 @@ export type VacancySyncChangesOut = {
   create_houses: VacancySyncHouseChangeOut[];
   /** Update Houses */
   update_houses: VacancySyncHouseChangeOut[];
-  /** Mark Vacant */
-  mark_vacant: VacancySyncHouseChangeOut[];
+  /** Mark Paused */
+  mark_paused: VacancySyncHouseChangeOut[];
   /** Mark Rented */
   mark_rented: VacancySyncHouseChangeOut[];
-  /** Preserve Special Status */
-  preserve_special_status: VacancySyncHouseChangeOut[];
+  /** Preserve Ignored */
+  preserve_ignored: VacancySyncHouseChangeOut[];
   /** Inactive Conflicts */
   inactive_conflicts: VacancySyncHouseChangeOut[];
 };
@@ -8883,6 +10266,15 @@ export type VacancySyncErrorOut = {
   line_number: number | null;
 };
 
+export type VacancySyncFieldChangeOut = {
+  /** Field */
+  field: string;
+  /** Before */
+  before: string | null;
+  /** After */
+  after: string | null;
+};
+
 export type VacancySyncHouseChangeOut = {
   /** House Id */
   house_id: number | null;
@@ -8894,6 +10286,8 @@ export type VacancySyncHouseChangeOut = {
   after_status: string | null;
   /** Changed Fields */
   changed_fields: string[];
+  /** Field Changes */
+  field_changes?: VacancySyncFieldChangeOut[];
 };
 
 export type VacancySyncIn = {
@@ -8943,8 +10337,6 @@ export type VacancySyncOut = {
   can_apply: boolean;
   /** Plan Hash */
   plan_hash: string | null;
-  /** Force Rented */
-  force_rented: boolean;
   summary: VacancySyncSummaryOut;
   /** Blocks */
   blocks: VacancySyncBlockOut[];
@@ -8967,12 +10359,12 @@ export type VacancySyncSummaryOut = {
   create_houses: number;
   /** Update Houses */
   update_houses: number;
-  /** Mark Vacant */
-  mark_vacant: number;
+  /** Mark Paused */
+  mark_paused: number;
   /** Mark Rented */
   mark_rented: number;
-  /** Preserve Special Status */
-  preserve_special_status: number;
+  /** Preserve Ignored */
+  preserve_ignored: number;
 };
 
 export enum Value_sourceEnum {
@@ -9002,6 +10394,8 @@ export type ViewingRecordIn = {
   house_id: number;
   /** Contact Id */
   contact_id?: number | null;
+  /** Source Inquiry Id */
+  source_inquiry_id?: number | null;
   /** Customer Name */
   customer_name: string;
   /** Customer Phone */
@@ -9022,6 +10416,8 @@ export type ViewingRecordOut = {
   house: HouseSummaryOut;
   /** Contact Id */
   contact_id: number | null;
+  /** Source Inquiry Id */
+  source_inquiry_id: number | null;
   contact: ContactSummaryOut | null;
   /** Customer Name */
   customer_name: string;
@@ -9048,6 +10444,8 @@ export type ViewingRecordOut = {
 };
 
 export type ViewingRecordPatchIn = {
+  /** Source Inquiry Id */
+  source_inquiry_id?: number | null;
   /** House Id */
   house_id?: number | null;
   /** Contact Id */

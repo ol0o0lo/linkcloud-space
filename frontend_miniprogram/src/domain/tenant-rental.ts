@@ -10,7 +10,8 @@ interface TenantHouseTitleInput {
   room_number: string
   building: {
     name: string
-    estate: { display_name: string, name: string } | null
+    address?: string
+    estate: { display_name: string, name: string, province?: string, city?: string, district?: string, address?: string } | null
   }
 }
 
@@ -44,6 +45,24 @@ export function canCancelTenantViewing(status: string): boolean {
 export function formatTenantHouseTitle(house: TenantHouseTitleInput): string {
   const estateName = house.building.estate?.display_name || house.building.estate?.name || ''
   return [estateName, house.building.name, house.room_number].filter(Boolean).join(' ')
+}
+
+export function formatTenantHouseAddress(house: TenantHouseTitleInput): string {
+  const { building } = house
+  const estate = building.estate
+  return [estate?.province, estate?.city, estate?.district, building.address || estate?.address].filter(Boolean).join(' ') || building.name
+}
+
+export function sortCurrentTenantViewings<T extends { scheduled_at: string }>(items: T[], now = Date.now()): T[] {
+  return [...items].sort((left, right) => {
+    const leftTime = Date.parse(left.scheduled_at)
+    const rightTime = Date.parse(right.scheduled_at)
+    const leftPast = leftTime < now
+    const rightPast = rightTime < now
+    if (leftPast !== rightPast)
+      return leftPast ? 1 : -1
+    return leftPast ? rightTime - leftTime : leftTime - rightTime
+  })
 }
 
 export function isTenantViewingPendingPayload(payload: unknown): payload is TenantViewingPendingPayload {

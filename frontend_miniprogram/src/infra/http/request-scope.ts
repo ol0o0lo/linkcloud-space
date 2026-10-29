@@ -28,7 +28,7 @@ export function buildScopeHeaders(input: ScopeHeaderInput): Record<string, strin
 
   if (input.scope.kind === 'organization') {
     if (!input.scope.organizationSlug)
-      throw new AppError({ kind: 'unexpected', message: '未选择组织，请先切换到中介端' })
+      throw new AppError({ kind: 'unexpected', message: '未选择工作空间，请先切换到经纪人身份' })
     headers['X-Org-Slug'] = input.scope.organizationSlug
   }
 

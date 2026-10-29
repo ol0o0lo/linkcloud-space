@@ -93,17 +93,17 @@ onShow(() => void loadProfile())
     <template #navigation>
       <AppCustomNavigation title="个人资料" back scroll-mode="sticky" />
     </template>
-    <view class="account-page">
+    <view class="account-page box-border min-h-screen bg-surface-page px-5 pb-3.5 pt-6">
       <AppLoading v-if="loading && !user" text="正在加载个人资料…" />
       <AppErrorView v-else-if="loadError && !user" :message="loadError" @retry="loadProfile" />
       <template v-else-if="user">
-        <view class="profile-card">
-          <image class="avatar" :src="avatarUrl" mode="aspectFill" />
-          <view class="avatar-main">
-            <view class="avatar-title">
+        <view class="profile-card mb-6.5 box-border min-h-31 flex items-center gap-3 rounded-4">
+          <image class="avatar h-18 w-18 rounded-full bg-surface-subtle" :src="avatarUrl" mode="aspectFill" />
+          <view class="avatar-main min-w-0 flex-1">
+            <view class="avatar-title text-size-sm text-content-primary font-bold">
               头像
             </view>
-            <view class="avatar-copy">
+            <view class="avatar-copy mx-0 mb-2 mt-1 text-size-2xs text-content-muted">
               支持 JPG、PNG、WebP，最大 10MB
             </view>
             <wd-button size="small" variant="plain" :loading="uploading" @click="chooseAvatar">
@@ -112,14 +112,14 @@ onShow(() => void loadProfile())
           </view>
         </view>
 
-        <view class="form-card">
+        <view class="form-card mb-6 flex flex-col gap-3.5 rounded-4">
           <wd-input v-model="nickname" label="昵称" clearable :maxlength="64" placeholder="请输入昵称" />
           <wd-input v-model="timezone" label="时区" clearable placeholder="例如 Asia/Shanghai" />
           <wd-input :model-value="user.email" label="邮箱" readonly />
           <wd-input :model-value="user.phone_national_number || '未绑定'" label="手机号" readonly />
         </view>
 
-        <view class="save-action">
+        <view class="save-action sticky bottom-0">
           <wd-button block size="large" :loading="saving" @click="saveProfile">
             保存资料
           </wd-button>
@@ -129,69 +129,20 @@ onShow(() => void loadProfile())
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.account-page {
-  min-height: 100vh;
-  padding: 48rpx 40rpx 28rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
+<style scoped>
 .profile-card,
 .form-card {
-  padding: 28rpx;
-  border-radius: 32rpx;
-  background: var(--app-bg-card);
-}
-.profile-card {
-  display: flex;
-  align-items: center;
-  gap: 24rpx;
-  min-height: 248rpx;
-  margin-bottom: 52rpx;
-  box-sizing: border-box;
-}
-.avatar {
-  width: 144rpx;
-  height: 144rpx;
-  border-radius: 50%;
-  background: var(--app-bg-subtle);
-}
-.avatar-main {
-  min-width: 0;
-  flex: 1;
-}
-.avatar-title {
-  color: var(--app-text-primary);
-  font-size: 30rpx;
-  font-weight: 650;
-}
-.avatar-copy {
-  margin: 8rpx 0 16rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply p-3.5 bg-surface-card;
 }
 .form-card {
-  display: flex;
-  flex-direction: column;
-  gap: 28rpx;
-  margin-bottom: 48rpx;
-  padding: 0;
-  background: transparent;
+  @apply p-0 bg-transparent;
 }
 :deep(.form-card .wd-input) {
-  overflow: hidden;
-  min-height: 112rpx;
-  padding: 16rpx 28rpx;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 28rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-card);
+  @apply overflow-hidden min-h-14 py-2 px-3.5 border-hairline border-solid border-app-border rounded-3.5 box-border bg-surface-card;
 }
 .save-action {
-  position: sticky;
-  bottom: 0;
-  padding-top: 28rpx;
-  padding-bottom: env(safe-area-inset-bottom);
+  @apply pt-3.5;
+  @apply pb-safe;
   background: linear-gradient(180deg, transparent, var(--app-bg-page) 28%);
 }
 </style>

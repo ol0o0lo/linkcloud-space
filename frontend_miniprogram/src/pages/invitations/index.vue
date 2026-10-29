@@ -44,13 +44,13 @@ const loadError = ref('')
 const enterError = ref('')
 
 const invitationRoute = computed(() => params.value ? getInvitationRoute(params.value.kind, params.value.credential) : APP_ROUTES.invitation)
-const acceptedTitle = computed(() => invitation.value?.kind === 'organization' ? '已加入组织' : '房东关系已认领')
+const acceptedTitle = computed(() => invitation.value?.kind === 'organization' ? '已加入工作空间' : '房东档案已关联')
 const primaryActionText = computed(() => {
   if (!appContextStore.authenticated)
     return '登录后接受'
   if (invitation.value && shouldVerifyInvitationPhone(invitation.value, appContextStore.user))
     return '验证手机号后接受'
-  return invitation.value?.kind === 'organization' ? '确认加入' : '确认认领'
+  return invitation.value?.kind === 'organization' ? '确认加入' : '接受邀请并关联'
 })
 const acceptedActionText = computed(() => enterError.value ? '重新进入工作空间' : '进入工作空间')
 const pendingStateDescription = computed(() => {
@@ -59,8 +59,8 @@ const pendingStateDescription = computed(() => {
   if (invitation.value && shouldVerifyInvitationPhone(invitation.value, appContextStore.user))
     return '当前账号需要先完成手机号验证，验证后会返回这里继续处理邀请。'
   return invitation.value?.kind === 'organization'
-    ? '确认后将加入该组织，并获得邀请中对应的工作空间权限。'
-    : '确认后将建立房东关系，可在房东模式查看关联房源与租约。'
+    ? '确认后将加入该工作空间，并获得邀请中对应的工作空间权限。'
+    : '确认后将关联房东档案，可在房东模式查看关联房源与租约。'
 })
 
 function showError(error: unknown, fallback: string) {
@@ -132,7 +132,7 @@ async function enterAcceptedContext() {
     else {
       const contactId = landlordAcceptResult.value?.contact_id
       if (!contactId)
-        throw new Error('未能读取已认领的房东关系，请重新打开邀请链接')
+        throw new Error('未能读取已关联的房东档案，请重新打开邀请链接')
       await appContextStore.switchMode({ mode: 'landlord', landlordContactId: contactId })
     }
     uni.reLaunch({ url: APP_ROUTES.home })
@@ -210,7 +210,7 @@ onLoad((options) => {
     <template #navigation>
       <AppCustomNavigation title="邀请" back scroll-mode="sticky" />
     </template>
-    <view class="invitation-page">
+    <view class="invitation-page box-border min-h-screen bg-surface-page p-5">
       <AppLoading v-if="loading" text="正在读取邀请…" />
       <AppStateCard v-else-if="loadError" class="invitation-load-state" tone="danger" title="无法处理邀请" :description="loadError">
         <template #action>
@@ -220,19 +220,19 @@ onLoad((options) => {
         </template>
       </AppStateCard>
 
-      <view v-else-if="invitation" class="invitation-stack">
-        <view class="invitation-card">
-          <view class="invitation-icon" :class="invitation.kind === 'organization' ? 'i-carbon-collaborate' : 'i-carbon-home'" />
-          <view class="invitation-title">
+      <view v-else-if="invitation" class="invitation-stack flex flex-col gap-3">
+        <view class="invitation-card rounded-4.5 bg-surface-card px-4.5 pb-4.5 pt-6 shadow-app-card">
+          <view class="invitation-icon mx-auto my-0 h-14 w-14 flex items-center justify-center rounded-3.5 bg-surface-brand-soft text-size-2xl text-app-brand" :class="invitation.kind === 'organization' ? 'i-carbon-collaborate' : 'i-carbon-home'" />
+          <view class="invitation-title mx-0 my-3.5 text-center text-size-base text-content-primary font-bold leading-normal">
             {{ invitation.title }}
           </view>
-          <view class="invitation-copy">
+          <view class="invitation-copy mb-2 text-center text-size-xs text-content-secondary leading-relaxed">
             {{ invitation.kind === 'organization' ? `邀请人：${invitation.senderName || '--'}` : `联系人：${invitation.contactName || '--'}` }}
           </view>
-          <view class="invitation-copy">
+          <view class="invitation-copy mb-2 text-center text-size-xs text-content-secondary leading-relaxed">
             接收账号：{{ invitation.recipientLabel || '--' }}
           </view>
-          <view v-if="invitation.expiresAt" class="invitation-copy">
+          <view v-if="invitation.expiresAt" class="invitation-copy mb-2 text-center text-size-xs text-content-secondary leading-relaxed">
             有效期至：{{ new Date(invitation.expiresAt).toLocaleString('zh-CN', { hour12: false }) }}
           </view>
 
@@ -266,7 +266,7 @@ onLoad((options) => {
             :description="`${enterError}。请点击下方按钮重试进入，不会重复接受邀请。`"
           />
 
-          <view class="actions">
+          <view class="actions mt-4.5 flex flex-col gap-2.5">
             <wd-button
               v-if="!invitation.expired"
               block
@@ -295,10 +295,10 @@ onLoad((options) => {
             </wd-button>
           </view>
         </view>
-        <view class="invitation-note">
+        <view class="invitation-note flex gap-2.5 border-hairline border-app-border-brand-soft rounded-3.5 border-solid bg-surface-brand-soft px-3.5 py-3">
           <view /><view><strong>登录要求</strong><text>{{ pendingStateDescription }}</text></view>
         </view>
-        <view class="invitation-note">
+        <view class="invitation-note flex gap-2.5 border-hairline border-app-border-brand-soft rounded-3.5 border-solid bg-surface-brand-soft px-3.5 py-3">
           <view /><view><strong>房东邀请差异</strong><text>房东邀请只建立委托关系，不提供拒绝操作，可选择稍后处理。</text></view>
         </view>
       </view>
@@ -306,97 +306,25 @@ onLoad((options) => {
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.invitation-page {
-  min-height: 100vh;
-  padding: 40rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-page);
-}
-.invitation-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-
+<style scoped>
 .invitation-load-state {
-  max-width: 680rpx;
+  @apply max-w-85;
   margin: 18vh auto 0;
 }
 
-.invitation-card {
-  padding: 48rpx 34rpx 34rpx;
-  border-radius: 36rpx;
-  background: var(--app-bg-card);
-  box-shadow: var(--app-shadow-card);
-}
-
-.invitation-icon {
-  display: flex;
-  width: 112rpx;
-  height: 112rpx;
-  margin: 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 28rpx;
-  color: var(--app-color-brand);
-  font-size: 52rpx;
-  background: var(--app-bg-brand-soft);
-}
-
-.invitation-title {
-  margin: 26rpx 0;
-  color: var(--app-text-primary);
-  font-size: 34rpx;
-  font-weight: 700;
-  line-height: 1.45;
-  text-align: center;
-}
-
-.invitation-copy {
-  margin-bottom: 16rpx;
-  color: var(--app-text-secondary);
-  font-size: 25rpx;
-  line-height: 1.6;
-  text-align: center;
-}
-
 .invitation-state {
-  margin-top: 28rpx;
-}
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-  margin-top: 36rpx;
-}
-.invitation-note {
-  display: flex;
-  gap: 20rpx;
-  padding: 24rpx 28rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  border-radius: 28rpx;
-  background: var(--app-bg-brand-soft);
+  @apply mt-3.5;
 }
 .invitation-note > view:first-child {
-  width: 8rpx;
-  flex: 0 0 8rpx;
-  border-radius: 999rpx;
-  background: var(--app-color-brand);
+  @apply w-1 flex-none basis-1 rounded-full bg-app-brand;
 }
 .invitation-note > view:last-child {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
+  @apply flex flex-col gap-1;
 }
 .invitation-note strong {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
+  @apply text-content-primary text-size-xs;
 }
 .invitation-note text {
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.6;
+  @apply text-content-secondary text-size-2xs leading-relaxed;
 }
 </style>

@@ -45,19 +45,19 @@ function copyValue(value: string | null, emptyMessage: string) {
       <AppCustomNavigation title="邀请好友" back scroll-mode="sticky" />
     </template>
     <template v-if="summary">
-      <view class="referral-summary app-card">
-        <view class="metric-grid">
-          <view class="metric-card">
+      <view class="referral-summary overflow-hidden app-card p-3.5">
+        <view class="metric-grid grid grid-cols-3 gap-2">
+          <view class="metric-card min-w-0 flex flex-col items-center gap-1 rounded-3 px-1.5 py-3">
             <strong>{{ summary.registered_count }}</strong><text>邀请注册</text>
           </view>
-          <view class="metric-card metric-card--success">
+          <view class="metric-card metric-card--success min-w-0 flex flex-col items-center gap-1 rounded-3 px-1.5 py-3">
             <strong>{{ summary.pending_review_count }}</strong><text>待审核</text>
           </view>
-          <view class="metric-card metric-card--reward">
+          <view class="metric-card metric-card--reward min-w-0 flex flex-col items-center gap-1 rounded-3 px-1.5 py-3">
             <strong>{{ summary.rewarded_count }}</strong><text>已奖励</text>
           </view>
         </view>
-        <view class="invite-code-row">
+        <view class="invite-code-row mt-3 flex items-center justify-between border-t-hairline border-t-app-border border-t-solid pt-3">
           <view><text>邀请码</text><strong>{{ summary.allow_code ? (summary.invite_code || '未生成') : '已关闭' }}</strong></view>
           <button :disabled="!summary.allow_code" @click="copyValue(summary.invite_code, '暂无邀请码')">
             <view class="i-carbon-copy" />复制
@@ -65,16 +65,16 @@ function copyValue(value: string | null, emptyMessage: string) {
         </view>
       </view>
 
-      <view class="share-card app-touchable" :class="{ 'share-card--disabled': !summary.allow_link }" @click="summary.allow_link && copyValue(summary.share_link, '暂无邀请链接')">
-        <view class="share-card__icon">
+      <view class="share-card mt-3 flex app-touchable items-center gap-2.5 rounded-4 bg-surface-card p-3.5" :class="{ 'share-card--disabled': !summary.allow_link }" @click="summary.allow_link && copyValue(summary.share_link, '暂无邀请链接')">
+        <view class="share-card__icon h-10.5 w-10.5 flex flex-none basis-10.5 items-center justify-center rounded-3 text-size-lg">
           <view class="i-carbon-link" />
         </view>
-        <view class="share-card__copy">
+        <view class="share-card__copy min-w-0 flex flex-1 flex-col gap-1">
           <strong>邀请链接</strong>
           <text v-if="summary.allow_link">{{ summary.share_link || '邀请链接尚未生成' }}</text>
           <text v-else>当前账号未开放链接邀请</text>
         </view>
-        <view v-if="summary.allow_link" class="share-card__action">
+        <view v-if="summary.allow_link" class="share-card__action flex flex-none items-center gap-1 text-size-2xs text-app-brand font-semibold">
           <view class="i-carbon-copy" /><text>复制</text>
         </view>
         <wd-tag v-else variant="light">
@@ -129,35 +129,17 @@ function copyValue(value: string | null, emptyMessage: string) {
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.referral-summary {
-  overflow: hidden;
-  padding: 26rpx;
-}
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16rpx;
-}
+<style scoped>
 .metric-card {
-  display: flex;
-  min-width: 0;
-  padding: 24rpx 10rpx;
-  align-items: center;
-  flex-direction: column;
-  gap: 8rpx;
   border: 1rpx solid #dfe9f7;
-  border-radius: 24rpx;
   background: #fbfdff;
 }
 .metric-card strong {
   color: #176fdb;
-  font-size: 36rpx;
-  line-height: 1.2;
+  @apply text-size-lg leading-tight;
 }
 .metric-card text {
-  color: var(--app-text-muted);
-  font-size: 21rpx;
+  @apply text-content-muted text-size-2xs;
 }
 .metric-card--success strong {
   color: #159d77;
@@ -165,111 +147,41 @@ function copyValue(value: string | null, emptyMessage: string) {
 .metric-card--reward strong {
   color: #d98200;
 }
-.invite-code-row {
-  display: flex;
-  margin-top: 24rpx;
-  padding-top: 24rpx;
-  align-items: center;
-  justify-content: space-between;
-  border-top: 1rpx solid var(--app-border-color);
-}
 .invite-code-row > view {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 24rpx;
+  @apply flex min-w-0 items-center gap-3;
 }
 .invite-code-row text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply text-content-muted text-size-2xs;
 }
 .invite-code-row strong {
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 30rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-content-primary text-size-sm text-ellipsis whitespace-nowrap;
 }
 .invite-code-row button {
-  display: flex;
-  min-width: 150rpx;
-  margin: 0;
-  padding: 0 24rpx;
-  align-items: center;
-  justify-content: center;
-  gap: 10rpx;
-  border: 1rpx solid var(--app-color-brand);
-  border-radius: 20rpx;
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-  font-weight: 600;
-  line-height: 68rpx;
-  background: #fff;
+  @apply flex min-w-19 m-0 py-0 px-3 items-center justify-center gap-1.5 border-hairline border-solid border-app-brand rounded-2.5 text-app-brand text-size-xs font-semibold leading-8.5 bg-white;
 }
 .invite-code-row button[disabled] {
-  border-color: var(--app-border-color);
-  color: var(--app-text-muted);
-  background: var(--app-bg-page);
+  @apply border-app-border text-content-muted bg-surface-page;
 }
 .invite-code-row button::after {
-  border: 0;
-}
-.share-card {
-  display: flex;
-  margin-top: 24rpx;
-  padding: 28rpx;
-  align-items: center;
-  gap: 20rpx;
-  border-radius: 30rpx;
-  background: var(--app-bg-card);
+  @apply border-0;
 }
 .share-card__icon {
-  display: flex;
-  width: 82rpx;
-  height: 82rpx;
-  flex: 0 0 82rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 24rpx;
   color: #176fdb;
-  font-size: 36rpx;
   background: #eaf3ff;
 }
 .share-card__icon > view {
-  width: 36rpx;
-  height: 36rpx;
-}
-.share-card__copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 8rpx;
+  @apply w-4.5 h-4.5;
 }
 .share-card__copy strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
+  @apply text-content-primary text-size-sm;
 }
 .share-card__copy text {
-  overflow: hidden;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.share-card__action {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 7rpx;
-  color: var(--app-color-brand);
-  font-size: 22rpx;
-  font-weight: 600;
+  @apply overflow-hidden text-content-muted text-size-2xs text-ellipsis whitespace-nowrap;
 }
 .share-card--disabled {
-  cursor: default;
+  @apply cursor-default;
 }
 .channel-notice {
-  margin-top: 24rpx;
+  @apply mt-3;
 }
 </style>

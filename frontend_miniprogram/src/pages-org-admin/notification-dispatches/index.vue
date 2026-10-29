@@ -93,7 +93,7 @@ async function submitDispatch() {
     return
   const organizationId = appContextStore.currentOrganization?.id
   if (!organizationId) {
-    toast.error('未选择组织，请先切换到中介端')
+    toast.error('未选择工作空间，请先切换到经纪人身份')
     return
   }
   if (scope.value !== 'organization' && !selectedIds.value.length) {
@@ -103,7 +103,7 @@ async function submitDispatch() {
   const scopePayload = buildTenantDispatchScope(scope.value, organizationId, selectedIds.value)
   const confirmation = await uni.showModal({
     title: '确认发送通知',
-    content: `通知将在${tenantRequest.management_context === 'tenant' ? '当前组织' : ''}范围内异步发送，创建后不能撤回。`,
+    content: `通知将在${tenantRequest.management_context === 'tenant' ? '当前工作空间' : ''}范围内异步发送，创建后不能撤回。`,
     confirmText: '确认发送',
   })
   if (!confirmation.confirm)
@@ -135,7 +135,7 @@ async function submitDispatch() {
     </template>
     <wd-toast />
     <view class="app-row-between app-card-plain p-3">
-      <text class="text-xs text-content-muted">向整个组织、指定团队或成员发送通知</text><wd-button size="small" @click="createVisible = true">
+      <text class="text-xs text-content-muted">向整个工作空间、指定团队或成员发送通知</text><wd-button size="small" @click="createVisible = true">
         发送通知
       </wd-button>
     </view>
@@ -149,7 +149,7 @@ async function submitDispatch() {
         :finished="dispatchPage.finished.value"
         :error="dispatchPage.error.value"
         loading-text="正在加载发送记录…"
-        empty-text="当前组织还没有发送记录"
+        empty-text="当前工作空间还没有发送记录"
         empty-description="创建通知后，可以在这里查看接收范围和送达情况。"
         empty-icon="no-message"
         empty-action-text="发送通知"
@@ -183,7 +183,7 @@ async function submitDispatch() {
       <view class="flex flex-col gap-2">
         <view class="flex flex-wrap gap-1.5">
           <view
-            v-for="option in [{ label: '整个组织', value: 'organization' }, { label: '指定团队', value: 'teams' }, { label: '指定成员', value: 'users' }]"
+            v-for="option in [{ label: '整个工作空间', value: 'organization' }, { label: '指定团队', value: 'teams' }, { label: '指定成员', value: 'users' }]"
             :key="option.value"
             class="app-touchable rounded-full px-2 py-1.5 text-2xs"
             :class="scope === option.value ? 'bg-app-brand text-content-on-brand' : 'bg-surface-page text-content-secondary'"

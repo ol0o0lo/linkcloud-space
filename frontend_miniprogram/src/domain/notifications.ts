@@ -3,6 +3,7 @@ import type { AppMode, AppModeSelection } from './app-mode.ts'
 import { withRouteWorkspace } from './route-access.ts'
 import {
   APP_ROUTES,
+  getConversationRoute,
   getHouseDetailRoute,
   getOrganizationAllocationDetailRoute,
   getOrganizationAnnouncementDetailRoute,
@@ -13,6 +14,7 @@ export type NotificationReadFilter = 'all' | 'unread' | 'read'
 export type NotificationChannel = 'in_app' | 'email'
 
 export interface NotificationScopeInput {
+  userId?: number
   mode: AppMode
   organizationSlug?: string
   landlordContactId?: number | null
@@ -54,6 +56,13 @@ function getStructuredTargetId(input: NotificationActionInput, dataKey: string):
 
 function resolveStructuredNotificationAction(input: NotificationActionInput): NotificationAction | null {
   const category = input.category || ''
+  if (category === 'messaging.message') {
+    const id = positiveInteger(input.data?.conversation_id)
+    const slug = input.data?.organization_slug
+    return id && typeof slug === 'string' && slug.trim()
+      ? { kind: 'internal', route: getConversationRoute(id, slug, 'organization_member'), label: '查看聊天' }
+      : null
+  }
   if (category.startsWith('team.task.')) {
     const assignmentId = positiveInteger(input.data?.assignment_id)
     const taskId = positiveInteger(input.data?.task_id)
@@ -81,6 +90,9 @@ function resolveStructuredNotificationAction(input: NotificationActionInput): No
   }
 
   if (category === 'house.contact') {
+    const inquiryId = getStructuredTargetId(input, 'inquiry_id')
+    if (inquiryId)
+      return { kind: 'internal', route: `${APP_ROUTES.organizationInquiryDetail}?id=${inquiryId}`, label: '处理咨询' }
     const houseId = getStructuredTargetId(input, 'house_id')
     if (houseId)
       return { kind: 'internal', route: getHouseDetailRoute(houseId), label: '查看房源' }
@@ -149,7 +161,7 @@ export function resolveNotificationScope(input: NotificationScopeInput): Request
   }
   if (input.mode === 'organization') {
     if (!input.organizationSlug)
-      throw new Error('未选择组织，请先切换到中介端')
+      throw new Error('未选择工作空间，请先切换到经纪人身份')
     return { kind: 'organization', organizationSlug: input.organizationSlug }
   }
   throw new Error('登录后才能查看消息')
@@ -168,6 +180,8 @@ export function getNotificationTone(isRead: boolean): 'default' | 'warning' {
 }
 
 export function getNotificationCategoryPresentation(category: string): NotificationCategoryPresentation {
+  if (category === 'messaging.message')
+    return { label: '聊天提醒', icon: 'i-carbon-chat', tone: 'primary' }
   if (category === 'house.contact')
     return { label: '预约联系', icon: 'i-carbon-chat', tone: 'primary' }
   if (category.startsWith('team.task'))

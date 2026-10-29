@@ -39,7 +39,7 @@ async function loadRecord() {
       getAllocationCapabilities(appContextStore.organizationSlug).catch(() => null),
     ])
     record.value = nextRecord
-    canSubmitSigning.value = allocationCapabilities?.submit === true
+    canSubmitSigning.value = (allocationCapabilities as { register_signing?: boolean } | null)?.register_signing === true
   }
   catch { loadError.value = '带看记录不存在或暂时无法加载' }
   finally { loading.value = false }
@@ -74,7 +74,7 @@ function openLease() {
 }
 
 function openSigning() {
-  if (record.value)
+  if (record.value?.house.is_active)
     uni.navigateTo({ url: getOrganizationSigningRoute(record.value.id) })
 }
 
@@ -120,7 +120,7 @@ onLoad((options) => {
       <wd-cell-group title="相关业务" insert>
         <wd-cell title="房源详情" is-link @click="openHouse" />
         <wd-cell v-if="record.signed_lease_id" title="成交租约" is-link @click="openLease" />
-        <wd-cell v-else-if="record.status === 'converted' && canSubmitSigning" title="登记签约" is-link @click="openSigning" />
+        <wd-cell v-else-if="record.status === 'converted' && canSubmitSigning && record.house.is_active" title="登记签约" is-link @click="openSigning" />
       </wd-cell-group>
     </template>
 

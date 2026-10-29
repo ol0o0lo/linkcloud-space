@@ -308,15 +308,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <view class="house-h5-map">
-    <view :id="mapContainerId" class="house-h5-map__canvas" />
+  <view class="house-h5-map relative block h-full w-full overflow-hidden bg-surface-page">
+    <view :id="mapContainerId" class="house-h5-map__canvas h-full w-full" />
 
-    <view v-if="loading" class="house-h5-map__state">
-      <view class="house-h5-map__spinner" />
+    <view v-if="loading" class="house-h5-map__state absolute inset-0 z-8 flex flex-col items-center justify-center gap-2.5 text-size-2xs text-content-secondary">
+      <view class="house-h5-map__spinner h-5.5 w-5.5 rounded-full" />
       <text>正在加载高德地图…</text>
     </view>
-    <view v-else-if="loadError" class="house-h5-map__state house-h5-map__state--error">
-      <view class="i-carbon-map-center house-h5-map__error-icon" />
+    <view v-else-if="loadError" class="house-h5-map__state house-h5-map__state--error absolute inset-0 z-8 flex flex-col items-center justify-center gap-2.5 text-size-2xs text-content-secondary">
+      <view class="i-carbon-map-center house-h5-map__error-icon text-size-3xl text-app-brand" />
       <strong>地图加载失败</strong>
       <text>{{ loadError }}</text>
       <wd-button size="small" variant="plain" @click="retry">
@@ -327,56 +327,28 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
-.house-h5-map {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: var(--app-bg-page);
-}
-.house-h5-map__canvas {
-  width: 100%;
-  height: 100%;
-}
 .house-h5-map__state {
-  position: absolute;
-  z-index: 8;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 18rpx;
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
   background: linear-gradient(145deg, #e8f0ec, #dbe7e2);
 }
 .house-h5-map__state--error {
-  padding: 48rpx;
-  box-sizing: border-box;
-  text-align: center;
-  background: rgb(245 248 250 / 96%);
+  @apply p-6;
+  @apply box-border;
+  @apply text-center;
+  @apply bg-none;
+  @apply bg-hex-f5f8fa/96;
 }
 .house-h5-map__state--error strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
+  @apply text-content-primary;
+  @apply text-size-sm;
 }
 .house-h5-map__state--error text {
-  max-width: 540rpx;
-  color: var(--app-text-muted);
-  line-height: 1.6;
-}
-.house-h5-map__error-icon {
-  color: var(--app-color-brand);
-  font-size: 58rpx;
+  @apply max-w-68;
+  @apply text-content-muted;
+  @apply leading-relaxed;
 }
 .house-h5-map__spinner {
-  width: 44rpx;
-  height: 44rpx;
-  border: 5rpx solid rgb(0 102 204 / 16%);
-  border-top-color: var(--app-color-brand);
-  border-radius: 50%;
+  @apply border-2.5 border-solid border-hex-0066cc/16;
+  @apply border-t-app-brand;
   animation: house-h5-map-spin 0.8s linear infinite;
 }
 :deep(.amap-logo),
@@ -389,115 +361,115 @@ onBeforeUnmount(() => {
   bottom: auto !important;
 }
 :deep(.house-h5-map-marker) {
-  position: relative;
-  display: flex;
-  min-width: 94rpx;
-  height: 58rpx;
-  align-items: center;
-  justify-content: center;
-  padding: 0 20rpx;
-  border: 2rpx solid rgb(255 255 255 / 92%);
-  border-radius: 32rpx;
-  box-sizing: border-box;
-  color: var(--app-color-brand-active);
-  font-size: 23rpx;
-  font-weight: 750;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  background: var(--app-bg-card);
+  @apply relative;
+  @apply flex;
+  @apply min-w-12;
+  @apply h-7.5;
+  @apply items-center;
+  @apply justify-center;
+  @apply py-0 px-2.5;
+  @apply border-1 border-solid border-hex-ffffff/92;
+  @apply rounded-4;
+  @apply box-border;
+  @apply text-app-brand-active;
+  @apply text-size-xs;
+  @apply font-extrabold;
+  @apply leading-none;
+  @apply whitespace-nowrap;
+  @apply cursor-pointer;
+  @apply bg-surface-card;
   box-shadow: 0 6rpx 22rpx rgb(23 35 61 / 18%);
   transition:
     transform var(--app-motion-duration-base) var(--app-motion-ease-out),
     background-color var(--app-motion-duration-base) ease;
 }
 :deep(.house-h5-map-user-location) {
-  width: 30rpx;
-  height: 30rpx;
-  border: 5rpx solid var(--app-bg-card);
-  border-radius: 50%;
-  box-sizing: border-box;
-  background: var(--app-color-brand);
+  @apply w-4;
+  @apply h-4;
+  @apply border-2.5 border-solid border-surface-card;
+  @apply rounded-full;
+  @apply box-border;
+  @apply bg-app-brand;
   box-shadow:
     0 0 0 10rpx rgb(0 129 255 / 18%),
     0 3rpx 12rpx rgb(23 35 61 / 20%);
 }
 :deep(.house-h5-map-marker--active) {
-  border-color: var(--app-color-brand);
-  color: var(--app-text-on-brand);
-  background: var(--app-color-brand);
+  @apply border-app-brand;
+  @apply text-content-on-brand;
+  @apply bg-app-brand;
   box-shadow: 0 9rpx 26rpx rgb(0 129 255 / 30%);
   transform: translateY(-3rpx);
 }
 :deep(.house-h5-map-marker--group) {
-  min-width: 0;
-  height: auto;
-  flex-direction: column;
-  gap: 5rpx;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  @apply min-w-0;
+  @apply h-auto;
+  @apply flex-col;
+  @apply gap-0.5;
+  @apply p-0;
+  @apply border-0;
+  @apply rounded-0;
+  @apply bg-transparent;
+  @apply shadow-none;
 }
 :deep(.house-h5-map-marker--group.house-h5-map-marker--active) {
-  background: transparent;
-  box-shadow: none;
+  @apply bg-transparent;
+  @apply shadow-none;
 }
 :deep(.house-h5-map-marker__cluster-count) {
-  display: flex;
-  width: 82rpx;
-  height: 82rpx;
-  align-items: center;
-  justify-content: center;
-  gap: 2rpx;
-  border: 5rpx solid var(--app-bg-card);
-  border-radius: 50%;
-  box-sizing: border-box;
-  color: var(--app-text-on-brand);
-  font-size: 28rpx;
-  font-weight: 750;
-  background: var(--app-color-brand);
+  @apply flex;
+  @apply w-10.5;
+  @apply h-10.5;
+  @apply items-center;
+  @apply justify-center;
+  @apply gap-0.5;
+  @apply border-2.5 border-solid border-surface-card;
+  @apply rounded-full;
+  @apply box-border;
+  @apply text-content-on-brand;
+  @apply text-size-sm;
+  @apply font-extrabold;
+  @apply bg-app-brand;
   box-shadow: 0 7rpx 25rpx rgb(0 129 255 / 26%);
 }
 :deep(.house-h5-map-marker__cluster-count small) {
-  padding-top: 7rpx;
-  font-size: 15rpx;
-  font-weight: 600;
+  @apply pt-1;
+  @apply text-size-3xs;
+  @apply font-semibold;
 }
 :deep(.house-h5-map-marker__name) {
-  overflow: hidden;
-  max-width: 150rpx;
-  padding: 5rpx 11rpx;
-  border-radius: 14rpx;
-  color: var(--app-text-primary);
-  font-size: 19rpx;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: rgb(255 255 255 / 96%);
+  @apply overflow-hidden;
+  @apply max-w-19;
+  @apply py-0.5 px-1.5;
+  @apply rounded-2;
+  @apply text-content-primary;
+  @apply text-size-2xs;
+  @apply font-bold;
+  @apply leading-tight;
+  @apply text-center;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
+  @apply bg-hex-ffffff/96;
   box-shadow: 0 3rpx 12rpx rgb(23 35 61 / 11%);
 }
 :deep(.house-h5-map-marker__price) {
-  font-size: inherit;
-  font-weight: inherit;
+  @apply text-size-inherit;
+  @apply font-inherit;
 }
 :deep(.house-h5-map-marker__arrow) {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-top: 9rpx solid var(--app-bg-card);
-  border-right: 8rpx solid transparent;
-  border-left: 8rpx solid transparent;
+  @apply absolute;
+  @apply top-full;
+  @apply left-1/2;
+  @apply w-0;
+  @apply h-0;
+  @apply border-t-4.5 border-t-solid border-t-surface-card;
+  @apply border-r-4 border-r-solid border-r-transparent;
+  @apply border-l-4 border-l-solid border-l-transparent;
   transform: translateX(-50%);
   transition: border-color 160ms ease;
 }
 :deep(.house-h5-map-marker--active .house-h5-map-marker__arrow) {
-  border-top-color: var(--app-color-brand);
+  @apply border-t-app-brand;
 }
 
 @keyframes house-h5-map-spin {

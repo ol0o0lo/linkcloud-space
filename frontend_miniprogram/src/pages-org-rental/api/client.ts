@@ -5,7 +5,6 @@ import type {
   BuildingPatchIn,
   ContactIn,
   ContactPatchIn,
-  DealSigningWithAllocationIn,
   EstateDetailOut,
   EstateIn,
   EstatePatchIn,
@@ -28,7 +27,7 @@ import type {
   ViewingRecordIn,
   ViewingRecordPatchIn,
 } from '@/services/openapi/types'
-import { buildOrganizationScope } from '@/pages-org-rental/domain/organization-rental'
+import { buildOrganizationScope } from '@/domain/organization-scope'
 import { httpGet, httpPost } from '@/http/http'
 import { chooseAndUploadMedia } from '@/infra/upload/client'
 import {
@@ -52,7 +51,6 @@ import {
   houseHousesHouseIdUsingPatch,
   houseHousesUsingGet,
   houseHousesUsingPost,
-  houseLeasesDealSigningUsingPost,
   houseLeasesLeaseIdAllocationOpenApiVoidUsingPost,
   houseLeasesLeaseIdAllocationReviewUsingPost,
   houseLeasesLeaseIdUsingGet,
@@ -105,7 +103,6 @@ export type {
   ContactIn,
   ContactOut,
   ContactPatchIn,
-  DealSigningWithAllocationIn,
   EstateDetailOut,
   EstateIn,
   EstateMapMarkerOut,
@@ -133,11 +130,17 @@ export type OrganizationEstateDetailOut = EstateDetailOut & {
   description: string
 }
 
-export type OrganizationHouseFilters = Omit<HouseHousesUsingGetParams, 'page' | 'page_size'>
+export type OrganizationHouseFilters = Omit<HouseHousesUsingGetParams, 'page' | 'page_size'> & {
+  is_active?: boolean
+  min_rent?: number
+  max_rent?: number
+  bedrooms?: number
+  district?: string
+}
 export type OrganizationEstateFilters = Omit<HouseEstatesUsingGetParams, 'page' | 'page_size'>
 export type OrganizationBuildingFilters = Omit<HouseBuildingsUsingGetParams, 'page' | 'page_size'>
 export type OrganizationContactFilters = Omit<HouseContactsUsingGetParams, 'page' | 'page_size'>
-export type OrganizationViewingFilters = Omit<HouseViewingRecordsUsingGetParams, 'page' | 'page_size'>
+export type OrganizationViewingFilters = Omit<HouseViewingRecordsUsingGetParams, 'page' | 'page_size'> & { today?: boolean, unassigned?: boolean, scope?: 'mine' | 'all' }
 export type OrganizationLeaseFilters = Omit<HouseLeasesUsingGetParams, 'page' | 'page_size'>
 export type OrganizationViewingAssigneeFilters = Omit<OrganizationWorkspaceMembersUsingGetParams, 'page' | 'page_size'>
 
@@ -321,10 +324,6 @@ export function patchOrganizationLeaseRequest(organizationSlug: string, leaseId:
   return houseLeasesLeaseIdUsingPatch({ params: { lease_id: leaseId }, body: payload, options: buildOrganizationScope(organizationSlug, 'never') })
 }
 
-export function submitOrganizationDealSigning(organizationSlug: string, payload: DealSigningWithAllocationIn) {
-  return houseLeasesDealSigningUsingPost({ body: payload, options: buildOrganizationScope(organizationSlug, 'never') })
-}
-
 export function previewOrganizationVacancySync(organizationSlug: string, payload: VacancySyncIn) {
   return houseVacancySyncUsingPost({ body: { ...payload, mode: 'preview' }, options: buildOrganizationScope(organizationSlug, 'never') })
 }
@@ -337,8 +336,8 @@ export function requestOrganizationAllocationCapabilities(organizationSlug: stri
   return allocationCapabilitiesUsingGet({ options: buildOrganizationScope(organizationSlug) })
 }
 
-export function requestOrganizationAllocationRequests(organizationSlug: string, page: number, pageSize: number) {
-  return allocationRequestsUsingGet({ params: { page, page_size: pageSize }, options: buildOrganizationScope(organizationSlug) })
+export function requestOrganizationAllocationRequests(organizationSlug: string, page: number, pageSize: number, status?: string) {
+  return allocationRequestsUsingGet({ params: { page, page_size: pageSize, status }, options: buildOrganizationScope(organizationSlug) })
 }
 
 export function requestOrganizationAllocationRequest(organizationSlug: string, allocationRequestId: number) {

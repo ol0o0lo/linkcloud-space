@@ -13,6 +13,9 @@ export default defineUniPages({
   easycom: {
     autoscan: true,
     custom: {
+      '^t-chat-(.*)': '@tdesign/uniapp-chat/chat-$1/chat-$1.vue',
+      '^t-attachments': '@tdesign/uniapp-chat/attachments/attachments.vue',
+      '^t-(.*)': '@tdesign/uniapp/$1/$1.vue',
       '^wd-(.*)': '@wot-ui/ui/components/wd-$1/wd-$1.vue',
     },
   },

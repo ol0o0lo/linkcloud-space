@@ -98,31 +98,31 @@ watch([
 </script>
 
 <template>
-  <view class="home-search-panel">
+  <view class="home-search-panel relative z-2 overflow-hidden border-hairline border-hex-e4edf4 rounded-5 border-solid bg-hex-eef3f7">
     <view class="home-search-panel__types">
       <wd-segmented v-model:value="listingType" :options="categoryLabels" theme="outline" :custom-style="segmentedStyle" />
     </view>
-    <view class="home-search-panel__body">
-      <view class="home-search-panel__search-row">
-        <button class="home-search-panel__keyword app-touchable" :class="{ 'home-search-panel__keyword--located': nearbyActive }" :disabled="locatingNearby" hover-class="app-touchable--pressed" @click="emit('keyword', preset)">
+    <view class="home-search-panel__body bg-hex-fff px-3.5 pb-3.5 pt-3.5">
+      <view class="home-search-panel__search-row min-h-10 flex items-center border-b-hairline border-b-hex-e7edf2 border-b-solid">
+        <button class="home-search-panel__keyword flex-1 app-touchable text-left text-hex-9aaab8" :class="{ 'home-search-panel__keyword--located': nearbyActive }" :disabled="locatingNearby" hover-class="app-touchable--pressed" @click="emit('keyword', preset)">
           <view :class="nearbyActive ? 'i-carbon-location' : 'i-carbon-search'" />
           <text>{{ nearbyActive ? preset.place_name || '当前位置' : '小区 / 商圈 / 地铁站' }}</text>
         </button>
-        <button v-if="nearbyActive" class="home-search-panel__clear app-touchable" :disabled="locatingNearby" aria-label="清除附近筛选" hover-class="app-touchable--pressed" @click="emit('clearNearby')">
+        <button v-if="nearbyActive" class="home-search-panel__clear m-0 h-8 w-7 flex flex-none app-touchable items-center justify-center bg-transparent p-0 text-size-xs text-hex-7b8d9d" :disabled="locatingNearby" aria-label="清除附近筛选" hover-class="app-touchable--pressed" @click="emit('clearNearby')">
           <view class="i-carbon-close" />
         </button>
-        <view class="home-search-panel__divider" />
-        <button class="home-search-panel__nearby app-touchable" :class="{ 'home-search-panel__nearby--active': nearbyActive }" :disabled="locatingNearby" hover-class="app-touchable--pressed" @click="emit('nearby', preset)">
+        <view class="home-search-panel__divider mx-2.5 my-0 h-4.5 w-0.5 bg-hex-e1e9ef" />
+        <button class="home-search-panel__nearby flex-none app-touchable font-bold" :class="{ 'home-search-panel__nearby--active': nearbyActive }" :disabled="locatingNearby" hover-class="app-touchable--pressed" @click="emit('nearby', preset)">
           <view class="i-carbon-location-current" />
           <text>{{ locatingNearby ? '定位中…' : nearbyActive ? '重新定位' : '附近' }}</text>
         </button>
       </view>
 
-      <view v-if="nearbyActive" class="home-search-panel__location-hint">
+      <view v-if="nearbyActive" class="home-search-panel__location-hint pt-2 text-size-2xs text-hex-657d90">
         附近 1 公里 · 按距离排序
       </view>
 
-      <view class="home-search-panel__bedrooms">
+      <view class="home-search-panel__bedrooms px-0 py-3.5">
         <wd-radio-group v-model="bedroomChoice" direction="horizontal">
           <wd-radio value="">
             不限
@@ -139,13 +139,13 @@ watch([
         </wd-radio-group>
       </view>
 
-      <view class="home-search-panel__actions">
-        <button class="home-search-panel__submit app-touchable" :disabled="locatingNearby" hover-class="app-touchable--pressed" @click="emit('search', preset)">
+      <view class="home-search-panel__actions flex gap-2">
+        <button class="home-search-panel__submit app-touchable bg-app-brand text-hex-fff" :disabled="locatingNearby" hover-class="app-touchable--pressed" @click="emit('search', preset)">
           {{ locatingNearby ? '正在定位…' : countLoading || houseCount === null ? '查看房源' : `查看 ${houseCount} 套${nearbyActive ? '附近' : ''}房源` }}
         </button>
-        <button class="home-search-panel__map app-touchable" :disabled="locatingNearby" hover-class="app-touchable--pressed" @click="emit('map', preset)">
+        <button class="home-search-panel__map flex-1 app-touchable bg-surface-brand-soft text-app-brand" :disabled="locatingNearby" hover-class="app-touchable--pressed" @click="emit('map', preset)">
           <view class="i-carbon-map" />
-          <text>去地图看</text>
+          <text>地图找房</text>
         </button>
       </view>
     </view>
@@ -154,149 +154,76 @@ watch([
 
 <style scoped lang="scss">
 button::after {
-  border: 0;
+  @apply border-0;
 }
 
 .home-search-panel {
-  position: relative;
-  z-index: 2;
-  overflow: hidden;
-  border: 1rpx solid #e4edf4;
-  border-radius: 38rpx;
-  background: #eef3f7;
   box-shadow: 0 24rpx 48rpx rgb(12 55 92 / 13%);
-}
-
-.home-search-panel__body {
-  padding: 28rpx 26rpx 26rpx;
-  background: #fff;
-}
-
-.home-search-panel__search-row {
-  display: flex;
-  min-height: 78rpx;
-  align-items: center;
-  border-bottom: 1rpx solid #e7edf2;
 }
 
 .home-search-panel__keyword,
 .home-search-panel__nearby {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 12rpx;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  color: #314a5e;
-  font-size: 24rpx;
-  line-height: 1.3;
-}
-
-.home-search-panel__keyword {
-  flex: 1;
-  color: #9aaab8;
-  text-align: left;
+  @apply flex;
+  @apply min-w-0;
+  @apply items-center;
+  @apply gap-1.5;
+  @apply m-0;
+  @apply p-0;
+  @apply bg-transparent;
+  @apply text-hex-314a5e;
+  @apply text-size-xs;
+  @apply leading-tight;
 }
 
 .home-search-panel__keyword text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply min-w-0;
+  @apply overflow-hidden;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
 }
 
 .home-search-panel__keyword--located,
 .home-search-panel__nearby--active {
-  color: var(--app-color-brand);
-}
-
-.home-search-panel__clear {
-  display: flex;
-  width: 56rpx;
-  height: 64rpx;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  color: #7b8d9d;
-  font-size: 26rpx;
-}
-
-.home-search-panel__location-hint {
-  padding-top: 16rpx;
-  color: #657d90;
-  font-size: 22rpx;
+  @apply text-app-brand;
 }
 
 .home-search-panel__keyword view,
 .home-search-panel__nearby view {
-  flex: none;
-  font-size: 28rpx;
-}
-
-.home-search-panel__divider {
-  width: 1rpx;
-  height: 36rpx;
-  margin: 0 18rpx;
-  background: #e1e9ef;
-}
-
-.home-search-panel__nearby {
-  flex: none;
-  font-weight: 650;
-}
-
-.home-search-panel__bedrooms {
-  padding: 28rpx 0;
+  @apply flex-none;
+  @apply text-size-sm;
 }
 
 :deep(.home-search-panel__bedrooms .wd-radio-group) {
-  display: flex;
-  width: 100%;
-  justify-content: space-between;
+  @apply flex;
+  @apply w-full;
+  @apply justify-between;
 }
 
 :deep(.home-search-panel__bedrooms .wd-radio) {
-  margin-right: 0;
-  font-size: 22rpx;
-}
-
-.home-search-panel__actions {
-  display: flex;
-  gap: 14rpx;
+  @apply mr-0;
+  @apply text-size-2xs;
 }
 
 .home-search-panel__submit,
 .home-search-panel__map {
-  display: flex;
-  min-width: 0;
-  height: 82rpx;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  margin: 0;
-  border-radius: 18rpx;
-  font-size: 24rpx;
-  font-weight: 700;
-  line-height: 82rpx;
+  @apply flex;
+  @apply min-w-0;
+  @apply h-10.5;
+  @apply items-center;
+  @apply justify-center;
+  @apply gap-1;
+  @apply m-0;
+  @apply rounded-2.5;
+  @apply text-size-xs;
+  @apply font-bold;
+  @apply leading-10.5;
 }
 
 .home-search-panel__submit {
   flex: 1.55;
-  background: var(--app-color-brand);
-  color: #fff;
-}
-
-.home-search-panel__map {
-  flex: 1;
-  background: var(--app-bg-brand-soft);
-  color: var(--app-color-brand);
 }
 
 .home-search-panel__map view {
-  font-size: 27rpx;
+  @apply text-size-sm;
 }
 </style>

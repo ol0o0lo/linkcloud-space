@@ -2,6 +2,7 @@
 import { onHide, onLaunch, onShow } from '@dcloudio/uni-app'
 import { getCurrentInstance, onMounted, onUnmounted, watch } from 'vue'
 import { syncNotificationTabbarBadge } from '@/features/notifications/tabbar-badge'
+import { setMessagingForeground } from '@/features/messaging/polling'
 import { navigateToInterceptor } from '@/router/interceptor'
 import { tabbarStore } from '@/tabbar/store'
 import { permission } from '@/router/permission'
@@ -19,6 +20,7 @@ let initialNavigationHandled = false
 
 function syncMessagesBadge() {
   return syncNotificationTabbarBadge({
+    userId: appContextStore.user?.id,
     mode: appContextStore.navigationMode,
     organizationSlug: appContextStore.currentOrganization?.slug,
     landlordContactId: appContextStore.currentLandlordRelationship?.contact_id,
@@ -26,7 +28,7 @@ function syncMessagesBadge() {
 }
 
 watch(
-  () => [appContextStore.authenticated, appContextStore.navigationMode, appContextStore.organizationSlug, appContextStore.landlordContactId] as const,
+  () => [appContextStore.user?.id, appContextStore.authenticated, appContextStore.navigationMode, appContextStore.organizationSlug, appContextStore.landlordContactId] as const,
   () => void syncMessagesBadge(),
   { immediate: true },
 )
@@ -35,6 +37,7 @@ onLaunch(() => {
   void appContextStore.bootstrap()
 })
 onShow((options) => {
+  setMessagingForeground(true)
   void (async () => {
     await appContextStore.bootstrap()
     if (appContextStore.startupState === 'recoverable-error' || appContextStore.startupState === 'fatal-error') {
@@ -57,12 +60,14 @@ onShow((options) => {
   })()
 })
 onHide(() => {
+  setMessagingForeground(false)
   console.log('App Hide')
   void flushAnalyticsEvents()
 })
 
 // #ifdef H5
 function syncTabbarWhenPageVisible() {
+  setMessagingForeground(document.visibilityState === 'visible')
   if (document.visibilityState === 'visible') {
     tabbarStore.syncCurrentPathByCurrentPageAsync()
   }
@@ -82,7 +87,3 @@ onUnmounted(() => {
 })
 // #endif
 </script>
-
-<style lang="scss">
-
-</style>

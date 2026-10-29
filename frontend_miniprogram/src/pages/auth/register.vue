@@ -17,15 +17,7 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="redirect-page">
+  <view class="redirect-page px-4 py-10 text-center text-content-muted">
     正在进入登录页面…
   </view>
 </template>
-
-<style lang="scss" scoped>
-.redirect-page {
-  padding: 80rpx 32rpx;
-  color: var(--app-text-muted);
-  text-align: center;
-}
-</style>

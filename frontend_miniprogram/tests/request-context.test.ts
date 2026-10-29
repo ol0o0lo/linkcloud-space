@@ -9,7 +9,7 @@ test('登录请求携带移动端会话 Token', () => {
   })
 })
 
-test('组织业务请求携带当前组织 slug', () => {
+test('空间业务请求携带当前工作空间 slug', () => {
   assert.deepEqual(buildRequestHeaders({ sessionToken: 'session-1', requestScope: 'organization', organizationSlug: 'alpha' }), {
     'X-Org-Slug': 'alpha',
     'X-Session-Token': 'session-1',

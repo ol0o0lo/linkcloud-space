@@ -122,7 +122,7 @@ onLoad((options) => {
         <text class="mt-1.5 block whitespace-pre-wrap text-xs text-content-secondary leading-relaxed">{{ assignment.task_description || '任务未填写补充说明' }}</text>
       </view>
       <wd-cell-group title="任务信息" insert>
-        <wd-cell title="任务范围" :value="assignment.team_name || '全组织'" />
+        <wd-cell title="任务范围" :value="assignment.team_name || '整个工作空间'" />
         <wd-cell title="创建人" :value="formatOrganizationWorkUser(assignment.creator)" />
         <wd-cell title="执行人" :value="formatOrganizationWorkUser(assignment.assignee)" />
         <wd-cell title="截止时间" :value="formatOrganizationWorkDateTime(assignment.due_at)" :label="assignment.is_overdue ? '当前任务已逾期' : ''" />
@@ -145,7 +145,7 @@ onLoad((options) => {
         <text class="mt-1.5 block whitespace-pre-wrap text-xs text-content-secondary leading-relaxed">{{ task.description || '任务未填写补充说明' }}</text>
       </view>
       <wd-cell-group title="任务信息" insert>
-        <wd-cell title="任务范围" :value="task.team_name || '全组织'" />
+        <wd-cell title="任务范围" :value="task.team_name || '整个工作空间'" />
         <wd-cell title="创建人" :value="formatOrganizationWorkUser(task.creator)" />
         <wd-cell title="截止时间" :value="formatOrganizationWorkDateTime(task.due_at)" />
         <wd-cell title="创建时间" :value="formatOrganizationWorkDateTime(task.created_at)" />

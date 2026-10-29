@@ -159,6 +159,6 @@ test('首页不读取身份模式且运营区不再保留硬编码内容', () =>
   assert.doesNotMatch(detailSource, /<AppPage[^>]*\sai-background(?:\s|>)/)
   assert.match(detailSource, /<AppCustomNavigation[\s\S]*back[\s\S]*immersive/)
   assert.doesNotMatch(detailSource, /scrolled-background=/)
-  assert.match(detailSource, /class="topic-immersive"/)
-  assert.match(detailSource, /class="topic-hero"/)
+  assert.match(detailSource, /class="topic-immersive(?:\s[^"]*)?"/)
+  assert.match(detailSource, /class="topic-hero(?:\s[^"]*)?"/)
 })

@@ -73,15 +73,15 @@ onUnload(() => {
 </script>
 
 <template>
-  <view class="result-page">
+  <view class="result-page box-border min-h-screen bg-surface-page px-3 pb-8 pt-0">
     <AppCustomNavigation title="支付结果" back scroll-mode="sticky" />
-    <view class="result-card">
-      <view v-if="state === 'checking'" class="result-icon result-icon--checking i-carbon-renew" />
-      <view v-else-if="state === 'paid'" class="result-icon result-icon--paid i-carbon-checkmark-filled" />
-      <view v-else class="result-icon result-icon--warning i-carbon-warning-alt-filled" />
-      <strong>{{ title }}</strong>
-      <text>{{ message }}</text>
-      <view class="order-no">
+    <view class="result-card flex flex-col items-center gap-2.5 rounded-2xl bg-surface-card px-3.5 pb-4 pt-8 text-center">
+      <view v-if="state === 'checking'" class="result-icon result-icon--checking i-carbon-renew text-size-5xl text-app-brand" />
+      <view v-else-if="state === 'paid'" class="result-icon result-icon--paid i-carbon-checkmark-filled text-size-5xl text-app-success" />
+      <view v-else class="result-icon result-icon--warning i-carbon-warning-alt-filled text-size-5xl text-app-warning" />
+      <strong class="text-size-lg text-content-primary">{{ title }}</strong>
+      <text class="text-size-xs text-content-secondary leading-relaxed">{{ message }}</text>
+      <view class="order-no mb-1.5 text-size-2xs text-content-muted">
         订单号：{{ orderNo || '—' }}
       </view>
       <wd-button v-if="state === 'paid'" block size="large" @click="openWorkbench">
@@ -95,49 +95,7 @@ onUnload(() => {
 </template>
 
 <style scoped lang="scss">
-.result-page {
-  min-height: 100vh;
-  padding: 0 24rpx 64rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
 .result-page :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
-}
-.result-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20rpx;
-  padding: 64rpx 30rpx 34rpx;
-  border-radius: 30rpx;
-  text-align: center;
-  background: var(--app-bg-card);
-}
-.result-icon {
-  font-size: 88rpx;
-}
-.result-icon--checking {
-  color: var(--app-color-brand);
-}
-.result-icon--paid {
-  color: var(--app-color-success);
-}
-.result-icon--warning {
-  color: var(--app-color-warning);
-}
-.result-card strong {
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-}
-.result-card > text {
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.6;
-}
-.order-no {
-  margin-bottom: 12rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
+  @apply mt-0 mb-3 -mx-3;
 }
 </style>

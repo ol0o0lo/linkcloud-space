@@ -70,25 +70,25 @@ onLoad((options) => {
     <template #navigation>
       <AppCustomNavigation title="电脑登录确认" back scroll-mode="sticky" />
     </template>
-    <view class="pc-login-page">
-      <view class="phase-heading">
+    <view class="pc-login-page box-border min-h-screen flex flex-col items-stretch bg-surface-page px-5 pb-7 pt-5">
+      <view class="phase-heading mb-3.5 flex flex-col gap-1">
         <strong>扫码确认状态</strong><text>仅处理当前电脑端登录请求</text>
       </view>
-      <view class="pc-login-card" :class="`pc-login-card--${phase}`">
-        <view v-if="loading" class="status-icon status-icon--loading">
-          <view class="loading-ring" />
+      <view class="pc-login-card box-border w-full border-hairline border-app-border-brand-soft rounded-4 border-solid bg-surface-card px-5 pb-5 pt-6 text-center shadow-none" :class="`pc-login-card--${phase}`">
+        <view v-if="loading" class="status-icon status-icon--loading mx-auto my-0 h-14 w-14 flex items-center justify-center rounded-full text-size-3xl font-bold">
+          <view class="loading-ring h-6 w-6 rounded-full" />
         </view>
-        <view v-else-if="phase === 'success'" class="status-icon status-icon--success">
+        <view v-else-if="phase === 'success'" class="status-icon status-icon--success mx-auto my-0 h-14 w-14 flex items-center justify-center rounded-full bg-surface-subtle text-size-3xl text-app-success font-bold">
           ✓
         </view>
-        <view v-else class="status-icon status-icon--error">
+        <view v-else class="status-icon status-icon--error mx-auto my-0 h-14 w-14 flex items-center justify-center rounded-full bg-surface-subtle text-size-3xl text-app-danger font-bold">
           !
         </view>
 
-        <view class="status-title">
+        <view class="status-title mt-4.5 text-size-lg text-content-primary font-bold">
           {{ loading ? '正在确认电脑登录' : phase === 'success' ? '已确认，请返回电脑' : '确认未完成' }}
         </view>
-        <view class="status-copy">
+        <view class="status-copy mx-0 mb-5 mt-2.5 min-h-12 text-size-sm text-content-secondary leading-relaxed">
           {{ loading ? '正在安全验证本次扫码，请稍候。' : phase === 'success' ? '当前电脑将自动完成登录，你可以关闭此页面。' : errorMessage }}
         </view>
 
@@ -96,127 +96,46 @@ onLoad((options) => {
           重新确认
         </wd-button>
       </view>
-      <view class="security-copy">
-        <view /><view><strong>安全提醒</strong><text>请勿扫描来源不明的登录二维码；H5 打开时会提示改用微信扫码。</text></view>
+      <view class="security-copy mt-4 flex gap-2.5 rounded-3.5 px-3.5 py-3">
+        <view /><view><strong>安全提醒</strong><text>请使用微信扫一扫，扫描您本人电脑上的登录码；请勿扫描来源不明的登录码。</text></view>
       </view>
     </view>
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.pc-login-page {
-  display: flex;
-  min-height: 100vh;
-  padding: 40rpx 40rpx 56rpx;
-  flex-direction: column;
-  align-items: stretch;
-  box-sizing: border-box;
-  background: var(--app-bg-page);
-}
-.phase-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  margin-bottom: 28rpx;
-}
+<style scoped>
 .phase-heading strong {
-  color: var(--app-text-primary);
-  font-size: 30rpx;
+  @apply text-content-primary text-size-sm;
 }
 .phase-heading text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-
-.pc-login-card {
-  width: 100%;
-  padding: 46rpx 40rpx 40rpx;
-  box-sizing: border-box;
-  border-radius: 32rpx;
-  background: var(--app-bg-card);
-  border: 1rpx solid var(--app-border-brand-soft);
-  box-shadow: none;
-  text-align: center;
-}
-
-.status-icon {
-  display: flex;
-  width: 112rpx;
-  height: 112rpx;
-  margin: 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-size: 64rpx;
-  font-weight: 700;
+  @apply text-content-muted text-size-2xs;
 }
 
 .status-icon--loading {
-  background: var(--app-color-brand-soft);
-}
-
-.status-icon--success {
-  color: var(--app-color-success);
-  background: var(--app-bg-subtle);
-}
-
-.status-icon--error {
-  color: var(--app-color-danger);
-  background: var(--app-bg-subtle);
+  @apply bg-surface-brand-soft;
 }
 
 .loading-ring {
-  width: 48rpx;
-  height: 48rpx;
-  border: 6rpx solid var(--app-border-color);
-  border-top-color: var(--app-color-brand);
-  border-radius: 50%;
+  @apply border-3 border-solid border-app-border;
+  @apply border-t-app-brand;
   animation: loading-spin 0.8s linear infinite;
 }
 
-.status-title {
-  margin-top: 36rpx;
-  color: var(--app-text-primary);
-  font-size: 38rpx;
-  font-weight: 700;
-}
-
-.status-copy {
-  min-height: 96rpx;
-  margin: 20rpx 0 40rpx;
-  color: var(--app-text-secondary);
-  font-size: 28rpx;
-  line-height: 1.7;
-}
-
 .security-copy {
-  display: flex;
-  gap: 20rpx;
-  margin-top: 32rpx;
-  padding: 24rpx 28rpx;
   border: 1rpx solid #f1d49c;
-  border-radius: 28rpx;
   background: #fff8eb;
 }
 .security-copy > view:first-child {
-  width: 8rpx;
-  flex: 0 0 8rpx;
-  border-radius: 999rpx;
-  background: var(--app-color-warning);
+  @apply w-1 flex-none basis-1 rounded-full bg-app-warning;
 }
 .security-copy > view:last-child {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
+  @apply flex flex-col gap-1;
 }
 .security-copy strong {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
+  @apply text-content-primary text-size-xs;
 }
 .security-copy text {
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.6;
+  @apply text-content-secondary text-size-2xs leading-relaxed;
 }
 
 @keyframes loading-spin {

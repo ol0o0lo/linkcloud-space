@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import PropertyLocationField from '@/components/house/PropertyLocationField.vue'
 import type { OrganizationBuildingWriteInput } from '@/pages-org-rental/domain/organization-rental'
-import type { BuildingInventoryOut, EstateDetailOut } from '@/pages-org-rental/api/organization-rental'
+import type { BuildingInventoryOut, BuildingOut, EstateDetailOut } from '@/pages-org-rental/api/organization-rental'
 import { onLoad } from '@dcloudio/uni-app'
 import { useToast } from '@wot-ui/ui/components/wd-toast'
 import { computed, reactive, ref } from 'vue'
@@ -15,6 +15,10 @@ import { useAppContextStore } from '@/store/app-context-v2'
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
 
 definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '楼栋资料' } })
+
+interface OpenerPage {
+  getOpenerEventChannel?: () => { emit: (event: string, value: BuildingOut) => void }
+}
 
 const toast = useToast()
 const appContextStore = useAppContextStore()
@@ -111,10 +115,15 @@ async function submit() {
   saving.value = true
   try {
     const payload = buildOrganizationBuildingPayload(form)
-    if (buildingId.value)
+    if (buildingId.value) {
       await patchOrganizationBuilding(appContextStore.organizationSlug, buildingId.value, payload)
-    else
-      await createOrganizationBuilding(appContextStore.organizationSlug, payload)
+    }
+    else {
+      const building = await createOrganizationBuilding(appContextStore.organizationSlug, payload)
+      const pages = getCurrentPages()
+      const currentPage = pages[pages.length - 1] as unknown as OpenerPage | undefined
+      currentPage?.getOpenerEventChannel?.().emit('buildingCreated', building)
+    }
     toast.success(buildingId.value ? '楼栋资料已更新' : '楼栋已创建')
     setTimeout(() => uni.navigateBack(), 350)
   }
@@ -152,7 +161,7 @@ onLoad((options) => {
       <wd-toast />
     </template>
     <wd-cell-group title="归属与基础" insert>
-      <wd-cell title="所属小区" :value="estateLabel" is-link @click="estateVisible = true" />
+      <wd-cell title="所属小区／项目" :value="estateLabel" is-link @click="estateVisible = true" />
       <wd-cell title="楼栋名称" center>
         <wd-input v-model="form.name" placeholder="例如 1栋" clearable compact align-right />
       </wd-cell>
@@ -184,8 +193,8 @@ onLoad((options) => {
       <AppEntityPickerSheet
         v-model:visible="estateVisible"
         v-model:keyword="estateKeyword"
-        title="选择所属小区"
-        search-placeholder="搜索小区名称"
+        title="选择所属小区／项目"
+        search-placeholder="搜索小区／项目名称"
         :items="estates"
         item-key="id"
         :selected="form.estate_id ? [form.estate_id] : []"
@@ -196,7 +205,7 @@ onLoad((options) => {
       >
         <template #before-list>
           <view class="app-touchable border-0 border-b border-app-divider border-solid py-2.5" @click="selectEstate(null)">
-            <AppEntityPickerOption title="独立楼栋" description="不归属具体小区" :selected="form.estate_id == null" />
+            <AppEntityPickerOption title="独立楼栋" description="不归属具体小区／项目" :selected="form.estate_id == null" />
           </view>
         </template>
         <template #item="{ item, selected }">

@@ -87,22 +87,22 @@ export function buildAppModeOptions(input: AppModeOptionsInput): AppModeOption[]
   return [
     {
       key: 'personal',
-      title: '租客端',
+      title: '租客',
       description: '找房、收藏与个人服务',
       selection: { mode: 'personal' },
       active: input.mode === 'personal',
     },
     ...input.landlordRelationships.map(relationship => ({
       key: `landlord:${relationship.contact_id}`,
-      title: `房东端 · ${relationship.contact_name}`,
+      title: `房东 · ${relationship.contact_name}`,
       description: `${relationship.organization_name} · ${relationship.house_count} 套关联房源`,
       selection: { mode: 'landlord' as const, landlordContactId: relationship.contact_id },
       active: input.mode === 'landlord' && input.landlordContactId === relationship.contact_id,
     })),
     ...input.organizations.map(organization => ({
       key: `organization:${organization.slug}`,
-      title: `中介端 · ${organization.name}`,
-      description: organization.is_primary ? '默认组织' : '中介工作台',
+      title: `经纪人 · ${organization.name}`,
+      description: organization.is_primary ? '默认工作空间' : '经纪工作台',
       selection: { mode: 'organization' as const, organizationSlug: organization.slug },
       active: input.mode === 'organization' && input.organizationSlug === organization.slug,
     })),
@@ -112,27 +112,27 @@ export function buildAppModeOptions(input: AppModeOptionsInput): AppModeOption[]
 export function getAppModePresentation(input: AppModePresentationInput): { title: string, description: string } {
   if (input.mode === 'landlord' && input.landlordRelationship) {
     return {
-      title: `房东端 · ${input.landlordRelationship.contact_name}`,
+      title: `房东 · ${input.landlordRelationship.contact_name}`,
       description: `${input.landlordRelationship.organization_name} · ${input.landlordRelationship.house_count} 套关联房源`,
     }
   }
 
   if (input.mode === 'organization' && input.organization) {
     return {
-      title: `中介端 · ${input.organization.name}`,
-      description: input.organization.is_primary ? '默认组织' : '中介工作台',
+      title: `经纪人 · ${input.organization.name}`,
+      description: input.organization.is_primary ? '默认工作空间' : '经纪工作台',
     }
   }
 
   if (input.mode === 'visitor') {
     return {
       title: '游客浏览',
-      description: '登录后可使用租客、房东或中介身份',
+      description: '登录后可使用租客、房东或经纪人身份',
     }
   }
 
   return {
-    title: '租客端',
+    title: '租客',
     description: '找房、收藏与个人服务',
   }
 }

@@ -5,6 +5,8 @@ export * from './displayEnumLabel';
 
 export * from './xitong';
 export * from './wenjian';
+export * from './shujuqieyi';
+export * from './messaging';
 export * from './neirongguanli';
 export * from './gongkaineirong';
 export * from './daohangnengli';
@@ -39,6 +41,9 @@ export * from './gongkai';
 export * from './zuhushezhi';
 export * from './tuanduishezhi';
 export * from './gerenshezhi';
+export * from './kehu';
+export * from './zixun';
+export * from './liaotian';
 export * from './zuke';
 export * from './peifangfenxiang';
 export * from './fangdong';

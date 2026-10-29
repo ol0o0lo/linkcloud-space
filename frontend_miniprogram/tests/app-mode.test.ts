@@ -41,7 +41,7 @@ test('只有仍然有效的房东关系才能恢复房东模式', () => {
   assert.equal(resolveAppMode(appModeInput({ requestedMode: 'landlord', requestedLandlordContactId: 12 })).mode, 'personal')
 })
 
-test('只有仍然可用的组织才能恢复组织模式', () => {
+test('只有仍然可用的组织才能恢复工作空间模式', () => {
   assert.deepEqual(resolveAppMode(appModeInput({ requestedMode: 'organization', requestedOrgSlug: 'alpha', organizations: [{ slug: 'alpha' }] })), {
     mode: 'organization',
     organizationSlug: 'alpha',
@@ -64,7 +64,7 @@ test('公开页面使用游客或个人导航，但不覆盖已选择的工作�
   assert.equal(resolveNavigationMode({ selectedMode: 'organization', authenticated: true, publicRoute: false }), 'organization')
 })
 
-test('身份切换入口只包含租客端和账号真实拥有的房东、中介上下文', () => {
+test('身份切换入口只包含租客和账号真实拥有的房东、经纪人上下文', () => {
   const options = buildAppModeOptions({
     mode: 'landlord',
     organizationSlug: '',
@@ -78,13 +78,13 @@ test('身份切换入口只包含租客端和账号真实拥有的房东、中�
   })
 
   assert.deepEqual(options.map(item => ({ key: item.key, title: item.title, active: item.active })), [
-    { key: 'personal', title: '租客端', active: false },
-    { key: 'landlord:12', title: '房东端 · 张先生', active: true },
-    { key: 'organization:linkcloud', title: '中介端 · 链云中介', active: false },
+    { key: 'personal', title: '租客', active: false },
+    { key: 'landlord:12', title: '房东 · 张先生', active: true },
+    { key: 'organization:linkcloud', title: '经纪人 · 链云中介', active: false },
   ])
   assert.equal(options[1]?.description, '合作门店 · 3 套关联房源')
   assert.equal(options[0]?.description, '找房、收藏与个人服务')
-  assert.equal(options[2]?.description, '默认组织')
+  assert.equal(options[2]?.description, '默认工作空间')
 })
 
 test('当前身份摘要明确显示业务端和对应工作上下文', () => {
@@ -93,8 +93,8 @@ test('当前身份摘要明确显示业务端和对应工作上下文', () => {
     organization: { name: '链云中介', slug: 'linkcloud', is_primary: false },
     landlordRelationship: null,
   }), {
-    title: '中介端 · 链云中介',
-    description: '中介工作台',
+    title: '经纪人 · 链云中介',
+    description: '经纪工作台',
   })
 
   assert.deepEqual(getAppModePresentation({
@@ -102,7 +102,7 @@ test('当前身份摘要明确显示业务端和对应工作上下文', () => {
     organization: null,
     landlordRelationship: { contact_id: 12, contact_name: '张先生', organization_name: '合作门店', house_count: 3 },
   }), {
-    title: '房东端 · 张先生',
+    title: '房东 · 张先生',
     description: '合作门店 · 3 套关联房源',
   })
 })

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { formatHouseLayout, normalizePublicHouseQuery } from '../src/domain/house.ts'
+import { formatHouseLayout, getHouseAuxiliaryLabels, normalizePublicHouseQuery } from '../src/domain/house.ts'
 import { buildFavoriteHouseCardModel, buildHouseCardModel, formatHouseCardDeposit, formatHouseCardRent } from '../src/domain/house-card.ts'
 
 test('一室零厅统一显示为单间', () => {
@@ -86,8 +86,24 @@ test('房源卡片隐藏默认招租状态并标记非默认状态', () => {
   }
 
   assert.equal(buildHouseCardModel({ ...base, status: 'listed', status__mapping: '招租中' }).showStatusDot, false)
-  assert.equal(buildHouseCardModel({ ...base, status: 'renovating', status__mapping: '维护中' }).showStatusDot, true)
-  assert.equal(buildHouseCardModel({ ...base, status: 'renovating', status__mapping: '维护中' }).statusLabel, '维护中')
+  assert.equal(buildHouseCardModel({ ...base, status: 'paused', status__mapping: '暂不出租' }).showStatusDot, true)
+  assert.equal(buildHouseCardModel({ ...base, status: 'paused', status__mapping: '暂不出租' }).statusLabel, '暂不出租')
+})
+
+test('停用使用独立辅助标记，不替换三态房源状态', () => {
+  assert.deepEqual(getHouseAuxiliaryLabels({ is_active: true }), [])
+  assert.deepEqual(getHouseAuxiliaryLabels({ is_active: false }), ['已停用'])
+  const card = buildHouseCardModel({
+    id: 1,
+    room_number: '806',
+    building: { name: '云栖公寓' },
+    status: 'rented',
+    status__mapping: '已出租',
+    is_active: false,
+  })
+  assert.equal(card.statusLabel, '已出租')
+  assert.equal(card.statusTone, 'muted')
+  assert.deepEqual(card.auxiliaryLabels, ['已停用'])
 })
 
 test('房源卡片对缺失租金和押金使用稳定文案', () => {

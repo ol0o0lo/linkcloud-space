@@ -22,6 +22,7 @@ import { getSubpackageSourceRootsForBuild } from './src/modules/subpackages'
 import vitePluginEruda from './scripts/vite-plugin-eruda'
 import { ensureWeixinLocationManifest } from './scripts/weixin-location-manifest'
 import { WotResolver } from './wot-ui-resolver'
+import { TDesignResolver } from './tdesign-resolver'
 
 const unsupportedManifestPlatforms = ['app-plus', 'app-harmony', 'mp-harmony', 'quickapp', 'mp-alipay', 'mp-baidu', 'mp-toutiao'] as const
 
@@ -122,7 +123,7 @@ export default defineConfig(({ mode }) => {
         deep: true,
         directoryAsNamespace: false,
         dts: false,
-        resolvers: [WotResolver()],
+        resolvers: [WotResolver(), TDesignResolver()],
       }),
       UniPages({
         exclude: ['**/components/**/**.*', '**/sections/**/**.*'],

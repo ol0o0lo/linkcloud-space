@@ -6,7 +6,7 @@ import AppPage from '@/components/app/AppPage.vue'
 import OrganizationWorkbench from '@/features/organization-workbench/OrganizationWorkbench.vue'
 import OrganizationWeather from '@/features/organization-workbench/OrganizationWeather.vue'
 
-definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '中介工作台', enablePullDownRefresh: true } })
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '工作台', enablePullDownRefresh: true } })
 
 const workbench = ref<InstanceType<typeof OrganizationWorkbench> | null>(null)
 const weather = ref<InstanceType<typeof OrganizationWeather> | null>(null)
@@ -28,7 +28,7 @@ onPullDownRefresh(async () => {
 <template>
   <AppPage>
     <template #navigation>
-      <AppCustomNavigation title="中介工作台" align="start" back scroll-mode="sticky">
+      <AppCustomNavigation title="工作台" align="start" back scroll-mode="sticky">
         <template #content>
           <OrganizationWeather ref="weather" />
         </template>

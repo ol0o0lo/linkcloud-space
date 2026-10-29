@@ -306,8 +306,8 @@ onReachBottom(() => void loadMore())
         </view>
       </template>
       <template #filters>
-        <view class="task-status-filters">
-          <button v-for="option in statusOptions" :key="option.value" class="task-status-filter" :class="{ 'task-status-filter--active': status === option.value }" @click="changeStatus(option)">
+        <view class="task-status-filters flex flex-wrap gap-1.5">
+          <button v-for="option in statusOptions" :key="option.value" class="task-status-filter m-0 w-auto whitespace-nowrap rounded-2 px-2.5 py-1.5 text-size-xs leading-snug" :class="{ 'task-status-filter--active': status === option.value }" @click="changeStatus(option)">
             {{ option.label }}
           </button>
         </view>
@@ -343,7 +343,7 @@ onReachBottom(() => void loadMore())
                 {{ item.status__mapping }}
               </wd-tag>
             </template>
-            <text class="description text-xs text-content-secondary">{{ item.task_description || '任务未填写补充说明' }}</text>
+            <text class="description overflow-hidden text-xs text-content-secondary leading-relaxed">{{ item.task_description || '任务未填写补充说明' }}</text>
             <view class="mt-2 flex items-center gap-2 text-xs text-content-muted">
               <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
                 {{ item.priority__mapping }}
@@ -353,7 +353,7 @@ onReachBottom(() => void loadMore())
             </view>
             <template #meta>
               <view class="app-row-between text-2xs">
-                <text>{{ item.team_name || '全组织' }}</text><text>截止 {{ formatOrganizationWorkDateTime(item.due_at) }}</text>
+                <text>{{ item.team_name || '整个工作空间' }}</text><text>截止 {{ formatOrganizationWorkDateTime(item.due_at) }}</text>
               </view>
             </template>
           </AppRecordCard>
@@ -387,7 +387,7 @@ onReachBottom(() => void loadMore())
                 {{ item.status__mapping }}
               </wd-tag>
             </template>
-            <text class="description text-xs text-content-secondary">{{ item.description || '任务未填写补充说明' }}</text>
+            <text class="description overflow-hidden text-xs text-content-secondary leading-relaxed">{{ item.description || '任务未填写补充说明' }}</text>
             <view class="mt-2 flex items-center gap-2 text-xs text-content-muted">
               <wd-tag :type="getPriorityTone(item.priority)" variant="light" size="small">
                 {{ item.priority__mapping }}
@@ -395,7 +395,7 @@ onReachBottom(() => void loadMore())
             </view>
             <template #meta>
               <view class="app-row-between text-2xs">
-                <text>{{ item.team_name || '全组织' }}</text><text>截止 {{ formatOrganizationWorkDateTime(item.due_at) }}</text>
+                <text>{{ item.team_name || '整个工作空间' }}</text><text>截止 {{ formatOrganizationWorkDateTime(item.due_at) }}</text>
               </view>
             </template>
             <template v-if="getTaskActions(item).includes('cancel')" #actions>
@@ -432,7 +432,7 @@ onReachBottom(() => void loadMore())
         <view class="mt-2.5 text-xs text-content-primary font-semibold">
           执行人{{ selectedAssigneeIds.length ? `（已选 ${selectedAssigneeIds.length} 人）` : '' }}
         </view>
-        <view class="assignee-list">
+        <view class="assignee-list mx-0 mb-3.5 mt-1.5 max-h-38 overflow-auto">
           <wd-checkbox-group v-model="selectedAssigneeIds" shape="square">
             <wd-checkbox v-for="candidate in candidates" :key="candidate.id" :name="candidate.id" :disabled="candidatesLoading">
               {{ formatOrganizationWorkUser(candidate) }}
@@ -453,49 +453,23 @@ onReachBottom(() => void loadMore())
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.task-status-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
+<style scoped>
 .task-status-filter {
-  width: auto;
-  margin: 0;
-  padding: 12rpx 20rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: 14rpx;
-  background: var(--app-bg-card);
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.4;
-  white-space: nowrap;
+  @apply border-hairline border-solid border-app-card bg-surface-card text-content-secondary;
 }
 .task-status-filter::after {
-  border: 0;
+  @apply border-0;
 }
 .task-status-filter--active {
-  border-color: var(--app-color-brand);
-  background: var(--app-color-brand);
-  color: #fff;
+  @apply border-app-brand bg-app-brand text-white;
 }
 .description {
-  display: -webkit-box;
-  overflow: hidden;
-  line-height: 1.6;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  @apply line-clamp-2;
 }
 .priority-picker {
-  margin: 22rpx 0;
-}
-.assignee-list {
-  max-height: 300rpx;
-  overflow: auto;
-  margin: 12rpx 0 26rpx;
+  @apply my-3 mx-0;
 }
 .assignee-list :deep(.wd-checkbox) {
-  display: flex;
-  margin: 14rpx 0;
+  @apply flex my-2 mx-0;
 }
 </style>

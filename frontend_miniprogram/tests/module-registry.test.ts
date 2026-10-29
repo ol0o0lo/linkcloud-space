@@ -50,7 +50,7 @@ test('房东模式开放首页、房源、消息和房东业务分包，租约�
   assert.deepEqual(getTabbarItems('landlord').map(item => item.text), ['首页', '房源', '消息', '我的'])
 })
 
-test('中介模式开放首页、工作台、待办、消息和组织管理分包', () => {
+test('中介模式开放首页、工作台、待办、消息和空间管理分包', () => {
   assert.deepEqual(
     filterVisibleModules(appModules, { mode: 'organization', authenticated: true, capabilities: {} }).map(item => item.key),
     ['home', 'houses', 'favorites', 'organization-rental', 'organization-work', 'organization-admin', 'messages', 'me'],

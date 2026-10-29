@@ -10,40 +10,19 @@ function openAttribution() {
 </script>
 
 <template>
-  <view class="weather-attribution">
-    <view class="weather-attribution-line" />
-    <view class="weather-attribution-copy">
+  <view class="weather-attribution mx-0 mb-2.5 mt-1 flex items-center justify-center gap-2.5 text-size-2xs text-content-secondary">
+    <view class="weather-attribution-line w-5.5 bg-app-border" />
+    <view class="weather-attribution-copy flex items-center gap-0.5 whitespace-nowrap">
       <text>天气服务由</text>
-      <text class="weather-attribution-link" @click="openAttribution">和风天气</text>
+      <text class="weather-attribution-link text-app-brand font-semibold" @click="openAttribution">和风天气</text>
       <text>驱动</text>
     </view>
-    <view class="weather-attribution-line" />
+    <view class="weather-attribution-line w-5.5 bg-app-border" />
   </view>
 </template>
 
 <style scoped lang="scss">
-.weather-attribution {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20rpx;
-  margin: 8rpx 0 18rpx;
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-}
 .weather-attribution-line {
-  width: 44rpx;
   height: 1rpx;
-  background: var(--app-border-color);
-}
-.weather-attribution-copy {
-  display: flex;
-  align-items: center;
-  gap: 4rpx;
-  white-space: nowrap;
-}
-.weather-attribution-link {
-  color: var(--app-color-brand);
-  font-weight: 600;
 }
 </style>

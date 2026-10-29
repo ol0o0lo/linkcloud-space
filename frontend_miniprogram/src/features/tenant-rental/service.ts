@@ -11,14 +11,15 @@ import {
 } from '@/services/manual/tenant-rental'
 import { collectAllPages } from '@/utils/pagination/collectAllPages'
 
-export type { TenantContactChannel, TenantContactPreference, TenantContactRequestIn, TenantLeaseOut, TenantViewingRecordIn, TenantViewingRecordOut } from '@/services/manual/tenant-rental'
+export type { TenantContactChannel, TenantContactPreference, TenantContactRequestIn, TenantContactRequestOut, TenantLeaseOut, TenantViewingRecordIn, TenantViewingRecordOut } from '@/services/manual/tenant-rental'
+export { startTenantChat } from '@/services/manual/tenant-rental'
 
 export function getTenantContactPreference() {
   return requestTenantContactPreference()
 }
 
-export function sendTenantContact(payload: TenantContactRequestIn) {
-  return createTenantContactRequest(payload)
+export function sendTenantContact(payload: TenantContactRequestIn, userId: number) {
+  return createTenantContactRequest(payload, userId)
 }
 
 export function listTenantViewings(page = 1, pageSize = 20, scope?: TenantViewingScope) {

@@ -174,64 +174,64 @@ onLoad((options) => {
 </script>
 
 <template>
-  <view class="login-page" :class="{ 'is-form-mode': loginMode }">
-    <view class="ambient ambient-one" />
-    <view class="ambient ambient-two" />
+  <view class="login-page relative mx-auto my-0 box-border max-w-108 min-h-screen w-full flex flex-col overflow-x-hidden" :class="{ 'is-form-mode': loginMode }">
+    <view class="ambient ambient-one pointer-events-none absolute h-48 w-48 rounded-full -right-15 -top-13.5" />
+    <view class="ambient ambient-two pointer-events-none absolute top-40 h-40 w-40 rounded-full -left-21" />
 
     <AppCustomNavigation title="" transparent />
 
-    <view class="brand-lockup">
-      <view class="brand-mark">
-        <view class="brand-mark-dot" />
+    <view class="brand-lockup relative z-1 flex items-center self-start gap-2">
+      <view class="brand-mark relative h-6 w-6 flex items-center justify-center rounded-2">
+        <view class="brand-mark-dot h-1 w-1 rounded-full bg-white" />
       </view>
-      <view class="brand-name">
+      <view class="brand-name text-size-xs text-app-brand font-bold">
         链云空间
       </view>
     </view>
 
-    <view class="coordinate-hero">
-      <view class="coordinate-visual">
-        <view class="orbit orbit-outer">
-          <view class="orbit-dot orbit-dot-one" />
+    <view class="coordinate-hero relative z-1 min-h-76 flex flex-1 flex-col items-center justify-center px-0 pb-3.5 pt-4.5 text-center">
+      <view class="coordinate-visual relative h-44 w-49">
+        <view class="orbit orbit-outer absolute left-1/2 top-1/2 h-43 w-43 rounded-full">
+          <view class="orbit-dot orbit-dot-one absolute left-3.5 top-6 h-2 w-2 rounded-full" />
         </view>
-        <view class="orbit orbit-inner">
-          <view class="orbit-dot orbit-dot-two" />
+        <view class="orbit orbit-inner absolute left-1/2 top-1/2 h-30 w-30 rounded-full">
+          <view class="orbit-dot orbit-dot-two absolute bottom-6 right-0.5 h-1.5 w-1.5 rounded-full" />
         </view>
-        <view class="coordinate-tile">
-          <view class="coordinate-symbol">
-            <view class="coordinate-ring" />
-            <view class="coordinate-point" />
+        <view class="coordinate-tile absolute left-1/2 top-1/2 h-15.5 w-15.5 flex items-center justify-center rounded-5.5">
+          <view class="coordinate-symbol relative h-7 w-7 flex items-center justify-center">
+            <view class="coordinate-ring h-4.5 w-4.5 rounded-full" />
+            <view class="coordinate-point absolute h-1 w-1 rounded-full" />
           </view>
         </view>
-        <view class="spark spark-one" />
-        <view class="spark spark-two" />
+        <view class="spark spark-one absolute right-5.5 top-9 h-1 w-1 rounded-full bg-white" />
+        <view class="spark spark-two absolute bottom-6 left-8.5 h-1 w-1 rounded-full bg-white" />
       </view>
 
-      <view class="hero-title">
+      <view class="hero-title text-size-2xl text-content-primary font-extrabold leading-tight">
         你的城市坐标
         <text>正在点亮</text>
       </view>
-      <view class="hero-copy">
+      <view class="hero-copy mt-2.5 text-size-xs text-content-secondary leading-relaxed">
         登录后继续收藏、预约与看房进度
       </view>
     </view>
 
-    <view class="login-action-panel" :class="{ 'is-form-panel': loginMode }">
+    <view class="login-action-panel relative z-2 flex-none rounded-4.5 px-3.5 pb-3 pt-4" :class="{ 'is-form-panel': loginMode }">
       <template v-if="!loginMode">
         <!-- #ifdef MP-WEIXIN -->
         <wd-button type="success" block size="large" custom-class="wechat-login-button" :loading="loading" @click="submitWechatLogin">
-          <view class="wechat-button-content">
-            <view class="wechat-button-icon i-carbon-logo-wechat" />
+          <view class="wechat-button-content flex items-center justify-center gap-2">
+            <view class="wechat-button-icon i-carbon-logo-wechat text-size-lg" />
             <text>微信一键登录</text>
           </view>
         </wd-button>
 
-        <view class="login-alternatives">
-          <view class="alternative-button" role="button" @click="setLoginMode('phone')">
+        <view class="login-alternatives flex items-center justify-center gap-3">
+          <view class="alternative-button px-0.5 py-1.5 text-size-xs leading-none" role="button" @click="setLoginMode('phone')">
             验证码登录
           </view>
-          <view class="alternative-divider" />
-          <view class="alternative-button" role="button" @click="setLoginMode('password')">
+          <view class="alternative-divider h-3" />
+          <view class="alternative-button px-0.5 py-1.5 text-size-xs leading-none" role="button" @click="setLoginMode('password')">
             密码登录
           </view>
         </view>
@@ -241,8 +241,8 @@ onLoad((options) => {
         <wd-button block size="large" custom-class="h5-login-button" :loading="loading" @click="setLoginMode('phone')">
           验证码登录
         </wd-button>
-        <view class="login-alternatives h5-alternatives">
-          <view class="alternative-button" role="button" @click="setLoginMode('password')">
+        <view class="login-alternatives h5-alternatives flex items-center justify-center gap-3">
+          <view class="alternative-button px-0.5 py-1.5 text-size-xs leading-none" role="button" @click="setLoginMode('password')">
             使用手机号密码登录
           </view>
         </view>
@@ -250,30 +250,30 @@ onLoad((options) => {
       </template>
 
       <template v-else>
-        <view class="form-header">
-          <view class="form-title">
+        <view class="form-header text-left">
+          <view class="form-title text-size-base text-content-primary font-extrabold leading-tight">
             {{ loginMode === 'phone' ? '验证码登录' : '密码登录' }}
           </view>
-          <view class="form-copy">
+          <view class="form-copy mt-1.5 text-size-xs text-content-muted leading-normal">
             {{ loginMode === 'phone' ? '短信验证码将发送至你的手机' : '使用手机号和密码登录' }}
           </view>
         </view>
 
-        <view v-if="loginMode === 'phone'" class="inline-form">
-          <view class="field-shell phone-field-shell">
-            <view class="country-code">
+        <view v-if="loginMode === 'phone'" class="inline-form mt-3.5">
+          <view class="field-shell phone-field-shell mt-2.5 box-border min-h-11.5 flex items-center gap-2.5 rounded-3 px-3 py-0">
+            <view class="country-code flex-none text-size-sm font-semibold">
               {{ phoneCountryCode }}
             </view>
-            <view class="field-divider" />
+            <view class="field-divider h-4.5 flex-none" />
             <wd-input v-model="phoneNationalNumber" compact type="tel" clearable placeholder="请输入手机号" :cursor-spacing="120" />
           </view>
 
-          <view v-if="codeSent" class="field-shell">
+          <view v-if="codeSent" class="field-shell mt-2.5 box-border min-h-11.5 flex items-center rounded-3 px-3 py-0">
             <wd-input v-model="phoneCode" compact type="number" clearable placeholder="请输入短信验证码" confirm-type="go" :cursor-spacing="120" @confirm="submitPhoneLogin" />
           </view>
 
-          <view v-if="codeSent" class="resend-row">
-            <view class="resend-button" @click="sendPhoneCode">
+          <view v-if="codeSent" class="resend-row mt-2.5 flex justify-end">
+            <view class="resend-button text-size-xs text-app-brand" @click="sendPhoneCode">
               {{ sendingCode ? '正在发送…' : '重新发送验证码' }}
             </view>
           </view>
@@ -282,12 +282,12 @@ onLoad((options) => {
             {{ codeSent ? '登录' : '获取验证码' }}
           </wd-button>
 
-          <view class="form-switches">
-            <view class="form-switch" role="button" @click="setLoginMode('password')">
+          <view class="form-switches flex items-center justify-center gap-3 px-0 pb-0.5 pt-3.5">
+            <view class="form-switch text-size-xs leading-none" role="button" @click="setLoginMode('password')">
               切换到密码登录
             </view>
-            <view class="alternative-divider" />
-            <view class="form-switch" role="button" @click="setLoginMode(null)">
+            <view class="alternative-divider h-3" />
+            <view class="form-switch text-size-xs leading-none" role="button" @click="setLoginMode(null)">
               <!-- #ifdef MP-WEIXIN -->
               返回微信登录
               <!-- #endif -->
@@ -298,15 +298,15 @@ onLoad((options) => {
           </view>
         </view>
 
-        <view v-else class="inline-form">
-          <view class="field-shell phone-field-shell">
-            <view class="country-code">
+        <view v-else class="inline-form mt-3.5">
+          <view class="field-shell phone-field-shell mt-2.5 box-border min-h-11.5 flex items-center gap-2.5 rounded-3 px-3 py-0">
+            <view class="country-code flex-none text-size-sm font-semibold">
               {{ phoneCountryCode }}
             </view>
-            <view class="field-divider" />
+            <view class="field-divider h-4.5 flex-none" />
             <wd-input v-model="phoneNationalNumber" compact type="tel" clearable placeholder="请输入手机号" :cursor-spacing="120" />
           </view>
-          <view class="field-shell">
+          <view class="field-shell mt-2.5 box-border min-h-11.5 flex items-center rounded-3 px-3 py-0">
             <wd-input v-model="password" compact type="safe-password" show-password placeholder="请输入密码" confirm-type="go" :cursor-spacing="120" @confirm="submitPhonePasswordLogin" />
           </view>
 
@@ -314,12 +314,12 @@ onLoad((options) => {
             登录
           </wd-button>
 
-          <view class="form-switches">
-            <view class="form-switch" role="button" @click="setLoginMode('phone')">
+          <view class="form-switches flex items-center justify-center gap-3 px-0 pb-0.5 pt-3.5">
+            <view class="form-switch text-size-xs leading-none" role="button" @click="setLoginMode('phone')">
               切换到验证码登录
             </view>
-            <view class="alternative-divider" />
-            <view class="form-switch" role="button" @click="setLoginMode(null)">
+            <view class="alternative-divider h-3" />
+            <view class="form-switch text-size-xs leading-none" role="button" @click="setLoginMode(null)">
               <!-- #ifdef MP-WEIXIN -->
               返回微信登录
               <!-- #endif -->
@@ -331,7 +331,7 @@ onLoad((options) => {
         </view>
       </template>
 
-      <view class="agreement-row">
+      <view class="agreement-row mt-3.5 flex justify-center">
         <wd-checkbox v-model="agreementAccepted" custom-class="agreement-checkbox" max-width="560rpx">
           我已阅读并同意用户协议和隐私政策
         </wd-checkbox>
@@ -340,110 +340,50 @@ onLoad((options) => {
   </view>
 </template>
 
-<style lang="scss" scoped>
+<style scoped>
 .login-page {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 860rpx;
-  min-height: 100vh;
-  padding: 0 32rpx calc(32rpx + env(safe-area-inset-bottom));
-  margin: 0 auto;
-  overflow-x: hidden;
+  @apply pt-0 px-4;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
   background: linear-gradient(180deg, #d7ebff 0%, #edf7ff 48%, #fff 100%);
-  box-sizing: border-box;
-}
-
-.ambient {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
 }
 
 .ambient-one {
-  top: -110rpx;
-  right: -120rpx;
-  width: 380rpx;
-  height: 380rpx;
   background: rgb(255 255 255 / 58%);
 }
 
 .ambient-two {
-  top: 320rpx;
-  left: -170rpx;
-  width: 320rpx;
-  height: 320rpx;
   background: rgb(67 158 255 / 7%);
 }
 
-.brand-lockup {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  align-self: flex-start;
-}
-
 .brand-mark {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48rpx;
-  height: 48rpx;
   border: 1rpx solid rgb(255 255 255 / 78%);
-  border-radius: 17rpx;
   background: linear-gradient(145deg, #188fff, #70c5ff);
   box-shadow: 0 12rpx 28rpx rgb(8 119 232 / 20%);
   transform: rotate(8deg);
 }
 
 .brand-mark::before {
-  position: absolute;
-  width: 20rpx;
-  height: 20rpx;
+  @apply absolute w-2.5 h-2.5;
   border: 3rpx solid rgb(255 255 255 / 90%);
-  border-radius: 50%;
+  @apply rounded-full;
   content: '';
 }
 
 .brand-mark-dot {
-  width: 7rpx;
-  height: 7rpx;
-  border-radius: 50%;
-  background: #fff;
   box-shadow: 0 0 0 5rpx rgb(255 255 255 / 20%);
 }
 
 .brand-name {
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-  font-weight: 700;
   letter-spacing: 6rpx;
 }
 
 .coordinate-hero {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 610rpx;
-  padding: 34rpx 0 28rpx;
-  text-align: center;
   transition:
     min-height 0.28s ease,
     padding 0.28s ease;
 }
 
 .coordinate-visual {
-  position: relative;
-  width: 390rpx;
-  height: 350rpx;
   transition:
     height 0.28s ease,
     margin 0.28s ease,
@@ -451,162 +391,85 @@ onLoad((options) => {
 }
 
 .orbit {
-  position: absolute;
-  top: 50%;
-  left: 50%;
   border: 1rpx solid rgb(30 137 236 / 18%);
-  border-radius: 50%;
   transform: translate(-50%, -50%);
 }
 
-.orbit-outer {
-  width: 340rpx;
-  height: 340rpx;
-}
-
 .orbit-inner {
-  width: 238rpx;
-  height: 238rpx;
   border-color: rgb(30 137 236 / 22%);
 }
 
 .orbit-dot {
-  position: absolute;
-  border-radius: 50%;
   background: #62b8ff;
 }
 
 .orbit-dot-one {
-  top: 47rpx;
-  left: 28rpx;
-  width: 14rpx;
-  height: 14rpx;
   box-shadow: 0 0 0 12rpx rgb(98 184 255 / 12%);
 }
 
 .orbit-dot-two {
-  right: 4rpx;
-  bottom: 48rpx;
-  width: 11rpx;
-  height: 11rpx;
   background: #8fd7ff;
   box-shadow: 0 0 0 10rpx rgb(143 215 255 / 13%);
 }
 
 .coordinate-tile {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 124rpx;
-  height: 124rpx;
   border: 1rpx solid rgb(255 255 255 / 90%);
-  border-radius: 42rpx;
   background: linear-gradient(145deg, rgb(255 255 255 / 96%), rgb(218 237 255 / 92%));
   box-shadow: 0 28rpx 70rpx rgb(31 101 174 / 18%);
   transform: translate(-50%, -50%) rotate(8deg);
 }
 
 .coordinate-symbol {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 54rpx;
-  height: 54rpx;
   transform: rotate(-8deg);
 }
 
 .coordinate-ring {
-  width: 34rpx;
-  height: 34rpx;
   border: 5rpx solid #1889ee;
-  border-radius: 50%;
   box-shadow: 0 0 0 8rpx rgb(24 137 238 / 8%);
 }
 
 .coordinate-point {
-  position: absolute;
-  width: 9rpx;
-  height: 9rpx;
-  border-radius: 50%;
   background: #1889ee;
 }
 
 .spark {
-  position: absolute;
-  border-radius: 50%;
-  background: #fff;
   box-shadow: 0 0 22rpx #fff;
 }
 
-.spark-one {
-  top: 70rpx;
-  right: 45rpx;
-  width: 8rpx;
-  height: 8rpx;
-}
-
-.spark-two {
-  bottom: 49rpx;
-  left: 66rpx;
-  width: 6rpx;
-  height: 6rpx;
-}
-
 .hero-title {
-  color: var(--app-text-primary);
-  font-size: 52rpx;
-  font-weight: 800;
   letter-spacing: -1rpx;
-  line-height: 1.24;
   transition: font-size 0.28s ease;
 }
 
 .hero-title text {
-  display: block;
+  @apply block;
 }
 
 .hero-copy {
-  margin-top: 18rpx;
-  color: var(--app-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.6;
   transition:
     margin 0.28s ease,
     font-size 0.28s ease;
 }
 
 .login-page.is-form-mode .coordinate-hero {
-  flex: none;
-  min-height: 390rpx;
-  padding: 8rpx 0 24rpx;
+  @apply flex-none min-h-49 pt-1 px-0 pb-3;
 }
 
 .login-page.is-form-mode .coordinate-visual {
-  height: 230rpx;
-  margin: -42rpx 0 -28rpx;
+  @apply h-29 -mt-5 mx-0 -mb-3.5;
   transform: scale(0.7);
 }
 
 .login-page.is-form-mode .hero-title {
-  font-size: 43rpx;
+  @apply text-size-xl;
 }
 
 .login-page.is-form-mode .hero-copy {
-  margin-top: 12rpx;
-  font-size: 22rpx;
+  @apply mt-1.5 text-size-2xs;
 }
 
 .login-action-panel {
-  position: relative;
-  z-index: 2;
-  flex: none;
-  padding: 32rpx 26rpx 24rpx;
   border: 1rpx solid rgb(255 255 255 / 92%);
-  border-radius: 36rpx;
   background: rgb(255 255 255 / 88%);
   box-shadow: 0 28rpx 72rpx rgb(25 86 155 / 10%);
   backdrop-filter: blur(20rpx);
@@ -614,17 +477,16 @@ onLoad((options) => {
 }
 
 .login-action-panel.is-form-panel {
-  padding: 34rpx 28rpx 28rpx;
+  @apply pt-4.5 px-3.5 pb-3.5;
 }
 
 .login-page :deep(.wechat-login-button),
 .login-page :deep(.h5-login-button),
 .login-action-panel :deep(.form-submit-button) {
-  height: 92rpx;
-  border: 0 !important;
-  border-radius: 27rpx !important;
-  font-size: 29rpx;
-  font-weight: 700;
+  @apply h-11.5;
+  @apply border-0 !important;
+  @apply rounded-3.5 !important;
+  @apply text-size-sm font-bold;
   box-shadow: 0 18rpx 44rpx rgb(8 119 232 / 20%);
 }
 
@@ -636,99 +498,45 @@ onLoad((options) => {
 .login-page :deep(.wechat-login-button:active),
 .login-page :deep(.h5-login-button:active),
 .login-action-panel :deep(.form-submit-button:active) {
-  opacity: 0.86;
+  @apply opacity-86;
   transform: scale(0.99);
 }
 
-.wechat-button-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14rpx;
-}
-
-.wechat-button-icon {
-  font-size: 38rpx;
-}
-
 .login-alternatives {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24rpx;
-  margin-top: 27rpx;
+  @apply mt-3.5;
 }
 
 .h5-alternatives {
-  margin-top: 25rpx;
+  @apply mt-3;
 }
 
 .alternative-button {
-  padding: 10rpx 4rpx;
   color: #507da4;
-  font-size: 24rpx;
-  line-height: 1;
   transition: opacity 0.15s ease;
 }
 
 .alternative-button:active,
 .form-switch:active,
 .resend-button:active {
-  opacity: 0.55;
+  @apply opacity-55;
 }
 
 .alternative-divider {
   width: 1rpx;
-  height: 24rpx;
   background: #d5e0ea;
 }
 
-.agreement-row {
-  display: flex;
-  justify-content: center;
-  margin-top: 27rpx;
-}
-
 .login-page :deep(.agreement-checkbox) {
-  align-items: flex-start;
+  @apply items-start;
   --wot-checkbox-icon-size: 32rpx;
   --wot-checkbox-label-color: #748396;
   --wot-checkbox-label-font-size: 21rpx;
   --wot-checkbox-label-line-height: 1.55;
 }
 
-.form-header {
-  text-align: left;
-}
-
-.form-title {
-  color: var(--app-text-primary);
-  font-size: 34rpx;
-  font-weight: 760;
-  line-height: 1.3;
-}
-
-.form-copy {
-  margin-top: 12rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-  line-height: 1.55;
-}
-
-.inline-form {
-  margin-top: 28rpx;
-}
-
 .field-shell {
-  display: flex;
-  align-items: center;
-  min-height: 92rpx;
-  padding: 0 24rpx;
-  margin-top: 20rpx;
   border: 1rpx solid #e2eaf2;
-  border-radius: 24rpx;
   background: #f9fbfd;
-  box-sizing: border-box;
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease;
@@ -736,13 +544,11 @@ onLoad((options) => {
 
 .field-shell:focus-within {
   border-color: rgb(0 129 255 / 35%);
-  background: #fff;
+  @apply bg-white;
 }
 
 .field-shell :deep(.wd-input) {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
+  @apply flex-1 min-w-0 bg-transparent;
   --wot-input-padding: 0;
   --wot-input-bg: transparent;
   --wot-input-inner-height: 88rpx;
@@ -750,68 +556,36 @@ onLoad((options) => {
   --wot-input-inner-placeholder-color: #9ba8b7;
 }
 
-.phone-field-shell {
-  gap: 20rpx;
-}
-
 .country-code {
-  flex: none;
   color: #40536b;
-  font-size: 27rpx;
-  font-weight: 600;
 }
 
 .field-divider {
-  flex: none;
   width: 1rpx;
-  height: 34rpx;
   background: #dce5ee;
 }
 
-.resend-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18rpx;
-}
-
-.resend-button {
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-}
-
 .login-action-panel :deep(.form-submit-button) {
-  margin-top: 30rpx;
+  @apply mt-4;
   background: linear-gradient(135deg, #0877e8, #43aaff) !important;
-}
-
-.form-switches {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 22rpx;
-  padding: 28rpx 0 4rpx;
 }
 
 .form-switch {
   color: #5e83a4;
-  font-size: 23rpx;
-  line-height: 1;
 }
 
 @media (max-height: 700px) {
   .coordinate-hero {
-    min-height: 500rpx;
-    padding-top: 14rpx;
+    @apply min-h-63 pt-2;
   }
 
   .coordinate-visual {
-    width: 320rpx;
-    height: 270rpx;
+    @apply w-40 h-34;
     transform: scale(0.86);
   }
 
   .hero-title {
-    font-size: 46rpx;
+    @apply text-size-2xl;
   }
 }
 
@@ -823,13 +597,13 @@ onLoad((options) => {
   .hero-title,
   .hero-copy,
   .login-action-panel {
-    transition: none;
+    @apply transition-none;
   }
 }
 
 @media (min-width: 768px) {
   .login-page {
-    min-height: 100vh;
+    @apply min-h-screen;
     box-shadow: 0 0 80rpx rgb(20 76 142 / 8%);
   }
 }

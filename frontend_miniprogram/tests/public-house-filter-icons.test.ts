@@ -45,7 +45,7 @@ test('公开找房筛选胶囊统一使用语义图标且禁止横向收缩', ()
 })
 
 test('首页推荐筛选胶囊使用同一语义图标并禁止横向收缩', () => {
-  const recommendationFilters = sourceSection(homePageSource, '<view class="recommendation-filters__row">', '</scroll-view>')
+  const recommendationFilters = sourceSection(homePageSource, '<view class="recommendation-filters__row', '</scroll-view>')
 
   assertIcons(recommendationFilters, [
     'i-carbon-favorite',
@@ -54,7 +54,11 @@ test('首页推荐筛选胶囊使用同一语义图标并禁止横向收缩', ()
     'i-carbon-currency-yen',
     'i-carbon-filter',
   ])
-  assert.match(homePageSource, /\.recommendation-filter\s*\{[^}]*flex:\s*0 0 auto;/)
+  const filterClasses = [...recommendationFilters.matchAll(/class="([^"]*)"/g)]
+    .map(match => match[1].split(/\s+/))
+    .filter(classes => classes.includes('recommendation-filter'))
+  assert.ok(filterClasses.length > 0)
+  assert.ok(filterClasses.every(classes => classes.includes('flex-none')))
 })
 
 test('房源筛选面板标题沿用与筛选胶囊相同的语义图标', () => {

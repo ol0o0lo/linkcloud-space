@@ -125,7 +125,7 @@ onUnload(() => active = false)
       :tone="error ? 'warning' : 'info'"
       icon="i-carbon-arrows-horizontal"
       :title="error ? '暂时无法继续访问' : '选择访问身份'"
-      :description="error || '选择对应的组织或房东身份后，将继续打开刚才的页面。'"
+      :description="error || '选择对应的经纪人或房东身份后，将继续打开刚才的页面。'"
     >
       <template #action>
         <wd-button size="small" variant="plain" @click="cancel">

@@ -74,26 +74,26 @@ test('运行时 TabBar 只展示当前模式下已启用的模块', () => {
 test('角色 TabBar 使用已确认的 Carbon Iconify 图标', () => {
   assert.deepEqual(getRuntimeTabbarItems('visitor', 'mp-weixin').map(item => item.icon), [
     'i-carbon-home',
-    'i-carbon-notification',
+    'i-carbon-chat',
     'i-carbon-user',
   ])
   assert.deepEqual(getRuntimeTabbarItems('personal', 'mp-weixin').map(item => item.icon), [
     'i-carbon-home',
     'i-carbon-favorite',
-    'i-carbon-notification',
+    'i-carbon-chat',
     'i-carbon-user',
   ])
   assert.deepEqual(getRuntimeTabbarItems('landlord', 'mp-weixin').map(item => item.icon), [
     'i-carbon-home',
     'i-carbon-building',
-    'i-carbon-notification',
+    'i-carbon-chat',
     'i-carbon-user',
   ])
   assert.deepEqual(getRuntimeTabbarItems('organization', 'mp-weixin').map(item => item.icon), [
     'i-carbon-home',
     'i-carbon-workspace',
     'i-carbon-task',
-    'i-carbon-notification',
+    'i-carbon-chat',
     'i-carbon-user',
   ])
 })
@@ -107,8 +107,8 @@ test('自定义 TabBar 通过主题变量保持接近微信原生的尺寸与颜
   assert.match(tabbarSource, /#icon="\{ active \}"/)
   assert.match(tabbarSource, /'app-role-tabbar__icon--active': active/)
   assert.match(tabbarSource, /color: var\(--app-tabbar-inactive-color\);/)
-  assert.match(tabbarSource, /color: var\(--app-color-brand\);/)
-  assert.match(tabbarSource, /class="app-role-tabbar__icon"/)
+  assert.match(tabbarSource, /\.app-role-tabbar__icon--active\s*\{\s*@apply text-app-brand;/)
+  assert.match(tabbarSource, /class="app-role-tabbar__icon(?: [^"\n]*)?"/)
   assert.match(tokenSource, /--app-tabbar-height: 100rpx;/)
   assert.match(tokenSource, /--app-tabbar-icon-size: 48rpx;/)
   assert.match(tokenSource, /--app-tabbar-title-size: 20rpx;/)
@@ -118,7 +118,7 @@ test('AppPage 为多端固定 TabBar 统一预留可滚动的底部空间', () =
   const appPageSource = readFileSync(new URL('../src/components/app/AppPage.vue', import.meta.url), 'utf8')
   const tabbarSource = readFileSync(new URL('../src/tabbar/index.vue', import.meta.url), 'utf8')
 
-  assert.match(appPageSource, /v-if="tabbar" class="app-page__tabbar-spacer"/)
+  assert.match(appPageSource, /v-if="tabbar" class="app-page__tabbar-spacer(?: [^"\n]*)?"/)
   assert.match(appPageSource, /height:\s*calc\(var\(--app-tabbar-height\) \+ env\(safe-area-inset-bottom\)\)/)
   assert.doesNotMatch(appPageSource, /#ifn?def/)
   assert.doesNotMatch(tabbarSource, /\bplaceholder\b/)

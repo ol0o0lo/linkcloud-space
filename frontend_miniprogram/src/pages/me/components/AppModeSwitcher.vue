@@ -40,7 +40,7 @@ const identityKinds = computed(() => {
   return [
     { key: 'personal', label: '租客', visible: options.some(option => option.selection.mode === 'personal'), active: appContextStore.mode === 'personal' },
     { key: 'landlord', label: '房东', visible: options.some(option => option.selection.mode === 'landlord'), active: appContextStore.mode === 'landlord' },
-    { key: 'organization', label: '中介组织', visible: options.some(option => option.selection.mode === 'organization'), active: appContextStore.mode === 'organization' },
+    { key: 'organization', label: '经纪人', visible: options.some(option => option.selection.mode === 'organization'), active: appContextStore.mode === 'organization' },
   ].filter(item => item.visible)
 })
 
@@ -109,7 +109,7 @@ async function handleSelect(option: AppModeOption) {
   <view v-if="variant !== 'compact' || canSwitch" class="app-mode-switcher">
     <button
       v-if="showTrigger && variant === 'navigation'"
-      class="navigation-trigger"
+      class="navigation-trigger m-0 max-w-full w-auto flex items-center overflow-hidden rounded-1.5 p-0 text-left leading-none"
       role="button"
       :tabindex="canSwitch ? 0 : -1"
       :class="{ 'navigation-trigger--switchable': canSwitch }"
@@ -119,25 +119,25 @@ async function handleSelect(option: AppModeOption) {
       @click="openSwitcher"
       @keydown="handleActionKeydown($event, openSwitcher)"
     >
-      <view class="navigation-trigger__pill">
-        <view class="navigation-trigger__identity">
-          <view class="navigation-trigger__glyph" :class="currentModeIconClass" />
+      <view class="navigation-trigger__pill box-border max-w-full min-h-7 flex items-center gap-1.5 overflow-hidden rounded-full px-2.5 py-1">
+        <view class="navigation-trigger__identity h-3.5 w-3.5 flex flex-none items-center justify-center rounded-full">
+          <view class="navigation-trigger__glyph text-size-xs" :class="currentModeIconClass" />
         </view>
-        <text class="navigation-trigger__title">{{ appContextStore.modePresentation.title }}</text>
-        <view v-if="canSwitch" class="navigation-trigger__arrow i-carbon-chevron-down" />
+        <text class="navigation-trigger__title max-w-55 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs font-medium leading-tight">{{ appContextStore.modePresentation.title }}</text>
+        <view v-if="canSwitch" class="navigation-trigger__arrow i-carbon-chevron-down flex-none text-size-2xs" />
       </view>
     </button>
-    <view v-else-if="showTrigger && variant === 'cell'" class="mode-cell" @click="openSwitcher">
-      <view class="mode-cell__chips">
-        <view v-for="item in identityKinds" :key="item.key" class="mode-cell__chip" :class="{ 'mode-cell__chip--active': item.active }">
+    <view v-else-if="showTrigger && variant === 'cell'" class="mode-cell box-border min-h-15 flex items-center gap-2.5 rounded-4 p-3" @click="openSwitcher">
+      <view class="mode-cell__chips min-w-0 flex flex-1 gap-3">
+        <view v-for="item in identityKinds" :key="item.key" class="mode-cell__chip box-border h-7 min-w-17 flex items-center justify-center rounded-3 px-2 py-0 text-size-2xs font-bold" :class="{ 'mode-cell__chip--active': item.active }">
           {{ item.label }}
         </view>
       </view>
-      <text class="mode-cell__status">{{ canSwitch ? '当前' : '当前身份' }}</text>
+      <text class="mode-cell__status flex-none text-size-2xs font-bold">{{ canSwitch ? '当前' : '当前身份' }}</text>
     </view>
-    <view v-else-if="showTrigger && canSwitch" class="compact-trigger" @click="openSwitcher">
-      <view class="compact-trigger__icon i-carbon-arrows-horizontal" />
-      <text class="compact-trigger__text">切换</text>
+    <view v-else-if="showTrigger && canSwitch" class="compact-trigger h-6 flex flex-none items-center gap-1 rounded-full px-2 py-0" @click="openSwitcher">
+      <view class="compact-trigger__icon i-carbon-arrows-horizontal text-size-2xs" />
+      <text class="compact-trigger__text text-size-2xs font-semibold">切换</text>
     </view>
 
     <AppBottomSheet
@@ -150,22 +150,22 @@ async function handleSelect(option: AppModeOption) {
       custom-style="--wot-popup-bg: linear-gradient(180deg, #fbfdff 0%, #f2f8ff 100%); --wot-popup-radius: 48rpx; --wot-popup-close-margin: 34rpx; --wot-popup-close-size: 38rpx;"
     >
       <template #header>
-        <view class="workspace-switcher__header">
-          <text class="workspace-switcher__title">选择身份</text>
+        <view class="workspace-switcher__header min-h-9.5 flex flex-col justify-center pr-9">
+          <text class="workspace-switcher__title text-size-lg font-extrabold leading-tight">选择身份</text>
         </view>
       </template>
 
-      <view class="workspace-switcher">
-        <view class="workspace-switcher__section-heading">
-          <text class="workspace-switcher__section-title">切换到</text>
-          <text class="workspace-switcher__count">{{ otherModeOptions.length }} 个可切换</text>
+      <view class="workspace-switcher box-border px-0 pb-1.5 pt-0.5">
+        <view class="workspace-switcher__section-heading mx-0.5 mb-2 mt-1.5 flex items-center justify-between">
+          <text class="workspace-switcher__section-title text-size-2xs font-bold">切换到</text>
+          <text class="workspace-switcher__count text-size-2xs font-semibold">{{ otherModeOptions.length }} 个可切换</text>
         </view>
 
-        <view class="workspace-list">
+        <view class="workspace-list flex flex-col gap-2">
           <button
             v-for="option in otherModeOptions"
             :key="option.key"
-            class="workspace-option"
+            class="workspace-option m-0 box-border min-h-14.5 w-full flex items-center gap-2.5 rounded-4 px-2.5 py-2.5 text-left leading-normal shadow-app-card"
             role="button"
             :tabindex="switchingKey ? -1 : 0"
             :class="{ 'workspace-option--switching': switchingKey === option.key }"
@@ -175,14 +175,14 @@ async function handleSelect(option: AppModeOption) {
             @click="handleSelect(option)"
             @keydown="handleActionKeydown($event, () => handleSelect(option))"
           >
-            <view class="workspace-option__icon">
+            <view class="workspace-option__icon h-9 w-9 flex flex-none items-center justify-center rounded-3 text-size-base">
               <view :class="getModeIconClass(option)" />
             </view>
-            <view class="workspace-option__main">
-              <text class="workspace-option__title">{{ option.title }}</text>
-              <text class="workspace-option__description">{{ option.description }}</text>
+            <view class="workspace-option__main min-w-0 flex flex-1 flex-col overflow-hidden">
+              <text class="workspace-option__title break-all text-size-xs font-bold leading-tight">{{ option.title }}</text>
+              <text class="workspace-option__description mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs leading-snug">{{ option.description }}</text>
             </view>
-            <view class="workspace-option__trail">
+            <view class="workspace-option__trail h-5.5 w-5.5 flex flex-none items-center justify-center text-size-sm">
               <wd-loading v-if="switchingKey === option.key" type="spinner" size="34rpx" color="#0081ff" />
               <view v-else class="i-carbon-chevron-right" />
             </view>
@@ -193,7 +193,7 @@ async function handleSelect(option: AppModeOption) {
   </view>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 /* #ifdef H5 */
 button[role='button']:focus-visible {
   outline: 2px solid var(--app-color-brand-active);
@@ -201,33 +201,12 @@ button[role='button']:focus-visible {
 }
 /* #endif */
 .navigation-trigger {
-  display: flex;
-  overflow: hidden;
-  width: auto;
-  max-width: 100%;
   height: 44px;
   min-height: 44px;
-  margin: 0;
-  padding: 0;
-  align-items: center;
-  border: 0;
-  border-radius: 12rpx;
-  color: var(--app-text-secondary);
-  line-height: 1;
-  text-align: left;
-  background: transparent;
+  @apply border-0 text-content-secondary bg-transparent;
 }
 .navigation-trigger__pill {
-  display: flex;
-  overflow: hidden;
-  max-width: 100%;
-  min-height: 56rpx;
-  padding: 8rpx 18rpx;
-  align-items: center;
-  gap: 12rpx;
   border: 1rpx solid rgb(217 227 240 / 40%);
-  border-radius: 999rpx;
-  box-sizing: border-box;
   background: rgb(255 255 255 / 50%);
   backdrop-filter: var(--app-navigation-backdrop-filter);
   transition:
@@ -237,230 +216,83 @@ button[role='button']:focus-visible {
   -webkit-backdrop-filter: var(--app-navigation-backdrop-filter);
 }
 .navigation-trigger::after {
-  border: 0;
+  @apply border-0;
 }
 .navigation-trigger--switchable:active {
-  opacity: 0.76;
+  @apply opacity-76;
 }
 .navigation-trigger:disabled {
-  color: var(--app-text-secondary);
-  opacity: 1;
+  @apply text-content-secondary opacity-100;
 }
 .navigation-trigger__identity {
-  display: flex;
-  width: 26rpx;
-  height: 26rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999rpx;
-  color: var(--app-text-muted);
-}
-.navigation-trigger__glyph {
-  font-size: 23rpx;
+  @apply text-content-muted;
 }
 .navigation-trigger__title {
-  overflow: hidden;
-  min-width: 0;
-  color: inherit;
-  max-width: 440rpx;
-  font-size: 22rpx;
-  font-weight: 500;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply text-inherit;
 }
 .navigation-trigger__arrow {
-  flex: 0 0 auto;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
+  @apply text-content-muted;
 }
 .mode-cell {
-  display: flex;
-  min-height: 120rpx;
-  align-items: center;
-  gap: 20rpx;
-  padding: 24rpx;
   border: 1rpx solid rgb(217 227 240 / 35%);
-  border-radius: 32rpx;
-  box-sizing: border-box;
-  background: var(--app-bg-card);
-}
-.mode-cell__chips {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  gap: 24rpx;
+  @apply bg-surface-card;
 }
 .mode-cell__chip {
-  display: flex;
-  min-width: 136rpx;
-  height: 56rpx;
-  align-items: center;
-  justify-content: center;
-  padding: 0 16rpx;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 24rpx;
-  box-sizing: border-box;
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 700;
-  background: var(--app-bg-subtle);
+  @apply border-hairline border-solid border-app-border text-content-secondary bg-surface-subtle;
 }
 .mode-cell__chip--active {
-  border-color: var(--app-border-brand-soft);
-  color: var(--app-color-brand-active);
-  background: var(--app-bg-brand-soft);
+  @apply border-app-border-brand-soft text-app-brand-active bg-surface-brand-soft;
 }
 .mode-cell__status {
-  flex: 0 0 auto;
-  color: var(--app-color-brand-active);
-  font-size: 22rpx;
-  font-weight: 700;
+  @apply text-app-brand-active;
 }
 .compact-trigger {
-  display: flex;
-  height: 48rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6rpx;
-  padding: 0 14rpx;
-  border: 1rpx solid var(--app-border-color);
-  border-radius: 999rpx;
-  color: var(--app-text-secondary);
-  background: var(--app-bg-elevated-translucent);
+  @apply border-hairline border-solid border-app-border text-content-secondary bg-surface-translucent;
 }
 .compact-trigger:active {
-  border-color: var(--app-border-brand-soft);
-  color: var(--app-color-brand-active);
-  background: var(--app-bg-brand-soft);
-}
-.compact-trigger__icon {
-  font-size: 22rpx;
-}
-.compact-trigger__text {
-  font-size: 20rpx;
-  font-weight: 600;
-}
-
-.workspace-switcher__header {
-  display: flex;
-  min-height: 76rpx;
-  flex-direction: column;
-  justify-content: center;
-  padding-right: 72rpx;
+  @apply border-app-border-brand-soft text-app-brand-active bg-surface-brand-soft;
 }
 .workspace-switcher__title {
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-  font-weight: 750;
+  @apply text-content-primary;
   letter-spacing: -1rpx;
-  line-height: 1.25;
-}
-.workspace-switcher {
-  padding: 4rpx 0 12rpx;
-  box-sizing: border-box;
-}
-.workspace-switcher__section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 12rpx 4rpx 16rpx;
 }
 .workspace-switcher__section-title {
-  color: var(--app-text-secondary);
-  font-size: 22rpx;
-  font-weight: 700;
+  @apply text-content-secondary;
 }
 .workspace-switcher__count {
-  color: var(--app-text-muted);
-  font-size: 19rpx;
-  font-weight: 600;
-}
-.workspace-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
+  @apply text-content-muted;
 }
 .workspace-option {
-  display: flex;
-  width: 100%;
-  min-height: 116rpx;
-  margin: 0;
-  padding: 18rpx 20rpx;
-  align-items: center;
-  gap: 20rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: 30rpx;
-  box-sizing: border-box;
-  color: var(--app-text-primary);
-  line-height: normal;
-  text-align: left;
+  @apply border-hairline border-solid border-app-card text-content-primary;
   background: rgb(255 255 255 / 92%);
-  box-shadow: var(--app-shadow-card);
   transition:
     transform var(--app-motion-duration-fast) var(--app-motion-ease-out),
     border-color var(--app-motion-duration-base) ease,
     background-color var(--app-motion-duration-base) ease;
 }
 .workspace-option::after {
-  border: 0;
+  @apply border-0;
 }
 .workspace-option:active {
   transform: scale(0.985);
 }
 .workspace-option:disabled:not(.workspace-option--switching) {
-  opacity: 0.46;
+  @apply opacity-46;
 }
 .workspace-option--switching {
-  border-color: var(--app-border-brand-soft);
-  opacity: 1;
-  background: var(--app-bg-brand-soft);
+  @apply border-app-border-brand-soft opacity-100 bg-surface-brand-soft;
 }
 .workspace-option__icon {
-  display: flex;
-  width: 72rpx;
-  height: 72rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 24rpx;
-  color: var(--app-color-brand-active);
-  font-size: 32rpx;
-  background: var(--app-bg-brand-soft);
-}
-.workspace-option__main {
-  display: flex;
-  overflow: hidden;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
+  @apply text-app-brand-active bg-surface-brand-soft;
 }
 .workspace-option__title {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
-  font-weight: 700;
-  line-height: 1.3;
+  @apply text-content-primary;
   overflow-wrap: anywhere;
-  word-break: break-all;
 }
 .workspace-option__description {
-  overflow: hidden;
-  margin-top: 7rpx;
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply text-content-muted;
 }
 .workspace-option__trail {
-  display: flex;
-  width: 44rpx;
-  height: 44rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  color: var(--app-text-muted);
-  font-size: 30rpx;
+  @apply text-content-muted;
 }
 </style>

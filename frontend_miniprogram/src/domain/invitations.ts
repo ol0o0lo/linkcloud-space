@@ -88,7 +88,7 @@ export function normalizeOrganizationInvitation(input: OrganizationInvitationInp
   const email = input.invitee_email?.trim() || ''
   return {
     kind: 'organization',
-    title: `${input.organization_name}邀请你加入组织`,
+    title: `${input.organization_name}邀请你加入工作空间`,
     organizationName: input.organization_name,
     organizationId: input.organization_id,
     organizationSlug: input.organization_slug,
@@ -105,7 +105,7 @@ export function normalizeOrganizationInvitation(input: OrganizationInvitationInp
 export function normalizeLandlordInvitation(input: LandlordInvitationInput): InvitationViewModel {
   return {
     kind: 'landlord',
-    title: `${input.organization_name}邀请你认领房东关系`,
+    title: `${input.organization_name}邀请你关联房东档案`,
     organizationName: input.organization_name,
     organizationId: null,
     organizationSlug: '',

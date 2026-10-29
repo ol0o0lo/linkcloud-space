@@ -331,10 +331,10 @@ onShow(async () => {
     <template #navigation>
       <AppCustomNavigation title="" align="start" scroll-mode="fade" immersive :scrolled="navigationScrolled" :scroll-progress="navigationProgress">
         <template #content>
-          <view class="home-navigation__finder">
+          <view class="home-navigation__finder min-w-0 w-full flex items-center gap-2">
             <PublicHouseRegionTrigger variant="surface" @change="handleRegionChange" />
             <button
-              class="home-navigation__search app-touchable"
+              class="home-navigation__search m-0 box-border h-8.5 min-w-0 flex flex-1 app-touchable items-center gap-1.5 rounded-4.5 px-2.5 py-0 text-left text-size-2xs leading-8.5"
               :class="{ 'home-navigation__search--visible': navigationScrolled }"
               :aria-hidden="!navigationScrolled"
               hover-class="app-touchable--pressed"
@@ -348,7 +348,7 @@ onShow(async () => {
       </AppCustomNavigation>
     </template>
 
-    <view class="home-featured">
+    <view class="home-featured mt-0">
       <HomeDiscoverySections
         section="intro"
         :banners="homeContent.banners"
@@ -357,7 +357,7 @@ onShow(async () => {
         @banner="openHomeBanner"
         @entry="openHomeEntry"
       />
-      <view class="home-featured__search">
+      <view class="home-featured__search relative z-2 -mt-14">
         <HomeSearchPanel
           :locating-nearby="locatingNearby"
           :nearby-preset="homeNearbyPreset"
@@ -371,59 +371,59 @@ onShow(async () => {
       </view>
     </view>
 
-    <view class="home-shortcuts">
-      <button class="home-shortcut app-touchable" hover-class="app-touchable--pressed" @click="goMapFindHouse(homeSearchPreset)">
-        <view class="home-shortcut__icon home-shortcut__icon--map">
-          <view class="i-carbon-map" />
+    <view class="home-shortcuts grid grid-cols-4 mt-2 gap-0.5 rounded-3 px-1 py-1.5">
+      <button class="home-shortcut m-0 min-h-14 min-w-0 flex flex-col app-touchable items-center justify-center gap-1 p-0 text-size-2xs leading-tight" hover-class="app-touchable--pressed" @click="goFindHouse({ sort: 'latest' })">
+        <view class="home-shortcut__icon home-shortcut__icon--latest h-7.5 w-7.5 flex items-center justify-center rounded-2">
+          <view class="i-carbon-recently-viewed" />
         </view>
-        <text>地图找房</text>
+        <text>新上房源</text>
       </button>
-      <button class="home-shortcut app-touchable" hover-class="app-touchable--pressed" @click="goFindHouse({ location_mode: 'metro' })">
-        <view class="home-shortcut__icon home-shortcut__icon--metro">
+      <button class="home-shortcut m-0 min-h-14 min-w-0 flex flex-col app-touchable items-center justify-center gap-1 p-0 text-size-2xs leading-tight" hover-class="app-touchable--pressed" @click="goFindHouse({ location_mode: 'metro' })">
+        <view class="home-shortcut__icon home-shortcut__icon--metro h-7.5 w-7.5 flex items-center justify-center rounded-2">
           <view class="i-carbon-train" />
         </view>
         <text>地铁找房</text>
       </button>
-      <button class="home-shortcut app-touchable" hover-class="app-touchable--pressed" @click="goCommuteFindHouse">
-        <view class="home-shortcut__icon home-shortcut__icon--commute">
+      <button class="home-shortcut m-0 min-h-14 min-w-0 flex flex-col app-touchable items-center justify-center gap-1 p-0 text-size-2xs leading-tight" hover-class="app-touchable--pressed" @click="goCommuteFindHouse">
+        <view class="home-shortcut__icon home-shortcut__icon--commute h-7.5 w-7.5 flex items-center justify-center rounded-2">
           <view class="i-carbon-direction-straight-right" />
         </view>
         <text>通勤找房</text>
       </button>
-      <button class="home-shortcut app-touchable" hover-class="app-touchable--pressed" @click="goNearbyFindHouse(homeSearchPreset)">
-        <view class="home-shortcut__icon home-shortcut__icon--nearby">
+      <button class="home-shortcut m-0 min-h-14 min-w-0 flex flex-col app-touchable items-center justify-center gap-1 p-0 text-size-2xs leading-tight" hover-class="app-touchable--pressed" @click="goNearbyFindHouse(homeSearchPreset)">
+        <view class="home-shortcut__icon home-shortcut__icon--nearby h-7.5 w-7.5 flex items-center justify-center rounded-2">
           <view class="i-carbon-location-current" />
         </view>
         <text>附近房源</text>
       </button>
     </view>
 
-    <view class="recommendation-feed">
-      <view class="section-heading">
+    <view class="recommendation-feed px-app-gutter py-0">
+      <view class="section-heading mx-0 mb-3 mt-0 flex items-end justify-between gap-2.5">
         <view>
-          <text class="section-heading__title">发现好房</text>
-          <text class="section-heading__subtitle">{{ recommendationSummary }}</text>
+          <text class="section-heading__title text-size-base leading-tight">发现好房</text>
+          <text class="section-heading__subtitle text-size-2xs">{{ recommendationSummary }}</text>
         </view>
-        <button class="favorites-link" @click="goFavorites">
+        <button class="favorites-link h-6.5 w-auto flex flex-none items-center gap-1 px-0.5 py-0 text-size-2xs leading-6.5" @click="goFavorites">
           <view class="i-carbon-bookmark" /><text>我的收藏</text>
         </button>
       </view>
 
-      <scroll-view class="recommendation-filters" scroll-x :show-scrollbar="false">
-        <view class="recommendation-filters__row">
-          <button class="recommendation-filter" :class="{ 'recommendation-filter--active': recommendationMode === 'recommended' }" @click="selectRecommendationMode('recommended')">
+      <scroll-view class="recommendation-filters mx-0 mb-2.5 mt-0 whitespace-nowrap" scroll-x :show-scrollbar="false">
+        <view class="recommendation-filters__row inline-flex gap-1.5 pr-app-gutter">
+          <button class="recommendation-filter m-0 h-7.5 w-auto inline-flex flex-none items-center gap-1 rounded-3.5 px-2.5 py-0 text-size-2xs leading-7.5" :class="{ 'recommendation-filter--active': recommendationMode === 'recommended' }" @click="selectRecommendationMode('recommended')">
             <view class="i-carbon-favorite" /><text>猜你喜欢</text>
           </button>
-          <button class="recommendation-filter" :class="{ 'recommendation-filter--active': recommendationMode === 'nearby' }" @click="selectRecommendationMode('nearby')">
+          <button class="recommendation-filter m-0 h-7.5 w-auto inline-flex flex-none items-center gap-1 rounded-3.5 px-2.5 py-0 text-size-2xs leading-7.5" :class="{ 'recommendation-filter--active': recommendationMode === 'nearby' }" @click="selectRecommendationMode('nearby')">
             <view class="i-carbon-location-current" /><text>{{ locatingNearby ? '定位中…' : '附近' }}</text>
           </button>
-          <button class="recommendation-filter" :class="{ 'recommendation-filter--active': recommendationMode === 'latest' }" @click="selectRecommendationMode('latest')">
+          <button class="recommendation-filter m-0 h-7.5 w-auto inline-flex flex-none items-center gap-1 rounded-3.5 px-2.5 py-0 text-size-2xs leading-7.5" :class="{ 'recommendation-filter--active': recommendationMode === 'latest' }" @click="selectRecommendationMode('latest')">
             <view class="i-carbon-recently-viewed" /><text>最新</text>
           </button>
-          <button class="recommendation-filter" :class="{ 'recommendation-filter--active': recommendationMode === 'low-price' }" @click="selectRecommendationMode('low-price')">
+          <button class="recommendation-filter m-0 h-7.5 w-auto inline-flex flex-none items-center gap-1 rounded-3.5 px-2.5 py-0 text-size-2xs leading-7.5" :class="{ 'recommendation-filter--active': recommendationMode === 'low-price' }" @click="selectRecommendationMode('low-price')">
             <view class="i-carbon-currency-yen" /><text>低价</text>
           </button>
-          <button class="recommendation-filter" :class="{ 'recommendation-filter--active': activeFilterCount }" @click="openRecommendationFilters">
+          <button class="recommendation-filter m-0 h-7.5 w-auto inline-flex flex-none items-center gap-1 rounded-3.5 px-2.5 py-0 text-size-2xs leading-7.5" :class="{ 'recommendation-filter--active': activeFilterCount }" @click="openRecommendationFilters">
             <view class="i-carbon-filter" /><text>筛选{{ activeFilterCount ? ` ${activeFilterCount}` : '' }}</text><view class="i-carbon-chevron-down" />
           </button>
         </view>
@@ -464,32 +464,32 @@ onShow(async () => {
         </template>
       </AppWaterfallList>
 
-      <button class="recommendation-more app-touchable" hover-class="app-touchable--pressed" @click="openAllRecommendations">
+      <button class="recommendation-more mx-0 mb-0 mt-3 h-9 w-full flex app-touchable items-center justify-center gap-1.5 rounded-2.5 text-size-2xs leading-9" hover-class="app-touchable--pressed" @click="openAllRecommendations">
         查看全部房源 <view class="i-carbon-arrow-right" />
       </button>
 
       <AppBottomSheet v-model:visible="showRecommendationFilters" title="筛选推荐房源" height="tall" :z-index="1100">
         <view>
-          <view class="filter-label">
+          <view class="filter-label mx-0 mb-2 mt-4 flex items-center gap-1.5 text-size-xs">
             <view class="i-carbon-currency-yen" /><text>租金范围（元/月）</text>
           </view>
-          <view class="filter-pair">
+          <view class="filter-pair grid items-center gap-2">
             <wd-input v-model="recommendationFilterDraft.minRent" type="number" placeholder="最低租金" />
             <text>至</text>
             <wd-input v-model="recommendationFilterDraft.maxRent" type="number" placeholder="最高租金" />
           </view>
-          <view class="filter-label">
+          <view class="filter-label mx-0 mb-2 mt-4 flex items-center gap-1.5 text-size-xs">
             <view class="i-carbon-ruler" /><text>面积范围（㎡）</text>
           </view>
-          <view class="filter-pair">
+          <view class="filter-pair grid items-center gap-2">
             <wd-input v-model="recommendationFilterDraft.minArea" type="digit" placeholder="最小面积" />
             <text>至</text>
             <wd-input v-model="recommendationFilterDraft.maxArea" type="digit" placeholder="最大面积" />
           </view>
-          <view class="filter-label">
+          <view class="filter-label mx-0 mb-2 mt-4 flex items-center gap-1.5 text-size-xs">
             <view class="i-carbon-hotel" /><text>卧室数量</text>
           </view>
-          <view class="choice-row">
+          <view class="choice-row flex flex-wrap gap-2">
             <wd-tag :type="recommendationFilterDraft.bedrooms === '' ? 'primary' : 'default'" variant="light" @click="recommendationFilterDraft.bedrooms = ''">
               不限
             </wd-tag>
@@ -497,8 +497,8 @@ onShow(async () => {
               {{ item }} 室
             </wd-tag>
           </view>
-          <view class="switch-row">
-            <view class="switch-row__label">
+          <view class="switch-row mt-4.5 flex items-center justify-between rounded-2.5 p-3">
+            <view class="switch-row__label flex items-center gap-1.5">
               <view class="i-carbon-building" /><text>只看有电梯</text>
             </view>
             <wd-switch v-model="recommendationFilterDraft.elevatorOnly" />
@@ -527,26 +527,17 @@ onShow(async () => {
   </AppPage>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .home-page {
   background: linear-gradient(180deg, #edf5fb 0, #f6f8fa 480rpx, #f6f8fa 100%);
 }
 
 :deep(.home-page .app-page__content) {
-  padding-top: 0;
-}
-
-.home-navigation__finder {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 14rpx;
+  @apply pt-0;
 }
 
 :deep(.home-navigation__finder .public-house-region-trigger) {
-  min-height: 58rpx;
-  padding: 0 17rpx;
+  @apply min-h-7.5 py-0 px-2;
   border: 1rpx solid rgb(255 255 255 / 65%);
   background: rgb(255 255 255 / 92%);
   color: #24445e;
@@ -554,31 +545,16 @@ onShow(async () => {
 }
 
 .home-navigation__search {
-  display: flex;
-  min-width: 0;
-  height: 68rpx;
-  flex: 1;
-  align-items: center;
-  gap: 12rpx;
-  margin: 0;
-  padding: 0 20rpx;
   border: 1rpx solid #e5edf4;
-  border-radius: 34rpx;
-  box-sizing: border-box;
-  background: #fff;
+  @apply bg-white;
   color: #93a1af;
-  font-size: 21rpx;
-  line-height: 68rpx;
-  text-align: left;
   box-shadow: 0 5rpx 20rpx rgb(29 62 93 / 7%);
-  opacity: 0;
-  pointer-events: none;
+  @apply opacity-0 pointer-events-none;
   transition: opacity var(--app-motion-duration-fast) linear;
 }
 
 .home-navigation__search--visible {
-  opacity: 1;
-  pointer-events: auto;
+  @apply opacity-100 pointer-events-auto;
 }
 
 .home-navigation__search::after,
@@ -586,213 +562,90 @@ onShow(async () => {
 .favorites-link::after,
 .recommendation-filter::after,
 .recommendation-more::after {
-  border: 0;
+  @apply border-0;
 }
 .home-navigation__search view {
-  flex: none;
-  color: var(--app-color-brand);
-  font-size: 28rpx;
+  @apply flex-none text-app-brand text-size-sm;
 }
 .home-navigation__search text {
-  overflow: hidden;
-  min-width: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-featured {
-  margin-top: 0;
-}
-.home-featured__search {
-  position: relative;
-  z-index: 2;
-  margin-top: -112rpx;
+  @apply overflow-hidden min-w-0 text-ellipsis whitespace-nowrap;
 }
 
 .home-shortcuts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4rpx;
-  margin-top: 16rpx;
-  padding: 10rpx 6rpx;
   border: 1rpx solid #e7edf2;
-  border-radius: 22rpx;
-  background: #fff;
+  @apply bg-white;
 }
 .home-shortcut {
-  display: flex;
-  min-width: 0;
-  min-height: 112rpx;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 7rpx;
-  margin: 0;
-  padding: 0;
-  background: transparent;
+  @apply bg-transparent;
   color: #4e6376;
-  font-size: 20rpx;
-  font-weight: 600;
-  line-height: 1.3;
+  @apply font-semibold;
 }
 .home-shortcut text {
-  white-space: nowrap;
+  @apply whitespace-nowrap;
 }
 .home-shortcut__icon {
-  display: flex;
-  width: 58rpx;
-  height: 58rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16rpx;
-  background: var(--app-bg-brand-soft);
-  color: var(--app-color-brand);
+  @apply bg-surface-brand-soft text-app-brand;
 }
 .home-shortcut__icon view {
-  font-size: 32rpx;
+  @apply text-size-base;
 }
 
 .recommendation-feed {
   margin: 38rpx calc(var(--app-page-gutter) * -1) 0;
-  padding: 0 var(--app-page-gutter);
-}
-.section-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20rpx;
-  margin: 0 0 22rpx;
 }
 .section-heading > view {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6rpx;
+  @apply flex min-w-0 flex-col gap-1;
 }
 .section-heading__title {
   color: #20384c;
-  font-size: 34rpx;
-  font-weight: 750;
-  line-height: 1.3;
+  @apply font-extrabold;
 }
 .section-heading__subtitle {
   color: #8a9aaa;
-  font-size: 21rpx;
 }
 .favorites-link {
-  display: flex;
-  width: auto;
-  flex: 0 0 auto;
-  height: 50rpx;
-  align-items: center;
-  gap: 6rpx;
-  margin: 0 0 2rpx;
-  padding: 0 4rpx;
-  background: transparent;
-  color: var(--app-color-brand);
-  font-size: 20rpx;
-  font-weight: 600;
-  line-height: 50rpx;
+  @apply m-0;
+  @apply bg-transparent text-app-brand font-semibold;
 }
 .favorites-link view {
-  font-size: 22rpx;
+  @apply text-size-2xs;
 }
 
 .recommendation-filters {
   width: calc(100% + var(--app-page-gutter));
-  margin: 0 0 20rpx;
-  white-space: nowrap;
-}
-.recommendation-filters__row {
-  display: inline-flex;
-  gap: 10rpx;
-  padding-right: var(--app-page-gutter);
 }
 .recommendation-filter {
-  display: inline-flex;
-  width: auto;
-  height: 58rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6rpx;
-  margin: 0;
-  padding: 0 19rpx;
   border: 1rpx solid #e5ebf0;
-  border-radius: 29rpx;
-  background: #fff;
+  @apply bg-white;
   color: #617487;
-  font-size: 21rpx;
-  font-weight: 600;
-  line-height: 58rpx;
+  @apply font-semibold;
 }
 .recommendation-filter--active {
-  border-color: var(--app-border-brand-soft);
-  background: var(--app-bg-brand-soft);
-  color: var(--app-color-brand);
-  font-weight: 700;
+  @apply border-app-border-brand-soft bg-surface-brand-soft text-app-brand font-bold;
 }
 .recommendation-filter view {
-  font-size: 20rpx;
+  @apply text-size-2xs;
 }
 
 .recommendation-more {
-  display: flex;
-  width: 100%;
-  height: 72rpx;
-  align-items: center;
-  justify-content: center;
-  gap: 10rpx;
-  margin: 22rpx 0 0;
   border: 1rpx solid #dce8f1;
-  border-radius: 18rpx;
-  background: #fff;
-  color: var(--app-color-brand);
-  font-size: 22rpx;
-  font-weight: 700;
-  line-height: 72rpx;
+  @apply bg-white text-app-brand font-bold;
 }
 .recommendation-more view {
-  font-size: 23rpx;
+  @apply text-size-xs;
 }
 
 .filter-label {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-  margin: 32rpx 0 16rpx;
-  color: var(--app-text-primary);
-  font-size: 26rpx;
-  font-weight: 600;
+  @apply text-content-primary font-semibold;
 }
 .filter-label > view,
 .switch-row__label > view {
-  flex: 0 0 auto;
-  color: var(--app-color-brand);
-  font-size: 28rpx;
+  @apply flex-none text-app-brand text-size-sm;
 }
 .filter-pair {
-  display: grid;
   grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 16rpx;
-}
-.choice-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
 }
 .switch-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 34rpx;
-  padding: 24rpx;
-  border-radius: 18rpx;
-  background: var(--app-bg-page);
-}
-.switch-row__label {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
+  @apply bg-surface-page;
 }
 </style>

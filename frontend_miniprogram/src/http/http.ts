@@ -26,6 +26,7 @@ export function http<T>(options: CustomRequestOptions): Promise<T> {
     url: options.url,
     method: (options.method || 'GET') as HttpMethod,
     authRetry: options.authRetry,
+    authReplayGuard: options.authReplayGuard,
     scope: resolveRequestScope(options),
     query: options.query,
     body: options.data,

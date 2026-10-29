@@ -65,75 +65,75 @@ function handleLogout() {
       <AppCustomNavigation title="设置" back scroll-mode="sticky" />
     </template>
 
-    <view class="settings-stack">
-      <view class="settings-card">
-        <view class="settings-row" @click="openProfile">
-          <view class="settings-icon settings-icon--profile">
+    <view class="settings-stack flex flex-col gap-3">
+      <view class="settings-card overflow-hidden rounded-3.5 bg-surface-card">
+        <view class="settings-row relative box-border min-h-17 flex items-center px-3.5 py-3" @click="openProfile">
+          <view class="settings-icon settings-icon--profile mr-2.5 h-7.5 w-7.5 flex items-center justify-center rounded-2.5 text-size-sm">
             <view class="i-carbon-user-avatar" />
           </view>
-          <view class="settings-main">
-            <text class="settings-title">个人资料</text>
-            <text class="settings-copy">头像、昵称与时区</text>
+          <view class="settings-main min-w-0 flex flex-1 flex-col gap-1">
+            <text class="settings-title overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-primary font-semibold">个人资料</text>
+            <text class="settings-copy overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-content-muted">头像、昵称与时区</text>
           </view>
-          <view class="settings-arrow i-carbon-chevron-right" />
+          <view class="settings-arrow i-carbon-chevron-right ml-1.5 text-size-xs text-content-muted" />
         </view>
-        <button class="settings-row settings-row--action app-touchable" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openRealName" @keydown="handleRealNameKeydown">
-          <view class="settings-icon">
+        <button class="settings-row settings-row--action relative m-0 box-border min-h-17 w-full flex app-touchable items-center border-0 rounded-0 bg-transparent px-3.5 py-3 text-left leading-normal" role="button" tabindex="0" hover-class="app-touchable--pressed" @click="openRealName" @keydown="handleRealNameKeydown">
+          <view class="settings-icon mr-2.5 h-7.5 w-7.5 flex items-center justify-center rounded-2.5 text-size-sm">
             <view class="i-carbon-identification" />
           </view>
-          <view class="settings-main">
-            <text class="settings-title">实名认证</text>
+          <view class="settings-main min-w-0 flex flex-1 flex-col gap-1">
+            <text class="settings-title overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-primary font-semibold">实名认证</text>
           </view>
-          <text class="settings-value">{{ realNameStatus ? getRealNameStatusLabel(realNameStatus) : '状态未知' }}</text>
-          <view class="settings-arrow i-carbon-chevron-right" />
+          <text class="settings-value ml-2.5 max-w-1/2 overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-secondary">{{ realNameStatus ? getRealNameStatusLabel(realNameStatus) : '状态未知' }}</text>
+          <view class="settings-arrow i-carbon-chevron-right ml-1.5 text-size-xs text-content-muted" />
         </button>
-        <view class="settings-row">
-          <view class="settings-icon">
+        <view class="settings-row relative box-border min-h-17 flex items-center px-3.5 py-3">
+          <view class="settings-icon mr-2.5 h-7.5 w-7.5 flex items-center justify-center rounded-2.5 text-size-sm">
             <view class="i-carbon-email" />
           </view>
-          <view class="settings-main">
-            <text class="settings-title">邮箱</text>
+          <view class="settings-main min-w-0 flex flex-1 flex-col gap-1">
+            <text class="settings-title overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-primary font-semibold">邮箱</text>
           </view>
-          <text class="settings-value">{{ appContextStore.user?.email || '未绑定' }}</text>
+          <text class="settings-value ml-2.5 max-w-1/2 overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-secondary">{{ appContextStore.user?.email || '未绑定' }}</text>
         </view>
-        <view class="settings-row" @click="openPhoneVerification">
-          <view class="settings-icon">
+        <view class="settings-row relative box-border min-h-17 flex items-center px-3.5 py-3" @click="openPhoneVerification">
+          <view class="settings-icon mr-2.5 h-7.5 w-7.5 flex items-center justify-center rounded-2.5 text-size-sm">
             <view class="i-carbon-phone" />
           </view>
-          <view class="settings-main">
-            <text class="settings-title">手机号</text>
+          <view class="settings-main min-w-0 flex flex-1 flex-col gap-1">
+            <text class="settings-title overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-primary font-semibold">手机号</text>
           </view>
-          <text class="settings-value">{{ appContextStore.user?.phone_verified ? (appContextStore.user?.phone_national_number || '已验证') : '未验证' }}</text>
-          <view v-if="!appContextStore.user?.phone_verified" class="settings-arrow i-carbon-chevron-right" />
+          <text class="settings-value ml-2.5 max-w-1/2 overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-secondary">{{ appContextStore.user?.phone_verified ? (appContextStore.user?.phone_national_number || '已验证') : '未验证' }}</text>
+          <view v-if="!appContextStore.user?.phone_verified" class="settings-arrow i-carbon-chevron-right ml-1.5 text-size-xs text-content-muted" />
         </view>
       </view>
 
-      <view class="settings-card">
-        <view class="settings-row" @click="openNotificationPreferences">
-          <view class="settings-icon settings-icon--notification">
+      <view class="settings-card overflow-hidden rounded-3.5 bg-surface-card">
+        <view class="settings-row relative box-border min-h-17 flex items-center px-3.5 py-3" @click="openNotificationPreferences">
+          <view class="settings-icon settings-icon--notification mr-2.5 h-7.5 w-7.5 flex items-center justify-center rounded-2.5 text-size-sm">
             <view class="i-carbon-notification" />
           </view>
-          <view class="settings-main">
-            <text class="settings-title">通知设置</text>
-            <text class="settings-copy">站内信与邮件接收方式</text>
+          <view class="settings-main min-w-0 flex flex-1 flex-col gap-1">
+            <text class="settings-title overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-primary font-semibold">通知设置</text>
+            <text class="settings-copy overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-content-muted">站内信与邮件接收方式</text>
           </view>
-          <view class="settings-arrow i-carbon-chevron-right" />
+          <view class="settings-arrow i-carbon-chevron-right ml-1.5 text-size-xs text-content-muted" />
         </view>
-        <view class="settings-row" @click="openAccountSecurity">
-          <view class="settings-icon settings-icon--security">
+        <view class="settings-row relative box-border min-h-17 flex items-center px-3.5 py-3" @click="openAccountSecurity">
+          <view class="settings-icon settings-icon--security mr-2.5 h-7.5 w-7.5 flex items-center justify-center rounded-2.5 text-size-sm">
             <view class="i-carbon-security" />
           </view>
-          <view class="settings-main">
-            <text class="settings-title">账号安全</text>
-            <text class="settings-copy">MFA 与通行密钥</text>
+          <view class="settings-main min-w-0 flex flex-1 flex-col gap-1">
+            <text class="settings-title overflow-hidden text-ellipsis whitespace-nowrap text-size-xs text-content-primary font-semibold">账号安全</text>
+            <text class="settings-copy overflow-hidden text-ellipsis whitespace-nowrap text-size-2xs text-content-muted">MFA 与通行密钥</text>
           </view>
-          <view class="settings-arrow i-carbon-chevron-right" />
+          <view class="settings-arrow i-carbon-chevron-right ml-1.5 text-size-xs text-content-muted" />
         </view>
       </view>
 
-      <view class="logout-action">
+      <view class="logout-action mt-1.5 rounded-3.5 bg-surface-card px-0 py-1">
         <wd-button block type="danger" variant="text" @click="handleLogout">
-          <view class="logout-label">
+          <view class="logout-label inline-flex items-center gap-1.5">
             <view class="i-carbon-logout" />
             <text>退出登录</text>
           </view>
@@ -143,45 +143,15 @@ function handleLogout() {
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.settings-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-.settings-card {
-  overflow: hidden;
-  border-radius: 28rpx;
-  background: var(--app-bg-card);
-}
-.settings-row {
-  position: relative;
-  display: flex;
-  min-height: 132rpx;
-  align-items: center;
-  padding: 22rpx 26rpx;
-  box-sizing: border-box;
-}
+<style scoped>
 .settings-row + .settings-row::before {
-  position: absolute;
-  top: 0;
-  right: 26rpx;
-  left: 106rpx;
+  @apply absolute top-0 right-3.5 left-13.5;
   height: 1rpx;
-  background: var(--app-border-color);
+  @apply bg-app-border;
   content: '';
 }
-.settings-row--action {
-  width: 100%;
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  text-align: left;
-  background: transparent;
-  line-height: 1.5;
-}
 .settings-row--action::after {
-  border: 0;
+  @apply border-0;
 }
 /* #ifdef H5 */
 .settings-row--action:focus-visible {
@@ -189,23 +159,8 @@ function handleLogout() {
   outline-offset: -4px;
 }
 /* #endif */
-.logout-action {
-  margin-top: 12rpx;
-  padding: 8rpx 0;
-  border-radius: 28rpx;
-  background: var(--app-bg-card);
-}
 .settings-icon {
-  display: flex;
-  width: 60rpx;
-  height: 60rpx;
-  align-items: center;
-  justify-content: center;
-  margin-right: 20rpx;
-  border-radius: 18rpx;
-  color: var(--app-color-brand-active);
-  font-size: 30rpx;
-  background: var(--app-bg-brand-soft);
+  @apply text-app-brand-active bg-surface-brand-soft;
 }
 .settings-icon--security {
   color: #b45f06;
@@ -214,44 +169,5 @@ function handleLogout() {
 .settings-icon--notification {
   color: #0879d1;
   background: #eaf5ff;
-}
-.settings-main {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 8rpx;
-}
-.settings-title,
-.settings-copy,
-.settings-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.settings-title {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
-  font-weight: 600;
-}
-.settings-copy {
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.settings-value {
-  max-width: 50%;
-  margin-left: 18rpx;
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-}
-.settings-arrow {
-  margin-left: 12rpx;
-  color: var(--app-text-muted);
-  font-size: 26rpx;
-}
-.logout-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 10rpx;
 }
 </style>

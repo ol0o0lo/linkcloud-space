@@ -19,6 +19,8 @@
     "resolveJsonModule": true,
     "types": [
       "@dcloudio/types",
+      "@tdesign/uniapp/global",
+      "@tdesign/uniapp-chat/global",
       "@uni-helper/uni-types",
       "@uni-helper/vite-plugin-uni-pages",
       "miniprogram-api-typings",

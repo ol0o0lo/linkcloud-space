@@ -137,7 +137,7 @@ onBeforeUnmount(close)
       <view v-if="error" class="py-2 text-app-danger">
         {{ error }}
       </view>
-      <view :id="mapId" style="width: 100%; height: 320px; margin-top: 12px;" />
+      <view :id="mapId" class="mt-3 h-80 w-full" />
       <view class="py-2 text-xs text-content-muted">
         点击地图选点，或搜索地点后选择；确认后回填，保存资料后生效。
       </view>

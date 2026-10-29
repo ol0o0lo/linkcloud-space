@@ -29,3 +29,30 @@ test('小程序模板只使用命名的 UnoCSS 字号阶梯', () => {
 
   assert.deepEqual(violations, [])
 })
+
+test('小程序固定尺寸优先使用 UnoCSS 刻度，避免任意像素工具类', () => {
+  const arbitrarySize = /\b(?:p[trblxy]?|m[trblxy]?|gap(?:-[xy])?|(?:min-|max-)?[wh]|top|right|bottom|left|rounded(?:-[trbl])?|text(?:-size)?|leading)-\[-?\d+(?:\.\d+)?(?:rpx|px)\]/g
+  const violations = vueFiles(sourceRoot).flatMap((path) => {
+    const matches = readFileSync(path, 'utf8').match(arbitrarySize) ?? []
+    return matches.map(className => `${relative(new URL('.', projectRoot).pathname, path)}: ${className}`)
+  })
+
+  assert.deepEqual(violations, [])
+})
+
+test('小程序单边描边仅设置对应方向的边框样式', () => {
+  const violations = vueFiles(sourceRoot).flatMap((path) => {
+    const source = readFileSync(path, 'utf8')
+    const groups = source.matchAll(/\bclass="([^"]*)"|@apply ([^;{}]+);/g)
+    return [...groups].flatMap((group) => {
+      const utilities = (group[1] ?? group[2]).split(/\s+/)
+      const hasSideWidth = utilities.some(name => /^border-[trblxy](?:-(?:hairline|\d+(?:\.\d+)?))?$/.test(name))
+      const hasAllWidths = utilities.some(name => /^border(?:-(?:hairline|\d+(?:\.\d+)?))?$/.test(name))
+      return hasSideWidth && !hasAllWidths && utilities.includes('border-solid')
+        ? [relative(new URL('.', projectRoot).pathname, path)]
+        : []
+    })
+  })
+
+  assert.deepEqual(violations, [])
+})

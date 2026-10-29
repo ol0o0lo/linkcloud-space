@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<{
   lazyRender?: boolean
   showHandle?: boolean
   footerDivider?: boolean
+  panelHeight?: string
 }>(), {
   title: '',
   description: '',
@@ -26,6 +27,7 @@ const props = withDefaults(defineProps<{
   lazyRender: true,
   showHandle: false,
   footerDivider: true,
+  panelHeight: '',
 })
 
 const emit = defineEmits<{
@@ -52,7 +54,7 @@ const contentStyle = computed(() => ({
     position="bottom"
     round
     closable
-    safe-area-inset-bottom
+    :safe-area-inset-bottom="!panelHeight"
     root-portal
     :close-on-click-modal="closeOnClickModal"
     :lock-scroll="lockScroll"
@@ -63,27 +65,37 @@ const contentStyle = computed(() => ({
     @close="emit('close')"
     @closed="emit('closed')"
   >
-    <view class="box-border" :class="showHandle ? 'detail-sheet' : 'px-3.5 pb-3 pt-4'">
-      <view v-if="showHandle" class="detail-sheet__handle" />
-      <slot name="header">
-        <view v-if="title || description" :class="showHandle ? 'detail-sheet__header' : 'mb-2.5 pr-6'">
-          <view v-if="title" :class="showHandle ? 'detail-sheet__title' : 'text-base text-content-primary font-bold'">
-            {{ title }}
+    <view
+      class="box-border"
+      :class="[showHandle ? 'detail-sheet' : 'px-3.5 pb-3 pt-4', { 'bounded-sheet': panelHeight }]"
+      :style="panelHeight ? { height: panelHeight, maxHeight: panelHeight } : undefined"
+    >
+      <view v-if="showHandle" class="detail-sheet__handle w-8 rounded-1" />
+      <view class="sheet-fixed-region">
+        <slot name="header">
+          <view v-if="title || description" :class="showHandle ? 'detail-sheet__header' : 'mb-2.5 pr-6'">
+            <view v-if="title" :class="showHandle ? 'detail-sheet__title' : 'text-base text-content-primary font-bold'">
+              {{ title }}
+            </view>
+            <view v-if="description" :class="showHandle ? 'detail-sheet__description' : 'mt-1 text-xs text-content-muted leading-relaxed'">
+              {{ description }}
+            </view>
           </view>
-          <view v-if="description" :class="showHandle ? 'detail-sheet__description' : 'mt-1 text-xs text-content-muted leading-relaxed'">
-            {{ description }}
-          </view>
-        </view>
-      </slot>
+        </slot>
+      </view>
 
-      <scroll-view v-if="scrollable" scroll-y :style="contentStyle">
+      <view v-if="slots.toolbar" class="sheet-fixed-region">
+        <slot name="toolbar" />
+      </view>
+
+      <scroll-view v-if="scrollable" scroll-y :class="{ 'bounded-sheet__scroll': panelHeight }" :style="panelHeight ? undefined : contentStyle">
         <slot />
       </scroll-view>
-      <view v-else :style="contentStyle">
+      <view v-else :class="{ 'bounded-sheet__scroll': panelHeight }" :style="panelHeight ? undefined : contentStyle">
         <slot />
       </view>
 
-      <view v-if="slots.footer" :class="footerDivider ? 'mt-2.5 border-0 border-t border-app-divider border-solid pt-2' : 'mt-2'">
+      <view v-if="slots.footer" class="sheet-fixed-region" :class="footerDivider ? 'mt-2.5 border-0 border-t border-app-divider border-solid pt-2' : 'mt-2'">
         <slot name="footer" />
       </view>
     </view>
@@ -91,31 +103,37 @@ const contentStyle = computed(() => ({
 </template>
 
 <style scoped lang="scss">
+.bounded-sheet {
+  @apply flex flex-col overflow-hidden;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.bounded-sheet__scroll {
+  @apply flex-1 h-0 min-h-0 overflow-hidden;
+}
+.sheet-fixed-region,
+.detail-sheet__handle {
+  @apply shrink-0;
+}
 .detail-sheet {
-  padding: 8px 16px 28px;
+  @apply pt-2 px-4 pb-7;
 }
 .detail-sheet__handle {
-  width: 32px;
-  height: 4px;
-  margin: 0 auto 7px;
-  border-radius: 3px;
+  @apply h-1 mt-0 mx-auto mb-2;
   background: #dbe1e9;
 }
 .detail-sheet__header {
-  margin-bottom: 14px;
-  padding-right: 32px;
+  @apply mb-3.5 pr-8;
 }
 .detail-sheet__title {
-  min-height: 48px;
-  display: flex;
-  align-items: center;
+  @apply min-h-12 flex items-center;
   color: #182538;
-  font-size: 18px;
-  font-weight: 650;
+  @apply text-size-lg font-bold;
 }
 .detail-sheet__description {
   color: #78869a;
-  font-size: 12px;
-  line-height: 18px;
+  @apply text-size-xs leading-4.5;
+}
+.detail-sheet.bounded-sheet {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 </style>

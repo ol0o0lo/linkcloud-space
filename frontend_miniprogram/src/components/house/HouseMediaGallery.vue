@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onHide } from '@dcloudio/uni-app'
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue'
+import type { MigrationMediaReference } from '@/domain/house-media'
+import { getHouseDisplayMedia } from '@/domain/house-media'
 
 interface HouseMediaInput {
   media_id?: unknown
@@ -23,10 +25,12 @@ interface GalleryMediaItem {
 const props = withDefaults(defineProps<{
   images?: HouseMediaInput[]
   videos?: HouseMediaInput[]
+  migrationMedia?: MigrationMediaReference[]
   emptyText?: string
 }>(), {
   images: () => [],
   videos: () => [],
+  migrationMedia: () => [],
   emptyText: '暂无房源媒体',
 })
 
@@ -53,8 +57,8 @@ function normalizeMedia(items: HouseMediaInput[], type: GalleryMediaItem['type']
 }
 
 const mediaItems = computed(() => [
-  ...normalizeMedia(props.videos, 'video'),
-  ...normalizeMedia(props.images, 'image'),
+  ...normalizeMedia(getHouseDisplayMedia({ videos: props.videos, migration_media: props.migrationMedia }, 'video'), 'video'),
+  ...normalizeMedia(getHouseDisplayMedia({ images: props.images, migration_media: props.migrationMedia }, 'image'), 'image'),
 ])
 const imageItems = computed(() => mediaItems.value.filter(item => item.type === 'image'))
 const imageUrls = computed(() => imageItems.value.map(item => item.url))
@@ -103,13 +107,13 @@ function previewImage(item: GalleryMediaItem) {
 </script>
 
 <template>
-  <view class="house-media" :class="{ 'house-media--playing': playingId, 'house-media--empty': !mediaItems.length }">
+  <view class="house-media relative max-h-105 w-full overflow-hidden bg-hex-101820" :class="{ 'house-media--playing': playingId, 'house-media--empty': !mediaItems.length }">
     <swiper v-if="mediaItems.length" class="house-media__swiper" :circular="mediaItems.length > 1" :current="currentIndex" @change="handleChange">
       <swiper-item v-for="item in mediaItems" :key="item.id">
         <video
           v-if="item.type === 'video'"
           :id="item.contextId"
-          class="house-media__content"
+          class="house-media__content block"
           :src="item.url"
           :poster="item.thumbnail || fallbackPoster"
           :controls="playingId === item.id"
@@ -121,16 +125,16 @@ function previewImage(item: GalleryMediaItem) {
           @ended="playingId = ''"
         />
         <template v-if="item.type === 'video' && playingId !== item.id">
-          <view class="house-media__video-label">
+          <view class="house-media__video-label absolute left-3.5 top-27 z-3 border-1 border-hex-ffffff45 rounded-1.5 border-solid bg-hex-18304640 px-1.5 py-1 text-size-2xs text-hex-fff leading-4">
             房源视频
           </view>
-          <button class="house-media__play" aria-label="播放房源视频" @click="playVideo(item)">
-            <text class="i-carbon-play house-media__play-icon" />
+          <button class="house-media__play absolute z-3 m-0 h-13 w-13 flex items-center justify-center border-1 border-hex-fff rounded-full border-solid bg-hex-fff p-0 text-size-2xl text-hex-253b51" aria-label="播放房源视频" @click="playVideo(item)">
+            <text class="i-carbon-play house-media__play-icon ml-1" />
           </button>
         </template>
         <image
           v-if="item.type === 'image'"
-          class="house-media__content"
+          class="house-media__content block"
           :src="item.url"
           mode="aspectFill"
           :aria-label="item.title || '房源图片，点击全屏查看'"
@@ -138,13 +142,13 @@ function previewImage(item: GalleryMediaItem) {
         />
       </swiper-item>
     </swiper>
-    <view v-else class="house-media__empty">
-      <text class="i-carbon-image house-media__empty-icon" />
+    <view v-else class="house-media__empty flex flex-col items-center justify-center gap-2 text-size-xs text-hex-ffffff/72">
+      <text class="i-carbon-image house-media__empty-icon text-size-2xl" />
       <text>{{ emptyText }}</text>
     </view>
 
     <template v-if="mediaItems.length && !playingId">
-      <view class="house-media__counts">
+      <view class="house-media__counts bottom-3.5 left-3 flex gap-2 border-1 border-hex-ffffff24 rounded-2 border-solid bg-hex-11263c82 px-2 py-1.5">
         <view v-if="videoCount" class="house-media__count">
           <text class="i-carbon-video" />
           <text>{{ videoCount }}</text>
@@ -154,13 +158,13 @@ function previewImage(item: GalleryMediaItem) {
           <text>{{ imageCount }}</text>
         </view>
       </view>
-      <view class="house-media__position">
+      <view class="house-media__position bottom-4.5 right-3 rounded-1.5 bg-hex-122c405e px-1.5 py-1">
         {{ currentIndex + 1 }} / {{ mediaItems.length }}
       </view>
-      <view v-if="mediaItems.length > 1" class="house-media__dots">
-        <button v-for="item, index in mediaItems" :key="`dot-${item.id}`" class="house-media__marker" :aria-label="`切换到${item.type === 'video' ? '视频' : '图片'} ${index + 1}`" @click="selectMedia(index)">
-          <text v-if="item.type === 'video'" class="i-carbon-play house-media__video-dot" :class="{ 'house-media__video-dot--active': index === currentIndex }" />
-          <view v-else class="house-media__dot" :class="{ 'house-media__dot--active': index === currentIndex }" />
+      <view v-if="mediaItems.length > 1" class="house-media__dots bottom-2.5 left-1/2 flex items-center gap-0.5">
+        <button v-for="item, index in mediaItems" :key="`dot-${item.id}`" class="house-media__marker m-0 h-9 w-7 flex items-center justify-center border-0 bg-transparent p-0" :aria-label="`切换到${item.type === 'video' ? '视频' : '图片'} ${index + 1}`" @click="selectMedia(index)">
+          <text v-if="item.type === 'video'" class="i-carbon-play house-media__video-dot text-size-sm text-hex-ffffff8a" :class="{ 'house-media__video-dot--active': index === currentIndex }" />
+          <view v-else class="house-media__dot h-1 w-1 rounded-full bg-hex-ffffff/50" :class="{ 'house-media__dot--active': index === currentIndex }" />
         </button>
       </view>
     </template>
@@ -169,178 +173,85 @@ function previewImage(item: GalleryMediaItem) {
 
 <style scoped lang="scss">
 .house-media {
-  position: relative;
-  width: 100%;
   height: 72.3077vw;
-  max-height: 420px;
-  overflow: hidden;
-  background: #101820;
 }
 
 .house-media::before,
 .house-media::after {
-  position: absolute;
-  z-index: 1;
-  right: 0;
-  left: 0;
-  pointer-events: none;
+  @apply absolute;
+  @apply z-1;
+  @apply right-0;
+  @apply left-0;
+  @apply pointer-events-none;
   content: '';
 }
 .house-media::before {
-  top: 0;
+  @apply top-0;
   height: 55%;
   background: linear-gradient(#0d1c2a66, transparent);
 }
 .house-media::after {
-  bottom: 0;
+  @apply bottom-0;
   height: 35%;
   background: linear-gradient(transparent, #10203173);
 }
 .house-media--playing::before,
 .house-media--playing::after {
-  display: none;
+  @apply hidden;
 }
 
 .house-media__swiper,
 .house-media__content,
 .house-media__empty {
-  width: 100%;
-  height: 100%;
-}
-
-.house-media__content {
-  display: block;
+  @apply w-full;
+  @apply h-full;
 }
 
 .house-media__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 14rpx;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 24rpx;
   background: linear-gradient(145deg, #253244, #111b28);
-}
-
-.house-media__empty-icon {
-  font-size: 54rpx;
 }
 
 .house-media__counts,
 .house-media__position,
 .house-media__dots {
-  position: absolute;
-  z-index: 2;
-}
-
-.house-media__counts {
-  bottom: 14px;
-  left: 12px;
-  display: flex;
-  gap: 7px;
-  padding: 5px 8px;
-  border: 1px solid #ffffff24;
-  border-radius: 7px;
-  background: #11263c82;
+  @apply absolute;
+  @apply z-2;
 }
 
 .house-media__count,
 .house-media__position {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  color: #fff;
-  font-size: 10px;
-  line-height: 15px;
-}
-
-.house-media__position {
-  right: 12px;
-  bottom: 17px;
-  padding: 4px 6px;
-  border-radius: 5px;
-  background: #122c405e;
+  @apply flex;
+  @apply items-center;
+  @apply gap-1;
+  @apply text-hex-fff;
+  @apply text-size-2xs;
+  @apply leading-4;
 }
 
 .house-media__dots {
-  bottom: 9px;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 1px;
   transform: translateX(-50%);
 }
 
 .house-media__dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.5);
   transition:
     width 180ms ease,
     background-color 180ms ease;
 }
 
 .house-media__dot--active {
-  width: 15px;
-  background: #fff;
-}
-.house-media__marker {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 36px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  @apply w-4;
+  @apply bg-hex-fff;
 }
 .house-media__marker::after,
 .house-media__play::after {
-  border: 0;
-}
-.house-media__video-dot {
-  color: #ffffff8a;
-  font-size: 14px;
+  @apply border-0;
 }
 .house-media__video-dot--active {
-  color: #fff;
+  @apply text-hex-fff;
 }
 .house-media__play {
-  position: absolute;
-  z-index: 3;
   top: calc(50% - 15px);
   left: calc(50% - 26px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  margin: 0;
-  padding: 0;
-  border: 1px solid #fff;
-  border-radius: 50%;
-  color: #253b51;
-  font-size: 25px;
-  background: #fff;
   box-shadow: 0 3px 18px #11283f20;
-}
-.house-media__play-icon {
-  margin-left: 3px;
-}
-.house-media__video-label {
-  position: absolute;
-  z-index: 3;
-  top: 107px;
-  left: 14px;
-  padding: 3px 6px;
-  border: 1px solid #ffffff45;
-  border-radius: 5px;
-  color: #fff;
-  font-size: 10px;
-  line-height: 15px;
-  background: #18304640;
 }
 </style>

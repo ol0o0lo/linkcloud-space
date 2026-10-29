@@ -107,7 +107,7 @@ async function saveMember() {
 async function removeMember() {
   if (!member.value || member.value.is_owner || removing.value)
     return
-  const confirmation = await uni.showModal({ title: '移除组织成员', content: `确定移除 ${member.value.employee_name || member.value.user.username} 吗？`, confirmText: '确认移除' })
+  const confirmation = await uni.showModal({ title: '移除空间成员', content: `确定移除 ${member.value.employee_name || member.value.user.username} 吗？移除后，该成员将无法访问当前工作空间，其平台账号仍保留。`, confirmText: '确认移除' })
   if (!confirmation.confirm)
     return
   removing.value = true
@@ -127,17 +127,17 @@ onShow(() => void loadMember())
 </script>
 
 <template>
-  <view class="page-shell">
+  <view class="page-shell box-border min-h-screen bg-surface-page px-3 pb-7 pt-0">
     <AppCustomNavigation title="成员详情" back scroll-mode="sticky" />
     <wd-toast />
     <AppLoading v-if="loading" text="正在加载成员详情…" />
     <AppErrorView v-else-if="loadError" title="成员详情加载失败" :message="loadError" @retry="loadMember" />
     <template v-else-if="member">
-      <view class="hero-card">
-        <view class="member-avatar">
+      <view class="hero-card flex items-center gap-2.5 rounded-3 bg-surface-card p-4">
+        <view class="member-avatar h-9 w-9 flex flex-none basis-9 items-center justify-center rounded-3 bg-surface-brand-soft text-size-sm text-app-brand font-bold">
           {{ (member.employee_name || member.user.username).slice(0, 1) }}
         </view>
-        <view class="member-main">
+        <view class="member-main min-w-0 flex flex-1 flex-col gap-1">
           <strong>{{ member.employee_name || member.user.username }}</strong><text>{{ member.user.email || member.user.username }}</text>
         </view>
         <wd-tag :type="member.is_owner ? 'warning' : 'primary'" variant="light">
@@ -147,26 +147,26 @@ onShow(() => void loadMember())
       <wd-cell-group title="团队、角色与负责范围" title-width="80px" insert>
         <wd-cell title="所属团队" :value="workspaceMember ? workspaceMember.teams.map(team => team.name).join('、') || '尚未加入团队' : '暂时无法加载'" :is-link="canManageTeams" @click="canManageTeams && openTeams()" />
         <wd-cell v-for="team in workspaceMember?.teams || []" :key="team.id" :title="team.name" value="查看团队" is-link @click="openTeam(team.id)" />
-        <wd-cell v-if="canViewRoles" title="角色与授权" :value="rolesAvailable ? roleNames.join('、') || '尚未授权组织角色' : navigation?.capabilities.role_view ? '暂时无法加载' : '查看团队角色'" is-link @click="openRoles" />
-        <wd-cell title="房源职责" :value="responsibilitySummary" :is-link="navigation?.capabilities.responsibility_manage" @click="navigation?.capabilities.responsibility_manage && openResponsibilities()" />
+        <wd-cell v-if="canViewRoles" title="角色与授权" :value="rolesAvailable ? roleNames.join('、') || '尚未授权空间角色' : navigation?.capabilities.role_view ? '暂时无法加载' : '查看团队角色'" is-link @click="openRoles" />
+        <wd-cell title="房源分工" :value="responsibilitySummary" :is-link="navigation?.capabilities.responsibility_manage" @click="navigation?.capabilities.responsibility_manage && openResponsibilities()" />
       </wd-cell-group>
-      <view class="section-title">
-        组织内资料
+      <view class="section-title mx-1 mb-2 mt-4.5 text-size-sm text-content-primary font-bold">
+        工作空间内资料
       </view>
-      <view class="form-card">
+      <view class="form-card flex flex-col gap-3 rounded-3 bg-surface-card p-4">
         <wd-cell title="员工姓名" center>
-          <wd-input v-model="employeeName" placeholder="组织内展示姓名" clearable compact align-right />
+          <wd-input v-model="employeeName" placeholder="工作空间内展示姓名" clearable compact align-right />
         </wd-cell>
         <wd-cell title="职位" center>
           <wd-input v-model="jobTitle" placeholder="请输入职位" clearable compact align-right />
         </wd-cell>
-        <AppNotice title="组织内资料" description="员工姓名和职位只用于当前组织内展示，不会修改账号的个人资料。" compact />
+        <AppNotice title="工作空间内资料" description="员工姓名和职位只用于当前工作空间内展示，不会修改账号的个人资料。" compact />
         <wd-button block :loading="saving" :disabled="saving" @click="saveMember">
           保存成员资料
         </wd-button>
         <view v-if="!member.is_owner" class="mt-4 text-center">
           <wd-button size="small" type="danger" variant="text" :loading="removing" :disabled="removing" @click="removeMember">
-            移除组织成员
+            移除空间成员
           </wd-button>
         </view>
       </view>
@@ -175,66 +175,16 @@ onShow(() => void loadMember())
 </template>
 
 <style scoped lang="scss">
-.page-shell {
-  min-height: 100vh;
-  padding: 0 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
 .page-shell :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
-}
-.hero-card,
-.form-card {
-  padding: 30rpx;
-  border-radius: 24rpx;
-  background: var(--app-bg-card);
-}
-.hero-card {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-}
-.member-avatar {
-  display: flex;
-  width: 72rpx;
-  height: 72rpx;
-  flex: 0 0 72rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 22rpx;
-  color: var(--app-color-brand);
-  font-size: 28rpx;
-  font-weight: 700;
-  background: var(--app-bg-brand-soft);
-}
-.member-main {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 7rpx;
+  @apply mt-0 -mx-3 mb-3;
 }
 .hero-card strong {
-  color: var(--app-text-primary);
-  font-size: 28rpx;
+  @apply text-content-primary text-size-sm;
 }
 .hero-card text {
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.form-card {
-  display: flex;
-  flex-direction: column;
-  gap: 22rpx;
-}
-.section-title {
-  margin: 34rpx 6rpx 14rpx;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 700;
+  @apply text-content-muted text-size-xs;
 }
 .form-card :deep(.wd-button) {
-  margin-top: 6rpx;
+  @apply mt-1;
 }
 </style>

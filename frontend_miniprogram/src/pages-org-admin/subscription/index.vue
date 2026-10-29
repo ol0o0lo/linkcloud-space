@@ -26,7 +26,7 @@ import { connectCurrentWechatMiniprogram, getWechatLoginCode } from '@/infra/aut
 import { APP_ROUTES } from '@/modules/routes'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationBarTitleText: '订阅与发票', navigationStyle: 'custom' } })
+definePage({ style: { navigationBarTitleText: '套餐与用量', navigationStyle: 'custom' } })
 
 interface PaymentSnapshot {
   payment_mode?: string
@@ -155,7 +155,7 @@ async function requestPayment(order: SaaSOrderOut) {
     throw new Error(availability.message)
   const checkout = payment.checkout
   if (!checkout)
-    throw new Error('支付参数尚未就绪')
+    throw new Error('暂时无法发起支付，请刷新订单后重试')
   const paymentRequest = resolveSubscriptionPaymentRequest(checkout, availability.paymentMode)
   if (paymentRequest.kind === 'native') {
     nativeCodeUrl.value = paymentRequest.codeUrl
@@ -350,36 +350,36 @@ onShow(() => void loadSubscription())
 </script>
 
 <template>
-  <view class="page-shell">
-    <AppCustomNavigation title="订阅与发票" back scroll-mode="sticky" />
+  <view class="page-shell box-border min-h-screen bg-surface-page px-3 pb-7 pt-0">
+    <AppCustomNavigation title="套餐与用量" back scroll-mode="sticky" />
     <wd-toast />
     <AppLoading v-if="loading" text="正在加载订阅信息…" />
     <AppErrorView v-else-if="loadError" title="订阅信息加载失败" :message="loadError" @retry="loadSubscription" />
     <template v-else>
-      <view class="hero-card">
+      <view class="hero-card flex flex-col gap-1.5 rounded-3.5 p-4 text-content-on-brand bg-gradient-brand">
         <text>当前套餐</text><strong>{{ currentPlanName }}</strong>
         <text v-if="trialDaysRemaining !== null">专业版试用还剩 {{ trialDaysRemaining }} 天</text>
         <text v-else>支付方式：{{ paymentMode === 'miniprogram' ? '微信小程序支付' : '微信扫码支付' }}</text>
-        <view v-if="currentUsage" class="usage-row">
+        <view v-if="currentUsage" class="usage-row mt-1.5 flex flex-wrap gap-1.5">
           <text>成员 {{ currentUsage.member || 0 }}/{{ currentEntitlement?.member_limit ?? '不限' }}</text>
           <text>团队 {{ currentUsage.team || 0 }}/{{ currentEntitlement?.team_limit ?? '不限' }}</text>
           <text>房源 {{ currentUsage.house || 0 }}/{{ currentEntitlement?.house_limit ?? '不限' }}</text>
         </view>
       </view>
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-2 mt-3.5 text-size-sm text-content-primary font-bold">
         可用套餐
       </view>
-      <view class="card-list">
-        <view v-for="plan in plans" :key="plan.code" class="record-card">
-          <view class="record-main">
+      <view class="card-list flex flex-col gap-2">
+        <view v-for="plan in plans" :key="plan.code" class="record-card rounded-3 bg-surface-card p-3">
+          <view class="record-main min-w-0 flex-1">
             <strong>{{ plan.name }}</strong><text>{{ plan.description }}</text>
-            <view v-if="plan.entitlement" class="quota-row">
+            <view v-if="plan.entitlement" class="quota-row mt-1.5 flex flex-wrap gap-1">
               <text>{{ formatQuota(planEntitlement(plan).member_limit, '人') }}</text>
               <text>{{ formatQuota(planEntitlement(plan).team_limit, '个团队') }}</text>
               <text>{{ formatQuota(planEntitlement(plan).house_limit, '套房源') }}</text>
             </view>
-            <view class="price-list">
-              <view v-for="price in planPrices(plan)" :key="price.billing_cycle" class="price-row">
+            <view class="price-list mt-2">
+              <view v-for="price in planPrices(plan)" :key="price.billing_cycle" class="price-row mt-1.5 flex items-center justify-between gap-2">
                 <text>{{ planPurchaseMode(plan) === 'sales_assisted' ? '按需报价' : `¥${formatMoney(price.amount)} / ${formatBillingCycle(price.billing_cycle)}` }}{{ price.display_note ? ` · ${price.display_note}` : '' }}</text>
                 <wd-button v-if="canManageSubscription && plan.code !== 'free'" size="small" :loading="submitting" :disabled="submitting" @click="purchasePlan(plan, price)">
                   {{ planPurchaseMode(plan) === 'sales_assisted' ? '联系销售' : '购买此周期' }}
@@ -389,22 +389,22 @@ onShow(() => void loadSubscription())
           </view>
         </view>
       </view>
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-2 mt-3.5 text-size-sm text-content-primary font-bold">
         支付记录
       </view>
-      <view class="card-list">
-        <view v-for="order in orders" :key="order.order_no" class="order-card">
-          <view class="record-main">
+      <view class="card-list flex flex-col gap-2">
+        <view v-for="order in orders" :key="order.order_no" class="order-card rounded-3 bg-surface-card p-3">
+          <view class="record-main min-w-0 flex-1">
             <view class="title-line">
               <strong>{{ order.target_plan_name }}</strong><wd-tag variant="light" size="small">
                 {{ getSubscriptionOrderStatusLabel(order.status) }}
               </wd-tag>
             </view><text>订单号：{{ order.order_no }} · {{ formatBillingCycle(order.billing_cycle) }} · ¥{{ formatMoney(order.payable_amount) }}</text>
           </view>
-          <view v-if="canManageSubscription && order.status === 'pending_payment'" class="action-row">
+          <view v-if="canManageSubscription && order.status === 'pending_payment'" class="action-row mt-2 flex-wrap">
             <wd-button v-if="orderPaymentAvailability(order).compatible" size="small" :loading="payingOrderNo === order.order_no" @click="continuePayment(order)">
               支付
-            </wd-button><text v-else class="payment-terminal-tip">{{ orderPaymentAvailability(order).message }}</text><wd-button size="small" variant="plain" :disabled="Boolean(payingOrderNo)" @click="refreshPayment(order)">
+            </wd-button><text v-else class="payment-terminal-tip w-full text-size-2xs text-content-muted">{{ orderPaymentAvailability(order).message }}</text><wd-button size="small" variant="plain" :disabled="Boolean(payingOrderNo)" @click="refreshPayment(order)">
               刷新
             </wd-button><wd-button size="small" type="danger" variant="plain" :disabled="Boolean(payingOrderNo)" @click="cancelOrder(order)">
               取消
@@ -412,14 +412,14 @@ onShow(() => void loadSubscription())
           </view>
         </view>
       </view>
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-2 mt-3.5 text-size-sm text-content-primary font-bold">
         发票
       </view>
-      <view v-if="canManageSubscription" class="invoice-card">
+      <view v-if="canManageSubscription" class="invoice-card rounded-3 bg-surface-card p-3">
         <view><strong>{{ invoiceProfile?.title || '尚未维护开票资料' }}</strong><text>{{ invoiceProfile?.recipient_email || '保存资料后可申请开票' }}</text></view><wd-button v-if="canManageSubscription" size="small" variant="plain" @click="invoiceVisible = true">
           维护资料
         </wd-button>
-        <view class="field-label">
+        <view class="field-label mx-0 mb-1.5 mt-2.5 text-size-xs text-content-secondary">
           选择可开票订单
         </view>
         <wd-radio-group v-model="invoiceOrderId" type="button" direction="vertical">
@@ -434,12 +434,12 @@ onShow(() => void loadSubscription())
           申请开票
         </wd-button>
       </view>
-      <view class="section-heading">
+      <view class="section-heading mx-1 mb-2 mt-3.5 text-size-sm text-content-primary font-bold">
         开票申请
       </view>
-      <view class="card-list">
-        <view v-for="invoiceRequest in invoiceRequests" :key="invoiceRequest.id" class="record-card">
-          <view class="record-main">
+      <view class="card-list flex flex-col gap-2">
+        <view v-for="invoiceRequest in invoiceRequests" :key="invoiceRequest.id" class="record-card rounded-3 bg-surface-card p-3">
+          <view class="record-main min-w-0 flex-1">
             <view class="title-line">
               <strong>{{ invoiceRequest.target_plan_name }}</strong><wd-tag variant="light" size="small">
                 {{ getInvoiceStatusLabel(invoiceRequest.status) }}
@@ -494,154 +494,56 @@ onShow(() => void loadSubscription())
       </template>
     </AppBottomSheet>
     <AppBottomSheet :visible="Boolean(nativeCodeUrl)" title="微信扫码支付" :scrollable="false" @update:visible="!$event && (nativeCodeUrl = '')">
-      <image class="payment-qr" :src="`/qr/?data=${encodeURIComponent(nativeCodeUrl)}`" mode="aspectFit" />
-      <text class="payment-tip">请使用微信扫描二维码完成支付，支付后返回刷新订单状态。</text>
+      <image class="payment-qr mx-auto my-0 block h-53 w-53" :src="`/qr/?data=${encodeURIComponent(nativeCodeUrl)}`" mode="aspectFit" />
+      <text class="payment-tip block text-center text-size-2xs text-content-muted">请使用微信扫描二维码完成支付，支付后返回刷新订单状态。</text>
     </AppBottomSheet>
   </view>
 </template>
 
 <style scoped lang="scss">
-.page-shell {
-  min-height: 100vh;
-  padding: 0 24rpx 56rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
 .page-shell :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
-}
-.hero-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10rpx;
-  padding: 30rpx;
-  border-radius: 26rpx;
-  color: var(--app-text-on-brand);
-  background: var(--app-gradient-brand);
+  @apply mt-0 -mx-3 mb-3;
 }
 .hero-card strong {
-  font-size: 36rpx;
+  @apply text-size-lg;
 }
 .hero-card text {
-  font-size: 22rpx;
-  opacity: 0.82;
-}
-.usage-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-  margin-top: 10rpx;
+  @apply text-size-2xs opacity-82;
 }
 .usage-row text {
-  padding: 7rpx 12rpx;
-  border-radius: 999rpx;
+  @apply py-1 px-1.5 rounded-full;
   background: rgb(255 255 255 / 14%);
-}
-.section-heading {
-  margin: 28rpx 6rpx 14rpx;
-  color: var(--app-text-primary);
-  font-size: 28rpx;
-  font-weight: 650;
-}
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-.record-card,
-.order-card,
-.invoice-card {
-  padding: 25rpx;
-  border-radius: 22rpx;
-  background: var(--app-bg-card);
 }
 .record-card,
 .title-line,
 .action-row,
 .invoice-card > view:first-child {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-}
-.record-main {
-  min-width: 0;
-  flex: 1;
+  @apply flex items-center gap-2;
 }
 .record-main strong,
 .record-main text,
 .invoice-card strong,
 .invoice-card text {
-  display: block;
+  @apply block;
 }
 .record-main strong,
 .invoice-card strong {
-  color: var(--app-text-primary);
-  font-size: 26rpx;
+  @apply text-content-primary text-size-xs;
 }
 .record-main text,
 .invoice-card text {
-  margin-top: 6rpx;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.action-row {
-  flex-wrap: wrap;
-  margin-top: 16rpx;
-}
-.payment-terminal-tip {
-  width: 100%;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-}
-.price-list {
-  margin-top: 14rpx;
-}
-.quota-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8rpx;
-  margin-top: 12rpx;
+  @apply mt-1 text-content-muted text-size-2xs;
 }
 .quota-row text {
-  padding: 6rpx 10rpx;
-  border-radius: 999rpx;
-  background: var(--app-bg-subtle);
-}
-.price-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14rpx;
-  margin-top: 10rpx;
-}
-.field-label {
-  margin: 18rpx 0 12rpx;
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
+  @apply py-1 px-1.5 rounded-full bg-surface-subtle;
 }
 .empty-tip,
 .file-url,
 .invoice-note {
-  display: block;
-  margin: 12rpx 0;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
+  @apply block my-1.5 mx-0 text-content-muted text-size-2xs;
   overflow-wrap: anywhere;
 }
 .invoice-card > view:first-child {
-  justify-content: space-between;
-  margin-bottom: 18rpx;
-}
-.payment-qr {
-  display: block;
-  width: 420rpx;
-  height: 420rpx;
-  margin: 0 auto;
-}
-.payment-tip {
-  display: block;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-  text-align: center;
+  @apply justify-between mb-2.5;
 }
 </style>

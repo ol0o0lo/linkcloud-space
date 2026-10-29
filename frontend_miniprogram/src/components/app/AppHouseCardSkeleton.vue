@@ -35,10 +35,10 @@ const contentRows = computed(() => props.variant === 'waterfall'
 </script>
 
 <template>
-  <view class="house-skeleton-list" :class="`house-skeleton-list--${variant}`" aria-hidden="true">
-    <view v-for="item in count" :key="item" class="house-skeleton-card" :class="`house-skeleton-card--${variant}`">
+  <view class="house-skeleton-list flex flex-col gap-3" :class="`house-skeleton-list--${variant}`" aria-hidden="true">
+    <view v-for="item in count" :key="item" class="house-skeleton-card box-border min-h-32 flex gap-2.5 border-hairline border-app-card rounded-app-lg border-solid bg-surface-card p-2.5" :class="`house-skeleton-card--${variant}`">
       <wd-skeleton animation="gradient" :row-col="coverRows" />
-      <view class="house-skeleton-content">
+      <view class="house-skeleton-content min-w-0 flex-1 pt-1">
         <wd-skeleton animation="gradient" :row-col="contentRows" />
       </view>
     </view>
@@ -46,69 +46,35 @@ const contentRows = computed(() => props.variant === 'waterfall'
 </template>
 
 <style scoped lang="scss">
-.house-skeleton-list {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-
-.house-skeleton-card {
-  display: flex;
-  gap: 20rpx;
-  min-height: 252rpx;
-  padding: 20rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: var(--app-radius-lg);
-  box-sizing: border-box;
-  background: var(--app-bg-card);
-}
-
-.house-skeleton-content {
-  min-width: 0;
-  flex: 1;
-  padding-top: 8rpx;
-}
-
 .house-skeleton-content :deep(.wd-skeleton__content) {
-  display: flex;
-  min-height: 194rpx;
-  flex-direction: column;
-  justify-content: space-between;
+  @apply flex min-h-24 flex-col justify-between;
 }
 
 .house-skeleton-list--waterfall {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18rpx;
+  @apply grid grid-cols-2 gap-2.5;
 }
 
 .house-skeleton-card--waterfall {
-  display: block;
-  min-height: 0;
-  padding: 0;
-  overflow: hidden;
+  @apply block min-h-0 p-0 overflow-hidden;
 }
 
 .house-skeleton-card--waterfall .house-skeleton-content {
-  padding: 18rpx;
+  @apply p-2.5;
 }
 
 .house-skeleton-card--waterfall .house-skeleton-content :deep(.wd-skeleton__content) {
-  min-height: 210rpx;
+  @apply min-h-26;
 }
 
 .house-skeleton-card--compact {
-  gap: 16rpx;
-  min-height: 176rpx;
-  padding: 16rpx;
-  border-radius: 24rpx;
+  @apply gap-2 min-h-22 p-2 rounded-3;
 }
 
 .house-skeleton-card--compact .house-skeleton-content {
-  padding-top: 4rpx;
+  @apply pt-0.5;
 }
 
 .house-skeleton-card--compact .house-skeleton-content :deep(.wd-skeleton__content) {
-  min-height: 126rpx;
+  @apply min-h-16;
 }
 </style>

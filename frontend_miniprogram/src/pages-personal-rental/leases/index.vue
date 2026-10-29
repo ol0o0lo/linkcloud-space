@@ -81,14 +81,14 @@ function openViewings() {
       v-if="leasePage.items.value.length"
       class="list-notice"
       title="查看范围"
-      description="租客端当前只查看租期、租金、押金、付款日和合同文件，不提供缴费、报修或续租。"
+      description="租客当前只查看租期、租金、押金、付款日和合同文件，不提供缴费、报修或续租。"
       compact
     />
   </AppPage>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .list-notice {
-  margin-top: 48rpx;
+  @apply mt-6;
 }
 </style>

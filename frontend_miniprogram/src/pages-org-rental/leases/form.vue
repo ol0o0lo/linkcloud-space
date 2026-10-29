@@ -15,6 +15,8 @@ import AppFormPage from '@/pages-org-rental/components/AppFormPage.vue'
 import { useAppContextStore } from '@/store/app-context-v2'
 
 import AppCustomNavigation from '@/components/app/AppCustomNavigation.vue'
+import { getOrganizationCustomerCapabilities } from '@/services/manual/organization-customers'
+import { listAllOrganizationAdminTeams } from '@/features/organization-admin/service'
 
 definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '编辑租约' } })
 
@@ -38,7 +40,15 @@ const tenantLoading = ref(false)
 const houses = ref<HouseOut[]>([])
 const tenants = ref<ContactOut[]>([])
 const statusSelection = ref<Array<string | number>>([])
-
+const canManage = ref(false)
+const dealTeamId = ref<number | null>(null)
+const teams = ref<Array<{ id: number, name: string }>>([])
+const teamVisible = ref(false)
+const teamSelection = ref<Array<string | number>>([])
+const signedDateVisible = ref(false)
+const signedDateValue = ref(Date.now())
+const teamOptions = computed(() => [{ label: '空间直属', value: 0 }, ...teams.value.map(item => ({ label: item.name, value: item.id }))])
+const dealTeamLabel = computed(() => teams.value.find(item => item.id === dealTeamId.value)?.name || (dealTeamId.value ? lease.value?.deal_team_name_snapshot || '原成交团队' : '空间直属'))
 const form = reactive<OrganizationLeaseWriteInput>({
   house_id: 0,
   tenant_id: 0,
@@ -54,6 +64,21 @@ const form = reactive<OrganizationLeaseWriteInput>({
   notes: '',
   extra: {},
 })
+
+function editSignedDate() {
+  signedDateValue.value = form.sign_at ? new Date(form.sign_at).getTime() : Date.now()
+  signedDateVisible.value = true
+}
+function confirmSignedDate({ value }: { value: string | number | Array<string | number> }) {
+  const date = new Date(Number(value))
+  if (Number.isFinite(date.getTime())) {
+    const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    form.sign_at = new Date(`${day}T12:00:00+08:00`).toISOString()
+  }
+}
+function confirmDealTeam({ value }: PickerConfirmEvent) {
+  dealTeamId.value = Number(value[0]) || null
+}
 
 const leaseStatusLabels: Record<string, string> = {
   pending: '待生效',
@@ -73,6 +98,8 @@ const statusLabel = computed(() => leaseStatusLabels[String(form.status || '')] 
 
 function fillLease(value: LeaseOut) {
   lease.value = value
+  dealTeamId.value = value.deal_team_id
+  teamSelection.value = [value.deal_team_id || 0]
   Object.assign(form, {
     house_id: value.house_id,
     tenant_id: value.tenant_id,
@@ -94,7 +121,7 @@ function fillLease(value: LeaseOut) {
 async function loadHouses() {
   houseLoading.value = true
   try {
-    const result = await listOrganizationHouses(appContextStore.organizationSlug, 1, 100, { keyword: houseKeyword.value.trim() || undefined })
+    const result = await listOrganizationHouses(appContextStore.organizationSlug, 1, 100, { keyword: houseKeyword.value.trim() || undefined, is_active: true })
     houses.value = result.items
   }
   catch (error) { toast.error(error instanceof Error ? error.message : '房源加载失败') }
@@ -134,12 +161,18 @@ async function loadPage() {
   loading.value = true
   loadError.value = ''
   try {
-    const [result] = await Promise.all([
+    const [result, capabilities] = await Promise.all([
       getOrganizationLease(appContextStore.organizationSlug, leaseId.value),
+      getOrganizationCustomerCapabilities(appContextStore.organizationSlug),
       loadHouses(),
       loadTenants(),
     ])
+    if (!result.can_maintain)
+      throw new Error('当前账号仅可查看这份租约摘要，请联系原登记人或空间管理员维护。')
     fillLease(result)
+    canManage.value = capabilities.can_manage
+    if (canManage.value)
+      teams.value = await listAllOrganizationAdminTeams(appContextStore.organizationSlug).catch(() => [])
   }
   catch (error) { loadError.value = error instanceof Error ? error.message : '租约加载失败' }
   finally { loading.value = false }
@@ -163,7 +196,7 @@ async function submit() {
   }
   saving.value = true
   try {
-    const saved = await patchOrganizationLease(appContextStore.organizationSlug, leaseId.value, buildOrganizationLeasePatchPayload(form))
+    const saved = await patchOrganizationLease(appContextStore.organizationSlug, leaseId.value, ({ ...buildOrganizationLeasePatchPayload(form), ...(canManage.value && dealTeamId.value !== lease.value?.deal_team_id ? { deal_team_id: dealTeamId.value } : {}) }))
     toast.success('租约已更新')
     setTimeout(() => uni.redirectTo({ url: getOrganizationLeaseDetailRoute(saved.id) }), 400)
   }
@@ -206,6 +239,11 @@ onLoad((options) => {
         <wd-cell title="租约状态" :value="statusLabel" :is-link="statusOptions.length > 1" @click="statusOptions.length > 1 && (statusVisible = true)" />
       </wd-cell-group>
 
+      <wd-cell-group v-if="canManage" title="管理员成交资料纠错" insert>
+        <wd-cell title="实际签约日期" :value="form.sign_at ? new Date(form.sign_at).toLocaleDateString('zh-CN') : '未填写'" is-link @click="editSignedDate" />
+        <wd-cell title="成交团队" :value="dealTeamLabel" is-link @click="teamVisible = true" />
+        <wd-cell title="修改说明" label="已有待审核或已通过收益时，请先撤回或由财务作废；修改后需填写原因纠错重提。" />
+      </wd-cell-group>
       <wd-cell-group title="租期与金额" insert>
         <wd-cell title="起租日期" center>
           <wd-input v-model="form.start_date" placeholder="YYYY-MM-DD" clearable compact align-right />
@@ -269,6 +307,8 @@ onLoad((options) => {
         </template>
       </AppEntityPickerSheet>
 
+      <wd-datetime-picker v-model="signedDateValue" v-model:visible="signedDateVisible" type="date" title="修正实际签约日期" @confirm="confirmSignedDate" />
+      <wd-picker v-model="teamSelection" v-model:visible="teamVisible" :columns="teamOptions" title="修正成交团队" @confirm="confirmDealTeam" />
       <wd-picker v-model="statusSelection" v-model:visible="statusVisible" :columns="statusOptions" title="选择租约状态" @confirm="changeStatus" />
     </template>
   </AppFormPage>

@@ -5,6 +5,44 @@ import { CustomRequestOptions_ } from '@/http/types';
 
 import * as API from './types';
 
+/** 获取坐标周边设施 GET /api/geography/nearby-pois/ */
+export function geographyNearbyPoisUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.GeographyNearbyPoisUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.NearbyPoisOut>('/api/geography/nearby-pois/', {
+    method: 'GET',
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
+/** 根据坐标解析所在地区 GET /api/geography/regions/resolve/ */
+export function geographyRegionsResolveUsingGet({
+  params,
+  options,
+}: {
+  // 叠加生成的Param类型 (非body参数openapi默认没有生成对象)
+  params: API.GeographyRegionsResolveUsingGetParams;
+  options?: CustomRequestOptions_;
+}) {
+  return request<API.LocatedRegionOut>('/api/geography/regions/resolve/', {
+    method: 'GET',
+    params: {
+      // coordinate_system has a default value: gcj02
+      coordinate_system: 'gcj02',
+      ...params,
+    },
+    ...(options || {}),
+  });
+}
+
 /** 全局搜索公开房源 GET /api/public/houses/ */
 export function publicHousesUsingGet({
   params,
@@ -132,6 +170,9 @@ export function publicHousesSuggestionsUsingGet({
     {
       method: 'GET',
       params: {
+        // radius_m has a default value: 1000
+        radius_m: '1000',
+
         ...params,
       },
       ...(options || {}),

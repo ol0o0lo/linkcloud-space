@@ -10,7 +10,7 @@ const testsDirectory = dirname(fileURLToPath(import.meta.url))
 const sourceRoot = join(testsDirectory, '../src')
 const domainPath = join(sourceRoot, 'domain/organization-admin.ts')
 
-test('组织管理入口按工作区能力稳定裁剪', async () => {
+test('空间管理入口按工作区能力稳定裁剪', async () => {
   assert.equal(existsSync(domainPath), true, 'domain/organization-admin.ts 应存在')
   const domain = await import('../src/domain/organization-admin.ts')
   const sections = domain.getOrganizationAdminSections({
@@ -73,7 +73,7 @@ test('角色管理 scope 选项包含组织和全部可访问团队', async () =
     teams: [{ id: 3, name: '运营组' }, { id: 5, name: '签约组' }],
     capabilities: { role_view: true, role_manage: false, team_role_view_ids: [3, 5], team_role_manage_ids: [] },
   }), [
-    { label: '组织级角色', value: 0 },
+    { label: '空间级角色', value: 0 },
     { label: '运营组', value: 3 },
     { label: '签约组', value: 5 },
   ])
@@ -138,7 +138,7 @@ test('团队设置不依赖需要成员查看权限的组织架构摘要', () =>
   assert.doesNotMatch(source, /\bgetOrganizationAdminNavigation\s*\(/)
 })
 
-test('团队详情按独立团队能力加载且成员候选不依赖组织成员查看权限', () => {
+test('团队详情按独立团队能力加载且成员候选不依赖空间成员查看权限', () => {
   const source = readFileSync(join(sourceRoot, 'pages-org-admin/teams/detail.vue'), 'utf8')
 
   assert.match(source, /getOrganizationAdminNavigationCapabilities/)
@@ -149,7 +149,7 @@ test('团队详情按独立团队能力加载且成员候选不依赖组织成�
   assert.doesNotMatch(source, /listAllOrganizationAdminMembers/)
 })
 
-test('组织管理危险载荷和支付环境保持租户边界', async () => {
+test('空间管理危险载荷和支付环境保持租户边界', async () => {
   const domain = await import('../src/domain/organization-admin.ts')
   assert.deepEqual(domain.organizationAdminRequestOptions(' demo '), {
     requestScope: { kind: 'organization', organizationSlug: 'demo' },
@@ -159,7 +159,7 @@ test('组织管理危险载荷和支付环境保持租户边界', async () => {
     requestScope: { kind: 'organization', organizationSlug: 'demo' },
     authRetry: 'never',
   })
-  assert.throws(() => domain.organizationAdminRequestOptions(''), /未选择组织/)
+  assert.throws(() => domain.organizationAdminRequestOptions(''), /未选择工作空间/)
   assert.equal(domain.resolveSubscriptionPaymentMode('h5'), 'native')
   assert.equal(domain.resolveSubscriptionPaymentMode('mp-weixin'), 'miniprogram')
   assert.deepEqual(domain.buildTenantDispatchScope('organization', 12, []), { scope: 'organization', scope_ids: [12] })
@@ -285,7 +285,7 @@ test('通知发送、订单和开票状态不直接展示英文枚举', async ()
 
   assert.equal(domain.getNotificationDispatchStatusLabel('pending'), '等待发送')
   assert.equal(domain.getNotificationDispatchStatusLabel('sent'), '发送完成')
-  assert.equal(domain.getNotificationDispatchScopeLabel('organization'), '整个组织')
+  assert.equal(domain.getNotificationDispatchScopeLabel('organization'), '整个工作空间')
   assert.equal(domain.getNotificationDispatchScopeLabel('users'), '指定成员')
   assert.equal(domain.getSubscriptionOrderStatusLabel('pending_payment'), '待支付')
   assert.equal(domain.getSubscriptionOrderStatusLabel('payment_failed'), '支付失败')
@@ -310,7 +310,7 @@ test('订阅页按订单固有模式解析历史支付并阻止跨端盲目继�
   assert.match(source, /@click="cancelOrder\(order\)"/)
 })
 
-test('组织管理分包路由完整且唯一', () => {
+test('空间管理分包路由完整且唯一', () => {
   const expectedRoutes = {
     organizationAdmin: '/pages-org-admin/index',
     organizationAdminMembers: '/pages-org-admin/members/index',
@@ -335,7 +335,7 @@ test('组织管理分包路由完整且唯一', () => {
     assert.match(pagesSource, new RegExp(`"path"\\s*:\\s*"${page}"`))
 })
 
-test('组织管理页面齐全、无占位并遵守 page 到 feature 到 manual 边界', () => {
+test('空间管理页面齐全、无占位并遵守 page 到 feature 到 manual 边界', () => {
   const pagePaths = [
     'pages-org-admin/index.vue',
     'pages-org-admin/members/index.vue',
@@ -462,7 +462,7 @@ test('团队角色与设置严格区分查看和管理权限', () => {
 
   assert.match(teamDetail, /canViewRoles/)
   assert.match(teamDetail, /team_role_view_ids/)
-  assert.match(teamDetail, /v-if="canViewRoles" class="link-card"/)
+  assert.match(teamDetail, /v-if="canViewRoles" class="link-card(?: [^"\n]*)?"/)
   assert.match(settings, /organization_settings_manage/)
   assert.match(settings, /team_settings_view_ids/)
   assert.match(settings, /team_settings_manage_ids/)
@@ -472,7 +472,7 @@ test('团队角色与设置严格区分查看和管理权限', () => {
   assert.match(workspace, /team_settings_manage_ids:\s*number\[\]/)
 })
 
-test('组织管理候选项和订阅数据不再被固定首屏截断', () => {
+test('空间管理候选项和订阅数据不再被固定首屏截断', () => {
   const manualSource = readFileSync(join(sourceRoot, 'services/manual/organization-admin.ts'), 'utf8')
   assert.match(manualSource, /collectAllPages/)
 
@@ -578,7 +578,7 @@ test('通知发送提供详情、发送分页和进行中轮询', () => {
   assert.match(detail, /onPullDownRefresh/)
 })
 
-test('组织管理首页允许工作区导航失败后按独立能力降级展示', () => {
+test('空间管理首页允许工作区导航失败后按独立能力降级展示', () => {
   const source = readFileSync(join(sourceRoot, 'pages-org-admin/index.vue'), 'utf8')
 
   assert.match(source, /Promise\.allSettled/)

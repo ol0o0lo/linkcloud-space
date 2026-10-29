@@ -7,7 +7,7 @@ import { createSaaSWorkspace } from '@/features/saas/service'
 import { APP_ROUTES, getLoginRoute } from '@/modules/routes'
 import { useAppContextStore } from '@/store/app-context-v2'
 
-definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '开通中介工作台' } })
+definePage({ style: { navigationStyle: 'custom', navigationBarTitleText: '开通经纪工作台' } })
 
 const toast = useToast()
 const appContextStore = useAppContextStore()
@@ -58,7 +58,7 @@ async function submit() {
     await appContextStore.refreshAuthenticatedContext()
     await appContextStore.switchMode({ mode: 'organization', organizationSlug: result.slug })
     const trialText = result.trial?.granted ? `已开通${result.trial.plan_name} 14 天试用。` : '工作台已创建。'
-    await uni.showModal({ title: '开通成功', content: `${trialText} 接下来录入第一套房源，完成激活任务。`, showCancel: false, confirmText: '进入工作台' })
+    await uni.showModal({ title: '开通成功', content: `${trialText} 接下来可以录入第一套房源。`, showCancel: false, confirmText: '进入工作台' })
     uni.reLaunch({ url: APP_ROUTES.organizationRental })
   }
   catch (error) {
@@ -76,35 +76,35 @@ onShow(() => {
 </script>
 
 <template>
-  <view class="onboarding-page">
-    <AppCustomNavigation title="开通中介工作台" back scroll-mode="sticky" />
+  <view class="onboarding-page box-border min-h-screen bg-surface-page px-3 pb-8 pt-0">
+    <AppCustomNavigation title="开通经纪工作台" back scroll-mode="sticky" />
     <wd-toast />
-    <view class="intro-card">
+    <view class="intro-card flex flex-col gap-1.5 border-hairline border-app-border-brand-soft rounded-xl border-solid p-3.5 bg-gradient-profile">
       <wd-tag type="success" variant="soft">
-        14 天专业版试用
+        符合条件可享 14 天专业版试用
       </wd-tag>
-      <strong>先把门店跑起来，再决定是否购买</strong>
-      <text>创建后立即获得房源、带看、租约、成员协作和经营分析能力。</text>
+      <strong class="text-size-base text-content-primary leading-snug">创建工作空间，开始管理日常业务</strong>
+      <text class="text-size-xs text-content-secondary leading-relaxed">集中管理房源、带看、租约和团队协作，功能与额度以当前套餐为准。</text>
     </view>
 
-    <view class="form-card">
-      <view class="field-block">
-        <view class="field-label">
+    <view class="form-card mt-2.5 flex flex-col gap-3 rounded-xl bg-surface-card p-3.5">
+      <view class="field-block flex flex-col gap-1.5">
+        <view class="field-label text-size-xs text-content-primary font-semibold">
           经营类型
         </view>
         <wd-radio-group v-model="businessType" type="button" direction="horizontal">
           <wd-radio value="individual">
-            独立中介
+            独立经纪人
           </wd-radio>
           <wd-radio value="store">
-            中介门店
+            经纪门店
           </wd-radio>
         </wd-radio-group>
       </view>
       <wd-input v-model="organizationName" label="名称" clearable placeholder="例如：向阳房产城西店" />
       <wd-input v-model="cityName" label="所在城市" clearable placeholder="例如：杭州" />
-      <view class="field-block">
-        <view class="field-label">
+      <view class="field-block flex flex-col gap-1.5">
+        <view class="field-label text-size-xs text-content-primary font-semibold">
           团队规模
         </view>
         <wd-radio-group v-model="teamSizeBand" type="button" direction="vertical">
@@ -123,66 +123,15 @@ onShow(() => {
         </wd-radio-group>
       </view>
       <wd-button block size="large" :loading="submitting" :disabled="submitting" @click="submit">
-        免费开通并开始试用
+        免费开通工作台
       </wd-button>
-      <text class="agreement-tip">提交即表示你同意平台按所选规模初始化工作空间；套餐到期后可选择购买或继续使用免费权益。</text>
+      <text class="agreement-tip text-center text-size-2xs text-content-muted leading-normal">符合条件的新工作空间可享 14 天专业版试用；创建后可在“套餐与用量”查看当前套餐和可用额度。</text>
     </view>
   </view>
 </template>
 
 <style scoped lang="scss">
-.onboarding-page {
-  min-height: 100vh;
-  padding: 0 24rpx 64rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
 .onboarding-page :deep(.app-custom-navigation) {
-  margin: 0 -24rpx 24rpx;
-}
-.intro-card,
-.form-card {
-  padding: 30rpx;
-  border-radius: 28rpx;
-  background: var(--app-bg-card);
-}
-.intro-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-  border: 1rpx solid var(--app-border-brand-soft);
-  background: var(--app-gradient-profile);
-}
-.intro-card strong {
-  color: var(--app-text-primary);
-  font-size: 34rpx;
-  line-height: 1.35;
-}
-.intro-card text {
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-  line-height: 1.6;
-}
-.form-card {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-  margin-top: 20rpx;
-}
-.field-block {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-.field-label {
-  color: var(--app-text-primary);
-  font-size: 25rpx;
-  font-weight: 650;
-}
-.agreement-tip {
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-  line-height: 1.5;
-  text-align: center;
+  @apply mt-0 mb-3 -mx-3;
 }
 </style>

@@ -192,14 +192,14 @@ onUnload(() => {
     <template #navigation>
       <AppCustomNavigation title="" align="start" back scroll-mode="sticky" :fallback-url="APP_ROUTES.publicHouseSearch">
         <template #content>
-          <view class="keyword-navigation">
-            <view class="keyword-search-bar">
-              <view class="i-carbon-search keyword-search-icon" />
-              <view class="keyword-search-input">
+          <view class="keyword-navigation min-w-0 w-full flex items-center gap-1.5">
+            <view class="keyword-search-bar box-border h-8 min-w-0 flex flex-1 items-center gap-1.5 border-hairline border-hex-1677ff/10 rounded-4.5 border-solid bg-hex-f3f7fd px-2 py-0">
+              <view class="i-carbon-search keyword-search-icon flex-none text-size-base text-content-muted" />
+              <view class="keyword-search-input min-w-0 flex-1">
                 <wd-input v-model="keyword" compact :focus="inputFocused" placeholder="搜索地点、小区或房源" clearable confirm-type="search" @confirm="submitSearch()" />
               </view>
             </view>
-            <button class="keyword-search-submit" @click="submitSearch()">
+            <button class="keyword-search-submit m-0 flex-none bg-transparent px-0.5 py-0 text-size-xs text-app-brand font-semibold leading-8" @click="submitSearch()">
               搜索
             </button>
           </view>
@@ -207,51 +207,51 @@ onUnload(() => {
       </AppCustomNavigation>
     </template>
 
-    <view v-if="nearby" class="keyword-search-hint">
+    <view v-if="nearby" class="keyword-search-hint px-0.5 py-3 text-size-xs text-content-muted">
       {{ nearbyLabel || searchPreset.place_name || '当前位置' }}附近 {{ searchPreset.radius_m || 1000 }} 米内的房源
     </view>
-    <view v-else-if="!term" class="keyword-search-hint">
+    <view v-else-if="!term" class="keyword-search-hint px-0.5 py-3 text-size-xs text-content-muted">
       输入地点、小区、商圈或房号开始搜索
     </view>
-    <view v-if="term.length >= 2" class="keyword-suggestions">
-      <view class="keyword-suggestions__heading">
+    <view v-if="term.length >= 2" class="keyword-suggestions mt-0.5">
+      <view class="keyword-suggestions__heading pb-1.5 text-size-xs text-content-secondary font-semibold">
         地点
       </view>
-      <view v-if="placesLoading" class="keyword-suggestions__status">
+      <view v-if="placesLoading" class="keyword-suggestions__status px-0 py-3.5 text-size-xs text-content-muted">
         正在查找地点…
       </view>
-      <view v-else-if="placesError" class="keyword-suggestions__status">
+      <view v-else-if="placesError" class="keyword-suggestions__status px-0 py-3.5 text-size-xs text-content-muted">
         地点暂不可用，仍可按房源名称搜索
       </view>
-      <button v-for="place in places" :key="place.token" class="keyword-suggestions__item" @click="choosePlace(place)">
-        <view class="i-carbon-location keyword-suggestions__icon" />
-        <view class="keyword-suggestions__copy">
-          <text class="keyword-suggestions__keyword">{{ place.name }}</text>
-          <text class="keyword-suggestions__meta">{{ place.city }} · {{ place.address || place.name }}</text>
+      <button v-for="place in places" :key="place.token" class="keyword-suggestions__item m-0 min-h-14 w-full flex items-center gap-2.5 border-b-hairline border-b-app-border rounded-0 border-b-solid bg-transparent px-0.5 py-2.5 text-left" @click="choosePlace(place)">
+        <view class="i-carbon-location keyword-suggestions__icon flex-none text-size-sm text-content-muted" />
+        <view class="keyword-suggestions__copy min-w-0 flex gap-1">
+          <text class="keyword-suggestions__keyword overflow-hidden text-ellipsis whitespace-nowrap text-size-sm text-content-primary font-semibold">{{ place.name }}</text>
+          <text class="keyword-suggestions__meta text-size-2xs text-content-muted">{{ place.city }} · {{ place.address || place.name }}</text>
         </view>
-        <view class="i-carbon-arrow-up-right keyword-suggestions__arrow" />
+        <view class="i-carbon-arrow-up-right keyword-suggestions__arrow flex-none text-size-xs text-content-muted" />
       </button>
     </view>
-    <view v-if="showHouseSection" class="keyword-suggestions">
-      <view class="keyword-suggestions__heading">
+    <view v-if="showHouseSection" class="keyword-suggestions mt-0.5">
+      <view class="keyword-suggestions__heading pb-1.5 text-size-xs text-content-secondary font-semibold">
         {{ term ? '房源关键词' : '附近有房源的地点' }}
       </view>
-      <view v-if="loading" class="keyword-suggestions__status">
+      <view v-if="loading" class="keyword-suggestions__status px-0 py-3.5 text-size-xs text-content-muted">
         正在查找…
       </view>
-      <view v-else-if="error" class="keyword-suggestions__status">
+      <view v-else-if="error" class="keyword-suggestions__status px-0 py-3.5 text-size-xs text-content-muted">
         联想词加载失败，请继续输入或直接搜索
       </view>
-      <view v-else-if="!suggestions.length" class="keyword-suggestions__status">
+      <view v-else-if="!suggestions.length" class="keyword-suggestions__status px-0 py-3.5 text-size-xs text-content-muted">
         {{ nearby ? (term ? '当前位置附近暂无匹配房源名称' : '附近暂无公开房源，请返回使用其他条件') : '暂无匹配的房源名称' }}
       </view>
-      <button v-for="item in suggestions" v-else :key="`${item.category}-${item.keyword}`" class="keyword-suggestions__item" @click="submitHouseSearch(item.keyword)">
-        <view class="i-carbon-search keyword-suggestions__icon" />
-        <view class="keyword-suggestions__copy">
-          <text class="keyword-suggestions__keyword">{{ item.keyword }}</text>
-          <text class="keyword-suggestions__meta">{{ item.category }}{{ nearby && item.address ? ` · ${item.address}` : '' }} · {{ item.house_count }} 套房源</text>
+      <button v-for="item in suggestions" v-else :key="`${item.category}-${item.keyword}`" class="keyword-suggestions__item m-0 min-h-14 w-full flex items-center gap-2.5 border-b-hairline border-b-app-border rounded-0 border-b-solid bg-transparent px-0.5 py-2.5 text-left" @click="submitHouseSearch(item.keyword)">
+        <view class="i-carbon-search keyword-suggestions__icon flex-none text-size-sm text-content-muted" />
+        <view class="keyword-suggestions__copy min-w-0 flex gap-1">
+          <text class="keyword-suggestions__keyword overflow-hidden text-ellipsis whitespace-nowrap text-size-sm text-content-primary font-semibold">{{ item.keyword }}</text>
+          <text class="keyword-suggestions__meta text-size-2xs text-content-muted">{{ item.category }}{{ nearby && item.address ? ` · ${item.address}` : '' }} · {{ item.house_count }} 套房源</text>
         </view>
-        <view class="i-carbon-arrow-up-right keyword-suggestions__arrow" />
+        <view class="i-carbon-arrow-up-right keyword-suggestions__arrow flex-none text-size-xs text-content-muted" />
       </button>
     </view>
   </AppPage>
@@ -259,119 +259,23 @@ onUnload(() => {
 
 <style scoped lang="scss">
 .house-keyword-page {
-  min-height: 100vh;
-  background: #fff;
-}
-.keyword-navigation {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 12rpx;
-}
-.keyword-search-bar {
-  display: flex;
-  height: 64rpx;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 10rpx;
-  padding: 0 16rpx;
-  border: 1rpx solid rgb(22 119 255 / 10%);
-  border-radius: 34rpx;
-  box-sizing: border-box;
-  background: #f3f7fd;
-}
-.keyword-search-icon {
-  flex: 0 0 auto;
-  color: var(--app-text-muted);
-  font-size: 32rpx;
-}
-.keyword-search-input {
-  min-width: 0;
-  flex: 1;
+  @apply min-h-screen;
+  @apply bg-hex-fff;
 }
 :deep(.keyword-search-input .wd-input) {
-  padding: 0;
-  background: transparent;
+  @apply p-0;
+  @apply bg-transparent;
   --wot-input-bg: transparent;
   --wot-input-inner-height: 60rpx;
   --wot-input-inner-font-size: 24rpx;
   --wot-input-padding: 0;
 }
-.keyword-search-submit {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 0 2rpx;
-  color: var(--app-color-brand);
-  font-size: 24rpx;
-  font-weight: 600;
-  line-height: 64rpx;
-  background: transparent;
-}
 .keyword-search-submit::after,
 .keyword-suggestions__item::after {
-  border: 0;
-}
-.keyword-search-hint {
-  padding: 22rpx 4rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
-}
-.keyword-suggestions {
-  margin-top: 4rpx;
-}
-.keyword-suggestions__heading {
-  padding-bottom: 12rpx;
-  color: var(--app-text-secondary);
-  font-size: 23rpx;
-  font-weight: 600;
-}
-.keyword-suggestions__status {
-  padding: 28rpx 0;
-  color: var(--app-text-muted);
-  font-size: 24rpx;
-}
-.keyword-suggestions__item {
-  display: flex;
-  width: 100%;
-  min-height: 108rpx;
-  align-items: center;
-  gap: 18rpx;
-  margin: 0;
-  padding: 18rpx 4rpx;
-  border-bottom: 1rpx solid var(--app-border-color);
-  border-radius: 0;
-  text-align: left;
-  background: transparent;
-}
-.keyword-suggestions__icon {
-  flex: 0 0 auto;
-  color: var(--app-text-muted);
-  font-size: 30rpx;
+  @apply border-0;
 }
 .keyword-suggestions__copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 6rpx;
-}
-.keyword-suggestions__keyword {
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 27rpx;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.keyword-suggestions__meta {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.keyword-suggestions__arrow {
-  flex: 0 0 auto;
-  color: var(--app-text-muted);
-  font-size: 25rpx;
+  @apply flex-1;
+  @apply flex-col;
 }
 </style>

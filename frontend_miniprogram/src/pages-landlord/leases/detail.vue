@@ -61,18 +61,18 @@ onLoad((options) => {
     <template #navigation>
       <AppCustomNavigation title="租约详情" back scroll-mode="sticky" />
     </template>
-    <view class="detail-page">
+    <view class="detail-page min-h-screen bg-surface-page px-0 pb-9 pt-5">
       <AppLoading v-if="loading" text="正在加载租约…" />
       <AppErrorView v-else-if="loadError" title="租约加载失败" :message="loadError" @retry="loadLease" />
       <template v-else-if="lease">
-        <view class="hero-card">
+        <view class="hero-card mx-3 mb-3 mt-0 rounded-3.5 bg-surface-card p-4">
           <wd-tag :type="getTenantLeaseStatusTone(lease.status)" variant="light">
             {{ lease.status__mapping }}
           </wd-tag>
-          <view class="title">
+          <view class="title mt-2.5 text-size-lg text-content-primary font-bold">
             {{ formatTenantHouseTitle(lease.house) }}
           </view>
-          <view class="rent">
+          <view class="rent mt-3 text-size-lg text-app-price font-bold">
             ¥{{ lease.monthly_rent }} / 月
           </view>
         </view>
@@ -91,29 +91,3 @@ onLoad((options) => {
     </view>
   </AppPage>
 </template>
-
-<style scoped lang="scss">
-.detail-page {
-  min-height: 100vh;
-  padding: 40rpx 0 72rpx;
-  background: var(--app-bg-page);
-}
-.hero-card {
-  margin: 0 24rpx 24rpx;
-  padding: 32rpx;
-  border-radius: 26rpx;
-  background: var(--app-bg-card);
-}
-.title {
-  margin-top: 20rpx;
-  color: var(--app-text-primary);
-  font-size: 36rpx;
-  font-weight: 700;
-}
-.rent {
-  margin-top: 22rpx;
-  color: var(--app-color-price);
-  font-size: 36rpx;
-  font-weight: 700;
-}
-</style>

@@ -125,7 +125,7 @@ export function getResponsibilitySelectionChanges(previous: ResponsibilitySelect
 }
 
 const sections: Array<OrganizationAdminSection & { visible: (capabilities: OrganizationAdminCapabilities) => boolean }> = [
-  { key: 'members', title: '成员管理', description: '维护成员资料与组织关系', icon: 'i-carbon-user-multiple', visible: capabilities => capabilities.member_manage === true },
+  { key: 'members', title: '成员管理', description: '维护成员资料和所属空间', icon: 'i-carbon-user-multiple', visible: capabilities => capabilities.member_manage === true },
   { key: 'invitations', title: '邀请管理', description: '邀请成员并跟踪处理状态', icon: 'i-carbon-email-new', visible: capabilities => capabilities.invite_manage === true },
   {
     key: 'teams',
@@ -140,11 +140,11 @@ const sections: Array<OrganizationAdminSection & { visible: (capabilities: Organ
       || Boolean(capabilities.team_role_view_ids?.length)
       || Boolean(capabilities.team_role_manage_ids?.length),
   },
-  { key: 'roles', title: '角色与授权', description: '配置组织和团队角色', icon: 'i-carbon-user-role', visible: capabilities => capabilities.role_management === true },
-  { key: 'responsibilities', title: '房源职责', description: '分配员工负责的房东、楼栋和小区', icon: 'i-carbon-task-tools', visible: capabilities => capabilities.responsibility_manage === true },
-  { key: 'settings', title: '组织设置', description: '维护组织与团队业务设置', icon: 'i-carbon-settings-adjust', visible: capabilities => capabilities.organization_settings === true || capabilities.team_settings === true },
-  { key: 'subscription', title: '订阅与发票', description: '查看套餐、订单与开票资料', icon: 'i-carbon-receipt', visible: capabilities => capabilities.subscriptions === true || capabilities.subscriptions_manage === true },
-  { key: 'notification-dispatches', title: '通知发送', description: '向组织、团队或成员发送通知', icon: 'i-carbon-notification-new', visible: capabilities => capabilities.notification_dispatches === true },
+  { key: 'roles', title: '角色与授权', description: '配置工作空间和团队角色', icon: 'i-carbon-user-role', visible: capabilities => capabilities.role_management === true },
+  { key: 'responsibilities', title: '房源分工', description: '分配员工负责的房东、楼栋和小区', icon: 'i-carbon-task-tools', visible: capabilities => capabilities.responsibility_manage === true },
+  { key: 'settings', title: '空间设置', description: '维护工作空间与团队业务设置', icon: 'i-carbon-settings-adjust', visible: capabilities => capabilities.organization_settings === true || capabilities.team_settings === true },
+  { key: 'subscription', title: '套餐与用量', description: '查看套餐、订单与开票资料', icon: 'i-carbon-receipt', visible: capabilities => capabilities.subscriptions === true || capabilities.subscriptions_manage === true },
+  { key: 'notification-dispatches', title: '通知发送', description: '向工作空间、团队或成员发送通知', icon: 'i-carbon-notification-new', visible: capabilities => capabilities.notification_dispatches === true },
 ]
 
 const notificationDispatchStatusLabels: Record<string, string> = {
@@ -155,7 +155,7 @@ const notificationDispatchStatusLabels: Record<string, string> = {
 }
 
 const notificationDispatchScopeLabels: Record<string, string> = {
-  organization: '整个组织',
+  organization: '整个工作空间',
   teams: '指定团队',
   users: '指定成员',
   platform: '整个平台',
@@ -216,7 +216,7 @@ export function getOrganizationRoleScopeOptions(navigation: OrganizationRoleMana
     return []
   const options: OrganizationRoleScopeOption[] = []
   if (navigation.capabilities.role_view === true || navigation.capabilities.role_manage === true)
-    options.push({ label: '组织级角色', value: 0 })
+    options.push({ label: '空间级角色', value: 0 })
   options.push(...navigation.teams.map(team => ({ label: team.name, value: team.id })))
   return options
 }
@@ -224,7 +224,7 @@ export function getOrganizationRoleScopeOptions(navigation: OrganizationRoleMana
 export function organizationAdminRequestOptions(organizationSlug: string, authRetry: 'safe' | 'never' = 'safe') {
   const normalizedSlug = organizationSlug.trim()
   if (!normalizedSlug)
-    throw new Error('未选择组织，请先切换到中介端')
+    throw new Error('未选择工作空间，请先切换到经纪人身份')
   return {
     requestScope: { kind: 'organization' as const, organizationSlug: normalizedSlug },
     authRetry,

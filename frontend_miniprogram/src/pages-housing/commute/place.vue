@@ -9,7 +9,7 @@ import AppPage from '@/components/app/AppPage.vue'
 import { getNearbyCommutePlaces, saveCommuteDestination, searchCommutePlaces } from '@/features/houses/commute'
 import { useWorkPlacePreferenceStore } from '@/features/houses/commute/preference'
 import { platformStorage } from '@/platform'
-import { getCurrentLocationGcj02 } from '@/utils/location'
+import { getCurrentLocationGcj02, getLocationErrorMessage } from '@/utils/location'
 
 definePage({
   style: { navigationBarTitleText: '选择通勤目的地', navigationStyle: 'custom' },
@@ -66,7 +66,24 @@ function distanceLabel(distance: number | null | undefined) {
   return distance < 1000 ? `${distance}米` : `${(distance / 1000).toFixed(1)}公里`
 }
 
-async function loadNearby() {
+function placeAddress(place: CommutePlace) {
+  const rawAddress = place.address?.trim()
+  if (!rawAddress)
+    return place.name
+  const city = place.city.trim()
+  const cityPrefix = /(?:[市盟]|自治州|地区|特别行政区)$/.test(city) ? city : `${city}市`
+  const cityIndex = city ? rawAddress.indexOf(cityPrefix) : -1
+  const hasCityPrefix = cityIndex === 0 || (cityIndex > 0 && /(?:省|自治区|特别行政区)$/.test(rawAddress.slice(0, cityIndex)))
+  const address = hasCityPrefix ? rawAddress.slice(cityIndex + cityPrefix.length).trim() || place.name : rawAddress
+  const nearbyCity = nearbyPlaces.value[0]?.city.trim()
+  if (city && nearbyCity && city.replace(/市$/, '') !== nearbyCity.replace(/市$/, '') && !address.startsWith(city))
+    return `${city} · ${address}`
+  return address
+}
+
+async function loadNearby(showError = false) {
+  if (locating.value)
+    return
   const generation = ++locationGeneration
   locating.value = true
   locationError.value = false
@@ -75,13 +92,19 @@ async function loadNearby() {
     if (generation !== locationGeneration)
       return
     location.value = current
-    nearbyPlaces.value = await getNearbyCommutePlaces(current)
-    if (generation === locationGeneration && keyword.value.trim().length >= 2)
+    const result = await getNearbyCommutePlaces(current)
+    if (generation !== locationGeneration)
+      return
+    nearbyPlaces.value = result
+    if (keyword.value.trim().length >= 2)
       search(keyword.value)
   }
-  catch {
-    if (generation === locationGeneration)
+  catch (cause) {
+    if (generation === locationGeneration) {
       locationError.value = true
+      if (showError)
+        uni.showToast({ title: getLocationErrorMessage(cause), icon: 'none' })
+    }
   }
   finally {
     if (generation === locationGeneration)
@@ -160,198 +183,157 @@ onBeforeUnmount(() => {
       <AppCustomNavigation title="选择通勤目的地" back scroll-mode="sticky" />
     </template>
 
-    <view class="place-search__field">
-      <view class="i-carbon-search place-search__search-icon" />
+    <view class="place-search__field min-h-11 flex items-center gap-2 border-hairline border-app-card rounded-2.5 border-solid bg-surface-card px-3 py-0">
+      <view class="i-carbon-search place-search__search-icon text-size-sm text-content-muted" />
       <wd-input v-model="keyword" focus clearable compact :maxlength="80" confirm-type="search" placeholder="请输入上班地点" />
     </view>
     <template v-if="keyword.trim()">
-      <view v-if="searching" class="place-search__state">
+      <view v-if="searching" class="place-search__state min-h-23 flex items-center justify-center gap-2 text-size-xs text-content-muted">
         <AppLoading text="正在搜索地点…" />
       </view>
-      <view v-else-if="error" class="place-search__state">
+      <view v-else-if="error" class="place-search__state min-h-23 flex items-center justify-center gap-2 text-size-xs text-content-muted">
         <text>{{ error }}</text>
         <button @click="search(keyword)">
           重新搜索
         </button>
       </view>
-      <view v-else-if="places.length" class="place-search__section">
-        <text class="place-search__result-heading">搜索结果</text>
-        <button v-for="place in places" :key="place.token" class="place-search__result" @click="choosePlace(place)">
-          <view class="i-carbon-location place-search__result-icon" />
-          <view class="place-search__result-copy">
+      <view v-else-if="places.length" class="place-search__section mt-3.5">
+        <text class="place-search__result-heading mx-0.5 mb-1 mt-0 block text-size-2xs text-content-muted">搜索结果</text>
+        <button v-for="place in places" :key="place.token" class="place-search__result box-border min-h-13 w-full flex items-center gap-2 px-1 py-1.5 text-left" @click="choosePlace(place)">
+          <view class="i-carbon-location place-search__result-icon text-size-base text-app-brand" />
+          <view class="place-search__result-copy min-w-0 flex gap-0.5 leading-snug">
             <strong>{{ place.name }}</strong>
-            <text>{{ place.city }} · {{ place.address || place.name }}</text>
+            <text>{{ placeAddress(place) }}</text>
           </view>
           <text v-if="place.distance_m != null" class="place-search__distance">{{ distanceLabel(place.distance_m) }}</text>
         </button>
       </view>
-      <view v-else-if="searched" class="place-search__state">
+      <view v-else-if="searched" class="place-search__state min-h-23 flex items-center justify-center gap-2 text-size-xs text-content-muted">
         <text>没有找到地点，试试更完整的名称</text>
       </view>
-      <text v-else class="place-search__tip">输入至少 2 个字，选择准确的地点</text>
+      <text v-else class="place-search__tip mx-0.5 mb-3.5 mt-2.5 block text-size-2xs text-content-muted">输入至少 2 个字，选择准确的地点</text>
     </template>
     <template v-else>
-      <view v-if="history.length" class="place-search__section">
-        <text class="place-search__result-heading">历史上班地点</text>
-        <button v-for="place in history" :key="place.destinationId" class="place-search__result" @click="choosePlace(place)">
-          <view class="i-carbon-recently-viewed place-search__result-icon" />
-          <view class="place-search__result-copy">
+      <view v-if="history.length" class="place-search__section mt-3.5">
+        <text class="place-search__result-heading mx-0.5 mb-1 mt-0 block text-size-2xs text-content-muted">历史上班地点</text>
+        <button v-for="place in history.slice(0, 1)" :key="place.destinationId" class="place-search__result box-border min-h-13 w-full flex items-center gap-2 px-1 py-1.5 text-left" @click="choosePlace(place)">
+          <view class="i-carbon-recently-viewed place-search__result-icon text-size-base text-app-brand" />
+          <view class="place-search__result-copy min-w-0 flex gap-0.5 leading-snug">
             <strong>{{ place.name }}</strong>
-            <text>{{ place.city }} · {{ place.address || place.name }}</text>
+            <text>{{ placeAddress(place) }}</text>
           </view>
-          <view v-if="place.destinationId === selectedId" class="i-carbon-checkmark place-search__selected" />
+          <view v-if="place.destinationId === selectedId" class="i-carbon-checkmark place-search__selected text-size-sm text-app-brand" />
         </button>
       </view>
-      <view class="place-search__section">
-        <text class="place-search__result-heading">你可能在这里上班</text>
-        <button v-if="nearbyPlaces.length" class="place-search__result place-search__result--current" @click="choosePlace(nearbyPlaces[0])">
-          <view class="i-carbon-location-current place-search__result-icon" />
-          <view class="place-search__result-copy">
-            <strong>{{ nearbyPlaces[0].name }}</strong>
-            <text>{{ nearbyPlaces[0].city }} · {{ nearbyPlaces[0].address || nearbyPlaces[0].name }}</text>
+      <view class="place-search__section mt-3.5">
+        <text class="place-search__result-heading mx-0.5 mb-1 mt-0 block text-size-2xs text-content-muted">你可能在这里上班</text>
+        <view v-if="nearbyPlaces.length" class="place-search__result place-search__result--current box-border min-h-13 w-full flex items-center gap-2 px-1 py-1.5 text-left">
+          <button class="place-search__current-main m-0 min-w-0 flex flex-1 items-center gap-2 border-0 bg-transparent p-0 text-left" @click="choosePlace(nearbyPlaces[0])">
+            <view class="i-carbon-location-current place-search__result-icon text-size-base text-app-brand" />
+            <view class="place-search__result-copy min-w-0 flex gap-0.5 leading-snug">
+              <strong>{{ nearbyPlaces[0].name }}</strong>
+              <text>{{ placeAddress(nearbyPlaces[0]) }}</text>
+            </view>
+          </button>
+          <view class="place-search__current-actions flex shrink-0 items-center">
+            <wd-button variant="text" size="mini" icon="i-carbon-center-circle" css-icon :loading="locating" :disabled="locating || selecting" :aria-label="locating ? '正在定位' : '重新定位'" @click="loadNearby(true)" />
           </view>
-          <text class="place-search__distance">当前位置附近</text>
-        </button>
-        <button v-for="place in nearbyPlaces.slice(1)" :key="place.token" class="place-search__result" @click="choosePlace(place)">
-          <view class="i-carbon-location place-search__result-icon" />
-          <view class="place-search__result-copy">
+        </view>
+        <button v-for="place in nearbyPlaces.slice(1)" :key="place.token" class="place-search__result box-border min-h-13 w-full flex items-center gap-2 px-1 py-1.5 text-left" @click="choosePlace(place)">
+          <view class="i-carbon-location place-search__result-icon text-size-base text-app-brand" />
+          <view class="place-search__result-copy min-w-0 flex gap-0.5 leading-snug">
             <strong>{{ place.name }}</strong>
-            <text>{{ place.city }} · {{ place.address || place.name }}</text>
+            <text>{{ placeAddress(place) }}</text>
           </view>
           <text class="place-search__distance">{{ distanceLabel(place.distance_m) }}</text>
         </button>
-        <view v-if="locating" class="place-search__state">
+        <view v-if="locating" class="place-search__state min-h-23 flex items-center justify-center gap-2 text-size-xs text-content-muted">
           <AppLoading text="正在查找附近地点…" />
         </view>
-        <button v-else-if="locationError" class="place-search__location-retry" @click="loadNearby">
+        <button v-else-if="locationError" class="place-search__location-retry" @click="loadNearby(true)">
           定位不可用，点击重试
         </button>
-        <text v-else-if="!nearbyPlaces.length" class="place-search__empty">附近暂无推荐地点，可在上方搜索</text>
+        <view v-else-if="!nearbyPlaces.length" class="place-search__empty">
+          <text>附近暂无推荐地点，可在上方搜索</text>
+          <wd-button variant="text" size="mini" :disabled="selecting" @click="loadNearby(true)">
+            重新定位
+          </wd-button>
+        </view>
       </view>
     </template>
   </AppPage>
 </template>
 
 <style scoped lang="scss">
-.place-search__field {
-  display: flex;
-  min-height: 88rpx;
-  align-items: center;
-  gap: 16rpx;
-  padding: 0 24rpx;
-  border: 1rpx solid var(--app-border-card);
-  border-radius: 20rpx;
-  background: var(--app-bg-card);
-}
-.place-search__section {
-  margin-top: 40rpx;
-}
-.place-search__search-icon {
-  color: var(--app-text-muted);
-  font-size: 30rpx;
-}
 .place-search__field :deep(.wd-input) {
-  min-width: 0;
-  flex: 1;
-}
-.place-search__tip {
-  display: block;
-  margin: 18rpx 4rpx 28rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.place-search__result-heading {
-  display: block;
-  margin: 0 4rpx 12rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
+  @apply min-w-0;
+  @apply flex-1;
 }
 .place-search__result {
-  display: flex;
-  width: 100%;
-  min-height: 112rpx;
-  align-items: center;
-  gap: 18rpx;
-  margin: 0;
-  padding: 18rpx 8rpx;
-  border: 0;
-  border-bottom: 1rpx solid var(--app-divider-color);
-  border-radius: 0;
-  text-align: left;
-  background: transparent;
+  @apply m-0;
+  @apply border-0;
+  @apply border-b-hairline border-b-solid border-b-app-divider;
+  @apply rounded-0;
+  @apply bg-transparent;
 }
 .place-search__result--current {
-  margin-bottom: 12rpx;
-  padding: 18rpx 14rpx;
-  border: 0;
-  border-radius: 14rpx;
-  background: var(--app-bg-page);
+  @apply mb-0.5;
+  @apply border-0;
+  @apply rounded-2;
+  @apply bg-surface-page;
+}
+.place-search__current-actions {
+  --wot-button-size-icon-mini: 40rpx;
+  --wot-icon-font-size: 40rpx;
+  --wot-button-padding-mini: 0;
+  --wot-button-primary-color: var(--app-color-brand);
 }
 .place-search__result::after,
+.place-search__current-main::after,
 .place-search__state button::after {
-  border: 0;
-}
-.place-search__result-icon {
-  color: var(--app-color-brand);
-  font-size: 32rpx;
+  @apply border-0;
 }
 .place-search__result-copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 6rpx;
+  @apply flex-1;
+  @apply flex-col;
 }
 .place-search__result-copy strong {
-  overflow: hidden;
-  color: var(--app-text-primary);
-  font-size: 26rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden;
+  @apply text-content-primary;
+  @apply text-size-xs;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
 }
 .place-search__result-copy text {
-  overflow: hidden;
-  color: var(--app-text-muted);
-  font-size: 21rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden;
+  @apply text-content-muted;
+  @apply text-size-2xs;
+  @apply text-ellipsis;
+  @apply whitespace-nowrap;
 }
 .place-search__distance,
 .place-search__selected {
-  flex-shrink: 0;
-  color: var(--app-text-muted);
-  font-size: 20rpx;
-}
-.place-search__selected {
-  color: var(--app-color-brand);
-  font-size: 28rpx;
+  @apply shrink-0;
+  @apply text-content-muted;
+  @apply text-size-2xs;
 }
 .place-search__empty,
 .place-search__location-retry {
-  display: block;
-  margin: 0;
-  padding: 24rpx 4rpx;
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-  text-align: left;
-  background: transparent;
+  @apply block;
+  @apply m-0;
+  @apply py-3 px-0.5;
+  @apply text-content-muted;
+  @apply text-size-2xs;
+  @apply text-left;
+  @apply bg-transparent;
 }
 .place-search__location-retry::after {
-  border: 0;
-}
-.place-search__state {
-  display: flex;
-  min-height: 180rpx;
-  align-items: center;
-  justify-content: center;
-  gap: 16rpx;
-  color: var(--app-text-muted);
-  font-size: 23rpx;
+  @apply border-0;
 }
 .place-search__state button {
-  margin: 0;
-  color: var(--app-color-brand);
-  font-size: 23rpx;
-  background: transparent;
+  @apply m-0;
+  @apply text-app-brand;
+  @apply text-size-xs;
+  @apply bg-transparent;
 }
 </style>

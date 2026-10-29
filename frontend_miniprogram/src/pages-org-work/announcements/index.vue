@@ -58,7 +58,7 @@ const announcementEmptyDescription = computed(() => {
     return '试试清空搜索内容后重新查看。'
   if (filter.value === 'published' && canManageAnnouncements.value)
     return '当前没有已发布公告，可以查看草稿或创建新公告。'
-  return canManageAnnouncements.value ? '创建公告后，可按组织或团队范围发布。' : '新公告发布后会显示在这里。'
+  return canManageAnnouncements.value ? '创建公告后，可按空间或团队范围发布。' : '新公告发布后会显示在这里。'
 })
 
 const announcementPage = usePagedPage<AnnouncementOut>({
@@ -204,11 +204,11 @@ onReachBottom(() => void loadMore())
                 {{ item.status__mapping }}
               </wd-tag>
             </template>
-            <text class="announcement-body">{{ item.body }}</text>
+            <text class="announcement-body overflow-hidden leading-relaxed">{{ item.body }}</text>
             <view class="mt-2 flex items-center gap-2 text-xs text-content-muted">
               <wd-tag v-if="shouldShowAnnouncementAcknowledgement(item)" :type="item.is_acknowledged ? 'success' : 'warning'" variant="light" size="small">
                 {{ item.is_acknowledged ? '已确认' : '待确认' }}
-              </wd-tag><text>{{ item.team_name || '全组织' }}</text>
+              </wd-tag><text>{{ item.team_name || '整个工作空间' }}</text>
             </view>
             <template #meta>
               <view class="app-row-between text-2xs">
@@ -241,12 +241,8 @@ onReachBottom(() => void loadMore())
   </AppPage>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .announcement-body {
-  display: -webkit-box;
-  overflow: hidden;
-  line-height: 1.65;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  @apply line-clamp-3;
 }
 </style>

@@ -54,7 +54,7 @@ export interface SaaSOnboardingTask {
   completed: boolean
   completed_at: string | null
   deadline_at: string | null
-  action: 'create_house' | 'invite_member' | 'assign_responsibility' | 'create_viewing'
+  action: 'create_house' | 'invite_member' | 'assign_responsibility' | 'create_viewing' | 'complete_viewing'
 }
 
 export interface SaaSOnboardingProgress {
@@ -62,6 +62,8 @@ export interface SaaSOnboardingProgress {
   total_count: number
   completion_percent: number
   activated: boolean
+  show_guide: boolean
+  guide_expires_at: string
   trial_ends_at: string | null
   trial_days_remaining: number | null
   tasks: SaaSOnboardingTask[]

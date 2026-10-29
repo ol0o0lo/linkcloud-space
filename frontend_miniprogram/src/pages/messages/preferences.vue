@@ -60,7 +60,7 @@ onShow(() => void loadPreferences())
     <template #navigation>
       <AppCustomNavigation title="通知设置" back scroll-mode="sticky" />
     </template>
-    <view class="preferences-page">
+    <view class="preferences-page box-border bg-surface-page p-5 min-h-inherit">
       <AppLoading v-if="loading" text="正在加载通知设置…" />
       <AppErrorView v-else-if="loadError" title="加载失败" :message="loadError" @retry="loadPreferences" />
       <AppEmpty
@@ -76,17 +76,17 @@ onShow(() => void loadPreferences())
           description="站内信用于关键业务提醒，必选渠道不能关闭；其他渠道修改后立即保存。"
           compact
         />
-        <view class="preference-list">
-          <view v-for="item in items" :key="item.key" class="preference-card">
-            <view class="preference-heading">
+        <view class="preference-list flex flex-col gap-2.5">
+          <view v-for="item in items" :key="item.key" class="preference-card overflow-hidden rounded-4 bg-surface-card">
+            <view class="preference-heading flex flex-col gap-1 border-b-hairline border-b-app-divider border-b-solid p-3.5">
               <strong>{{ item.label }}</strong>
               <text>{{ item.description || '按需选择接收渠道' }}</text>
             </view>
-            <view class="channel-row">
+            <view class="channel-row flex items-center justify-between border-b-hairline border-b-app-divider border-b-solid px-3.5 py-3">
               <view><strong>站内信</strong><text>{{ isRequiredNotificationChannel(item, 'in_app') ? '关键业务消息 · 必选' : '可按需关闭' }}</text></view>
               <wd-switch :model-value="isRequiredNotificationChannel(item, 'in_app') || item.in_app" :disabled="isRequiredNotificationChannel(item, 'in_app')" :loading="savingKey === `${item.key}:in_app`" @change="({ value }) => changeChannel(item, 'in_app', value)" />
             </view>
-            <view class="channel-row">
+            <view class="channel-row flex items-center justify-between border-b-hairline border-b-app-divider border-b-solid px-3.5 py-3">
               <view><strong>邮件</strong><text>{{ isRequiredNotificationChannel(item, 'email') ? '关键业务消息 · 必选' : savingKey === `${item.key}:email` ? '正在保存' : '发送到已绑定邮箱' }}</text></view>
               <wd-switch :model-value="isRequiredNotificationChannel(item, 'email') || item.email" :disabled="isRequiredNotificationChannel(item, 'email')" :loading="savingKey === `${item.key}:email`" @change="({ value }) => changeChannel(item, 'email', value)" />
             </view>
@@ -97,56 +97,22 @@ onShow(() => void loadPreferences())
   </AppPage>
 </template>
 
-<style scoped lang="scss">
-.preferences-page {
-  min-height: inherit;
-  padding: 40rpx;
-  background: var(--app-bg-page);
-  box-sizing: border-box;
-}
+<style scoped>
 .preference-notice {
-  margin-bottom: 32rpx;
-}
-.preference-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-.preference-card {
-  overflow: hidden;
-  border-radius: 32rpx;
-  background: var(--app-bg-card);
-}
-.preference-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  padding: 28rpx;
-  border-bottom: 1rpx solid var(--app-divider-color);
+  @apply mb-4;
 }
 .preference-heading strong,
 .channel-row strong {
-  color: var(--app-text-primary);
-  font-size: 27rpx;
+  @apply text-content-primary text-size-sm;
 }
 .preference-heading text,
 .channel-row text {
-  color: var(--app-text-muted);
-  font-size: 22rpx;
-}
-.channel-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 24rpx 28rpx;
-  border-bottom: 1rpx solid var(--app-divider-color);
+  @apply text-content-muted text-size-2xs;
 }
 .channel-row:last-child {
-  border-bottom: 0;
+  @apply border-b-0;
 }
 .channel-row > view {
-  display: flex;
-  flex-direction: column;
-  gap: 5rpx;
+  @apply flex flex-col gap-0.5;
 }
 </style>
