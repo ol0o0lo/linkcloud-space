@@ -141,7 +141,7 @@ class HouseArchitectureTestCase(TestCase):
         preview = build_vacancy_sync_plan(self.org, raw_text=text)
         changes = preview["blocks"][0]["changes"]
         self.assertEqual(changes["update_houses"][0]["changed_fields"], ["asking_rent"])
-        self.assertEqual(changes["mark_vacant"], [])
+        self.assertEqual(changes["mark_paused"], [])
         apply_vacancy_sync(self.org, raw_text=text, building_overrides=None, ignored_lines=None, expected_plan_hash=preview["plan_hash"])
         self.house.refresh_from_db()
         self.assertEqual(self.house.floor, 4)

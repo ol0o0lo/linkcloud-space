@@ -5,10 +5,11 @@ from uuid import uuid4
 from django.contrib.gis.measure import D
 from django.core.cache import cache
 from django.db.models import F
+from django.utils import timezone
 
 from apps.base.exceptions import NotFoundException
 from apps.base.maps import get_route_provider
-from apps.house.commute.routing import is_current
+from apps.house.commute.routing import ROUTE_RETRY_COOLDOWN, is_current
 from apps.house.exceptions import HouseUnavailableException
 from apps.house.models import HouseCommuteDestination, HouseCommuteRoute
 from apps.house.queries.public import filter_signature, public_houses_for_filters
@@ -33,7 +34,7 @@ def route_error_key(building_id: int, destination_id: int, mode: str) -> str:
     return f"house-commute-route-error:v1:{building_id}:{destination_id}:{mode}"
 
 
-def create_search(destination: HouseCommuteDestination, mode: str, max_minutes: int, filters: PublicHouseSearchFilters | None = None) -> str:
+def create_search(destination: HouseCommuteDestination, mode: str, max_minutes: int, filters: PublicHouseSearchFilters | None = None, *, retry: bool = False) -> str:
     filters = filters or PublicHouseSearchFilters()
     radius_m = (MAX_COARSE_SPEED_KMH[mode] * max_minutes * 1000 // 60) + 3000
     houses = public_houses_for_filters(filters).filter(building__location__distance_lte=(destination.location, D(m=radius_m)))
@@ -41,6 +42,7 @@ def create_search(destination: HouseCommuteDestination, mode: str, max_minutes: 
     if len(building_ids) > MAX_CANDIDATE_BUILDINGS:
         raise ValueError("通勤候选楼栋过多，请缩小区域或其他房源条件")
     search_id = uuid4().hex
+    reference_time = timezone.now()
     cache.set(
         job_cache_key(search_id),
         {
@@ -51,6 +53,9 @@ def create_search(destination: HouseCommuteDestination, mode: str, max_minutes: 
             "filters": filters.model_dump(mode="json", exclude_none=True),
             "filter_signature": filter_signature(filters),
             "error": "",
+            # 本次搜索固定复用基准，避免轮询时结果过期导致进度回退。
+            "reference_time": reference_time,
+            "refresh_after": reference_time - ROUTE_RETRY_COOLDOWN if retry else None,
         },
         timeout=JOB_TTL_SECONDS,
     )
@@ -64,7 +69,7 @@ def get_search(search_id: str) -> dict | None:
 
 
 def start_search(destination, mode, max_minutes, filters=None, *, retry=False) -> str:
-    search_id = create_search(destination, mode, max_minutes, filters)
+    search_id = create_search(destination, mode, max_minutes, filters, retry=retry)
     job = get_search(search_id)
     if job:
         schedule_missing_routes(search_id, job, retry=retry)
@@ -109,7 +114,19 @@ def search_progress(job: dict) -> dict:
     destination = HouseCommuteDestination.objects.get(pk=job["destination_id"])
     provider_code = get_route_provider().code
     routes = HouseCommuteRoute.objects.filter(destination=destination, mode=job["mode"], building_id__in=building_ids).select_related("building")
-    current_routes = {route.building_id: route for route in routes if is_current(route, route.building, destination, provider_code)}
+    reference_time = job.get("reference_time") or timezone.now()
+    current_routes = {
+        route.building_id: route
+        for route in routes
+        if is_current(
+            route,
+            route.building,
+            destination,
+            provider_code,
+            reference_time=reference_time,
+            refresh_after=job.get("refresh_after") if route.status == "unreachable" else None,
+        )
+    }
     done = set(current_routes)
     total = len(building_ids)
     missing_ids = [building_id for building_id in building_ids if building_id not in done]

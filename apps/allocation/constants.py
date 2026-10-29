@@ -11,6 +11,7 @@ class AllocationRequestStatus(StrChoices):
     REJECTED = "rejected", "不通过"
     EXPIRED = "expired", "已过期"
     VOIDED = "voided", "已作废"
+    WITHDRAWN = "withdrawn", "已撤回"
 
 
 class AllocationDistributionMethod(StrChoices):

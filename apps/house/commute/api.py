@@ -8,6 +8,7 @@ from django.core import signing
 from django.core.cache import cache
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
 from ninja import Query, Router, Status
@@ -17,7 +18,7 @@ from ninja.pagination import paginate
 from apps.base.maps import MapPoint, MapProviderConfigurationError, MapProviderError, get_place_provider, get_route_provider
 from apps.base.ninja_pagination import LegacyPagination
 from apps.house.commute.presentation import route_payload
-from apps.house.commute.routing import ensure_route, is_current
+from apps.house.commute.routing import ROUTE_RETRY_COOLDOWN, ensure_route, is_current
 from apps.house.commute.schemas import (
     CommuteDestinationIn,
     CommuteDestinationOut,
@@ -29,7 +30,7 @@ from apps.house.commute.schemas import (
     CommuteSearchCreatedOut,
     CommuteSearchIn,
 )
-from apps.house.commute.search import get_search, get_search_progress, result_queryset, start_search
+from apps.house.commute.search import get_search, get_search_progress, result_queryset, route_error_key, start_search
 from apps.house.models import HouseCommuteDestination, HouseCommuteRoute
 from apps.house.queries.public import get_public_houses_queryset
 
@@ -173,22 +174,40 @@ def get_house_commute_route(request, payload: CommuteRouteForHouseIn):
     _enforce_public_rate_limit(request, scope="house-route", limit=120, window_seconds=3600)
     house = get_object_or_404(get_public_houses_queryset(), pk=payload.house_id)
     get_object_or_404(HouseCommuteDestination, pk=payload.destination_id)
+    return _public_route_payload(house.building_id, payload.destination_id, payload.mode, retry=payload.retry)
+
+
+def _public_route_payload(building_id: int, destination_id: int, mode: str, *, retry: bool = False):
+    error_key = route_error_key(building_id, destination_id, mode)
+    if cache.get(error_key):
+        raise HttpError(503, "路线服务暂不可用，请稍后重试")
+    reference_time = timezone.now()
     try:
-        route = ensure_route(house.building_id, payload.destination_id, payload.mode)
+        route = ensure_route(
+            building_id,
+            destination_id,
+            mode,
+            reference_time=reference_time,
+            refresh_after=reference_time - ROUTE_RETRY_COOLDOWN if retry else None,
+        )
     except ValueError as exc:
         raise HttpError(422, str(exc)) from exc
     except MapProviderError as exc:
-        raise HttpError(503, "路线暂时无法计算，请稍后重试") from exc
+        cache.set(error_key, 1, timeout=120)
+        raise HttpError(503, "路线服务暂不可用，请稍后重试") from exc
     if route.status != "ready":
-        raise HttpError(404, "当前出行方式暂无可用路线")
+        message = "暂无纯地铁路线，可切换其他出行方式" if mode == "metro" else "当前出行方式暂无可用路线，可切换其他方式"
+        raise HttpError(404, message)
     return route_payload(route)
 
 
 @public_router.get("/routes/{route_id}/", auth=None, response=CommuteRouteOut, summary="获取房源通勤路线")
-def get_commute_route(request, route_id: int, house_id: int = Query(...)):
-    route = get_object_or_404(HouseCommuteRoute.objects.select_related("building", "destination"), pk=route_id, status="ready")
+def get_commute_route(request, route_id: int, house_id: int = Query(...), retry: bool = Query(False)):
+    _enforce_public_rate_limit(request, scope="house-route", limit=120, window_seconds=3600)
+    route = get_object_or_404(HouseCommuteRoute.objects.select_related("building", "destination"), pk=route_id)
     if not get_public_houses_queryset().filter(pk=house_id, building_id=route.building_id).exists():
         raise Http404
-    if not is_current(route, route.building, route.destination, get_route_provider().code):
+    # 旧链接仍需匹配坐标和算法版本；仅时间过期时可原地刷新。
+    if not is_current(route, route.building, route.destination, get_route_provider().code, reference_time=route.updated_at):
         raise Http404
-    return route_payload(route)
+    return _public_route_payload(route.building_id, route.destination_id, route.mode, retry=retry)

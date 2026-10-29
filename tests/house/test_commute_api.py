@@ -1,14 +1,16 @@
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.core import signing
 from django.core.cache import cache
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from model_bakery import baker
 
-from apps.base.maps import MapPoint, MapProviderUnavailable
+from apps.base.maps import MapPoint, MapProviderUnavailable, MapRouteNotFound
 from apps.geography.models import MetroCity, MetroLine
 from apps.house.commute.api import PLACE_SIGNING_NAMESPACE
 from apps.house.commute.search import get_search, route_task_key
@@ -50,6 +52,17 @@ class HouseCommuteApiTests(TestCase):
                 "latitude": 23.14,
             },
             salt=PLACE_SIGNING_NAMESPACE,
+        )
+
+    def commute_destination(self):
+        return HouseCommuteDestination.objects.create(
+            provider_code="amap",
+            provider_place_id="office",
+            name="丰兴广场",
+            address="天河路",
+            city="广州市",
+            city_code="020",
+            location=Point(113.32, 23.14, srid=4326),
         )
 
     @patch("apps.house.commute.api.get_place_provider")
@@ -266,11 +279,13 @@ class HouseCommuteApiTests(TestCase):
         self.assertEqual(routing_provider.return_value.plan_route.call_count, 2)
         self.assertEqual(self.client.get(route_url, {"house_id": self.houses[1].pk}).status_code, 404)
 
-        self.houses[0].status = HouseStatus.INACTIVE
-        self.houses[0].save(update_fields=["status"])
+        self.houses[0].is_active = False
+        self.houses[0].status = HouseStatus.PAUSED
+        self.houses[0].save(update_fields=["is_active", "status"])
         self.assertEqual(self.client.get(route_url, {"house_id": self.houses[0].pk}).status_code, 404)
+        self.houses[0].is_active = True
         self.houses[0].status = HouseStatus.LISTED
-        self.houses[0].save(update_fields=["status"])
+        self.houses[0].save(update_fields=["is_active", "status"])
 
         building = self.houses[0].building
         building.location = Point(113.33, 23.13, srid=4326)
@@ -321,7 +336,142 @@ class HouseCommuteApiTests(TestCase):
         self.assertEqual(api_data(refreshed)["transit_segments"][1]["label"], "3号线")
         self.assertEqual(routing_provider.return_value.plan_route.call_count, 2)
 
-        self.houses[0].status = HouseStatus.INACTIVE
-        self.houses[0].save(update_fields=["status"])
+        self.houses[0].is_active = False
+        self.houses[0].status = HouseStatus.PAUSED
+        self.houses[0].save(update_fields=["is_active", "status"])
         hidden = self.client.post(url, data=json.dumps(payload), content_type="application/json")
         self.assertEqual(hidden.status_code, 404)
+
+    @patch("apps.house.commute.routing.get_route_provider")
+    def test_unreachable_route_expires_and_recovers_using_the_same_record(self, provider):
+        provider.return_value.code = "amap"
+        provider.return_value.plan_route.side_effect = MapRouteNotFound("没有纯地铁路线")
+        destination = self.commute_destination()
+        payload = {"house_id": self.houses[0].pk, "destination_id": destination.pk, "mode": "metro"}
+        url = "/api/public/houses/commute/routes/for-house/"
+        for _ in range(2):
+            response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json()["message"], "暂无纯地铁路线，可切换其他出行方式")
+        route = HouseCommuteRoute.objects.get(destination=destination)
+        self.assertEqual(provider.return_value.plan_route.call_count, 1)
+        HouseCommuteRoute.objects.filter(pk=route.pk).update(updated_at=timezone.now() - timedelta(minutes=31))
+        provider.return_value.plan_route.side_effect = None
+        provider.return_value.plan_route.return_value = {"duration_seconds": 900, "distance_m": 2000, "walking_distance_m": 0, "steps": []}
+        response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content)
+        route.refresh_from_db()
+        self.assertEqual(route.status, "ready")
+        self.assertEqual(HouseCommuteRoute.objects.filter(destination=destination).count(), 1)
+        self.assertEqual(provider.return_value.plan_route.call_count, 2)
+
+    @patch("apps.house.commute.routing.get_route_provider")
+    def test_expired_successful_route_is_recalculated_when_opened_by_id(self, provider):
+        provider.return_value.code = "amap"
+        provider.return_value.plan_route.return_value = {"duration_seconds": 900, "distance_m": 2000, "walking_distance_m": 0, "steps": []}
+        destination = self.commute_destination()
+        payload = {"house_id": self.houses[0].pk, "destination_id": destination.pk, "mode": "walking"}
+        self.client.post("/api/public/houses/commute/routes/for-house/", data=json.dumps(payload), content_type="application/json")
+        route = HouseCommuteRoute.objects.get(destination=destination)
+        provider.return_value.plan_route.return_value = {"duration_seconds": 1200, "distance_m": 2400, "walking_distance_m": 2400, "steps": []}
+        HouseCommuteRoute.objects.filter(pk=route.pk).update(updated_at=timezone.now() - timedelta(days=13))
+        response = self.client.get(f"/api/public/houses/commute/routes/{route.pk}/", {"house_id": self.houses[0].pk})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(api_data(response)["duration_minutes"], 15)
+        self.assertEqual(provider.return_value.plan_route.call_count, 1)
+        HouseCommuteRoute.objects.filter(pk=route.pk).update(updated_at=timezone.now() - timedelta(days=15))
+        response = self.client.get(f"/api/public/houses/commute/routes/{route.pk}/", {"house_id": self.houses[0].pk})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(api_data(response)["duration_minutes"], 20)
+        self.assertEqual(provider.return_value.plan_route.call_count, 2)
+        HouseCommuteRoute.objects.filter(pk=route.pk).update(updated_at=timezone.now() - timedelta(days=15))
+        provider.return_value.plan_route.side_effect = MapRouteNotFound("没有路线")
+        route_url = f"/api/public/houses/commute/routes/{route.pk}/"
+        self.assertEqual(self.client.get(route_url, {"house_id": self.houses[0].pk}).status_code, 404)
+        HouseCommuteRoute.objects.filter(pk=route.pk).update(updated_at=timezone.now() - timedelta(minutes=5))
+        provider.return_value.plan_route.side_effect = None
+        response = self.client.get(route_url, {"house_id": self.houses[0].pk, "retry": True})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(provider.return_value.plan_route.call_count, 4)
+
+    @patch("apps.house.commute.routing.get_route_provider")
+    def test_manual_retry_refreshes_negative_result_and_has_a_cooldown(self, provider):
+        provider.return_value.code = "amap"
+        provider.return_value.plan_route.side_effect = MapRouteNotFound("没有路线")
+        destination = self.commute_destination()
+        payload = {"house_id": self.houses[0].pk, "destination_id": destination.pk, "mode": "walking"}
+        url = "/api/public/houses/commute/routes/for-house/"
+        self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        route = HouseCommuteRoute.objects.get(destination=destination)
+        HouseCommuteRoute.objects.filter(pk=route.pk).update(updated_at=timezone.now() - timedelta(minutes=5))
+        provider.return_value.plan_route.side_effect = None
+        provider.return_value.plan_route.return_value = {"duration_seconds": 900, "distance_m": 2000, "walking_distance_m": 0, "steps": []}
+        payload["retry"] = True
+        for _ in range(2):
+            response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+            self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(provider.return_value.plan_route.call_count, 2)
+
+    @patch("apps.house.commute.routing.get_route_provider")
+    def test_service_failure_preserves_old_result_and_cools_down_requests(self, provider):
+        provider.return_value.code = "amap"
+        provider.return_value.plan_route.return_value = {"duration_seconds": 900, "distance_m": 2000, "walking_distance_m": 0, "steps": []}
+        destination = self.commute_destination()
+        payload = {"house_id": self.houses[0].pk, "destination_id": destination.pk, "mode": "walking"}
+        url = "/api/public/houses/commute/routes/for-house/"
+        self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        route = HouseCommuteRoute.objects.get(destination=destination)
+        expired_at = timezone.now() - timedelta(days=15)
+        HouseCommuteRoute.objects.filter(pk=route.pk).update(updated_at=expired_at)
+        provider.return_value.plan_route.side_effect = MapProviderUnavailable("暂不可用")
+        for _ in range(2):
+            response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+            self.assertEqual(response.status_code, 503)
+        route.refresh_from_db()
+        self.assertEqual(route.status, "ready")
+        self.assertEqual(route.updated_at, expired_at)
+        self.assertEqual(provider.return_value.plan_route.call_count, 2)
+        provider.return_value.plan_route.side_effect = None
+        with patch("time.time", return_value=timezone.now().timestamp() + 121):
+            response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(provider.return_value.plan_route.call_count, 3)
+
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
+    @patch("apps.house.commute.routing.get_route_provider")
+    def test_search_keeps_its_time_reference_and_new_search_recalculates_expired_routes(self, provider, delayed):
+        provider.return_value.code = "amap"
+        provider.return_value.plan_route.side_effect = MapRouteNotFound("没有路线")
+        destination = self.commute_destination()
+        search_id = self.start(destination_id=destination.pk)["search_id"]
+        compute_commute_batch_task(search_id, self.search_job(search_id)["building_ids"])
+        self.assertEqual(api_data(self.client.get(f"/api/public/houses/commute/searches/{search_id}/"))["status"], "ready")
+        with patch("django.utils.timezone.now", return_value=timezone.now() + timedelta(minutes=31)):
+            progress = api_data(self.client.get(f"/api/public/houses/commute/searches/{search_id}/"))
+            self.assertEqual((progress["status"], progress["processed"]), ("ready", 2))
+            new_id = self.start(destination_id=destination.pk)["search_id"]
+            self.assertEqual(api_data(self.client.get(f"/api/public/houses/commute/searches/{new_id}/"))["status"], "pending")
+            self.assertEqual(delayed.call_count, 4)
+            compute_commute_batch_task(new_id, self.search_job(new_id)["building_ids"])
+            self.assertEqual(api_data(self.client.get(f"/api/public/houses/commute/searches/{new_id}/"))["status"], "ready")
+        self.assertEqual(provider.return_value.plan_route.call_count, 4)
+
+    @patch("apps.house.tasks.compute_commute_batch_task.delay")
+    @patch("apps.house.commute.routing.get_route_provider")
+    def test_search_retry_recalculates_unreachable_routes_and_preserves_ready_routes(self, provider, delayed):
+        provider.return_value.code = "amap"
+        result = {"duration_seconds": 900, "distance_m": 2000, "walking_distance_m": 0, "steps": []}
+        provider.return_value.plan_route.side_effect = [MapRouteNotFound("没有路线"), result]
+        destination = self.commute_destination()
+        search_id = self.start(destination_id=destination.pk)["search_id"]
+        compute_commute_batch_task(search_id, self.search_job(search_id)["building_ids"])
+        provider.return_value.plan_route.side_effect = None
+        provider.return_value.plan_route.return_value = result
+        with patch("django.utils.timezone.now", return_value=timezone.now() + timedelta(minutes=2)):
+            retried_id = self.start(destination_id=destination.pk, retry=True)["search_id"]
+            progress = api_data(self.client.get(f"/api/public/houses/commute/searches/{retried_id}/"))
+            self.assertEqual((progress["status"], progress["processed"]), ("pending", 1))
+            self.assertEqual(delayed.call_count, 3)
+            compute_commute_batch_task(retried_id, [self.houses[0].building_id])
+            self.assertEqual(api_data(self.client.get(f"/api/public/houses/commute/searches/{retried_id}/"))["status"], "ready")
+        self.assertEqual(provider.return_value.plan_route.call_count, 3)

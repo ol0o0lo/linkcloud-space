@@ -72,7 +72,7 @@ def test_public_home_only_returns_enabled_items_and_enforces_home_limits():
 def test_topic_house_sync_only_accepts_public_new_houses_and_hides_later_unlisted_houses():
     topic = create_topic()
     public_house = create_house(slug="public-house")
-    hidden_house = create_house(slug="hidden-house", status=HouseStatus.VACANT)
+    hidden_house = create_house(slug="hidden-house", status=HouseStatus.PAUSED)
 
     links = sync_entry_houses(topic, [{"house_id": public_house.pk, "recommendation_reason": "通勤方便"}])
     assert [(link.house_id, link.recommendation_reason) for link in links] == [(public_house.pk, "通勤方便")]
@@ -80,7 +80,7 @@ def test_topic_house_sync_only_accepts_public_new_houses_and_hides_later_unliste
     with pytest.raises(ValidationError):
         sync_entry_houses(topic, [{"house_id": hidden_house.pk, "recommendation_reason": ""}])
 
-    public_house.status = HouseStatus.VACANT
+    public_house.status = HouseStatus.PAUSED
     public_house.save(update_fields=["status", "updated_at"])
 
     assert ContentEntryHouse.objects.filter(entry=topic, house=public_house).exists()

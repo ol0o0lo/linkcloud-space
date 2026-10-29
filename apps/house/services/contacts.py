@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -35,28 +37,70 @@ from apps.house.services.invitations import (
     mask_phone,
     normalize_invitation_phone,
 )
-from apps.notifications.services import notify
+from apps.house.services.messaging import (
+    contact_message_content,
+    contact_message_payload,
+    get_inquiry_conversation,
+    get_personal_inquiry_conversation,
+    replay_contact_message,
+    send_contact_message,
+)
 from apps.organizations.models import Organization, OrganizationMember
 from apps.settings.service import get_user_setting, set_user_setting
 
 
 @transaction.atomic
-@transaction.atomic
-def create_contact(*, organization, data: dict):
-    return Contact.objects.create(organization=organization, **data)
+def create_contact(*, organization, data: dict, actor=None):
+    if actor is not None:
+        from apps.house.queries.customers import require_customer_member
+
+        require_customer_member(organization=organization, actor=actor)
+        if ContactRole.TENANT in (data.get("roles") or []):
+            from apps.house.services.customers import create_customer
+
+            contact = create_customer(organization=organization, actor=actor, data={key: value for key, value in data.items() if key != "roles"})
+            contact.roles = list(dict.fromkeys([*(contact.roles or []), *(data.get("roles") or [])]))
+            contact.save(update_fields=["roles", "updated_at"])
+            return contact
+    contact = Contact.objects.create(organization=organization, **data)
+    if actor is not None and contact.has_role(ContactRole.TENANT):
+        from apps.house.models import CustomerProfile
+
+        CustomerProfile.objects.create(contact=contact, assigned_to=actor)
+    return contact
 
 
 @transaction.atomic
-def update_contact(*, organization, contact_id: int, changes: dict):
+def update_contact(*, organization, contact_id: int, changes: dict, actor=None):
+    Organization.objects.select_for_update().get(pk=organization.pk)
     contact = get_object_or_404(Contact.objects.select_for_update(), pk=contact_id, organization=organization)
+    if actor is not None:
+        from apps.house.queries.customers import can_manage_customers, visible_contacts
+        from apps.house.services.customers import assert_customer_contact_access
+
+        get_object_or_404(visible_contacts(organization=organization, actor=actor), pk=contact.pk)
+        assert_customer_contact_access(contact, actor=actor, organization=organization)
+        if contact.has_role(ContactRole.TENANT) and not getattr(contact, "customer_profile", None) and not can_manage_customers(organization=organization, actor=actor):
+            raise PermissionDenied("历史租客请先由组织管理员补充客户档案。")
+    if getattr(contact, "customer_profile", None) and "roles" in changes and ContactRole.TENANT not in (changes["roles"] or []):
+        raise HouseInvalidException("已有客户档案的联系人必须保留租客角色。")
+    if actor is not None and ("phone" in changes or "roles" in changes) and (contact.has_role(ContactRole.TENANT) or ContactRole.TENANT in (changes.get("roles") or [])):
+        from apps.house.services.customers import _contact_with_phone, _phone
+
+        if _contact_with_phone(organization=organization, actor=actor, phone=_phone(changes.get("phone", contact.phone)), exclude_id=contact.pk):
+            raise ConflictException("该手机号已存在联系人，请复用已有客户。")
     for field, value in changes.items():
         setattr(contact, field, value)
     contact.save()
+    if actor is not None and contact.has_role(ContactRole.TENANT):
+        from apps.house.models import CustomerProfile
+
+        CustomerProfile.objects.get_or_create(contact=contact, defaults={"assigned_to": actor})
     return contact
 
 
 def resolve_deal_signing_tenant(*, organization: Organization, name: str, phone: str):
-    """按姓名和手机号精确复用租客，不命中时创建联系人。"""
+    """按标准化手机号复用租客，避免通过改名重复建客。"""
     from apps.house.models import Contact
 
     normalized_name = name.strip()
@@ -66,17 +110,11 @@ def resolve_deal_signing_tenant(*, organization: Organization, name: str, phone:
     if not normalized_phone:
         raise ValidationError({"tenant_identity": {"phone": "请输入租客手机号。"}})
 
-    try:
-        contact, _created = Contact.objects.get_or_create(
-            organization=organization,
-            name=normalized_name,
-            phone=normalized_phone,
-            defaults={"roles": [ContactRole.TENANT], "is_active": True},
-        )
-    except ValidationError as error:
-        contact = Contact.objects.filter(organization=organization, name=normalized_name, phone=normalized_phone).first()
-        if contact is None:
-            raise error
+    Organization.objects.select_for_update().get(pk=organization.pk)
+    matches = list(Contact.objects.filter(organization=organization, normalized_phone=_normalize_contact_phone(normalized_phone)))
+    if len(matches) > 1:
+        raise ConflictException("该手机号存在多条联系人记录，请先合并后再处理。")
+    contact = matches[0] if matches else Contact.objects.create(organization=organization, name=normalized_name, phone=normalized_phone, roles=[ContactRole.TENANT])
     if not contact.is_active:
         raise ValidationError({"tenant_identity": "该租客已停用，请先启用后再签约。"})
     if not contact.has_role(ContactRole.TENANT):
@@ -85,8 +123,12 @@ def resolve_deal_signing_tenant(*, organization: Organization, name: str, phone:
     return contact
 
 
-def get_contact_for_new_business(contact_id: int, org, role: str):
+def get_contact_for_new_business(contact_id: int, org, role: str, actor=None, inquiry=None, house_id=None):
     contact = get_contact_in_org(contact_id, org)
+    if actor is not None and role == ContactRole.TENANT:
+        from apps.house.services.customers import assert_customer_contact_access
+
+        assert_customer_contact_access(contact, actor=actor, organization=org, inquiry=inquiry, house_id=house_id)
     if not contact.is_active:
         raise HouseInvalidException("已停用联系人不能用于新业务")
     if not contact.has_role(role):
@@ -158,8 +200,70 @@ def _normalize_contact_phone(phone: str) -> str:
     return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 
 
+def normalize_tenant_contact_preference(value):
+    if not isinstance(value, dict):
+        raise TenantContactValidationError("联系方式格式不正确。")
+    phone, wechat = value.get("phone", ""), value.get("wechat", "")
+    if not isinstance(phone, str) or not isinstance(wechat, str) or len(phone) > 32 or len(wechat) > 64:
+        raise TenantContactValidationError("联系方式格式不正确。")
+    return {"phone": _normalize_contact_phone(phone) if phone.strip() else "", "wechat": wechat.strip(), "channels": []}
+
+
 @transaction.atomic
-def send_tenant_contact_request(*, house, user, channels: list[str], phone: str = "", wechat: str = ""):
+def start_tenant_conversation(*, house, user):
+    from apps.house.services.inquiries import record_inquiry
+
+    Organization.objects.select_for_update().get(pk=house.organization.pk)
+    recipient = resolve_contact_recipient(house)
+    inquiry = record_inquiry(house=house, user=user, assigned_to=recipient, include_contact_details=False)
+    original = inquiry.assigned_to
+    if original is not None and OrganizationMember.objects.filter(organization=house.organization, user=original, user__is_active=True).exists():
+        recipient = original
+    if recipient is None or not recipient.is_active:
+        raise TenantContactRecipientUnavailable("暂无接待人员，请稍后再试。")
+    if recipient.pk == user.pk:
+        raise TenantContactRecipientUnavailable("当前账号就是该房源接待人，不能与自己发起聊天。")
+    if inquiry.assigned_to_id != recipient.pk:
+        inquiry.assigned_to = recipient
+        inquiry.save(update_fields=["assigned_to", "updated_at"])
+    return get_inquiry_conversation(house=house, user=user, inquiry=inquiry, recipient=recipient)
+
+
+@transaction.atomic
+def share_tenant_contact(*, user, conversation_id, channels, phone="", wechat="", client_message_id):
+    from apps.messaging.constants import ParticipantAccessKind
+    from apps.messaging.services import send_message
+
+    inquiry, conversation = get_personal_inquiry_conversation(user=user, conversation_id=conversation_id)
+    Organization.objects.select_for_update().get(pk=inquiry.organization_id)
+    if not channels:
+        raise TenantContactValidationError("请至少选择一种联系方式。")
+    selected_phone = _normalize_contact_phone(phone) if "phone" in channels else ""
+    selected_wechat = wechat.strip() if "wechat" in channels else ""
+    if "wechat" in channels and not selected_wechat:
+        raise TenantContactValidationError("请输入微信号。")
+    message, created = send_message(
+        actor=user,
+        organization=inquiry.organization,
+        access_kind=ParticipantAccessKind.BUSINESS_PARTY,
+        conversation_id=conversation.pk,
+        client_message_id=client_message_id,
+        content=contact_message_content(house=inquiry.house, phone=selected_phone, wechat=selected_wechat),
+        message_type="house.contact",
+        payload=contact_message_payload(house=inquiry.house, phone=selected_phone, wechat=selected_wechat),
+    )
+    if created:
+        changes = {}
+        if "phone" in channels:
+            changes["phone"] = selected_phone
+        if "wechat" in channels:
+            changes["wechat"] = selected_wechat
+        type(inquiry).objects.filter(pk=inquiry.pk).update(**changes)
+    return message
+
+
+@transaction.atomic
+def send_tenant_contact_request(*, house, user, channels: list[str], phone: str = "", wechat: str = "", client_message_id=None):
     selected = [channel for channel in ("phone", "wechat") if channel in channels]
     if not selected:
         raise TenantContactValidationError("请至少选择一种联系方式。")
@@ -174,15 +278,18 @@ def send_tenant_contact_request(*, house, user, channels: list[str], phone: str 
         if not normalized_wechat:
             raise TenantContactValidationError("请输入微信号。")
 
+    # 组织锁覆盖首次咨询和消息重放，避免同一次业务发送在接待人变化时重复入不同会话。
+    Organization.objects.select_for_update().get(pk=house.organization.pk)
+    request_id = client_message_id or uuid4()
+    content = contact_message_content(house=house, phone=normalized_phone, wechat=normalized_wechat)
+    previous = replay_contact_message(house=house, user=user, client_message_id=request_id, content=content, phone=normalized_phone, wechat=normalized_wechat)
+    if previous is not None:
+        return previous
     recipient = resolve_contact_recipient(house)
-    if recipient is None:
-        raise TenantContactRecipientUnavailable("暂无可联系中介，请稍后再试。")
+    from apps.house.services.inquiries import record_inquiry
 
-    contact_data = {
-        "channels": selected,
-        "phone": normalized_phone,
-        "wechat": normalized_wechat,
-    }
+    inquiry = record_inquiry(house=house, user=user, assigned_to=recipient, phone=normalized_phone, wechat=normalized_wechat)
+
     previous_setting = get_user_setting(user, TENANT_CONTACT_SETTING_KEY, {})
     if not isinstance(previous_setting, dict):
         previous_setting = {}
@@ -191,20 +298,33 @@ def send_tenant_contact_request(*, house, user, channels: list[str], phone: str 
         "phone": normalized_phone or (previous_setting.get("phone") if isinstance(previous_setting.get("phone"), str) else ""),
         "wechat": normalized_wechat or (previous_setting.get("wechat") if isinstance(previous_setting.get("wechat"), str) else ""),
     }
-    notifications = notify(
-        [recipient],
-        organization=house.organization,
-        actor=user,
-        target=house,
-        category="house.contact",
-        title="租客预约联系",
-        body="租客希望就该房源与你联系，请查看联系方式并主动联系。",
-        data={"house_id": house.pk, **contact_data},
-    )
-    if not notifications:
-        raise TenantContactRecipientUnavailable("暂无可联系中介，请稍后再试。")
+    # 继续联系仍归原有效接待人；原接待已失效或未分派时，才采用当前房源接待规则。
+    original = inquiry.assigned_to
+    if original is not None and OrganizationMember.objects.filter(organization=house.organization, user=original, user__is_active=True).exists():
+        recipient = original
+    elif recipient is not None and not OrganizationMember.objects.filter(organization=house.organization, user=recipient, user__is_active=True).exists():
+        recipient = None
+    if recipient is not None and recipient.pk == user.pk:
+        raise TenantContactRecipientUnavailable("当前账号就是该房源接待人，不能与自己发起聊天。")
+    if inquiry.assigned_to_id != getattr(recipient, "pk", None):
+        inquiry.assigned_to = recipient
+        inquiry.save(update_fields=["assigned_to", "updated_at"])
     set_user_setting(user, TENANT_CONTACT_SETTING_KEY, setting_value)
-    return notifications[0]
+    if recipient is None:
+        inquiry.notification_id = None
+        inquiry.conversation = None
+        inquiry.message = None
+        return inquiry
+    return send_contact_message(
+        house=house,
+        user=user,
+        inquiry=inquiry,
+        recipient=recipient,
+        client_message_id=request_id,
+        content=content,
+        phone=normalized_phone,
+        wechat=normalized_wechat,
+    )
 
 
 @transaction.atomic

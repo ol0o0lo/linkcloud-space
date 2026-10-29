@@ -1,3 +1,5 @@
+from typing import Literal
+
 from django.shortcuts import get_object_or_404
 
 from ninja import Query, Router, Status
@@ -23,24 +25,38 @@ def list_viewing_records(
     pending_lease: bool | None = Query(None),
     contact_missing: bool | None = Query(None),
     keyword: str | None = Query(None),
+    today: bool = Query(False),
+    unassigned: bool = Query(False),
+    scope: Literal["mine", "all"] | None = Query(None),
 ):
     org = require_org_selected(request)
-    return query_list_viewing_records(org=org, house_id=house_id, status=status, pending_lease=pending_lease, contact_missing=contact_missing, keyword=keyword)
+    return query_list_viewing_records(
+        org=org,
+        house_id=house_id,
+        status=status,
+        pending_lease=pending_lease,
+        contact_missing=contact_missing,
+        keyword=keyword,
+        today=today,
+        unassigned=unassigned,
+        actor=request.user,
+        scope=scope,
+    )
 
 
 @router.get("/viewing-records/{record_id}/", response=ViewingRecordOut, summary="获取带看记录详情")
 def get_viewing_record(request, record_id: int):
     org = require_org_selected(request)
-    return get_object_or_404(viewing_records_for_organization(org), pk=record_id)
+    return get_object_or_404(viewing_records_for_organization(org, actor=request.user), pk=record_id)
 
 
 @router.post("/viewing-records/", response={201: ViewingRecordOut}, summary="创建带看记录")
 def create_viewing_record(request, payload: ViewingRecordIn):
     org = require_org_selected(request)
-    return Status(201, perform_create_viewing_record(organization=org, data=payload.model_dump()))
+    return Status(201, perform_create_viewing_record(organization=org, actor=request.user, data=payload.model_dump()))
 
 
 @router.patch("/viewing-records/{record_id}/", response=ViewingRecordOut, summary="更新带看记录")
 def patch_viewing_record(request, record_id: int, payload: ViewingRecordPatchIn):
     org = require_org_selected(request)
-    return perform_update_viewing(organization=org, record_id=record_id, data=payload.model_dump(exclude_unset=True))
+    return perform_update_viewing(organization=org, actor=request.user, record_id=record_id, data=payload.model_dump(exclude_unset=True))

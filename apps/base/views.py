@@ -56,9 +56,12 @@ def _static_index_response(
 
 class DashboardSPAView(generic.View):
     def get(self, request, *args, **kwargs):
+        index = "public/static/dist/admin/index.html"
+        if not os.path.isfile(os.path.join(settings.BASE_DIR, index)):
+            index = "public/static/dist/admin/dashboard/index.html"
         return _static_index_response(
             request,
-            "public/static/dist/admin/dashboard/index.html",
+            index,
             "Admin frontend not built. Run `just build_admin`.",
             asset_subdir="dist/admin",
         )

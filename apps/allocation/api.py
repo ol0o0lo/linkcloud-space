@@ -48,6 +48,7 @@ def get_allocation_capabilities(request):
     organization, view_all = _allocation_context(request)
     teams = Team.objects.filter(organization=organization, members=request.user).order_by("name", "pk")
     return {
+        "register_signing": True,
         "submit": has_permission(request.user, organization, AllocationPermission.SUBMIT),
         "change_beneficiaries": has_permission(request.user, organization, AllocationPermission.CHANGE_BENEFICIARIES),
         "view_scope": "organization" if view_all else "self",
@@ -74,12 +75,7 @@ def list_allocation_beneficiaries(request, keyword: str | None = Query(None)):
         raise PermissionDenied("你没有选择收益受益人的权限。")
     qs = OrganizationMember.objects.filter(organization=organization, user__is_active=True).select_related("user")
     if keyword:
-        qs = qs.filter(
-            Q(user__first_name__icontains=keyword)
-            | Q(user__last_name__icontains=keyword)
-            | Q(user__username__icontains=keyword)
-            | Q(user__email__icontains=keyword)
-        )
+        qs = qs.filter(Q(user__first_name__icontains=keyword) | Q(user__last_name__icontains=keyword) | Q(user__username__icontains=keyword) | Q(user__email__icontains=keyword))
     return [{"user_id": membership.user_id, "name": user_name_snapshot(membership.user)} for membership in qs.order_by("user__first_name", "user__username", "pk")]
 
 

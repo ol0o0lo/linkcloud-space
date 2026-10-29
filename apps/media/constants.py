@@ -27,6 +27,7 @@ CONTRACT_EXTENSIONS = {MediaExtension.PDF, MediaExtension.DOC, MediaExtension.DO
 
 
 class ResourceType(StrChoices):
+    LEGACY_ARCHIVE_ASSET = "legacy_archive_asset", _("旧版历史附件")
     AVATAR = "avatar", _("用户头像")
     ORG_LOGO = "org_logo", _("组织 Logo")
     REAL_NAME_ID_CARD = "real_name_id_card", _("实名认证身份证图片")

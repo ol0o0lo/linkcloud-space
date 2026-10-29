@@ -170,6 +170,8 @@ def evaluate_house_publish_state(house, rules=None):
     }
 
     blocking_issues: list[str] = []
+    if not house.is_active:
+        blocking_issues.append("房源已停用")
     warning_issues: list[str] = []
     for key, is_missing in issue_flags.items():
         if not is_missing:
@@ -228,13 +230,20 @@ def _apply_house_changes(house, organization, changes):
     for field, value in data.items():
         setattr(house, field, value)
 
+    if data.get("status") == HouseStatus.LISTED and not house.is_active:
+        raise HouseInvalidException("已停用房源不能发布，请先启用。")
+    if not house.is_active and house.status == HouseStatus.LISTED:
+        house.status = HouseStatus.PAUSED
+
 
 @transaction.atomic
 def publish_house(*, organization, house_id: int, changes: dict | None = None):
     """在同一事务中更新发布资料、校验发布规则并招租。"""
     house = get_object_or_404(House.objects.select_for_update(of=("self",)).select_related("building__estate", "landlord"), pk=house_id, building__organization=organization)
     previous_status = house.status
-    _apply_house_changes(house, organization, changes or {})
+    _apply_house_changes(house, organization, {**(changes or {}), "status": HouseStatus.LISTED})
+    if not house.is_active:
+        raise HouseInvalidException("已停用房源不能发布，请先启用。")
     house.status = HouseStatus.LISTED
     validate_house_publication(house, previous_status=previous_status, organization=organization)
     house.save()

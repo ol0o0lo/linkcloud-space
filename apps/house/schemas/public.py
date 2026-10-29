@@ -5,7 +5,9 @@ from decimal import Decimal
 from typing import Literal
 
 from ninja import Schema
+from pydantic import Field
 
+from apps.data_migration.presentation import migration_media_for
 from apps.house.constants import HouseDecoration, HouseListingType, HouseOrientation
 from apps.house.schemas.common import BuildingRegionOut, GeoPointOut, resolve_gcj02_location
 from apps.media.schemas import ResolvedMediaRefOut
@@ -112,6 +114,8 @@ class PublicHouseListOut(Schema):
     decoration__mapping: str
     has_elevator_access: bool
     images: list[ResolvedMediaRefOut]
+    migration_media: list[dict] = Field(default_factory=list)
+    resolve_migration_media = staticmethod(migration_media_for)
     tags: list[str]
     effective_tags: list[str]
     public_description: str

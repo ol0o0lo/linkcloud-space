@@ -13,6 +13,9 @@ DEFAULT_BUILDING_SETTING_KEY = "property_rental.default_building_id"
 DEFAULT_LOCATION_SETTING_KEY = "property_rental.default_location"
 
 
+CONTACT_FALLBACK_MEMBER_SETTING_KEY = "property_rental.contact_fallback_member_id"
+
+
 TAG_SUGGESTIONS_SETTING_KEY = "property_rental.tag_suggestions"
 
 

@@ -23,6 +23,7 @@ REQUEST_STATUS_TRANSITIONS = {
         AllocationRequestStatus.APPROVED,
         AllocationRequestStatus.REJECTED,
         AllocationRequestStatus.EXPIRED,
+        AllocationRequestStatus.WITHDRAWN,
     },
     AllocationRequestStatus.APPROVED: {
         AllocationRequestStatus.APPROVED,
@@ -31,6 +32,7 @@ REQUEST_STATUS_TRANSITIONS = {
     AllocationRequestStatus.REJECTED: {AllocationRequestStatus.REJECTED},
     AllocationRequestStatus.EXPIRED: {AllocationRequestStatus.EXPIRED},
     AllocationRequestStatus.VOIDED: {AllocationRequestStatus.VOIDED},
+    AllocationRequestStatus.WITHDRAWN: {AllocationRequestStatus.WITHDRAWN},
 }
 
 
@@ -63,9 +65,11 @@ class AllocationRequest(CreateUpdateTimeModelMixin):
         "submitted_by_name_snapshot",
         "submitted_at",
         "expires_at",
+        "performance_month",
     )
     REVIEW_AUDIT_FIELDS = ("reviewed_by_id", "reviewed_by_name_snapshot", "reviewed_at", "rejection_reason")
     VOID_AUDIT_FIELDS = ("voided_by_id", "voided_by_name_snapshot", "voided_at", "void_reason")
+    WITHDRAW_AUDIT_FIELDS = ("withdrawn_by_id", "withdrawn_at", "withdraw_reason")
 
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="allocation_requests", verbose_name="所属组织")
     team = models.ForeignKey(
@@ -85,6 +89,7 @@ class AllocationRequest(CreateUpdateTimeModelMixin):
     distributable_amount = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(0)], verbose_name="可分配金额")
     currency = models.CharField(max_length=3, default=ALLOCATION_CURRENCY, verbose_name="币种")
     source_snapshot = models.JSONField(default=dict, blank=True, verbose_name="业务来源快照")
+    performance_month = models.DateField(null=True, blank=True, verbose_name="收益归属月份")
 
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="submitted_allocation_requests", verbose_name="申请人")
     submitted_by_name_snapshot = models.CharField(max_length=150, verbose_name="申请人姓名快照")
@@ -100,6 +105,9 @@ class AllocationRequest(CreateUpdateTimeModelMixin):
     voided_by_name_snapshot = models.CharField(max_length=150, blank=True, default="", verbose_name="作废人姓名快照")
     voided_at = models.DateTimeField(null=True, blank=True, verbose_name="作废时间")
     void_reason = models.TextField(blank=True, default="", verbose_name="作废原因")
+    withdrawn_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="withdrawn_allocation_requests", verbose_name="撤回人")
+    withdrawn_at = models.DateTimeField(null=True, blank=True, verbose_name="撤回时间")
+    withdraw_reason = models.TextField(blank=True, default="", verbose_name="撤回原因")
 
     class Meta:
         verbose_name = "分配申请"
@@ -168,7 +176,7 @@ class AllocationRequest(CreateUpdateTimeModelMixin):
                         & ~Q(reviewed_by_name_snapshot="")
                     )
                     | Q(
-                        status=AllocationRequestStatus.EXPIRED,
+                        status__in=[AllocationRequestStatus.EXPIRED, AllocationRequestStatus.WITHDRAWN],
                         reviewed_by__isnull=True,
                         reviewed_at__isnull=True,
                         reviewed_by_name_snapshot="",
@@ -208,7 +216,12 @@ class AllocationRequest(CreateUpdateTimeModelMixin):
         if self.submitted_at and self.expires_at and self.expires_at != self.submitted_at + timedelta(hours=ALLOCATION_REVIEW_VALIDITY_HOURS):
             errors["expires_at"] = "审核截止时间必须是提交后 168 小时。"
         if self.pk:
-            previous = type(self).objects.filter(pk=self.pk).values("status", *self.IMMUTABLE_FIELDS, *self.REVIEW_AUDIT_FIELDS, *self.VOID_AUDIT_FIELDS).first()
+            previous = (
+                type(self)
+                .objects.filter(pk=self.pk)
+                .values("status", *self.IMMUTABLE_FIELDS, *self.REVIEW_AUDIT_FIELDS, *self.VOID_AUDIT_FIELDS, *self.WITHDRAW_AUDIT_FIELDS)
+                .first()
+            )
             if previous:
                 changed = [field for field in self.IMMUTABLE_FIELDS if previous[field] != getattr(self, field)]
                 if changed:
@@ -221,6 +234,13 @@ class AllocationRequest(CreateUpdateTimeModelMixin):
                 void_changed = any(previous[field] != getattr(self, field) for field in self.VOID_AUDIT_FIELDS)
                 if void_changed and previous["status"] != AllocationRequestStatus.APPROVED:
                     errors["voided_at"] = "作废事实形成后不可修改。"
+                if any(previous[field] != getattr(self, field) for field in self.WITHDRAW_AUDIT_FIELDS) and previous["status"] != AllocationRequestStatus.PENDING:
+                    errors["withdrawn_at"] = "撤回事实形成后不可修改。"
+        if self.status == AllocationRequestStatus.WITHDRAWN:
+            if not self.withdrawn_by_id or not self.withdrawn_at or not self.withdraw_reason.strip():
+                errors["withdraw_reason"] = "撤回必须保留操作人、时间及原因。"
+        elif self.withdrawn_by_id or self.withdrawn_at or self.withdraw_reason:
+            errors["withdrawn_at"] = "只有撤回申请可以填写撤回信息。"
         if errors:
             raise ValidationError(errors)
 

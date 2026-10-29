@@ -48,12 +48,12 @@ class HouseAdminForm(forms.ModelForm):
 @admin.register(House)
 class HouseAdmin(ProtectedDeleteMessageMixin, admin.ModelAdmin):
     form = HouseAdminForm
-    list_display = ("room_number", "building", "landlord", "floor", "status")
-    list_filter = ("building__organization", "status", "decoration", "orientation")
+    list_display = ("room_number", "building", "landlord", "floor", "status", "is_active")
+    list_filter = ("building__organization", "status", "is_active", "decoration", "orientation")
     search_fields = ("room_number", "building__name", "building__estate__name", "landlord__name", "landlord__phone")
     autocomplete_fields = ("building", "landlord")
     fieldsets = (
-        ("基础信息", {"fields": ("building", "room_number", "landlord", "floor", "status")}),
+        ("基础信息", {"fields": ("building", "room_number", "landlord", "floor", "status", "is_active")}),
         ("户型", {"fields": ("area", "interior_area", "bedrooms", "living_rooms", "bathrooms", "kitchens", "balconies", "orientation", "decoration", "has_elevator_access")}),
         ("媒体", {"fields": ("images", "videos")}),
         ("描述", {"fields": ("tags", "public_description", "internal_notes", "extra")}),

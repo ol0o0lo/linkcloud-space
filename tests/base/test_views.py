@@ -21,6 +21,19 @@ class TestSPAShell(SimpleTestCase):
 
 
 class TestDashboardAndH5Entrypoints(SimpleTestCase):
+    def test_dashboard_prefers_current_build_over_stale_nested_index(self):
+        with TemporaryDirectory() as tmp_dir:
+            base_dir = Path(tmp_dir)
+            old = base_dir / "public/static/dist/admin/dashboard/index.html"
+            old.parent.mkdir(parents=True)
+            old.write_text("<html>old build</html>")
+            current = base_dir / "public/static/dist/admin/index.html"
+            current.write_text("<html>current build</html>")
+            with override_settings(BASE_DIR=base_dir):
+                response = self.client.get("/dashboard/space/data-migration")
+        self.assertContains(response, "current build")
+        self.assertNotContains(response, "old build")
+
     def _assert_static_index_route(self, url: str, relative_index_path: str, expected_body: str) -> None:
         with TemporaryDirectory() as tmp_dir:
             base_dir = Path(tmp_dir)

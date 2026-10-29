@@ -3,12 +3,15 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
+from uuid import UUID, uuid4
 
 from ninja import Schema
 from pydantic import ConfigDict, Field
 
 from apps.house.constants import LeaseStatus, ViewingRecordStatus
 from apps.house.schemas.public import PublicHouseListOut
+from apps.messaging.schemas import MessagingConversationOut, MessagingMessageOut
+from apps.organizations.models import OrganizationMember
 
 
 class TenantViewingRecordIn(Schema):
@@ -26,16 +29,40 @@ class TenantContactRequestIn(Schema):
     channels: list[Literal["phone", "wechat"]] = Field(min_length=1, max_length=2)
     phone: str = Field(default="", max_length=32)
     wechat: str = Field(default="", max_length=64)
+    client_message_id: UUID = Field(default_factory=uuid4)
 
 
 class TenantContactRequestOut(Schema):
-    notification_id: int
+    notification_id: int | None = None
+    inquiry_id: int
+    conversation: MessagingConversationOut | None = None
+    message: MessagingMessageOut | None = None
+
+
+class TenantChatIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    house_id: int = Field(gt=0)
+
+
+class TenantContactShareIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+
+    channels: list[Literal["phone", "wechat"]] = Field(min_length=1, max_length=2)
+    phone: str = Field(default="", max_length=32)
+    wechat: str = Field(default="", max_length=64)
+    client_message_id: UUID
 
 
 class TenantOrganizationSummaryOut(Schema):
     id: int
     name: str
     slug: str
+
+
+class TenantViewingReceptionistOut(Schema):
+    name: str
+    phone: str
 
 
 class TenantViewingRecordOut(Schema):
@@ -48,6 +75,20 @@ class TenantViewingRecordOut(Schema):
     status: str
     status__mapping: str
     signed_lease_id: int | None = None
+    receptionist: TenantViewingReceptionistOut | None = None
+
+    @staticmethod
+    def resolve_receptionist(obj):
+        user = obj.assigned_to
+        if user is None or not user.is_active:
+            return None
+        if hasattr(obj, "receptionist_name"):
+            name = obj.receptionist_name
+        else:
+            name = OrganizationMember.objects.filter(organization_id=obj.organization_id, user=user).values_list("employee_name", flat=True).first()
+        if name is None:
+            return None
+        return {"name": name or user.get_full_name().strip() or user.username, "phone": (user.phone or "") if user.phone_verified else ""}
 
     @staticmethod
     def resolve_status__mapping(obj):

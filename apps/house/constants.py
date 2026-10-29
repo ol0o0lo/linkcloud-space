@@ -13,6 +13,22 @@ class ContactRole(StrChoices):
     TENANT = "tenant", "租客"
 
 
+class CustomerStage(StrChoices):
+    NEW = "new", "新客户"
+    CONTACTED = "contacted", "已联系"
+    VIEWING = "viewing", "已预约"
+    NEGOTIATING = "negotiating", "洽谈中"
+    WON = "won", "已成交"
+    LOST = "lost", "暂不考虑"
+
+
+class HouseInquiryStatus(StrChoices):
+    NEW = "new", "新咨询"
+    PROCESSING = "processing", "处理中"
+    CLOSED = "closed", "已关闭"
+    SIGNED = "signed", "已成交"
+
+
 class HouseOrientation(StrChoices):
     SOUTH = "south", "南"
     NORTH = "north", "北"
@@ -37,14 +53,9 @@ class HouseListingType(StrChoices):
 
 
 class HouseStatus(StrChoices):
-    VACANT = "vacant", "空置"
-    LISTED = "listed", "招租"
-    RENTED = "rented", "已租"
-    RENOVATING = "renovating", "装修"
-    INACTIVE = "inactive", "已停用"
-
-
-HOUSE_ACTIVE_STATUSES = (HouseStatus.VACANT, HouseStatus.LISTED, HouseStatus.RENTED, HouseStatus.RENOVATING)
+    LISTED = "listed", "招租中"
+    RENTED = "rented", "已出租"
+    PAUSED = "paused", "暂不出租"
 
 
 class HouseMatchMode(StrChoices):

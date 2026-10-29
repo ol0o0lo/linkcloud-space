@@ -53,6 +53,8 @@ class OnboardingProgressOut(Schema):
     total_count: int
     completion_percent: int
     activated: bool
+    show_guide: bool
+    guide_expires_at: datetime
     trial_ends_at: datetime | None = None
     trial_days_remaining: int | None = None
     tasks: list[OnboardingTaskOut]

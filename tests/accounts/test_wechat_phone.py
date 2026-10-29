@@ -570,6 +570,62 @@ def test_bind_phone_merge_requires_review_when_source_has_organization(client, d
     assert target.is_active is True
 
 
+@pytest.mark.parametrize("with_message", [False, True])
+@override_settings(**WECHAT_PHONE_SETTINGS)
+def test_bind_phone_merge_requires_review_when_source_has_messaging_history(client, db, with_message):
+    """空会话和已撤权历史都阻止轻量合并，避免聊天身份转移到另一账号。"""
+    from uuid import uuid4
+
+    from django.contrib.auth import get_user_model
+
+    from allauth.socialaccount.models import SocialAccount
+    from model_bakery import baker
+
+    from apps.accounts.models import AccountMerge
+    from apps.messaging import services
+    from apps.messaging.contracts import ParticipantSpec
+    from apps.messaging.models import ConversationMember, Message
+    from apps.organizations.models import Organization
+
+    User = get_user_model()
+    source = baker.make(User, username="wx_messaging_source", email="", phone=None)
+    target = baker.make(User, username="messaging_target", email="target@example.com", phone="+8613800138000", phone_verified=True)
+    peer = baker.make(User, username="messaging_peer")
+    social = baker.make(SocialAccount, user=source, provider="wechat_miniprogram", uid="openid_messaging_source")
+    organization = baker.make(Organization, name="聊天归属组织", slug="chat-source-org")
+    conversation = services.get_or_create_conversation(
+        actor=source,
+        organization=organization,
+        namespace="testing.merge",
+        conversation_key="source-history",
+        participants=[ParticipantSpec(source.pk, "business_party"), ParticipantSpec(peer.pk, "business_party")],
+    )
+    if with_message:
+        services.send_message(
+            actor=source,
+            organization=organization,
+            access_kind="business_party",
+            conversation_id=conversation.pk,
+            client_message_id=uuid4(),
+            content="历史消息保留原身份",
+        )
+        services.revoke_participant(organization=organization, conversation_id=conversation.pk, user_id=source.pk)
+
+    _login_user(client, source)
+    response = _post_wechat_phone(client, "13800138000")
+
+    assert response.status_code == 409
+    assert api_error(response)["error"] == "ACCOUNT_MERGE_REVIEW_REQUIRED"
+    source.refresh_from_db()
+    social.refresh_from_db()
+    assert source.is_active is True
+    assert social.user_id == source.pk
+    assert ConversationMember.objects.filter(conversation=conversation, user=source).exists()
+    assert not ConversationMember.objects.filter(user=target).exists()
+    assert Message.objects.filter(conversation=conversation).count() == int(with_message)
+    assert not AccountMerge.objects.filter(source_user=source).exists()
+
+
 @pytest.mark.parametrize("wallet_owner", ["source", "target"])
 @override_settings(**WECHAT_PHONE_SETTINGS)
 def test_bind_phone_merge_requires_review_when_either_account_has_financial_data(client, db, wallet_owner):

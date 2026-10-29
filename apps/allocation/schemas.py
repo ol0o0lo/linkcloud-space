@@ -14,6 +14,7 @@ class AllocationSigningTeamOut(Schema):
 
 
 class AllocationCapabilitiesOut(Schema):
+    register_signing: bool
     submit: bool
     change_beneficiaries: bool
     view_scope: Literal["self", "organization"]
@@ -99,6 +100,7 @@ class AllocationRequestOut(Schema):
     distributable_amount: Decimal
     currency: str
     source_snapshot: dict[str, Any]
+    performance_month: date | None
     submitted_by_id: int
     submitted_by_name_snapshot: str
     submitted_at: datetime
@@ -111,6 +113,9 @@ class AllocationRequestOut(Schema):
     voided_by_name_snapshot: str
     voided_at: datetime | None
     void_reason: str
+    withdrawn_by_id: int | None
+    withdrawn_at: datetime | None
+    withdraw_reason: str
     items: list[AllocationItemOut]
     shares: list[AllocationShareOut]
     created_at: datetime

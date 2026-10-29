@@ -76,6 +76,7 @@ def create_house_match_share(*, organization, consultant, payload) -> HouseMatch
             pk__in=house_ids,
             building__organization=organization,
             status=HouseStatus.LISTED,
+            is_active=True,
         ).count()
         if valid_count != len(house_ids):
             raise ValidationError({"house_ids": "所选房源必须全部属于当前组织且处于招租状态。"})

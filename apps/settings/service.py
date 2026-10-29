@@ -3,7 +3,14 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 
-from apps.house.services.settings import DEFAULT_LOCATION_SETTING_KEY, INSPECTION_MAX_AGE_DAYS_SETTING_KEY, MAX_INSPECTION_MAX_AGE_DAYS, MIN_INSPECTION_MAX_AGE_DAYS
+from apps.house.services.settings import (
+    CONTACT_FALLBACK_MEMBER_SETTING_KEY,
+    DEFAULT_LOCATION_SETTING_KEY,
+    INSPECTION_MAX_AGE_DAYS_SETTING_KEY,
+    MAX_INSPECTION_MAX_AGE_DAYS,
+    MIN_INSPECTION_MAX_AGE_DAYS,
+)
+from apps.organizations.models import OrganizationMember
 from apps.settings.constants import SettingWidget, ValueType
 from apps.settings.models import DefaultSetting, OrganizationSetting, TeamSetting, UserSetting
 
@@ -147,14 +154,26 @@ def get_org_setting(org, key: str) -> dict:
     default = _get_default_for_scope(key, SETTING_SCOPE_ORGANIZATION)
     override = OrganizationSetting.objects.filter(organization=org, setting=default).first()
     overrides = {default.pk: override.value} if override else {}
-    return _resolve_setting_result(default, overrides, value_source=SETTING_VALUE_SOURCE_ORGANIZATION)
+    return _with_org_contact_options(_resolve_setting_result(default, overrides, value_source=SETTING_VALUE_SOURCE_ORGANIZATION), org)
+
+
+def _with_org_contact_options(result: dict, org) -> dict:
+    if result["key"] != CONTACT_FALLBACK_MEMBER_SETTING_KEY:
+        return result
+    members = OrganizationMember.objects.filter(organization=org, user__is_active=True).select_related("user").order_by("pk")
+    options = [{"label": "自动转给组织管理员", "value": 0}]
+    for member in members:
+        name = member.employee_name or member.user.get_full_name() or member.user.username
+        label = f"{name}（{member.user.username}）" if name != member.user.username else name
+        options.append({"label": label, "value": member.pk})
+    return {**result, "ui": {**result["ui"], "options": options}}
 
 
 def get_all_org_settings(org) -> list[dict]:
     """获取 org 全量设置项（所有 default key，标注是否已覆盖）。"""
     defaults = [setting for setting in DefaultSetting.objects.all() if _setting_supports_scope(setting, SETTING_SCOPE_ORGANIZATION)]
     overrides = dict(OrganizationSetting.objects.filter(organization=org).values_list("setting_id", "value"))
-    return [_resolve_setting_result(default, overrides, value_source=SETTING_VALUE_SOURCE_ORGANIZATION) for default in defaults]
+    return [_with_org_contact_options(_resolve_setting_result(default, overrides, value_source=SETTING_VALUE_SOURCE_ORGANIZATION), org) for default in defaults]
 
 
 def set_org_setting(org, key: str, value) -> OrganizationSetting:
@@ -162,6 +181,11 @@ def set_org_setting(org, key: str, value) -> OrganizationSetting:
     validate_setting_value(key, value)
     validate_inspection_max_age_days_setting_value(key, value)
     default = _get_default_for_scope(key, SETTING_SCOPE_ORGANIZATION)
+    if key == CONTACT_FALLBACK_MEMBER_SETTING_KEY:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValidationError({"value": "请选择自动转给组织管理员，或本组织的有效成员。"})
+        if value and not OrganizationMember.objects.filter(organization=org, pk=value, user__is_active=True).exists():
+            raise ValidationError({"value": "兜底接待人必须是本组织的有效成员。"})
     obj, _ = OrganizationSetting.objects.update_or_create(
         organization=org,
         setting=default,

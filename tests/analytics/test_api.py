@@ -96,7 +96,7 @@ class AnalyticsApiTestCase(TestCase):
     def test_collector_only_accepts_public_events_for_listed_house(self):
         self.client.logout()
         response = self.client.post("/api/analytics/events/", data=self.event_payload(), content_type="application/json")
-        self.house.status = HouseStatus.VACANT
+        self.house.status = HouseStatus.PAUSED
         self.house.save(update_fields=["status", "updated_at"])
         hidden_response = self.client.post(
             "/api/analytics/events/",

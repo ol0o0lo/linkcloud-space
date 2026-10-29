@@ -84,8 +84,9 @@ class PublicHouseApiTestCase(TestCase):
         first.deposit_amount = Decimal("2600.00")
         first.save(update_fields=["deposit_amount", "updated_at"])
         second = self.make_house(org_slug="publisher-b", org_name="发布方乙", room_number="101", asking_rent=Decimal("3200.00"))
-        self.make_house(org_slug="publisher-c", org_name="发布方丙", room_number="303", status=HouseStatus.VACANT)
+        self.make_house(org_slug="publisher-c", org_name="发布方丙", room_number="303", status=HouseStatus.PAUSED)
         self.make_house(org_slug="publisher-d", org_name="发布方丁", room_number="404", org_active=False)
+        House.objects.create(building=first.building, room_number="inactive", status=HouseStatus.RENTED, is_active=False)
 
         response = self.client.get("/api/public/houses/", {"page": 1, "page_size": 20})
 
@@ -130,7 +131,7 @@ class PublicHouseApiTestCase(TestCase):
 
     def test_public_house_suggestions_only_include_visible_houses_in_selected_city(self):
         visible = self.make_house(org_slug="suggest-a", org_name="联想甲", room_number="A101", subdistrict="科技园")
-        self.make_house(org_slug="suggest-b", org_name="联想乙", room_number="B202", status=HouseStatus.VACANT, subdistrict="科技园")
+        self.make_house(org_slug="suggest-b", org_name="联想乙", room_number="B202", status=HouseStatus.PAUSED, subdistrict="科技园")
         self.make_house(org_slug="suggest-c", org_name="联想丙", room_number="C303", city="广州", subdistrict="科技园")
 
         response = self.client.get("/api/public/houses/suggestions/", {"keyword": "联想", "city": "深圳"})
@@ -412,7 +413,7 @@ class PublicHouseApiTestCase(TestCase):
         second.tags = ["采光好"]
         second.save()
 
-        hidden = self.make_house(org_slug="options-c", org_name="选项丙", room_number="303", status=HouseStatus.VACANT, asking_rent=Decimal("9999.00"))
+        hidden = self.make_house(org_slug="options-c", org_name="选项丙", room_number="303", status=HouseStatus.PAUSED, asking_rent=Decimal("9999.00"))
         hidden.tags = ["内部标签"]
         hidden.save()
 
@@ -441,7 +442,7 @@ class PublicHouseApiTestCase(TestCase):
         self.make_house(org_slug="region-c", org_name="地区丙", room_number="303", province="广东", city="广州", district="南山")
         invalid = self.make_house(org_slug="region-invalid", org_name="地区占位", room_number="404", province="默认", city="默认", district="默认")
         Estate.objects.filter(pk=invalid.building.estate_id).update(province=" ", city=" ", district=" ")
-        self.make_house(org_slug="region-hidden", org_name="地区隐藏", room_number="505", city="珠海", district="香洲", status=HouseStatus.VACANT)
+        self.make_house(org_slug="region-hidden", org_name="地区隐藏", room_number="505", city="珠海", district="香洲", status=HouseStatus.PAUSED)
         self.make_house(org_slug="region-disabled", org_name="地区停用", room_number="606", city="东莞", district="南城", org_active=False)
 
         response = self.client.get("/api/public/houses/regions/")
@@ -554,8 +555,10 @@ class PublicHouseApiTestCase(TestCase):
         self.assertEqual(response.status_code, 502)
 
     def test_non_public_houses_cannot_be_viewed(self):
-        vacant = self.make_house(org_slug="private-vacant", org_name="未发布租户", room_number="601", status=HouseStatus.VACANT)
+        vacant = self.make_house(org_slug="private-vacant", org_name="未发布租户", room_number="601", status=HouseStatus.PAUSED)
         archived = self.make_house(org_slug="private-archived", org_name="停用租户", room_number="602", org_active=False)
+        inactive = House.objects.create(building=vacant.building, room_number="604", status=HouseStatus.RENTED, is_active=False)
 
-        self.assertEqual(self.client.get(f"/api/public/houses/{vacant.pk}/").status_code, 404)
-        self.assertEqual(self.client.get(f"/api/public/houses/{archived.pk}/").status_code, 404)
+        for house in [vacant, archived, inactive]:
+            with self.subTest(house=house.pk):
+                self.assertEqual(self.client.get(f"/api/public/houses/{house.pk}/").status_code, 404)

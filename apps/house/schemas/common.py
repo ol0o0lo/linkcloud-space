@@ -80,6 +80,7 @@ class HouseSummaryOut(Schema):
     room_number: str
     building_id: int
     building: BuildingSummaryOut
+    is_active: bool
 
     @staticmethod
     def resolve_label(obj):

@@ -106,11 +106,10 @@ def apply_house_ordering(queryset: QuerySet, ordering: str) -> QuerySet:
         )
     if "status" in requested_fields:
         annotations[_STATUS_RANK_ANNOTATION] = Case(
+            When(is_active=False, then=Value(3)),
             When(status=HouseStatus.LISTED, then=Value(0)),
-            When(status=HouseStatus.VACANT, then=Value(1)),
-            When(status=HouseStatus.RENOVATING, then=Value(2)),
-            When(status=HouseStatus.RENTED, then=Value(3)),
-            When(status=HouseStatus.INACTIVE, then=Value(4)),
+            When(status=HouseStatus.PAUSED, then=Value(1)),
+            When(status=HouseStatus.RENTED, then=Value(2)),
             default=Value(5),
             output_field=IntegerField(),
         )

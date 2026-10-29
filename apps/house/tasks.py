@@ -18,7 +18,7 @@ def _record_commute_failure(search_id: str, job: dict, building_id: int, message
 
 @shared_task(bind=True, rate_limit="3/s", max_retries=2)
 def compute_commute_batch_task(self, search_id: str, building_ids: list[int]) -> int:
-    """小批量补齐路线；失败搜索可重试，已算结果长期保留。"""
+    """小批量补齐路线；按搜索的固定时间基准复用结果，失败搜索可重试。"""
     from apps.base.maps import MapProviderResponseError, MapProviderUnavailable
     from apps.house.commute.routing import ensure_route
     from apps.house.commute.search import get_search, route_error_key, route_task_key, schedule_missing_routes
@@ -31,7 +31,7 @@ def compute_commute_batch_task(self, search_id: str, building_ids: list[int]) ->
     retrying = False
     try:
         for building_id in building_ids:
-            ensure_route(building_id, job["destination_id"], job["mode"])
+            ensure_route(building_id, job["destination_id"], job["mode"], reference_time=job.get("reference_time"), refresh_after=job.get("refresh_after"))
             cache.delete(route_error_key(building_id, job["destination_id"], job["mode"]))
             completed += 1
     except HouseCommuteRouteBusy as exc:
@@ -71,7 +71,7 @@ def expire_lease_allocation_requests_task(batch_size: int = 200) -> int:
     )
     expired_count = 0
     for link in links:
-        allocation_request = expire_lease_allocation(organization=link.lease.organization, lease_id=link.lease_id, expired_at=now)
+        allocation_request = expire_lease_allocation(organization=link.lease.organization, lease_id=link.lease_id, request_id=link.allocation_request_id, expired_at=now)
         if allocation_request.status == AllocationRequestStatus.EXPIRED:
             expired_count += 1
     return expired_count

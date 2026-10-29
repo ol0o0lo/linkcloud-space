@@ -61,6 +61,7 @@ class LandlordHouseOut(Schema):
     has_elevator_access: bool
     status: str
     status__mapping: str
+    is_active: bool
     images: list[dict[str, Any]]
     videos: list[dict[str, Any]]
     tags: list[str]

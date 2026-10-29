@@ -2,12 +2,22 @@
 
 from ninja import Router
 
-from . import contacts, leases, maps, properties, responsibilities, viewings
+from . import contacts, customers, inquiries, leases, maps, messaging, properties, responsibilities, viewings
 from .landlord import landlord_router as landlord_router
 from .landlord import public_landlord_router as public_landlord_router
 from .public import public_router as public_router
 from .tenant import tenant_router as tenant_router
 
 router = Router()
-for child_router in (properties.router, maps.router, contacts.router, responsibilities.router, viewings.router, leases.router):
+for child_router in (
+    properties.router,
+    maps.router,
+    contacts.router,
+    customers.router,
+    inquiries.router,
+    responsibilities.router,
+    viewings.router,
+    leases.router,
+    messaging.router,
+):
     router.add_router("/", child_router)

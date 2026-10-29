@@ -12,10 +12,26 @@ from apps.organizations.models import OrganizationMember
 
 
 def leases_for_tenant(user):
-    return Lease.objects.filter(tenant__user=user).select_related("organization", "house__building__estate", "house__building__organization")
+    return Lease.objects.filter(Q(tenant__user=user) | Q(source_inquiry__user=user) | Q(source_viewing_record__source_inquiry__user=user)).select_related(
+        "organization", "house__building__estate", "house__building__organization"
+    )
 
 
-def list_leases(*, org, house_id, status, contract_missing, keyword):
+def visible_leases(qs, *, org, actor=None):
+    if actor is not None:
+        from apps.house.queries.customers import can_manage_customers, require_customer_member
+
+        require_customer_member(organization=org, actor=actor)
+        if not can_manage_customers(organization=org, actor=actor):
+            qs = qs.filter(
+                Q(registered_by=actor)
+                | Q(source_inquiry__assigned_to=actor)
+                | Q(registered_by__isnull=True, source_inquiry__isnull=True, tenant__customer_profile__assigned_to=actor)
+            )
+    return qs
+
+
+def list_leases(*, org, house_id, status, contract_missing, keyword, actor=None):
     qs = Lease.objects.filter(organization=org).select_related("house__building__estate", "tenant", "source_viewing_record").order_by("-start_date", "-id")
     if house_id:
         qs = qs.filter(house_id=house_id)
@@ -32,11 +48,13 @@ def list_leases(*, org, house_id, status, contract_missing, keyword):
         )
     if contract_missing:
         qs = qs.filter(contract_files=[])
-    return qs
+    return visible_leases(qs, org=org, actor=actor)
 
 
-def get_lease(*, org, lease_id):
-    return get_object_or_404(Lease.objects.select_related("house__building__estate", "tenant", "source_viewing_record"), pk=lease_id, organization=org)
+def get_lease(*, org, lease_id, actor=None):
+    return get_object_or_404(
+        visible_leases(Lease.objects.select_related("house__building__estate", "tenant", "source_viewing_record"), org=org, actor=actor), pk=lease_id, organization=org
+    )
 
 
 def get_lease_allocation(*, organization, lease_id: int) -> LeaseAllocation:
@@ -53,7 +71,8 @@ def get_lease_allocation(*, organization, lease_id: int) -> LeaseAllocation:
                 "allocation_request__team",
             )
             .prefetch_related("allocation_request__items", "allocation_request__shares__beneficiary_user")
-            .get(lease_id=lease_id, lease__organization=organization)
+            .filter(lease_id=lease_id, lease__organization=organization)
+            .latest("pk")
         )
     except LeaseAllocation.DoesNotExist:
         raise AllocationInvalidException("该租约尚未提交分配申请。") from None

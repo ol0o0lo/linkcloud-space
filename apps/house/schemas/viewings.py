@@ -17,6 +17,7 @@ class ViewingRecordIn(Schema):
 
     house_id: int
     contact_id: int | None = None
+    source_inquiry_id: int | None = None
     customer_name: str
     customer_phone: str
     scheduled_at: datetime
@@ -32,6 +33,8 @@ class ViewingRecordIn(Schema):
 
 
 class ViewingRecordPatchIn(Schema):
+    model_config = ConfigDict(extra="forbid")
+    source_inquiry_id: int | None = None
     house_id: int | None = None
     contact_id: int | None = None
     customer_name: str | None = None
@@ -50,6 +53,7 @@ class ViewingRecordOut(Schema):
     house_id: int
     house: HouseSummaryOut
     contact_id: int | None
+    source_inquiry_id: int | None
     contact: ContactSummaryOut | None
     customer_name: str
     customer_phone: str

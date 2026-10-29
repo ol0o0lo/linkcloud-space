@@ -21,11 +21,9 @@ class TestEnumRegistryAPI(TestCase):
         assert data["accounts.real_name_status"][0] == {"label": "未实名", "value": "unverified"}
         assert {"label": "已实名", "value": "verified"} in data["accounts.real_name_status"]
         assert data["house.house_status"] == [
-            {"label": "空置", "value": "vacant"},
-            {"label": "招租", "value": "listed"},
-            {"label": "已租", "value": "rented"},
-            {"label": "装修", "value": "renovating"},
-            {"label": "已停用", "value": "inactive"},
+            {"label": "招租中", "value": "listed"},
+            {"label": "已出租", "value": "rented"},
+            {"label": "暂不出租", "value": "paused"},
         ]
         assert {"label": "待审核", "value": "pending_review"} in data["wallet.withdrawal_status"]
 

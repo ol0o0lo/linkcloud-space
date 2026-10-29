@@ -7,8 +7,9 @@ from django.db.models import BooleanField, Case, Count, DateTimeField, Expressio
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from apps.house.constants import HOUSE_ACTIVE_STATUSES, HouseStatus
+from apps.house.constants import HouseStatus
 from apps.house.exceptions import HouseInvalidException
+from apps.house.geo.regions import annotate_house_regions
 from apps.house.models import Building, Estate, House
 from apps.house.queries.ordering import apply_house_ordering
 from apps.house.queries.responsibilities import filter_responsible_houses
@@ -30,26 +31,24 @@ def sort_houses_for_building(houses):
 
 def building_map_counts(houses) -> dict[str, int]:
     """统计已传入的有效房源，地图筛选不应改变该汇总。"""
-    houses = [house for house in houses if house.status in HOUSE_ACTIVE_STATUSES]
+    houses = [house for house in houses if house.is_active]
     return {
         "total": len(houses),
-        "vacant": sum(house.status == HouseStatus.VACANT for house in houses),
+        "paused": sum(house.status == HouseStatus.PAUSED for house in houses),
         "listed": sum(house.status == HouseStatus.LISTED for house in houses),
         "rented": sum(house.status == HouseStatus.RENTED for house in houses),
-        "renovating": sum(house.status == HouseStatus.RENOVATING for house in houses),
     }
 
 
 def inventory_annotations(house_lookup: str, scope_filter: Q | None = None):
-    active_houses = Q(**{f"{house_lookup}__status__in": HOUSE_ACTIVE_STATUSES})
+    active_houses = Q(**{f"{house_lookup}__is_active": True})
     if scope_filter is not None:
         active_houses &= scope_filter
     return {
         "inventory_total": Count(house_lookup, filter=active_houses, distinct=True),
-        "inventory_vacant": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.VACANT}), distinct=True),
+        "inventory_paused": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.PAUSED}), distinct=True),
         "inventory_listed": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.LISTED}), distinct=True),
         "inventory_rented": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENTED}), distinct=True),
-        "inventory_renovating": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENOVATING}), distinct=True),
     }
 
 
@@ -123,7 +122,25 @@ def get_building(*, org, building_id):
     return get_object_or_404(Building.objects.select_related("estate").annotate(**inventory_annotations("houses")), pk=building_id, organization=org)
 
 
-def list_houses(*, org, user, estate_id, building_id, responsible_member_id, scope, inspection_due, inspection_reason, status, keyword, ordering):
+def list_houses(
+    *,
+    org,
+    user,
+    estate_id,
+    building_id,
+    responsible_member_id,
+    scope,
+    inspection_due,
+    inspection_reason,
+    status,
+    keyword,
+    ordering,
+    min_rent=None,
+    max_rent=None,
+    bedrooms=None,
+    district=None,
+    is_active=None,
+):
     if scope == "mine" and responsible_member_id is not None:
         raise HouseInvalidException("scope=mine 与 responsible_member_id 不能同时使用")
     qs = House.objects.filter(building__organization=org).select_related("building__estate", "landlord")
@@ -149,6 +166,16 @@ def list_houses(*, org, user, estate_id, building_id, responsible_member_id, sco
         qs = qs.filter(inspection_expired=True)
     if status:
         qs = qs.filter(status=status)
+    if is_active is not None:
+        qs = qs.filter(is_active=is_active)
+    if min_rent is not None:
+        qs = qs.filter(asking_rent__gte=min_rent)
+    if max_rent is not None:
+        qs = qs.filter(asking_rent__lte=max_rent)
+    if bedrooms is not None:
+        qs = qs.filter(bedrooms=bedrooms)
+    if district:
+        qs = annotate_house_regions(qs).filter(region_district__iexact=district)
     if keyword:
         qs = qs.filter(
             Q(room_number__icontains=keyword)

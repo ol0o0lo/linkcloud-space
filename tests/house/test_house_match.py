@@ -175,11 +175,15 @@ class HouseMatchApiTests(HouseMatchTestCase):
     def test_manual_share_is_anonymous_ordered_and_skips_unlisted_houses(self):
         first = self.make_house("101")
         second = self.make_house("102")
-        response = self.post_share({"title": "手工配房", "mode": "manual", "house_ids": [second.pk, first.pk]})
+        inactive = self.make_house("104")
+        response = self.post_share({"title": "手工配房", "mode": "manual", "house_ids": [second.pk, first.pk, inactive.pk]})
         share_key = api_data(response)["share_key"]
-        second.status = HouseStatus.VACANT
+        second.status = HouseStatus.PAUSED
         second.save()
-        HouseMatchShare.objects.filter(share_key=share_key).update(house_ids=[str(first.pk), "bad-id", 999999])
+        inactive.status = HouseStatus.PAUSED
+        inactive.is_active = False
+        inactive.save()
+        HouseMatchShare.objects.filter(share_key=share_key).update(house_ids=[str(first.pk), str(second.pk), inactive.pk, "bad-id", 999999])
         self.client.logout()
 
         info_response = self.client.get(f"/api/public/house-match-shares/{share_key}/")
@@ -197,6 +201,9 @@ class HouseMatchApiTests(HouseMatchTestCase):
         self.assertEqual(set(houses), {"items", "total", "page", "page_size"})
         self.assertEqual((houses["total"], houses["page"], houses["page_size"]), (1, 1, 1))
         self.assertNotIn("internal_notes", houses["items"][0])
+        for house in [second, inactive]:
+            with self.subTest(house=house.pk):
+                self.assertEqual(self.client.get(f"/api/public/house-match-shares/{share_key}/houses/{house.pk}/").status_code, 404)
 
     def test_dynamic_share_uses_live_filters_and_scopes_detail(self):
         matching = self.make_house("101", asking_rent=Decimal("3200.00"))

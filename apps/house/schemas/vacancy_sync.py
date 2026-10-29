@@ -57,20 +57,27 @@ class VacancySyncBuildingMatchOut(Schema):
     candidates: list[VacancySyncBuildingCandidateOut]
 
 
+class VacancySyncFieldChangeOut(Schema):
+    field: str
+    before: str | None
+    after: str | None
+
+
 class VacancySyncHouseChangeOut(Schema):
     house_id: int | None
     room_number: str
     before_status: str | None
     after_status: str | None
     changed_fields: list[str]
+    field_changes: list[VacancySyncFieldChangeOut] = Field(default_factory=list)
 
 
 class VacancySyncChangesOut(Schema):
     create_houses: list[VacancySyncHouseChangeOut]
     update_houses: list[VacancySyncHouseChangeOut]
-    mark_vacant: list[VacancySyncHouseChangeOut]
+    mark_paused: list[VacancySyncHouseChangeOut]
     mark_rented: list[VacancySyncHouseChangeOut]
-    preserve_special_status: list[VacancySyncHouseChangeOut]
+    preserve_ignored: list[VacancySyncHouseChangeOut]
     inactive_conflicts: list[VacancySyncHouseChangeOut]
 
 
@@ -81,6 +88,7 @@ class VacancySyncBlockOut(Schema):
     lines: list[VacancySyncLineOut]
     changes: VacancySyncChangesOut
     errors: list[VacancySyncErrorOut]
+    warnings: list[str]
 
 
 class VacancySyncSummaryOut(Schema):
@@ -91,9 +99,9 @@ class VacancySyncSummaryOut(Schema):
     create_buildings: int
     create_houses: int
     update_houses: int
-    mark_vacant: int
+    mark_paused: int
     mark_rented: int
-    preserve_special_status: int
+    preserve_ignored: int
 
 
 class VacancySyncOut(Schema):
@@ -101,7 +109,6 @@ class VacancySyncOut(Schema):
     applied: bool
     can_apply: bool
     plan_hash: str | None
-    force_rented: bool
     summary: VacancySyncSummaryOut
     blocks: list[VacancySyncBlockOut]
     errors: list[VacancySyncErrorOut]

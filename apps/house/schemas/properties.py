@@ -7,6 +7,7 @@ from typing import Any, Literal
 from ninja import Schema
 from pydantic import ConfigDict, Field
 
+from apps.data_migration.presentation import migration_media_for
 from apps.geography.coordinates import serialize_point
 from apps.house.constants import EstatePropertyType, HouseDecoration, HouseListingType, HouseOrientation, HouseStatus
 from apps.house.schemas.common import BuildingSummaryOut, ContactSummaryOut, EstateSummaryOut, GeoPointIn, GeoPointOut, resolve_gcj02_location
@@ -86,14 +87,13 @@ class EstateOut(Schema):
 
 class InventoryCountsOut(Schema):
     total: int
-    vacant: int
+    paused: int
     listed: int
     rented: int
-    renovating: int
 
 
 def resolve_inventory_counts(obj):
-    return {name: getattr(obj, f"inventory_{name}", 0) for name in ("total", "vacant", "listed", "rented", "renovating")}
+    return {name: getattr(obj, f"inventory_{name}", 0) for name in ("total", "paused", "listed", "rented")}
 
 
 class EstateDetailOut(EstateOut):
@@ -156,6 +156,8 @@ class BuildingOut(Schema):
     address: str
     images: list[dict[str, Any]]
     tags: list[str]
+    migration_media: list[dict[str, Any]] = Field(default_factory=list)
+    resolve_migration_media = staticmethod(migration_media_for)
 
     @staticmethod
     def resolve_images(obj):
@@ -176,10 +178,9 @@ class BuildingInventoryOut(BuildingOut):
 
 class BuildingMapCountsOut(Schema):
     total: int
-    vacant: int
+    paused: int
     listed: int
     rented: int
-    renovating: int
 
 
 class BuildingMapUnlocatedCountOut(Schema):
@@ -195,7 +196,7 @@ class BuildingMapUnlocatedOut(Schema):
 
     @staticmethod
     def resolve_counts(obj):
-        return {name: getattr(obj, name) for name in ("total", "vacant", "listed", "rented", "renovating")}
+        return {name: getattr(obj, name) for name in ("total", "paused", "listed", "rented")}
 
 
 class BuildingMapMarkerOut(Schema):
@@ -208,7 +209,7 @@ class BuildingMapMarkerOut(Schema):
 
     @staticmethod
     def resolve_counts(obj):
-        return {name: getattr(obj, name) for name in ("total", "vacant", "listed", "rented", "renovating")}
+        return {name: getattr(obj, name) for name in ("total", "paused", "listed", "rented")}
 
     resolve_location = staticmethod(resolve_gcj02_location)
 
@@ -231,7 +232,7 @@ class EstateMapMarkerOut(Schema):
 
     @staticmethod
     def resolve_counts(obj):
-        return {name: getattr(obj, name) for name in ("total", "vacant", "listed", "rented", "renovating")}
+        return {name: getattr(obj, name) for name in ("total", "paused", "listed", "rented")}
 
 
 class BuildingMapHouseOut(Schema):
@@ -242,6 +243,7 @@ class BuildingMapHouseOut(Schema):
     asking_rent: Decimal | None
     status: str
     status__mapping: str
+    is_active: bool
 
 
 class BuildingMapDetailOut(BuildingOut):
@@ -308,6 +310,7 @@ class HousePatchIn(Schema):
     decoration: str | None = None
     has_elevator_access: bool | None = None
     status: HouseStatusValue | None = None
+    is_active: bool = True
     images: list[dict[str, Any]] | None = None
     videos: list[dict[str, Any]] | None = None
     tags: list[str] | None = None
@@ -341,8 +344,11 @@ class HouseOut(Schema):
     has_elevator_access: bool
     status: HouseStatusValue
     status__mapping: str
+    is_active: bool
     images: list[dict[str, Any]]
     videos: list[dict[str, Any]]
+    migration_media: list[dict[str, Any]] = Field(default_factory=list)
+    resolve_migration_media = staticmethod(migration_media_for)
     tags: list[str]
     effective_tags: list[str]
     public_description: str

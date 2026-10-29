@@ -120,14 +120,14 @@ def _extract_tags(text: str) -> list[str]:
     return tags
 
 
-def _line_error(*, line_number: int, raw: str, code: str, message: str, ignored: bool) -> dict:
+def _line_error(*, line_number: int, raw: str, code: str, message: str, ignored: bool, room_number: str | None = None) -> dict:
     return {
         "line_number": line_number,
         "raw": raw,
         "status": "ignored" if ignored else "error",
         "error_code": code,
         "message": message,
-        "room_number": None,
+        "room_number": room_number,
         "floor": None,
         "asking_rent": None,
         "bedrooms": None,
@@ -145,19 +145,19 @@ def _parse_house_line(line_number: int, raw: str, *, ignored: bool) -> dict:
     room_number = room_match.group("room")
     type_match = _HOUSE_TYPE_RE.search(compact, room_match.end())
     if type_match is None:
-        return _line_error(line_number=line_number, raw=raw, code="HOUSE_TYPE_INVALID", message="无法识别房型。", ignored=ignored)
+        return _line_error(line_number=line_number, raw=raw, code="HOUSE_TYPE_INVALID", message="无法识别房型。", ignored=ignored, room_number=room_number)
 
     rent_match = _RENT_RE.search(compact, type_match.end())
     if rent_match is None:
-        return _line_error(line_number=line_number, raw=raw, code="RENT_MISSING", message="缺少租金。", ignored=ignored)
+        return _line_error(line_number=line_number, raw=raw, code="RENT_MISSING", message="缺少租金。", ignored=ignored, room_number=room_number)
 
     try:
         asking_rent = Decimal(rent_match.group("rent"))
     except InvalidOperation:
-        return _line_error(line_number=line_number, raw=raw, code="RENT_INVALID", message="租金格式不正确。", ignored=ignored)
+        return _line_error(line_number=line_number, raw=raw, code="RENT_INVALID", message="租金格式不正确。", ignored=ignored, room_number=room_number)
 
     if asking_rent < 0 or asking_rent > Decimal("999999"):
-        return _line_error(line_number=line_number, raw=raw, code="RENT_OUT_OF_RANGE", message="租金必须在 0 到 999999 之间。", ignored=ignored)
+        return _line_error(line_number=line_number, raw=raw, code="RENT_OUT_OF_RANGE", message="租金必须在 0 到 999999 之间。", ignored=ignored, room_number=room_number)
     if len(room_number) > 64:
         return _line_error(line_number=line_number, raw=raw, code="ROOM_NUMBER_TOO_LONG", message="房号长度不能超过 64 个字符。", ignored=ignored)
 
@@ -167,7 +167,7 @@ def _parse_house_line(line_number: int, raw: str, *, ignored: bool) -> dict:
         bedrooms = _parse_count(type_match.group("rooms"))
         living_rooms = _parse_count(type_match.group("halls")) if type_match.group("halls") else 1
     if bedrooms < 1 or bedrooms > 99 or living_rooms < 0 or living_rooms > 99:
-        return _line_error(line_number=line_number, raw=raw, code="HOUSE_TYPE_OUT_OF_RANGE", message="房数或厅数超出允许范围。", ignored=ignored)
+        return _line_error(line_number=line_number, raw=raw, code="HOUSE_TYPE_OUT_OF_RANGE", message="房数或厅数超出允许范围。", ignored=ignored, room_number=room_number)
 
     description = compact[room_match.end() : type_match.start()] + type_match.group(0) + compact[rent_match.end() :]
     return {

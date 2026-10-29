@@ -11,7 +11,7 @@ from django.db.models.functions import Cast
 from django.shortcuts import get_object_or_404
 
 from apps.geography.coordinates import convert_viewport_to_wgs84, serialize_point
-from apps.house.constants import HOUSE_ACTIVE_STATUSES, HouseStatus
+from apps.house.constants import HouseStatus
 from apps.house.exceptions import HouseInvalidException
 from apps.house.geo.queries import apply_nearby_house_filter, filter_by_viewport
 from apps.house.models import Building, Estate, House
@@ -140,9 +140,9 @@ def _building_map_queryset(org, *, house_status: str | None, located: bool = Tru
     qs = Building.objects.filter(organization=org).select_related("estate")
     qs = qs.filter(location__isnull=False) if located else qs.filter(location__isnull=True)
     if house_status:
-        qs = qs.filter(Exists(House.objects.filter(building_id=OuterRef("pk"), status=house_status)))
+        qs = qs.filter(Exists(House.objects.filter(building_id=OuterRef("pk"), status=house_status, is_active=True)))
     return qs.annotate(
-        **_map_count_annotations("houses", Q(houses__status__in=HOUSE_ACTIVE_STATUSES)),
+        **_map_count_annotations("houses", Q(houses__is_active=True)),
     )
 
 
@@ -163,10 +163,9 @@ def _filter_building_map_queryset(qs, *, keyword: str | None, estate_id: int | N
 def _map_count_annotations(house_lookup: str, active_houses: Q):
     return {
         "total": Count(house_lookup, filter=active_houses, distinct=True),
-        "vacant": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.VACANT}), distinct=True),
+        "paused": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.PAUSED}), distinct=True),
         "listed": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.LISTED}), distinct=True),
         "rented": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENTED}), distinct=True),
-        "renovating": Count(house_lookup, filter=active_houses & Q(**{f"{house_lookup}__status": HouseStatus.RENOVATING}), distinct=True),
     }
 
 
@@ -196,11 +195,12 @@ def _estate_map_queryset(org, *, keyword: str | None, estate_id: int | None, hou
             building__organization=org,
             building__estate_id=OuterRef("pk"),
             status=house_status,
+            is_active=True,
         )
         qs = qs.filter(Exists(matching_houses))
 
     eligible_building_filter = Q(buildings__pk__isnull=False)
-    active_houses = eligible_building_filter & Q(buildings__houses__status__in=HOUSE_ACTIVE_STATUSES)
+    active_houses = eligible_building_filter & Q(buildings__houses__is_active=True)
     qs = qs.annotate(
         map_location=Case(
             When(location__isnull=False, then=Cast("location", output_field=geometry_field)),
@@ -261,7 +261,7 @@ def get_building_map_unlocated_count(*, org):
 
 def get_building_map_detail(*, org, building_id):
     building = get_object_or_404(Building.objects.select_related("estate"), pk=building_id, organization=org)
-    houses = sort_houses_for_building(building.houses.filter(status__in=HOUSE_ACTIVE_STATUSES))
+    houses = sort_houses_for_building(building.houses.filter(is_active=True))
     return {
         "id": building.pk,
         "estate_id": building.estate_id,
@@ -286,6 +286,7 @@ def get_building_map_detail(*, org, building_id):
                 "asking_rent": house.asking_rent,
                 "status": house.status,
                 "status__mapping": HouseStatus.get_choice_label(house.status),
+                "is_active": house.is_active,
             }
             for house in houses
         ],

@@ -140,7 +140,7 @@ class AllocationServiceTestCase(TestCase):
         self.assertEqual(link.allocation_request.status, AllocationRequestStatus.PENDING)
         self.assertFalse(AccrualEntry.objects.exists())
 
-    def test_review_at_expiry_boundary_expires_and_terminates_lease(self):
+    def test_review_at_expiry_boundary_preserves_active_lease(self):
         submitted_at = datetime(2026, 1, 1, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
         link = self.create_link(submitted_at=submitted_at)
 
@@ -155,7 +155,7 @@ class AllocationServiceTestCase(TestCase):
 
         link.lease.refresh_from_db()
         link.allocation_request.refresh_from_db()
-        self.assertEqual(link.lease.status, LeaseStatus.TERMINATED)
+        self.assertEqual(link.lease.status, LeaseStatus.ACTIVE)
         self.assertEqual(link.allocation_request.status, AllocationRequestStatus.EXPIRED)
         self.assertFalse(AccrualEntry.objects.exists())
 
@@ -167,7 +167,7 @@ class AllocationServiceTestCase(TestCase):
         link.lease.refresh_from_db()
         link.allocation_request.refresh_from_db()
         self.assertEqual(expired_count, 1)
-        self.assertEqual(link.lease.status, LeaseStatus.TERMINATED)
+        self.assertEqual(link.lease.status, LeaseStatus.ACTIVE)
         self.assertEqual(link.allocation_request.status, AllocationRequestStatus.EXPIRED)
 
     def test_reject_requires_reason_and_notification_failure_does_not_rollback(self):
@@ -196,7 +196,7 @@ class AllocationServiceTestCase(TestCase):
 
         link.lease.refresh_from_db()
         link.allocation_request.refresh_from_db()
-        self.assertEqual(link.lease.status, LeaseStatus.TERMINATED)
+        self.assertEqual(link.lease.status, LeaseStatus.ACTIVE)
         self.assertEqual(link.allocation_request.status, AllocationRequestStatus.REJECTED)
         self.assertEqual(link.allocation_request.rejection_reason, "资料不完整")
         self.assertFalse(AccrualEntry.objects.exists())
@@ -212,7 +212,7 @@ class AllocationServiceTestCase(TestCase):
         link.allocation_request.refresh_from_db()
         originals = AccrualEntry.objects.filter(entry_type=AccrualEntryType.ALLOCATION).order_by("pk")
         reversals = AccrualEntry.objects.filter(entry_type=AccrualEntryType.REVERSAL).order_by("reversal_of_id")
-        self.assertEqual(link.lease.status, LeaseStatus.TERMINATED)
+        self.assertEqual(link.lease.status, LeaseStatus.ACTIVE)
         self.assertEqual(link.allocation_request.status, AllocationRequestStatus.VOIDED)
         self.assertEqual(reversals.count(), originals.count())
         self.assertEqual([entry.amount for entry in reversals], [-entry.amount for entry in originals])

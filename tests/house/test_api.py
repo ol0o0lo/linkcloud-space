@@ -455,10 +455,11 @@ class HouseApiTestCase(TestCase):
         self.assertNotIn("status", HouseIn.model_fields)
         self.assertNotIn("publish_status", HouseIn.model_fields)
         self.assertNotIn("is_active", HouseIn.model_fields)
+        self.assertNotIn("is_renovating", HouseIn.model_fields)
         self.assertNotIn("extra", HouseIn.model_fields)
         self.assertNotIn("internal_notes", HouseIn.model_fields)
 
-    def test_create_house_rejects_lifecycle_payload_and_starts_vacant(self):
+    def test_create_house_rejects_lifecycle_payload_and_starts_paused(self):
         self.client.raise_request_exception = False
 
         rejected = self.client.post(
@@ -467,7 +468,7 @@ class HouseApiTestCase(TestCase):
                 {
                     "building_id": self.building.pk,
                     "room_number": "1502A",
-                    "status": HouseStatus.INACTIVE,
+                    "status": "inactive",
                     "publish_status": "published",
                     "is_active": False,
                     "extra": {"source": "api"},
@@ -489,9 +490,10 @@ class HouseApiTestCase(TestCase):
         self.assertIsNone(payload["landlord_id"])
         self.assertIsNone(payload["landlord"])
         house = House.objects.get(pk=payload["id"])
-        self.assertEqual(house.status, HouseStatus.VACANT)
+        self.assertEqual(house.status, HouseStatus.PAUSED)
         self.assertNotIn("publish_status", payload)
-        self.assertNotIn("is_active", payload)
+        self.assertTrue(payload["is_active"])
+        self.assertNotIn("is_renovating", payload)
         self.assertEqual(house.extra, {})
         self.assertEqual(house.internal_notes, "")
 
@@ -513,7 +515,7 @@ class HouseApiTestCase(TestCase):
 
         self.assertEqual(response.status_code, 201)
         payload = api_data(response)
-        self.assertEqual(payload["status"], HouseStatus.VACANT)
+        self.assertEqual(payload["status"], HouseStatus.PAUSED)
         self.assertEqual(payload["asking_rent"], "4200.00")
         self.assertEqual(payload["deposit_amount"], "4200.00")
 
@@ -528,18 +530,19 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(patched_payload["status"], HouseStatus.LISTED)
         self.assertEqual(patched_payload["asking_rent"], "4300.00")
 
-    def test_patch_house_rejects_unknown_status(self):
+    def test_patch_house_rejects_unknown_and_legacy_statuses(self):
         house = House.objects.create(building=self.building, room_number="1601-invalid-status")
 
-        response = self.client.patch(
-            f"/api/house/houses/{house.pk}/",
-            data=json.dumps({"status": "all"}),
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 400)
+        for status in ["all", "vacant", "renovating", "inactive"]:
+            with self.subTest(status=status):
+                response = self.client.patch(
+                    f"/api/house/houses/{house.pk}/",
+                    data=json.dumps({"status": status}),
+                    content_type="application/json",
+                )
+                self.assertEqual(response.status_code, 400)
         house.refresh_from_db()
-        self.assertEqual(house.status, HouseStatus.VACANT)
+        self.assertEqual(house.status, HouseStatus.PAUSED)
 
     def test_listing_status_requires_publishable_house(self):
         house = House.objects.create(building=self.building, room_number="1601A")
@@ -552,7 +555,41 @@ class HouseApiTestCase(TestCase):
 
         self.assertEqual(response.status_code, 422)
         house.refresh_from_db()
-        self.assertEqual(house.status, HouseStatus.VACANT)
+        self.assertEqual(house.status, HouseStatus.PAUSED)
+
+    def test_disabling_house_unlists_it_and_restoring_preserves_business_status(self):
+        for status, expected in [(HouseStatus.PAUSED, HouseStatus.PAUSED), (HouseStatus.LISTED, HouseStatus.PAUSED), (HouseStatus.RENTED, HouseStatus.RENTED)]:
+            with self.subTest(status=status):
+                house = House.objects.create(building=self.building, room_number=f"disable-{status}", status=status)
+                path = f"/api/house/houses/{house.pk}/"
+
+                disabled = self.client.patch(path, data=json.dumps({"is_active": False}), content_type="application/json")
+                self.assertEqual(disabled.status_code, 200, disabled.content)
+                self.assertFalse(api_data(disabled)["is_active"])
+                self.assertEqual(api_data(disabled)["status"], expected)
+                restored = self.client.patch(path, data=json.dumps({"is_active": True}), content_type="application/json")
+                self.assertEqual(restored.status_code, 200, restored.content)
+                house.refresh_from_db()
+                self.assertTrue(house.is_active)
+                self.assertEqual(house.status, expected)
+
+    def test_inactive_house_cannot_be_published_and_active_flag_rejects_null(self):
+        landlord = Contact.objects.create(organization=self.org, name="停用发布房东", phone="13800138603", roles=[ContactRole.LANDLORD])
+        house = House.objects.create(building=self.building, landlord=landlord, room_number="inactive-publish", asking_rent=Decimal("2500"), is_active=False)
+        path = f"/api/house/houses/{house.pk}/"
+        rejected = self.client.patch(path, data=json.dumps({"status": HouseStatus.LISTED}), content_type="application/json")
+        self.assertEqual(rejected.status_code, 422, rejected.content)
+        noted = self.client.patch(path, data=json.dumps({"internal_notes": "保留停用"}), content_type="application/json")
+        self.assertEqual(noted.status_code, 200, noted.content)
+        self.assertFalse(api_data(noted)["is_active"])
+        for field in ["is_active"]:
+            with self.subTest(field=field):
+                response = self.client.patch(path, data=json.dumps({field: None}), content_type="application/json")
+                self.assertEqual(response.status_code, 400, response.content)
+                self.assertIn(field, api_error(response)["data"]["fields"])
+        house.refresh_from_db()
+        self.assertEqual(house.status, HouseStatus.PAUSED)
+        self.assertFalse(house.is_active)
 
     def test_listed_house_can_update_regular_fields_without_revalidating_publish_rules(self):
         house = House.objects.create(building=self.building, room_number="1601B", status=HouseStatus.LISTED)
@@ -598,7 +635,7 @@ class HouseApiTestCase(TestCase):
     def test_list_houses_filters_by_unified_status(self):
         vacant_house = House.objects.create(building=self.building, room_number="1701")
         listed_house = House.objects.create(building=self.building, room_number="1702", status=HouseStatus.LISTED)
-        inactive_house = House.objects.create(building=self.building, room_number="1703", status=HouseStatus.INACTIVE)
+        inactive_house = House.objects.create(building=self.building, room_number="1703", status=HouseStatus.PAUSED, is_active=False)
 
         all_response = self.client.get("/api/house/houses/")
         response = self.client.get(f"/api/house/houses/?status={HouseStatus.LISTED}")
@@ -615,6 +652,12 @@ class HouseApiTestCase(TestCase):
         self.assertNotIn(vacant_house.pk, ids)
         self.assertNotIn(inactive_house.pk, ids)
         self.assertEqual(invalid_response.status_code, 400)
+
+        for is_active, expected_ids in [(True, {vacant_house.pk, listed_house.pk}), (False, {inactive_house.pk})]:
+            with self.subTest(is_active=is_active):
+                filtered = self.client.get("/api/house/houses/", {"is_active": str(is_active).lower()})
+                self.assertEqual(filtered.status_code, 200)
+                self.assertEqual({item["id"] for item in api_data(filtered)["items"]}, expected_ids)
 
     def test_list_houses_filters_by_estate_before_pagination(self):
         House.objects.create(building=self.building, room_number="1701")
@@ -670,9 +713,9 @@ class HouseApiTestCase(TestCase):
             living_rooms=1,
             bathrooms=1,
             area=Decimal("88"),
-            status=HouseStatus.VACANT,
+            status=HouseStatus.PAUSED,
         )
-        missing_layout = House.objects.create(building=self.building, room_number="0303", status=HouseStatus.RENOVATING)
+        missing_layout = House.objects.create(building=self.building, room_number="0303", status=HouseStatus.PAUSED)
         listed = House.objects.create(
             building=self.building,
             room_number="0404",
@@ -768,8 +811,14 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(parameters["status"]["schema"]["anyOf"][0]["$ref"], "#/components/schemas/HouseStatus")
         self.assertEqual(
             schema["components"]["schemas"]["HouseStatus"]["enum"],
-            ["vacant", "listed", "rented", "renovating", "inactive"],
+            ["listed", "rented", "paused"],
         )
+        self.assertFalse(parameters["is_active"]["required"])
+        self.assertIn("is_active", house_patch["properties"])
+        self.assertIn("is_active", house_out["properties"])
+        for name in ["HouseIn", "HousePatchIn", "HouseOut", "HouseSummaryOut", "LandlordHouseOut", "BuildingMapHouseOut"]:
+            with self.subTest(schema=name):
+                self.assertNotIn("is_renovating", schema["components"]["schemas"][name]["properties"])
         self.assertIn("confirm_current", house_patch["properties"])
         self.assertTrue({"updated_at", "inspection_reasons", "inspection_due_at", "inspection_max_age_days"}.issubset(house_out["required"]))
 
@@ -845,7 +894,8 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(house_payload["decoration__mapping"], HouseDecoration.get_choice_label(house_payload["decoration"]))
         self.assertEqual(house_payload["status__mapping"], HouseStatus.get_choice_label(house_payload["status"]))
         self.assertNotIn("publish_status", house_payload)
-        self.assertNotIn("is_active", house_payload)
+        self.assertTrue(house_payload["is_active"])
+        self.assertNotIn("is_renovating", house_payload)
         self.assertEqual(viewing_payload["house_id"], house.pk)
         self.assertEqual(viewing_payload["house"]["id"], house.pk)
         self.assertEqual(viewing_payload["house"]["label"], expected_house_label)
@@ -980,26 +1030,29 @@ class HouseApiTestCase(TestCase):
 
     def test_estate_and_building_details_include_active_house_inventory(self):
         second_building = Building.objects.create(organization=self.org, estate=self.estate, name="2栋", address="科技园 2 栋", floors=18)
-        House.objects.create(building=self.building, room_number="101", status=HouseStatus.VACANT)
+        House.objects.create(building=self.building, room_number="101", status=HouseStatus.PAUSED)
         House.objects.create(building=self.building, room_number="102", status=HouseStatus.LISTED)
         House.objects.create(building=self.building, room_number="103", status=HouseStatus.RENTED)
-        House.objects.create(building=second_building, room_number="201", status=HouseStatus.RENOVATING)
-        House.objects.create(building=second_building, room_number="202", status=HouseStatus.INACTIVE)
+        House.objects.create(building=second_building, room_number="201", status=HouseStatus.PAUSED)
+        House.objects.create(building=second_building, room_number="202", status=HouseStatus.PAUSED, is_active=False)
+        House.objects.create(building=second_building, room_number="203", status=HouseStatus.RENTED, is_active=False)
 
         estate_response = self.client.get(f"/api/house/estates/{self.estate.pk}/")
         building_response = self.client.get(f"/api/house/buildings/{self.building.pk}/")
         buildings_response = self.client.get(f"/api/house/buildings/?estate_id={self.estate.pk}")
 
-        expected_counts = {"total": 4, "vacant": 1, "listed": 1, "rented": 1, "renovating": 1}
+        expected_counts = {"total": 4, "paused": 2, "listed": 1, "rented": 1}
         self.assertEqual(estate_response.status_code, 200)
         self.assertEqual(api_data(estate_response)["building_count"], 2)
         self.assertEqual(api_data(estate_response)["counts"], expected_counts)
+        counts = api_data(estate_response)["counts"]
+        self.assertEqual(counts["total"], counts["paused"] + counts["listed"] + counts["rented"])
         self.assertEqual(building_response.status_code, 200)
-        self.assertEqual(api_data(building_response)["counts"], {"total": 3, "vacant": 1, "listed": 1, "rented": 1, "renovating": 0})
+        self.assertEqual(api_data(building_response)["counts"], {"total": 3, "paused": 1, "listed": 1, "rented": 1})
         self.assertEqual(buildings_response.status_code, 200)
         building_counts = {item["id"]: item["counts"] for item in api_data(buildings_response)["items"]}
-        self.assertEqual(building_counts[self.building.pk], {"total": 3, "vacant": 1, "listed": 1, "rented": 1, "renovating": 0})
-        self.assertEqual(building_counts[second_building.pk], {"total": 1, "vacant": 0, "listed": 0, "rented": 0, "renovating": 1})
+        self.assertEqual(building_counts[self.building.pk], {"total": 3, "paused": 1, "listed": 1, "rented": 1})
+        self.assertEqual(building_counts[second_building.pk], {"total": 1, "paused": 1, "listed": 0, "rented": 0})
 
         estates_response = self.client.get("/api/house/estates/")
         estate_item = next(item for item in api_data(estates_response)["items"] if item["id"] == self.estate.pk)
@@ -1014,7 +1067,7 @@ class HouseApiTestCase(TestCase):
         House.objects.create(building=self.building, room_number="2", floor=1)
         House.objects.create(building=self.building, room_number="A10", floor=2)
         House.objects.create(building=self.building, room_number="A2", floor=2)
-        inactive = House.objects.create(building=self.building, room_number="999", floor=9, status=HouseStatus.INACTIVE)
+        inactive = House.objects.create(building=self.building, room_number="999", floor=9, status=HouseStatus.PAUSED, is_active=False)
 
         response = self.client.get(f"/api/house/building-map/{self.building.pk}/")
 
@@ -1023,21 +1076,21 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(payload["tags"], ["近地铁", "成熟配套"])
         self.assertEqual([item["room_number"] for item in payload["houses"]], ["2", "10", "A2", "A10"])
         self.assertNotIn(inactive.pk, [item["id"] for item in payload["houses"]])
-        self.assertEqual(payload["counts"], {"total": 4, "vacant": 4, "listed": 0, "rented": 0, "renovating": 0})
+        self.assertEqual(payload["counts"], {"total": 4, "paused": 4, "listed": 0, "rented": 0})
 
     def test_building_map_filters_markers_by_house_status_but_keeps_full_active_counts(self):
         self.building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.building.save()
-        House.objects.create(building=self.building, room_number="101", status=HouseStatus.VACANT)
+        House.objects.create(building=self.building, room_number="101", status=HouseStatus.PAUSED)
         House.objects.create(building=self.building, room_number="102", status=HouseStatus.LISTED)
         House.objects.create(building=self.building, room_number="103", status=HouseStatus.RENTED)
 
-        response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&house_status=vacant&page=1&page_size=50")
+        response = self.client.get("/api/house/building-map/?coordinate_system=gcj02&house_status=paused&page=1&page_size=50")
 
         self.assertEqual(response.status_code, 200)
         item = api_data(response)["items"][0]
         self.assertEqual(item["id"], self.building.pk)
-        self.assertEqual(item["counts"], {"total": 3, "vacant": 1, "listed": 1, "rented": 1, "renovating": 0})
+        self.assertEqual(item["counts"], {"total": 3, "paused": 1, "listed": 1, "rented": 1})
 
     def test_building_map_returns_all_located_buildings(self):
         initial_unlocated_count = Building.objects.filter(organization=self.org, location__isnull=True).count()
@@ -1077,7 +1130,7 @@ class HouseApiTestCase(TestCase):
 
     def test_building_map_unlocated_list_uses_business_filters_and_counts(self):
         pending = Building.objects.create(organization=self.org, estate=self.estate, name="待定位楼栋", address="科技园待定位楼栋", floors=8)
-        House.objects.create(building=pending, room_number="101", status=HouseStatus.VACANT)
+        House.objects.create(building=pending, room_number="101", status=HouseStatus.PAUSED)
         House.objects.create(building=pending, room_number="102", status=HouseStatus.RENTED)
         other_estate = Estate.objects.create(
             organization=self.org,
@@ -1091,12 +1144,12 @@ class HouseApiTestCase(TestCase):
         )
         Building.objects.create(organization=self.org, estate=other_estate, name="其他待定位楼栋", address="其他地址 1 栋", floors=6)
 
-        response = self.client.get(f"/api/house/building-map-unlocated/?estate_id={self.estate.pk}&house_status=vacant&page=1&page_size=50")
+        response = self.client.get(f"/api/house/building-map-unlocated/?estate_id={self.estate.pk}&house_status=paused&page=1&page_size=50")
 
         self.assertEqual(response.status_code, 200)
         payload = api_data(response)
         self.assertEqual([item["id"] for item in payload["items"]], [pending.pk])
-        self.assertEqual(payload["items"][0]["counts"], {"total": 2, "vacant": 1, "listed": 0, "rented": 1, "renovating": 0})
+        self.assertEqual(payload["items"][0]["counts"], {"total": 2, "paused": 1, "listed": 0, "rented": 1})
 
     def test_building_map_applies_keyword_bounds_and_organization_isolation(self):
         self.building.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
@@ -1134,7 +1187,7 @@ class HouseApiTestCase(TestCase):
         )
         House.objects.create(building=self.building, room_number="101", status=HouseStatus.LISTED)
         House.objects.create(building=unlocated, room_number="201", status=HouseStatus.RENTED)
-        House.objects.create(building=third, room_number="301", status=HouseStatus.RENOVATING)
+        House.objects.create(building=third, room_number="301", status=HouseStatus.PAUSED)
 
         response = self.client.get("/api/house/estate-map/?coordinate_system=gcj02&page=1&page_size=50")
 
@@ -1147,7 +1200,7 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(item["building_count"], 3)
         self.assertEqual(item["located_building_count"], 2)
         self.assertEqual(item["unlocated_building_count"], 1)
-        self.assertEqual(item["counts"], {"total": 3, "vacant": 0, "listed": 1, "rented": 1, "renovating": 1})
+        self.assertEqual(item["counts"], {"total": 3, "paused": 1, "listed": 1, "rented": 1})
 
     def test_estate_map_falls_back_to_unweighted_located_building_centroid(self):
         self.building.location = make_wgs84_point(113.93, 22.53, "gcj02")
@@ -1188,7 +1241,7 @@ class HouseApiTestCase(TestCase):
     def test_estate_map_applies_child_keyword_status_bounds_and_organization_isolation(self):
         self.estate.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         self.estate.save()
-        House.objects.create(building=self.building, room_number="101", status=HouseStatus.VACANT)
+        House.objects.create(building=self.building, room_number="101", status=HouseStatus.PAUSED)
         House.objects.create(building=self.building, room_number="102", status=HouseStatus.RENTED)
         other_estate = Estate.objects.create(
             organization=self.org,
@@ -1202,20 +1255,20 @@ class HouseApiTestCase(TestCase):
             location=make_wgs84_point(114.0, 22.6, "gcj02"),
         )
         other_building = Building.objects.create(organization=self.org, estate=other_estate, name="2栋", address="后海 2 栋", floors=16)
-        House.objects.create(building=other_building, room_number="201", status=HouseStatus.VACANT)
+        House.objects.create(building=other_building, room_number="201", status=HouseStatus.PAUSED)
         _other_org, other_house, _other_landlord, _other_tenant = self.make_other_org_house()
         other_house.building.estate.location = make_wgs84_point(113.9304, 22.5331, "gcj02")
         other_house.building.estate.save()
 
         response = self.client.get(
-            "/api/house/estate-map/?coordinate_system=gcj02&keyword=1栋&house_status=vacant&west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50"
+            "/api/house/estate-map/?coordinate_system=gcj02&keyword=1栋&house_status=paused&west=113.9300&south=22.5330&east=113.9305&north=22.5332&page=1&page_size=50"
         )
         invalid_bounds_response = self.client.get("/api/house/estate-map/?coordinate_system=gcj02&west=114&south=22&east=113&north=23")
 
         self.assertEqual(response.status_code, 200)
         payload = api_data(response)
         self.assertEqual([item["id"] for item in payload["items"]], [self.estate.pk])
-        self.assertEqual(payload["items"][0]["counts"], {"total": 2, "vacant": 1, "listed": 0, "rented": 1, "renovating": 0})
+        self.assertEqual(payload["items"][0]["counts"], {"total": 2, "paused": 1, "listed": 0, "rented": 1})
         self.assertEqual(invalid_bounds_response.status_code, 422)
 
     def test_building_map_standalone_only_excludes_estate_buildings(self):
@@ -2059,7 +2112,7 @@ class HouseApiTestCase(TestCase):
         lease = Lease.objects.get(pk=lease_id)
         house.refresh_from_db()
         self.assertEqual(lease.status, LeaseStatus.PENDING)
-        self.assertEqual(house.status, HouseStatus.VACANT)
+        self.assertEqual(house.status, HouseStatus.PAUSED)
 
     def test_deal_signing_creates_active_lease_and_marks_house_rented(self):
         landlord = Contact.objects.create(organization=self.org, name="成交房东", phone="13800138670", roles=[ContactRole.LANDLORD])
@@ -2076,7 +2129,7 @@ class HouseApiTestCase(TestCase):
         )
 
         response = self.client.post(
-            "/api/house/leases/deal-signing/",
+            "/api/house/leases/register-signing/",
             data=json.dumps(
                 {
                     "lease": {
@@ -2086,14 +2139,14 @@ class HouseApiTestCase(TestCase):
                         "end_date": str(date.today() + timedelta(days=365)),
                         "monthly_rent": "4200",
                     },
-                    "beneficiary_user_ids": [self.user.pk],
+                    "client_request_id": "house-api-register",
                 }
             ),
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 201)
-        lease = Lease.objects.get(pk=api_data(response)["lease"]["id"])
+        lease = Lease.objects.get(pk=api_data(response)["id"])
         house.refresh_from_db()
         self.assertEqual(lease.status, LeaseStatus.ACTIVE)
         self.assertEqual(house.status, HouseStatus.RENTED)
@@ -2101,10 +2154,10 @@ class HouseApiTestCase(TestCase):
     def test_deal_signing_rejects_inactive_house_without_creating_lease(self):
         landlord = Contact.objects.create(organization=self.org, name="停用房东", phone="13800138671", roles=[ContactRole.LANDLORD])
         tenant = Contact.objects.create(organization=self.org, name="停用租客", phone="13900139671", roles=[ContactRole.TENANT])
-        house = House.objects.create(building=self.building, landlord=landlord, room_number="1511", status=HouseStatus.INACTIVE)
+        house = House.objects.create(building=self.building, landlord=landlord, room_number="1511", status=HouseStatus.PAUSED, is_active=False)
 
         response = self.client.post(
-            "/api/house/leases/deal-signing/",
+            "/api/house/leases/register-signing/",
             data=json.dumps(
                 {
                     "lease": {
@@ -2114,7 +2167,7 @@ class HouseApiTestCase(TestCase):
                         "end_date": str(date.today() + timedelta(days=365)),
                         "monthly_rent": "4200",
                     },
-                    "beneficiary_user_ids": [self.user.pk],
+                    "client_request_id": "house-api-register",
                 }
             ),
             content_type="application/json",
@@ -2123,7 +2176,8 @@ class HouseApiTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(Lease.objects.filter(house=house).exists())
         house.refresh_from_db()
-        self.assertEqual(house.status, HouseStatus.INACTIVE)
+        self.assertEqual(house.status, HouseStatus.PAUSED)
+        self.assertFalse(house.is_active)
 
     def test_deal_signing_rolls_back_lease_when_house_status_update_fails(self):
         landlord = Contact.objects.create(organization=self.org, name="回滚房东", phone="13800138672", roles=[ContactRole.LANDLORD])
@@ -2172,7 +2226,80 @@ class HouseApiTestCase(TestCase):
         lease.refresh_from_db()
         house.refresh_from_db()
         self.assertEqual(lease.status, LeaseStatus.ACTIVE)
-        self.assertEqual(house.status, HouseStatus.VACANT)
+        self.assertEqual(house.status, HouseStatus.PAUSED)
+
+    def test_inactive_houses_reject_new_leases_activation_and_house_changes(self):
+        landlord = Contact.objects.create(organization=self.org, name="停用校验房东", phone="13800138673", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="停用校验租客", phone="13900139673", roles=[ContactRole.TENANT])
+        inactive = House.objects.create(building=self.building, landlord=landlord, room_number="inactive-lease-target", status=HouseStatus.RENTED, is_active=False)
+        house = House.objects.create(building=self.building, landlord=landlord, room_number="pending-lease-source")
+        payload = {
+            "house_id": inactive.pk,
+            "tenant_id": tenant.pk,
+            "start_date": str(date.today()),
+            "end_date": str(date.today() + timedelta(days=365)),
+            "monthly_rent": "4200",
+        }
+
+        rejected = self.client.post("/api/house/leases/", data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(rejected.status_code, 400, rejected.content)
+        self.assertFalse(Lease.objects.filter(house=inactive).exists())
+
+        created = self.client.post("/api/house/leases/", data=json.dumps({**payload, "house_id": house.pk}), content_type="application/json")
+        self.assertEqual(created.status_code, 201, created.content)
+        lease = Lease.objects.get(pk=api_data(created)["id"])
+        self.assertEqual(lease.status, LeaseStatus.PENDING)
+        house.is_active = False
+        house.save(update_fields=["is_active"])
+        path = f"/api/house/leases/{lease.pk}/"
+
+        for changes in [{"status": LeaseStatus.ACTIVE}, {"house_id": inactive.pk}]:
+            with self.subTest(changes=changes):
+                response = self.client.patch(path, data=json.dumps({**changes, "notes": "拒绝请求不应写入"}), content_type="application/json")
+                self.assertEqual(response.status_code, 400, response.content)
+                lease.refresh_from_db()
+                self.assertEqual(lease.status, LeaseStatus.PENDING)
+                self.assertEqual(lease.house_id, house.pk)
+                self.assertEqual(lease.notes, "")
+        house.refresh_from_db()
+        self.assertEqual(house.status, HouseStatus.PAUSED)
+        self.assertFalse(house.is_active)
+
+    def test_active_lease_on_inactive_house_allows_maintenance_and_termination(self):
+        landlord = Contact.objects.create(organization=self.org, name="历史维护房东", phone="13800138674", roles=[ContactRole.LANDLORD])
+        tenant = Contact.objects.create(organization=self.org, name="历史维护租客", phone="13900139674", roles=[ContactRole.TENANT])
+        house = House.objects.create(building=self.building, landlord=landlord, room_number="inactive-lease-maintenance", status=HouseStatus.RENTED)
+        lease = Lease.objects.create(
+            organization=self.org,
+            house=house,
+            tenant=tenant,
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=365),
+            monthly_rent=Decimal("4200"),
+            status=LeaseStatus.ACTIVE,
+        )
+        house.is_active = False
+        house.save(update_fields=["is_active"])
+        path = f"/api/house/leases/{lease.pk}/"
+
+        updated = self.client.patch(
+            path,
+            data=json.dumps({"house_id": house.pk, "status": LeaseStatus.ACTIVE, "monthly_rent": "4300", "notes": "停用后维护历史租约"}),
+            content_type="application/json",
+        )
+        self.assertEqual(updated.status_code, 200, updated.content)
+        lease.refresh_from_db()
+        self.assertEqual(lease.status, LeaseStatus.ACTIVE)
+        self.assertEqual(lease.monthly_rent, Decimal("4300"))
+        self.assertEqual(lease.notes, "停用后维护历史租约")
+
+        terminated = self.client.patch(path, data=json.dumps({"status": LeaseStatus.TERMINATED}), content_type="application/json")
+        self.assertEqual(terminated.status_code, 200, terminated.content)
+        lease.refresh_from_db()
+        house.refresh_from_db()
+        self.assertEqual(lease.status, LeaseStatus.TERMINATED)
+        self.assertEqual(house.status, HouseStatus.RENTED)
+        self.assertFalse(house.is_active)
 
     def test_create_lease_can_link_converted_viewing_record_source(self):
         landlord = Contact.objects.create(organization=self.org, name="来源房东", phone="13800138668", roles=[ContactRole.LANDLORD])
@@ -2340,7 +2467,7 @@ class LeaseStatusClosureTestCase(TestCase):
         self.landlord = Contact.objects.create(organization=self.org, name="房东", phone="13800138111", roles=[ContactRole.LANDLORD])
         self.tenant = Contact.objects.create(organization=self.org, name="租客", phone="13900139111", roles=[ContactRole.TENANT])
 
-    def make_house(self, room_number, status=HouseStatus.VACANT):
+    def make_house(self, room_number, status=HouseStatus.PAUSED):
         return House.objects.create(building=self.building, landlord=self.landlord, room_number=room_number, status=status)
 
     def test_moving_active_lease_does_not_modify_old_or_new_house_status(self):
@@ -2364,7 +2491,7 @@ class LeaseStatusClosureTestCase(TestCase):
         old_house.refresh_from_db()
         new_house.refresh_from_db()
         self.assertEqual(old_house.status, HouseStatus.RENTED)
-        self.assertEqual(new_house.status, HouseStatus.VACANT)
+        self.assertEqual(new_house.status, HouseStatus.PAUSED)
 
     def test_deleting_active_lease_does_not_modify_house_status(self):
         house = self.make_house("1701", status=HouseStatus.RENTED)

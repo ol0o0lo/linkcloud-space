@@ -13,8 +13,6 @@ from apps.house.constants import HouseStatus
 from apps.house.house_sync.parser import VACANCY_SYNC_MAX_BYTES, address_match_identities, normalize_address, parse_vacancy_text
 from apps.house.models import Building, House
 
-VACANCY_SYNC_SETTING_KEY = "property_rental.vacancy_sync_force_rented"
-
 
 class VacancySyncInvalidException(AppException):
     error = "VACANCY_SYNC_INVALID"
@@ -25,17 +23,6 @@ class VacancySyncInvalidException(AppException):
 class VacancySyncConflictException(ConflictException):
     error = "VACANCY_SYNC_CONFLICT"
     message = "房表预览已经过期，请重新预览。"
-
-
-def _get_force_rented(organization) -> bool:
-    from apps.settings.models import DefaultSetting, OrganizationSetting
-
-    setting = DefaultSetting.objects.filter(key=VACANCY_SYNC_SETTING_KEY).first()
-    if setting is None:
-        return False
-    override = OrganizationSetting.objects.filter(organization=organization, setting=setting).first()
-    value = override.value if override is not None else setting.value
-    return value if isinstance(value, bool) else False
 
 
 def _building_snapshot(building: Building, houses: list[House]) -> dict:
@@ -52,6 +39,7 @@ def _building_snapshot(building: Building, houses: list[House]) -> dict:
                 "living_rooms": house.living_rooms,
                 "tags": house.tags,
                 "status": house.status,
+                "is_active": house.is_active,
                 "updated_at": house.updated_at.isoformat(),
             }
             for house in sorted(houses, key=lambda item: item.pk)
@@ -68,7 +56,8 @@ def _resolve_building(address: str, buildings: list[Building], override_id: int 
         building = next((item for item in buildings if item.pk == override_id), None)
         if building is None:
             raise Http404
-        return "overridden", building, [building]
+        _, _, candidates = _resolve_building(address, buildings, None)
+        return "overridden", building, candidates if building in candidates else [*candidates, building]
 
     normalized = normalize_address(address).casefold()
     exact_address = [building for building in buildings if normalize_address(building.address).casefold() == normalized]
@@ -93,13 +82,34 @@ def _merge_tags(existing: list[str] | None, parsed: list[str]) -> list[str]:
     return result
 
 
-def _change_item(house: House | None, room_number: str, *, before_status: str | None = None, after_status: str | None = None, changed_fields: list[str] | None = None) -> dict:
+def _display_value(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return "、".join(value)
+    return str(value)
+
+
+def _change_item(
+    house: House | None,
+    room_number: str,
+    *,
+    before_status: str | None = None,
+    after_status: str | None = None,
+    changed_fields: list[str] | None = None,
+    values: dict | None = None,
+) -> dict:
     return {
         "house_id": house.pk if house is not None else None,
         "room_number": room_number,
         "before_status": before_status,
         "after_status": after_status,
         "changed_fields": changed_fields or [],
+        "field_changes": [
+            {"field": field, "before": _display_value(getattr(house, field)), "after": _display_value(values[field])}
+            for field in changed_fields or []
+            if house is not None and values is not None and field in values
+        ],
     }
 
 
@@ -107,9 +117,9 @@ def _empty_changes() -> dict:
     return {
         "create_houses": [],
         "update_houses": [],
-        "mark_vacant": [],
+        "mark_paused": [],
         "mark_rented": [],
-        "preserve_special_status": [],
+        "preserve_ignored": [],
         "inactive_conflicts": [],
     }
 
@@ -123,16 +133,15 @@ def _summary(blocks: list[dict], errors: list[dict]) -> dict:
         "create_buildings": sum(block["building_match"]["status"] == "new" for block in blocks),
         "create_houses": sum(len(block["changes"]["create_houses"]) for block in blocks),
         "update_houses": sum(len(block["changes"]["update_houses"]) for block in blocks),
-        "mark_vacant": sum(len(block["changes"]["mark_vacant"]) for block in blocks),
+        "mark_paused": sum(len(block["changes"]["mark_paused"]) for block in blocks),
         "mark_rented": sum(len(block["changes"]["mark_rented"]) for block in blocks),
-        "preserve_special_status": sum(len(block["changes"]["preserve_special_status"]) for block in blocks),
+        "preserve_ignored": sum(len(block["changes"]["preserve_ignored"]) for block in blocks),
     }
 
 
-def _plan_hash(organization_id: int, force_rented: bool, blocks: list[dict], ignored_lines: set[int], snapshots: list[dict]) -> str:
+def _plan_hash(organization_id: int, blocks: list[dict], ignored_lines: set[int], snapshots: list[dict]) -> str:
     payload = {
         "organization_id": organization_id,
-        "force_rented": force_rented,
         "ignored_lines": sorted(ignored_lines),
         "blocks": [
             {
@@ -192,7 +201,6 @@ def build_plan(organization, *, raw_text: str, building_overrides: list[dict] | 
         if set(locked) != target_ids:
             raise VacancySyncConflictException("楼栋数据已发生变化，请重新预览。")
         buildings = [locked.get(building.pk, building) for building in buildings]
-    force_rented = _get_force_rented(organization)
     operations: list[HouseOperation] = []
     blocks: list[dict] = []
     errors = list(parsed["errors"])
@@ -243,6 +251,12 @@ def build_plan(organization, *, raw_text: str, building_overrides: list[dict] | 
                 target_buildings[building.pk] = block_index
 
         changes = _empty_changes()
+        warnings = []
+        ignored = [line for line in parsed_block["lines"] if line["status"] == "ignored"]
+        ignored_rooms = {line["room_number"].casefold() for line in ignored if line["room_number"]}
+        protect_absent_rooms = any(not line["room_number"] for line in ignored)
+        if protect_absent_rooms:
+            warnings.append("有忽略行无法识别房号，本楼栋清单外房源将保持原状态，不标记已租。请核对后继续。")
         valid_lines = [line for line in parsed_block["lines"] if line["status"] == "valid"]
         if building is not None:
             houses_qs = House.objects.filter(building=building).order_by("pk")
@@ -268,13 +282,14 @@ def build_plan(organization, *, raw_text: str, building_overrides: list[dict] | 
                     }
                     errors.append(error)
                     block_errors.append(error)
+                    line.update(status="error", error_code=error["code"], message=error["message"])
                     continue
                 house = matches[0] if matches else None
                 if house is None:
-                    changes["create_houses"].append(_change_item(None, line["room_number"], after_status=HouseStatus.VACANT))
+                    changes["create_houses"].append(_change_item(None, line["room_number"], after_status=HouseStatus.PAUSED))
                     operations.append(HouseOperation(block_index, None, line["room_number"], _house_values(None, line)))
                     continue
-                if house.status == HouseStatus.INACTIVE:
+                if not house.is_active:
                     conflict = _change_item(house, house.room_number, before_status=house.status, after_status=house.status)
                     changes["inactive_conflicts"].append(conflict)
                     error = {
@@ -285,30 +300,33 @@ def build_plan(organization, *, raw_text: str, building_overrides: list[dict] | 
                     }
                     errors.append(error)
                     block_errors.append(error)
+                    line.update(status="error", error_code=error["code"], message=error["message"])
                     continue
 
                 values = _house_values(house, line)
                 changed_fields = [field for field, value in values.items() if field != "status" and getattr(house, field) != value]
                 operations.append(HouseOperation(block_index, house.pk, house.room_number, values))
                 if changed_fields:
-                    changes["update_houses"].append(_change_item(house, house.room_number, before_status=house.status, after_status=house.status, changed_fields=changed_fields))
+                    changes["update_houses"].append(
+                        _change_item(house, house.room_number, before_status=house.status, after_status=house.status, changed_fields=changed_fields, values=values)
+                    )
                 desired_status = values["status"]
                 if house.status != desired_status:
-                    changes["mark_vacant"].append(_change_item(house, house.room_number, before_status=house.status, after_status=desired_status, changed_fields=["status"]))
+                    changes["mark_paused"].append(_change_item(house, house.room_number, before_status=house.status, after_status=desired_status, changed_fields=["status"]))
 
             for house in houses:
-                if house.status == HouseStatus.INACTIVE or house.room_number.casefold() in listed_rooms:
+                if not house.is_active or house.room_number.casefold() in listed_rooms:
+                    continue
+                if protect_absent_rooms or house.room_number.casefold() in ignored_rooms:
+                    changes["preserve_ignored"].append(_change_item(house, house.room_number, before_status=house.status, after_status=house.status))
                     continue
                 if house.status == HouseStatus.RENTED:
-                    continue
-                if house.status == HouseStatus.RENOVATING and not force_rented:
-                    changes["preserve_special_status"].append(_change_item(house, house.room_number, before_status=house.status, after_status=house.status))
                     continue
                 changes["mark_rented"].append(_change_item(house, house.room_number, before_status=house.status, after_status=HouseStatus.RENTED, changed_fields=["status"]))
                 operations.append(HouseOperation(block_index, house.pk, house.room_number, {"status": HouseStatus.RENTED}))
         else:
             for line in valid_lines:
-                changes["create_houses"].append(_change_item(None, line["room_number"], after_status=HouseStatus.VACANT))
+                changes["create_houses"].append(_change_item(None, line["room_number"], after_status=HouseStatus.PAUSED))
                 operations.append(HouseOperation(block_index, None, line["room_number"], _house_values(None, line)))
 
         blocks.append(
@@ -319,6 +337,7 @@ def build_plan(organization, *, raw_text: str, building_overrides: list[dict] | 
                 "lines": parsed_block["lines"],
                 "changes": changes,
                 "errors": block_errors,
+                "warnings": warnings,
             }
         )
 
@@ -327,8 +346,7 @@ def build_plan(organization, *, raw_text: str, building_overrides: list[dict] | 
         "mode": "preview",
         "applied": False,
         "can_apply": can_apply,
-        "plan_hash": _plan_hash(organization.pk, force_rented, blocks, ignored_set, snapshots) if can_apply else None,
-        "force_rented": force_rented,
+        "plan_hash": _plan_hash(organization.pk, blocks, ignored_set, snapshots) if can_apply else None,
         "summary": _summary(blocks, errors),
         "blocks": blocks,
         "errors": errors,
@@ -357,7 +375,7 @@ def _house_values(house: House | None, line: dict) -> dict:
         "bedrooms": line["bedrooms"],
         "living_rooms": line["living_rooms"],
         "tags": _merge_tags(house.tags if house else [], line["tags"]),
-        "status": HouseStatus.LISTED if house and house.status == HouseStatus.LISTED else HouseStatus.VACANT,
+        "status": HouseStatus.LISTED if house and house.status == HouseStatus.LISTED else HouseStatus.PAUSED,
     }
 
 

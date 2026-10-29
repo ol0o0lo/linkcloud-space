@@ -77,6 +77,117 @@ class SubscriptionAPITest(TestCase):
         payload = api_data(response)
         self.assertEqual(payload["completed_count"], 0)
         self.assertEqual(payload["total_count"], 3)
+
+    def test_onboarding_guide_hides_after_three_days_without_faking_activation(self):
+        now = timezone.now()
+        for age, visible in [(timedelta(days=2), True), (timedelta(days=3), True), (timedelta(days=3, seconds=1), False)]:
+            with self.subTest(age=age), patch("apps.subscriptions.api.timezone.now", return_value=now):
+                type(self.organization).objects.filter(pk=self.organization.pk).update(created_at=now - age)
+
+                response = self.client.get("/api/subscriptions/onboarding-progress/")
+
+                self.assertEqual(response.status_code, 200)
+                payload = api_data(response)
+                self.assertEqual(payload["show_guide"], visible)
+                self.assertFalse(payload["activated"])
+                self.assertEqual(payload["completed_count"], 0)
+                self.assertIsNotNone(payload["guide_expires_at"])
+
+    def test_onboarding_progress_follows_house_responsibility_and_completed_viewing(self):
+        from apps.house.models import Building, House, PropertyResponsibility, ViewingRecord
+
+        other_building = baker.make(Building, organization=baker.make("organizations.Organization"), address="其他组织楼栋")
+        baker.make(House, building=other_building)
+        progress = api_data(self.client.get("/api/subscriptions/onboarding-progress/"))
+        self.assertFalse(progress["tasks"][0]["completed"])
+
+        building = baker.make(Building, organization=self.organization, address="引导验收楼栋")
+        house = baker.make(House, building=building)
+        progress = api_data(self.client.get("/api/subscriptions/onboarding-progress/"))
+        self.assertEqual(progress["completed_count"], 1)
+        self.assertEqual(progress["tasks"][1]["action"], "invite_member")
+
+        member = baker.make("organizations.OrganizationMember", organization=self.organization, is_owner=False)
+        progress = api_data(self.client.get("/api/subscriptions/onboarding-progress/"))
+        self.assertFalse(progress["tasks"][1]["completed"])
+        self.assertEqual(progress["tasks"][1]["action"], "assign_responsibility")
+
+        baker.make(PropertyResponsibility, organization=self.organization, member=member, building=building)
+        viewing = baker.make(ViewingRecord, organization=self.organization, house=house, status="scheduled")
+        progress = api_data(self.client.get("/api/subscriptions/onboarding-progress/"))
+        self.assertEqual(progress["completed_count"], 2)
+        self.assertFalse(progress["tasks"][2]["completed"])
+        self.assertEqual(progress["tasks"][2]["action"], "complete_viewing")
+
+        viewing.status = "viewed"
+        viewing.viewed_at = timezone.now()
+        viewing.save()
+        progress = api_data(self.client.get("/api/subscriptions/onboarding-progress/"))
+        self.assertEqual(progress["completed_count"], 3)
+        self.assertTrue(progress["activated"])
+        self.assertFalse(progress["show_guide"])
+
+    def test_subscription_viewer_does_not_receive_unusable_management_guide(self):
+        member = baker.make("organizations.OrganizationMember", organization=self.organization, is_owner=False)
+        group = make_access_group("onboarding-viewer", AccessScope.ORG, [("subscriptions", "subscription_view")], organization=self.organization)
+        bind_org_role(self.organization, member.user, group)
+        self.select_user(member.user, is_owner=False)
+
+        response = self.client.get("/api/subscriptions/onboarding-progress/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(api_data(response)["show_guide"])
+
+    def test_solo_onboarding_can_finish_without_inviting_another_member(self):
+        from apps.house.models import Building, House, ViewingRecord
+
+        baker.make("subscriptions.OrganizationSaaSProfile", organization=self.organization, business_type="individual", team_size_band="1")
+        progress = api_data(self.client.get("/api/subscriptions/onboarding-progress/"))
+        self.assertEqual([task["key"] for task in progress["tasks"]], ["house_created", "business_completed"])
+        self.assertEqual(progress["total_count"], 2)
+        self.assertTrue(progress["show_guide"])
+
+        building = baker.make(Building, organization=self.organization, address="独立经纪人楼栋")
+        house = baker.make(House, building=building)
+        baker.make(ViewingRecord, organization=self.organization, house=house, status="viewed", viewed_at=timezone.now())
+
+        progress = api_data(self.client.get("/api/subscriptions/onboarding-progress/"))
+        self.assertEqual(progress["completed_count"], 2)
+        self.assertTrue(progress["activated"])
+        self.assertFalse(progress["show_guide"])
+
+    def test_registering_a_signing_completes_the_onboarding_business_task(self):
+        from apps.house.models import Building, Contact, House
+
+        building = baker.make(Building, organization=self.organization, address="签约引导楼栋")
+        landlord = baker.make(Contact, organization=self.organization, roles=["landlord"], phone="13900139000")
+        tenant = baker.make(Contact, organization=self.organization, roles=["tenant"], phone="13800138000")
+        house = baker.make(House, building=building, landlord=landlord)
+        now = timezone.now()
+
+        response = self.client.post(
+            "/api/house/leases/register-signing/",
+            data=json.dumps(
+                {
+                    "client_request_id": "onboarding-signing",
+                    "lease": {
+                        "house_id": house.pk,
+                        "tenant_id": tenant.pk,
+                        "sign_at": now.isoformat(),
+                        "start_date": now.date().isoformat(),
+                        "end_date": (now + timedelta(days=365)).date().isoformat(),
+                        "monthly_rent": "3000.00",
+                    },
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        progress = api_data(self.client.get("/api/subscriptions/onboarding-progress/"))
+        self.assertTrue(progress["tasks"][2]["completed"])
+        self.assertIsNotNone(progress["tasks"][2]["completed_at"])
+
     def test_view_only_member_can_see_invoice_progress_but_not_sensitive_profile(self):
         member = User.objects.create_user(username="subscription-viewer", password="secret")  # noqa: S106
         baker.make("organizations.OrganizationMember", organization=self.organization, user=member, is_owner=False)

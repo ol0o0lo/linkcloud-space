@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.contrib.gis.geos import Point
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.test import TestCase
 
@@ -375,12 +375,13 @@ class TestHouseMediaAndOwnership(HouseDomainTestCase):
 
 
 class TestHousePublishAndListingFields(HouseDomainTestCase):
-    def test_house_defaults_to_vacant_status_and_empty_listing_fields(self):
+    def test_house_defaults_to_paused_status_and_empty_listing_fields(self):
         house = self.make_house()
 
-        self.assertEqual(house.status, HouseStatus.VACANT)
+        self.assertEqual(house.status, HouseStatus.PAUSED)
         self.assertFalse(hasattr(house, "publish_status"))
-        self.assertFalse(hasattr(house, "is_active"))
+        self.assertTrue(house.is_active)
+        self.assertNotIn("is_renovating", {field.name for field in House._meta.fields})
         self.assertIsNone(house.asking_rent)
         self.assertIsNone(house.deposit_amount)
 
@@ -396,6 +397,15 @@ class TestHousePublishAndListingFields(HouseDomainTestCase):
 
         with self.assertRaises(ValidationError):
             house.full_clean()
+
+    def test_database_rejects_invalid_status_and_conflicting_lifecycle_flags(self):
+        house = self.make_house()
+        for changes in [
+            {"status": "vacant"},
+            {"status": HouseStatus.LISTED, "is_active": False},
+        ]:
+            with self.subTest(changes=changes), transaction.atomic(), self.assertRaises(IntegrityError):
+                House.objects.filter(pk=house.pk).update(**changes)
 
 
 class TestViewingAndLease(HouseDomainTestCase):
@@ -438,13 +448,50 @@ class TestViewingAndLease(HouseDomainTestCase):
         )
 
         house.refresh_from_db()
-        self.assertEqual(house.status, HouseStatus.VACANT)
+        self.assertEqual(house.status, HouseStatus.PAUSED)
         house.status = HouseStatus.RENTED
         house.save(update_fields=["status"])
         lease.status = LeaseStatus.EXPIRED
         lease.save()
         house.refresh_from_db()
         self.assertEqual(house.status, HouseStatus.RENTED)
+
+    def test_inactive_house_blocks_new_lease_activation_and_house_change_on_model_save(self):
+        house = self.make_house(landlord=self.make_contact(phone="13800138018"))
+        data = {
+            "organization": self.org,
+            "house": house,
+            "tenant": self.make_tenant(phone="13900139018"),
+            "start_date": date.today(),
+            "end_date": date.today() + timedelta(days=365),
+            "monthly_rent": Decimal("3000"),
+        }
+        house.is_active = False
+        house.save(update_fields=["is_active"])
+        with self.assertRaises(ValidationError) as rejected_create:
+            Lease.objects.create(**data)
+        self.assertIn("house", rejected_create.exception.message_dict)
+        self.assertFalse(Lease.objects.filter(house=house).exists())
+
+        house.is_active = True
+        house.save(update_fields=["is_active"])
+        lease = Lease.objects.create(**data)
+        house.is_active = False
+        house.save(update_fields=["is_active"])
+        lease.status = LeaseStatus.ACTIVE
+        with self.assertRaises(ValidationError) as rejected_activation:
+            lease.save()
+        self.assertIn("house", rejected_activation.exception.message_dict)
+        lease.refresh_from_db()
+        self.assertEqual(lease.status, LeaseStatus.PENDING)
+
+        inactive = self.make_house(building=house.building, landlord=house.landlord, room_number="inactive-target", is_active=False)
+        lease.house = inactive
+        with self.assertRaises(ValidationError) as rejected_move:
+            lease.save()
+        self.assertIn("house", rejected_move.exception.message_dict)
+        lease.refresh_from_db()
+        self.assertEqual(lease.house_id, house.pk)
 
     def test_lease_status_rejects_reverse_or_terminal_transitions(self):
         landlord = self.make_contact(phone="13800138012")

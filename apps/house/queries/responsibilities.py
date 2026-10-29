@@ -4,7 +4,9 @@ from django.db.models import Count, Exists, IntegerField, OuterRef, Prefetch, Q,
 from django.db.models.functions import Coalesce
 
 from apps.house.models import House, PropertyResponsibility
+from apps.house.services.settings import CONTACT_FALLBACK_MEMBER_SETTING_KEY
 from apps.organizations.models import OrganizationMember
+from apps.settings.models import DefaultSetting, OrganizationSetting
 
 # Ordered from the most specific assignment to the broadest assignment.
 RESPONSIBILITY_TARGETS = (("landlord", "landlord_id"), ("building", "building_id"), ("estate", "building__estate_id"))
@@ -37,6 +39,14 @@ def resolve_contact_recipient(house):
         responsibility = responsibilities.filter(**{f"{target}_id": target_id}).order_by("member_id").first()
         if responsibility:
             return responsibility.member.user
+    setting = DefaultSetting.objects.filter(key=CONTACT_FALLBACK_MEMBER_SETTING_KEY).first()
+    if setting is not None:
+        override = OrganizationSetting.objects.filter(organization=house.organization, setting=setting).first()
+        member_id = override.value if override is not None else setting.value
+        if isinstance(member_id, int) and not isinstance(member_id, bool) and member_id > 0:
+            member = OrganizationMember.objects.filter(organization=house.organization, pk=member_id, user__is_active=True).select_related("user").first()
+            if member is not None:
+                return member.user
     owner = OrganizationMember.objects.filter(organization=house.organization, is_owner=True, user__is_active=True).select_related("user").order_by("id").first()
     return owner.user if owner else None
 

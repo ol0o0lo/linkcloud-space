@@ -144,3 +144,119 @@ class TestUnifiedHouseStatusMigration(HouseMigrationTestCase):
             columns = {column.name for column in connection.introspection.get_table_description(cursor, MigratedHouse._meta.db_table)}
         self.assertIn("publish_status", columns)
         self.assertIn("is_active", columns)
+
+
+class TestSimplifiedHouseStatusMigration(HouseMigrationTestCase):
+    migrate_from = [("house", "0031_houseinquiry_lease_client_request_id_lease_deal_team_and_more")]
+    migrate_to = [("house", "0032_simplify_house_status")]
+
+    def test_migrates_all_legacy_statuses_and_reverses_the_mapping(self):
+        Organization = self.old_apps.get_model("organizations", "Organization")
+        Building = self.old_apps.get_model("house", "Building")
+        OldHouse = self.old_apps.get_model("house", "House")
+        organization = baker.make(Organization)
+        building = baker.make(Building, organization=organization, estate=None)
+        houses = {
+            status: OldHouse.objects.create(building=building, room_number=str(index), status=status)
+            for index, status in enumerate(["vacant", "listed", "rented", "renovating", "inactive"], start=1)
+        }
+        # 0012 仅从模型状态移除了 is_active，遗留列不能覆盖现行旧状态的含义。
+        with connection.cursor() as cursor:
+            columns = {column.name for column in connection.introspection.get_table_description(cursor, OldHouse._meta.db_table)}
+            self.assertIn("is_active", columns)
+            cursor.execute("UPDATE house_house SET is_active = FALSE WHERE id = %s", [houses["listed"].pk])
+            cursor.execute("UPDATE house_house SET is_active = TRUE WHERE id = %s", [houses["inactive"].pk])
+
+        self.executor.migrate(self.migrate_to)
+        House = applied_migration_apps().get_model("house", "House")
+        expected = {
+            "vacant": ("paused", True, False),
+            "listed": ("listed", True, False),
+            "rented": ("rented", True, False),
+            "renovating": ("paused", True, True),
+            "inactive": ("paused", False, False),
+        }
+        for old_status, house in houses.items():
+            with self.subTest(old_status=old_status):
+                migrated = House.objects.get(pk=house.pk)
+                self.assertEqual((migrated.status, migrated.is_active, migrated.is_renovating), expected[old_status])
+
+        MigrationExecutor(connection).migrate(self.migrate_from)
+        RestoredHouse = applied_migration_apps().get_model("house", "House")
+        for old_status, house in houses.items():
+            with self.subTest(restored_status=old_status):
+                self.assertEqual(RestoredHouse.objects.get(pk=house.pk).status, old_status)
+        self.assertNotIn("is_active", {field.name for field in RestoredHouse._meta.fields})
+        self.assertNotIn("is_renovating", {field.name for field in RestoredHouse._meta.fields})
+
+    def test_unknown_legacy_status_aborts_migration_without_silently_converting_data(self):
+        Organization = self.old_apps.get_model("organizations", "Organization")
+        Building = self.old_apps.get_model("house", "Building")
+        House = self.old_apps.get_model("house", "House")
+        organization = baker.make(Organization)
+        building = baker.make(Building, organization=organization, estate=None)
+        house = House.objects.create(building=building, room_number="unknown", status="invalid-status")
+
+        try:
+            with self.assertRaises(RuntimeError):
+                self.executor.migrate(self.migrate_to)
+            self.assertEqual(House.objects.get(pk=house.pk).status, "invalid-status")
+            self.assertFalse(MigrationRecorder(connection).migration_qs.filter(app="house", name="0032_simplify_house_status").exists())
+        finally:
+            House.objects.filter(pk=house.pk).update(status="vacant")
+
+
+class TestRemovedHouseRenovationMarkerMigration(HouseMigrationTestCase):
+    migrate_from = [("house", "0032_simplify_house_status")]
+    migrate_to = [("house", "0033_remove_house_renovation_marker")]
+
+    def test_removes_marker_from_model_but_preserves_backup_and_restores_valid_flags_on_reverse(self):
+        from apps.house.models import House as CurrentHouse
+
+        Organization = self.old_apps.get_model("organizations", "Organization")
+        Building = self.old_apps.get_model("house", "Building")
+        OldHouse = self.old_apps.get_model("house", "House")
+        DefaultSetting = self.old_apps.get_model("app_settings", "DefaultSetting")
+        organization = baker.make(Organization)
+        building = baker.make(Building, organization=organization, estate=None)
+        preserved = OldHouse.objects.create(building=building, room_number="101", status="paused", is_renovating=True)
+        changed = OldHouse.objects.create(building=building, room_number="102", status="paused", is_renovating=True)
+        setting = DefaultSetting.objects.create(key="property_rental.vacancy_sync_force_rented", value=True, value_type="boolean", widget="switch", ui={"scopes": ["organization"]})
+
+        self.executor.migrate(self.migrate_to)
+        House = applied_migration_apps().get_model("house", "House")
+        self.assertNotIn("is_renovating", {field.name for field in House._meta.fields})
+        self.assertNotIn("is_renovating", {field.name for field in CurrentHouse._meta.fields})
+        setting.refresh_from_db()
+        self.assertEqual(setting.ui["scopes"], [])
+        self.assertTrue(setting.value)
+        with connection.cursor() as cursor:
+            columns = {column.name for column in connection.introspection.get_table_description(cursor, House._meta.db_table)}
+            constraints = connection.introspection.get_constraints(cursor, House._meta.db_table)
+            self.assertIn("is_renovating", columns)
+            self.assertNotIn("house_renovating_requires_paused", constraints)
+            cursor.execute("SELECT is_renovating FROM house_house WHERE id = %s", [preserved.pk])
+            self.assertIs(cursor.fetchone()[0], True)
+
+        created = CurrentHouse.objects.create(building_id=building.pk, room_number="103")
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT is_renovating FROM house_house WHERE id = %s", [created.pk])
+            self.assertIs(cursor.fetchone()[0], False)
+        House.objects.filter(pk=changed.pk).update(status="listed")
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT is_renovating FROM house_house WHERE id = %s", [changed.pk])
+            self.assertIs(cursor.fetchone()[0], True)
+
+        MigrationExecutor(connection).migrate(self.migrate_from)
+        RestoredHouse = applied_migration_apps().get_model("house", "House")
+        self.assertTrue(RestoredHouse.objects.get(pk=preserved.pk).is_renovating)
+        restored_changed = RestoredHouse.objects.get(pk=changed.pk)
+        self.assertEqual(restored_changed.status, "listed")
+        self.assertFalse(restored_changed.is_renovating)
+        self.assertFalse(RestoredHouse.objects.get(pk=created.pk).is_renovating)
+        setting.refresh_from_db()
+        self.assertEqual(setting.ui["scopes"], ["organization"])
+        self.assertTrue(setting.value)
+        with connection.cursor() as cursor:
+            constraints = connection.introspection.get_constraints(cursor, RestoredHouse._meta.db_table)
+        self.assertIn("house_renovating_requires_paused", constraints)

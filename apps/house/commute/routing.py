@@ -1,9 +1,11 @@
 """楼栋通勤路线的持久化与计算。"""
 
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from hashlib import blake2b
 
 from django.db import connection
+from django.utils import timezone
 
 from apps.base.maps import MapPoint, MapRouteNotFound, get_route_provider
 from apps.house.exceptions import HouseCommuteRouteBusy
@@ -11,6 +13,9 @@ from apps.house.models import Building, HouseCommuteDestination, HouseCommuteRou
 
 ROUTE_VERSION = 1
 METRO_ROUTE_VERSION = 2
+READY_ROUTE_TTL = timedelta(days=14)
+UNREACHABLE_ROUTE_TTL = timedelta(minutes=30)
+ROUTE_RETRY_COOLDOWN = timedelta(minutes=1)
 
 
 def route_version(mode: str) -> int:
@@ -21,13 +26,25 @@ def point_key(point) -> str:
     return f"{point.x:.6f},{point.y:.6f}"
 
 
-def is_current(route: HouseCommuteRoute, building: Building, destination: HouseCommuteDestination, provider_code: str) -> bool:
+def is_current(
+    route: HouseCommuteRoute,
+    building: Building,
+    destination: HouseCommuteDestination,
+    provider_code: str,
+    *,
+    reference_time: datetime | None = None,
+    refresh_after: datetime | None = None,
+) -> bool:
+    reference_time = reference_time or timezone.now()
+    ttl = READY_ROUTE_TTL if route.status == "ready" else UNREACHABLE_ROUTE_TTL
     return (
         building.location is not None
         and route.version == route_version(route.mode)
         and route.source == provider_code
         and route.origin_key == point_key(building.location)
         and route.destination_key == point_key(destination.location)
+        and route.updated_at + ttl > reference_time
+        and (refresh_after is None or route.updated_at >= refresh_after)
     )
 
 
@@ -52,14 +69,15 @@ def _route_compute_lock(building_id: int, destination_id: int, mode: str):
             cursor.execute("SELECT pg_advisory_unlock(%s)", [key])
 
 
-def ensure_route(building_id: int, destination_id: int, mode: str) -> HouseCommuteRoute:
+def ensure_route(building_id: int, destination_id: int, mode: str, *, reference_time: datetime | None = None, refresh_after: datetime | None = None) -> HouseCommuteRoute:
+    reference_time = reference_time or timezone.now()
     building = Building.objects.get(pk=building_id)
     destination = HouseCommuteDestination.objects.get(pk=destination_id)
     if building.location is None:
         raise ValueError("楼栋缺少坐标")
     provider = get_route_provider()
     route = HouseCommuteRoute.objects.filter(building=building, destination=destination, mode=mode).first()
-    if route and is_current(route, building, destination, provider.code):
+    if route and is_current(route, building, destination, provider.code, reference_time=reference_time, refresh_after=refresh_after):
         return route
 
     with _route_compute_lock(building_id, destination_id, mode):
@@ -69,7 +87,7 @@ def ensure_route(building_id: int, destination_id: int, mode: str) -> HouseCommu
         if building.location is None:
             raise ValueError("楼栋缺少坐标")
         route = HouseCommuteRoute.objects.filter(building=building, destination=destination, mode=mode).first()
-        if route and is_current(route, building, destination, provider.code):
+        if route and is_current(route, building, destination, provider.code, reference_time=reference_time, refresh_after=refresh_after):
             return route
         return _compute_route(building, destination, mode, provider)
 

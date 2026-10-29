@@ -38,7 +38,7 @@ def get_landlord_relationship_contacts(user: User):
             house_count=Count("landlord_houses", distinct=True),
             public_house_count=Count(
                 "landlord_houses",
-                filter=Q(landlord_houses__status=HouseStatus.LISTED),
+                filter=Q(landlord_houses__status=HouseStatus.LISTED, landlord_houses__is_active=True),
                 distinct=True,
             ),
         )

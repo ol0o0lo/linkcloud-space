@@ -15,8 +15,8 @@ class PurchaseMode(StrChoices):
 
 
 class SaaSBusinessType(StrChoices):
-    INDIVIDUAL = "individual", "独立中介"
-    STORE = "store", "中介门店"
+    INDIVIDUAL = "individual", "独立经纪人"
+    STORE = "store", "经纪门店"
 
 
 class SaaSTeamSizeBand(StrChoices):

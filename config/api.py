@@ -20,6 +20,7 @@ from apps.base.api import router as base_router
 from apps.base.auth import x_session_token_user_auth
 from apps.base.errors import register_error_handlers
 from apps.base.responses import EnvelopedNinjaAPI
+from apps.data_migration.api import router as data_migration_router
 from apps.favorites.api import router as favorites_router
 from apps.geography.api import metro_router as metro_public_router
 from apps.geography.api import router as geography_router
@@ -32,6 +33,7 @@ from apps.house.api.matching import public_router as house_match_public_router
 from apps.house.api.matching import router as house_match_router
 from apps.house.commute.api import public_router as house_commute_public_router
 from apps.media.api import router as media_router
+from apps.messaging.api import router as messaging_router
 from apps.notifications.api import dispatches_router as notification_dispatches_router
 from apps.notifications.api import router as notifications_router
 from apps.organizations.api import (
@@ -88,6 +90,8 @@ register_error_handlers(api)
 
 api.add_router("/", base_router)
 api.add_router("/media/", media_router)
+api.add_router("/data-migration/", data_migration_router)
+api.add_router("/messaging/", messaging_router)
 api.add_router("/admin/platform-operations/content/", platform_content_admin_router)
 api.add_router("/public/content/", platform_content_public_router)
 api.add_router("/admin/miniprogram-home/", platform_content_admin_router, url_name_prefix="legacy_miniprogram_home_admin")

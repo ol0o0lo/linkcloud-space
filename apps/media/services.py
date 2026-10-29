@@ -26,6 +26,7 @@ from apps.media.thumbnails import is_image_path
 
 DEFAULT_ORPHAN_RETENTION = timedelta(hours=24)
 RESOURCE_TYPE_RULES = {
+    ResourceType.LEGACY_ARCHIVE_ASSET: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | CONTRACT_EXTENSIONS},
     ResourceType.AVATAR: {"scopes": {MediaScope.USER}, "extensions": IMAGE_EXTENSIONS},
     ResourceType.ORG_LOGO: {"scopes": {MediaScope.ORG}, "extensions": IMAGE_EXTENSIONS},
     ResourceType.REAL_NAME_ID_CARD: {"scopes": {MediaScope.USER}, "extensions": IMAGE_EXTENSIONS},

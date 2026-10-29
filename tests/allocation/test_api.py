@@ -2,6 +2,7 @@ import json
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.test import TestCase
 
@@ -74,12 +75,26 @@ class AllocationApiTestCase(TestCase):
         payload["lease"]["tenant_identity"] = {"name": name, "phone": phone}
         return payload
 
-    def test_deal_signing_identity_reuses_exact_existing_tenant(self):
-        response = self.client.post(
-            "/api/house/leases/deal-signing/",
-            data=self.create_deal_signing_payload(),
+    def register_and_apply(self, payload):
+        registered = self.client.post(
+            "/api/house/leases/register-signing/",
+            data={"lease": payload["lease"], "team_id": payload.get("team_id"), "client_request_id": str(uuid4())},
             content_type="application/json",
         )
+        if registered.status_code != 201:
+            return registered
+        path = f"/api/house/leases/{api_data(registered)['id']}/allocations/"
+        preview = self.client.post(f"{path}preview/", data={}, content_type="application/json")
+        if preview.status_code != 200:
+            return preview
+        return self.client.post(
+            path,
+            data={"beneficiary_user_ids": payload["beneficiary_user_ids"], "client_request_id": str(uuid4()), "preview_hash": api_data(preview)["preview_hash"]},
+            content_type="application/json",
+        )
+
+    def test_deal_signing_identity_reuses_exact_existing_tenant(self):
+        response = self.register_and_apply(self.create_deal_signing_payload())
 
         self.assertEqual(response.status_code, 201)
         created = api_data(response)
@@ -88,40 +103,33 @@ class AllocationApiTestCase(TestCase):
         self.house.refresh_from_db()
         self.assertEqual(self.house.status, HouseStatus.RENTED)
 
-    def test_deal_signing_identity_allows_same_phone_for_different_name(self):
-        response = self.client.post(
-            "/api/house/leases/deal-signing/",
-            data=self.create_deal_signing_payload(name="租客家属"),
-            content_type="application/json",
-        )
+    def test_deal_signing_identity_reuses_same_normalized_phone_despite_name_change(self):
+        response = self.register_and_apply(self.create_deal_signing_payload(name="租客家属"))
 
         self.assertEqual(response.status_code, 201)
         created = api_data(response)
         tenant = Contact.objects.get(pk=created["lease"]["tenant_id"])
-        self.assertEqual(tenant.name, "租客家属")
+        self.assertEqual(tenant.pk, self.tenant.pk)
+        self.assertEqual(tenant.name, "租客")
         self.assertEqual(tenant.phone, self.tenant.phone)
-        self.assertNotEqual(tenant.pk, self.tenant.pk)
+        self.assertEqual(tenant.pk, self.tenant.pk)
 
-    def test_deal_signing_rolls_back_new_tenant_with_failed_allocation(self):
+    def test_independent_signing_keeps_tenant_and_lease_when_allocation_fails(self):
         payload = self.create_deal_signing_payload(name="事务租客", phone="13900139999")
 
         with (
             patch("apps.house.services.allocations.create_allocation_request", side_effect=RuntimeError("分配失败")),
             self.assertRaises(RuntimeError),
         ):
-            self.client.post(
-                "/api/house/leases/deal-signing/",
-                data=payload,
-                content_type="application/json",
-            )
+            self.register_and_apply(payload)
 
-        self.assertFalse(Contact.objects.filter(organization=self.org, name="事务租客", phone="13900139999").exists())
-        self.assertFalse(Lease.objects.filter(house=self.house).exists())
+        self.assertTrue(Contact.objects.filter(organization=self.org, name="事务租客", phone="13900139999").exists())
+        self.assertTrue(Lease.objects.filter(house=self.house, status="active").exists())
         self.house.refresh_from_db()
-        self.assertEqual(self.house.status, HouseStatus.VACANT)
+        self.assertEqual(self.house.status, HouseStatus.RENTED)
 
     def test_create_review_and_query_allocation(self):
-        create_response = self.client.post("/api/house/leases/deal-signing/", data=self.create_payload(), content_type="application/json")
+        create_response = self.register_and_apply(self.create_payload())
 
         self.assertEqual(create_response.status_code, 201)
         created = api_data(create_response)
@@ -133,7 +141,7 @@ class AllocationApiTestCase(TestCase):
         self.assertEqual(created["allocation_request"]["distributable_amount"], "4500.00")
 
         review_response = self.client.post(
-            f"/api/house/leases/{lease_id}/allocation/review/",
+            f"/api/house/leases/{lease_id}/allocations/{allocation_request_id}/review/",
             data={"decision": "approve"},
             content_type="application/json",
         )
@@ -156,7 +164,7 @@ class AllocationApiTestCase(TestCase):
             value={"method": "fixed", "rate_bp": None, "fixed_amount": "88.00"},
         )
 
-        response = self.client.post("/api/house/leases/deal-signing/", data=self.create_payload(), content_type="application/json")
+        response = self.register_and_apply(self.create_payload())
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(api_data(response)["allocation_request"]["distributable_amount"], "88.00")
@@ -191,7 +199,7 @@ class AllocationApiTestCase(TestCase):
         session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
         session.save()
 
-        response = self.client.post("/api/house/leases/deal-signing/", data=self.create_payload(), content_type="application/json")
+        response = self.register_and_apply(self.create_payload())
 
         self.assertEqual(response.status_code, 403)
 
@@ -227,7 +235,7 @@ class AllocationApiTestCase(TestCase):
         payload["lease"]["monthly_rent"] = "100.01"
         payload["beneficiary_user_ids"] = [third.pk, self.beneficiary.pk, second.pk]
 
-        response = self.client.post("/api/house/leases/deal-signing/", data=payload, content_type="application/json")
+        response = self.register_and_apply(payload)
 
         self.assertEqual(response.status_code, 201)
         shares = api_data(response)["allocation_request"]["shares"]
@@ -250,7 +258,7 @@ class AllocationApiTestCase(TestCase):
         session["organization_data"] = json.dumps({"pk": self.org.pk, "id": self.org.pk, "name": self.org.name, "slug": self.org.slug, "is_owner": False})
         session.save()
 
-        response = self.client.post("/api/house/leases/deal-signing/", data=self.create_payload(), content_type="application/json")
+        response = self.register_and_apply(self.create_payload())
 
         self.assertEqual(response.status_code, 403)
 

@@ -17,9 +17,11 @@ from apps.base.mixins import BaseModelMixin, CreateUpdateTimeModelMixin
 from apps.house.constants import (
     LEASE_STATUS_TRANSITIONS,
     ContactRole,
+    CustomerStage,
     EstatePropertyType,
     HouseCommuteMode,
     HouseDecoration,
+    HouseInquiryStatus,
     HouseListingType,
     HouseMatchMode,
     HouseOrientation,
@@ -294,6 +296,64 @@ class PropertyResponsibility(BaseModelMixin):
         super().save(*args, **kwargs)
 
 
+class CustomerProfile(CreateUpdateTimeModelMixin):
+    contact = models.OneToOneField(Contact, on_delete=models.PROTECT, related_name="customer_profile", verbose_name="租客")
+    stage = models.CharField(max_length=32, choices=CustomerStage.choices, default=CustomerStage.NEW, db_index=True, verbose_name="客户阶段")
+    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_house_customers", verbose_name="负责人")
+    source = models.CharField(max_length=100, blank=True, default="manual", verbose_name="客户来源")
+    wechat = models.CharField(max_length=100, blank=True, default="", verbose_name="微信号")
+    min_rent = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)], verbose_name="最低预算")
+    max_rent = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)], verbose_name="最高预算")
+    preferred_region = models.CharField(max_length=255, blank=True, default="", verbose_name="意向区域")
+    bedrooms = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="意向房间数")
+    move_in_date = models.DateField(null=True, blank=True, verbose_name="意向入住日期")
+    next_follow_up_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="下次跟进时间")
+    last_follow_up_at = models.DateTimeField(null=True, blank=True, verbose_name="最近跟进时间")
+
+    class Meta:
+        verbose_name = "客户档案"
+        verbose_name_plural = "客户档案"
+
+    def clean(self):
+        super().clean()
+        if self.contact_id and not self.contact.has_role(ContactRole.TENANT):
+            raise ValidationError({"contact": "客户档案必须关联租客。"})
+        if self.assigned_to_id and self.contact_id:
+            from apps.organizations.models import OrganizationMember
+
+            if not OrganizationMember.objects.filter(organization_id=self.contact.organization_id, user_id=self.assigned_to_id, user__is_active=True).exists():
+                raise ValidationError({"assigned_to": "负责人必须是当前组织的有效成员。"})
+        if self.min_rent is not None and self.max_rent is not None and self.min_rent > self.max_rent:
+            raise ValidationError({"max_rent": "最高预算不能低于最低预算。"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class CustomerFollowUp(CreateUpdateTimeModelMixin):
+    customer = models.ForeignKey(CustomerProfile, on_delete=models.PROTECT, related_name="follow_ups", verbose_name="客户档案")
+    content = models.TextField(verbose_name="跟进内容")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="house_customer_follow_ups", verbose_name="跟进人")
+    stage = models.CharField(max_length=32, choices=CustomerStage.choices, verbose_name="跟进后阶段")
+    next_follow_up_at = models.DateTimeField(null=True, blank=True, verbose_name="下次跟进时间")
+
+    class Meta:
+        verbose_name = "客户跟进"
+        verbose_name_plural = "客户跟进"
+        ordering = ["-created_at", "-id"]
+
+    def clean(self):
+        super().clean()
+        self.content = self.content.strip()
+        if not self.content:
+            raise ValidationError({"content": "请填写跟进内容。"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
 class House(CreateUpdateTimeModelMixin):
     building = models.ForeignKey(Building, on_delete=models.PROTECT, related_name="houses", verbose_name="楼栋")
     landlord = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="landlord_houses", null=True, blank=True, verbose_name="房东")
@@ -312,7 +372,8 @@ class House(CreateUpdateTimeModelMixin):
     orientation = models.CharField(max_length=32, choices=HouseOrientation.choices, blank=True, null=True, verbose_name="朝向")
     decoration = models.CharField(max_length=32, choices=HouseDecoration.choices, blank=True, null=True, verbose_name="装修情况")
     has_elevator_access = models.BooleanField(default=False, verbose_name="是否可使用电梯")
-    status = models.CharField(max_length=32, choices=HouseStatus.choices, default=HouseStatus.VACANT, db_index=True, verbose_name="状态")
+    status = models.CharField(max_length=32, choices=HouseStatus.choices, default=HouseStatus.PAUSED, db_index=True, verbose_name="房源状态")
+    is_active = models.BooleanField(default=True, verbose_name="启用")
     images = MediaRefsField(
         blank=True,
         default=list,
@@ -340,7 +401,11 @@ class House(CreateUpdateTimeModelMixin):
         verbose_name = "房源"
         verbose_name_plural = "房源"
         ordering = ["building__estate__name", "building__name", "room_number", "id"]
-        constraints = [models.UniqueConstraint(fields=["building", "room_number"], name="house_building_room_unique")]
+        constraints = [
+            models.UniqueConstraint(fields=["building", "room_number"], name="house_building_room_unique"),
+            models.CheckConstraint(condition=models.Q(status__in=HouseStatus.values), name="house_status_valid"),
+            models.CheckConstraint(condition=models.Q(is_active=True) | ~models.Q(status=HouseStatus.LISTED), name="house_inactive_not_listed"),
+        ]
 
     def __str__(self):
         return f"{self.building} {self.room_number}"
@@ -497,10 +562,49 @@ class HouseFavorite(CreateUpdateTimeModelMixin):
         return f"{self.user} -> {self.house}"
 
 
+class HouseInquiry(CreateUpdateTimeModelMixin):
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="house_inquiries", verbose_name="所属组织")
+    house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="inquiries", verbose_name="咨询房源")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="house_inquiries", verbose_name="咨询用户")
+    contact = models.ForeignKey(Contact, on_delete=models.PROTECT, null=True, blank=True, related_name="inquiries", verbose_name="已确认客户")
+    customer_name = models.CharField(max_length=100, blank=True, default="", verbose_name="客户姓名")
+    phone = models.CharField(max_length=32, blank=True, default="", verbose_name="手机号")
+    wechat = models.CharField(max_length=100, blank=True, default="", verbose_name="微信号")
+    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_house_inquiries", verbose_name="负责人")
+    status = models.CharField(max_length=20, choices=HouseInquiryStatus.choices, default=HouseInquiryStatus.NEW, db_index=True, verbose_name="状态")
+    notes = models.TextField(blank=True, default="", verbose_name="备注")
+
+    class Meta:
+        ordering = ("-updated_at", "-pk")
+        verbose_name = "房源咨询"
+        verbose_name_plural = "房源咨询"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("organization", "user", "house"),
+                condition=Q(status__in=[HouseInquiryStatus.NEW, HouseInquiryStatus.PROCESSING], user__isnull=False),
+                name="house_inquiry_open_user_unique",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.house_id and self.organization_id and self.house.organization.pk != self.organization_id:
+            raise ValidationError({"house": "咨询房源必须属于当前组织。"})
+        if self.contact_id and self.contact.organization_id != self.organization_id:
+            raise ValidationError({"contact": "咨询联系人必须属于当前组织。"})
+        if self.assigned_to_id and not self.organization.organizationmember_set.filter(user_id=self.assigned_to_id, user__is_active=True).exists():
+            raise ValidationError({"assigned_to": "负责人必须是当前组织的有效成员。"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
 class ViewingRecord(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="viewing_records", verbose_name="所属组织")
     house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="viewing_records", verbose_name="房源")
     contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="viewing_records", null=True, blank=True, verbose_name="联系人")
+    source_inquiry = models.ForeignKey(HouseInquiry, on_delete=models.PROTECT, related_name="viewings", null=True, blank=True, verbose_name="来源咨询")
     customer_name = models.CharField(max_length=100, verbose_name="客户姓名")
     customer_phone = models.CharField(max_length=32, verbose_name="客户手机号")
     scheduled_at = models.DateTimeField(verbose_name="预约时间")
@@ -525,6 +629,10 @@ class ViewingRecord(CreateUpdateTimeModelMixin):
             raise ValidationError({"organization": "带看记录组织必须与房源组织一致。"})
         if self.contact_id and self.organization_id and self.contact.organization_id != self.organization_id:
             raise ValidationError({"contact": "联系人组织必须与带看记录组织一致。"})
+        if self.source_inquiry_id:
+            inquiry = self.source_inquiry
+            if inquiry.organization_id != self.organization_id or inquiry.house_id != self.house_id or inquiry.contact_id != self.contact_id:
+                raise ValidationError({"source_inquiry": "咨询、联系人及房源必须与带看记录一致。"})
         if not isinstance(self.extra, dict):
             raise ValidationError({"extra": "扩展字段必须是对象。"})
         if self.status == ViewingRecordStatus.VIEWED and self.viewed_at is None:
@@ -539,6 +647,12 @@ class Lease(CreateUpdateTimeModelMixin):
     organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="leases", verbose_name="所属组织")
     house = models.ForeignKey(House, on_delete=models.PROTECT, related_name="leases", verbose_name="房源")
     tenant = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="tenant_leases", verbose_name="租客")
+    source_inquiry = models.ForeignKey(HouseInquiry, on_delete=models.PROTECT, related_name="leases", null=True, blank=True, verbose_name="来源咨询")
+    registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="registered_leases", verbose_name="成交登记人")
+    deal_team = models.ForeignKey("teams.Team", on_delete=models.SET_NULL, null=True, blank=True, related_name="deal_leases", verbose_name="成交团队")
+    deal_team_name_snapshot = models.CharField(max_length=100, blank=True, default="", verbose_name="成交团队名称快照")
+    performance_month = models.DateField(null=True, blank=True, verbose_name="业绩月份")
+    client_request_id = models.CharField(max_length=100, blank=True, default="", verbose_name="登记幂等标识")
     source_viewing_record = models.ForeignKey(
         ViewingRecord,
         on_delete=models.PROTECT,
@@ -573,6 +687,7 @@ class Lease(CreateUpdateTimeModelMixin):
         ordering = ["-start_date", "-id"]
         constraints = [
             models.UniqueConstraint(fields=["house"], condition=Q(status=LeaseStatus.ACTIVE), name="house_one_active_lease_unique"),
+            models.UniqueConstraint(fields=["organization", "client_request_id"], condition=~Q(client_request_id=""), name="lease_register_request_unique"),
         ]
 
     def __str__(self):
@@ -592,6 +707,12 @@ class Lease(CreateUpdateTimeModelMixin):
                 errors["tenant"] = "租客组织必须与租约组织一致。"
         if self.house_id and self.house.landlord_id is None:
             errors["house"] = "签约前需先补齐登记出租方。"
+        if self.deal_team_id and self.deal_team.organization_id != self.organization_id:
+            errors["deal_team"] = "成交团队必须属于当前组织。"
+        if self.source_inquiry_id:
+            inquiry = self.source_inquiry
+            if inquiry.organization_id != self.organization_id or inquiry.house_id != self.house_id or inquiry.contact_id != self.tenant_id:
+                errors["source_inquiry"] = "咨询、客户及房源必须与租约一致。"
         if self.source_viewing_record_id:
             if self.organization_id and self.source_viewing_record.organization_id != self.organization_id:
                 errors["source_viewing_record"] = "成交来源带看记录组织必须与租约组织一致。"
@@ -612,10 +733,39 @@ class Lease(CreateUpdateTimeModelMixin):
                 qs = qs.exclude(pk=self.pk)
             if qs.exists():
                 errors["status"] = "同一房源只能有一条生效中的租约。"
+        previous_state = type(self).objects.filter(pk=self.pk).values("status", "house_id").first() if self.pk else None
+        if (
+            self.house_id
+            and not self.house.is_active
+            and (not previous_state or previous_state["house_id"] != self.house_id or (self.status == LeaseStatus.ACTIVE and previous_state["status"] != LeaseStatus.ACTIVE))
+        ):
+            errors["house"] = "已停用房源不能新增或生效租约。"
         if self.pk:
-            previous_status = type(self).objects.filter(pk=self.pk).values_list("status", flat=True).first()
+            previous_status = previous_state["status"] if previous_state else None
             if previous_status and self.status not in LEASE_STATUS_TRANSITIONS.get(previous_status, {previous_status}):
                 errors["status"] = "租约状态不允许逆向流转或从终态重新激活。"
+            from apps.allocation.constants import AllocationRequestStatus
+
+            critical_fields = (
+                "house_id",
+                "tenant_id",
+                "sign_at",
+                "start_date",
+                "end_date",
+                "monthly_rent",
+                "deposit",
+                "deal_team_id",
+                "performance_month",
+                "source_inquiry_id",
+                "source_viewing_record_id",
+            )
+            previous = type(self).objects.filter(pk=self.pk).values(*critical_fields).first()
+            if (
+                previous
+                and any(previous[field] != getattr(self, field) for field in critical_fields)
+                and self.allocations.filter(allocation_request__status__in=[AllocationRequestStatus.PENDING, AllocationRequestStatus.APPROVED]).exists()
+            ):
+                errors["allocation"] = "已有有效收益申请，请先撤回待审核申请或由财务作废已确认申请。"
         if not isinstance(self.extra, dict):
             errors["extra"] = "扩展字段必须是对象。"
         if errors:
@@ -640,14 +790,19 @@ class LeaseAllocationQuerySet(models.QuerySet):
 class LeaseAllocation(models.Model):
     objects = LeaseAllocationQuerySet.as_manager()
 
-    lease = models.OneToOneField(Lease, on_delete=models.PROTECT, related_name="allocation", verbose_name="租约")
+    lease = models.ForeignKey(Lease, on_delete=models.PROTECT, related_name="allocations", verbose_name="租约")
     allocation_request = models.OneToOneField("allocation.AllocationRequest", on_delete=models.PROTECT, related_name="lease_allocation", verbose_name="分配申请")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    client_request_id = models.CharField(max_length=100, blank=True, default="", verbose_name="申请幂等标识")
+    mode = models.CharField(max_length=20, default="initial", verbose_name="申请方式")
+    previous_request = models.ForeignKey("allocation.AllocationRequest", on_delete=models.PROTECT, null=True, blank=True, related_name="resubmissions", verbose_name="上次申请")
+    reason = models.TextField(blank=True, default="", verbose_name="重新申请原因")
 
     class Meta:
         verbose_name = "租约分配关联"
         verbose_name_plural = "租约分配关联"
         ordering = ("-created_at", "-pk")
+        constraints = [models.UniqueConstraint(fields=["lease", "client_request_id"], condition=~Q(client_request_id=""), name="lease_allocation_request_unique")]
 
     def clean(self):
         super().clean()

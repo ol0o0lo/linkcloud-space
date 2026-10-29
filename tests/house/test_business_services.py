@@ -54,14 +54,32 @@ class HouseBusinessServiceTestCase(TestCase):
             publish_house(organization=self.org, house_id=self.house.pk, changes={"room_number": "102"})
         self.house.refresh_from_db()
         self.assertEqual(self.house.room_number, "101")
-        self.assertEqual(self.house.status, HouseStatus.VACANT)
+        self.assertEqual(self.house.status, HouseStatus.PAUSED)
 
     def test_publish_rejects_house_outside_organization(self):
         other_org = baker.make("organizations.Organization")
         with self.assertRaises(Http404):
             publish_house(organization=other_org, house_id=self.house.pk)
         self.house.refresh_from_db()
-        self.assertEqual(self.house.status, HouseStatus.VACANT)
+        self.assertEqual(self.house.status, HouseStatus.PAUSED)
+
+    def test_publish_rejects_inactive_house_until_restored(self):
+        landlord = Contact.objects.create(organization=self.org, name="可发布房东", phone="13800138002", roles=[ContactRole.LANDLORD])
+        self.house.landlord = landlord
+        self.house.asking_rent = 2500
+        self.house.is_active = False
+        self.house.save()
+        with self.assertRaises(HouseInvalidException):
+            publish_house(organization=self.org, house_id=self.house.pk)
+        self.house.refresh_from_db()
+        self.assertEqual(self.house.status, HouseStatus.PAUSED)
+        self.assertFalse(self.house.is_active)
+
+        self.house.is_active = True
+        self.house.save(update_fields=["is_active"])
+        publish_house(organization=self.org, house_id=self.house.pk)
+        self.house.refresh_from_db()
+        self.assertEqual(self.house.status, HouseStatus.LISTED)
 
     def test_standalone_house_does_not_match_unrelated_null_estate_assignment(self):
         owner = baker.make(User, username="service-owner")

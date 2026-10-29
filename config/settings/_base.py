@@ -104,7 +104,9 @@ INSTALLED_APPS = [
     "apps.referrals",
     "apps.platform_operations",
     "apps.notifications",
+    "apps.messaging",
     "apps.team_operations",
+    "apps.data_migration",
     "apps.settings",
     "apps.ai",
     "maintenance_mode",
@@ -345,6 +347,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.media.tasks.recover_pending_media_thumbnails",
         "schedule": crontab(minute="*/5"),
     },
+    "recover-data-migration-tasks": {
+        "task": "apps.data_migration.tasks.recover_migration_tasks",
+        "schedule": crontab(minute="*"),
+    },
     "expire-lease-allocation-requests": {
         "task": "apps.house.tasks.expire_lease_allocation_requests_task",
         "schedule": crontab(minute="*/5"),
@@ -561,6 +567,7 @@ DEFAULT_PAGE_SIZE = 50
 # Models registered here get a post_delete receiver that cleans up Notification
 # rows whose GenericForeignKey targets them. Add producer-app models as needed.
 NOTIFICATIONS_TARGET_MODELS: list[str] = [
+    "messaging.Conversation",
     "allocation.AllocationRequest",
     "house.House",
     "team_operations.TeamAnnouncement",
@@ -596,7 +603,14 @@ MEDIA_THUMBNAIL_RECOVERY_BATCH_SIZE = 100
 # cleanup will safely no-op in that case.
 MEDIA_REFERENCE_PROVIDERS: list[str] = [
     "apps.accounts.services.collect_real_name_media_ids",
+    "apps.data_migration.media.collect_migration_media_ids",
 ]
+
+DATA_MIGRATION_MAX_PACKAGE_BYTES = 100 * 1024 * 1024
+DATA_MIGRATION_PRIVATE_ROOT = env.str("DATA_MIGRATION_PRIVATE_ROOT", default=str(BASE_DIR / ".private" / "data-migration")) or str(BASE_DIR / ".private" / "data-migration")
+DATA_MIGRATION_MAX_EXPANDED_BYTES = 1024 * 1024 * 1024
+DATA_MIGRATION_MAX_MEDIA_BYTES = 512 * 1024 * 1024
+DATA_MIGRATION_ALLOWED_MEDIA_HOSTS = env.list("DATA_MIGRATION_ALLOWED_MEDIA_HOSTS", default=["uhome-cloud.oss-cn-shenzhen.aliyuncs.com"])
 
 # Notification categories shown on the account-settings Notifications tab and
 # consulted by `apps.notifications.categories.should_send`. Use
@@ -612,6 +626,12 @@ MEDIA_REFERENCE_PROVIDERS: list[str] = [
 # `required_channels` cannot be disabled through user preferences. Add entries
 # here as downstream apps introduce notification subjects.
 NOTIFICATIONS_CATEGORIES: list[dict] = [
+    {
+        "key": "messaging.message",
+        "label": "聊天消息",
+        "description": "本人参与会话收到的新消息提醒。",
+        "default_channels": ("in_app",),
+    },
     {
         "key": "house.contact",
         "label": "房源预约联系",

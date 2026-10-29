@@ -25,6 +25,7 @@ from apps.accounts.utils import (
     normalize_id_number,
 )
 from apps.media.services import delete_media_file, extract_media_id, extract_media_ids, resolve_media_refs, to_plain_media_ref
+from apps.messaging.services import user_has_messaging_history
 from apps.referrals.services import mark_referral_as_qualified
 
 
@@ -147,6 +148,7 @@ def _ensure_lightweight_merge_source(source_user) -> None:
         raise AccountMergeReviewRequired("real_name")
     if (
         OrganizationMember.objects.filter(user=source_user).exists()
+        or user_has_messaging_history(user=source_user)
         or Organization.objects.filter(created_by=source_user).exists()
         or OrganizationInvite.objects.filter(sender=source_user).exists()
         or OrganizationInvite.objects.filter(invitee=source_user).exists()

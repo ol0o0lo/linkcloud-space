@@ -12,8 +12,12 @@ def get_contact_in_org(contact_id: int, org):
     return get_object_or_404(Contact, pk=contact_id, organization=org)
 
 
-def contacts_for_organization(*, organization, role=None, task=None, keyword=None):
+def contacts_for_organization(*, organization, role=None, task=None, keyword=None, actor=None):
     qs = Contact.objects.filter(organization=organization).order_by("name", "id")
+    if actor is not None:
+        from apps.house.queries.customers import visible_contacts
+
+        qs = qs.filter(pk__in=visible_contacts(organization=organization, actor=actor).values("pk"))
     if task in {"active", "role_missing_active"}:
         qs = qs.filter(is_active=True)
     elif task in {"inactive", "role_missing_inactive"}:

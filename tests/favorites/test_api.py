@@ -117,7 +117,7 @@ class FavoriteApiTestCase(TestCase):
 
     def test_non_public_targets_cannot_be_newly_favorited(self):
         user = User.objects.create_user(username="private-house-user", password="secret")  # noqa: S106
-        vacant = self.make_house(org_slug="private-vacant", org_name="未发布租户", room_number="601", status=HouseStatus.VACANT)
+        vacant = self.make_house(org_slug="private-vacant", org_name="未发布租户", room_number="601", status=HouseStatus.PAUSED)
         archived = self.make_house(org_slug="private-archived", org_name="停用租户", room_number="602", org_active=False)
 
         self.client.force_login(user)
@@ -159,7 +159,7 @@ class FavoriteApiTestCase(TestCase):
         self.client.force_login(user)
         self.client.put(f"/api/users/me/favorite/?target_type=house&target_id={house.pk}")
 
-        house.status = HouseStatus.VACANT
+        house.status = HouseStatus.PAUSED
         house.save(update_fields=["status", "updated_at"])
         response = self.client.get("/api/users/me/favorite/", {"target_type": "house", "page": 1, "page_size": 20})
 

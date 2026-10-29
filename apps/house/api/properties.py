@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.shortcuts import get_object_or_404
 
 from ninja import Query, Router, Status
@@ -218,7 +220,12 @@ def list_houses(
     inspection_due: bool = Query(False),
     inspection_reason: HouseInspectionReason | None = Query(None),
     status: HouseStatusValue | None = Query(None),
+    is_active: bool | None = Query(None),
     keyword: str | None = Query(None),
+    min_rent: Decimal | None = Query(None, ge=0, allow_inf_nan=False),
+    max_rent: Decimal | None = Query(None, ge=0, allow_inf_nan=False),
+    bedrooms: int | None = Query(None, ge=0),
+    district: str | None = Query(None, max_length=64),
     ordering: str = Query(
         HOUSE_DEFAULT_ORDERING,
         description=HOUSE_ORDERING_DESCRIPTION,
@@ -227,6 +234,8 @@ def list_houses(
     ),
 ):
     org = require_org_selected(request)
+    if min_rent is not None and max_rent is not None and min_rent > max_rent:
+        raise HttpError(422, "最低租金不能高于最高租金。")
     return query_list_houses(
         org=org,
         user=request.user,
@@ -237,8 +246,13 @@ def list_houses(
         inspection_due=inspection_due,
         inspection_reason=inspection_reason,
         status=status,
+        is_active=is_active,
         keyword=keyword,
         ordering=ordering,
+        min_rent=min_rent,
+        max_rent=max_rent,
+        bedrooms=bedrooms,
+        district=district.strip() if district else None,
     )
 
 

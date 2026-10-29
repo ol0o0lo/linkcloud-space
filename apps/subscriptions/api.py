@@ -10,7 +10,7 @@ from django.utils import timezone
 from ninja import Query, Router, Status
 from ninja.pagination import paginate
 
-from apps.access.constants import SubscriptionPermission
+from apps.access.constants import OrganizationPermission, SubscriptionPermission
 from apps.access.services import has_permission
 from apps.base.ninja_pagination import LegacyPagination
 from apps.base.permissions import require_authenticated, require_org_selected, require_superuser
@@ -18,10 +18,10 @@ from apps.payments.constants import PaymentMode
 from apps.payments.models import PaymentTransaction
 from apps.payments.services import get_payment
 from apps.payments.wechat import is_wechat_checkout_enabled
-from apps.subscriptions.constants import InvoiceStatus, InvoiceType, OrderStatus, SalesLeadStatus
+from apps.subscriptions.constants import InvoiceStatus, InvoiceType, OrderStatus, SaaSBusinessType, SaaSTeamSizeBand, SalesLeadStatus
 from apps.subscriptions.entitlements import EntitlementService
 from apps.subscriptions.exceptions import SubscriptionRuleException
-from apps.subscriptions.models import InvoiceRequest, OrganizationInvoiceProfile, Plan, SaaSOrder, Subscription, SubscriptionSalesLead
+from apps.subscriptions.models import InvoiceRequest, OrganizationInvoiceProfile, OrganizationSaaSProfile, Plan, SaaSOrder, Subscription, SubscriptionSalesLead
 from apps.subscriptions.schemas import (
     CurrentSubscriptionOut,
     InvoiceProcessIn,
@@ -232,24 +232,27 @@ def onboarding_progress(request):
     first_house = House.objects.filter(building__organization=org).order_by("created_at").first()
     has_collaborator = OrganizationMember.objects.filter(organization=org, is_owner=False).exists()
     first_responsibility = PropertyResponsibility.objects.filter(organization=org, member__is_owner=False).order_by("created_at").first()
-    first_viewing = ViewingRecord.objects.filter(
-        organization=org,
-        status__in=[ViewingRecordStatus.VIEWED, ViewingRecordStatus.CONVERTED],
-    ).order_by("viewed_at", "created_at").first()
-    first_lease = (
-        Lease.objects.filter(organization=org)
-        .filter(Q(sign_at__isnull=False) | Q(status__in=[LeaseStatus.ACTIVE, LeaseStatus.EXPIRED]))
-        .order_by("sign_at", "created_at")
+    first_viewing = (
+        ViewingRecord.objects.filter(
+            organization=org,
+            status__in=[ViewingRecordStatus.VIEWED, ViewingRecordStatus.CONVERTED],
+        )
+        .order_by("viewed_at", "created_at")
         .first()
     )
+    has_pending_viewing = ViewingRecord.objects.filter(organization=org, status=ViewingRecordStatus.SCHEDULED, is_active=True).exists()
+    first_lease = (
+        Lease.objects.filter(organization=org).filter(Q(sign_at__isnull=False) | Q(status__in=[LeaseStatus.ACTIVE, LeaseStatus.EXPIRED])).order_by("sign_at", "created_at").first()
+    )
     subscription = Subscription.objects.filter(organization=org).first()
-    started_at = (subscription.trial_started_at if subscription else None) or org.created_at
+    started_at = org.created_at
+    guide_expires_at = started_at + timedelta(days=3)
     trial_ends_at = subscription.trial_ended_at if subscription and subscription.kind == "trial" else None
     tasks = [
         {
             "key": "house_created",
             "title": "录入第一套房源",
-            "description": "建立真实房源盘面，开始统一管理房态。",
+            "description": "选择楼栋并填写房号即可完成；没有楼栋可在录入时新建。",
             "completed": first_house is not None,
             "completed_at": first_house.created_at if first_house else None,
             "deadline_at": started_at + timedelta(days=1),
@@ -257,27 +260,44 @@ def onboarding_progress(request):
         },
         {
             "key": "collaboration_started",
-            "title": "邀请成员并分配职责",
-            "description": "让门店成员加入，并完成至少一项房源职责分配。",
+            "title": "分配成员房源职责" if has_collaborator and first_responsibility is None else "邀请成员并分配职责",
+            "description": "为已加入的成员分配房东、楼栋或小区职责。" if has_collaborator else "发送邀请并等待成员加入，加入后还需分配一项房源职责。",
             "completed": has_collaborator and first_responsibility is not None,
             "completed_at": first_responsibility.created_at if has_collaborator and first_responsibility else None,
-            "deadline_at": started_at + timedelta(days=3),
+            "deadline_at": started_at + timedelta(days=2),
             "action": "assign_responsibility" if has_collaborator else "invite_member",
         },
         {
             "key": "business_completed",
             "title": "完成首次带看或签约",
-            "description": "用真实成交动作验证团队已经开始使用工作台。",
+            "description": "将已预约的带看标记为“已带看”，或直接登记签约。" if has_pending_viewing else "预约后在带看详情标记“已带看”，或直接登记签约。",
             "completed": first_viewing is not None or first_lease is not None,
             "completed_at": min(
-                [value for value in [first_viewing.viewed_at if first_viewing else None, first_lease.sign_at if first_lease else None] if value],
+                [
+                    value
+                    for value in [
+                        (first_viewing.viewed_at or first_viewing.created_at) if first_viewing else None,
+                        (first_lease.sign_at or first_lease.created_at) if first_lease else None,
+                    ]
+                    if value
+                ],
                 default=None,
             ),
-            "deadline_at": started_at + timedelta(days=7),
-            "action": "create_viewing",
+            "deadline_at": guide_expires_at,
+            "action": "complete_viewing" if has_pending_viewing else "create_viewing",
         },
     ]
+    solo_workspace = (
+        not has_collaborator and OrganizationSaaSProfile.objects.filter(organization=org, business_type=SaaSBusinessType.INDIVIDUAL, team_size_band=SaaSTeamSizeBand.ONE).exists()
+    )
+    if solo_workspace:
+        tasks = [task for task in tasks if task["key"] != "collaboration_started"]
     completed_count = sum(1 for task in tasks if task["completed"])
+    activated = completed_count == len(tasks)
+    can_run_guide = all(
+        has_permission(request.user, org, permission)
+        for permission in [OrganizationPermission.INVITE_MANAGE, OrganizationPermission.MEMBER_VIEW, OrganizationPermission.MEMBER_MANAGE]
+    )
     trial_days_remaining = None
     if trial_ends_at:
         trial_days_remaining = max(0, math.ceil((trial_ends_at - timezone.now()).total_seconds() / 86400))
@@ -285,7 +305,9 @@ def onboarding_progress(request):
         "completed_count": completed_count,
         "total_count": len(tasks),
         "completion_percent": completed_count * 100 // len(tasks),
-        "activated": completed_count == len(tasks),
+        "activated": activated,
+        "show_guide": can_run_guide and not activated and timezone.now() <= guide_expires_at,
+        "guide_expires_at": guide_expires_at,
         "trial_ends_at": trial_ends_at,
         "trial_days_remaining": trial_days_remaining,
         "tasks": tasks,
@@ -572,12 +594,7 @@ def admin_list_sales_leads(
     require_superuser(request)
     qs = SubscriptionSalesLead.objects.select_related("organization", "user", "assigned_to")
     if keyword:
-        qs = qs.filter(
-            Q(contact_name__icontains=keyword)
-            | Q(contact_phone__icontains=keyword)
-            | Q(company_name__icontains=keyword)
-            | Q(organization__name__icontains=keyword)
-        )
+        qs = qs.filter(Q(contact_name__icontains=keyword) | Q(contact_phone__icontains=keyword) | Q(company_name__icontains=keyword) | Q(organization__name__icontains=keyword))
     if status:
         qs = qs.filter(status=status)
     if created_from:

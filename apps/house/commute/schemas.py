@@ -79,3 +79,4 @@ class CommuteRouteForHouseIn(Schema):
     house_id: int = Field(gt=0)
     destination_id: int = Field(gt=0)
     mode: CommuteMode
+    retry: bool = False

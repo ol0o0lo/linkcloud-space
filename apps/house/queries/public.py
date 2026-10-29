@@ -29,6 +29,7 @@ def get_public_houses_queryset():
     return annotate_house_regions(
         House.objects.filter(
             status=HouseStatus.LISTED,
+            is_active=True,
             building__organization__is_active=True,
         )
         .select_related("building__estate", "building__organization")
@@ -203,6 +204,7 @@ def get_public_buildings_queryset():
         Building.objects.filter(
             organization__is_active=True,
             houses__status=HouseStatus.LISTED,
+            houses__is_active=True,
         )
         .select_related("estate", "organization")
         .distinct()
@@ -218,6 +220,7 @@ def get_public_estates_queryset():
         Estate.objects.filter(
             organization__is_active=True,
             buildings__houses__status=HouseStatus.LISTED,
+            buildings__houses__is_active=True,
         )
         .select_related("organization")
         .distinct()

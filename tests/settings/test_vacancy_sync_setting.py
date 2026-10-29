@@ -4,7 +4,6 @@ from django.apps import apps as django_apps
 
 import pytest
 
-from apps.house.house_sync import VACANCY_SYNC_SETTING_KEY
 from apps.settings.models import DefaultSetting
 
 
@@ -14,7 +13,7 @@ def test_vacancy_sync_setting_migration_registers_org_boolean_without_overwritin
 
     migration.ensure_property_rental_vacancy_sync_setting(django_apps, None)
 
-    setting = DefaultSetting.objects.get(key=VACANCY_SYNC_SETTING_KEY)
+    setting = DefaultSetting.objects.get(key=migration.VACANCY_SYNC_SETTING["key"])
     assert setting.value is False
     assert setting.value_type == "boolean"
     assert setting.widget == "switch"

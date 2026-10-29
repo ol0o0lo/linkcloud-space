@@ -227,6 +227,13 @@ def put_user_setting(request, payload: SetSettingIn, key: str = Path(..., descri
     """更新当前用户某个偏好设置的值。"""
     require_authenticated(request)
     _reject_reserved_user_setting_write(key)
+    if key == "internal.house.contact.v1":
+        from apps.house.services.contacts import TenantContactValidationError, normalize_tenant_contact_preference
+
+        try:
+            payload.value = normalize_tenant_contact_preference(payload.value)
+        except TenantContactValidationError as exc:
+            raise HttpError(422, str(exc)) from exc
     set_user_setting(request.user, key, payload.value)
     value = get_user_setting(request.user, key)
     return {"key": key, "value": value}

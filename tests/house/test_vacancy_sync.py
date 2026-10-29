@@ -9,7 +9,7 @@ from model_bakery import baker
 
 from apps.accounts.models import User
 from apps.house.constants import ContactRole, HouseStatus, LeaseStatus
-from apps.house.house_sync import VACANCY_SYNC_SETTING_KEY, parse_vacancy_text
+from apps.house.house_sync import parse_vacancy_text
 from apps.house.models import Building, Contact, House, Lease
 from apps.organizations.signals import user_logged_in_receiver
 from apps.settings.models import DefaultSetting, OrganizationSetting
@@ -115,17 +115,17 @@ class VacancySyncApiTestCase(TestCase):
         self.assertEqual(room_102.asking_rent, Decimal("1380"))
         self.assertEqual((room_102.bedrooms, room_102.living_rooms), (1, 0))
         self.assertEqual(room_102.tags, ["复式", "大单间"])
-        self.assertEqual(room_102.status, HouseStatus.VACANT)
+        self.assertEqual(room_102.status, HouseStatus.PAUSED)
 
     def test_existing_building_sync_updates_full_vacancy_schedule_and_keeps_lease(self):
         building = Building.objects.create(organization=self.org, name="城中村楼栋", address="下元岗东街3巷一号", floors=8)
         landlord = Contact.objects.create(organization=self.org, name="房东", phone="13800138001", roles=[ContactRole.LANDLORD])
         tenant = Contact.objects.create(organization=self.org, name="租客", phone="13900139001", roles=[ContactRole.TENANT])
         listed = House.objects.create(building=building, landlord=landlord, room_number="102", status=HouseStatus.RENTED, tags=["近地铁"])
-        absent = House.objects.create(building=building, room_number="101", status=HouseStatus.VACANT)
-        inactive = House.objects.create(building=building, room_number="202", status=HouseStatus.INACTIVE)
-        renovating = House.objects.create(building=building, room_number="203", status=HouseStatus.RENOVATING)
-        second_inactive = House.objects.create(building=building, room_number="204", status=HouseStatus.INACTIVE)
+        absent = House.objects.create(building=building, room_number="101", status=HouseStatus.PAUSED)
+        inactive = House.objects.create(building=building, room_number="202", status=HouseStatus.PAUSED, is_active=False)
+        second_absent = House.objects.create(building=building, room_number="203", status=HouseStatus.PAUSED)
+        second_inactive = House.objects.create(building=building, room_number="204", status=HouseStatus.PAUSED, is_active=False)
         lease = Lease.objects.create(
             organization=self.org,
             house=listed,
@@ -144,9 +144,11 @@ class VacancySyncApiTestCase(TestCase):
         self.assertTrue(preview["can_apply"])
         self.assertEqual(preview["blocks"][0]["building_match"]["building_id"], building.pk)
         self.assertEqual(preview["summary"]["update_houses"], 1)
-        self.assertEqual(preview["summary"]["mark_vacant"], 1)
-        self.assertEqual(preview["summary"]["mark_rented"], 1)
-        self.assertEqual(preview["summary"]["preserve_special_status"], 1)
+        self.assertEqual(preview["summary"]["mark_paused"], 1)
+        self.assertEqual(preview["summary"]["mark_rented"], 2)
+        self.assertNotIn("preserve_special_status", preview["summary"])
+        self.assertNotIn("preserve_special_status", preview["blocks"][0]["changes"])
+        self.assertNotIn("force_rented", preview)
 
         response = self.apply_preview(raw_text, preview)
 
@@ -154,16 +156,17 @@ class VacancySyncApiTestCase(TestCase):
         listed.refresh_from_db()
         absent.refresh_from_db()
         inactive.refresh_from_db()
-        renovating.refresh_from_db()
+        second_absent.refresh_from_db()
         second_inactive.refresh_from_db()
         lease.refresh_from_db()
-        self.assertEqual(listed.status, HouseStatus.VACANT)
+        self.assertEqual(listed.status, HouseStatus.PAUSED)
         self.assertEqual(listed.asking_rent, Decimal("1500"))
         self.assertEqual(listed.tags, ["近地铁", "复式", "大单间", "无遮挡"])
         self.assertEqual(absent.status, HouseStatus.RENTED)
-        self.assertEqual(inactive.status, HouseStatus.INACTIVE)
-        self.assertEqual(renovating.status, HouseStatus.RENOVATING)
-        self.assertEqual(second_inactive.status, HouseStatus.INACTIVE)
+        self.assertEqual(inactive.status, HouseStatus.PAUSED)
+        self.assertFalse(inactive.is_active)
+        self.assertEqual(second_absent.status, HouseStatus.RENTED)
+        self.assertFalse(second_inactive.is_active)
         self.assertEqual(lease.status, LeaseStatus.ACTIVE)
 
     def test_building_match_accepts_chinese_arabic_and_swapped_lane_number_variants(self):
@@ -190,29 +193,56 @@ class VacancySyncApiTestCase(TestCase):
                     building.pk,
                 )
 
-    def test_force_rented_org_setting_overwrites_renovating_but_preserves_inactive(self):
+    def test_explicit_schedule_keeps_paused_and_existing_listing(self):
+        building = Building.objects.create(organization=self.org, name="显式清单楼栋", address="显式清单路1号", floors=5)
+        paused = House.objects.create(building=building, room_number="101", status=HouseStatus.PAUSED)
+        listed = House.objects.create(building=building, room_number="102", status=HouseStatus.LISTED)
+        raw_text = "显式清单路1号\n101单间1200\n102单间1300"
+
+        preview_response = self.preview(raw_text)
+        self.assertEqual(preview_response.status_code, 200)
+        preview = api_data(preview_response)
+        self.assertTrue(preview["can_apply"])
+        self.assertIn("mark_paused", preview["summary"])
+        self.assertNotIn("mark_vacant", preview["summary"])
+        response = self.apply_preview(raw_text, preview)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        paused.refresh_from_db()
+        listed.refresh_from_db()
+        self.assertEqual(paused.status, HouseStatus.PAUSED)
+        self.assertEqual(listed.status, HouseStatus.LISTED)
+
+    def test_legacy_force_rented_setting_has_no_effect_and_inactive_houses_stay_unchanged(self):
         setting = DefaultSetting.objects.create(
-            key=VACANCY_SYNC_SETTING_KEY,
+            key="property_rental.vacancy_sync_force_rented",
             value=False,
             value_type="boolean",
             widget="switch",
             ui={"scopes": ["organization"]},
         )
-        OrganizationSetting.objects.create(organization=self.org, setting=setting, value=True)
+        organization_setting = OrganizationSetting.objects.create(organization=self.org, setting=setting, value=False)
         building = Building.objects.create(organization=self.org, name="强制同步楼栋", address="强制同步路1号", floors=5)
-        House.objects.create(building=building, room_number="101", status=HouseStatus.VACANT)
-        inactive = House.objects.create(building=building, room_number="102", status=HouseStatus.INACTIVE)
-        renovating = House.objects.create(building=building, room_number="103", status=HouseStatus.RENOVATING)
+        House.objects.create(building=building, room_number="101", status=HouseStatus.PAUSED)
+        inactive = House.objects.create(building=building, room_number="102", status=HouseStatus.PAUSED, is_active=False)
+        absent = House.objects.create(building=building, room_number="103", status=HouseStatus.PAUSED)
         raw_text = "强制同步路1号\n101单间1200"
 
         preview = api_data(self.preview(raw_text))
+        organization_setting.value = True
+        organization_setting.save(update_fields=["value"])
+        changed_setting_preview = api_data(self.preview(raw_text))
+        self.assertEqual(preview["plan_hash"], changed_setting_preview["plan_hash"])
+        self.assertEqual(preview["summary"], changed_setting_preview["summary"])
+        self.assertNotIn("force_rented", preview)
         response = self.apply_preview(raw_text, preview)
 
         self.assertEqual(response.status_code, 200)
         inactive.refresh_from_db()
-        renovating.refresh_from_db()
-        self.assertEqual(inactive.status, HouseStatus.INACTIVE)
-        self.assertEqual(renovating.status, HouseStatus.RENTED)
+        absent.refresh_from_db()
+        self.assertEqual(inactive.status, HouseStatus.PAUSED)
+        self.assertFalse(inactive.is_active)
+        self.assertEqual(absent.status, HouseStatus.RENTED)
 
     def test_ambiguous_building_requires_override_and_cross_org_override_is_hidden(self):
         first = Building.objects.create(organization=self.org, name="1栋", address="同址路1号", floors=5)
@@ -237,7 +267,7 @@ class VacancySyncApiTestCase(TestCase):
 
     def test_listed_inactive_house_blocks_sync(self):
         building = Building.objects.create(organization=self.org, name="停用房源楼栋", address="停用房源路1号", floors=5)
-        House.objects.create(building=building, room_number="101", status=HouseStatus.INACTIVE)
+        House.objects.create(building=building, room_number="101", status=HouseStatus.PAUSED, is_active=False)
 
         response = self.preview("停用房源路1号\n101单间1200")
         payload = api_data(response)
@@ -248,7 +278,7 @@ class VacancySyncApiTestCase(TestCase):
 
     def test_apply_rejects_stale_plan_hash(self):
         building = Building.objects.create(organization=self.org, name="并发楼栋", address="并发路1号", floors=5)
-        house = House.objects.create(building=building, room_number="101", status=HouseStatus.VACANT)
+        house = House.objects.create(building=building, room_number="101", status=HouseStatus.PAUSED)
         raw_text = "并发路1号\n101单间1200"
         preview = api_data(self.preview(raw_text))
         house.internal_notes = "预览后被其他操作修改"
@@ -264,3 +294,72 @@ class VacancySyncApiTestCase(TestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(api_error(response)["error"], "VACANCY_SYNC_CONFLICT")
+
+    def test_ignored_room_preserves_status_and_other_absent_rooms_still_sync(self):
+        building = baker.make(Building, organization=self.org, address="忽略保护路1号")
+        ignored = baker.make(House, building=building, room_number="101", status=HouseStatus.LISTED, asking_rent=900)
+        absent = baker.make(House, building=building, room_number="103", status=HouseStatus.PAUSED)
+        raw_text = "忽略保护路1号\n101单间待确认\n102单间1400"
+
+        preview = api_data(self.preview(raw_text, ignored_lines=[2]))
+
+        self.assertTrue(preview["can_apply"])
+        self.assertEqual(preview["blocks"][0]["lines"][0]["room_number"], "101")
+        self.assertEqual(preview["summary"]["preserve_ignored"], 1)
+        self.assertEqual(preview["summary"]["mark_rented"], 1)
+        response = self.apply_preview(raw_text, preview, ignored_lines=[2])
+        self.assertEqual(response.status_code, 200)
+        ignored.refresh_from_db()
+        absent.refresh_from_db()
+        self.assertEqual((ignored.status, ignored.asking_rent), (HouseStatus.LISTED, Decimal("900")))
+        self.assertEqual(absent.status, HouseStatus.RENTED)
+
+    def test_ignored_unknown_room_protects_absent_rooms_and_warns(self):
+        building = baker.make(Building, organization=self.org, address="未知房号路1号")
+        absent = baker.make(House, building=building, room_number="101", status=HouseStatus.PAUSED)
+        raw_text = "未知房号路1号\n单间待确认\n102单间1400"
+
+        preview = api_data(self.preview(raw_text, ignored_lines=[2]))
+
+        self.assertTrue(preview["can_apply"])
+        self.assertTrue(preview["blocks"][0]["warnings"])
+        self.assertEqual(preview["summary"]["mark_rented"], 0)
+        self.assertEqual(preview["summary"]["preserve_ignored"], 1)
+        self.assertEqual(self.apply_preview(raw_text, preview, ignored_lines=[2]).status_code, 200)
+        absent.refresh_from_db()
+        self.assertEqual(absent.status, HouseStatus.PAUSED)
+
+    def test_preview_reports_business_error_on_line_and_keeps_building_candidates(self):
+        first = baker.make(Building, organization=self.org, address="候选路1号")
+        second = baker.make(Building, organization=self.org, address="候选路1号")
+        baker.make(House, building=second, room_number="101", is_active=False)
+
+        preview = api_data(self.preview("候选路1号\n101单间1200", building_overrides=[{"block_index": 0, "building_id": second.pk}]))
+
+        self.assertFalse(preview["can_apply"])
+        block = preview["blocks"][0]
+        self.assertEqual({candidate["id"] for candidate in block["building_match"]["candidates"]}, {first.pk, second.pk})
+        self.assertEqual(block["lines"][0]["status"], "error")
+        self.assertEqual(block["lines"][0]["error_code"], "INACTIVE_HOUSE_CONFLICT")
+
+    def test_preview_exposes_field_values_for_review(self):
+        building = baker.make(Building, organization=self.org, address="变更路1号")
+        baker.make(House, building=building, room_number="101", asking_rent=900, bedrooms=1, living_rooms=0, tags=[], status=HouseStatus.LISTED)
+
+        preview = api_data(self.preview("变更路1号\n101单间1200无遮挡"))
+
+        change = preview["blocks"][0]["changes"]["update_houses"][0]
+        fields = {item["field"]: item for item in change["field_changes"]}
+        self.assertEqual(Decimal(fields["asking_rent"]["before"]), Decimal("900"))
+        self.assertEqual(Decimal(fields["asking_rent"]["after"]), Decimal("1200"))
+        self.assertEqual(fields["tags"]["after"], "无遮挡")
+
+    def test_duplicate_room_can_be_restored_after_ignoring(self):
+        raw_text = "重复路1号\n101单间1200\n101单间1300"
+        ignored = api_data(self.preview(raw_text, ignored_lines=[3]))
+        restored = api_data(self.preview(raw_text))
+
+        self.assertTrue(ignored["can_apply"])
+        self.assertEqual(ignored["blocks"][0]["lines"][1]["status"], "ignored")
+        self.assertFalse(restored["can_apply"])
+        self.assertEqual(restored["blocks"][0]["lines"][1]["error_code"], "DUPLICATE_ROOM_NUMBER")

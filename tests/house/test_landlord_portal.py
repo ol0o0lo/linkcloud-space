@@ -232,9 +232,9 @@ class LandlordPortalApiTestCase(TestCase):
 
         first_building = self.make_building(suffix="first")
         second_building = self.make_building(organization=second_org, suffix="second")
-        first_house = House.objects.create(building=first_building, landlord=first_contact, room_number="101", status=HouseStatus.INACTIVE)
+        first_house = House.objects.create(building=first_building, landlord=first_contact, room_number="101", status=HouseStatus.PAUSED, is_active=False)
         second_house = House.objects.create(building=second_building, landlord=second_contact, room_number="202", status=HouseStatus.RENTED)
-        foreign_house = House.objects.create(building=second_building, landlord=foreign_contact, room_number="303", status=HouseStatus.VACANT)
+        foreign_house = House.objects.create(building=second_building, landlord=foreign_contact, room_number="303", status=HouseStatus.PAUSED)
         tenant = self.make_contact(organization=second_org, phone="13900139002", name="李租客", roles=[ContactRole.TENANT])
         lease = Lease.objects.create(
             organization=second_org,
@@ -264,7 +264,7 @@ class LandlordPortalApiTestCase(TestCase):
         other_contact = self.make_contact(phone="13800138009", name="其他房东", user=landlord)
         building = self.make_building(suffix="public")
         listed = House.objects.create(building=building, landlord=contact, room_number="801", status=HouseStatus.LISTED, asking_rent=Decimal("4200"))
-        House.objects.create(building=building, landlord=contact, room_number="802", status=HouseStatus.VACANT)
+        House.objects.create(building=building, landlord=contact, room_number="802", status=HouseStatus.PAUSED)
         other = House.objects.create(building=building, landlord=other_contact, room_number="803", status=HouseStatus.LISTED)
 
         profile = api_data(self.client.get(f"/api/public/landlords/{contact.public_key}/"))

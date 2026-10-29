@@ -151,6 +151,7 @@ def create_allocation_request(
     distributable_amount: Decimal | None = None,
     source_snapshot: dict | None = None,
     submitted_at: datetime | None = None,
+    performance_month: date | None = None,
 ) -> AllocationRequest:
     _validate_share_inputs(shares)
     submitted_at = submitted_at or timezone.now()
@@ -198,6 +199,7 @@ def create_allocation_request(
         distributable_amount=calculated_distributable_amount,
         currency=ALLOCATION_CURRENCY,
         source_snapshot=source_snapshot or {},
+        performance_month=performance_month,
         submitted_by=submitted_by,
         submitted_by_name_snapshot=user_name_snapshot(submitted_by),
         submitted_at=submitted_at,
@@ -284,7 +286,7 @@ def approve_allocation_request_locked(allocation_request: AllocationRequest, *, 
             amount=share.allocated_amount,
             currency=ALLOCATION_CURRENCY,
             effective_at=allocation_request.submitted_at,
-            effective_month=effective_month_for(allocation_request.submitted_at),
+            effective_month=allocation_request.performance_month or effective_month_for(allocation_request.submitted_at),
             allocation_share=share,
             reason="",
             created_by=reviewer,
@@ -360,7 +362,7 @@ def void_allocation_request_locked(allocation_request: AllocationRequest, *, act
                 amount=-original.amount,
                 currency=original.currency,
                 effective_at=voided_at,
-                effective_month=effective_month_for(voided_at),
+                effective_month=original.effective_month,
                 reversal_of=original,
                 reason=reason,
                 created_by=actor,
