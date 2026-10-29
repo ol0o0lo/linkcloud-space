@@ -21,6 +21,11 @@ jobs:
         shell: bash
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
+      - name: 配置 ARM64 构建支持
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
       - name: 配置 Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -37,7 +42,7 @@ jobs:
           context: .
           file: config/docker/Dockerfile.web
           target: prod
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           build-args: |
             ENV_NAME=prod
             DEBIAN_MIRROR=https://deb.debian.org/debian
