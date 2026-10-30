@@ -89,6 +89,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: ${{ matrix.build_args }}
           push: true
+          # ACR 经典仓库需要使用传统的构建证明清单格式。
+          outputs: ${{ env.ACR_ENABLED == 'true' && 'type=image,oci-artifact=false' || '' }}
           tags: ${{ steps.image.outputs.tags }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=${{ matrix.cache_scope }}

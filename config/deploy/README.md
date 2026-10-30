@@ -47,6 +47,8 @@ docker compose --env-file .env -f compose.yml exec web python manage.py createsu
 
 CI 构建一次，同时将待验证的 `sha-完整提交SHA` 镜像推送到 GHCR 和 ACR。AMD64、ARM64 部署验证都通过后，才更新应用的 `latest` 标签和 PostGIS 的 `17` 标签。
 
+启用 ACR 同步时，构建证明采用传统清单格式，兼容当前 ACR 仓库；双架构镜像和构建证明仍保留。
+
 ACR 目标仓库：
 
 - `registry.cn-hangzhou.aliyuncs.com/link2cloud/linkcloud-space`
