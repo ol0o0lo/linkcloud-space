@@ -23,7 +23,9 @@ cp .env.example .env
 bash deploy.sh
 ```
 
-脚本拉取应用和 PostGIS 镜像，启动数据库与 Redis，执行迁移和存储初始化，然后启动 Web、Celery Worker、单独的 Beat 和 Nginx。首次部署和后续更新使用同一条命令；更新会短暂停止应用服务，数据库和文件保存在持久卷中。
+脚本拉取应用和 PostGIS 镜像，启动数据库与 Redis，再启动 Web。Web 容器会先执行数据库迁移与存储初始化，成功后以 `exec` 启动 Gunicorn；Worker、Beat 和 Nginx 都等待 Web 健康后启动。整套部署只有这 6 个服务，迁移直接在 Web 容器内完成。
+
+首次部署和后续更新使用同一条命令；更新会短暂停止应用服务，数据库和文件保存在持久卷中。同一版本重新启动 Web 时也会检查迁移，没有待执行的迁移时会快速通过。该启动流程用于当前单个 Web 容器的部署方式。
 
 默认上传文件保存在媒体卷，由 Nginx 提供访问；迁移工作目录在 Web 与 Worker 间共享，Beat 调度状态也会保留。数据库和 Redis 不向服务器外部映射端口。
 
@@ -81,4 +83,4 @@ docker compose --env-file .env -f compose.yml ps
 docker compose --env-file .env -f compose.yml logs --tail 100 web worker beat proxy
 ```
 
-脚本不会清理持久卷。数据库迁移失败时会停止后续启动，修复错误后重新执行脚本；修改镜像版本不会自动撤销已执行的数据库迁移。
+脚本不会清理持久卷。数据库迁移失败时，Web 不会进入 Gunicorn 启动阶段，后台服务和入口服务也不会启动；查看 Web 日志修复错误后重新执行脚本。修改镜像版本不会自动撤销已执行的数据库迁移。

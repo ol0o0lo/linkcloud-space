@@ -151,8 +151,12 @@ jobs:
           Path('config/deploy/.env').write_text('\n'.join(lines) + '\n')
           PY
 
-      - name: 使用服务端脚本部署全套服务
-        run: bash config/deploy/deploy.sh
+      - name: 直接启动 Compose 验证 Web 自动迁移
+        run: |
+          compose=(docker compose --env-file config/deploy/.env -f config/deploy/compose.yml)
+          "${compose[@]}" config --quiet
+          "${compose[@]}" pull
+          "${compose[@]}" up -d --wait --wait-timeout 600
 
       - name: 检查 PostGIS、Redis、上传目录和后台服务
         run: |
@@ -203,12 +207,13 @@ jobs:
           "${compose[@]}" exec -T beat python -c "from pathlib import Path; assert Path('/var/lib/celery/deploy-ci-check.txt').read_text() == 'ready'"
           test "$(curl --fail --silent --show-error http://localhost:18080/public/media/deploy-ci-check.txt)" = ready
 
-      - name: 记录轻量部署的空载资源快照
+      - name: 确认六个服务并记录空载资源快照
         run: |
           compose=(docker compose --env-file config/deploy/.env -f config/deploy/compose.yml)
           printf 'CI CPU 核数：%s\n' "$(getconf _NPROCESSORS_ONLN)"
           docker info --format 'Docker 架构：{{.Architecture}}'
-          mapfile -t container_ids < <("${compose[@]}" ps --quiet db redis web worker beat proxy)
+          mapfile -t container_ids < <("${compose[@]}" ps --all --quiet)
+          test "${#container_ids[@]}" -eq 6
           docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.PIDs}}' "${container_ids[@]}"
           for service in web worker proxy; do
             docker top "$("${compose[@]}" ps --quiet "$service")" -eo pid,ppid,args

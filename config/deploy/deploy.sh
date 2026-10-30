@@ -24,10 +24,10 @@ printf '\n停止应用服务，准备数据库迁移……\n'
 printf '\n启动数据库和 Redis……\n'
 "${compose[@]}" up -d --wait --wait-timeout 180 db redis
 
-printf '\n执行数据库迁移与存储初始化……\n'
-"${compose[@]}" up --no-deps --abort-on-container-exit --exit-code-from migrate migrate
+printf '\n启动 Web，自动迁移数据库并等待就绪……\n'
+"${compose[@]}" up -d --wait --wait-timeout 600 web
 
-printf '\n启动应用并等待健康检查……\n'
-"${compose[@]}" up -d --wait --wait-timeout 180 web worker beat proxy
+printf '\n启动后台任务和访问入口……\n'
+"${compose[@]}" up -d --wait --wait-timeout 180 worker beat proxy
 "${compose[@]}" ps
 printf '\n部署完成。\n'
