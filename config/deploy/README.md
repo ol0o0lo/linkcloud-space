@@ -43,6 +43,31 @@ docker compose --env-file .env -f compose.yml exec web python manage.py createsu
 
 并发和数据库参数可在 `.env` 中调整。Redis 继续启用 AOF；会话、缓存和任务队列共用 Redis，因此不设置会主动淘汰任务或会话的缓存策略。
 
+## 同步发布到阿里云 ACR
+
+CI 构建一次，同时将待验证的 `sha-完整提交SHA` 镜像推送到 GHCR 和 ACR。AMD64、ARM64 部署验证都通过后，才更新应用的 `latest` 标签和 PostGIS 的 `17` 标签。
+
+ACR 目标仓库：
+
+- `registry.cn-hangzhou.aliyuncs.com/link2cloud/linkcloud-space`
+- `registry.cn-hangzhou.aliyuncs.com/link2cloud/linkcloud-space-postgis`
+
+先在 ACR 创建这两个仓库，并让 CI 使用的账号拥有推送权限。在 GitHub 仓库 **Settings → Secrets and variables → Actions → Secrets** 中配置：
+
+| Secret | 内容 |
+| --- | --- |
+| `ACR_USERNAME` | ACR 访问凭证中的登录用户名 |
+| `ACR_PASSWORD` | ACR 访问凭证中的固定密码 |
+
+未完整配置这两个 Secret 时，CI 会发出提示并仅发布到 GHCR。
+
+服务器要从 ACR 拉取镜像时，先执行 `docker login registry.cn-hangzhou.aliyuncs.com`，再将部署 `.env` 的镜像地址改为：
+
+```dotenv
+APP_IMAGE=registry.cn-hangzhou.aliyuncs.com/link2cloud/linkcloud-space:latest
+POSTGIS_IMAGE=registry.cn-hangzhou.aliyuncs.com/link2cloud/linkcloud-space-postgis:17
+```
+
 ## 更新与排查
 
 部署配置更新时，整体同步本目录并保留服务器已有的 `.env`，再执行部署脚本。
