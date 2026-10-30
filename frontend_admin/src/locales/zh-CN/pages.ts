@@ -1,8 +1,7 @@
 export default {
   'pages.layouts.userLayout.title': '链云空间后台管理',
-  'pages.login.accountLogin.tab': '账户密码登录',
-  'pages.login.accountLogin.errorMessage':
-    '账户或密码错误',
+  'pages.login.accountLogin.tab': '账号密码登录',
+  'pages.login.accountLogin.errorMessage': '账号或密码错误',
   'pages.login.failure': '登录失败，请重试',
   'pages.login.success': '登录成功',
   'pages.login.username.placeholder': '邮箱 / 手机号',
@@ -22,7 +21,7 @@ export default {
   'pages.login.forgotPassword': '忘记密码',
   'pages.login.submit': '登录',
   'pages.login.loginWith': '其他登录方式',
-  'pages.login.registerAccount': '注册账户',
+  'pages.login.registerAccount': '注册账号',
   'pages.welcome.link': '欢迎使用',
   'pages.welcome.celebrationTitle': '欢迎使用 Ant Design Pro {v6}',
   'pages.welcome.alertMessage': '更快更强的重型组件，已经发布。',

@@ -70,5 +70,5 @@ output/
 .worktrees/
 
 .superpowers/
-.codex/audits/
+.codex/
 .private/
