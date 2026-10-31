@@ -1,0 +1,14 @@
+# Optional source builds; runtime settings remain in compose.yml.
+services:
+  db:
+    build:
+      context: ../..
+      dockerfile: config/docker/Dockerfile.db
+
+  web:
+    build:
+      context: ../..
+      dockerfile: config/docker/Dockerfile.web
+      target: prod
+      args:
+        ENV_NAME: prod

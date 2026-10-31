@@ -10,6 +10,21 @@ project_slug := 'linkcloud-space'
 @create_env:
     uvx epicenv create
 
+# Build production images from the current source without starting services
+[positional-arguments]
+@build_prod env_file="config/deploy/.env":
+    bash config/deploy/production.sh build "$1"
+
+# Start production services with existing images
+[positional-arguments]
+@start_prod env_file="config/deploy/.env":
+    bash config/deploy/production.sh start "$1"
+
+# Pull published images and deploy production services
+[positional-arguments]
+@deploy env_file="config/deploy/.env":
+    bash config/deploy/production.sh deploy "$1"
+
 # Start SaaS admin frontend dev server
 @admin_dev:
     cd frontend_admin && npm run dev

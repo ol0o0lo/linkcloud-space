@@ -29,6 +29,28 @@ bash deploy.sh
 
 默认上传文件保存在媒体卷，由 Nginx 提供访问；迁移工作目录在 Web 与 Worker 间共享，Beat 调度状态也会保留。数据库和 Redis 不向服务器外部映射端口。
 
+## 在项目中使用 Just
+
+保留完整源码时，可在项目根目录使用以下命令，开发环境仍使用原来的 `just start`：
+
+```bash
+just build_prod   # 从源码构建应用、PostGIS 镜像，并补拉缺失的 Redis、Nginx 镜像
+just start_prod   # 使用已有镜像启动或恢复生产服务，不拉取镜像、不执行构建
+just deploy       # 拉取发布镜像，执行现有部署更新流程
+```
+
+首次使用前，同样需要将本目录的 `.env.example` 复制为 `.env` 并填写配置。`build_prod` 复用现有 Dockerfile 的 `prod` 阶段，包含管理端、H5 构建和静态文件收集；构建过程不会启动服务。构建后的应用镜像和数据库镜像分别使用 `.env` 中的 `APP_IMAGE`、`POSTGIS_IMAGE` 标签，随后执行 `just start_prod` 即可启动。需要使用本地标签时，可将它们分别设为 `linkcloud-space:prod`、`linkcloud-space-postgis:17`。
+
+三个命令默认使用 `config/deploy/.env`，会清除 Just 从开发 `.env` 继承的同名变量，再由 Compose 加载生产配置。也可在命令后传入其他配置文件路径，路径相对于项目根目录：
+
+```bash
+just start_prod /path/to/production.env
+```
+
+仅复制部署目录的方式继续可用，`bash deploy.sh` 仍为拉取镜像并部署，直接运行原脚本时仍可通过 `DEPLOY_ENV_FILE` 指定配置文件。
+
+## 创建管理员
+
 完成后访问 `http://服务器IP:8080/dashboard/` 或 `/h5/`。首次创建管理员：
 
 ```bash

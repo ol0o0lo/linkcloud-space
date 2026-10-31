@@ -137,6 +137,9 @@ just miniprogram_dev
 just start                 # 启动 db/redis/web/worker
 just start_with_debugpy    # 启动远程调试模式
 just start_full            # 启动 full profile（包含 docs）
+just build_prod            # 从源码构建生产镜像并准备依赖镜像
+just start_prod            # 使用已有镜像启动生产服务
+just deploy                # 拉取发布镜像并部署生产服务
 just stop                  # 停止 docker compose
 just build                 # 重建镜像并 collectstatic
 just admin_build           # 构建管理后台并收集静态文件
@@ -146,6 +149,8 @@ just test                  # 运行后端测试
 just lint                  # 运行 lint / type check / migration check
 just format                # 格式化代码
 ```
+
+生产命令默认读取 `config/deploy/.env`，首次使用先复制该目录的 `.env.example` 并填写配置。源码部署运行 `just build_prod` 后执行 `just start_prod`；镜像部署运行 `just deploy`。详细步骤见 [生产部署说明](config/deploy/README.md)。
 
 ## 测试与质量约定
 
