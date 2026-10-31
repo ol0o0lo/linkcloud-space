@@ -94,6 +94,30 @@ APP_IMAGE=registry.cn-hangzhou.aliyuncs.com/link2cloud/linkcloud-space:latest
 POSTGIS_IMAGE=registry.cn-hangzhou.aliyuncs.com/link2cloud/linkcloud-space-postgis:17
 ```
 
+## 通过 GitHub Actions 部署到宝塔
+
+宝塔站点负责 HTTPS 和反向代理，将域名转发到服务器的 `127.0.0.1:8080`。服务器需安装 Python 3、Docker Engine、支持 `--wait` 和 `config --format json` 的 Docker Compose v2，并以部署用户登录 ACR（使用有拉取权限的凭据）。部署用户必须能创建部署目录及其相邻暂存目录并操作 Docker；Docker 权限相当于服务器的高权限访问。
+
+在 GitHub 仓库创建 `production` Environment，配置以下 Secrets：
+
+| Secret | 内容 |
+| --- | --- |
+| `SSH_HOST` | 服务器 IP 或域名 |
+| `SSH_USER` | 可选，SSH 部署用户，默认 `root` |
+| `SSH_PORT` | 可选，SSH 端口，默认 `22` |
+| `SSH_PASSWORD` | SSH 部署用户的登录密码 |
+| `PRODUCTION_ENV` | 完整生产 `.env` 内容，以本目录 `.env.example` 为模板填写 |
+
+服务器 SSH 必须允许该用户使用密码登录；使用默认 `root` 用户时，还需允许 root 密码登录。CI 使用 `sshpass` 和 `SSH_PASSWORD` 认证，并在每次运行时自动获取 SSH 主机公钥。该公钥未经独立核验，无法防止首次获取时的中间人攻击。
+
+在同一 Environment 的 Variables 中配置 `DEPLOY_DIR`（例如 `/srv/linkcloud-space/deploy`）。目录必须是绝对路径，只能包含字母、数字、下划线、点、斜杠和连字符。确保生产配置中的 `COMPOSE_PROJECT_NAME`、数据库数据目录和密码保持稳定；宝塔代理到本机 8080 时配置 `HTTP_BIND=127.0.0.1`、`HTTP_PORT=8080`、`SITE_SCHEME=https`，并填写真实域名及 `CSRF_TRUSTED_ORIGINS`。
+
+`main` 的“构建、验证并发布容器镜像”成功后自动触发部署。该构建必须配置 ACR 推送凭据，否则服务器拉不到 ACR 镜像。部署使用同一提交的部署文件和两个 SHA 镜像；如果检查时 `main` 已有更新提交，自动部署会跳过旧版本。也可在 Actions 手动运行“部署到宝塔服务器”，选择 `main` 并填写成功的镜像流水线运行 ID，以部署指定版本。
+
+CI 先上传到目标目录旁的受限暂存目录，检查 Compose 项目、数据挂载、数据库凭据和入口端口。未发现目标部署、冲突项目、持久卷或已有数据库数据时按首次部署处理；已有完整的本项目部署且关键配置一致时按更新处理。发现其他链云空间容器、不完整目录、冲突数据或配置不一致时停止，由人工核对；检测不能发现服务器上所有其他部署方式。检查通过并预拉取镜像后才覆盖目标目录文件，再执行部署脚本。公网健康检查暂时模拟通过，无法验证 HTTPS 入口；容器健康检查仍会执行。暂存目录权限仅限部署用户，成功或失败后都保留，请按服务器的安全维护流程处理。
+
+部署目录及配置文件由 CI 管理，每次部署都会覆盖其中的 `.env`、`compose.yml`、`deploy.sh` 和 `nginx.conf.template`；不要在服务器上手动修改这些文件。配置调整应更新 GitHub Environment Secret。应用镜像包含管理端和 H5，不包含微信小程序发布。流水线不会删除持久数据，但现有脚本会短暂停止应用，并在 Web 启动时执行数据库迁移。回滚可选择先前成功的镜像流水线运行 ID；镜像回退不会撤销数据库迁移。部署失败时检查 Actions 输出和服务器日志，确认服务器上实际运行的版本后再操作。
+
 ## 更新与排查
 
 部署配置更新时，整体同步本目录并保留服务器已有的 `.env`，再执行部署脚本。

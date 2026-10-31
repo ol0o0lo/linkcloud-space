@@ -1,0 +1,124 @@
+name: 部署到宝塔服务器
+
+on:
+  workflow_run:
+    workflows: ["构建、验证并发布容器镜像"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_run_id:
+        description: 已成功的“构建、验证并发布容器镜像”运行 ID
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: bt-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 部署生产环境
+    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      IMAGE_RUN_ID: ${{ github.event.workflow_run.id || inputs.image_run_id }}
+      DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+      DEPLOY_HOST: ${{ secrets.SSH_HOST }}
+      DEPLOY_USER: ${{ secrets.SSH_USER || 'root' }}
+      DEPLOY_PORT: ${{ secrets.SSH_PORT || '22' }}
+
+    steps:
+      - name: 确认镜像流水线已成功
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_RUN_ID" =~ ^[0-9]+$ ]] || { echo '流水线运行 ID 必须是数字。' >&2; exit 1; }
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$IMAGE_RUN_ID")
+          jq -e '.path == ".github/workflows/docker.yml" and .event == "push" and .head_branch == "main" and .status == "completed" and .conclusion == "success"' <<< "$run" > /dev/null
+          sha=$(jq -r '.head_sha' <<< "$run")
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: 获取对应版本的部署文件
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.version.outputs.sha }}
+          path: release
+          persist-credentials: false
+
+      - name: 获取当前部署检查脚本
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+
+      - name: 准备连接和生产配置
+        shell: bash
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+          IMAGE_SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_DIR" =~ ^/[a-zA-Z0-9_./-]+$ && "$DEPLOY_DIR" != *..* && "$DEPLOY_DIR" != */ ]] || { echo 'DEPLOY_DIR 必须是安全且不以斜杠结尾的绝对路径。' >&2; exit 1; }
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ && "$DEPLOY_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ && "$DEPLOY_PORT" =~ ^[0-9]+$ ]] || { echo 'SSH 连接配置无效。' >&2; exit 1; }
+          [[ -n "$SSH_PASSWORD" && -n "$PRODUCTION_ENV" ]] || { echo '缺少 SSH 密码或生产环境配置。' >&2; exit 1; }
+          umask 077
+          mkdir -p "$RUNNER_TEMP/bt-ssh" "$RUNNER_TEMP/bt-deploy"
+          ssh-keyscan -T 10 -p "$DEPLOY_PORT" "$DEPLOY_HOST" > "$RUNNER_TEMP/bt-ssh/known_hosts"
+          [[ -s "$RUNNER_TEMP/bt-ssh/known_hosts" ]] || { echo '无法获取服务器 SSH 主机公钥。' >&2; exit 1; }
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          repository = os.environ['GITHUB_REPOSITORY'].split('/')[-1].lower()
+          image = f'registry.cn-hangzhou.aliyuncs.com/link2cloud/{repository}'
+          sha = os.environ['IMAGE_SHA']
+          lines = [line for line in os.environ['PRODUCTION_ENV'].splitlines()
+                   if not re.match(r'^\s*(?:export\s+)?(?:APP_IMAGE|POSTGIS_IMAGE)\s*=', line)]
+          lines.extend((f'APP_IMAGE={image}:sha-{sha}', f'POSTGIS_IMAGE={image}-postgis:sha-{sha}'))
+          Path(os.environ['RUNNER_TEMP'], 'bt-deploy', '.env').write_text('\n'.join(lines) + '\n')
+          PY
+          cp release/config/deploy/compose.yml release/config/deploy/deploy.sh release/config/deploy/nginx.conf.template "$RUNNER_TEMP/bt-deploy/"
+          cp control/config/deploy/ci-deploy.py "$RUNNER_TEMP/bt-deploy/"
+
+      - name: 安装 SSH 密码认证工具
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: 上传文件并部署指定镜像
+        id: upload
+        shell: bash
+        env:
+          IMAGE_SHA: ${{ steps.version.outputs.sha }}
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ssh_options=(-p "$DEPLOY_PORT" -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$RUNNER_TEMP/bt-ssh/known_hosts")
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+            main_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+            [[ "$IMAGE_SHA" == "$main_sha" ]] || { echo 'main 已有更新提交，跳过旧版本的自动部署。'; echo 'skipped=true' >> "$GITHUB_OUTPUT"; exit 0; }
+          fi
+          stage="${DEPLOY_DIR}.bt-stage-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          parent="${DEPLOY_DIR%/*}"
+          [[ -n "$parent" ]] || parent=/
+          tar -C "$RUNNER_TEMP/bt-deploy" -cf - .env compose.yml deploy.sh nginx.conf.template ci-deploy.py |
+            sshpass -e ssh "${ssh_options[@]}" "$target" "umask 077; mkdir -p '$parent'; mkdir '$stage'; tar -C '$stage' -xf -"
+          sshpass -e ssh "${ssh_options[@]}" "$target" "env -i PATH=\"\$PATH\" HOME=\"\$HOME\" python3 '$stage/ci-deploy.py' '$stage' '$DEPLOY_DIR'"
+
+      - name: 模拟公网健康检查
+        if: steps.upload.outputs.skipped != 'true'
+        shell: bash
+        run: |
+          echo '暂时模拟通过：未检查公网 HTTPS 入口。'
