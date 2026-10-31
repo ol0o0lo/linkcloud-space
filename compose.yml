@@ -7,7 +7,7 @@ services:
     image: postgis/postgis:17-3.6-alpine
     init: true
     volumes:
-      - postgres_data:/var/lib/postgresql/data/
+      - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data/
     ports:
       - "127.0.0.1:5432:5432"
     env_file:
